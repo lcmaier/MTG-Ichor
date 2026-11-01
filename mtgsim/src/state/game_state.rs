@@ -2083,7 +2083,7 @@ impl GameState {
         zone: Zone,
         arrived_on: u32,
     ) {
-        use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
+        use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin};
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::Duration;
 
@@ -2147,7 +2147,7 @@ impl GameState {
             // the battlefield the zone leg's map keeps the printed def, so it can
             // ask whether it could apply before reading a frame. The two sets below
             // stay battlefield-only, as their sweeps are.
-            if let Some(def) = ability.effect.replacement_body() {
+            for (_, def) in ability.effect.replacements() {
                 let kinds = def.action_kinds_in_place();
                 if kinds.is_empty() {
                     // Its own entry only: source 1a reads it off the object as it
@@ -2163,7 +2163,7 @@ impl GameState {
             // restriction ability generates no continuous effect either; what it
             // needs is for `engine::restriction::is_prohibited` to know this
             // permanent is worth asking about.
-            if zone == Zone::Battlefield && ability.effect.as_restriction().is_some() {
+            if zone == Zone::Battlefield && ability.effect.restrictions().next().is_some() {
                 self.restriction_ability_sources.insert(id);
             }
 
@@ -2171,12 +2171,12 @@ impl GameState {
             // effect off the effective list, through "as long as" too. Battlefield
             // only, by the gate above: a spell's own cost ability functions on the
             // stack (CR 113.6d).
-            if zone == Zone::Battlefield && ability.effect.as_cost_modification().is_some() {
+            if zone == Zone::Battlefield && ability.effect.cost_modifications().next().is_some() {
                 self.cost_modification_ability_sources.insert(id);
             }
 
             // CR 603.2d — and the count's, for the same reasons.
-            if zone == Zone::Battlefield && ability.effect.as_trigger_multiplier().is_some() {
+            if zone == Zone::Battlefield && ability.effect.trigger_multipliers().next().is_some() {
                 self.trigger_multiplier_sources.insert(id);
             }
 
@@ -2188,7 +2188,7 @@ impl GameState {
                 continue;
             }
 
-            for (affected, rows) in Self::static_ability_rows(ability, card_name) {
+            for (clause, affected, rows) in Self::static_ability_rows(ability, card_name) {
                 // One timestamp for every row this atom generates: CR 613.6 makes them
                 // parts of one effect, and CR 613.7a fixes the value. `None` because a
                 // printed ability has no "effect that created" it; the clause-2 caller is
@@ -2197,9 +2197,9 @@ impl GameState {
 
                 for (layer, modification) in rows {
                     let effect = ContinuousEffect {
-                        id: 0, // assigned by registry
+                        id: EffectId::UNASSIGNED,
                         source: id,
-                        origin: EffectOrigin::StaticAbility { ability: ability.id },
+                        origin: EffectOrigin::StaticAbility { ability: ability.id, clause },
                         layer,
                         duration: Duration::WhileSourceOnBattlefield,
                         controller,
@@ -2253,7 +2253,7 @@ impl GameState {
         copy_timestamp: crate::engine::layers::types::Timestamp,
         duration: crate::types::effects::Duration,
     ) {
-        use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
+        use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin};
 
         for &id in affected {
             // Skipped rather than asserted: `apply_copy` filtered to the
@@ -2279,7 +2279,7 @@ impl GameState {
 
             for ability in values.registrable_static_abilities() {
                 let label = format!("copied ability {:?} on {}", ability.id, values.name);
-                for (affected_set, rows) in Self::static_ability_rows(ability, &label) {
+                for (clause, affected_set, rows) in Self::static_ability_rows(ability, &label) {
                     // CR 613.7a clause 2 — the copy effect is "the effect that created the
                     // ability", so its timestamp is the second candidate
                     // (`static_effect_timestamp`).
@@ -2289,9 +2289,9 @@ impl GameState {
                     for (layer, modification) in rows {
                         self.keep_frames_before_the_first_control_row(layer);
                         self.continuous_effects.add(ContinuousEffect {
-                            id: 0,
+                            id: EffectId::UNASSIGNED,
                             source: id,
-                            origin: EffectOrigin::StaticAbility { ability: ability.id },
+                            origin: EffectOrigin::StaticAbility { ability: ability.id, clause },
                             layer,
                             duration,
                             controller,
@@ -2322,11 +2322,12 @@ impl GameState {
         ability: &crate::objects::card_data::AbilityDef,
         label: &str,
     ) -> Vec<(
+        crate::engine::layers::types::RowClause,
         crate::engine::layers::types::ObjectSet,
         Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)>,
     )> {
         let mut lowered = Vec::new();
-        for (primitive, recipient) in Self::static_ability_atoms(ability, label) {
+        for (clause, primitive, recipient) in Self::static_ability_atoms(ability, label) {
             let Some(affected) = Self::static_object_set(recipient, label) else {
                 continue;
             };
@@ -2343,13 +2344,14 @@ impl GameState {
                 );
                 continue;
             }
-            lowered.push((affected, rows));
+            lowered.push((clause, affected, rows));
         }
         lowered
     }
 
-    /// Lower a static ability's body into the `(primitive, recipient)` atoms
-    /// that become registry rows.
+    /// Lower a static ability's body into the `(clause, primitive,
+    /// recipient)` atoms that become registry rows, each with the CR 604.2
+    /// "as long as" it exists under.
     ///
     /// "Lowering" is the one-way translation from the authored `Effect` tree
     /// to the `ContinuousEffect`s the layer walk applies, in the compiler's
@@ -2372,100 +2374,102 @@ impl GameState {
     pub(crate) fn static_ability_atoms<'a>(
         ability: &'a crate::objects::card_data::AbilityDef,
         label: &str,
-    ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
-        // CR 113.6b's statement wraps the whole body, the rows are the body's,
-        // and CR 604.2's existence check asks the statement at each layer. Only
-        // at the root: one anywhere else is loud below.
-        let body = match &ability.effect {
-            Effect::FunctionsIn(_, body) => body,
-            body => body,
-        };
-        Self::atoms_of_static_body(body, label)
+    ) -> Vec<(
+        crate::engine::layers::types::RowClause,
+        &'a crate::types::effects::Primitive,
+        &'a crate::types::effects::EffectRecipient,
+    )> {
+        use crate::engine::layers::types::RowClause;
+
+        // CR 113.6b's statement and an "as long as" around the whole body
+        // are the ability's, and CR 604.2's existence check asks both at each
+        // layer. Only at the root: one anywhere else is loud below.
+        let (ability_condition, body) = ability.effect.with_its_condition();
+        let mut atoms = Vec::new();
+        match body {
+            // CR 113.2c — one paragraph, one ability, effects of several
+            // kinds: the layer changes are this list's, and each other member
+            // is its own reader's (`Effect::static_members`). A member may
+            // carry an "as long as" of its own when none is around the list,
+            // since a member exists under one clause.
+            Effect::Sequence(members) => {
+                for (place, member) in (0u8..).zip(members) {
+                    match member {
+                        Effect::Conditional(_, member) if ability_condition.is_none() => {
+                            Self::lower_static_member(member, RowClause::Member(place), label, &mut atoms);
+                        }
+                        member => Self::lower_static_member(member, RowClause::Ability, label, &mut atoms),
+                    }
+                }
+            }
+            // CR 603 — a triggered ability is the whole of its ability, and
+            // the dispatcher reads it off the effective list.
+            Effect::Triggered(_) => {}
+            body => Self::lower_static_member(body, RowClause::Ability, label, &mut atoms),
+        }
+        atoms
     }
 
-    /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
-    /// *body* rather than an ability, so `Effect::Conditional` can lower what
-    /// it wraps through the very same arms — including the loud ones.
-    ///
-    /// The public entry above stays an *ability* function because that is
-    /// what its twelve callers hold and what its name promises; only the
-    /// recursion needs an `Effect`. Collapsing the two would push
-    /// `&ability.effect` into every call site to save one line here.
-    fn atoms_of_static_body<'a>(
-        body: &'a crate::types::effects::Effect,
+    /// One member of a static body, lowered under `clause`: a layer change's
+    /// atoms, or nothing for a member another reader takes.
+    fn lower_static_member<'a>(
+        member: &'a Effect,
+        clause: crate::engine::layers::types::RowClause,
         label: &str,
-    ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
-        use crate::types::effects::Effect;
+        atoms: &mut Vec<(
+            crate::engine::layers::types::RowClause,
+            &'a crate::types::effects::Primitive,
+            &'a crate::types::effects::EffectRecipient,
+        )>,
+    ) {
+        match member {
+            Effect::Atom(p, r) => atoms.push((clause, p, r)),
 
-        match body {
-            Effect::Atom(p, r) => vec![(p, r)],
+            // One sentence's changes to one recipient ("gets +2/+2 and has
+            // trample"): one effect, under one clause.
+            Effect::Sequence(chain) if chain.iter().all(|link| matches!(link, Effect::Atom(..))) => {
+                atoms.extend(chain.iter().filter_map(|link| match link {
+                    Effect::Atom(p, r) => Some((clause, p, r)),
+                    _ => None,
+                }));
+            }
 
             // CR 614.1a — a replacement effect generates no continuous effect and no
             // layer rows; `engine::replacement::gather` reads it off the *effective*
             // ability list at each proposal. A row here would be one ability applying
             // through two channels, the CDA mistake in a second costume.
-            Effect::Replacement(_) => Vec::new(),
+            Effect::Replacement(_) => {}
 
             // CR 101.2 — the same, for the same reason. `engine::restriction::is_prohibited`
             // reads a "can't" off the effective list when the question is asked, which
             // is what lets Humility strip it.
-            Effect::Restriction(_) => Vec::new(),
+            Effect::Restriction(_) => {}
 
             // CR 601.2f / 613.11 — the third of the same shape. A cost effect
             // has no layer and applies to no object, so it generates no row;
             // `engine::cost_determination::cost_modifications_for` reads it off this object's
             // *effective* ability list when a cost is determined.
-            Effect::CostModification(_) => Vec::new(),
+            Effect::CostModification(_) => {}
             // CR 603.2d — the same again: a multiplier applies to how many
             // times an ability triggers, which the dispatch reads off this
             // object's effective ability list as it queues.
-            Effect::TriggerMultiplier(_) => Vec::new(),
-            // CR 603 — the fourth static shape with no rows; the dispatcher
-            // reads it off the effective list.
-            Effect::Triggered(_) => Vec::new(),
+            Effect::TriggerMultiplier(_) => {}
 
-            Effect::Sequence(effects) => {
-                let mut atoms = Vec::with_capacity(effects.len());
-                for effect in effects {
-                    match effect {
-                        Effect::Atom(p, r) => atoms.push((p, r)),
-                        _ => debug_assert!(
-                            false,
-                            "static ability on {} has a non-atomic entry inside \
-                             its `Effect::Sequence`. Only `Effect::Atom` lowers \
-                             to a continuous effect, so that entry registers \
-                             nothing while its siblings register normally — a \
-                             half-working card, which is worse than one that \
-                             does nothing at all.",
-                            label
-                        ),
-                    }
-                }
-                atoms
-            }
-
-            // "As long as [X], [Y]": the rows are [Y]'s, registered unconditionally;
-            // [X] stays on the ability, where CR 604.2's existence check evaluates it
-            // against the live board at the row's layer (`layers-architecture.md` §13b
-            // decision 5). A card whose condition is false as it enters still registers
-            // its rows, the only reading that survives a condition changing with no zone
-            // change to notice.
-            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, label),
-
-            _ => {
-                debug_assert!(
-                    false,
-                    "static ability on {} has a body the lowering cannot \
-                     express: `Optional`, `Modal`, `ForEach` and `Repeat` are \
-                     all resolution-time shapes, and a static ability is \
-                     declarative — it does not resolve, so there is no moment \
-                     at which a mode is chosen or a loop runs. If the card \
-                     really reads this way, it wants a triggered or activated \
-                     ability instead.",
-                    label
-                );
-                Vec::new()
-            }
+            _ => debug_assert!(
+                false,
+                "static ability on {} has a member the lowering cannot \
+                 express and no reader takes: an \"as long as\" of its own \
+                 inside one around the whole list, an \"as long as\" or a \
+                 CR 113.6b statement anywhere but the root or a member, or \
+                 a resolution-time shape (`Optional`, `Modal`, `ForEach`, \
+                 `Repeat`). A static ability is declarative — it does not \
+                 resolve, so no mode is chosen and no loop runs; a card that \
+                 reads this way wants a triggered or activated ability. The \
+                 member registers nothing while its siblings register \
+                 normally — a half-working card, which is worse than one \
+                 that does nothing at all.",
+                label
+            ),
         }
     }
 
@@ -2811,12 +2815,55 @@ mod tests {
         /// half-works.
         #[cfg(debug_assertions)]
         #[test]
-        #[should_panic(expected = "non-atomic entry")]
+        #[should_panic(expected = "no reader takes")]
         fn test_non_atom_inside_a_sequence_is_loud() {
             let ability = textless_static(Effect::Sequence(vec![
                 anthem_atom(),
                 Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) },
             ]));
+            let _ = GameState::static_ability_atoms(&ability, "Test Card");
+        }
+
+        /// Not a declining arm: a layer change with an "as long as" of its
+        /// own in a list lowers under that member's clause, and the rest
+        /// under the ability's; a chain under its own clause lowers each
+        /// link under it.
+        #[test]
+        fn test_a_layer_change_with_its_own_condition_inside_a_list_lowers_under_it() {
+            use crate::engine::layers::types::RowClause;
+            let condition = crate::types::effects::Condition::Player {
+                players: crate::types::effects::PlayerSet::You,
+                fact: crate::types::effects::PlayerFact::HandEmpty,
+            };
+            let ability = textless_static(Effect::Sequence(vec![
+                anthem_atom(),
+                Effect::Conditional(condition.clone(), Box::new(anthem_atom())),
+                Effect::Conditional(condition, Box::new(Effect::Sequence(vec![anthem_atom(), anthem_atom()]))),
+            ]));
+            let clauses: Vec<RowClause> = GameState::static_ability_atoms(&ability, "Test Card").into_iter().map(|(clause, ..)| clause).collect();
+            assert_eq!(clauses, [RowClause::Ability, RowClause::Member(1), RowClause::Member(2), RowClause::Member(2)]);
+        }
+
+        /// One "as long as" per member: its own or the list's, never both.
+        #[cfg(debug_assertions)]
+        #[test]
+        #[should_panic(expected = "no reader takes")]
+        fn test_a_member_with_its_own_condition_inside_one_around_the_list_is_loud() {
+            let condition = crate::types::effects::Condition::Player {
+                players: crate::types::effects::PlayerSet::You,
+                fact: crate::types::effects::PlayerFact::HandEmpty,
+            };
+            let cant = Effect::Restriction(Box::new(crate::types::restriction::RestrictionDef::new(
+                crate::types::restriction::Restriction::Event {
+                    pattern: crate::types::replacement::EventPattern::GainLife,
+                    affected: crate::types::effects::AffectedSet::players(crate::types::effects::PlayerSet::You),
+                    by: None,
+                },
+            )));
+            let ability = textless_static(Effect::Conditional(
+                condition.clone(),
+                Box::new(Effect::Sequence(vec![anthem_atom(), Effect::Conditional(condition, Box::new(cant))])),
+            ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }
 

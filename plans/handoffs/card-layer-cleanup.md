@@ -1,11 +1,13 @@
 # Handoff — `card-layer-cleanup`, the design note
 
-**Resume here: PR 1 of the split, `card-ability-words`, is built on
-`cards/card-layer-cleanup` (#301). Next is PR 2, `card-instruction-words`**:
-decision 1's verbs, recipients and duration suffixes over the 238 card-file
-instructions, decision 3b, the registry rows' `RowId::UNASSIGNED`, which
-moved here from PR 1, and one static ability with several kinds of effect,
-folded in at #301's review ("The split").
+**Resume here: PRs 1 and 2 of the split are built: `card-ability-words`
+(#301) and `card-instruction-words` (`cards/card-instruction-words`). Next
+is PR 3, `cards-by-first-printing`**: decisions 4, 5 and 7, the move into
+per-set files, `cards::fixtures` and `cards::tokens`, and the decklist with
+its readers ("The split"). PR 2 built decision 1's verbs, recipients and
+duration suffixes, decision 3b's `RowId::UNASSIGNED` (closing item 7d), and
+one static ability with several kinds of effect, read by every reader of a
+static body, with Platinum Angel as one ability.
 
 **Opened 2026-10-31** on `cards/card-layer-cleanup`, off `main` at
 `f7fa8a4e` (#300's merge). `card-layer-cleanup` is step 3 of
@@ -99,7 +101,7 @@ already slotted beside the phase.
 | # | PR | What | Size, code plus tests (larger side) | Session |
 |---|---|---|---|---|
 | 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
-| 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | about −1,500 / +1,100, plus an estimated 300–500 for the readers | one |
+| 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | built (#302): +2,269 / −2,042, the words +1,335 / −1,630, the row id +178 / −94, the readers +488 / −183, the review round +391 / −315 with main item 359 | one |
 | 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
 | 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
@@ -132,6 +134,26 @@ long as"; the gather's carrier filter learns the list; the layer lowering
 takes the atoms and leaves the other kinds to their readers; Platinum Angel
 becomes one ability. About 30 call sites. The gather is hot, so the
 close-out's callgrind arm reads it.
+
+**PR 2 as built** (2026-10-31). The words differ from decision 1's sketch
+where a card asked for less: two durations (`.until_end_of_turn()`,
+`.until_end_of_game()`) beside a static ability's bare form, and six
+continuations (`.and_gets`, `.and_gains_keyword`, `.and_loses_all_abilities`,
+`.and_has_base_power_and_toughness`, `.and_becomes_color`,
+`.and_becomes_types`), each with its card; "creatures you control" is
+`each(creatures_you_control())`; a replacement effect or "can't" a
+resolution creates is a `ContinuousRuleChange`, which no chain and no static
+ability takes. No "and" word writes a mixed list: Platinum Angel's two
+"can't"s share no recipient or duration for one to carry, the rule for
+joining one-shots above, and what its card file lacks is a static "can't"
+word, put to the owner with filter words at the review (2026-11-01). A
+layer change under its own "as long as" in a list exists under it
+(`codebase-state.md` main item 359, built at the review). The review
+renamed words for what they do (`create_tokens`, `gains_keyword`,
+`triggering_object`, `take_an_extra_turn_after_this_one`,
+`deal_damage_unpreventable`, `ContinuousChange`) and gave `exile_until`
+CR 610.3c's `under`. The fingerprints were rewritten once, for Platinum
+Angel; what the pin owes is item 358's.
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,

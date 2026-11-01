@@ -4361,18 +4361,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 7c.
 
-7d. **`ContinuousEffect { id: 0 }` as "unassigned" — code smell, 16 sites (recounted 2026-08-24).** `ContinuousEffectRegistry::add` overwrites the field, so every construction site carries a meaningless value. The fix is a `ContinuousEffectDraft` that `add()` consumes, which changes `add`'s signature and every site — its own small refactor.
-
-    **Reachability (2026-09-03):** reachable — not wrong; a smell, and it grew:
-    26 sites now (16 at the 2026-08-24 recount).
-
-    **Sized:** `ContinuousEffectDraft` consumed by `add`, the
-    struct plus ~26 mechanical sites, ~100 lines; a quiet PR of its own, pairing
-    with main item 64's rename.
-    **Slotted:** `card-layer-cleanup`, which takes the `ContinuousEffectDraft`
-    refactor before the decks grow its literals (44 on `50c459d4`), since every
-    card writes them (`route-review`, 2026-10-29); it was the audit's
-    `names-and-hygiene-sweeps`.
+7d. **`ContinuousEffect { id: 0 }` as "unassigned" — ✅ done (2026-10-31, `card-instruction-words`).** —
+    archived.
+    **Reachability (2026-10-31):** closed — 2026-10-31.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
+    613) — now DURING Layers" item 7d.
 
 7f. **Conditional static abilities — ✅ done (2026-09-06, LI-3).** `Effect::Conditional` lowers to its inner atom's rows, registered unconditionally, and the condition stays on the ability where CR 604.2's existence check already looks: `board::static_ability_still_exists` evaluates it against the pass's *live* board at the row's layer, so a condition reading types sees layer 4 applied. No field on `ContinuousEffect` and no second registry (`layers-architecture.md` §13b decision 5). `engine/layers/condition.rs` is the evaluator; `Condition` gained one leaf, `HostMatches(ObjectFilter)`, for "as long as enchanted permanent is …". **Kird Ape** is the consumer and is in `PERFORMANCE_POOL`. The historical note below is the reason the answer had to be an existence check rather than a gate, and it is kept.
 
@@ -4504,11 +4497,14 @@ The layer system's designated single-point change site is `oracle/characteristic
     CR 613.8 application — a static whose atoms have different recipients
     would share them.** `Board::started` (CR 613.6) and `board::Kind::Effect`
     (CR 613.8's unit of ordering, LI-2) both key on
-    `EffectGroup::StaticAbility(source, ability)`, so an ability authored as
-    one `Sequence` over two filters — "creatures you control get +1/+1 and
-    creatures you don't control get -1/-1" as one `AbilityDef` — is one
-    effect, one bundle and one locked set, and its second atom would apply to
-    the first's set. The CR reads such text as two effects.
+    `EffectGroup::StaticAbility(source, ability, clause)`, so an ability
+    authored as one `Sequence` over two filters — "creatures you control get
+    +1/+1 and creatures you don't control get -1/-1" as one `AbilityDef` — is
+    one effect, one bundle and one locked set, and its second atom would apply
+    to the first's set. The CR reads such text as two effects. The clause
+    joined the key with item 359 (2026-11-01), which split a member under its
+    own "as long as" into an effect of its own; two members under one clause
+    still share it.
 
     **Reachability (2026-10-23):** unreachable — no registered static ability
     has atoms with different recipients (item 184's read of all 215,
@@ -4517,11 +4513,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     gives the CR's answer today, and the loud lowering (item 12) does not
     catch this one because both atoms lower fine.
 
-    **Sized:** `EffectGroup::StaticAbility` gains the atom's index in the
-    ability (~30 lines: `ContinuousEffect::group`, the two static
-    registrations, `would_be_rows`, `register_copied_static_effects`), or
-    the lowering splits a multi-recipient `Sequence` into one group per
-    recipient; with the first card that needs it.
+    **Sized:** `RowClause` gains a recipient's place, or a field beside it
+    (~30 lines: `ContinuousEffect::group` and the lowering, which every
+    route already reads its clause from), or the lowering splits a
+    multi-recipient `Sequence` into one group per recipient; with the first
+    card that needs it.
     **Slotted:** `layers-combat-and-counters` builds it (the
     card-homed triage, 2026-10-23): beside item 184,
     `EffectGroup::StaticAbility` keyed by the atom too, so one static ability
@@ -4915,8 +4911,12 @@ damage is divided only among the attackers it blocks.
     **The abilities landed in its first PR (2026-10-31):** every
     `AbilityDef` outside `objects::card_data` is built by a word in
     `cards/authoring/abilities.rs` or by `AbilityDef::new`, and the private
-    copies are gone. The instructions and the move are its next two PRs
-    (`plans/handoffs/card-layer-cleanup.md`, "The split").
+    copies are gone. **The instructions landed in its second (2026-10-31):**
+    every card file's instruction is a verb in `cards/authoring/instructions.rs`
+    on a recipient in `recipients.rs`, a continuous change stating its
+    duration as a suffix, and four files' private recipient words are the
+    shared ones. The move is its third PR (`plans/handoffs/card-layer-cleanup.md`,
+    "The split").
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
 
@@ -10447,9 +10447,34 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      reshape. Both go together: once the file goes, the `Debug` is derived
      again, and prints the kind as it now is.
      **Reachability (2026-10-31):** nothing owed in a game — test
-     scaffolding; every fingerprint matches.
+     scaffolding; every fingerprint matches. The file was rewritten once, at
+     PR 2, for Platinum Angel alone, which became the one ability its
+     paragraph is.
+     **Owed when the file goes**, spellings the pin held to the base's
+     values: Crimson Wisps' and Call to Serve's chains follow their text's
+     order ("becomes red and gains haste", "gets +1/+2 and is an Angel"); a
+     row complete as authored has one word, where today it is
+     `create_replacement(def)` beside `create_replacement_for(you(), def)`,
+     and Skullcrack's `cant(you(), …)` names a recipient its resolution
+     reads as none; and "in addition to its other types" has one
+     constructor, where today it is two private helpers beside
+     `..TypeChange::NONE`.
      **Sized:** ~200 lines out (the test and its file) and ~20 back to a
-     derive.
+     derive; the owed spellings ~60 more, each a fingerprint that moves.
      **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
      close-out (the move, PR 3 of its design note's split).
+
+### Found by `card-layer-cleanup`'s second PR (2026-10-31)
+
+359. **~~A layer change with its own "as long as" inside one ability's list
+     is refused.~~ — ✅ CLOSED 2026-11-01 (PR #302,
+     `card-instruction-words`, at its review).** — archived. A layer row
+     names the CR 604.2 clause it exists under (`RowClause`: the
+     ability's, or a member's own at its place in the list), which the
+     existence check, the dependency reads and the entering object's feeds
+     check ask, and `EffectGroup` is keyed by it, so CR 613.6's lock stays
+     inside one clause. Item 16's other half, two recipients under one
+     clause, is still one group.
+     **Reachability (2026-11-01):** closed — PR #302.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 359".
 

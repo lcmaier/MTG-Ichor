@@ -20,8 +20,8 @@ use crate::types::effects::{
     SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
-use crate::state::replacement_effects::RegisteredReplacementEffect;
-use crate::state::restrictions::RegisteredRestriction;
+use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
+use crate::state::restrictions::{RegisteredRestriction, RestrictionId};
 use crate::types::restriction::RestrictionDef;
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::effects::{AffectedSet, EntersAttacking, ExtraPhasesAfter};
@@ -1275,7 +1275,7 @@ impl GameState {
                     .regeneration()
                     .with_then(crate::types::replacement::regeneration_rider());
                     self.replacement_effects.add(RegisteredReplacementEffect {
-                        id: 0,
+                        id: ReplacementEffectId::UNASSIGNED,
                         source: ctx.effect_source(),
                         controller,
                         generated_by: ctx.generated_by,
@@ -1426,7 +1426,7 @@ impl GameState {
                 let recorded = self.target_refs(targets);
                 for row in rows {
                     self.replacement_effects.add(RegisteredReplacementEffect {
-                        id: 0,
+                        id: ReplacementEffectId::UNASSIGNED,
                         source,
                         controller: ctx.controller,
                         generated_by: ctx.generated_by,
@@ -1483,7 +1483,7 @@ impl GameState {
                 }
                 for def in rows {
                     self.restrictions.add(RegisteredRestriction {
-                        id: 0,
+                        id: RestrictionId::UNASSIGNED,
                         source: ctx.effect_source(),
                         controller: ctx.controller,
                         duration: *duration,
@@ -1845,7 +1845,7 @@ impl GameState {
         // own resolution did first.
         self.keep_frames_before_control_change(layer == Layer::Layer2Control);
         self.continuous_effects.add(ContinuousEffect {
-            id: 0,
+            id: EffectId::UNASSIGNED,
             source: ctx.effect_source(),
             origin: EffectOrigin::Resolution,
             layer,
@@ -1912,7 +1912,7 @@ impl GameState {
         // get +1/+1" must produce the row a printed one does. Assertions included —
         // a grant that lowers to nothing is exactly as inert and as invisible.
         let label = format!("granted ability {:?}", granted.id);
-        for (affected, rows) in GameState::static_ability_rows(granted, &label) {
+        for (clause, affected, rows) in GameState::static_ability_rows(granted, &label) {
             let timestamp =
                 self.static_effect_timestamp(grantee, granted, Some(granting_timestamp));
 
@@ -1936,9 +1936,9 @@ impl GameState {
                 );
 
                 self.continuous_effects.add(ContinuousEffect {
-                    id: 0,
+                    id: EffectId::UNASSIGNED,
                     source: grantee,
-                    origin: EffectOrigin::StaticAbility { ability: granted.id.granted_by(row) },
+                    origin: EffectOrigin::StaticAbility { ability: granted.id.granted_by(row), clause },
                     layer,
                     duration,
                     controller,

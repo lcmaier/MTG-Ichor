@@ -52,9 +52,10 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     // CR 113.6d — what *that particular object* costs functions on the stack,
     // which is `CostSubject`'s split: affinity is `Itself`, Thalia's "creature
     // spells cost {1} more" is `Spells(_)` on the battlefield. Through "as long
-    // as", which `as_cost_modification` sees past.
-    if let Some((_, def)) = ability.effect.as_cost_modification() {
-        if def.applies_to.applies_to_its_own_object() {
+    // as", which `cost_modifications` sees past.
+    let mut cost_effects = ability.effect.cost_modifications().peekable();
+    if cost_effects.peek().is_some() {
+        if cost_effects.any(|(_, def)| def.applies_to.applies_to_its_own_object()) {
             return ZoneSet::STACK;
         }
         return default_zones(types);

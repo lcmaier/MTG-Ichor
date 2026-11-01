@@ -1579,24 +1579,26 @@ impl GameState {
         let referents = multiplier.referents(None);
         let mut additional = 0;
         for ability in chars.abilities.iter() {
-            let Some((condition, def)) = ability.effect.as_trigger_multiplier() else { continue };
-            if !functions_as_static(ability, &chars.types, Zone::Battlefield) {
+            let mut multipliers = ability.effect.trigger_multipliers().peekable();
+            if multipliers.peek().is_none() || !functions_as_static(ability, &chars.types, Zone::Battlefield) {
                 continue;
             }
-            let as_long_as = ConditionReferents { source_lki: multiplier.frame.lki(), triggering_event: TriggeringEventView::None };
-            if condition.is_some_and(|condition| !settled_holds(condition, self, multiplier.object.id, Some(multiplier.controller), as_long_as)) {
-                continue;
-            }
-            if !self.object_matches_filter(source.frame.information(source.object.id), &def.abilities_of, &mut { referents }) {
-                continue;
-            }
-            let caused = matched.triggering_events.iter().any(|event| {
-                let looks_back_through = LookBackSnapshot::for_record(snapshots, event.record.seq.0);
-                multiplier.frame.on_the_board_read_by(arm, looks_back_through, newcomer)
-                    && def.caused_by.as_ref().is_none_or(|caused_by| self.is_caused_by(caused_by, arm, &referents, &event.record))
-            });
-            if caused {
-                additional += def.additional;
+            for (condition, def) in multipliers {
+                let as_long_as = ConditionReferents { source_lki: multiplier.frame.lki(), triggering_event: TriggeringEventView::None };
+                if condition.is_some_and(|condition| !settled_holds(condition, self, multiplier.object.id, Some(multiplier.controller), as_long_as)) {
+                    continue;
+                }
+                if !self.object_matches_filter(source.frame.information(source.object.id), &def.abilities_of, &mut { referents }) {
+                    continue;
+                }
+                let caused = matched.triggering_events.iter().any(|event| {
+                    let looks_back_through = LookBackSnapshot::for_record(snapshots, event.record.seq.0);
+                    multiplier.frame.on_the_board_read_by(arm, looks_back_through, newcomer)
+                        && def.caused_by.as_ref().is_none_or(|caused_by| self.is_caused_by(caused_by, arm, &referents, &event.record))
+                });
+                if caused {
+                    additional += def.additional;
+                }
             }
         }
         additional
@@ -2864,7 +2866,7 @@ pub(super) fn fold_trigger_occurrences(
 }
 
 fn carries_a_trigger_multiplier(chars: &EffectiveCharacteristics) -> bool {
-    chars.abilities.iter().any(|ability| ability.effect.as_trigger_multiplier().is_some())
+    chars.abilities.iter().any(|ability| ability.effect.trigger_multipliers().next().is_some())
 }
 
 /// A card for a frame whose object has left the game (CR 800.4a): the name

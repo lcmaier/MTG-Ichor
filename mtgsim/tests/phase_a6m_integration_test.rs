@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::engine::layers::types::EffectId;
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -435,7 +436,7 @@ fn test_power_four_or_greater_does_not_name_a_land_in_the_layer_walk() {
     let small = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: big,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer5Color,

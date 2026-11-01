@@ -264,15 +264,16 @@ slotted at `game-formats`.)
 
 **All three gates see through the wrapper.** Trinisphere prints a
 conditional static — "as long as this artifact is untapped" — so this gate
-sees through `Effect::Conditional`: `Effect::as_cost_modification` peels it
-and returns the condition beside the definition, and all three legs use it.
+sees through `Effect::Conditional`: `Effect::cost_modifications` peels it
+and returns the condition beside each definition, and all three legs use it.
 When this was written the other two gates did not, and a conditional
 replacement or restriction static was inert (§8 item 1). Since RE-6
-(2026-09-12, `codebase-state.md` item 73) `register_static_effects` files
-through `Effect::replacement_body`, `Effect::as_restriction` and
-`Effect::as_cost_modification`, each peeling `Conditional` with
-`with_its_condition`, and the sweeps (`replacement_of`, `is_prohibited`, the
-cost gather) peel it too and ask the condition at the proposal.
+(2026-09-12, `codebase-state.md` item 73) `register_static_effects` and the
+sweeps (`replacements_of`, `is_prohibited`, the cost gather) peel it too and
+ask the condition at the proposal. Since `card-instruction-words`
+(2026-10-31) every reader takes each member of its kind from a static body's
+list, each with its own "as long as" (`Effect::static_members`), so one
+ability can make a cost effect beside effects of other kinds (CR 113.2c).
 
 ### 3.2 The type surface
 

@@ -19,6 +19,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::state::replacement_effects::ReplacementEffectId;
 use mtgsim::cards::keyword_creatures::knight_of_meadowgrain;
 use mtgsim::cards::phase_rd_cards::{
     angel_of_suffering, furnace_of_rath, mending_hands, safe_passage, samite_censer_bearer,
@@ -155,7 +156,7 @@ fn fixture_row(
 ) {
     let turn = game.turn_number;
     game.replacement_effects.add(RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,

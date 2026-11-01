@@ -96,6 +96,57 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-10-31 for `card-layer-cleanup`'s second PR, the instruction words**
+(`cards/card-instruction-words`: every card-file instruction built by a verb and
+recipient word, `RowId::UNASSIGNED`, every reader of a static body taking each
+member of its kind, and Platinum Angel as one ability). No pool changed, so no
+table is re-recorded. One `close_out.py` sitting against **main** `856aafd1`
+(#301's merge): **engine** `0a36c0ad`, every code commit.
+
+**Predictions, written before any arm's output was read**: every gameplay row
+`IDENTICAL`, since every card but Platinum Angel fingerprints equal and it is
+not pooled; the cost rows unchanged; instructions a decision within ±1%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, callgrind, the budget's board | | 0.6432 M → 0.6480 M, **+0.75%**; at the final head after the pre-review's fixes (`c8e59d25`) the same, every row above identical |
+| inclusive, the replacement gather: `gather` / `apply_replacements` / `prohibition_sweeping` | | 463.2 M → 462.2 M / 616.0 M → 616.0 M / 120.1 M → 121.4 M |
+| moved, inclusive: `run_turn_steps` / `advance_turn`; `get_effective_abilities` / `ManaAbilityWindowOffer::read`; `EffectiveCharacteristics`' drop glue | | −8.4 / +8.4; +5.1 / −3.4; between functions, each in one arm only: inlining boundaries |
+
+**The gather, which the readers sit on**: flat. Its reads became iterators over
+a static body's members (`Effect::static_members`) where they matched one
+shape, and the member index a replacement instance carries is a byte in the
+enum tag's padding, so `GameEvent` stays at 80 bytes. Nothing moved past its
+prediction.
+
+**CI's other sittings, run locally**: the release clone, history and
+scenario tests pass; the `release-checked` stress sitting (50 games, seed
+12345) exits clean, 0 errors and 0 panics.
+
+**Re-measured 2026-11-01 at the review round's head** (`f503f3df`: the
+words' names, `RowId`'s constructors, main item 359's layer row under its
+own clause, and the CR 603.11 fixture), one more `close_out.py` sitting
+against the same **main** `856aafd1`.
+
+**Predictions, written before any arm's output was read**: every gameplay
+row `IDENTICAL`, since every fingerprint is unchanged and no card writes a
+layer change under a member's own clause; instructions a decision within
+0.3 points of the first sitting's +0.75%, since the existence check asks
+the ability's clause as it did and the group key grows by a byte.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, callgrind, the budget's board | | 0.6434 M → 0.6494 M, **+0.94%**, 0.19 points past the first sitting's |
+| inclusive, the replacement gather: `gather` / `apply_replacements` / `prohibition_sweeping` | | 463.4 M → 464.1 M / 615.8 M → 618.2 M / 119.9 M → 121.7 M |
+| moved, inclusive, past half a point | | the first sitting's inlining boundaries again, and `run_pass` (+1.1, one arm only) and `compute_as_entering` (−0.6) |
+
+Every row inside its prediction. The audit's counts equal the first
+sitting's to the dispatch.
+
 **Measured 2026-10-31 for `card-layer-cleanup`'s first PR, the ability words**
 (`cards/card-layer-cleanup`, PR #301: every `AbilityDef` built by a word or
 `AbilityDef::new`, the instance lists private, the activated kinds' `Activation`,

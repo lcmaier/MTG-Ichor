@@ -174,12 +174,13 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
                 // proposal against the settled board — the same leg, with the
                 // same evaluator, that `replacement::gather` gives a
                 // conditional replacement.
-                let Some((condition, def)) = ability.effect.as_restriction() else { continue };
-                if condition.is_some_and(|condition| !settled_holds(condition, game, id, None, ConditionReferents::NONE)) {
-                    continue;
-                }
-                if matches(game, def, id, controller, query, frame) {
-                    return Some(Prohibition { source: id, by: ProhibitedBy::StaticAbility(ability.rules_text.words) });
+                for (condition, def) in ability.effect.restrictions() {
+                    if condition.is_some_and(|condition| !settled_holds(condition, game, id, None, ConditionReferents::NONE)) {
+                        continue;
+                    }
+                    if matches(game, def, id, controller, query, frame) {
+                        return Some(Prohibition { source: id, by: ProhibitedBy::StaticAbility(ability.rules_text.words) });
+                    }
                 }
             }
         }

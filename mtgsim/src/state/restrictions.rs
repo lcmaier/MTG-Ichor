@@ -30,13 +30,14 @@
 //! determination to a human reader ("apply the rules of English to the text"),
 //! so it has to be authored per card (§9 finding 1).
 
-use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
+use crate::state::duration_registry::{DurationRegistry, DurationRow};
+use crate::types::ids::RowId;
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::restriction::RestrictionDef;
 
 /// Unique identifier for a registered restriction.
-pub type RestrictionId = u64;
+pub type RestrictionId = RowId;
 
 /// One "can't" created by a resolving spell or ability.
 #[derive(Debug, Clone)]
@@ -106,7 +107,7 @@ mod tests {
 
     fn row(source: ObjectId, duration: Duration) -> RegisteredRestriction {
         RegisteredRestriction {
-            id: 0,
+            id: RestrictionId::UNASSIGNED,
             source,
             controller: 0,
             duration,

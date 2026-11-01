@@ -12,12 +12,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, spell_is_countered, triggered_ability, whenever, you_lose_control_of, Whose};
+use crate::cards::authoring::{
+    create_delayed_trigger, draw_cards, gain_control_of, gains_keyword, referred, spell_ability, spell_is_countered, tap, target_permanent, that_target,
+    triggered_ability, untap, whenever, you, you_lose_control_of, Whose,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    Effect, ObjectFilter, PlayerRef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -48,7 +51,7 @@ pub fn multanis_presence() -> Arc<CardData> {
             text,
             whenever(
                 spell_is_countered(Whose::Yours),
-                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+                draw_cards(you(), 1),
             ),
         ))
         .build()
@@ -89,7 +92,7 @@ pub fn ray_of_command() -> Arc<CardData> {
     let tap_it = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             you_lose_control_of(TriggerSubject::Referred),
-            Effect::Atom(Primitive::Tap, EffectRecipient::Referred),
+            tap(referred()),
         )),
         duration: DelayedDuration::Once,
         turn: DelayedTurn::NoneNamed,
@@ -105,19 +108,10 @@ pub fn ray_of_command() -> Arc<CardData> {
             // One instance of "target" (CR 115.3): "it" and "that creature"
             // are back-references to it.
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::Untap,
-                    EffectRecipient::Target(SelectionFilter::Permanent(creature_an_opponent_controls), TargetCount::Exactly(1)),
-                ),
-                Effect::Remember(Box::new(Effect::Atom(
-                    Primitive::GainControl { to: PlayerRef::You, duration: Duration::UntilEndOfTurn },
-                    EffectRecipient::SameInstanceAs(0),
-                ))),
-                Effect::Atom(
-                    Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
-                    EffectRecipient::SameInstanceAs(0),
-                ),
-                Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(tap_it)), EffectRecipient::Controller),
+                untap(target_permanent(creature_an_opponent_controls)),
+                Effect::Remember(Box::new(gain_control_of(that_target(0)).until_end_of_turn())),
+                gains_keyword(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
+                create_delayed_trigger(you(), tap_it),
             ]),
         ))
         .build()

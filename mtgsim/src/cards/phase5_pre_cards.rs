@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{
+    add_mana, creatures_you_control, destroy, draw_cards, each, gain_life, gets, has_base_power_and_toughness, lose_life, spell_ability,
+    static_ability, switch_power_and_toughness, target_creature, target_permanent, you,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, Subtype, Supertype, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Duration, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, TargetCount, EffectRecipient, SelectionFilter};
+use crate::types::effects::{AmountExpr, Effect, ManaOutput, ObjectFilter};
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Isamaru, Hound of Konda - {W}
@@ -33,14 +36,8 @@ pub fn nights_whisper() -> Arc<CardData> {
         .ability(spell_ability(
             "You draw two cards and lose 2 life.",
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(2)), 
-                    EffectRecipient::Controller
-                ),
-                Effect::Atom(
-                    Primitive::LoseLife(AmountExpr::Fixed(2)),
-                    EffectRecipient::Controller
-                )
+                draw_cards(you(), 2),
+                lose_life(you(), 2)
             ]),
         ))
         .build()
@@ -57,16 +54,10 @@ pub fn doom_blade() -> Arc<CardData> {
         .rules_text("Destroy target nonblack creature.")
         .ability(spell_ability(
             "Destroy target nonblack creature.",
-            Effect::Atom(
-                Primitive::Destroy,
-                EffectRecipient::Target(SelectionFilter::Permanent(
-                    ObjectFilter::And(
-                        Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(Color::Black))))
-                    )),
-                    TargetCount::Exactly(1)
-                )
-            ),
+            destroy(target_permanent(ObjectFilter::And(
+                Box::new(ObjectFilter::ByType(CardType::Creature)),
+                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(Color::Black)))),
+            ))),
         ))
         .build()
 }
@@ -79,7 +70,7 @@ pub fn angels_mercy() -> Arc<CardData> {
         .rules_text("You gain 7 life.")
         .ability(spell_ability(
             "You gain 7 life.",
-            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Controller),
+            gain_life(you(), 7),
         ))
         .build()
 }
@@ -95,17 +86,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
         .rules_text("Creatures you control get +1/+1.")
         .ability(static_ability(
             "Creatures you control get +1/+1.",
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(1),
-                    AmountExpr::Fixed(1),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
-            ),
+            gets(each(creatures_you_control()), 1, 1),
         ))
         .build()
 }
@@ -122,18 +103,8 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
         .ability(spell_ability(
             "Target creature has base power and toughness 4/3 until end of turn.\nDraw a card.",
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::SetPowerToughness(
-                        AmountExpr::Fixed(4),
-                        AmountExpr::Fixed(3),
-                        Duration::UntilEndOfTurn,
-                    ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
+                has_base_power_and_toughness(target_creature(), 4, 3).until_end_of_turn(),
+                draw_cards(you(), 1),
             ]),
         ))
         .build()
@@ -157,14 +128,8 @@ pub fn inside_out() -> Arc<CardData> {
         .ability(spell_ability(
             "Switch target creature's power and toughness until end of turn.\nDraw a card.",
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
+                switch_power_and_toughness(target_creature()).until_end_of_turn(),
+                draw_cards(you(), 1),
             ]),
         ))
         .build()
@@ -180,14 +145,7 @@ pub fn bull_rush() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target creature gets +2/+0 until end of turn.",
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(2),
-                    AmountExpr::Fixed(0),
-                    Duration::UntilEndOfTurn,
-                ),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            ),
+            gets(target_creature(), 2, 0).until_end_of_turn(),
         ))
         .build()
 }
@@ -203,13 +161,7 @@ pub fn dark_ritual() -> Arc<CardData> {
         .rules_text("Add {B}{B}{B}.")
         .ability(spell_ability(
             "Add {B}{B}{B}.",
-            Effect::Atom(
-                Primitive::ProduceMana(ManaOutput {
-                    mana: vec![(ManaType::Black, AmountExpr::Fixed(3))],
-                    special: vec![],
-                }),
-                EffectRecipient::Implicit,
-            ),
+            add_mana(ManaOutput { mana: vec![(ManaType::Black, AmountExpr::Fixed(3))], special: vec![] }),
         ))
         .build()
 }

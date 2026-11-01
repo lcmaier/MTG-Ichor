@@ -53,13 +53,14 @@
 
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::events::cause::GeneratedBy;
-use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
+use crate::state::duration_registry::{DurationRegistry, DurationRow};
+use crate::types::ids::RowId;
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::replacement::{ReplacementDef, Uses};
 
 /// Unique identifier for a registered replacement effect.
-pub type ReplacementEffectId = u64;
+pub type ReplacementEffectId = RowId;
 
 /// One replacement effect created by a resolving spell or ability.
 #[derive(Debug, Clone)]
@@ -324,7 +325,7 @@ mod tests {
 
     fn row(source: ObjectId, duration: Duration) -> RegisteredReplacementEffect {
         RegisteredReplacementEffect {
-            id: 0,
+            id: ReplacementEffectId::UNASSIGNED,
             source,
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
@@ -342,7 +343,7 @@ mod tests {
     fn next_damage_row(source: ObjectId, n: u64) -> RegisteredReplacementEffect {
         use crate::types::replacement::AmountRewrite;
         RegisteredReplacementEffect {
-            id: 0,
+            id: ReplacementEffectId::UNASSIGNED,
             source,
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,

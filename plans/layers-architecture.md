@@ -2355,7 +2355,7 @@ condition:
 
 ```rust
 if ability.is_characteristic_defining { return ZoneSet::ALL }          // 113.6a
-if let Some((_, def)) = ability.effect.as_cost_modification() { … }    // 113.6d
+if ability.effect.cost_modifications().next().is_some() { … }        // 113.6d
 if let Effect::Conditional(cond, _) = &ability.effect {
     if let Some(zones) = stated_zones(cond) { return zones }           // 113.6b/c
 }

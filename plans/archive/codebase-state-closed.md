@@ -1054,6 +1054,25 @@ it: one proposal inside the 514.3a loop, shown to fail first.*
 
     **Sized:** done.
 
+7d. **`ContinuousEffect { id: 0 }` as "unassigned" — ✅ done (2026-10-31, `card-instruction-words`).** `ContinuousEffectRegistry::add` overwrote the field, so every construction site carried a meaningless value, in all three duration registries: 42 `id: 0` lines on `856aafd1`.
+
+    **Closed by another shape than its Sized line's draft.** Decision 3b of
+    the `card-layer-cleanup` note, settled at (c): `RowId` is a newtype in
+    `types::ids` beside `ObjectId` and `AbilityId`, with
+    `RowId::UNASSIGNED`, so a row literal writes `EffectId::UNASSIGNED`,
+    `ReplacementEffectId::UNASSIGNED` or `RestrictionId::UNASSIGNED` through
+    its registry's alias, as an object writes `ObjectId::UNASSIGNED`, and
+    `DurationRegistry::add` checks it (`debug_assert`) before it stamps one.
+    The field stays: `ContinuousEffectDraft` would have kept two field lists
+    in step for one registry of three. A row id can no longer be mistaken for
+    a count, and it prints as the bare number it was, so no message or dump
+    changed.
+
+    **Reachability (2026-09-03):** reachable — not wrong; a smell, and it grew:
+    26 sites then (16 at the 2026-08-24 recount).
+
+    **Sized:** done.
+
 7e. **Derivation silently drops non-`Fixed` amounts — ✅ done (2026-08-22).** `EffectModification::{SetPowerToughness, ModifyPowerToughness}` now carry a `PtValue`: `Fixed(i32)` for a signed literal, `Dynamic(AmountExpr)` for an expression re-evaluated at every layer by `compute::evaluate_pt_value`. Two variants rather than one because `AmountExpr::Fixed` is `u64` and `ModifyPowerToughness { power: -1 }` needs a sign. Resolution-time effects stay `Fixed` (CR 608.2h locks a resolving spell's value in); it is static abilities that must stay live (CR 604.7). March of the Machines is back to its printed "equal to its mana value" via `AmountExpr::AffectedManaValue`.
 
     Residue, now loud instead of silent: the evaluator returns `Option<i32>` and `debug_assert!`s on an amount with no static-context meaning. `Variable` genuinely cannot appear on a static ability (CR 107.3's X is chosen as a spell is cast), but the `Target*` family points at a real vocabulary gap — see item 3.
@@ -9405,3 +9424,43 @@ Built to the design note `git show 7a2c8ae5:plans/handoffs/readiness-close.md`, 
      **Slotted:** A6e, readiness's second PR, beside item 352, as a small fix
      (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
      sweep and share one A/B.
+
+### Item 359 — closed 2026-11-01 by PR #302 (`card-instruction-words`), at its review
+
+Built at the owner's answer to the PR's first decision ("it's not a
+combat-specific issue"): `RowClause` on `EffectOrigin::StaticAbility`, filled
+by the lowering on each route (printed, copied, granted, the look-ahead) and
+read by `RowClause::condition_in` in `static_ability_still_exists`,
+`conditional_reads_of` and the pipeline's `characteristics_depend_on_entry_state`.
+`EffectGroup::StaticAbility` carries it, since without it CR 613.6's lock
+applied Clutch of Undeath's "otherwise" to the set the first change started
+on: taken out, the integration test's Forest gives the creature both changes.
+The lowering reads the body once from its root, so the enum that said whether
+a list sat inside an "as long as" went with it, and a chain under a member's
+own clause lowers each link under that clause. A member with its own clause
+inside one around the whole list is still loud.
+
+*Original entry:*
+
+359. **A layer change with its own "as long as" inside one ability's list
+     is refused.** One paragraph is one ability (CR 113.2c), and printed
+     cards give one member of it a condition of its own beside another:
+     Clutch of Undeath's "Enchanted creature gets +3/+3 as long as it's a
+     Zombie. Otherwise, it gets -3/-3", Bonds of Faith's "+2/+2 as long as
+     it's a Human. Otherwise, it can't attack or block", Tenza, Godo's
+     Maul's two clauses after an unconditional +1/+1. Counted on Scryfall
+     (`game:paper -is:funny`, 2026-10-31): `o:/as long as [^.]*\. otherwise, /`
+     13, `o:". as long as"` 4. The other kinds' readers take a member's own
+     clause (`Effect::static_members`), but a layer row's CR 604.2
+     existence check asks only the ability's one clause, so the lowering
+     refuses a layer change carrying its own: loud in tests, dropped in
+     release.
+     **Reachability (2026-10-31):** unreachable — no registered card writes
+     the shape, and the lowering's assert stops the first that does.
+     **Sized:** the row names its member as the replacement instance does:
+     `EffectOrigin::StaticAbility` gains the member's place (28 sites), the
+     lowering records it on each route (printed, granted, copied, the
+     look-ahead), and the existence check and the condition's reads take
+     that member's clause; ~100–150 lines with tests.
+     **Slotted:** `combat-restrictions`, whose Aura paragraphs bring the
+     first of these cards (Bonds of Faith's "can't attack or block").

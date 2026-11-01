@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::activated_ability;
+use crate::cards::authoring::{activated_ability, create_tokens, draw_cards, each, each_player, gain_life, gets, put_counters, this_object, you};
 use crate::cards::authoring::{another, at_beginning_of, dies, triggered_ability, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -21,8 +21,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerGroup, PlayerRef, PlayerSet, Primitive, TokenDef,
+    AmountExpr, Condition, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
 };
 use crate::types::history::{CountIs, HistoryCount, TurnFact};
 use crate::types::keywords::KeywordFlag;
@@ -31,10 +30,7 @@ use crate::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerD
 
 /// "Put a +1/+1 counter on this creature."
 fn counter_on_this() -> Effect {
-    Effect::Atom(
-        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::ThisObject,
-    )
+    put_counters(this_object(), CounterType::PlusOnePlusOne, 1)
 }
 
 /// Paladin of Atonement — {1}{W}
@@ -83,7 +79,7 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
             condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
             intervening_if: None,
             limit: None,
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::TriggeringToughness(EventRole::Object)), EffectRecipient::Controller),
+            effect: gain_life(you(), AmountExpr::TriggeringToughness(EventRole::Object)),
         }))
         .build()
 }
@@ -191,16 +187,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
     let pump = activated_ability(
         "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.",
         vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Green], 5))],
-        Effect::Sequence(vec![
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
-                EffectRecipient::FilteredPermanents(elves_you_control()),
-            ),
-            Effect::Atom(
-                Primitive::GrantKeywordFlag(KeywordFlag::Deathtouch, Duration::UntilEndOfTurn),
-                EffectRecipient::FilteredPermanents(elves_you_control()),
-            ),
-        ]),
+        gets(each(elves_you_control()), 2, 2).and_gains_keyword(KeywordFlag::Deathtouch).until_end_of_turn(),
     );
     CardDataBuilder::new("Elvish Warmaster")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
@@ -218,10 +205,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
             condition: TriggerCondition::Event(other_elves_you_control),
             intervening_if: None,
             limit: Some(TriggerLimit::TriggersOnlyOnceEachTurn),
-            effect: Effect::Atom(
-                Primitive::CreateToken(elf_warrior_token(), AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            ),
+            effect: create_tokens(you(), 1, elf_warrior_token()),
         }))
         .ability(pump)
         .build()
@@ -242,10 +226,7 @@ pub fn temple_bell() -> Arc<CardData> {
         .ability(activated_ability(
             "{T}: Each player draws a card.",
             vec![Cost::TapSelf],
-            Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
-            ),
+            draw_cards(each_player(), 1),
         ))
         .build()
 }

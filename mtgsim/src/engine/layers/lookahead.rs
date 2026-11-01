@@ -104,7 +104,6 @@ fn would_be_rows(
         Some(copy) => (&copy.values.abilities, copy.values.name.as_str()),
         None => (&obj.card_data.abilities, obj.card_data.name.as_str()),
     };
-    let first_id = game.continuous_effects.next_id();
     let mut rows = Vec::new();
 
     for ability in abilities.iter() {
@@ -118,12 +117,12 @@ fn would_be_rows(
         // `Effect::Replacement`, `Effect::Restriction` and
         // `Effect::CostModification` lower to no atoms:
         // they are discovered off the effective ability list, not registered.
-        for (affected, lowered) in GameState::static_ability_rows(ability, name) {
+        for (clause, affected, lowered) in GameState::static_ability_rows(ability, name) {
             for (layer, modification) in lowered {
                 rows.push(ContinuousEffect {
-                    id: first_id + rows.len() as u64,
+                    id: game.continuous_effects.next_id_after(rows.len()),
                     source: object,
-                    origin: EffectOrigin::StaticAbility { ability: ability.id },
+                    origin: EffectOrigin::StaticAbility { ability: ability.id, clause },
                     layer,
                     duration: Duration::WhileSourceOnBattlefield,
                     controller,

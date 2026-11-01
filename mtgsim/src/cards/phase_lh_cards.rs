@@ -16,15 +16,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{gains_keyword, gets, host, static_ability};
 use crate::cards::authoring::equip;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, Primitive, SelectionFilter,
-};
+use crate::types::effects::SelectionFilter;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -75,14 +73,7 @@ pub fn holy_strength() -> Arc<CardData> {
         .enchant_filter(SelectionFilter::Creature)
         .ability(static_ability(
             "Enchanted creature gets +1/+2.",
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(1),
-                    AmountExpr::Fixed(2),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::Host,
-            ),
+            gets(host(), 1, 2),
         ))
         .build()
 }
@@ -130,14 +121,7 @@ pub fn bonesplitter() -> Arc<CardData> {
 Equip {1}")
         .ability(static_ability(
             "Equipped creature gets +2/+0.",
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(2),
-                    AmountExpr::Fixed(0),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::Host,
-            ),
+            gets(host(), 2, 0),
         ))
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
@@ -171,10 +155,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
         .rules_text("Equipped creature has flying.\nEquip {1}")
         .ability(static_ability(
             "Equipped creature has flying.",
-            Effect::Atom(
-                Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::Host,
-            ),
+            gains_keyword(host(), KeywordFlag::Flying),
         ))
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
@@ -200,7 +181,6 @@ pub fn cobbled_wings() -> Arc<CardData> {
 /// Registered, not pooled: it opens no engine path Bonesplitter and Cobbled
 /// Wings do not.
 pub fn loxodon_warhammer() -> Arc<CardData> {
-    let equipped = |primitive| Effect::Atom(primitive, EffectRecipient::Host);
     CardDataBuilder::new("Loxodon Warhammer")
         .card_type(CardType::Artifact)
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
@@ -208,15 +188,7 @@ pub fn loxodon_warhammer() -> Arc<CardData> {
         .rules_text("Equipped creature gets +3/+0 and has trample and lifelink.\nEquip {3}")
         .ability(static_ability(
             "Equipped creature gets +3/+0 and has trample and lifelink.",
-            Effect::Sequence(vec![
-                equipped(Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(3),
-                    AmountExpr::Fixed(0),
-                    Duration::WhileSourceOnBattlefield,
-                )),
-                equipped(Primitive::GrantKeywordFlag(KeywordFlag::Trample, Duration::WhileSourceOnBattlefield)),
-                equipped(Primitive::GrantKeywordFlag(KeywordFlag::Lifelink, Duration::WhileSourceOnBattlefield)),
-            ]),
+            gets(host(), 3, 0).and_gains_keyword(KeywordFlag::Trample).and_gains_keyword(KeywordFlag::Lifelink),
         ))
         .ability(equip("Equip {3}", vec![Cost::Mana(ManaCost::build(&[], 3))]))
         .build()

@@ -17,8 +17,8 @@ use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
-use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
-use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, Layer};
+use mtgsim::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
+use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer};
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::test_support::{
     pass_turn, place_bare, put_in_hand, put_on_battlefield, registered, set_active_player,
@@ -2025,7 +2025,7 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
     );
     def.exempt_from_614_5 = true;
     game.replacement_effects.add(RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source: victim,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
@@ -2066,7 +2066,7 @@ fn exempt_row(
     );
     def.exempt_from_614_5 = true;
     RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source: victim,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
@@ -2469,7 +2469,7 @@ fn test_leyline_reads_ownership_where_kalitas_reads_control() {
     let stolen = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: thief,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer2Control,

@@ -11,14 +11,14 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{create_tokens, gets, host, sacrifice, static_ability, triggering_object, you};
 use crate::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
 use crate::cards::authoring::equip;
 use crate::cards::phase_tr1_cards::saproling_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
+use crate::types::effects::ObjectFilter;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TriggerSubject};
 
@@ -73,16 +73,13 @@ pub fn grafted_wargear() -> Arc<CardData> {
         .rules_text("Equipped creature gets +3/+2.\nWhenever this Equipment becomes unattached from a permanent, sacrifice that permanent.\nEquip {0}")
         .ability(static_ability(
             "Equipped creature gets +3/+2.",
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(2), Duration::WhileSourceOnBattlefield),
-                EffectRecipient::Host,
-            ),
+            gets(host(), 3, 2),
         ))
         .ability(triggered_ability(
             text,
             whenever(
                 becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                Effect::Atom(Primitive::Sacrifice, EffectRecipient::Triggering(EventRole::Host)),
+                sacrifice(triggering_object(EventRole::Host)),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))
@@ -129,7 +126,7 @@ pub fn bramble_elemental() -> Arc<CardData> {
                     ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
                     TriggerSubject::ThisObject,
                 ),
-                Effect::Atom(Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(2)), EffectRecipient::Controller),
+                create_tokens(you(), 2, saproling_token()),
             ),
         ))
         .build()

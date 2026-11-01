@@ -10,7 +10,7 @@
 
 use mtgsim::cards::{phase5_pre_cards, phase_le_cards, phase_lf_cards, phase_lg_cards};
 use mtgsim::engine::layers::types::{
-    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
+    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer,
 };
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::object::GameObject;
@@ -688,7 +688,7 @@ fn test_a_resolution_control_effect_does_not_follow_its_source() {
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer2Control,
@@ -703,7 +703,7 @@ fn test_a_resolution_control_effect_does_not_follow_its_source() {
 
     // Someone takes the source. The effect keeps pointing at P0.
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: victim,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer2Control,

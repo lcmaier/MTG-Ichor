@@ -312,15 +312,17 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, spell_ability, static_ability, static_replacement, static_restriction};
+use crate::cards::authoring::{
+    activated_ability, cant, create_tokens, create_replacement, create_replacement_for, deal_damage, draw_cards, exile, get_counters, lose_life,
+    set_life_total, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_player, this_object, you, you_and_that_player,
+};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
-    PatternFill, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, Condition, CounterType, Effect, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet,
     TokenDef,
 };
 use crate::types::mana::{ManaCost, ManaType};
@@ -388,7 +390,7 @@ pub fn yawgmoths_bargain() -> Arc<CardData> {
         )))
         .ability(activated_ability("Pay 1 life: Draw a card.",
             vec![Cost::PayLife(1)],
-            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            draw_cards(you(), 1),
         ))
         .build()
 }
@@ -464,22 +466,11 @@ pub fn meditate() -> Arc<CardData> {
         .rules_text("Draw four cards. You skip your next turn.")
         .ability(spell_ability("Draw four cards. You skip your next turn.",
             Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(4)),
-                    EffectRecipient::Controller,
-                ),
-                Effect::Atom(
-                    // `PlayerSet::You` and a `Controller` recipient: the row is
-                    // the def as authored, and CR 109.5 resolves "you" against
-                    // the row's controller at each event rather than at
-                    // resolution.
-                    Primitive::CreateReplacement(
-                        Box::new(skip(EventPattern::BeginTurn, PlayerSet::You).once()),
-                        Duration::Indefinite,
-                        PatternFill::Authored,
-                    ),
-                    EffectRecipient::Controller,
-                ),
+                draw_cards(you(), 4),
+                // `PlayerSet::You` and a `you()` recipient: the row is the def
+                // as authored, and CR 109.5 resolves "you" against the row's
+                // controller at each event rather than at resolution.
+                create_replacement_for(you(), skip(EventPattern::BeginTurn, PlayerSet::You).once()).until_end_of_game(),
             ]),
         ))
         .build()
@@ -510,7 +501,7 @@ pub fn time_walk() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Take an extra turn after this one.")
         .ability(spell_ability("Take an extra turn after this one.",
-            Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller),
+            take_an_extra_turn_after_this_one(you()),
         ))
         .build()
 }
@@ -551,20 +542,8 @@ pub fn moment_of_silence() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target player skips their next combat phase this turn.")
         .ability(spell_ability("Target player skips their next combat phase this turn.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        skip(
-                            EventPattern::BeginPhase { phase: Some(PhaseType::Combat) },
-                            PlayerSet::Nobody,
-                        )
-                        .once(),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
-            ),
+            create_replacement_for(target_player(), skip(EventPattern::BeginPhase { phase: Some(PhaseType::Combat) }, PlayerSet::Nobody).once())
+                .until_end_of_turn(),
         ))
         .build()
 }
@@ -754,10 +733,7 @@ pub fn alms_collector() -> Arc<CardData> {
                 PlayerSet::Opponents,
                 Rewrite::Prevent,
             )
-            .with_then(Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::EachOf(PlayerGroup::you_and_that_player()),
-            )),
+            .with_then(draw_cards(you_and_that_player(), 1)),
         ))
         .build()
 }
@@ -965,23 +941,16 @@ pub fn words_of_worship() -> Arc<CardData> {
         .rules_text("{1}: The next time you would draw a card this turn, you gain 5 life instead.")
         .ability(activated_ability("{1}: The next time you would draw a card this turn, you gain 5 life instead.",
             vec![Cost::Mana(ManaCost::build(&[], 1))],
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        ReplacementDef::new(
-                            EventPattern::DrawCard { place: None },
-                            PlayerSet::You,
-                            Rewrite::Instead(GameActionTemplate::GainLife {
-                                amount: TemplateAmount::Fixed(5),
-                            }),
-                        )
-                        .once(),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Controller,
-            ),
+            create_replacement_for(
+                you(),
+                ReplacementDef::new(
+                    EventPattern::DrawCard { place: None },
+                    PlayerSet::You,
+                    Rewrite::Instead(GameActionTemplate::GainLife { amount: TemplateAmount::Fixed(5) }),
+                )
+                .once(),
+            )
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -1158,33 +1127,19 @@ pub fn skullcrack() -> Arc<CardData> {
                 // player, so the row is complete as authored and the
                 // resolution's target — the player it then damages — is not
                 // what it is about.
-                Effect::Atom(
-                    Primitive::Restrict(
-                        RestrictionDef::new(Restriction::Event {
-                            pattern: EventPattern::GainLife,
-                            affected: AffectedSet::players(PlayerSet::Everyone),
-                            by: None,
-                        }),
-                        Duration::UntilEndOfTurn,
-                    ),
-                    EffectRecipient::Controller,
-                ),
+                cant(you(), Restriction::Event { pattern: EventPattern::GainLife, affected: AffectedSet::players(PlayerSet::Everyone), by: None })
+                    .until_end_of_turn(),
                 // "Damage can't be prevented this turn." CR 615.12's row, whose
                 // two halves are a union: every object and every player.
-                Effect::Atom(
-                    Primitive::Restrict(
-                        RestrictionDef::new(Restriction::ApplyReplacement {
-                            kind: ReplacementKindFilter::Prevention,
-                            affected: AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
-                        }),
-                        Duration::UntilEndOfTurn,
-                    ),
-                    EffectRecipient::Controller,
-                ),
-                Effect::Atom(
-                    Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
-                ),
+                cant(
+                    you(),
+                    Restriction::ApplyReplacement {
+                        kind: ReplacementKindFilter::Prevention,
+                        affected: AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
+                    },
+                )
+                .until_end_of_turn(),
+                deal_damage(target_player(), 3),
             ]),
         ))
         .build()
@@ -1264,8 +1219,8 @@ pub fn laboratory_maniac() -> Arc<CardData> {
 /// `Prevent` with a rider, because "instead exile this creature and ..." is
 /// two effects on two different subjects — the Archangel and you — and a
 /// substitution produces one event about one (§3.2d). The rider's exile names
-/// the Archangel through `EffectRecipient::ThisObject`, the effect's own
-/// source; its life total is `Primitive::SetLifeTotal` over
+/// the Archangel through `this_object()`, the effect's own
+/// source; its life total is `set_life_total` over
 /// `AmountExpr::StartingLifeTotal`, so it is 40 in Commander and a 24-life
 /// *gain* from -4 that Rhox Faithmender doubles (CR 119.5).
 /// # The rulings, and where each is tested
@@ -1338,11 +1293,8 @@ pub fn exquisite_archangel() -> Arc<CardData> {
                 Rewrite::Prevent,
             )
             .with_then(Effect::Sequence(vec![
-                Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
-                Effect::Atom(
-                    Primitive::SetLifeTotal(AmountExpr::StartingLifeTotal),
-                    EffectRecipient::Controller,
-                ),
+                exile(this_object()),
+                set_life_total(you(), AmountExpr::StartingLifeTotal),
             ])),
         ))
         .build()
@@ -1414,36 +1366,18 @@ pub fn stunning_reversal() -> Arc<CardData> {
         )
         .ability(spell_ability(
             "The next time you would lose the game this turn, instead draw seven cards and your life total becomes 1.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(
-                        ReplacementDef::new(
-                            EventPattern::PlayerLoses,
-                            PlayerSet::You,
-                            Rewrite::Prevent,
-                        )
-                        .once()
-                        .with_then(Effect::Sequence(vec![
-                            Effect::Atom(
-                                Primitive::DrawCards(AmountExpr::Fixed(7)),
-                                EffectRecipient::Controller,
-                            ),
-                            Effect::Atom(
-                                Primitive::SetLifeTotal(AmountExpr::Fixed(1)),
-                                EffectRecipient::Controller,
-                            ),
-                        ])),
-                    ),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Controller,
-            ),
+            create_replacement_for(
+                you(),
+                ReplacementDef::new(EventPattern::PlayerLoses, PlayerSet::You, Rewrite::Prevent)
+                    .once()
+                    .with_then(Effect::Sequence(vec![draw_cards(you(), 7), set_life_total(you(), 1)])),
+            )
+            .until_end_of_turn(),
         ))
         // CR 608.2c's second instruction, on the spell itself.
         .ability(spell_ability(
             "Exile Stunning Reversal.",
-            Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
+            exile(this_object()),
         ))
         .build()
 }
@@ -1497,16 +1431,22 @@ pub fn platinum_angel() -> Arc<CardData> {
         .power_toughness(4, 4)
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying\nYou can't lose the game and your opponents can't win the game.")
-        .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
-            pattern: EventPattern::PlayerLoses,
-            affected: AffectedSet::players(PlayerSet::You),
-            by: None,
-        }))
-        .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
-            pattern: EventPattern::PlayerWins,
-            affected: AffectedSet::players(PlayerSet::Opponents),
-            by: None,
-        }))
+        // One paragraph, one ability (CR 113.2c), making two "can't"s.
+        .ability(static_ability(
+            "You can't lose the game and your opponents can't win the game.",
+            Effect::Sequence(vec![
+                Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+                    pattern: EventPattern::PlayerLoses,
+                    affected: AffectedSet::players(PlayerSet::You),
+                    by: None,
+                }))),
+                Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+                    pattern: EventPattern::PlayerWins,
+                    affected: AffectedSet::players(PlayerSet::Opponents),
+                    by: None,
+                }))),
+            ]),
+        ))
         .build()
 }
 
@@ -1574,10 +1514,7 @@ pub fn raise_the_alarm() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Create two 1/1 white Soldier creature tokens.")
         .ability(spell_ability("Create two 1/1 white Soldier creature tokens.",
-            Effect::Atom(
-                Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(2)),
-                EffectRecipient::Controller,
-            ),
+            create_tokens(you(), 2, soldier_token()),
         ))
         .build()
 }
@@ -1601,10 +1538,7 @@ pub fn hordeling_outburst() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Create three 1/1 red Goblin creature tokens.")
         .ability(spell_ability("Create three 1/1 red Goblin creature tokens.",
-            Effect::Atom(
-                Primitive::CreateToken(goblin_token(), AmountExpr::Fixed(3)),
-                EffectRecipient::Controller,
-            ),
+            create_tokens(you(), 3, goblin_token()),
         ))
         .build()
 }
@@ -1710,22 +1644,16 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
         )
         .ability(spell_ability(
             "Until end of turn, if a creature would enter and it wasn't cast, exile it instead.",
-            Effect::Atom(
-                Primitive::CreateReplacement(
-                    Box::new(ReplacementDef::new(
-                        EventPattern::EnterBattlefield { cast: Some(false) },
-                        ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-                        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-                    )),
-                    Duration::UntilEndOfTurn,
-                    PatternFill::Authored,
-                ),
-                EffectRecipient::Implicit,
-            ),
+            create_replacement(ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: Some(false) },
+                ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+            ))
+            .until_end_of_turn(),
         ))
         .ability(spell_ability(
             "Draw a card.",
-            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            draw_cards(you(), 1),
         ))
         .build()
 }
@@ -2207,15 +2135,9 @@ pub fn live_fast() -> Arc<CardData> {
         .ability(spell_ability(
             "You draw two cards, lose 2 life, and get {E}{E}.",
             Effect::Sequence(vec![
-                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller),
-                Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
-                Effect::Atom(
-                    Primitive::GetCounters {
-                        counter: CounterType::Energy,
-                        amount: AmountExpr::Fixed(2),
-                        by: PlayerRef::You },
-                    EffectRecipient::Controller,
-                ),
+                draw_cards(you(), 2),
+                lose_life(you(), 2),
+                get_counters(you(), CounterType::Energy, 2),
             ]),
         ))
         .build()

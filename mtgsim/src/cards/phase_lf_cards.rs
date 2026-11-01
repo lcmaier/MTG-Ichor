@@ -2,13 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{mana_ability, static_ability};
+use crate::cards::authoring::{add_mana, creatures_you_control, each, gains_ability, loses_all_abilities, mana_ability, static_ability};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerRef,
-    Primitive,
+    AmountExpr, ManaOutput, ObjectFilter,
 };
 use crate::types::costs::Cost;
 use crate::types::mana::{ManaCost, ManaType};
@@ -43,7 +42,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// including a Tarmogoyf, whose CDA dies in Layer 6 before Layer 7a can read
 /// it — is what the tests here exercise.
 pub fn humility() -> Arc<CardData> {
-    let creatures = EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature));
+    let creatures = each(ObjectFilter::ByType(CardType::Creature));
 
     CardDataBuilder::new("Humility")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
@@ -52,20 +51,7 @@ pub fn humility() -> Arc<CardData> {
         .rules_text("All creatures lose all abilities and have base power and toughness 1/1.")
         .ability(static_ability(
             "All creatures lose all abilities and have base power and toughness 1/1.",
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
-                    creatures.clone(),
-                ),
-                Effect::Atom(
-                    Primitive::SetPowerToughness(
-                        AmountExpr::Fixed(1),
-                        AmountExpr::Fixed(1),
-                        Duration::WhileSourceOnBattlefield,
-                    ),
-                    creatures,
-                ),
-            ]),
+            loses_all_abilities(creatures).and_has_base_power_and_toughness(1, 1),
         ))
         .build()
 }
@@ -100,13 +86,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
     let granted = mana_ability(
         "{T}: Add {G}.",
         vec![Cost::TapSelf],
-        Effect::Atom(
-            Primitive::ProduceMana(ManaOutput {
-                mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],
-                special: vec![],
-            }),
-            EffectRecipient::Implicit,
-        ),
+        add_mana(ManaOutput { mana: vec![(ManaType::Green, AmountExpr::Fixed(1))], special: vec![] }),
     );
 
     CardDataBuilder::new("Citanul Hierophants")
@@ -117,16 +97,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         .rules_text("Creatures you control have \"{T}: Add {G}.\"")
         .ability(static_ability(
             "Creatures you control have \"{T}: Add {G}.\"",
-            Effect::Atom(
-                Primitive::GrantAbility(
-                    std::sync::Arc::new(granted),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
-            ),
+            gains_ability(each(creatures_you_control()), granted),
         ))
         .build()
 }
@@ -134,6 +105,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::effects::Effect;
 
     #[test]
     fn humility_is_one_ability_with_two_atoms() {

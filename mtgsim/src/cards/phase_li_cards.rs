@@ -19,13 +19,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{
+    as_long_as, becomes_types, creatures_you_control, each, gains_keyword, gets, has_base_power_and_toughness, host, static_ability, this_object,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, TypeChange,
+    ObjectSet, AmountExpr, Condition, ObjectFilter, PlayerFact, PlayerRef,
+    PlayerSet, SelectionFilter, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -80,13 +82,10 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
         .supertype(Supertype::Legendary)
         .card_type(CardType::Land)
         .rules_text("Each land is a Swamp in addition to its other land types.")
-        .ability(static_ability("Each land is a Swamp in addition to its other land types.", Effect::Atom(
-            Primitive::ChangeType(
-                adds(&[], &[Subtype::Land(LandType::Swamp)], &[]),
-                Duration::WhileSourceOnBattlefield,
-            ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
-        )))
+        .ability(static_ability(
+            "Each land is a Swamp in addition to its other land types.",
+            becomes_types(each(ObjectFilter::ByType(CardType::Land)), adds(&[], &[Subtype::Land(LandType::Swamp)], &[])),
+        ))
         .build()
 }
 
@@ -114,7 +113,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// animating every enchantment in a random game would move every
 /// behavioral row of §3's table for a reason that is not the engine's.
 pub fn opalescence() -> Arc<CardData> {
-    let other_non_aura_enchantments = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+    let other_non_aura_enchantments = each(ObjectFilter::And(
         Box::new(ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Enchantment)),
             Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(
@@ -132,23 +131,11 @@ pub fn opalescence() -> Arc<CardData> {
             "Each other non-Aura enchantment is a creature in addition to its other types and \
              has base power and base toughness each equal to its mana value.",
         )
-        .ability(static_ability("Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value.", Effect::Sequence(vec![
-            Effect::Atom(
-                Primitive::ChangeType(
-                    adds(&[CardType::Creature], &[], &[]),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                other_non_aura_enchantments.clone(),
-            ),
-            Effect::Atom(
-                Primitive::SetPowerToughness(
-                    AmountExpr::AffectedManaValue,
-                    AmountExpr::AffectedManaValue,
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                other_non_aura_enchantments,
-            ),
-        ])))
+        .ability(static_ability(
+            "Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value.",
+            becomes_types(other_non_aura_enchantments, adds(&[CardType::Creature], &[], &[]))
+                .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
+        ))
         .build()
 }
 
@@ -205,22 +192,12 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
         .rules_text("Ashaya's power and toughness are each equal to the number of lands you control.\nNontoken creatures you control are Forest lands in addition to their other types.")
         .ability(static_ability(
             "Ashaya's power and toughness are each equal to the number of lands you control.",
-            Effect::Atom(
-                Primitive::SetPowerToughness(
-                    lands_you_control.clone(),
-                    lands_you_control,
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::ThisObject,
-            ),
+            has_base_power_and_toughness(this_object(), lands_you_control.clone(), lands_you_control),
         ).characteristic_defining())
-        .ability(static_ability("Nontoken creatures you control are Forest lands in addition to their other types.", Effect::Atom(
-            Primitive::ChangeType(
-                adds(&[CardType::Land], &[Subtype::Land(LandType::Forest)], &[]),
-                Duration::WhileSourceOnBattlefield,
-            ),
-            EffectRecipient::FilteredPermanents(nontoken_creatures_you_control),
-        )))
+        .ability(static_ability(
+            "Nontoken creatures you control are Forest lands in addition to their other types.",
+            becomes_types(each(nontoken_creatures_you_control), adds(&[CardType::Land], &[Subtype::Land(LandType::Forest)], &[])),
+        ))
         .build()
 }
 
@@ -252,16 +229,13 @@ pub fn purifier_clause() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Druid))
         .power_toughness(3, 4)
         .rules_text("Lands you control are basic.")
-        .ability(static_ability("Lands you control are basic.", Effect::Atom(
-            Primitive::ChangeType(
+        .ability(static_ability(
+            "Lands you control are basic.",
+            becomes_types(
+                each(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Land)), Box::new(ObjectFilter::ByController(PlayerRef::You)))),
                 adds(&[], &[], &[Supertype::Basic]),
-                Duration::WhileSourceOnBattlefield,
             ),
-            EffectRecipient::FilteredPermanents(ObjectFilter::And(
-                Box::new(ObjectFilter::ByType(CardType::Land)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
-            )),
-        )))
+        ))
         .build()
 }
 
@@ -299,20 +273,16 @@ pub fn kird_ape() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Ape))
         .power_toughness(1, 1)
         .rules_text("This creature gets +1/+2 as long as you control a Forest.")
-        .ability(static_ability("This creature gets +1/+2 as long as you control a Forest.", Effect::Conditional(
-            Condition::Player {
-                players: PlayerSet::You,
-                fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
-            },
-            Box::new(Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(1),
-                    AmountExpr::Fixed(2),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::ThisObject,
-            )),
-        )))
+        .ability(static_ability(
+            "This creature gets +1/+2 as long as you control a Forest.",
+            as_long_as(
+                Condition::Player {
+                    players: PlayerSet::You,
+                    fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+                },
+                gets(this_object(), 1, 2),
+            ),
+        ))
         .build()
 }
 
@@ -355,13 +325,10 @@ pub fn flight_clause() -> Arc<CardData> {
         // anything, and an Aura that could only enchant creatures could not
         // have a condition worth reading.
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::All))
-        .ability(static_ability("As long as enchanted permanent is a creature, it has flying.", Effect::Conditional(
-            Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(Effect::Atom(
-                Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::Host,
-            )),
-        )))
+        .ability(static_ability(
+            "As long as enchanted permanent is a creature, it has flying.",
+            as_long_as(Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)), gains_keyword(host(), KeywordFlag::Flying)),
+        ))
         .build()
 }
 
@@ -396,22 +363,16 @@ pub fn simian_clause() -> Arc<CardData> {
             "As long as you control a Forest, each creature you control is an Ape in addition \
              to its other types.",
         )
-        .ability(static_ability("As long as you control a Forest, each creature you control is an Ape in addition to its other types.", Effect::Conditional(
-            Condition::Player {
-                players: PlayerSet::You,
-                fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
-            },
-            Box::new(Effect::Atom(
-                Primitive::ChangeType(
-                    adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[]),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
-            )),
-        )))
+        .ability(static_ability(
+            "As long as you control a Forest, each creature you control is an Ape in addition to its other types.",
+            as_long_as(
+                Condition::Player {
+                    players: PlayerSet::You,
+                    fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+                },
+                becomes_types(each(creatures_you_control()), adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[])),
+            ),
+        ))
         .build()
 }
 
@@ -434,7 +395,7 @@ mod tests {
                 .flat_map(|a| {
                     GameState::static_ability_atoms(a, &card.name)
                         .into_iter()
-                        .flat_map(|(p, _)| GameState::static_primitive_rows(p))
+                        .flat_map(|(_, p, _)| GameState::static_primitive_rows(p))
                         .collect::<Vec<_>>()
                 })
                 .collect()

@@ -598,6 +598,13 @@ pub enum NamedPlayers {
     FirstInstance,
 }
 
+/// So an amount a card prints is written as the number: `draw_cards(you(), 2)`.
+impl From<u64> for AmountExpr {
+    fn from(n: u64) -> Self {
+        AmountExpr::Fixed(n)
+    }
+}
+
 /// Duration for continuous effects (rule 611)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Duration {
@@ -1956,9 +1963,10 @@ pub enum Primitive {
     ///
     /// A struct variant because of the field: CR 615.12's "the damage can't be
     /// prevented" is a property of the event this primitive proposes, so the
-    /// primitive is where the card says it. Every site spells `unpreventable`
-    /// out rather than reaching a constructor — nine cards in the whole game
-    /// print the clause, and a default would let the tenth forget it silently.
+    /// primitive is where the card says it. A card file says it by the word
+    /// it picks, `deal_damage` or `deal_damage_that_cant_be_prevented`, never
+    /// by a default: nine cards in the whole game print the clause, and a
+    /// default would let the tenth forget it silently.
     DealDamage {
         amount: AmountExpr,
         /// Pinpoint Avalanche's last sentence. Becomes
@@ -2391,7 +2399,9 @@ pub enum Effect {
     /// Apply a primitive to resolved targets
     Atom(Primitive, EffectRecipient),
 
-    /// Execute effects in order (e.g. "deal 3 damage and draw a card")
+    /// Execute effects in order (e.g. "deal 3 damage and draw a card"). On a
+    /// static ability, the effects its one paragraph makes, of any kinds
+    /// (`Effect::static_members`).
     Sequence(Vec<Effect>),
 
     /// "If [condition], [effect]" — intervening if (rule 603.4)
@@ -2488,8 +2498,8 @@ pub enum Effect {
     /// `engine::cost_determination::cost_modifications_for` reads it off the source's
     /// *effective* ability list at CR 601.2f. That read is CR 604.2's
     /// existence check, which is what makes Humility strip a tax for free.
-    /// Through an "as long as" wrapper too — Trinisphere's shape — which
-    /// [`Self::as_cost_modification`] peels.
+    /// Through an "as long as" wrapper too — Trinisphere's shape — and beside
+    /// other kinds in one ability, which [`Self::cost_modifications`] reads.
     ///
     /// A **resolving** spell or ability does not create one through this
     /// variant: "spells cost {1} more this turn" needs a CR 611.2a duration
@@ -2501,8 +2511,8 @@ pub enum Effect {
     /// how many times a triggered ability triggers, so
     /// `register_static_effects` skips it and the dispatch reads it off the
     /// source's effective ability list as it queues what a window
-    /// triggered. Through an "as long as" wrapper too, which
-    /// [`Self::as_trigger_multiplier`] peels.
+    /// triggered. Through an "as long as" wrapper too, and beside other kinds
+    /// in one ability, which [`Self::trigger_multipliers`] reads.
     TriggerMultiplier(Box<crate::types::triggers::TriggerMultiplierDef>),
 
     /// CR 603 — this ability is a triggered ability: a condition, an optional
@@ -2686,8 +2696,9 @@ impl Effect {
     }
 
     /// A static body and the CR 604.2 "as long as" clause around it, if
-    /// there is one: the one peel every `as_*` below reads through, and every
-    /// reader of the clause.
+    /// there is one: the one peel [`Self::static_members`] reads through, and
+    /// the clause a layer row exists under when its member carries none of
+    /// its own (`RowClause::Ability`).
     pub(crate) fn with_its_condition(&self) -> (Option<&Condition>, &Effect) {
         let body = match self {
             Effect::FunctionsIn(_, inner) => inner,
@@ -2708,51 +2719,66 @@ impl Effect {
         }
     }
 
-    /// The cost modification a static body is, with the "as long as" clause
-    /// wrapped around it if there is one.
+    /// The effects a static body makes, each with the CR 604.2 "as long as"
+    /// it exists under: one paragraph is one ability (CR 113.2c), and one
+    /// ability can make effects of several kinds, as Aether Tunnel's "gets
+    /// +1/+0 and can't be blocked" makes a layer change and a "can't".
     ///
-    /// Read by every leg of `engine::cost_determination::cost_modifications_for`'s
-    /// gate and by the gather itself, so a conditional cost effect is seen
-    /// everywhere an unconditional one is.
-    pub fn as_cost_modification(
-        &self,
-    ) -> Option<(Option<&Condition>, &crate::types::cost_modification::CostModificationDef)> {
-        match self.with_its_condition() {
-            (condition, Effect::CostModification(def)) => Some((condition, def)),
-            _ => None,
-        }
+    /// A body is a member, or an `Effect::Sequence` of them, perhaps inside
+    /// an "as long as" and a CR 113.6b statement. A member is its own
+    /// clause's when it has one ("as long as …, it can't attack. Otherwise,
+    /// …"), else the whole list's. Never both: the lowering is loud on a
+    /// list whose members carry their own inside one around them all, since
+    /// one condition each is all a member reads.
+    ///
+    /// The readers below each take their own kind and leave the rest. None
+    /// evaluates a condition: it is asked at each proposal, against the board
+    /// as it is then, by the gather, sweep or count that reads the member.
+    pub(crate) fn static_members(&self) -> impl Iterator<Item = (Option<&Condition>, &Effect)> {
+        let (ability_condition, list) = self.with_its_condition();
+        let members = match list {
+            Effect::Sequence(members) => members.as_slice(),
+            member => std::slice::from_ref(member),
+        };
+        members.iter().map(move |member| match member {
+            Effect::Conditional(own, member) => (Some(own), &**member),
+            member => (ability_condition, member),
+        })
     }
 
-    /// The replacement effect this static ability is, if it is one — looking
-    /// through an "as long as" clause if there is one, since "as long as you
-    /// control an Island, if X would happen, Y happens instead" is still a
-    /// replacement effect.
-    ///
-    /// Three callers ask only *whether* an ability carries a replacement
-    /// effect, to decide if its object is worth the gather's attention:
-    /// `register_static_effects` filing the object as a source,
-    /// `RegistryScopeSummary::of` noting that a grant or copy row carries
-    /// one, and the gather's named leg reading such rows. None of them cares
-    /// whether the "as long as" clause is true right now — that is asked at
-    /// each proposal, against the board as it is then, by the gather itself.
-    /// So this function never evaluates the condition; it only looks past
-    /// it. The same peel as [`Self::as_cost_modification`].
-    pub fn replacement_body(&self) -> Option<&crate::types::replacement::ReplacementDef> {
-        match self.with_its_condition() {
-            (_, Effect::Replacement(def)) => Some(def),
+    /// The cost modifications a static body makes (CR 601.2f, 613.11), each
+    /// with its "as long as": read by every leg of
+    /// `engine::cost_determination::cost_modifications_for`'s gate and by the
+    /// gather itself, so a conditional cost effect is seen everywhere an
+    /// unconditional one is.
+    pub fn cost_modifications(&self) -> impl Iterator<Item = (Option<&Condition>, &crate::types::cost_modification::CostModificationDef)> {
+        self.static_members().filter_map(|(condition, member)| match member {
+            Effect::CostModification(def) => Some((condition, &**def)),
             _ => None,
-        }
+        })
     }
 
-    /// The restriction a static body is (CR 101.2), with the "as long as"
-    /// clause wrapped around it if there is one: the same peel as
-    /// [`Self::as_cost_modification`], asked by the prohibition gate's every
-    /// leg and by the sweep, which alone evaluates the condition.
-    pub fn as_restriction(&self) -> Option<(Option<&Condition>, &crate::types::restriction::RestrictionDef)> {
-        match self.with_its_condition() {
-            (condition, Effect::Restriction(def)) => Some((condition, def)),
+    /// The replacement effects a static body makes (CR 614.1a), each with
+    /// its "as long as": "as long as you control an Island, if X would
+    /// happen, Y happens instead" is still a replacement effect. Each is its
+    /// own effect, so CR 614.5 tracks each apart: the gather numbers them by
+    /// their place in this list.
+    pub fn replacements(&self) -> impl Iterator<Item = (Option<&Condition>, &crate::types::replacement::ReplacementDef)> {
+        self.static_members().filter_map(|(condition, member)| match member {
+            Effect::Replacement(def) => Some((condition, &**def)),
             _ => None,
-        }
+        })
+    }
+
+    /// The restrictions a static body makes (CR 101.2), each with its "as
+    /// long as": asked by the prohibition gate's every leg and by the sweep,
+    /// which alone evaluates the condition. Arrest's "can't attack or block,
+    /// and its activated abilities can't be activated" is two.
+    pub fn restrictions(&self) -> impl Iterator<Item = (Option<&Condition>, &crate::types::restriction::RestrictionDef)> {
+        self.static_members().filter_map(|(condition, member)| match member {
+            Effect::Restriction(def) => Some((condition, &**def)),
+            _ => None,
+        })
     }
 
     /// The triggered ability's def, for an ability that is one (CR 603). Its
@@ -2770,14 +2796,93 @@ impl Effect {
         }
     }
 
-    /// The trigger multiplier a static body is (CR 603.2d), with the "as long
-    /// as" clause wrapped around it if there is one: the same peel, asked by
-    /// every leg of the dispatch's count and by the count itself, which alone
-    /// evaluates the condition.
-    pub fn as_trigger_multiplier(&self) -> Option<(Option<&Condition>, &crate::types::triggers::TriggerMultiplierDef)> {
-        match self.with_its_condition() {
-            (condition, Effect::TriggerMultiplier(def)) => Some((condition, def)),
+    /// The trigger multipliers a static body makes (CR 603.2d), each with its
+    /// "as long as": asked by every leg of the dispatch's count and by the
+    /// count itself, which alone evaluates the condition.
+    pub fn trigger_multipliers(&self) -> impl Iterator<Item = (Option<&Condition>, &crate::types::triggers::TriggerMultiplierDef)> {
+        self.static_members().filter_map(|(condition, member)| match member {
+            Effect::TriggerMultiplier(def) => Some((condition, &**def)),
             _ => None,
-        }
+        })
+    }
+}
+
+#[cfg(test)]
+mod static_members {
+    use super::*;
+    use crate::types::cost_modification::{CostChange, CostModificationDef};
+    use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
+    use crate::types::restriction::{Restriction, RestrictionDef};
+    use crate::types::triggers::TriggerMultiplierDef;
+
+    fn layer_change() -> Effect {
+        Effect::Atom(
+            Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::Host,
+        )
+    }
+    fn replacement() -> Effect {
+        Effect::Replacement(Box::new(ReplacementDef::new(EventPattern::GainLife, PlayerSet::You, Rewrite::Amount(AmountRewrite::Multiplier(2)))))
+    }
+    fn restriction() -> Effect {
+        Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+            pattern: crate::types::replacement::EventPattern::GainLife,
+            affected: AffectedSet::players(PlayerSet::You),
+            by: None,
+        })))
+    }
+    fn cost_modification() -> Effect {
+        Effect::CostModification(Box::new(CostModificationDef::itself(CostChange::ReduceGeneric(AmountExpr::Fixed(1)))))
+    }
+    fn trigger_multiplier() -> Effect {
+        Effect::TriggerMultiplier(Box::new(TriggerMultiplierDef { caused_by: None, abilities_of: ObjectFilter::All, additional: 1 }))
+    }
+    fn holds(fact: PlayerFact) -> Condition {
+        Condition::Player { players: PlayerSet::You, fact }
+    }
+
+    /// CR 113.2c — one paragraph is one ability, and each kind's reader
+    /// takes its members of a list and leaves the rest: a layer change beside
+    /// one of each other kind, and two of one kind, which are two.
+    #[test]
+    fn each_reader_takes_every_member_of_its_kind_from_one_list() {
+        let body = Effect::Sequence(vec![
+            layer_change(),
+            replacement(),
+            restriction(),
+            cost_modification(),
+            trigger_multiplier(),
+            replacement(),
+        ]);
+        assert_eq!(body.replacements().count(), 2);
+        assert_eq!(body.restrictions().count(), 1);
+        assert_eq!(body.cost_modifications().count(), 1);
+        assert_eq!(body.trigger_multipliers().count(), 1);
+        assert_eq!(body.static_members().count(), 6, "the layer change is a member the lowering takes");
+    }
+
+    /// CR 604.2 — a member exists under its own "as long as", or else under
+    /// the one around the whole list; and a CR 113.6b statement around the
+    /// ability changes neither.
+    #[test]
+    fn each_member_carries_its_own_as_long_as_or_the_lists() {
+        let forest = holds(PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(crate::types::card_types::Subtype::Land(
+            crate::types::card_types::LandType::Forest,
+        ))));
+        let own = Effect::FunctionsIn(
+            ZoneSet::BATTLEFIELD,
+            Box::new(Effect::Sequence(vec![
+                Effect::Conditional(forest.clone(), Box::new(restriction())),
+                Effect::Conditional(Condition::Not(Box::new(forest.clone())), Box::new(replacement())),
+                cost_modification(),
+            ])),
+        );
+        assert_eq!(own.restrictions().map(|(condition, _)| condition).collect::<Vec<_>>(), vec![Some(&forest)]);
+        assert_eq!(own.replacements().map(|(condition, _)| condition.cloned()).collect::<Vec<_>>(), vec![Some(Condition::Not(Box::new(forest.clone())))]);
+        assert_eq!(own.cost_modifications().map(|(condition, _)| condition).collect::<Vec<_>>(), vec![None]);
+
+        let under_one_condition = Effect::Conditional(forest.clone(), Box::new(Effect::Sequence(vec![layer_change(), trigger_multiplier()])));
+        assert_eq!(under_one_condition.trigger_multipliers().map(|(condition, _)| condition).collect::<Vec<_>>(), vec![Some(&forest)]);
+        assert_eq!(under_one_condition.with_its_condition().0, Some(&forest), "the layer row's clause is the list's");
     }
 }

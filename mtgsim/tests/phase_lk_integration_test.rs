@@ -14,6 +14,7 @@
 //! `cleanup_zone_state`'s new branch, which would have deleted every pump
 //! spell in the game had it been written as the broad sweep beside it.
 
+use mtgsim::engine::layers::types::EffectId;
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::creatures;
 use mtgsim::cards::phase_lk_cards::{exiled_ancestor, wonder};
@@ -304,7 +305,7 @@ fn test_a_resolutions_effect_survives_its_spell_reaching_the_graveyard() {
     // at the spell, `EffectOrigin::Resolution`, lasting the turn.
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(mtgsim::engine::layers::types::ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: spell,
         origin: mtgsim::engine::layers::types::EffectOrigin::Resolution,
         layer: mtgsim::engine::layers::types::Layer::Layer7cModifyPT,

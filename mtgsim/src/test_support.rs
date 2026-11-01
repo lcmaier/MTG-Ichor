@@ -54,7 +54,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSpent, ManaType};
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::types::{
-    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
+    ObjectSet, ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
@@ -880,7 +880,7 @@ pub fn registered(
     modification: EffectModification,
 ) -> ContinuousEffect {
     ContinuousEffect {
-        id: 0, // assigned by the registry on add()
+        id: EffectId::UNASSIGNED,
         source: id,
         origin: EffectOrigin::Resolution,
         layer,
@@ -926,6 +926,15 @@ pub fn fixed_target_bounds(recipient: &EffectRecipient) -> crate::types::effects
         }
         _ => none,
     }
+}
+
+/// An enchantment whose one paragraph is two abilities, as CR 603.11 prints
+/// a static ability and the triggered ability linked to it: two defs with
+/// the paragraph's words, which do nothing.
+pub fn one_paragraph_two_abilities() -> Arc<CardData> {
+    const PARAGRAPH: &str = "Reveal the first card you draw each turn. Whenever you reveal a basic land card this way, draw a card.";
+    let part = || AbilityDef::new(AbilityType::Static, PARAGRAPH, Effect::Sequence(Vec::new()));
+    CardDataBuilder::new("Fixture Etchings").card_type(CardType::Enchantment).rules_text(PARAGRAPH).ability(part()).ability(part()).build()
 }
 
 /// A static [`AbilityDef`] carrying `effect`, with no rules text, a fresh id

@@ -4,10 +4,11 @@
 //! so the builder's stamps (its id, its instances of "target") are written
 //! in one place. CR 603's triggered ability is [`super::triggered_ability`].
 
+use super::instructions::{attach_to, ContinuousChange};
+use super::recipients::{creatures_you_control, target_permanent};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, Activation};
-use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
-use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount};
+use crate::types::effects::{Condition, Duration, Effect};
 use crate::types::replacement::ReplacementDef;
 use crate::types::restriction::{Restriction, RestrictionDef};
 
@@ -21,8 +22,33 @@ pub fn spell_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> Abil
 /// functions. One whose whole effect is a replacement effect or a "can't" is
 /// written `static_replacement` or `static_restriction`, which build the same
 /// value, so a card file writes each one way.
-pub fn static_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> AbilityDef {
-    AbilityDef::new(AbilityType::Static, rules_text, effect)
+pub fn static_ability(rules_text: impl Into<AbilityText>, effect: impl StaticBody) -> AbilityDef {
+    AbilityDef::new(AbilityType::Static, rules_text, effect.into_static_body())
+}
+
+/// What a static ability's effect is written as: an [`Effect`], or a bare
+/// [`ContinuousChange`], which applies while its source does (CR 611.3b) and so states
+/// no duration.
+pub trait StaticBody {
+    fn into_static_body(self) -> Effect;
+}
+
+impl StaticBody for Effect {
+    fn into_static_body(self) -> Effect {
+        self
+    }
+}
+
+impl StaticBody for ContinuousChange {
+    fn into_static_body(self) -> Effect {
+        self.lasting(Duration::WhileSourceOnBattlefield)
+    }
+}
+
+/// "As long as [condition], [effect]" (CR 604.2): a static ability's
+/// effect exists exactly while its condition holds.
+pub fn as_long_as(condition: Condition, body: impl StaticBody) -> Effect {
+    Effect::Conditional(condition, Box::new(body.into_static_body()))
 }
 
 /// A static ability whose effect is a replacement effect (CR 614.1a): never
@@ -69,16 +95,5 @@ pub fn mana_ability(rules_text: impl Into<AbilityText>, activation: impl Into<Ac
 /// (CR 702.6c, "Equip Knight {1}") is one more conjunct in that filter, not
 /// a new shape; no registered card has one yet.
 pub fn equip(rules_text: impl Into<AbilityText>, costs: Vec<Cost>) -> AbilityDef {
-    let creature_you_control = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    );
-    activated_ability(
-        rules_text,
-        Activation::from(costs).only_as_sorcery(),
-        Effect::Atom(
-            Primitive::Attach,
-            EffectRecipient::Target(SelectionFilter::Permanent(creature_you_control), TargetCount::Exactly(1)),
-        ),
-    )
+    activated_ability(rules_text, Activation::from(costs).only_as_sorcery(), attach_to(target_permanent(creatures_you_control())))
 }

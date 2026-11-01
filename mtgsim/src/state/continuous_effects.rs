@@ -6,7 +6,8 @@
 use std::sync::Arc;
 
 use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, Timestamp};
-use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
+use crate::state::duration_registry::{DurationRegistry, DurationRow};
+use crate::types::ids::RowId;
 use crate::types::effects::{Duration, ObjectSet};
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::triggers::EventKindMask;
@@ -325,13 +326,13 @@ impl RegistryScopeSummary {
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {
-                    if def.effect.as_restriction().is_some() {
+                    if def.effect.restrictions().next().is_some() {
                         summary.any_granted_restriction = true;
                     }
-                    if def.effect.as_cost_modification().is_some() {
+                    if def.effect.cost_modifications().next().is_some() {
                         summary.any_granted_cost_modification = true;
                     }
-                    if def.effect.as_trigger_multiplier().is_some() {
+                    if def.effect.trigger_multipliers().next().is_some() {
                         summary.any_granted_trigger_multiplier = true;
                     }
                 }
@@ -340,13 +341,13 @@ impl RegistryScopeSummary {
                 // copy of a vanilla creature must not turn either fast path on.
                 EffectModification::CopyFrom(values) => {
                     for ability in values.abilities.iter() {
-                        if ability.effect.as_restriction().is_some() {
+                        if ability.effect.restrictions().next().is_some() {
                             summary.any_copied_restriction = true;
                         }
-                        if ability.effect.as_cost_modification().is_some() {
+                        if ability.effect.cost_modifications().next().is_some() {
                             summary.any_copied_cost_modification = true;
                         }
-                        if ability.effect.as_trigger_multiplier().is_some() {
+                        if ability.effect.trigger_multipliers().next().is_some() {
                             summary.any_copied_trigger_multiplier = true;
                         }
                     }
@@ -393,9 +394,8 @@ pub fn triggered_ability_kinds(effect: &ContinuousEffect) -> EventKindMask {
 pub fn replacement_ability_kinds(effect: &ContinuousEffect) -> GameActionKindMask {
     use crate::engine::layers::types::EffectModification;
 
-    let kinds = |def: &crate::objects::card_data::AbilityDef| match def.effect.replacement_body() {
-        Some(replacement) => replacement.action_kinds_in_place(),
-        None => GameActionKindMask::EMPTY,
+    let kinds = |def: &crate::objects::card_data::AbilityDef| {
+        def.effect.replacements().fold(GameActionKindMask::EMPTY, |mask, (_, replacement)| mask | replacement.action_kinds_in_place())
     };
     match &effect.modification {
         EffectModification::GrantAbility(def) => kinds(def),
@@ -446,6 +446,12 @@ impl ContinuousEffectRegistry {
     /// them mints the id its registration will (`AbilityId::granted_by`).
     pub fn next_id(&self) -> EffectId {
         self.effects.next_id()
+    }
+
+    /// The id an add will assign after `adds` more, `0` being
+    /// [`Self::next_id`]: the rest of a look-ahead's would-be rows.
+    pub fn next_id_after(&self, adds: usize) -> EffectId {
+        self.effects.next_id_after(adds)
     }
 
     /// Run a mutation against the rows, then rebuild the summary.
@@ -604,7 +610,7 @@ impl ContinuousEffectRegistry {
             rows.remove_references_to(object, |row| !hidden.contains(&row.id));
             rows.retain(|row| {
                 !(row.source == object
-                    && matches!(row.origin, EffectOrigin::StaticAbility { ability }
+                    && matches!(row.origin, EffectOrigin::StaticAbility { ability, .. }
                         if ability.granting_row().is_some_and(|copy| hidden.contains(&copy))))
             });
         });
@@ -704,10 +710,10 @@ mod tests {
         let mut reg = ContinuousEffectRegistry::new();
         let src = new_object_id();
         let id = reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
-        assert_eq!(id, 1);
+        assert_eq!(id, RowId::stamped_by_a_fresh_registry(1));
         assert_eq!(reg.len(), 1);
-        assert_eq!(reg.iter().next().unwrap().id, 1);
-        assert_eq!(reg.add(make_effect(src, Layer::Layer7cModifyPT, 2)), 2, "ids ascend");
+        assert_eq!(reg.iter().next().unwrap().id, RowId::stamped_by_a_fresh_registry(1));
+        assert_eq!(reg.add(make_effect(src, Layer::Layer7cModifyPT, 2)), RowId::stamped_by_a_fresh_registry(2), "ids ascend");
     }
 
     #[test]
@@ -736,7 +742,7 @@ mod tests {
         let ability = crate::types::ids::new_ability_id();
         let static_row = |ts| {
             let mut e = make_effect(src, Layer::Layer6Ability, ts);
-            e.origin = EffectOrigin::StaticAbility { ability };
+            e.origin = EffectOrigin::StaticAbility { ability, clause: RowClause::Ability };
             e
         };
         let a = reg.add(static_row(1));
@@ -746,7 +752,7 @@ mod tests {
         // A static row of the same source in another layer moves with them and
         // stays in its own layer's range.
         let mut seven_c = make_effect(src, Layer::Layer7cModifyPT, 1);
-        seven_c.origin = EffectOrigin::StaticAbility { ability };
+        seven_c.origin = EffectOrigin::StaticAbility { ability, clause: RowClause::Ability };
         let c = reg.add(seven_c);
         let before = reg.mutations();
 
@@ -773,7 +779,7 @@ mod tests {
         let ability = crate::types::ids::new_ability_id();
         for (source, ts) in [(src, 1), (other, 2)] {
             let mut e = make_effect(source, Layer::Layer6Ability, ts);
-            e.origin = EffectOrigin::StaticAbility { ability };
+            e.origin = EffectOrigin::StaticAbility { ability, clause: RowClause::Ability };
             reg.add(e);
         }
         let mut fork = reg.clone();
@@ -821,7 +827,7 @@ mod tests {
             e
         };
         let ability = crate::types::ids::new_ability_id();
-        reg.add(grant(Duration::WhileSourceOnBattlefield, EffectOrigin::StaticAbility { ability }));
+        reg.add(grant(Duration::WhileSourceOnBattlefield, EffectOrigin::StaticAbility { ability, clause: RowClause::Ability }));
         reg.add(grant(Duration::WhileSourceOnBattlefield, EffectOrigin::Resolution));
         let lasting = reg.add(grant(Duration::UntilEndOfTurn, EffectOrigin::Resolution));
         assert!(reg.summary().ability_list_sources.contains(&src));

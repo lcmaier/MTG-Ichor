@@ -45,14 +45,14 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_replacement};
+use crate::cards::authoring::{discard, draw_cards, scry, spell_ability, static_replacement, target_player, you};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, TargetCount,
+    ObjectSet, DiscardChooser, ObjectFilter, PlayerRef,
+    PlayerSet,
 };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
@@ -66,10 +66,7 @@ use crate::types::zones::{Zone, ZoneChangeAct, ZoneSet, ZoneChangePattern};
 fn target_player_discards(rules_text: &'static str, n: u64, chooser: DiscardChooser) -> AbilityDef {
     spell_ability(
         rules_text,
-        Effect::Atom(
-            Primitive::Discard(AmountExpr::Fixed(n), chooser),
-            EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
-        ),
+        discard(target_player(), n, chooser),
     )
 }
 
@@ -229,17 +226,11 @@ pub fn opt() -> Arc<CardData> {
         .rules_text("Scry 1.\nDraw a card.")
         .ability(spell_ability(
             "Scry 1.",
-            Effect::Atom(
-                Primitive::Scry(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            ),
+            scry(you(), 1),
         ))
         .ability(spell_ability(
             "Draw a card.",
-            Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            ),
+            draw_cards(you(), 1),
         ))
         .build()
 }

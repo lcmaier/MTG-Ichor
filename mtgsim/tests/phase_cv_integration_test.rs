@@ -17,6 +17,7 @@
 use std::sync::Arc;
 
 
+use mtgsim::engine::layers::types::EffectId;
 use mtgsim::cards::authoring::static_restriction;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
@@ -477,7 +478,7 @@ fn test_a_copied_replacement_ability_lights_the_gather_gate() {
 /// bare `Effect::Replacement` body, so a copied Laboratory Maniac — "if you
 /// would draw a card while your library has no cards in it", a `Conditional`
 /// body, pooled beside Cytoshape — lit nothing and was never gathered. The
-/// summary now reads the body through `Effect::replacement_body`, and the six
+/// summary now reads the body through `Effect::replacements`, and the six
 /// memo hits that moved on the four-seat arm are this board.
 #[test]
 fn test_a_copied_conditional_replacement_ability_lights_the_gather_gate() {
@@ -705,7 +706,7 @@ fn pump(game: &mut GameState, id: ObjectId, power: i32, toughness: i32) {
     use mtgsim::engine::layers::types::{ContinuousEffect, EffectOrigin, PtValue};
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: id,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer7cModifyPT,
@@ -726,7 +727,7 @@ fn steal(game: &mut GameState, id: ObjectId, to: PlayerId) {
     use mtgsim::engine::layers::types::{ContinuousEffect, EffectOrigin};
     let timestamp = game.allocate_timestamp();
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: id,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer2Control,

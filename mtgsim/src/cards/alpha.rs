@@ -11,7 +11,10 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::spell_ability;
+use crate::cards::authoring::{
+    any_target, counter_spell, deal_damage, destroy, draw_cards, gets, spell_ability, target_creature, target_permanent, target_player, target_spell,
+    untap,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -29,10 +32,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .rules_text("Lightning Bolt deals 3 damage to any target.")
         .ability(spell_ability(
             "Lightning Bolt deals 3 damage to any target.",
-            Effect::Atom(
-                Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-                EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-            ),
+            deal_damage(any_target(), 3),
         ))
         .build()
 }
@@ -48,10 +48,7 @@ pub fn ancestral_recall() -> Arc<CardData> {
         .rules_text("Target player draws three cards.")
         .ability(spell_ability(
             "Target player draws three cards.",
-            Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(3)),
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
-            ),
+            draw_cards(target_player(), 3),
         ))
         .build()
 }
@@ -67,10 +64,7 @@ pub fn counterspell() -> Arc<CardData> {
         .rules_text("Counter target spell.")
         .ability(spell_ability(
             "Counter target spell.",
-            Effect::Atom(
-                Primitive::CounterSpell,
-                EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)),
-            ),
+            counter_spell(target_spell()),
         ))
         .build()
 }
@@ -86,10 +80,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
         .rules_text("Untap target permanent.")
         .ability(spell_ability(
             "Untap target permanent.",
-            Effect::Atom(
-                Primitive::Untap,
-                EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
-            ),
+            untap(target_permanent(ObjectFilter::All)),
         ))
         .build()
 }
@@ -105,14 +96,7 @@ pub fn giant_growth() -> Arc<CardData> {
         .rules_text("Target creature gets +3/+3 until end of turn.")
         .ability(spell_ability(
             "Target creature gets +3/+3 until end of turn.",
-            Effect::Atom(
-                Primitive::ModifyPowerToughness(
-                    AmountExpr::Fixed(3),
-                    AmountExpr::Fixed(3),
-                    Duration::UntilEndOfTurn,
-                ),
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            ),
+            gets(target_creature(), 3, 3).until_end_of_turn(),
         ))
         .build()
 }
@@ -128,13 +112,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
         .rules_text("Destroy target land.")
         .ability(spell_ability(
             "Destroy target land.",
-            Effect::Atom(
-                Primitive::Destroy,
-                EffectRecipient::Target(SelectionFilter::Permanent(
-                    ObjectFilter::ByType(CardType::Land)),
-                    TargetCount::Exactly(1),
-                ),
-            ),
+            destroy(target_permanent(ObjectFilter::ByType(CardType::Land))),
         ))
         .build()
 }

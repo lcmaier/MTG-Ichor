@@ -17,15 +17,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_replacement};
+use crate::cards::authoring::{copy, spell_ability, static_replacement, target_creature, target_permanent};
 use crate::cards::authoring::{another, at_beginning_of, triggered_ability, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    CharacteristicEdit, CopyException, CopyRoles, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
+    CharacteristicEdit, CopyException, CopyRoles, CounterType, Effect, ObjectFilter,
+    ObjectSet, PlayerRef, SelectionFilter, TypeChange,
 };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
@@ -90,14 +90,8 @@ pub fn cytoshape() -> Arc<CardData> {
         )
         .ability(spell_ability(
             "Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn.",
-            Effect::Atom(
-                Primitive::Copy {
-                    roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::Permanent(nonlegendary_creature())),
-                    except: Vec::new(),
-                    duration: Duration::UntilEndOfTurn,
-                },
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            ),
+            copy(target_creature(), CopyRoles::RecipientsCopyChosen(SelectionFilter::Permanent(nonlegendary_creature())), Vec::new())
+                .until_end_of_turn(),
         ))
         .build()
 }
@@ -156,33 +150,23 @@ pub fn mirrorform() -> Arc<CardData> {
         )
         .ability(spell_ability(
             "Each nonland permanent you control becomes a copy of target non-Aura permanent.",
-            Effect::Atom(
-                Primitive::Copy {
-                    roles: CopyRoles::FilteredCopyRecipient {
-                        // "Each nonland permanent you control" — and no
-                        // "other", which is the whole reason this card is
-                        // registered.
-                        filter: ObjectFilter::And(
-                            Box::new(ObjectFilter::Not(Box::new(
-                                ObjectFilter::ByType(CardType::Land),
-                            ))),
-                            Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                        ),
-                        exclude_donor: false,
-                    },
-                    except: Vec::new(),
-                    // No duration printed: CR 611.2a's "until the end of the game".
-                    duration: Duration::Indefinite,
-                },
+            copy(
                 // "target non-Aura permanent" — the donor, and the only place
                 // in CV-1 where a copy source is not required to be a creature.
-                EffectRecipient::Target(
-                    SelectionFilter::Permanent(ObjectFilter::Not(Box::new(
-                        ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
-                    ))),
-                    TargetCount::Exactly(1),
-                ),
-            ),
+                target_permanent(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura))))),
+                CopyRoles::FilteredCopyRecipient {
+                    // "Each nonland permanent you control" — and no
+                    // "other", which is the whole reason this card is
+                    // registered.
+                    filter: ObjectFilter::And(
+                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Land)))),
+                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    ),
+                    exclude_donor: false,
+                },
+                Vec::new(),
+            )
+            .until_end_of_game(),
         ))
         .build()
 }
@@ -244,25 +228,17 @@ pub fn mirrorweave() -> Arc<CardData> {
         )
         .ability(spell_ability(
             "Each other creature becomes a copy of target nonlegendary creature until end of turn.",
-            Effect::Atom(
+            copy(
+                // The target is the *donor* here, and it is what the printed
+                // "nonlegendary" scopes.
+                target_permanent(nonlegendary_creature()),
                 // "Each **other** creature" — `exclude_donor` is the word
                 // "other", and it is a field rather than structure because
                 // Mirrorform prints the same shape without it.
-                Primitive::Copy {
-                    roles: CopyRoles::FilteredCopyRecipient {
-                        filter: ObjectFilter::ByType(CardType::Creature),
-                        exclude_donor: true,
-                    },
-                    except: Vec::new(),
-                    duration: Duration::UntilEndOfTurn,
-                },
-                // The target is the *donor* here, and it is what the printed
-                // "nonlegendary" scopes.
-                EffectRecipient::Target(
-                    SelectionFilter::Permanent(nonlegendary_creature()),
-                    TargetCount::Exactly(1),
-                ),
-            ),
+                CopyRoles::FilteredCopyRecipient { filter: ObjectFilter::ByType(CardType::Creature), exclude_donor: true },
+                Vec::new(),
+            )
+            .until_end_of_turn(),
         ))
         .build()
 }
@@ -441,18 +417,13 @@ pub fn spark_double() -> Arc<CardData> {
 /// it was (3); a copy of it copies what it copies and has its ability (4).
 pub fn cryptoplasm() -> Arc<CardData> {
     let text = "At the beginning of your upkeep, you may have this creature become a copy of another target creature, except it has this ability.";
-    let copy = Effect::Atom(
-        Primitive::Copy {
-            roles: CopyRoles::ThisObjectCopiesRecipient,
-            except: vec![CopyException::Modifies(CharacteristicEdit::GainsThisAbility)],
-            // No duration printed: CR 611.2a's "until the end of the game".
-            duration: Duration::Indefinite,
-        },
-        EffectRecipient::Target(
-            SelectionFilter::Permanent(another(ObjectFilter::ByType(CardType::Creature))),
-            TargetCount::Exactly(1),
-        ),
-    );
+    let becomes_a_copy = copy(
+        target_permanent(another(ObjectFilter::ByType(CardType::Creature))),
+        CopyRoles::ThisObjectCopiesRecipient,
+        vec![CopyException::Modifies(CharacteristicEdit::GainsThisAbility)],
+    )
+    // No duration printed: CR 611.2a's "until the end of the game".
+    .until_end_of_game();
     CardDataBuilder::new("Cryptoplasm")
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 1))
         .color(Color::Blue)
@@ -464,7 +435,7 @@ pub fn cryptoplasm() -> Arc<CardData> {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
             intervening_if: None,
             limit: None,
-            effect: Effect::Optional { chooser: PlayerRef::You, effect: Box::new(copy) },
+            effect: Effect::Optional { chooser: PlayerRef::You, effect: Box::new(becomes_a_copy) },
         }))
         .build()
 }

@@ -62,14 +62,16 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, static_ability, static_replacement};
+use crate::cards::authoring::{
+    activated_ability, has_base_power_and_toughness, remove_counters, static_ability, static_replacement, target_permanent, this_object,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
-    ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
+    ObjectSet, AmountExpr, CharacteristicEdit, CounterType,
+    ObjectFilter, PlayerRef, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -211,13 +213,7 @@ pub fn chainbreaker() -> Arc<CardData> {
         .ability(activated_ability(
             "{3}, {T}: Remove a -1/-1 counter from target creature.",
             vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
-            Effect::Atom(
-                Primitive::RemoveCounters(CounterType::MinusOneMinusOne, AmountExpr::Fixed(1)),
-                EffectRecipient::Target(
-                    SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
-                    TargetCount::Exactly(1),
-                ),
-            ),
+            remove_counters(target_permanent(ObjectFilter::ByType(CardType::Creature)), CounterType::MinusOneMinusOne, 1),
         ))
         .build()
 }
@@ -536,14 +532,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
         )
         .ability(static_ability(
             "Keldon Warlord's power and toughness are each equal to the number of non-Wall creatures you control.",
-            Effect::Atom(
-                Primitive::SetPowerToughness(
-                    non_wall_creatures_you_control.clone(),
-                    non_wall_creatures_you_control,
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::ThisObject,
-            ),
+            has_base_power_and_toughness(this_object(), non_wall_creatures_you_control.clone(), non_wall_creatures_you_control),
         ).characteristic_defining())
         .build()
 }

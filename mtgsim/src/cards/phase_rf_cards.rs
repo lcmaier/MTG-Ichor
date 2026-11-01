@@ -26,12 +26,14 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability, static_replacement};
+use crate::cards::authoring::{
+    each_in, loses_all_abilities, shuffle_library, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, this_object, you,
+};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
+    Effect, ObjectFilter, ObjectSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -79,7 +81,7 @@ fn shuffles_into_library_from_anywhere(rules_text: &'static str) -> AbilityDef {
                 ObjectSet::SourceOnly,
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
             )
-            .with_then(Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::ThisObject)),
+            .with_then(shuffle_library(this_object())),
         ))),
     ))
 }
@@ -147,10 +149,7 @@ pub fn nexus_of_fate() -> Arc<CardData> {
              graveyard from anywhere, reveal Nexus of Fate and shuffle it into its owner's \
              library instead.",
         )
-        .ability(spell_ability("Take an extra turn after this one.", Effect::Atom(
-            Primitive::ExtraTurn,
-            EffectRecipient::Controller,
-        )))
+        .ability(spell_ability("Take an extra turn after this one.", take_an_extra_turn_after_this_one(you())))
         .ability(shuffles_into_library_from_anywhere("If Nexus of Fate would be put into a graveyard from anywhere, reveal Nexus of Fate and shuffle it into its owner's library instead.", ))
         .build()
 }
@@ -210,10 +209,7 @@ pub fn hollow_hands() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Cards in hands lose all abilities.")
-        .ability(static_ability("Cards in hands lose all abilities.", Effect::Atom(
-            Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::HAND),
-        )))
+        .ability(static_ability("Cards in hands lose all abilities.", loses_all_abilities(each_in(ObjectFilter::All, ZoneSet::HAND))))
         .build()
 }
 

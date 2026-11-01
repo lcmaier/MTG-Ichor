@@ -8,12 +8,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{becomes_types, creatures_you_control, each, each_in, functioning_in, gains_keyword, static_ability, this_object};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, TypeChange,
+    AmountExpr, ObjectFilter, PlayerRef, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -63,23 +63,15 @@ pub fn grist_insect_clause() -> Arc<CardData> {
         .subtype(Subtype::Planeswalker(PlaneswalkerType::Grist))
         .loyalty(3)
         .rules_text("As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.")
-        .ability(static_ability("As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.", Effect::FunctionsIn(
+        .ability(functioning_in(
             // CR 113.6c — the ability says where it does not function.
             ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
-            Box::new(Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::ChangeType(
-                        adding(vec![CardType::Creature], vec![Subtype::Creature(CreatureType::Insect)]),
-                        Duration::WhileSourceOnBattlefield,
-                    ),
-                    EffectRecipient::ThisObject,
-                ),
-                Effect::Atom(
-                    Primitive::SetPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
-                    EffectRecipient::ThisObject,
-                ),
-            ])),
-        )))
+            static_ability(
+                "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.",
+                becomes_types(this_object(), adding(vec![CardType::Creature], vec![Subtype::Creature(CreatureType::Insect)]))
+                    .and_has_base_power_and_toughness(1, 1),
+            ),
+        ))
         .build()
 }
 
@@ -101,32 +93,21 @@ pub fn grist_insect_clause() -> Arc<CardData> {
 /// rows, one effect: CR 613.6 locks the noncreature artifacts at layer 4 and
 /// applies the strip and the P/T to the same set.
 pub fn titanias_song_clause() -> Arc<CardData> {
-    let noncreature_artifact = || {
-        EffectRecipient::FilteredPermanents(ObjectFilter::And(
-            Box::new(ObjectFilter::ByType(CardType::Artifact)),
-            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature)))),
-        ))
-    };
+    let noncreature_artifact = each(ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Artifact)),
+        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature)))),
+    ));
     CardDataBuilder::new("Titania's Song's First Sentence")
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .color(Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.")
-        .ability(static_ability("Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.", Effect::Sequence(vec![
-            Effect::Atom(
-                Primitive::ChangeType(adding(vec![CardType::Creature], vec![]), Duration::WhileSourceOnBattlefield),
-                noncreature_artifact(),
-            ),
-            Effect::Atom(Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield), noncreature_artifact()),
-            Effect::Atom(
-                Primitive::SetPowerToughness(
-                    AmountExpr::AffectedManaValue,
-                    AmountExpr::AffectedManaValue,
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                noncreature_artifact(),
-            ),
-        ])))
+        .ability(static_ability(
+            "Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.",
+            becomes_types(noncreature_artifact, adding(vec![CardType::Creature], vec![]))
+                .and_loses_all_abilities()
+                .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
+        ))
         .build()
 }
 
@@ -147,16 +128,10 @@ pub fn pocket_griffin() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Griffin))
         .power_toughness(2, 2)
         .rules_text("As long as this card is in your hand, creatures you control have flying.")
-        .ability(static_ability("As long as this card is in your hand, creatures you control have flying.", Effect::FunctionsIn(
+        .ability(functioning_in(
             ZoneSet::HAND,
-            Box::new(Effect::Atom(
-                Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::FilteredPermanents(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
-            )),
-        )))
+            static_ability("As long as this card is in your hand, creatures you control have flying.", gains_keyword(each(creatures_you_control()), KeywordFlag::Flying)),
+        ))
         .build()
 }
 
@@ -177,19 +152,16 @@ pub fn arcane_adaptation_elf_clause() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .rules_text("Creature cards you own that aren't on the battlefield are Elves in addition to their other types.")
-        .ability(static_ability("Creature cards you own that aren't on the battlefield are Elves in addition to their other types.", Effect::Atom(
-            Primitive::ChangeType(
-                adding(vec![], vec![Subtype::Creature(CreatureType::Elf)]),
-                Duration::WhileSourceOnBattlefield,
-            ),
-            EffectRecipient::FilteredObjectsIn(
-                ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByOwner(PlayerRef::You)),
+        .ability(static_ability(
+            "Creature cards you own that aren't on the battlefield are Elves in addition to their other types.",
+            becomes_types(
+                each_in(
+                    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByOwner(PlayerRef::You))),
+                    ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
                 ),
-                ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
+                adding(vec![], vec![Subtype::Creature(CreatureType::Elf)]),
             ),
-        )))
+        ))
         .build()
 }
 
@@ -204,10 +176,10 @@ pub fn library_artificer() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .rules_text("Creature cards in libraries are artifacts in addition to their other types.")
-        .ability(static_ability("Creature cards in libraries are artifacts in addition to their other types.", Effect::Atom(
-            Primitive::ChangeType(adding(vec![CardType::Artifact], vec![]), Duration::WhileSourceOnBattlefield),
-            EffectRecipient::FilteredObjectsIn(ObjectFilter::ByType(CardType::Creature), ZoneSet::LIBRARY),
-        )))
+        .ability(static_ability(
+            "Creature cards in libraries are artifacts in addition to their other types.",
+            becomes_types(each_in(ObjectFilter::ByType(CardType::Creature), ZoneSet::LIBRARY), adding(vec![CardType::Artifact], vec![])),
+        ))
         .build()
 }
 
@@ -226,18 +198,15 @@ pub fn library_assassins() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Artifact creature cards in libraries are Assassins in addition to their other types.")
-        .ability(static_ability("Artifact creature cards in libraries are Assassins in addition to their other types.", Effect::Atom(
-            Primitive::ChangeType(
-                adding(vec![], vec![Subtype::Creature(CreatureType::Assassin)]),
-                Duration::WhileSourceOnBattlefield,
-            ),
-            EffectRecipient::FilteredObjectsIn(
-                ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Artifact)),
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+        .ability(static_ability(
+            "Artifact creature cards in libraries are Assassins in addition to their other types.",
+            becomes_types(
+                each_in(
+                    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Artifact)), Box::new(ObjectFilter::ByType(CardType::Creature))),
+                    ZoneSet::LIBRARY,
                 ),
-                ZoneSet::LIBRARY,
+                adding(vec![], vec![Subtype::Creature(CreatureType::Assassin)]),
             ),
-        )))
+        ))
         .build()
 }

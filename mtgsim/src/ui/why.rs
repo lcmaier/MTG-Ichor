@@ -30,8 +30,7 @@ use crate::state::trace::{RecordKind, TraceRecord};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::Effect;
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::oracle::x_values::LegalXValues;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -523,12 +522,11 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
 /// At CR 614.13a's choice: why `id` may not be moved as `entering` enters, by
 /// the check the candidates were built by, read off `source`'s effect.
 fn auxiliary_refusal(game: &GameState, you: PlayerId, (entering, source, to): (ObjectId, ObjectId, Zone), id: ObjectId) -> Option<WhyLine> {
-    let moved = get_effective_abilities(game, source).iter().find_map(|ability| match &ability.effect {
-        Effect::Replacement(def) => match &def.rewrite {
+    let moved = get_effective_abilities(game, source).iter().flat_map(|ability| ability.effect.replacements()).find_map(|(_, def)| {
+        match &def.rewrite {
             Rewrite::EnterAfterMoving(aux) if aux.to == to => Some(aux.clone()),
             _ => None,
-        },
-        _ => None,
+        }
     })?;
     let reason = if id == entering {
         Some(NotAuxiliary::Entering)
@@ -565,10 +563,10 @@ fn copy_refusal(game: &GameState, source: ObjectId, id: ObjectId) -> WhyLine {
     if !game.battlefield.contains_key(&id) {
         return refusal("To be copied", ("it is not a permanent on the battlefield".to_string(), None));
     }
-    let entering = get_effective_abilities(game, source).iter().find_map(|ability| match &ability.effect {
-        Effect::Replacement(def) if def.class == ReplacementClass::CopyAsEnters => Some(ability.rules_text.words),
-        _ => None,
-    });
+    let entering = get_effective_abilities(game, source)
+        .iter()
+        .find(|ability| ability.effect.replacements().any(|(_, def)| def.class == ReplacementClass::CopyAsEnters))
+        .map(|ability| ability.rules_text.words);
     // AS PRINTED: a resolving spell's words, for a line no rule reads.
     let resolving = || {
         let card = &game.objects.get(&source)?.card_data;
@@ -967,7 +965,7 @@ fn applied_by_words(game: &GameState, step: &LayerStep) -> String {
 /// the spell that resolved.
 fn step_words(game: &GameState, step: &LayerStep) -> Option<&'static str> {
     let words = match step.by {
-        AppliedBy::Effect { source, origin: EffectOrigin::StaticAbility { ability }, .. } => {
+        AppliedBy::Effect { source, origin: EffectOrigin::StaticAbility { ability, .. }, .. } => {
             static_ability_words(game, source, ability)
         }
         AppliedBy::Effect { source, origin: EffectOrigin::Resolution, .. } => {
@@ -1107,11 +1105,11 @@ fn changes(before: &EffectiveCharacteristics, after: &EffectiveCharacteristics) 
     out
 }
 
-/// Each ability's words, an ability the engine builds as several parts once,
-/// as `ui::display` prints a permanent's: its parts share a paragraph and,
-/// when granted, the grant.
+/// Each ability's words, a paragraph several abilities share once, as
+/// `ui::display` prints a permanent's: CR 603.11's linked abilities share a
+/// paragraph and, when granted, the grant.
 fn ability_words(abilities: &[AbilityDef]) -> Vec<&'static str> {
-    let mut shown: Vec<(&'static str, Option<u16>, Option<u64>)> = Vec::new();
+    let mut shown: Vec<(&'static str, Option<u16>, Option<RowId>)> = Vec::new();
     for ability in abilities {
         let part = (ability.rules_text.words, ability.rules_text.paragraph(), ability.id.granting_row());
         if part.1.is_some() && shown.contains(&part) {

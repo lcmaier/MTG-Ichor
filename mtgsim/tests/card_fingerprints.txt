@@ -141,7 +141,7 @@ Pinpoint Avalanche	0062b70911800f01
 Plague Spores	7bad02727f96b1cf
 Plains	2d4d77945c107f1b
 Plateau	6dc2bdf6be04ed72
-Platinum Angel	4200fca816ee1dbe
+Platinum Angel	c6dc170608071337
 Primal Vigor	16894c4fde7e1f67
 Protean Hydra	3c4dfc3b8ed9a316
 Psychosis Crawler	2493d8368caf78e7

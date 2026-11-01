@@ -33,14 +33,14 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, mana_ability, spell_ability};
+use crate::cards::authoring::{activated_ability, add_mana, destroy, draw_cards, mana_ability, spell_ability, target_permanent, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::cost_modification::{CostChange, CostModificationDef};
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    AmountExpr, Condition, ManaOutput, ObjectFilter, PlayerRef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -351,10 +351,7 @@ fn lesson(name: &str, cost: ManaCost, color: Color, card_type: CardType) -> Card
         .rules_text("Draw a card.")
         .ability(spell_ability(
             "Draw a card.",
-            Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            ),
+            draw_cards(you(), 1),
         ))
 }
 
@@ -439,10 +436,7 @@ pub fn altars_reap() -> Arc<CardData> {
         )]))
         .ability(spell_ability(
             "Draw two cards.",
-            Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(2)),
-                EffectRecipient::Controller,
-            ),
+            draw_cards(you(), 2),
         ))
         .build()
 }
@@ -506,13 +500,7 @@ pub fn krark_clan_ironworks() -> Arc<CardData> {
         .ability(mana_ability(
             "Sacrifice an artifact: Add {C}{C}.",
             vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1)],
-            Effect::Atom(
-                Primitive::ProduceMana(crate::types::effects::ManaOutput {
-                    mana: vec![(ManaType::Colorless, AmountExpr::Fixed(2))],
-                    special: vec![],
-                }),
-                EffectRecipient::Implicit,
-            ),
+            add_mana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(2))], special: vec![] }),
         ))
         .build()
 }
@@ -582,10 +570,7 @@ pub fn mind_stone() -> Arc<CardData> {
                 Cost::TapSelf,
                 Cost::SacrificeSelf,
             ],
-            Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            ),
+            draw_cards(you(), 1),
         ))
         .build()
 }
@@ -626,15 +611,7 @@ pub fn bone_splinters() -> Arc<CardData> {
         )]))
         .ability(spell_ability(
             "Destroy target creature.",
-            Effect::Atom(
-                Primitive::Destroy,
-                EffectRecipient::Target(
-                    crate::types::effects::SelectionFilter::Permanent(ObjectFilter::ByType(
-                        CardType::Creature,
-                    )),
-                    crate::types::effects::TargetCount::Exactly(1),
-                ),
-            ),
+            destroy(target_permanent(ObjectFilter::ByType(CardType::Creature))),
         ))
         .build()
 }
@@ -678,10 +655,7 @@ pub fn self_eating_engine() -> Arc<CardData> {
                 Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1),
                 Cost::TapSelf,
             ],
-            Effect::Atom(
-                Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            ),
+            draw_cards(you(), 1),
         ))
         .build()
 }

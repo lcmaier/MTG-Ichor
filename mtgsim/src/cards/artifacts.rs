@@ -11,12 +11,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::mana_ability;
+use crate::cards::authoring::{add_mana, mana_ability};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::keywords::KeywordFlag;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ManaOutput, Primitive};
+use crate::types::effects::{AmountExpr, ManaOutput};
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Sol Ring — {1}
@@ -37,16 +37,13 @@ pub fn sol_ring() -> Arc<CardData> {
         .ability(mana_ability(
             "{T}: Add {C}{C}.",
             vec![Cost::TapSelf],
-            Effect::Atom(
-                Primitive::ProduceMana(ManaOutput {
-                    // One ability producing two, not two abilities producing one:
-                    // `{C}{C}` is a single activation, and a mana ability that
-                    // could be activated twice per tap would be a different card.
-                    mana: vec![(ManaType::Colorless, AmountExpr::Fixed(2))],
-                    special: vec![],
-                }),
-                EffectRecipient::Implicit,
-            ),
+            add_mana(ManaOutput {
+                // One ability producing two, not two abilities producing one:
+                // `{C}{C}` is a single activation, and a mana ability that
+                // could be activated twice per tap would be a different card.
+                mana: vec![(ManaType::Colorless, AmountExpr::Fixed(2))],
+                special: vec![],
+            }),
         ))
         .build()
 }

@@ -9,12 +9,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{becomes_colorless, has_base_power_and_toughness, static_ability, this_object};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{ObjectFilter, ObjectSet, 
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, Primitive, };
+    AmountExpr, };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
@@ -60,14 +60,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
         )
         .ability(static_ability(
             "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1.",
-            Effect::Atom(
-                Primitive::SetPowerToughness(
-                    card_types_in_graveyards(),
-                    AmountExpr::Plus(Box::new(card_types_in_graveyards()), 1),
-                    Duration::WhileSourceOnBattlefield,
-                ),
-                EffectRecipient::ThisObject,
-            ),
+            has_base_power_and_toughness(this_object(), card_types_in_graveyards(), AmountExpr::Plus(Box::new(card_types_in_graveyards()), 1)),
         ).characteristic_defining())
         .build()
 }
@@ -96,10 +89,7 @@ pub fn culling_drone() -> Arc<CardData> {
         .rules_text("Devoid\nIngest")
         .ability(static_ability(
             "Devoid",
-            Effect::Atom(
-                Primitive::ChangeColor(ColorChange::RemoveAll, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::ThisObject,
-            ),
+            becomes_colorless(this_object()),
         ).characteristic_defining())
         .build()
 }

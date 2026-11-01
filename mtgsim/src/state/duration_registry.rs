@@ -38,15 +38,7 @@
 use std::sync::Arc;
 
 use crate::types::effects::Duration;
-use crate::types::ids::{ObjectId, PlayerId};
-
-/// The id space every duration registry allocates from.
-///
-/// One type rather than one per registry because the allocation discipline is
-/// the shared thing: monotonic, never reused. Wrappers keep their own aliases
-/// (`EffectId`, `ReplacementEffectId`) so their signatures still say which
-/// registry an id came from.
-pub type RowId = u64;
+use crate::types::ids::{ObjectId, PlayerId, RowId};
 
 /// What [`DurationRegistry`] needs to know about a row to store it and to end
 /// it at the right moment.
@@ -109,7 +101,7 @@ pub struct DurationRegistry<T: DurationRow> {
     /// registry is one allocation however deep the rows' payloads are, and a
     /// write copies only the row it edits (`Arc::make_mut`).
     rows: Vec<Arc<T>>,
-    next_id: RowId,
+    next_id: u64,
     /// Bumped by every mutator that changed a row — added one, removed one,
     /// or edited one in place. What a wrapper reads to tell a write from a
     /// no-op: comparing `len` before and after cannot see an in-place edit,
@@ -129,10 +121,20 @@ impl<T: DurationRow> DurationRegistry<T> {
 
     /// The id the next [`Self::add`] will stamp, read without advancing it.
     pub fn next_id(&self) -> RowId {
-        self.next_id
+        self.next_id_after(0)
     }
 
-    /// Store a row, stamping it with a fresh id. Returns that id.
+    /// The id [`Self::add`] will stamp after `adds` more adds, `0` being the
+    /// next: what a look-ahead's rows carry, so they sort where the rows they
+    /// predict would.
+    pub fn next_id_after(&self, adds: usize) -> RowId {
+        RowId::peek_after(self.next_id, adds)
+    }
+
+    /// Store a row, stamping it with a fresh id. Returns that id. The row
+    /// arrives with [`RowId::UNASSIGNED`]: one carrying an id was taken from
+    /// a registry and is being added again, which would give one row two
+    /// ids.
     ///
     /// The id is allocated *before* the insertion point is chosen, because the
     /// id is the second half of the sort key: ids ascend and are never reused,
@@ -142,8 +144,8 @@ impl<T: DurationRow> DurationRegistry<T> {
     /// timestamp — and, for a `SortKey` of `()`, it is what makes this a push
     /// and preserves the registration order a CR 616.1 prompt is offered in.
     pub fn add(&mut self, mut row: T) -> RowId {
-        let id = self.next_id;
-        self.next_id += 1;
+        debug_assert_eq!(row.id(), RowId::UNASSIGNED, "a row is added with the id another add stamped");
+        let id = RowId::take_next(&mut self.next_id);
         row.set_id(id);
 
         let key = (row.sort_key(), id);
@@ -370,7 +372,7 @@ mod tests {
     impl Row {
         fn new(source: ObjectId, duration: Duration) -> Self {
             Row {
-                id: 0,
+                id: RowId::UNASSIGNED,
                 source,
                 duration,
                 controller: 0,
@@ -500,7 +502,7 @@ mod tests {
         let a = reg.add(Row::new(src, Duration::UntilEndOfTurn));
         reg.remove(a);
         let b = reg.add(Row::new(src, Duration::UntilEndOfTurn));
-        assert_eq!(a, 1);
+        assert_eq!(a, RowId::stamped_by_a_fresh_registry(1));
         assert_ne!(a, b);
     }
 
@@ -532,7 +534,8 @@ mod tests {
         let keys: Vec<(u8, RowId)> = reg.iter().map(|r| (r.sort_key(), r.id())).collect();
         // Equal keys keep insertion order via the id tiebreak: the rank-2 row
         // added first (id 2) still precedes the one added last (id 4).
-        assert_eq!(keys, vec![(2, 2), (2, 4), (5, 1), (9, 3)]);
+        let stamped = RowId::stamped_by_a_fresh_registry;
+        assert_eq!(keys, vec![(2, stamped(2)), (2, stamped(4)), (5, stamped(1)), (9, stamped(3))]);
         assert!(reg.is_sorted());
     }
 
@@ -601,7 +604,7 @@ mod tests {
         assert_eq!(reg.generation(), 0);
         let id = reg.add(Row::new(src, Duration::UntilEndOfTurn));
         assert_eq!(reg.generation(), 1);
-        assert!(reg.remove(999).is_none());
+        assert!(reg.remove(RowId::stamped_by_a_fresh_registry(999)).is_none());
         assert_eq!(reg.generation(), 1);
         assert!(reg.remove_expired_at_turn_start(0, 5).is_empty());
         assert_eq!(reg.generation(), 1);

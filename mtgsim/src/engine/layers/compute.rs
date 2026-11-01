@@ -1561,7 +1561,7 @@ mod tests {
         // Register an anthem: "Creatures you control get +1/+1"
         let anthem_source = crate::types::ids::new_object_id();
         let effect = ContinuousEffect {
-            id: 0,
+            id: EffectId::UNASSIGNED,
             source: anthem_source,
             origin: EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,
@@ -1610,7 +1610,7 @@ mod tests {
 
         let timestamp = game.allocate_timestamp();
         game.continuous_effects.add(ContinuousEffect {
-            id: 0,
+            id: EffectId::UNASSIGNED,
             source: aura,
             origin: EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,
@@ -1803,7 +1803,7 @@ mod tests {
 
         let source_id = crate::types::ids::new_object_id();
         let effect = ContinuousEffect {
-            id: 0,
+            id: EffectId::UNASSIGNED,
             source: source_id,
             origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
@@ -2032,7 +2032,7 @@ mod tests {
         // L5: "Creatures are also red" (filter-based)
         let l5_source = crate::types::ids::new_object_id();
         let l5_effect = ContinuousEffect {
-            id: 0,
+            id: EffectId::UNASSIGNED,
             source: l5_source,
             origin: EffectOrigin::Resolution,
             layer: Layer::Layer5Color,
@@ -2148,7 +2148,7 @@ mod tests {
             0,
         );
         game.continuous_effects.add(ContinuousEffect {
-            id: 0,
+            id: EffectId::UNASSIGNED,
             source: crate::types::ids::new_object_id(),
             origin: EffectOrigin::Resolution,
             layer: Layer::Layer7cModifyPT,

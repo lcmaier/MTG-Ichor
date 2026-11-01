@@ -17,12 +17,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_replacement;
+use crate::cards::authoring::{create_tokens, static_replacement, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    ObjectSet, ObjectFilter, PlayerRef,
     TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
@@ -59,7 +59,7 @@ use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 ///   battlefield.
 /// - **"and create a 2/2 black Zombie"** is the `then` rider (CR 615.5), and it
 ///   belongs to the *application* rather than to the event's survival: CR
-///   615.12 keeps it once queued. Its `EffectRecipient::Controller` names
+///   615.12 keeps it once queued. Its `you()` names
 ///   Kalitas's controller, not the dying creature's — the rider resolves
 ///   against a `ResolutionContext` whose source is Kalitas.
 ///
@@ -112,12 +112,13 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                     )),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             )
-            .with_then(Effect::Atom(
-                Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)),
+            .with_then(create_tokens(
                 // Kalitas's controller, not the dying creature's. The rider
                 // resolves against a context whose source is Kalitas, so
-                // `Controller` is CR 109.5's "you" for this ability.
-                EffectRecipient::Controller,
+                // `you` is CR 109.5's "you" for this ability.
+                you(),
+                1,
+                zombie_token(),
             )),
         ))
         .build()
@@ -307,6 +308,7 @@ pub(crate) fn zombie_token() -> TokenDef {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::effects::Effect;
 
     #[test]
     fn kalitas_watches_dying_rather_than_being_destroyed() {

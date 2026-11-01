@@ -11,6 +11,7 @@
 //! consumers of it in the same scenario. These do.
 
 
+use mtgsim::engine::layers::types::EffectId;
 use mtgsim::engine::targeting::FilterIdentity;
 use mtgsim::engine::layers::{ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::objects::card_data::CardDataBuilder;
@@ -31,7 +32,7 @@ fn add_layer4(game: &mut GameState, id: ObjectId, modification: EffectModificati
     let timestamp = game.allocate_timestamp();
     let turn = game.turn_number;
     game.continuous_effects.add(ContinuousEffect {
-        id: 0,
+        id: EffectId::UNASSIGNED,
         source: id,
         origin: EffectOrigin::Resolution,
         layer: Layer::Layer4Type,

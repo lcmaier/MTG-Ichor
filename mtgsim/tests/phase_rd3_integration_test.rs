@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::state::replacement_effects::ReplacementEffectId;
 use mtgsim::cards::phase_rd_cards::{
     circle_of_protection_red, daunting_defender, fog, guardian_seraph, pyroclasm,
     torbran_thane_of_red_fell,
@@ -84,7 +85,7 @@ fn cleric(power: i32) -> Arc<CardData> {
 fn fixture_row(game: &mut GameState, source: ObjectId, controller: PlayerId, def: ReplacementDef) {
     let turn = game.turn_number;
     game.replacement_effects.add(RegisteredReplacementEffect {
-        id: 0,
+        id: ReplacementEffectId::UNASSIGNED,
         source,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
