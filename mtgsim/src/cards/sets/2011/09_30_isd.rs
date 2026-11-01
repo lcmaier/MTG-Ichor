@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{creature, draw_cards, equip, gains_keyword, host, spell_ability, static_ability, static_replacement, you};
+use crate::cards::authoring::{creature, draw_cards, equip, gains_keyword, host, spell_ability, static_ability, static_replacement, you, you_have};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -140,7 +140,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
             "If you would draw a card while your library has no cards in it, you win the game instead.",
         )
         .ability(static_conditional_replacement("If you would draw a card while your library has no cards in it, you win the game instead.",
-            Condition::Player { players: PlayerSet::You, fact: PlayerFact::LibraryEmpty },
+            you_have(PlayerFact::LibraryEmpty),
             // Any individual draw, whatever instructed it: the draw step's,
             // a cantrip's, the seventh of Stunning Reversal's. The instruction
             // (`DrawCards`) is not what this watches — CR 121.2 performs the

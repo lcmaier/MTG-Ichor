@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     activated_ability, as_long_as, becomes_color, color, copy, creature, draw_cards, draw_two_instead, gains_ability, gains_keyword,
     nonlegendary_creature, persist, remove_counters, spell_ability, static_ability, static_replacement, tapped_for_mana, target_creature,
-    target_permanent, this_object, you, ContinuousChange,
+    target_permanent, this_object, you, you_have, ContinuousChange,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -302,7 +302,7 @@ pub fn thought_reflection() -> Arc<CardData> {
 /// "You control a [color] creature."
 fn you_control_a_creature_of(wanted: Color) -> Condition {
     let creature_of_color = creature().and(color(wanted));
-    Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(creature_of_color) }
+    you_have(PlayerFact::ControlsPermanent(creature_of_color))
 }
 
 /// Wingrattle Scarecrow — {3}

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     becomes_a_blocked_creature, create_tokens, creature, destroy, discard, draw_cards, each, each_in, gain_life, is_also_color,
     leaves_the_battlefield, lose_the_game, non, spell_ability, static_ability, target_creature, token, triggered_ability, when_state, whenever,
-    with_subtype, you, you_control, you_now,
+    with_subtype, you, you_control, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -121,7 +121,7 @@ pub fn immortal_coils_state_trigger() -> Arc<CardData> {
         .ability(triggered_ability(
             "When there are no cards in your graveyard, you lose the game.",
             when_state(
-                Condition::Not(Box::new(you_now(PlayerFact::CardInGraveyard(ObjectFilter::All)))),
+                Condition::Not(Box::new(you_have(PlayerFact::CardInGraveyard(ObjectFilter::All)))),
                 lose_the_game(you()),
             ),
         ))
@@ -136,7 +136,7 @@ pub fn draws_on_an_empty_hand() -> Arc<CardData> {
         .rules_text("Whenever you have no cards in hand, draw a card.")
         .ability(triggered_ability(
             "Whenever you have no cards in hand, draw a card.",
-            when_state(you_now(PlayerFact::HandEmpty), draw_cards(you(), 1)),
+            when_state(you_have(PlayerFact::HandEmpty), draw_cards(you(), 1)),
         ))
         .build()
 }

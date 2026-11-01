@@ -3,12 +3,12 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    as_long_as, creature, creatures_you_control, each, functioning_in, gains_keyword, static_ability, static_replacement, with_subtype,
+    as_long_as, creature, creatures_you_control, each, functioning_in, gains_keyword, static_ability, static_replacement, with_subtype, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Condition, ObjectSet, PlayerFact, PlayerSet};
+use crate::types::effects::{ObjectSet, PlayerFact};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AuxiliaryMove, EventPattern, ReplacementDef, Rewrite};
@@ -153,10 +153,7 @@ pub fn wonder() -> Arc<CardData> {
             static_ability(
                 "As long as this card is in your graveyard and you control an Island, creatures you control have flying.",
                 as_long_as(
-                    Condition::Player {
-                        players: PlayerSet::You,
-                        fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Island))),
-                    },
+                    you_have(PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Island)))),
                     gains_keyword(each(creatures_you_control()), KeywordFlag::Flying),
                 ),
             ),

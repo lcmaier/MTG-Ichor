@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     activated_ability, becomes_types, color, creature, draw_cards, each, non, other_than_this, sacrifice, skip, static_ability, static_replacement,
-    this_object, token, triggered_ability, when_state, whenever, with_subtype, you, you_now,
+    this_object, token, triggered_ability, when_state, whenever, with_subtype, you, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -93,7 +93,7 @@ pub fn emperor_crocodile() -> Arc<CardData> {
         .ability(triggered_ability(
             "When you control no other creatures, sacrifice this creature.",
             when_state(
-                Condition::Not(Box::new(you_now(PlayerFact::ControlsPermanent(other_creature)))),
+                Condition::Not(Box::new(you_have(PlayerFact::ControlsPermanent(other_creature)))),
                 sacrifice(this_object()),
             ),
         ))

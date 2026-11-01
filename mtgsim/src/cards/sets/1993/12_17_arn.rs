@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{as_long_as, gets, static_ability, static_replacement, this_object, with_subtype};
+use crate::cards::authoring::{as_long_as, gets, static_ability, static_replacement, this_object, with_subtype, you_have};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Condition, PlayerFact, PlayerSet};
+use crate::types::effects::{PlayerFact, PlayerSet};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, LifeLossCausePattern, ReplacementDef, Rewrite};
 
@@ -112,10 +112,7 @@ pub fn kird_ape() -> Arc<CardData> {
         .ability(static_ability(
             "This creature gets +1/+2 as long as you control a Forest.",
             as_long_as(
-                Condition::Player {
-                    players: PlayerSet::You,
-                    fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest))),
-                },
+                you_have(PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest)))),
                 gets(this_object(), 1, 2),
             ),
         ))

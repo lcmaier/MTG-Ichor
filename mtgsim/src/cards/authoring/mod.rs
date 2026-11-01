@@ -28,7 +28,7 @@ pub mod replacements;
 pub mod triggers;
 
 pub use abilities::{
-    activated_ability, as_long_as, equip, mana_ability, spell_ability, static_ability, static_replacement, static_restriction, StaticBody,
+    activated_ability, as_long_as, equip, mana_ability, spell_ability, static_ability, static_replacement, static_restriction, you_have, StaticBody,
 };
 pub use instructions::{
     add_mana, add_phases, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, cant_for, copy, counter_spell,
@@ -54,5 +54,5 @@ pub use triggers::{
     counters_put_on, counters_removed_from, creates_a_token, damage_to_is_prevented, dies, draws_a_card, enters, functioning_in, is_attacked,
     is_sacrificed, leaves_the_battlefield, loses_the_game, persist, player_attacks, player_attacks_player, player_becomes_the_target_of,
     player_or_their_planeswalker, scries, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_state, when_you_do,
-    when_you_dont, whenever, you_lose_control_of, you_now, CountableEvent, CounterEvent, Whose,
+    when_you_dont, whenever, you_lose_control_of, CountableEvent, CounterEvent, Whose,
 };

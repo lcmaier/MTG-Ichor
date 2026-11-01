@@ -6,12 +6,12 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     artifact, as_long_as, basic, becomes_colorless, becomes_types, color, creature, creatures_you_control, draw_cards, each, each_in, functioning_in,
     gains_keyword, gets, has_base_power_and_toughness, host, is_also_color, land, non, spell_ability, static_ability, switch_power_and_toughness,
-    target_creature, target_permanent, this_object, with_subtype, you, you_control,
+    target_creature, target_permanent, this_object, with_subtype, you, you_control, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, PlaneswalkerType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Condition, Effect, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, SelectionFilter, TypeChange};
+use crate::types::effects::{AmountExpr, Condition, Effect, ObjectFilter, PlayerFact, PlayerRef, SelectionFilter, TypeChange};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
@@ -444,10 +444,7 @@ pub fn simian_clause() -> Arc<CardData> {
         .ability(static_ability(
             "As long as you control a Forest, each creature you control is an Ape in addition to its other types.",
             as_long_as(
-                Condition::Player {
-                    players: PlayerSet::You,
-                    fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest))),
-                },
+                you_have(PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest)))),
                 becomes_types(each(creatures_you_control()), TypeChange::adding(&[], &[], &[Subtype::Creature(CreatureType::Ape)])),
             ),
         ))
@@ -514,7 +511,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
         .ability(static_ability(
             "This creature gets +2/+2 as long as there's a red card in your graveyard.",
             as_long_as(
-                Condition::Player { players: PlayerSet::You, fact: PlayerFact::CardInGraveyard(color(Color::Red)) },
+                you_have(PlayerFact::CardInGraveyard(color(Color::Red))),
                 gets(this_object(), 2, 2),
             ),
         ))

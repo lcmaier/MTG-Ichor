@@ -3,13 +3,13 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    at_beginning_of, put_counters, shuffles_their_library, this_object, triggered_ability, whenever, win_the_game, you, Whose,
+    at_beginning_of, put_counters, shuffles_their_library, this_object, triggered_ability, whenever, win_the_game, you, you_have, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Condition, CounterType, Effect, PlayerFact, PlayerRef, PlayerSet};
+use crate::types::effects::{AmountExpr, CounterType, Effect, PlayerFact, PlayerRef};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
@@ -91,10 +91,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
         .rules_text("Vigilance\nLifelink\nAt the beginning of your upkeep, if you have 40 or more life, you win the game.")
         .ability(triggered_ability("At the beginning of your upkeep, if you have 40 or more life, you win the game.", TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
-            intervening_if: Some(Condition::Player {
-                players: PlayerSet::You,
-                fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(40)),
-            }),
+            intervening_if: Some(you_have(PlayerFact::LifeAtLeast(AmountExpr::Fixed(40)))),
             limit: None,
             effect: win_the_game(you()),
         }))
