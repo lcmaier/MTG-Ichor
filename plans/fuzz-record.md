@@ -96,6 +96,54 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-11-01 for `card-layer-cleanup`'s fifth PR, the scripted answers by identity**
+(`cards/scripted-answers-by-identity`, PR #305: every scripted test answer
+names what it chose, the position forms gone, and the backlog's owners). No
+pool changed, so no table is re-recorded. One `close_out.py` sitting against
+**main** `eadd11ad` (#304's merge): **engine** `f53b373b`, the last code
+commit.
+
+**Predictions, written before any arm ran**: every gameplay row `IDENTICAL`
+on both pools at both seat counts, since no fuzz seat uses the scripted
+provider and `position_of`, the one engine function touched, runs only in a
+replay and a scenario's setup; every cost row identical too, and instructions
+a decision within ±0.05%, nothing on a game's path having changed.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,442 / 172,255 | 341,528 / 361,996 |
+| instructions / decision, callgrind, the budget's board | | 0.6470 M → 0.6497 M, **+0.41%** |
+
+The rows and the audit held, every counter file equal but its timing lines.
+**The instruction row missed its prediction**, by an inlining boundary rather
+than work: no changed function runs on the board (no `position_of`,
+`reading_as` or scripted-provider row in the engine arm's profile), both arms
+make 477 decisions a game, and the 25.5 M instructions move between copies of
+the same code. `mana_helpers::activatable_abilities_with` calls
+`characteristics::controls` and `get_effective_abilities` in the engine arm
+where `main` inlined them, by exclusive cost −29 M in the inlined copies and
++55 M in the called ones. The boundary is the one the third PR's review
+round read at −0.37% (`get_effective_abilities`, `ManaAbilityWindowOffer::read`),
+flipping back as the crate's functions change around it.
+
+**The answers, checked one for one**: a recorder in the scripted provider,
+never committed, logged the positions each test returned, before the
+migration and on the final tree. 437 tests identical; three differ, each on
+purpose: a validator test that now calls `check_pick_n` rather than script an
+out-of-range position, a new unit test, and the devour test whose answer had
+been Containment Priest while it asserted about the Bear.
+
+**`picking(n)`'s order dependence** (item 361), the same way: a throwaway
+instrument logged each `picking(` use's prompts, then reversed every list it
+answers. Of 175 uses, 87 answer a prompt, 72 one with two or more options,
+and 33 sit in the 44 tests that fail reversed.
+
+**CI's other sittings, run locally**: clippy at `-D warnings` on both crates,
+the suite (2,887 passing), the release clone, history and scenario tests, the
+`release-checked` stress and fixtures sittings (50 games, seed 12345: 0
+errors, 0 panics, 0 turn-limit hits), and the dev GUI's build and tests.
+
 **Re-recorded 2026-11-01 for `card-layer-cleanup`'s fourth PR, the creature types and the fixtures' names**
 (`cards/creature-types-plus-fixture-names`, PR #304: fourteen creatures'
 printed types, Cerulean Wisps' untap, Moonlace Fixture, the eight misnamed
