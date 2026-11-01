@@ -1379,9 +1379,10 @@ mod tests {
     use crate::types::effects::EffectRecipient;
     use crate::types::mana::ManaSymbol;
     use crate::cards::printings::{
-        badlands, chainbreaker, citanul_hierophants, darksteel_myr, deep_water, doubling_cube, everywhere, forest, grizzly_bears, island,
-        krark_clan_ironworks, mana_reflection, march_of_the_machines, mind_stone, pale_moon, plains, sol_ring, tundra, wild_growth,
+        badlands, chainbreaker, citanul_hierophants, darksteel_myr, deep_water, doubling_cube, forest, grizzly_bears, island, krark_clan_ironworks,
+        mana_reflection, march_of_the_machines, mind_stone, pale_moon, plains, sol_ring, tundra, wild_growth,
     };
+    use crate::cards::tokens::everywhere;
     use crate::objects::card_data::{CardData, CardDataBuilder};
     use crate::test_support::{put_on_battlefield, put_on_battlefield_this_turn, setup_two_player_game, test_dp};
     use crate::types::card_types::CardType;

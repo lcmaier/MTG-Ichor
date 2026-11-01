@@ -89,7 +89,6 @@ pub use super::sets::mh2::*;
 pub use super::sets::snc::*;
 pub use super::sets::dmu::*;
 pub use super::sets::mkm::*;
-pub use super::sets::tdsk::*;
 pub use super::sets::fdn::*;
 pub use super::sets::fic::*;
 pub use super::sets::ecl::*;

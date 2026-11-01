@@ -9,9 +9,10 @@
 //! is shown failing on the tree before the fix.
 
 use mtgsim::cards::printings::{
-    badlands, chainbreaker, darksteel_colossus, doubling_cube, everywhere, knight_of_meadowgrain, krark_clan_ironworks, mana_reflection, plains,
-    sol_ring, thornweald_archer, wild_growth,
+    badlands, chainbreaker, darksteel_colossus, doubling_cube, knight_of_meadowgrain, krark_clan_ironworks, mana_reflection, plains, sol_ring,
+    thornweald_archer, wild_growth,
 };
+use mtgsim::cards::tokens::everywhere;
 use mtgsim::oracle::mana_helpers::{activatable_abilities, can_cast};
 use mtgsim::state::game_state::{GameState, Phase, PhaseType};
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};

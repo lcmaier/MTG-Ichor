@@ -8,7 +8,8 @@
 //! pool: Blood Moon is in `PERFORMANCE_POOL`, and a five-type land is the
 //! widest board CR 305.7's carve-out has had.
 
-use mtgsim::cards::printings::{blood_moon, everywhere};
+use mtgsim::cards::printings::blood_moon;
+use mtgsim::cards::tokens::everywhere;
 use mtgsim::oracle::characteristics::get_effective_subtypes;
 use mtgsim::oracle::mana_supply::available_mana_sources;
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_dp};

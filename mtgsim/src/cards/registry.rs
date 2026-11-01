@@ -7,9 +7,10 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, tdsk, thb, tmp, tor, tsp, uds, ulg, usg,
+    mkm, mmq, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
     vis, war, wth, zen, znr,
 };
+use super::tokens;
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -719,7 +720,7 @@ impl CardRegistry {
         // registry's only source of every color, which is what lets
         // `fuzz_games --require` stop seeding a deck's colors from the
         // required card's.
-        registry.register("Everywhere", tdsk::everywhere);
+        registry.register("Everywhere", tokens::everywhere);
 
         // The first replacement effect with printed card text.
         registry.register("Kalitas, Traitor of Ghet", ogw::kalitas_traitor_of_ghet);

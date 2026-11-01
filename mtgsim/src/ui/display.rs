@@ -1282,7 +1282,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::cards::{fixtures, printings};
+    use crate::cards::{fixtures, printings, tokens};
     use crate::events::event::DepartedObject;
     use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
@@ -1559,7 +1559,7 @@ mod tests {
 
         let mut game = setup_two_player_game();
         for (card, texts) in [
-            (printings::everywhere(), vec!["{T}: Add {W}.", "{T}: Add {U}.", "{T}: Add {B}.", "{T}: Add {R}.", "{T}: Add {G}."]),
+            (tokens::everywhere(), vec!["{T}: Add {W}.", "{T}: Add {U}.", "{T}: Add {B}.", "{T}: Add {R}.", "{T}: Add {G}."]),
             (printings::mind_stone(), vec!["{T}: Add {C}.", "{1}, {T}, Sacrifice this artifact: Draw a card."]),
             (printings::yawgmoths_bargain(), vec!["Pay 1 life: Draw a card."]),
             (

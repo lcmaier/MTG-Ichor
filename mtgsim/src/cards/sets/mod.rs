@@ -179,8 +179,6 @@ pub mod snc;
 pub mod dmu;
 #[path = "2024/02_09_mkm.rs"]
 pub mod mkm;
-#[path = "2024/09_27_tdsk.rs"]
-pub mod tdsk;
 #[path = "2024/11_15_fdn.rs"]
 pub mod fdn;
 #[path = "2025/06_13_fic.rs"]
