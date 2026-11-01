@@ -101,7 +101,7 @@ already slotted beside the phase.
 |---|---|---|---|---|
 | 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
 | 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | built (#302): +2,269 / −2,042, the words +1,335 / −1,630, the row id +178 / −94, the readers +488 / −183, the review round +391 / −315 with main item 359 | one |
-| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | built (#303): 11,939 moved lines counted zero; the rest −4,688 / +3,755, past the band (below) | one, long |
+| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | built (#303): the move's commit counted zero, 277 of its 289 items byte-identical; every other commit +1,476 / −1,714 | one, long |
 | 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
 
@@ -172,10 +172,10 @@ path" rows as "It exercises …"). A card file's test module moved into
 tests, the per-card data checks into `printings_test.rs`; the Layer 4
 lowering test reads `GameState`'s crate-private lowering, so it joined
 `game_state.rs`'s unit tests. The band: 277 of
-289 items byte-identical and 11,939 moved lines counted zero by decision 7;
-outside them the larger side is −4,688, of which 1,232 are the dropped
-module docs and 497 the fingerprints, and +3,755, of which 1,008 are the 97
-new card files' headers and imports. The five `tdc` decklists are in
+289 items byte-identical, so the move's commit counts zero by decision 7,
+its imports, paths and module files with it (the owner, at the review: the
+brief sized the PR "not counting the move"); every other commit comes to
++1,476 / −1,714, inside the band. The five `tdc` decklists are in
 `mtgsim/decks/`, from MTGJSON's deck files: 380 distinct names the registry
 lacks. The first review round (2026-11-01) renamed `colored` to `color` and
 the prevention word to `prevent_the_next_n_damage_this_turn`, moved
