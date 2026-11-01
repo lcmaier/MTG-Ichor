@@ -101,7 +101,7 @@ already slotted beside the phase.
 | 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
 | 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | built (#302): +2,269 / −2,042, the words +1,335 / −1,630, the row id +178 / −94, the readers +488 / −183, the review round +391 / −315 with main item 359 | one |
 | 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | built (#303): the move's commit counted zero, 277 of its 289 items byte-identical; every other commit +1,476 / −1,714 | one, long |
-| 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered; an invented land of Everywhere's shape (five basic land types, five mana abilities) in `cards::fixtures`, registered and pooled in its place, Everywhere staying defined in `cards::tokens` and unregistered (the owner, at PR 3's review, 2026-11-01) | built (#304): +556 / −248, half of it tests; both pools re-recorded once for all of it | short |
+| 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered; an invented land of Everywhere's shape (five basic land types, five mana abilities) in `cards::fixtures`, registered and pooled in its place, Everywhere staying defined in `cards::tokens` and unregistered (the owner, at PR 3's review, 2026-11-01) | built (#304): +614 / −280, half of it tests; both pools re-recorded once for all of it | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
 
 The estimates assume each ability's effect body stays where it is when its
@@ -290,7 +290,7 @@ PR 5's are the tests.
      |---|---|---|
      | Giant Growth | "Target creature gets +3/+3 until end of turn." | `gets(target_creature(), 3, 3).until_end_of_turn()` |
      | Kindled Fury | "Target creature gets +1/+0 and gains first strike until end of turn." | `gets(target_creature(), 1, 0).and_gains(FirstStrike).until_end_of_turn()` |
-     | Moonlace | "Target spell or permanent becomes colorless." | `becomes_colorless(target_spell_or_permanent()).until_end_of_game()`, CR 611.2a's default when the text states none |
+     | Moonlace | "Target spell or permanent becomes colorless." | `becomes_colorless(target_spell_or_permanent()).until_end_of_game()`, CR 611.2a's default when the text states none (a sketch: the recipient word waits on `backlog.md` §2.50, and PR 4 registered Moonlace Fixture) |
      | Glorious Anthem | "Creatures you control get +1/+1." | `static_ability(text, gets(creatures_you_control(), 1, 1))`: no suffix, since a static ability's effect lasts while the ability does (CR 611.3a) and the static word stamps it |
 
      A change word returns a change awaiting its duration, which is not an

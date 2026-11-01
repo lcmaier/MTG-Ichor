@@ -14,9 +14,10 @@ use crate::types::mana::ManaType;
 /// (CR 305.6), on a card a deck can hold: Everywhere is a token
 /// (`cards::tokens::everywhere`), and no deck holds a token. `random_deck`
 /// fills every land slot it has not assigned with a land that taps for all
-/// five colors, and a pool that has one can pay for any card in it; a real
-/// "add one mana of any color" is not expressible yet
-/// (`backlog.md#219-any-color-mana--add-one-mana-of-any-color`).
+/// five colors, and a pool that has one can pay for any card in it. A printed
+/// any-color land prints "add one mana of any color" (CR 106.1b), one ability
+/// and a choice, which `any-color-plus-painlands-plus-signets` builds; that
+/// row decides whether one takes this fixture's slot.
 ///
 /// It enters untapped: a tapland would push every deck's curve back a turn.
 /// Under Blood Moon, which is pooled, CR 305.7 strips all five abilities and

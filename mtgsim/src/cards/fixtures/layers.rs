@@ -42,17 +42,16 @@ pub fn inside_out_fixture() -> Arc<CardData> {
         .build()
 }
 
-
 /// Moonlace Fixture — {U}
 /// Instant
 /// Target creature becomes colorless until end of turn.
 ///
 /// **A fixture of Moonlace's shape, narrower than the card**: Moonlace's
-/// "target spell or permanent becomes colorless" is a target no
-/// `SelectionFilter` describes, and its effect lasts the game (its rulings:
-/// it "doesn't wear off", and a permanent spell it targets enters colorless,
-/// CR 400.7a). This one keeps the pool's Layer 5 colorless setter, on a
-/// creature until end of turn.
+/// one target is a spell or a permanent (CR 115.1), which no selection
+/// offers yet (`backlog.md#250-target-spell-or-permanent--one-target-from-two-zones`),
+/// and its effect lasts the game (its rulings: it "doesn't wear off", and a
+/// permanent spell it targets enters colorless, CR 400.7a). This one keeps
+/// the pool's Layer 5 colorless setter, on a creature until end of turn.
 pub fn moonlace_fixture() -> Arc<CardData> {
     CardDataBuilder::new("Moonlace Fixture")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
@@ -194,7 +193,6 @@ pub fn urborg_effect() -> Arc<CardData> {
         ))
         .build()
 }
-
 
 /// Windswept Heights (invented) — {1}{W}
 /// Enchantment

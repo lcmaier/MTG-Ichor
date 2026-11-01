@@ -8,7 +8,6 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::mana::{ManaCost, ManaType};
 
-
 /// Scarwood Treefolk — {3}{G}
 /// Creature — Treefolk, 3/5
 /// "This creature enters tapped."

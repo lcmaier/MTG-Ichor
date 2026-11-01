@@ -11,7 +11,6 @@ use super::sets::{
     vis, war, wth, wwk, zen, znr,
 };
 
-
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
 ///
@@ -687,7 +686,7 @@ impl CardRegistry {
         //   real dual lands below are what `fuzz_games::random_deck` draws its
         //   nonbasic land slots from.
         //
-        // Moonlace Fixture is the one registered here under its own name: the
+        // Moonlace Fixture is the one fixture this block registers: the
         // pool's Layer 5 colorless setter, Moonlace's shape narrowed to a
         // target creature until end of turn.
         registry.register("Cerulean Wisps", shm::cerulean_wisps);

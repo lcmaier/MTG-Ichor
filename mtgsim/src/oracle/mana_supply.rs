@@ -1442,7 +1442,7 @@ mod tests {
         assert!(!covers(&game, &cost(&[], 4)));
     }
 
-    /// Mana Reflection doubles a tap into two of the one type it makes, so an
+    /// Mana Reflection doubles a tap into two of the one type it makes, so a
     /// five-color land under it is {W}{W} or {U}{U}, never {W}{U} (§3.3).
     #[test]
     fn a_doubled_land_of_several_types_makes_one_type_twice() {
