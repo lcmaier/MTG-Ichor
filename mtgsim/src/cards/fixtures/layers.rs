@@ -104,7 +104,7 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target permanent becomes an artifact in addition to its other types until end of turn.",
-            becomes_types(target_permanent(ObjectFilter::All), TypeChange::adding(&[CardType::Artifact], &[], &[]))
+            becomes_types(target_permanent(ObjectFilter::All), TypeChange::adding(&[], &[CardType::Artifact], &[]))
                 .until_end_of_turn(),
         ))
         .build()
@@ -125,7 +125,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target artifact becomes an artifact creature with base power and toughness 5/5 until end of turn.",
-            becomes_types(target_permanent(artifact()), TypeChange::adding(&[CardType::Creature], &[], &[]))
+            becomes_types(target_permanent(artifact()), TypeChange::adding(&[], &[CardType::Creature], &[]))
                 .and_has_base_power_and_toughness(5, 5)
                 .until_end_of_turn(),
         ))
@@ -152,7 +152,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .ability(spell_ability(
             "Target creature gets +1/+2 and is an Angel in addition to its other types until end of turn.",
             gets(target_creature(), 1, 2)
-                .and_becomes_types(TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Angel)], &[]))
+                .and_becomes_types(TypeChange::adding(&[], &[], &[Subtype::Creature(CreatureType::Angel)]))
                 .until_end_of_turn(),
         ))
         .build()
@@ -173,7 +173,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target creature is legendary and gets +1/+1 until end of turn.",
-            becomes_types(target_creature(), TypeChange::adding(&[], &[], &[Supertype::Legendary]))
+            becomes_types(target_creature(), TypeChange::adding(&[Supertype::Legendary], &[], &[]))
                 .and_gets(1, 1)
                 .until_end_of_turn(),
         ))
@@ -202,7 +202,7 @@ pub fn urborg_effect() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(
             "Each land is a Swamp in addition to its other land types.",
-            becomes_types(each(land()), TypeChange::adding(&[], &[Subtype::Land(LandType::Swamp)], &[])),
+            becomes_types(each(land()), TypeChange::adding(&[], &[], &[Subtype::Land(LandType::Swamp)])),
         ))
         .build()
 }
@@ -358,7 +358,7 @@ pub fn purifier_clause() -> Arc<CardData> {
             "Lands you control are basic.",
             becomes_types(
                 each(land().and(you_control())),
-                TypeChange::adding(&[], &[], &[Supertype::Basic]),
+                TypeChange::adding(&[Supertype::Basic], &[], &[]),
             ),
         ))
         .build()
@@ -448,7 +448,7 @@ pub fn simian_clause() -> Arc<CardData> {
                     players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest))),
                 },
-                becomes_types(each(creatures_you_control()), TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Ape)], &[])),
+                becomes_types(each(creatures_you_control()), TypeChange::adding(&[], &[], &[Subtype::Creature(CreatureType::Ape)])),
             ),
         ))
         .build()
@@ -661,7 +661,7 @@ pub fn grist_insect_clause() -> Arc<CardData> {
             ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
             static_ability(
                 "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.",
-                becomes_types(this_object(), TypeChange::adding(&[CardType::Creature], &[Subtype::Creature(CreatureType::Insect)], &[]))
+                becomes_types(this_object(), TypeChange::adding(&[], &[CardType::Creature], &[Subtype::Creature(CreatureType::Insect)]))
                     .and_has_base_power_and_toughness(1, 1),
             ),
         ))
@@ -694,7 +694,7 @@ pub fn titanias_song_clause() -> Arc<CardData> {
         .rules_text("Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.")
         .ability(static_ability(
             "Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.",
-            becomes_types(noncreature_artifact, TypeChange::adding(&[CardType::Creature], &[], &[]))
+            becomes_types(noncreature_artifact, TypeChange::adding(&[], &[CardType::Creature], &[]))
                 .and_loses_all_abilities()
                 .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
         ))
@@ -749,7 +749,7 @@ pub fn arcane_adaptation_elf_clause() -> Arc<CardData> {
                     creature().and(ObjectFilter::ByOwner(PlayerRef::You)),
                     ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
                 ),
-                TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Elf)], &[]),
+                TypeChange::adding(&[], &[], &[Subtype::Creature(CreatureType::Elf)]),
             ),
         ))
         .build()
@@ -768,7 +768,7 @@ pub fn library_artificer() -> Arc<CardData> {
         .rules_text("Creature cards in libraries are artifacts in addition to their other types.")
         .ability(static_ability(
             "Creature cards in libraries are artifacts in addition to their other types.",
-            becomes_types(each_in(creature(), ZoneSet::LIBRARY), TypeChange::adding(&[CardType::Artifact], &[], &[])),
+            becomes_types(each_in(creature(), ZoneSet::LIBRARY), TypeChange::adding(&[], &[CardType::Artifact], &[])),
         ))
         .build()
 }
@@ -795,7 +795,7 @@ pub fn library_assassins() -> Arc<CardData> {
                     artifact().and(creature()),
                     ZoneSet::LIBRARY,
                 ),
-                TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Assassin)], &[]),
+                TypeChange::adding(&[], &[], &[Subtype::Creature(CreatureType::Assassin)]),
             ),
         ))
         .build()

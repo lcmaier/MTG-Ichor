@@ -79,7 +79,7 @@ pub fn master_biomancer() -> Arc<CardData> {
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(creature().and(you_control())),
                 Rewrite::EnterWith(EnterModsTemplate {
-                    edits: vec![CharacteristicEdit::Types(TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Mutant)], &[]))],
+                    edits: vec![CharacteristicEdit::Types(TypeChange::adding(&[], &[], &[Subtype::Creature(CreatureType::Mutant)]))],
                     ..EnterModsTemplate::with_counter_amount(CounterType::PlusOnePlusOne, AmountExpr::SourcePower)
                 }),
             ),

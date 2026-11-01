@@ -78,7 +78,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
         .rules_text("Each land is a Swamp in addition to its other land types.")
         .ability(static_ability(
             "Each land is a Swamp in addition to its other land types.",
-            becomes_types(each(land()), TypeChange::adding(&[], &[Subtype::Land(LandType::Swamp)], &[])),
+            becomes_types(each(land()), TypeChange::adding(&[], &[], &[Subtype::Land(LandType::Swamp)])),
         ))
         .build()
 }

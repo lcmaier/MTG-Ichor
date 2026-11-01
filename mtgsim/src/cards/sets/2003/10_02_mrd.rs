@@ -205,7 +205,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
         .ability(static_ability(
             "Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.",
-            becomes_types(each(noncreature_artifact), TypeChange::adding(&[CardType::Creature], &[], &[]))
+            becomes_types(each(noncreature_artifact), TypeChange::adding(&[], &[CardType::Creature], &[]))
                 .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
         ))
         .build()

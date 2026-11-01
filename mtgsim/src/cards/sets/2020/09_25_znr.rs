@@ -59,7 +59,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
         ).characteristic_defining())
         .ability(static_ability(
             "Nontoken creatures you control are Forest lands in addition to their other types.",
-            becomes_types(each(nontoken_creatures_you_control), TypeChange::adding(&[CardType::Land], &[Subtype::Land(LandType::Forest)], &[])),
+            becomes_types(each(nontoken_creatures_you_control), TypeChange::adding(&[], &[CardType::Land], &[Subtype::Land(LandType::Forest)])),
         ))
         .build()
 }

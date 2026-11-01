@@ -140,7 +140,7 @@ pub fn opalescence() -> Arc<CardData> {
         )
         .ability(static_ability(
             "Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value.",
-            becomes_types(other_non_aura_enchantments, TypeChange::adding(&[CardType::Creature], &[], &[]))
+            becomes_types(other_non_aura_enchantments, TypeChange::adding(&[], &[CardType::Creature], &[]))
                 .and_has_base_power_and_toughness(AmountExpr::AffectedManaValue, AmountExpr::AffectedManaValue),
         ))
         .build()

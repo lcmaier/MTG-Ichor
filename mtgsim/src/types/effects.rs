@@ -1698,8 +1698,11 @@ impl TypeChange {
     };
 
     /// "[It] is a [type] in addition to its other types" (CR 205.1b): each
-    /// listed card type, subtype and supertype added, and every other kept.
-    pub fn adding(types: &[crate::types::card_types::CardType], subtypes: &[crate::types::card_types::Subtype], supertypes: &[crate::types::card_types::Supertype]) -> TypeChange {
+    /// listed supertype, card type and subtype added, and every other kept.
+    /// The lists run in the order a type line prints them (CR 205.4a), so
+    /// Super-Soldier Serum's "a legendary Soldier" is
+    /// `adding(&[Legendary], &[], &[Soldier])`.
+    pub fn adding(supertypes: &[crate::types::card_types::Supertype], types: &[crate::types::card_types::CardType], subtypes: &[crate::types::card_types::Subtype]) -> TypeChange {
         TypeChange { add_types: types.to_vec(), add_subtypes: subtypes.to_vec(), add_supertypes: supertypes.to_vec(), ..TypeChange::NONE }
     }
 
