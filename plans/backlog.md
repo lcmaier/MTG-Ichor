@@ -2984,7 +2984,7 @@ to a target creature until end of turn.
 | **Size** | ~1 small PR with its first card: the arm in `validate_selection` and `enumerate_legal_selections`, a recipient word, and Moonlace written whole, its two rulings tested (the effect never ends; a creature spell it targets enters colorless), retiring Moonlace Fixture from the pool |
 | **Blocks** | `o:"target spell or permanent"`: 20 cards (Scryfall, 2026-11-01): Moonlace and the other five "-lace" spells, Venser, Shaper Savant, Aether Gust, Divide by Zero, Spectral Shift; Sleight of Mind, Magical Hack, Artificial Evolution and Alter Reality need a text change (Layer 3) too |
 | **Atoms** | ATOM-400.7a-001, whose board is a "-lace" spell on a creature spell |
-| **Owner** | — |
+| **Owner** | `cant-be-targeted` (`cant-effects-architecture.md`), which rewrites the same two functions for CR 115's target legality; the four cards that also change text follow `text-changing-effects` (the owner's review of #304, 2026-11-01) |
 
 ## 3. Dispositioned — sections that need no entry of their own
 
