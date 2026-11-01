@@ -256,7 +256,7 @@ pub struct ScriptedExpectation {
 /// An option as a script names it: what it is, and, when other options
 /// offered read the same, its place among them counted from 1, as the
 /// decision log writes `(2 of 3)`.
-pub type Named = (ChoiceOption, Option<usize>);
+pub type NamedOption = (ChoiceOption, Option<usize>);
 
 /// The response shape for a scripted expectation. Every answer names what it
 /// chooses, found in whatever order the engine lists the options, by the
@@ -264,12 +264,12 @@ pub type Named = (ChoiceOption, Option<usize>);
 #[derive(Debug)]
 pub enum ScriptedResponse {
     /// The options to pick.
-    Choose(Vec<Named>),
+    Choose(Vec<NamedOption>),
     Number(u64),
     /// Each bucket with its amount: the decision log's allocation.
     Split(Vec<(ChoiceOption, u64)>),
     /// The items, first first.
-    Order(Vec<Named>),
+    Order(Vec<NamedOption>),
     /// A take-or-leave question's one option, taken.
     Take,
 }
@@ -279,7 +279,7 @@ pub enum ScriptedResponse {
 /// than one offered option reads are refused, since they would mean whichever
 /// the engine lists first, and so is a place where no other option reads the
 /// same, which would mean nothing.
-fn found<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl IntoIterator<Item = &'a Named>) -> Vec<usize> {
+fn found_indices<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl IntoIterator<Item = &'a NamedOption>) -> Vec<usize> {
     let offered = || options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>();
     let mut found = Vec::new();
     for (option, place) in chosen {
@@ -509,7 +509,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
         _bounds: (usize, usize),
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "pick_n") {
-            ScriptedResponse::Choose(chosen) => found(options, game, &chosen),
+            ScriptedResponse::Choose(chosen) => found_indices(options, game, &chosen),
             ScriptedResponse::Take => {
                 assert_eq!(options.len(), 1, "ScriptedDecisionProvider: `expect_take` takes the one option offered, and the engine offers {options:?}");
                 vec![0]
@@ -557,8 +557,8 @@ impl DecisionProvider for ScriptedDecisionProvider {
         self.allocation_mins.borrow_mut().push(per_bucket_mins.to_vec());
         match self.pop_and_validate(player, &context.kind, "allocate") {
             ScriptedResponse::Split(amounts) => {
-                let named: Vec<Named> = amounts.iter().map(|(bucket, _)| (bucket.clone(), None)).collect();
-                let at = found(buckets, game, &named);
+                let named: Vec<NamedOption> = amounts.iter().map(|(bucket, _)| (bucket.clone(), None)).collect();
+                let at = found_indices(buckets, game, &named);
                 assert_eq!(
                     at.len(),
                     buckets.len(),
@@ -587,7 +587,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
         items: &[ChoiceOption],
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "choose_ordering") {
-            ScriptedResponse::Order(order) => found(items, game, &order),
+            ScriptedResponse::Order(order) => found_indices(items, game, &order),
             other => panic!(
                 "ScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected an order",
                 other
