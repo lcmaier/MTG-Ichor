@@ -39,7 +39,7 @@ pub use instructions::{
     shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
 };
 pub use recipients::{
-    an_opponent_controls, any_target, artifact, attacked_by, basic, chosen_by, colored, creature, creatures_you_control, each, each_in, each_opponent,
+    an_opponent_controls, any_target, artifact, attacked_by, basic, chosen_by, color, creature, creatures_you_control, each, each_in, each_opponent,
     each_player, host, land, non, nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_permanent,
     target_player, target_spell, targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
     you_control,

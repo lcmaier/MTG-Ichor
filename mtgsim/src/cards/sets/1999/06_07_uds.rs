@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, becomes_types, colored, creature, draw_cards, each, non, other_than_this, sacrifice, skip, static_ability, static_replacement,
+    activated_ability, becomes_types, color, creature, draw_cards, each, non, other_than_this, sacrifice, skip, static_ability, static_replacement,
     this_object, token, triggered_ability, when_state, whenever, with_subtype, you, you_now,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -40,7 +40,7 @@ use crate::types::zones::{Zone, ZoneChangePattern};
 ///   battlefield."* (#1) → `compost_sees_a_black_card_reach_a_graveyard_from_every_zone`.
 pub fn compost() -> Arc<CardData> {
     let text = "Whenever a black card is put into an opponent's graveyard from anywhere, you may draw a card.";
-    let black_card = colored(Color::Black).and(non(token()));
+    let black_card = color(Color::Black).and(non(token()));
     let put_into_an_opponents_graveyard = TriggerEvent::ZoneChange {
         subject: TriggerSubject::Filter(black_card),
         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },

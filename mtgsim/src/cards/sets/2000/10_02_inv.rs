@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{cant_for, colored, creature, destroy, draw_cards, land, non, scry, spell_ability, target_permanent, that_target, you};
+use crate::cards::authoring::{cant_for, color, creature, destroy, draw_cards, land, non, scry, spell_ability, target_permanent, that_target, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -94,7 +94,7 @@ pub fn plague_spores() -> Arc<CardData> {
             // The shields are stripped before the destruction, or CR 701.19a's
             // replacement would have already applied by the time the
             // restriction existed.
-            cant_regenerate(target_permanent(creature().and(non(colored(Color::Black))))),
+            cant_regenerate(target_permanent(creature().and(non(color(Color::Black))))),
             cant_regenerate(target_permanent(land())),
             destroy(that_target(0)),
             destroy(that_target(1)),

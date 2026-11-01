@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, artifact, colored, creature, draw_cards, spell_ability, you, you_cast};
+use crate::cards::authoring::{activated_ability, artifact, color, creature, draw_cards, spell_ability, you, you_cast};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -69,7 +69,7 @@ pub fn green_reducer() -> Arc<CardData> {
         "Green Reducer",
         Color::Green,
         ManaType::Green,
-        colored(Color::Green),
+        color(Color::Green),
         ManaCost::build(&[ManaType::Green], 0),
         "Green spells you cast cost {G} less to cast.",
     )
@@ -83,7 +83,7 @@ pub fn red_reducer() -> Arc<CardData> {
         "Red Reducer",
         Color::Red,
         ManaType::Red,
-        colored(Color::Red),
+        color(Color::Red),
         ManaCost::build(&[ManaType::Red], 0),
         "Red spells you cast cost {R} less to cast.",
     )

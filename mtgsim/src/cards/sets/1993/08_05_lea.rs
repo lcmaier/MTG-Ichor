@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, add_mana, any_target, colored, counter_spell, create_replacement, create_replacement_from_a_chosen_source, creature,
-    deal_damage, draw_cards, every_permanent_or_player, gain_life, gets, has_base_power_and_toughness, host, its_controller_adds, land, mana_ability,
-    non, prevent_the_next_n_damage_this_turn, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_creature,
+    activated_ability, add_mana, any_target, color, counter_spell, create_replacement, create_replacement_from_a_chosen_source, creature, deal_damage,
+    draw_cards, every_permanent_or_player, gain_life, gets, has_base_power_and_toughness, host, its_controller_adds, land, mana_ability, non,
+    prevent_the_next_n_damage_this_turn, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_creature,
     target_player, target_spell, the_next_damage_from_a_chosen_source, this_object, triggered_ability, whenever, with_subtype, you, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -118,7 +118,7 @@ pub fn circle_of_protection_red() -> Arc<CardData> {
         )
         .ability(activated_ability("{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
             vec![Cost::Mana(ManaCost::build(&[], 1))],
-            create_replacement_from_a_chosen_source(the_next_damage_from_a_chosen_source(Some(colored(Color::Red)), Rewrite::Prevent))
+            create_replacement_from_a_chosen_source(the_next_damage_from_a_chosen_source(Some(color(Color::Red)), Rewrite::Prevent))
                 .until_end_of_turn(),
         ))
         .build()

@@ -150,10 +150,10 @@ pub fn non(filter: ObjectFilter) -> ObjectFilter {
     ObjectFilter::Not(Box::new(filter))
 }
 
-/// "Black", "red source" (CR 105.2): an object that is `color`, among any
+/// "Black", "red source" (CR 105.2): an object that is `which`, among any
 /// others it is.
-pub fn colored(color: Color) -> ObjectFilter {
-    ObjectFilter::ByColor(color)
+pub fn color(which: Color) -> ObjectFilter {
+    ObjectFilter::ByColor(which)
 }
 
 /// "You control" (CR 110.2), read against the effect's controller (CR

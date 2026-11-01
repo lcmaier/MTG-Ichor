@@ -4,9 +4,9 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    artifact, as_long_as, basic, becomes_colorless, becomes_types, colored, creature, creatures_you_control, draw_cards, each, each_in,
-    functioning_in, gains_keyword, gets, has_base_power_and_toughness, host, is_also_color, land, non, spell_ability, static_ability,
-    switch_power_and_toughness, target_creature, target_permanent, this_object, with_subtype, you, you_control,
+    artifact, as_long_as, basic, becomes_colorless, becomes_types, color, creature, creatures_you_control, draw_cards, each, each_in, functioning_in,
+    gains_keyword, gets, has_base_power_and_toughness, host, is_also_color, land, non, spell_ability, static_ability, switch_power_and_toughness,
+    target_creature, target_permanent, this_object, with_subtype, you, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, PlaneswalkerType, Subtype, Subtypes, Supertype};
@@ -514,7 +514,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
         .ability(static_ability(
             "This creature gets +2/+2 as long as there's a red card in your graveyard.",
             as_long_as(
-                Condition::Player { players: PlayerSet::You, fact: PlayerFact::CardInGraveyard(colored(Color::Red)) },
+                Condition::Player { players: PlayerSet::You, fact: PlayerFact::CardInGraveyard(color(Color::Red)) },
                 gets(this_object(), 2, 2),
             ),
         ))

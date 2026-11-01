@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    an_opponent_controls, at_beginning_of, colored, counters_removed_from, create_delayed_trigger, create_replacement, creature,
-    creatures_you_control, destroy, gain_control_of, gain_life, gains_keyword, non, put_counters, remove_counters, spell_ability, static_replacement,
-    target_creature, target_permanent, that_target, this_object, triggered_ability, untap, whenever, you, Whose,
+    an_opponent_controls, at_beginning_of, color, counters_removed_from, create_delayed_trigger, create_replacement, creature, creatures_you_control,
+    destroy, gain_control_of, gain_life, gains_keyword, non, put_counters, remove_counters, spell_ability, static_replacement, target_creature,
+    target_permanent, that_target, this_object, triggered_ability, untap, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -80,7 +80,7 @@ pub fn doom_blade() -> Arc<CardData> {
         .rules_text("Destroy target nonblack creature.")
         .ability(spell_ability(
             "Destroy target nonblack creature.",
-            destroy(target_permanent(creature().and(non(colored(Color::Black))))),
+            destroy(target_permanent(creature().and(non(color(Color::Black))))),
         ))
         .build()
 }

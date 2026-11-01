@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{an_opponent_controls, colored, creature, non, static_replacement, with_subtype, you_control};
+use crate::cards::authoring::{an_opponent_controls, color, creature, non, static_replacement, with_subtype, you_control};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -103,7 +103,7 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
         .ability(static_replacement("If a red source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 2 instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage {
-                    source: Some(SourcePattern::matching(colored(Color::Red).and(you_control()))),
+                    source: Some(SourcePattern::matching(color(Color::Red).and(you_control()))),
                     combat: None,
                 },
                 AffectedSet { objects: ObjectSet::battlefield_filter(an_opponent_controls()), players: PlayerSet::Opponents },
