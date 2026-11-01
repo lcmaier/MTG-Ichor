@@ -928,6 +928,15 @@ pub fn fixed_target_bounds(recipient: &EffectRecipient) -> crate::types::effects
     }
 }
 
+/// An enchantment whose one paragraph is two abilities, as CR 603.11 prints
+/// a static ability and the triggered ability linked to it: two defs with
+/// the paragraph's words, which do nothing.
+pub fn one_paragraph_two_abilities() -> Arc<CardData> {
+    const PARAGRAPH: &str = "Reveal the first card you draw each turn. Whenever you reveal a basic land card this way, draw a card.";
+    let part = || AbilityDef::new(AbilityType::Static, PARAGRAPH, Effect::Sequence(Vec::new()));
+    CardDataBuilder::new("Fixture Etchings").card_type(CardType::Enchantment).rules_text(PARAGRAPH).ability(part()).ability(part()).build()
+}
+
 /// A static [`AbilityDef`] carrying `effect`, with no rules text, a fresh id
 /// and the CDA flag clear.
 ///

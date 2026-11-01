@@ -303,10 +303,10 @@ impl AbilityDef {
 
 /// An ability's words, and which paragraph of its card's rules text they are.
 /// A card file writes the words (`"Flying".into()`); `CardDataBuilder::build`
-/// finds the paragraph. Words alone cannot say whether two abilities are one
-/// printed ability: an ability the engine builds as several defs shares its
-/// paragraph, while Seeds of Strength prints one paragraph three times as
-/// three abilities (CR 113.2c).
+/// finds the paragraph. Words alone cannot say which paragraph an ability
+/// is: CR 603.11 prints a static ability and the triggered abilities linked
+/// to it as one paragraph, while Seeds of Strength prints one paragraph three
+/// times as three abilities (CR 113.2c).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AbilityText {
     pub words: &'static str,
@@ -510,8 +510,8 @@ impl CardDataBuilder {
     ///
     /// A printed def's paragraph is the first paragraph with its words that
     /// no earlier def took, or, when none is left, the paragraph of the def
-    /// before it with the same words: the engine writes one printed ability
-    /// it builds as several defs as neighbors.
+    /// before it with the same words: CR 603.11's abilities that share one
+    /// paragraph are written as neighbors.
     pub fn build(mut self) -> Arc<CardData> {
         let name = self.data.name.clone();
         let mut ordinal = 0u32;
@@ -643,9 +643,10 @@ mod tests {
     /// The builder finds each printed ability's paragraph (CR 113.2c): Seeds
     /// of Strength prints one paragraph three times as three abilities, the
     /// first, second and third; Platinum Angel's one paragraph after Flying
-    /// is its one ability, two "can't"s; a basic land's mana ability is
-    /// printed only as reminder text, so it has none. A modal ability's
-    /// paragraph takes its bullets (CR 700.2).
+    /// is its one ability, two "can't"s; CR 603.11's two abilities in one
+    /// paragraph share it; a basic land's mana ability is printed only as
+    /// reminder text, so it has none. A modal ability's paragraph takes its
+    /// bullets (CR 700.2).
     #[test]
     fn each_printed_ability_knows_its_paragraph() {
         let found = |card: Arc<CardData>| -> Vec<Option<u16>> {
@@ -653,6 +654,7 @@ mod tests {
         };
         assert_eq!(found(crate::cards::phase_a4i_cards::seeds_of_strength()), [Some(0), Some(1), Some(2)]);
         assert_eq!(found(crate::cards::phase_re_cards::platinum_angel()), [Some(1)]);
+        assert_eq!(found(crate::test_support::one_paragraph_two_abilities()), [Some(0), Some(0)]);
         assert_eq!(found(crate::cards::basic_lands::forest()), [None]);
         assert_eq!(
             paragraphs("Choose one —\n• Draw a card.\n• You gain 2 life.\nFlying").collect::<Vec<_>>(),

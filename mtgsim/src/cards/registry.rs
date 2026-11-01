@@ -1515,8 +1515,8 @@ mod tests {
     /// printed ability's text is exactly one paragraph of the card's rules
     /// text (CR 113.2c), a modal ability's bullets with it (CR 700.2), and
     /// the paragraph the builder found for it. Several abilities may share
-    /// one: Platinum Angel's two halves of one ability, or the CR's own
-    /// several abilities on one line (603.11). A granted ability or a
+    /// one: CR 603.11 prints a static ability and the triggered abilities
+    /// linked to it as one paragraph. A granted ability or a
     /// token's is the text its card quotes, and a granted keyword ability is
     /// its name, which the card names (CR 702.1: Wingrattle Scarecrow's "has
     /// persist"). The exception

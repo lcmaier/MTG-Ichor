@@ -146,9 +146,9 @@ pub fn keyword_name(flag: KeywordFlag) -> &'static str {
 /// The text of each ability a permanent has that is not a keyword flag, in its
 /// effective list's order: the abilities CR 305.7 or a Layer 6 effect left it,
 /// never the card's printed text, which can describe abilities the object does
-/// not have (a copy of a vanilla creature, a creature under Humility). A
-/// printed ability the engine builds as several shows once, as printed: its
-/// parts share a paragraph and, when granted, the grant.
+/// not have (a copy of a vanilla creature, a creature under Humility).
+/// Abilities that share a paragraph, as CR 603.11's linked abilities do, show
+/// it once, as printed, and so do their grants when one grant gave them all.
 fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
     let mut shown: Vec<(AbilityText, Option<RowId>)> = Vec::new();
     for ability in get_effective_abilities(game, id).iter() {
@@ -1595,10 +1595,10 @@ mod tests {
         assert_eq!(activation_labels(&game, bears), [format!("Grizzly Bears ({bears}) · {{T}}: Add {{G}}.")]);
     }
 
-    /// A printed ability shows once: Platinum Angel's second paragraph is one
-    /// ability making two "can't"s. The same words are two abilities when one is printed and
-    /// one granted: Dryad Arbor's own mana ability and the one Citanul
-    /// Hierophants grants it.
+    /// A paragraph shows once: Platinum Angel's second is one ability making
+    /// two "can't"s, and CR 603.11's is two abilities. The same words are two
+    /// abilities when one is printed and one granted: Dryad Arbor's own mana
+    /// ability and the one Citanul Hierophants grants it.
     #[test]
     fn a_printed_ability_shows_once_and_a_granted_one_beside_it() {
         use crate::cards::{phase_lf_cards, phase_rc_cards, phase_re_cards};
@@ -1609,6 +1609,11 @@ mod tests {
         assert_eq!(
             format_permanent(&game, angel),
             "Platinum Angel 4/4 [flying]\nYou can't lose the game and your opponents can't win the game."
+        );
+        let etchings = put_on_battlefield(&mut game, crate::test_support::one_paragraph_two_abilities(), 0);
+        assert_eq!(
+            format_permanent(&game, etchings),
+            "Fixture Etchings\nReveal the first card you draw each turn. Whenever you reveal a basic land card this way, draw a card."
         );
         let arbor = put_on_battlefield(&mut game, phase_rc_cards::dryad_arbor(), 0);
         put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
