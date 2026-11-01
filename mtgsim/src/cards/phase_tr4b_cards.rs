@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create, gets, host, sacrifice, static_ability, triggering, you};
+use crate::cards::authoring::{create_tokens, gets, host, sacrifice, static_ability, triggering_object, you};
 use crate::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
 use crate::cards::authoring::equip;
 use crate::cards::phase_tr1_cards::saproling_token;
@@ -79,7 +79,7 @@ pub fn grafted_wargear() -> Arc<CardData> {
             text,
             whenever(
                 becomes_unattached(TriggerSubject::ThisObject, TriggerSubject::Any),
-                sacrifice(triggering(EventRole::Host)),
+                sacrifice(triggering_object(EventRole::Host)),
             ),
         ))
         .ability(equip("Equip {0}", Vec::new()))
@@ -126,7 +126,7 @@ pub fn bramble_elemental() -> Arc<CardData> {
                     ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
                     TriggerSubject::ThisObject,
                 ),
-                create(you(), 2, saproling_token()),
+                create_tokens(you(), 2, saproling_token()),
             ),
         ))
         .build()

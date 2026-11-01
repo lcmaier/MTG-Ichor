@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{each, gains, put_counters, static_ability, triggering};
+use crate::cards::authoring::{each, gains_keyword, put_counters, static_ability, triggering_object};
 use crate::cards::authoring::{triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
@@ -62,7 +62,7 @@ pub fn sphere_grid() -> Arc<CardData> {
         excess: false,
         multiplicity: Multiplicity::PerOccurrence,
     };
-    let counter_on_that_creature = put_counters(triggering(EventRole::DamageSource), CounterType::PlusOnePlusOne, 1);
+    let counter_on_that_creature = put_counters(triggering_object(EventRole::DamageSource), CounterType::PlusOnePlusOne, 1);
     CardDataBuilder::new("Sphere Grid")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .color(Color::Green)
@@ -71,7 +71,7 @@ pub fn sphere_grid() -> Arc<CardData> {
         .ability(triggered_ability(trigger_text, whenever(deals_combat_damage_to_a_player, counter_on_that_creature)))
         .ability(static_ability(
             unlock_text,
-            gains(each(with_a_counter), KeywordFlag::Reach).and_gains(KeywordFlag::Trample),
+            gains_keyword(each(with_a_counter), KeywordFlag::Reach).and_gains_keyword(KeywordFlag::Trample),
         ))
         .build()
 }

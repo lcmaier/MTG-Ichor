@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    becomes_color, becomes_colorless, creatures_you_control, draw_cards, each, gains, is_also_color, spell_ability, static_ability, target_creature,
+    becomes_color, becomes_colorless, creatures_you_control, draw_cards, each, gains_keyword, is_also_color, spell_ability, static_ability, target_creature,
     you,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -62,7 +62,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .rules_text("Target creature becomes red and gains haste until end of turn.\nDraw a card.")
         .ability(spell_ability(
             "Target creature becomes red and gains haste until end of turn.",
-            gains(target_creature(), KeywordFlag::Haste).and_becomes_color([Color::Red]).until_end_of_turn(),
+            gains_keyword(target_creature(), KeywordFlag::Haste).and_becomes_color([Color::Red]).until_end_of_turn(),
         ))
         .ability(spell_ability(
             "Draw a card.",

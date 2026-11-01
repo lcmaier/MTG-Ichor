@@ -22,7 +22,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    another, at_beginning_of, create, dies, enters, gain_life, host, its_controller_adds, lose_life, target_player, triggered_ability, whenever,
+    another, at_beginning_of, create_tokens, dies, enters, gain_life, host, its_controller_adds, lose_life, target_player, triggered_ability, whenever,
     win_the_game, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -144,7 +144,7 @@ pub fn verdant_force() -> Arc<CardData> {
         .rules_text("At the beginning of each upkeep, create a 1/1 green Saproling creature token.")
         .ability(triggered_ability("At the beginning of each upkeep, create a 1/1 green Saproling creature token.", whenever(
             at_beginning_of(StepType::Upkeep, Whose::Each),
-            create(you(), 1, saproling_token()),
+            create_tokens(you(), 1, saproling_token()),
         )))
         .build()
 }

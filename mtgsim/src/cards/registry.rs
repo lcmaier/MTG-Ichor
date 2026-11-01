@@ -1639,7 +1639,7 @@ mod instance_references {
     /// A second change in one sentence ("gets +1/+0 and gains first strike
     /// until end of turn") acts on the target its first change declared.
     ///
-    /// `authoring::Change` writes the second change's back-reference as the
+    /// `authoring::ContinuousChange` writes the second change's back-reference as the
     /// effect's first instance of "target", which is right only when the
     /// chain's own target is that first one. A chain after another target
     /// names the wrong object and still names a declared one, so

@@ -16,7 +16,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{gains, gets, host, static_ability};
+use crate::cards::authoring::{gains_keyword, gets, host, static_ability};
 use crate::cards::authoring::equip;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
@@ -155,7 +155,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
         .rules_text("Equipped creature has flying.\nEquip {1}")
         .ability(static_ability(
             "Equipped creature has flying.",
-            gains(host(), KeywordFlag::Flying),
+            gains_keyword(host(), KeywordFlag::Flying),
         ))
         .ability(equip("Equip {1}", vec![Cost::Mana(ManaCost::build(&[], 1))]))
         .build()
@@ -188,7 +188,7 @@ pub fn loxodon_warhammer() -> Arc<CardData> {
         .rules_text("Equipped creature gets +3/+0 and has trample and lifelink.\nEquip {3}")
         .ability(static_ability(
             "Equipped creature gets +3/+0 and has trample and lifelink.",
-            gets(host(), 3, 0).and_gains(KeywordFlag::Trample).and_gains(KeywordFlag::Lifelink),
+            gets(host(), 3, 0).and_gains_keyword(KeywordFlag::Trample).and_gains_keyword(KeywordFlag::Lifelink),
         ))
         .ability(equip("Equip {3}", vec![Cost::Mana(ManaCost::build(&[], 3))]))
         .build()

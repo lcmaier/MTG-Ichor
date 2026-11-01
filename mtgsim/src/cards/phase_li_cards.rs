@@ -20,7 +20,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    as_long_as, becomes_types, creatures_you_control, each, gains, gets, has_base_power_and_toughness, host, static_ability, this_object,
+    as_long_as, becomes_types, creatures_you_control, each, gains_keyword, gets, has_base_power_and_toughness, host, static_ability, this_object,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
@@ -327,7 +327,7 @@ pub fn flight_clause() -> Arc<CardData> {
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::All))
         .ability(static_ability(
             "As long as enchanted permanent is a creature, it has flying.",
-            as_long_as(Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)), gains(host(), KeywordFlag::Flying)),
+            as_long_as(Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)), gains_keyword(host(), KeywordFlag::Flying)),
         ))
         .build()
 }

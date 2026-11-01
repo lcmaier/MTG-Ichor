@@ -51,7 +51,7 @@ pub fn targets(count: u32, filter: SelectionFilter) -> EffectRecipient {
 /// "It", "that creature", "them": what was chosen for the `ix`th instance of
 /// "target" this effect declares (CR 115.3), counted across a spell's
 /// abilities. A second change in one sentence is
-/// [`super::instructions::Change`]'s to write, not this word's.
+/// [`super::instructions::ContinuousChange`]'s to write, not this word's.
 pub fn that_target(ix: usize) -> EffectRecipient {
     EffectRecipient::SameInstanceAs(ix)
 }
@@ -125,7 +125,7 @@ pub fn referred() -> EffectRecipient {
 
 /// "That creature", "it" on a triggered ability: the object that played
 /// `role` in the triggering event (CR 608.2c).
-pub fn triggering(role: EventRole) -> EffectRecipient {
+pub fn triggering_object(role: EventRole) -> EffectRecipient {
     EffectRecipient::Triggering(role)
 }
 

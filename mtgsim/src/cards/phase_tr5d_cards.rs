@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create, create_replacement, deal_damage, put_counters, spell_ability, target_creature, this_object, you};
+use crate::cards::authoring::{create_tokens, create_replacement, deal_damage, put_counters, spell_ability, target_creature, this_object, you};
 use crate::cards::authoring::{damage_to_is_prevented, enters, triggered_ability, whenever};
 use crate::cards::phase_re_cards::goblin_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -109,7 +109,7 @@ pub fn goblin_negotiation() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 deal_damage(target_creature(), AmountExpr::X),
-                create(you(), AmountExpr::ExcessDamageDealtThisWay, goblin_token()),
+                create_tokens(you(), AmountExpr::ExcessDamageDealtThisWay, goblin_token()),
             ]),
         ))
         .build()

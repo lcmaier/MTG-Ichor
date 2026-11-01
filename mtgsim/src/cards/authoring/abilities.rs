@@ -4,7 +4,7 @@
 //! so the builder's stamps (its id, its instances of "target") are written
 //! in one place. CR 603's triggered ability is [`super::triggered_ability`].
 
-use super::instructions::{attach_to, Change};
+use super::instructions::{attach_to, ContinuousChange};
 use super::recipients::{creatures_you_control, target_permanent};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, Activation};
 use crate::types::costs::Cost;
@@ -27,7 +27,7 @@ pub fn static_ability(rules_text: impl Into<AbilityText>, effect: impl StaticBod
 }
 
 /// What a static ability's effect is written as: an [`Effect`], or a bare
-/// [`Change`], which applies while its source does (CR 611.3b) and so states
+/// [`ContinuousChange`], which applies while its source does (CR 611.3b) and so states
 /// no duration.
 pub trait StaticBody {
     fn into_static_body(self) -> Effect;
@@ -39,7 +39,7 @@ impl StaticBody for Effect {
     }
 }
 
-impl StaticBody for Change {
+impl StaticBody for ContinuousChange {
     fn into_static_body(self) -> Effect {
         self.lasting(Duration::WhileSourceOnBattlefield)
     }

@@ -141,7 +141,7 @@ pub fn banishing_light() -> Arc<CardData> {
             text,
             whenever(
                 enters(TriggerSubject::ThisObject),
-                exile_until(target_permanent(nonland_an_opponent_controls), leaves_the_battlefield(TriggerSubject::ThisObject)),
+                exile_until(target_permanent(nonland_an_opponent_controls), leaves_the_battlefield(TriggerSubject::ThisObject), ReturnUnder::Owner),
             ),
         ))
         .build()

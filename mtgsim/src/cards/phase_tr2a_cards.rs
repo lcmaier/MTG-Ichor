@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, create, draw_cards, each, each_player, gain_life, gets, put_counters, this_object, you};
+use crate::cards::authoring::{activated_ability, create_tokens, draw_cards, each, each_player, gain_life, gets, put_counters, this_object, you};
 use crate::cards::authoring::{another, at_beginning_of, dies, triggered_ability, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -187,7 +187,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
     let pump = activated_ability(
         "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.",
         vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Green], 5))],
-        gets(each(elves_you_control()), 2, 2).and_gains(KeywordFlag::Deathtouch).until_end_of_turn(),
+        gets(each(elves_you_control()), 2, 2).and_gains_keyword(KeywordFlag::Deathtouch).until_end_of_turn(),
     );
     CardDataBuilder::new("Elvish Warmaster")
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
@@ -205,7 +205,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
             condition: TriggerCondition::Event(other_elves_you_control),
             intervening_if: None,
             limit: Some(TriggerLimit::TriggersOnlyOnceEachTurn),
-            effect: create(you(), 1, elf_warrior_token()),
+            effect: create_tokens(you(), 1, elf_warrior_token()),
         }))
         .ability(pump)
         .build()

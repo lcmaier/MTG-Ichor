@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{draw_cards, gets, host, return_to_hand, static_ability, triggering, you};
+use crate::cards::authoring::{draw_cards, gets, host, return_to_hand, static_ability, triggering_object, you};
 use crate::cards::authoring::{dies, triggered_ability, undying, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
@@ -101,7 +101,7 @@ pub fn demonic_vigor() -> Arc<CardData> {
             text,
             whenever(
                 dies(TriggerSubject::Host),
-                return_to_hand(triggering(EventRole::Object)),
+                return_to_hand(triggering_object(EventRole::Object)),
             ),
         ))
         .build()

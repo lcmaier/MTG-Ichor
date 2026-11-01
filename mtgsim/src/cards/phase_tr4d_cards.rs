@@ -13,7 +13,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    create_delayed_trigger, draw_cards, gain_control_of, gains, referred, spell_ability, spell_is_countered, tap, target_permanent, that_target,
+    create_delayed_trigger, draw_cards, gain_control_of, gains_keyword, referred, spell_ability, spell_is_countered, tap, target_permanent, that_target,
     triggered_ability, untap, whenever, you, you_lose_control_of, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -110,7 +110,7 @@ pub fn ray_of_command() -> Arc<CardData> {
             Effect::Sequence(vec![
                 untap(target_permanent(creature_an_opponent_controls)),
                 Effect::Remember(Box::new(gain_control_of(that_target(0)).until_end_of_turn())),
-                gains(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
+                gains_keyword(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
                 create_delayed_trigger(you(), tap_it),
             ]),
         ))

@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create, destroy, discard, draw_cards, each, lose_the_game, sacrifice, spell_ability, this_object, you};
+use crate::cards::authoring::{create_tokens, destroy, discard, draw_cards, each, lose_the_game, sacrifice, spell_ability, this_object, you};
 use crate::cards::authoring::triggered_ability;
 use crate::cards::phase_re_cards::soldier_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -136,7 +136,7 @@ pub fn destroy_your_others_then_a_token() -> Arc<CardData> {
         "Destroy each non-Crocodile creature you control, then create a 1/1 white Soldier creature token.",
         Effect::Sequence(vec![
             destroy(each(your_non_crocodiles)),
-            create(you(), 1, soldier_token()),
+            create_tokens(you(), 1, soldier_token()),
         ]),
     )
 }

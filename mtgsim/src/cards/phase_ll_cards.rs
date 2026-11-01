@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{becomes_types, creatures_you_control, each, each_in, functioning_in, gains, static_ability, this_object};
+use crate::cards::authoring::{becomes_types, creatures_you_control, each, each_in, functioning_in, gains_keyword, static_ability, this_object};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -130,7 +130,7 @@ pub fn pocket_griffin() -> Arc<CardData> {
         .rules_text("As long as this card is in your hand, creatures you control have flying.")
         .ability(functioning_in(
             ZoneSet::HAND,
-            static_ability("As long as this card is in your hand, creatures you control have flying.", gains(each(creatures_you_control()), KeywordFlag::Flying)),
+            static_ability("As long as this card is in your hand, creatures you control have flying.", gains_keyword(each(creatures_you_control()), KeywordFlag::Flying)),
         ))
         .build()
 }

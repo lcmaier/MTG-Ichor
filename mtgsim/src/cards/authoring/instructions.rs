@@ -4,7 +4,7 @@
 //! argument and comes from [`super::recipients`]; an amount is a number or
 //! an [`AmountExpr`].
 //!
-//! A verb that makes a continuous effect returns a [`Change`], which states
+//! A verb that makes a continuous effect returns a [`ContinuousChange`], which states
 //! its duration as the text does (`.until_end_of_turn()`), so a spell that
 //! forgets one does not compile. Only [`super::static_ability`] takes one
 //! bare, since a static ability's effect applies while its source does (CR
@@ -44,8 +44,9 @@ pub fn counter_spell(recipient: EffectRecipient) -> Effect {
     Effect::Atom(Primitive::CounterSpell, recipient)
 }
 
-/// "[Recipient] creates [amount] [token]s" (CR 701.7a).
-pub fn create(recipient: EffectRecipient, amount: impl Into<AmountExpr>, token: TokenDef) -> Effect {
+/// "[Recipient] creates [amount] [token]s" (CR 701.7a): "create a token" is
+/// an amount of 1.
+pub fn create_tokens(recipient: EffectRecipient, amount: impl Into<AmountExpr>, token: TokenDef) -> Effect {
     Effect::Atom(Primitive::CreateToken(token, amount.into()), recipient)
 }
 
@@ -145,23 +146,24 @@ pub fn deal_damage(recipient: EffectRecipient, amount: impl Into<AmountExpr>) ->
 /// "[This] deals [amount] damage to [recipient]. The damage can't be
 /// prevented." (CR 120.1, 615.12): a word of its own, so a card that prints
 /// the clause says so by the word it picks.
-pub fn deal_damage_that_cant_be_prevented(recipient: EffectRecipient, amount: impl Into<AmountExpr>) -> Effect {
+pub fn deal_damage_unpreventable(recipient: EffectRecipient, amount: impl Into<AmountExpr>) -> Effect {
     Effect::Atom(Primitive::DealDamage { amount: amount.into(), unpreventable: true }, recipient)
 }
 
-/// "[Recipient] draws [amount] cards" (CR 121.1), one at a time (121.2).
+/// "[Recipient] draws [amount] cards" (CR 121.1), one at a time (121.2):
+/// "draw a card" is an amount of 1.
 pub fn draw_cards(recipient: EffectRecipient, amount: impl Into<AmountExpr>) -> Effect {
     Effect::Atom(Primitive::DrawCards(amount.into()), recipient)
 }
 
-/// "Put [amount] [counter]s on [recipient]" (CR 122.1), put by you.
-pub fn put_counters(recipient: EffectRecipient, counter: CounterType, amount: impl Into<AmountExpr>) -> Effect {
-    Effect::Atom(Primitive::AddCounters { counter, amount: amount.into(), by: PlayerRef::You }, recipient)
+/// "Put [amount] [counter]s on [on]" (CR 122.1), put by you.
+pub fn put_counters(on: EffectRecipient, counter: CounterType, amount: impl Into<AmountExpr>) -> Effect {
+    Effect::Atom(Primitive::AddCounters { counter, amount: amount.into(), by: PlayerRef::You }, on)
 }
 
-/// "Remove [amount] [counter]s from [recipient]" (CR 122.1).
-pub fn remove_counters(recipient: EffectRecipient, counter: CounterType, amount: impl Into<AmountExpr>) -> Effect {
-    Effect::Atom(Primitive::RemoveCounters(counter, amount.into()), recipient)
+/// "Remove [amount] [counter]s from [from]" (CR 122.1).
+pub fn remove_counters(from: EffectRecipient, counter: CounterType, amount: impl Into<AmountExpr>) -> Effect {
+    Effect::Atom(Primitive::RemoveCounters(counter, amount.into()), from)
 }
 
 /// "[Recipient] gets [amount] [counter]s", a player's counters such as
@@ -181,13 +183,15 @@ pub fn return_to_the_battlefield(recipient: EffectRecipient, under: ReturnUnder)
     Effect::Atom(Primitive::ReturnToBattlefield { under, counters: Vec::new(), tapped: false, attacking: None }, recipient)
 }
 
-/// "[Recipient] takes an extra turn after this one" (CR 500.7).
-pub fn take_an_extra_turn(recipient: EffectRecipient) -> Effect {
+/// "[Recipient] takes an extra turn after this one" (CR 500.7): the turn
+/// it is added after is the one in progress.
+pub fn take_an_extra_turn_after_this_one(recipient: EffectRecipient) -> Effect {
     Effect::Atom(Primitive::ExtraTurn, recipient)
 }
 
-/// "After [this phase], there is an additional [phases]" (CR 500.8): the
-/// phases added in their order, for the recipient's turn.
+/// "After [after], there is an additional [phases]" (CR 500.8): `after` is
+/// the phase they are added after, and the phases run in their order, in
+/// the recipient's turn.
 pub fn add_phases(recipient: EffectRecipient, phases: Vec<PhaseType>, after: ExtraPhasesAfter) -> Effect {
     Effect::Atom(Primitive::ExtraPhases { phases, after }, recipient)
 }
@@ -203,13 +207,11 @@ pub fn create_delayed_trigger(recipient: EffectRecipient, template: DelayedTrigg
     Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), recipient)
 }
 
-/// "Exile [recipient] until [event]" (CR 610.3): returned under its owner's
-/// control as the event happens.
-pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>) -> Effect {
-    Effect::Atom(
-        Primitive::ExileUntil { until: Box::new(until.into()), refers_to: None, under: ReturnUnder::Owner },
-        recipient,
-    )
+/// "Exile [recipient] until [event]" (CR 610.3): returned as the event
+/// happens, under `under`'s control, which is its owner's unless the card
+/// says otherwise (610.3c).
+pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>, under: ReturnUnder) -> Effect {
+    Effect::Atom(Primitive::ExileUntil { until: Box::new(until.into()), refers_to: None, under }, recipient)
 }
 
 // ---------------------------------------------------------------------------
@@ -217,9 +219,12 @@ pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>) -
 // ---------------------------------------------------------------------------
 
 /// A continuous effect awaiting its duration (CR 611.2a): one or more
-/// changes to one recipient, each made a `Primitive` once the duration is
-/// stated. End it with the text's duration, `.until_end_of_turn()` or its
-/// kin, or hand it bare to [`super::static_ability`].
+/// changes to one recipient. Each change is a step, a function from the
+/// duration to its `Primitive`, since every continuous primitive carries
+/// its duration and the text states it last: `gets(target_creature(), 3,
+/// 3)` holds one step, `.and_gains_keyword(Trample)` adds a second, and
+/// `.until_end_of_turn()` calls each with `UntilEndOfTurn`. End it with the
+/// text's duration, or hand it bare to [`super::static_ability`].
 ///
 /// "Gets +1/+0 **and** gains first strike" is one sentence and one
 /// recipient, and the engine holds it as two instructions: the second acts
@@ -231,14 +236,14 @@ pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>) -
 /// changes as separate instructions on `that_target(n)`;
 /// `cards::registry`'s authoring check catches the other spelling.
 #[must_use = "a change lasts as long as its text says: end it with its duration"]
-pub struct Change {
+pub struct ContinuousChange {
     recipient: EffectRecipient,
     steps: Vec<Box<dyn FnOnce(Duration) -> Primitive>>,
 }
 
-impl Change {
+impl ContinuousChange {
     fn new(recipient: EffectRecipient, step: impl FnOnce(Duration) -> Primitive + 'static) -> Self {
-        Change { recipient, steps: vec![Box::new(step)] }
+        ContinuousChange { recipient, steps: vec![Box::new(step)] }
     }
 
     fn and(mut self, step: impl FnOnce(Duration) -> Primitive + 'static) -> Self {
@@ -258,8 +263,8 @@ impl Change {
         self.and(move |d| Primitive::ChangeColor(ColorChange::Set(colors), d))
     }
 
-    /// "… and gains [keyword]": [`gains`] to the same recipient.
-    pub fn and_gains(self, keyword: KeywordFlag) -> Self {
+    /// "… and gains [keyword]": [`gains_keyword`] to the same recipient.
+    pub fn and_gains_keyword(self, keyword: KeywordFlag) -> Self {
         self.and(move |d| Primitive::GrantKeywordFlag(keyword, d))
     }
 
@@ -314,70 +319,71 @@ impl Change {
 
 /// Layer 1 (CR 707.2): a copy effect, `roles` saying which object copies
 /// which, `except` its exceptions (CR 707.9).
-pub fn copy(recipient: EffectRecipient, roles: CopyRoles, except: Vec<CopyException>) -> Change {
-    Change::new(recipient, move |duration| Primitive::Copy { roles, except, duration })
+pub fn copy(recipient: EffectRecipient, roles: CopyRoles, except: Vec<CopyException>) -> ContinuousChange {
+    ContinuousChange::new(recipient, move |duration| Primitive::Copy { roles, except, duration })
 }
 
 /// Layer 2 (CR 613.1b): "gain control of [recipient]".
-pub fn gain_control_of(recipient: EffectRecipient) -> Change {
-    Change::new(recipient, |duration| Primitive::GainControl { to: PlayerRef::You, duration })
+pub fn gain_control_of(recipient: EffectRecipient) -> ContinuousChange {
+    ContinuousChange::new(recipient, |duration| Primitive::GainControl { to: PlayerRef::You, duration })
 }
 
 /// Layer 4 (CR 613.1d): "[recipient] is a [type] in addition to its other
 /// types", "becomes an artifact creature".
-pub fn becomes_types(recipient: EffectRecipient, change: TypeChange) -> Change {
-    Change::new(recipient, move |d| Primitive::ChangeType(change, d))
+pub fn becomes_types(recipient: EffectRecipient, change: TypeChange) -> ContinuousChange {
+    ContinuousChange::new(recipient, move |d| Primitive::ChangeType(change, d))
 }
 
 /// Layer 5 (CR 613.1e): "[recipient] becomes [colors]", which replaces its
 /// colors.
-pub fn becomes_color(recipient: EffectRecipient, colors: impl IntoIterator<Item = Color>) -> Change {
+pub fn becomes_color(recipient: EffectRecipient, colors: impl IntoIterator<Item = Color>) -> ContinuousChange {
     let colors = colors.into_iter().collect();
-    Change::new(recipient, move |d| Primitive::ChangeColor(ColorChange::Set(colors), d))
+    ContinuousChange::new(recipient, move |d| Primitive::ChangeColor(ColorChange::Set(colors), d))
 }
 
 /// Layer 5 (CR 613.1e): "[recipient] is [color] in addition to its other
 /// colors".
-pub fn is_also_color(recipient: EffectRecipient, color: Color) -> Change {
-    Change::new(recipient, move |d| Primitive::ChangeColor(ColorChange::Add(color), d))
+pub fn is_also_color(recipient: EffectRecipient, color: Color) -> ContinuousChange {
+    ContinuousChange::new(recipient, move |d| Primitive::ChangeColor(ColorChange::Add(color), d))
 }
 
 /// Layer 5 (CR 613.1e, 105.2c): "[recipient] becomes colorless".
-pub fn becomes_colorless(recipient: EffectRecipient) -> Change {
-    Change::new(recipient, |d| Primitive::ChangeColor(ColorChange::RemoveAll, d))
+pub fn becomes_colorless(recipient: EffectRecipient) -> ContinuousChange {
+    ContinuousChange::new(recipient, |d| Primitive::ChangeColor(ColorChange::RemoveAll, d))
 }
 
-/// Layer 6 (CR 613.1f): "[recipient] gains [keyword]", "has [keyword]".
-pub fn gains(recipient: EffectRecipient, keyword: KeywordFlag) -> Change {
-    Change::new(recipient, move |d| Primitive::GrantKeywordFlag(keyword, d))
+/// Layer 6 (CR 613.1f): "[recipient] gains [keyword]", "has [keyword]", for
+/// a keyword held as a flag; any other ability is [`gains_ability`].
+pub fn gains_keyword(recipient: EffectRecipient, keyword: KeywordFlag) -> ContinuousChange {
+    ContinuousChange::new(recipient, move |d| Primitive::GrantKeywordFlag(keyword, d))
 }
 
 /// Layer 6 (CR 613.1f): "[recipient] gains '[ability]'", "has '[ability]'".
-pub fn gains_ability(recipient: EffectRecipient, ability: AbilityDef) -> Change {
+pub fn gains_ability(recipient: EffectRecipient, ability: AbilityDef) -> ContinuousChange {
     let ability = std::sync::Arc::new(ability);
-    Change::new(recipient, move |d| Primitive::GrantAbility(ability, d))
+    ContinuousChange::new(recipient, move |d| Primitive::GrantAbility(ability, d))
 }
 
 /// Layer 6 (CR 613.1f): "[recipient] loses all abilities".
-pub fn loses_all_abilities(recipient: EffectRecipient) -> Change {
-    Change::new(recipient, Primitive::LoseAllAbilities)
+pub fn loses_all_abilities(recipient: EffectRecipient) -> ContinuousChange {
+    ContinuousChange::new(recipient, Primitive::LoseAllAbilities)
 }
 
 /// Layer 7b (CR 613.4b): "[recipient] has base power and toughness [p]/[t]".
-pub fn has_base_power_and_toughness(recipient: EffectRecipient, power: impl Into<AmountExpr>, toughness: impl Into<AmountExpr>) -> Change {
+pub fn has_base_power_and_toughness(recipient: EffectRecipient, power: impl Into<AmountExpr>, toughness: impl Into<AmountExpr>) -> ContinuousChange {
     let (power, toughness) = (power.into(), toughness.into());
-    Change::new(recipient, move |d| Primitive::SetPowerToughness(power, toughness, d))
+    ContinuousChange::new(recipient, move |d| Primitive::SetPowerToughness(power, toughness, d))
 }
 
 /// Layer 7c (CR 613.4c): "[recipient] gets +[p]/+[t]".
-pub fn gets(recipient: EffectRecipient, power: impl Into<AmountExpr>, toughness: impl Into<AmountExpr>) -> Change {
+pub fn gets(recipient: EffectRecipient, power: impl Into<AmountExpr>, toughness: impl Into<AmountExpr>) -> ContinuousChange {
     let (power, toughness) = (power.into(), toughness.into());
-    Change::new(recipient, move |d| Primitive::ModifyPowerToughness(power, toughness, d))
+    ContinuousChange::new(recipient, move |d| Primitive::ModifyPowerToughness(power, toughness, d))
 }
 
 /// Layer 7d (CR 613.4d): "switch [recipient's] power and toughness".
-pub fn switch_power_and_toughness(recipient: EffectRecipient) -> Change {
-    Change::new(recipient, Primitive::SwitchPowerToughness)
+pub fn switch_power_and_toughness(recipient: EffectRecipient) -> ContinuousChange {
+    ContinuousChange::new(recipient, Primitive::SwitchPowerToughness)
 }
 
 // ---------------------------------------------------------------------------
@@ -385,11 +391,11 @@ pub fn switch_power_and_toughness(recipient: EffectRecipient) -> Change {
 // ---------------------------------------------------------------------------
 
 /// A replacement effect or a "can't" a resolution creates (CR 614.1,
-/// 101.2), awaiting its duration (CR 611.2a). Not a [`Change`]: it changes
+/// 101.2), awaiting its duration (CR 611.2a). Not a [`ContinuousChange`]: it changes
 /// no object, so nothing chains to it and a static ability, whose effects
 /// last while it does, never writes one.
 #[must_use = "a created effect lasts as long as its text says: end it with its duration"]
-pub struct CreatedEffect(Change);
+pub struct CreatedEffect(ContinuousChange);
 
 impl CreatedEffect {
     /// "This turn", "until end of turn" (CR 514.2).
@@ -416,14 +422,14 @@ pub fn create_replacement(def: ReplacementDef) -> CreatedEffect {
 /// leaves to the def's own player set, read like no recipient at all.
 pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -> CreatedEffect {
     let def = Box::new(def);
-    CreatedEffect(Change::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored)))
+    CreatedEffect(ContinuousChange::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored)))
 }
 
 /// [`create_replacement`] for "a source of your choice" (CR 609.7a): the
 /// source is chosen as the effect is created and written into the def.
 pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> CreatedEffect {
     let def = Box::new(def);
-    CreatedEffect(Change::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource)))
+    CreatedEffect(ContinuousChange::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource)))
 }
 
 /// "[Recipient] can't [what]" from a resolution (CR 101.2, 614.17). A
@@ -432,5 +438,5 @@ pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> CreatedEf
 /// turn").
 pub fn cant(recipient: EffectRecipient, what: Restriction) -> CreatedEffect {
     let def = RestrictionDef::new(what);
-    CreatedEffect(Change::new(recipient, move |d| Primitive::Restrict(def, d)))
+    CreatedEffect(ContinuousChange::new(recipient, move |d| Primitive::Restrict(def, d)))
 }

@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{becomes_the_target_of, blocks_a_creature, destroy, mill, this_object, triggered_ability, triggering, whenever, you};
+use crate::cards::authoring::{becomes_the_target_of, blocks_a_creature, destroy, mill, this_object, triggered_ability, triggering_object, whenever, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -39,7 +39,7 @@ use crate::types::triggers::{EventRole, TargetedBy, TriggerSubject};
 ///   `loyal_sentry_destroys_the_attacker_after_it_has_left`.
 pub fn loyal_sentry() -> Arc<CardData> {
     let text = "When this creature blocks a creature, destroy that creature and this creature.";
-    let both = EffectRecipient::Group(vec![triggering(EventRole::Attacker), this_object()]);
+    let both = EffectRecipient::Group(vec![triggering_object(EventRole::Attacker), this_object()]);
     CardDataBuilder::new("Loyal Sentry")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)

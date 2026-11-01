@@ -21,7 +21,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    at_beginning_of, create_delayed_trigger, draw_cards, gain_life, lose_the_game, spell_ability, take_an_extra_turn, whenever, you, Whose,
+    at_beginning_of, create_delayed_trigger, draw_cards, gain_life, lose_the_game, spell_ability, take_an_extra_turn_after_this_one, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -76,7 +76,7 @@ pub fn final_fortune() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(vec![
-                take_an_extra_turn(you()),
+                take_an_extra_turn_after_this_one(you()),
                 create_delayed_trigger(you(), lose),
             ]),
         ))

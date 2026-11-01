@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{gain_control_of, gains, spell_ability, target_creature, that_target, untap};
+use crate::cards::authoring::{gain_control_of, gains_keyword, spell_ability, target_creature, that_target, untap};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -43,7 +43,7 @@ pub fn act_of_treason() -> Arc<CardData> {
                 // "it" are back-references to it, not new clauses.
                 gain_control_of(target_creature()).until_end_of_turn(),
                 untap(that_target(0)),
-                gains(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
+                gains_keyword(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
             ]),
         ))
         .build()

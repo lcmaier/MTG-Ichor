@@ -143,7 +143,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     activated_ability, any_target, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, creatures_you_control,
-    deal_damage, deal_damage_that_cant_be_prevented, each, gain_life, mill, spell_ability, static_replacement, target_creature, target_player,
+    deal_damage, deal_damage_unpreventable, each, gain_life, mill, spell_ability, static_replacement, target_creature, target_player,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
@@ -1132,7 +1132,7 @@ pub fn pinpoint_avalanche() -> Arc<CardData> {
              prevented.",
         )
         .ability(spell_ability("Pinpoint Avalanche deals 4 damage to target creature. The damage can't be prevented.",
-            deal_damage_that_cant_be_prevented(target_creature(), 4),
+            deal_damage_unpreventable(target_creature(), 4),
         ))
         .build()
 }

@@ -27,7 +27,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    each_in, loses_all_abilities, shuffle_library, spell_ability, static_ability, static_replacement, take_an_extra_turn, this_object, you,
+    each_in, loses_all_abilities, shuffle_library, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, this_object, you,
 };
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -149,7 +149,7 @@ pub fn nexus_of_fate() -> Arc<CardData> {
              graveyard from anywhere, reveal Nexus of Fate and shuffle it into its owner's \
              library instead.",
         )
-        .ability(spell_ability("Take an extra turn after this one.", take_an_extra_turn(you())))
+        .ability(spell_ability("Take an extra turn after this one.", take_an_extra_turn_after_this_one(you())))
         .ability(shuffles_into_library_from_anywhere("If Nexus of Fate would be put into a graveyard from anywhere, reveal Nexus of Fate and shuffle it into its owner's library instead.", ))
         .build()
 }

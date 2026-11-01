@@ -313,8 +313,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, cant, create, create_replacement, create_replacement_for, deal_damage, draw_cards, exile, get_counters, lose_life,
-    set_life_total, spell_ability, static_ability, static_replacement, take_an_extra_turn, target_player, this_object, you, you_and_that_player,
+    activated_ability, cant, create_tokens, create_replacement, create_replacement_for, deal_damage, draw_cards, exile, get_counters, lose_life,
+    set_life_total, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_player, this_object, you, you_and_that_player,
 };
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
@@ -501,7 +501,7 @@ pub fn time_walk() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Take an extra turn after this one.")
         .ability(spell_ability("Take an extra turn after this one.",
-            take_an_extra_turn(you()),
+            take_an_extra_turn_after_this_one(you()),
         ))
         .build()
 }
@@ -1514,7 +1514,7 @@ pub fn raise_the_alarm() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Create two 1/1 white Soldier creature tokens.")
         .ability(spell_ability("Create two 1/1 white Soldier creature tokens.",
-            create(you(), 2, soldier_token()),
+            create_tokens(you(), 2, soldier_token()),
         ))
         .build()
 }
@@ -1538,7 +1538,7 @@ pub fn hordeling_outburst() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Create three 1/1 red Goblin creature tokens.")
         .ability(spell_ability("Create three 1/1 red Goblin creature tokens.",
-            create(you(), 3, goblin_token()),
+            create_tokens(you(), 3, goblin_token()),
         ))
         .build()
 }

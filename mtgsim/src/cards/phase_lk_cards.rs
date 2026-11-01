@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{as_long_as, creatures_you_control, each, functioning_in, gains, gets, static_ability};
+use crate::cards::authoring::{as_long_as, creatures_you_control, each, functioning_in, gains_keyword, gets, static_ability};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
@@ -85,7 +85,7 @@ pub fn wonder() -> Arc<CardData> {
                         players: PlayerSet::You,
                         fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
                     },
-                    gains(each(creatures_you_control()), KeywordFlag::Flying),
+                    gains_keyword(each(creatures_you_control()), KeywordFlag::Flying),
                 ),
             ),
         ))

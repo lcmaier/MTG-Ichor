@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    as_long_as, becomes_colorless, each_in, gains, gets, is_also_color, loses_all_abilities, static_ability, static_replacement, this_object,
+    as_long_as, becomes_colorless, each_in, gains_keyword, gets, is_also_color, loses_all_abilities, static_ability, static_replacement, this_object,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -212,7 +212,7 @@ pub fn teferi_flash_clause() -> Arc<CardData> {
         .rules_text("Creature cards you own that aren't on the battlefield have flash.")
         .ability(static_ability(
             "Creature cards you own that aren't on the battlefield have flash.",
-            gains(
+            gains_keyword(
                 each_in(
                     ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByOwner(PlayerRef::You))),
                     ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::cards::authoring::{becomes_types, each, gains, spell_ability, static_ability, target_creature, target_permanent};
+use crate::cards::authoring::{becomes_types, each, gains_keyword, spell_ability, static_ability, target_creature, target_permanent};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
@@ -205,7 +205,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .rules_text("Lands have flying.")
         .ability(static_ability(
             "Lands have flying.",
-            gains(each(ObjectFilter::ByType(CardType::Land)), KeywordFlag::Flying),
+            gains_keyword(each(ObjectFilter::ByType(CardType::Land)), KeywordFlag::Flying),
         ))
         .build()
 }
@@ -277,7 +277,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
         .rules_text("Creatures have flying.")
         .ability(static_ability(
             "Creatures have flying.",
-            gains(each(ObjectFilter::ByType(CardType::Creature)), KeywordFlag::Flying),
+            gains_keyword(each(ObjectFilter::ByType(CardType::Creature)), KeywordFlag::Flying),
         ))
         .build()
 }

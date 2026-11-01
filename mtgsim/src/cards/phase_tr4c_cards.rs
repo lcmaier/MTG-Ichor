@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    any_target, create, deal_damage, exile, gets, host, return_to_hand, spell_ability, static_ability, this_object, triggering, you,
+    any_target, create_tokens, deal_damage, exile, gets, host, return_to_hand, spell_ability, static_ability, this_object, triggering_object, you,
 };
 use crate::cards::authoring::{dies, functioning_in, triggered_ability, whenever};
 use crate::cards::phase_rb_cards::zombie_token;
@@ -136,7 +136,7 @@ pub fn angelic_destiny() -> Arc<CardData> {
         .rules_text("Enchant creature\nEnchanted creature gets +4/+4, has flying and first strike, and is an Angel in addition to its other types.\nWhen enchanted creature dies, return this card to its owner's hand.")
         .ability(static_ability(
             anthem,
-            gets(host(), 4, 4).and_gains(KeywordFlag::Flying).and_gains(KeywordFlag::FirstStrike).and_becomes_types(angel),
+            gets(host(), 4, 4).and_gains_keyword(KeywordFlag::Flying).and_gains_keyword(KeywordFlag::FirstStrike).and_becomes_types(angel),
         ))
         .ability(triggered_ability(
             returns,
@@ -174,10 +174,10 @@ pub fn rancor() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
         .rules_text("Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen this Aura is put into a graveyard from the battlefield, return it to its owner's hand.")
-        .ability(static_ability(anthem, gets(host(), 2, 0).and_gains(KeywordFlag::Trample)))
+        .ability(static_ability(anthem, gets(host(), 2, 0).and_gains_keyword(KeywordFlag::Trample)))
         .ability(triggered_ability(
             returns,
-            whenever(dies(TriggerSubject::ThisObject), return_to_hand(triggering(EventRole::Object))),
+            whenever(dies(TriggerSubject::ThisObject), return_to_hand(triggering_object(EventRole::Object))),
         ))
         .build()
 }
@@ -242,7 +242,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
                 zombie,
                 whenever(
                     put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerRef::You),
-                    create(you(), 1, zombie_token()),
+                    create_tokens(you(), 1, zombie_token()),
                 ),
             ),
         ))

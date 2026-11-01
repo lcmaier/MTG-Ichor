@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, as_long_as, gains, gains_ability, scry, static_ability, static_replacement, this_object, you, Change,
+    activated_ability, as_long_as, gains_keyword, gains_ability, scry, static_ability, static_replacement, this_object, you, ContinuousChange,
 };
 use crate::cards::authoring::persist;
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -122,7 +122,7 @@ pub fn wingrattle_scarecrow() -> Arc<CardData> {
     let flying = "This creature has flying as long as you control a blue creature.";
     let persists = "This creature has persist as long as you control a black creature.";
     let has_while_you_control_a =
-        |text: &'static str, color: Color, grant: Change| static_ability(text, as_long_as(you_control_a_creature_of(color), grant));
+        |text: &'static str, color: Color, grant: ContinuousChange| static_ability(text, as_long_as(you_control_a_creature_of(color), grant));
     CardDataBuilder::new("Wingrattle Scarecrow")
         .mana_cost(ManaCost::build(&[], 3))
         .card_type(CardType::Artifact)
@@ -130,7 +130,7 @@ pub fn wingrattle_scarecrow() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Scarecrow))
         .power_toughness(2, 2)
         .rules_text("This creature has flying as long as you control a blue creature.\nThis creature has persist as long as you control a black creature.")
-        .ability(has_while_you_control_a(flying, Color::Blue, gains(this_object(), KeywordFlag::Flying)))
+        .ability(has_while_you_control_a(flying, Color::Blue, gains_keyword(this_object(), KeywordFlag::Flying)))
         .ability(has_while_you_control_a(persists, Color::Black, gains_ability(this_object(), persist())))
         .build()
 }

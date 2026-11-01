@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{add_phases, create, each, spell_ability, untap, you};
+use crate::cards::authoring::{add_phases, create_tokens, each, spell_ability, untap, you};
 use crate::cards::authoring::{attacks, triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
@@ -71,7 +71,7 @@ pub fn attacking_human_token() -> TokenDef {
 pub fn hanweir_garrison() -> Arc<CardData> {
     let text = "Whenever this creature attacks, create two 1/1 red Human creature tokens that are tapped and attacking.";
     let two_humans =
-        create(you(), 2, attacking_human_token());
+        create_tokens(you(), 2, attacking_human_token());
     CardDataBuilder::new("Hanweir Garrison")
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)

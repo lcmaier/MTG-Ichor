@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create, static_replacement, you};
+use crate::cards::authoring::{create_tokens, static_replacement, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -112,7 +112,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                     )),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             )
-            .with_then(create(
+            .with_then(create_tokens(
                 // Kalitas's controller, not the dying creature's. The rider
                 // resolves against a context whose source is Kalitas, so
                 // `you` is CR 109.5's "you" for this ability.
