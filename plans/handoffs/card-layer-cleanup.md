@@ -173,8 +173,12 @@ tests, the per-card data checks into `printings_test.rs`. The band: 277 of
 289 items byte-identical and 11,939 moved lines counted zero by decision 7;
 outside them the larger side is −4,688, of which 1,232 are the dropped
 module docs and 497 the fingerprints, and +3,755, of which 1,008 are the 97
-new card files' headers and imports. The decklist's five `tdc` lists come
-from MTGJSON once the owner approves the downloads.
+new card files' headers and imports. The five `tdc` decklists are in
+`mtgsim/decks/`, from MTGJSON's deck files: 380 distinct names the registry
+lacks. The first review round (2026-11-01) renamed `colored` to `color` and
+the prevention word to `prevent_the_next_n_damage_this_turn`, moved
+Everywhere into `cards::tokens` as the one named token, and replaced the
+ad hoc creature tokens with `TokenDef::creature` written where each is made.
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,

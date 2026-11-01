@@ -4918,8 +4918,9 @@ damage is divided only among the attackers it blocks.
     shared ones. **The move landed in its third PR (2026-11-01):** every
     printing sits in its first printing's set file under `cards/sets/`,
     every fixture in `cards::fixtures` by the architecture doc it tests,
-    every token in `cards::tokens`, and a test names each through
-    `cards::printings`, `fixtures` or `tokens`; filters are words, and the
+    the named token in `cards::tokens`, and a test names each through
+    `cards::printings`, `fixtures` or `tokens`, a creature token being
+    `TokenDef::creature` where it is made; filters are words, and the
     helpers the move would have scattered are shared words. Items 204, 207
     and 209 are the phase's last two PRs (`plans/handoffs/card-layer-cleanup.md`,
     "The split").

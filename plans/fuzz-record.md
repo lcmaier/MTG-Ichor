@@ -124,6 +124,16 @@ tests pass; the `release-checked` stress and fixtures sittings (50 games, seed
 12345) exit clean, 0 errors, 0 panics, 0 turn-limit hits; the dev GUI's tests
 and its review boards pass.
 
+**Re-measured 2026-11-01 at the first review round's head** (`f0678ae8`: two
+words renamed, Everywhere in `cards::tokens` under the same registered name,
+the creature tokens as `TokenDef::creature`, and the five `tdc` decklists),
+against the same **main**. Predicted identical again, since every card's value
+was checked equal; read **IDENTICAL** on both pools at both seat counts, the
+audit's counts unchanged, and instructions a decision 0.6495 M → 0.6471 M,
+**−0.37%**, the moves the inlining boundaries the second PR's sittings named
+(`get_effective_abilities`, `ManaAbilityWindowOffer::read`,
+`EffectiveCharacteristics`' drop glue, each in one arm only).
+
 **Measured 2026-10-31 for `card-layer-cleanup`'s second PR, the instruction words**
 (`cards/card-instruction-words`: every card-file instruction built by a verb and
 recipient word, `RowId::UNASSIGNED`, every reader of a static body taking each
