@@ -620,7 +620,7 @@ the pair of tests is the argument above stated twice. The first draft of this
 section shipped no arm at all, on the grounds that Golden-Tail Trainer waits for
 item 6 — but that was an argument about the *card*, and
 `engineering-practices.md#cards-and-pools` lets a fixture with its own name be a consumer.
-`phase_cm_cards::power_reducer` is that fixture, and its board is the
+`fixtures::power_reducer` is that fixture, and its board is the
 entitlement claim made observable: an anthem on the reducer makes it reduce
 more, because the amount is read off the source's **effective** frame.
 
@@ -931,7 +931,7 @@ loud. **§3.3 was not enough on its own**: its merge lives in
 and `activate_mana_ability` pay an ability's *printed* cost list. Every printed
 card happens to put its mana and tap first; a card printing "Sacrifice a
 creature, {T}:" would eat its own source and fail the tap with a payment made.
-`phase_cm_cards::self_eating_engine` is that card, and it is the only board on
+`fixtures::self_eating_engine` is that card, and it is the only board on
 which the rank is visible.
 
 **601.2h's own two groups are not modelled**, deliberately: no `Cost` arm is
@@ -1285,7 +1285,7 @@ with Trinisphere forced beside it — 158 / 157 in 108 games and 193 / 192 in 13
 - **Golden-Tail Trainer**: the *card*, with item 6 — its second ability is an
   attack trigger (item 6 has landed; the card is still unregistered), and a card wearing its name with half its text is what
   `engineering-practices.md#cards-and-pools` forbids. Its *mechanism* is in:
-  `settled_amount` answers `SourcePower` and `phase_cm_cards::power_reducer`
+  `settled_amount` answers `SourcePower` and `fixtures::power_reducer`
   is the fixture that consumes it (§3.7). Registering the printed card is then
   a card change with no engine change behind it.
 - **Cost abilities in other zones** (emblems, Convergence of Dominion): §3.1,

@@ -13,9 +13,8 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::alpha;
-use mtgsim::cards::basic_lands::forest;
-use mtgsim::cards::phase_rc_cards::containment_priest;
+use mtgsim::cards::printings;
+use mtgsim::cards::printings::{containment_priest, forest};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
@@ -557,7 +556,7 @@ fn test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change() {
 #[test]
 fn test_a_rewound_cast_leaves_no_zone_change() {
     let mut game = setup_two_player_game();
-    let bolt = put_in_hand(&mut game, alpha::lightning_bolt(), 0);
+    let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(

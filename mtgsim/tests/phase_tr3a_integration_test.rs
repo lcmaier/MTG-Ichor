@@ -17,13 +17,13 @@
 //! Most boards resolve their spell by hand (`resolve_spell`): the question is
 //! the resolution's. The X spell is cast from hand from exactly its cost under
 //! `ManaWindowStop`, the path a shipped client takes, and so is Final Fortune
-//! in `phase_tr3a_cards`' tests.
+//! in `final_fortune_and_blessed_wine` below.
 
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{activated_ability, spell_ability, static_replacement};
 use mtgsim::cards::authoring::{at_beginning_of, attacks, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose};
-use mtgsim::cards::phase_re_cards::time_walk;
+use mtgsim::cards::printings::time_walk;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -924,4 +924,202 @@ fn a_delayed_trigger_created_during_the_end_step_waits_for_the_next() {
     the_delayed_pending(&game);
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 22);
+}
+
+/// Final Fortune and Blessed Wine resolved by hand and played through
+/// their turns, with helpers of their own that stop at the game's end.
+mod final_fortune_and_blessed_wine {
+    use std::sync::Arc;
+
+    use mtgsim::cards::printings::{blessed_wine, final_fortune};
+    use mtgsim::cards::printings::{meditate, time_walk};
+    use mtgsim::engine::actions::GameAction;
+    use mtgsim::engine::resolve::ResolutionContext;
+    use mtgsim::objects::card_data::CardData;
+    use mtgsim::state::game_state::StepType;
+    use mtgsim::state::game_state::{GameResult, GameState};
+    use mtgsim::test_support::{put_in_hand, setup_two_player_game, stock_libraries, test_ctx, test_dp, RecordingDecisionProvider};
+    use mtgsim::types::ids::{ObjectId, PlayerId};
+    use mtgsim::types::mana::ManaType;
+    use mtgsim::types::triggers::{TriggerOrigin, TriggerTurn};
+    use mtgsim::types::zones::Zone;
+    use mtgsim::ui::mana_window_stop::ManaWindowStop;
+
+    /// Resolve `card`'s spell effect for `controller` by hand, the card its
+    /// own source.
+    fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId) -> ObjectId {
+        let id = put_in_hand(game, card.clone(), controller);
+        let ctx = ResolutionContext::untargeted(id, controller, mtgsim::events::cause::GeneratedBy::Spell);
+        game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
+        id
+    }
+
+    /// Place every waiting trigger and resolve the stack, as the priority
+    /// loop would, unless the game has ended.
+    fn place_and_resolve(game: &mut GameState) {
+        let dp = RecordingDecisionProvider::picking(0);
+        game.perform_sba_and_triggers(&dp).unwrap();
+        while !game.stack.is_empty() && game.result.is_none() {
+            game.resolve_top_of_stack(&dp).unwrap();
+            game.perform_sba_and_triggers(&dp).unwrap();
+        }
+    }
+
+    /// Play through turn `last`, resolving what triggers at each step, until
+    /// the next turn begins or the game ends.
+    fn play_through(game: &mut GameState, last: u32) {
+        for _ in 0..400 {
+            if game.result.is_some() || game.turn_number > last {
+                return;
+            }
+            game.advance_turn(&test_dp()).expect("advancing");
+            place_and_resolve(game);
+        }
+    }
+
+    /// Walk the turn machinery until `whose` player's `step` begins,
+    /// resolving what triggers on the way.
+    fn play_to(game: &mut GameState, whose: PlayerId, step: StepType) {
+        for _ in 0..200 {
+            game.advance_turn(&test_dp()).expect("advancing");
+            if game.active_player == whose && game.phase.step == Some(step) {
+                return;
+            }
+            place_and_resolve(game);
+        }
+        panic!("player {whose}'s {step:?} never began");
+    }
+
+    /// Cast `card` for player 0 from hand, with exactly `pool` in their pool,
+    /// under `ManaWindowStop`, and resolve it.
+    fn cast_and_resolve(game: &mut GameState, card: Arc<CardData>, pool: &[(ManaType, u64)]) -> ObjectId {
+        let id = put_in_hand(game, card, 0);
+        for &(mana, n) in pool {
+            game.players[0].mana_pool.add(mana, n);
+        }
+        game.cast_spell(0, id, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+        id
+    }
+
+    /// The extra turn a registered "that turn" trigger waits for.
+    fn its_extra_turn(game: &GameState) -> mtgsim::types::ids::ExtraTurnId {
+        match game.delayed_triggers[0].turn {
+            TriggerTurn::Extra(turn) => turn,
+            other => panic!("not bound to an extra turn: {other:?}"),
+        }
+    }
+
+    /// Cast from hand from exactly {R}{R} under `ManaWindowStop`: the extra
+    /// turn is queued, and the delayed trigger is the spell's, its
+    /// controller's (CR 603.7d) and that turn's. Player 0 takes the extra
+    /// turn and loses at its end step, so player 1 wins (CR 104.2a).
+    #[test]
+    fn final_fortune_cast_from_hand_loses_at_its_turns_end_step() {
+        let mut game = setup_two_player_game();
+        stock_libraries(&mut game, 10);
+        let fortune = put_in_hand(&mut game, final_fortune(), 0);
+        game.players[0].mana_pool.add(ManaType::Red, 2);
+        game.cast_spell(0, fortune, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+        let cast = game.object_ref(fortune).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+        assert_eq!(game.turn_queue.len(), 1);
+        let delayed = &game.delayed_triggers[0];
+        assert_eq!((delayed.source, delayed.controller), (cast, 0), "the spell, as it resolved, and its controller");
+        assert_eq!(its_extra_turn(&game), game.turn_queue[0].id, "that turn");
+        assert_eq!(game.get_object(fortune).unwrap().zone, Zone::Graveyard);
+
+        play_through(&mut game, 2);
+        assert_eq!((game.active_player, game.turn_number), (0, 2), "the extra turn");
+        assert_eq!(game.result, Some(GameResult::Winner(1)));
+        assert!(game.delayed_triggers.is_empty());
+    }
+
+    // RULING: Final Fortune #2 - "If you end up skipping the extra turn that is
+    //   gained, you do not lose the game."
+    /// Meditate's "you skip your next turn" skips the extra turn (CR 614.10a's
+    /// next occurrence), so "that turn" never comes: player 0 plays their
+    /// next natural turn and loses nothing, and the trigger is gone.
+    #[test]
+    fn a_skipped_final_fortune_turn_loses_nothing() {
+        let mut game = setup_two_player_game();
+        stock_libraries(&mut game, 10);
+        resolve_spell(&mut game, meditate(), 0);
+        resolve_spell(&mut game, final_fortune(), 0);
+        assert_eq!(game.delayed_triggers.len(), 1);
+
+        play_through(&mut game, 2);
+        assert_eq!(game.result, None, "no loss");
+        assert_eq!((game.active_player, game.turn_number), (0, 3), "player 1's turn 2, then player 0's turn 3");
+        assert!(game.delayed_triggers.is_empty(), "its turn was skipped, so it went");
+    }
+
+    // RULING: Final Fortune #1 - "If multiple 'extra turn' effects resolve in the
+    //   same turn, take them in the reverse of the order that the effects
+    //   resolved. In other words, the most recently created extra turn is taken
+    //   first."
+    /// Final Fortune resolves, then Time Walk: Time Walk's turn is the most
+    /// recently created, so it comes first, turn 2, and player 0 survives its
+    /// end step. Final Fortune's is turn 3, and its end step is the loss.
+    #[test]
+    fn final_fortunes_turn_is_its_own_among_several() {
+        let mut game = setup_two_player_game();
+        stock_libraries(&mut game, 10);
+        resolve_spell(&mut game, final_fortune(), 0);
+        resolve_spell(&mut game, time_walk(), 0);
+        let fortunes_turn = its_extra_turn(&game);
+        assert_eq!(fortunes_turn, game.turn_queue[0].id, "the older entry, taken last");
+
+        play_through(&mut game, 2);
+        assert_eq!(game.result, None, "Time Walk's turn, turn 2, ends with no loss");
+        assert_eq!((game.active_player, game.turn_number), (0, 3));
+        assert_eq!(game.extra_turn, Some(fortunes_turn), "and turn 3 is Final Fortune's");
+
+        play_through(&mut game, 3);
+        assert_eq!(game.turn_number, 3);
+        assert_eq!(game.result, Some(GameResult::Winner(1)));
+    }
+
+    /// Cast from hand from exactly {1}{W} under `ManaWindowStop`: one life
+    /// now, and a delayed trigger that is the spell's and player 0's (CR
+    /// 603.7d), bound to a later turn. Player 1's upkeep is the next turn's,
+    /// and player 0 draws there.
+    #[test]
+    fn blessed_wine_cast_from_hand_draws_in_the_next_turns_upkeep() {
+        let mut game = setup_two_player_game();
+        stock_libraries(&mut game, 10);
+        let wine = put_in_hand(&mut game, blessed_wine(), 0);
+        game.players[0].mana_pool.add(ManaType::White, 1);
+        game.players[0].mana_pool.add(ManaType::Colorless, 1);
+        game.cast_spell(0, wine, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+        let cast = game.object_ref(wine).unwrap();
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+        assert_eq!(game.players[0].life_total, 21);
+        let delayed = &game.delayed_triggers[0];
+        assert_eq!((delayed.source, delayed.controller, delayed.turn), (cast, 0, TriggerTurn::LaterThan(1)));
+        let hand = game.players[0].hand.len();
+
+        play_to(&mut game, 1, StepType::Upkeep);
+        let pending = &game.pending_triggers[0];
+        assert!(matches!(pending.origin, TriggerOrigin::Delayed(_)));
+        assert_eq!(pending.controller, 0, "player 0's, in player 1's upkeep");
+        place_and_resolve(&mut game);
+        assert_eq!(game.players[0].hand.len(), hand + 1);
+        assert!(game.delayed_triggers.is_empty());
+    }
+
+    /// "The next turn's upkeep" is not a second upkeep this turn (CR
+    /// 500.10's extra step, Paradox Haze's shape, proposed here by hand since
+    /// no registered card makes one): the trigger waits for the next turn's.
+    #[test]
+    fn blessed_wine_waits_past_a_second_upkeep_this_turn() {
+        let mut game = setup_two_player_game();
+        stock_libraries(&mut game, 10);
+        cast_and_resolve(&mut game, blessed_wine(), &[(ManaType::White, 1), (ManaType::Colorless, 1)]);
+
+        game.execute_action(GameAction::BeginStep { step: StepType::Upkeep, player: 0 }, &test_ctx()).unwrap();
+        assert!(game.pending_triggers.is_empty(), "an upkeep of this turn");
+        play_to(&mut game, 1, StepType::Upkeep);
+        assert_eq!(game.pending_triggers.len(), 1, "the next turn's");
+    }
 }

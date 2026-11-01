@@ -417,7 +417,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let sol_ring = crate::test_support::put_on_battlefield(
             &mut game,
-            crate::cards::artifacts::sol_ring(),
+            crate::cards::printings::sol_ring(),
             0,
         );
 
@@ -640,7 +640,7 @@ mod tests {
 
         let mut game = setup_two_player_game();
         let creature = place_vanilla_creature(&mut game, 0, 2, 2, &[]);
-        let land = put_land_on_battlefield(&mut game, crate::cards::basic_lands::plains, 1);
+        let land = put_land_on_battlefield(&mut game, crate::cards::printings::plains, 1);
         let spell = put_spell_on_stack(&mut game, crate::test_support::lightning_bolt(), 1);
         let in_hand = put_in_hand(&mut game, crate::test_support::lightning_bolt(), 0);
 

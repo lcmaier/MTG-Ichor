@@ -11,8 +11,8 @@
 use std::cell::RefCell;
 
 use mtgsim::state::restrictions::RestrictionId;
-use mtgsim::cards::phase_lf_cards;
-use mtgsim::cards::phase_rs_cards::{diabolic_edict, sigarda_host_of_herons};
+use mtgsim::cards::printings;
+use mtgsim::cards::printings::{diabolic_edict, sigarda_host_of_herons};
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -574,7 +574,7 @@ fn test_humility_strips_sigardas_restriction_for_free() {
     let mut game = setup_two_player_game();
     let sigarda = put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
     let bear = bear(&mut game, 0);
-    put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    put_on_battlefield(&mut game, printings::humility(), 1);
 
     let dp = CountingDp::new();
     resolve_edict(&mut game, 1, 0, &dp);

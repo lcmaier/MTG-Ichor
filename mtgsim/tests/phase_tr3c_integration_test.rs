@@ -20,14 +20,10 @@ use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{
     another, dies, enters, is_sacrificed, triggered_ability, when_you_do, when_you_dont, whenever,
 };
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::keyword_creatures::wall_of_stone;
-use mtgsim::cards::phase5_pre_cards::glorious_anthem;
-use mtgsim::cards::phase_lh_cards::loxodon_warhammer;
-use mtgsim::cards::phase_rd_cards::{circle_of_protection_red, reverse_damage};
-use mtgsim::cards::phase_tr1_cards::blood_artist;
-use mtgsim::cards::phase_tr3b_cards::flickerwisp;
-use mtgsim::cards::phase_tr3c_cards::cornered_crook;
+use mtgsim::cards::printings::{
+    blood_artist, circle_of_protection_red, cornered_crook, flickerwisp, glorious_anthem, grizzly_bears, loxodon_warhammer, reverse_damage,
+    wall_of_stone,
+};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;

@@ -357,7 +357,7 @@ fn exiles_seen(rest_in_peace: Option<PlayerId>, exiler: PlayerId) -> usize {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, exile_watcher(), 0);
     if let Some(player) = rest_in_peace {
-        put_on_battlefield(&mut game, mtgsim::cards::phase_rb_cards::rest_in_peace(), player);
+        put_on_battlefield(&mut game, mtgsim::cards::printings::rest_in_peace(), player);
     }
     let spell = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), exiler);
     let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);

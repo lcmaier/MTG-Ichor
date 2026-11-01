@@ -14,8 +14,7 @@
 //! it does use ([`vanilla_creature`]) are only ever the *other* creature on the
 //! board — never the one the rule is about.
 
-use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker};
-use mtgsim::cards::phase_sba_cards::battlegrowth;
+use mtgsim::cards::printings::{adaptive_shimmerer, battlegrowth, chainbreaker};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::events::cause::{EventCause, StateBasedAction};

@@ -151,7 +151,7 @@ pub enum ActivationRestriction {
 ///
 /// This is the printed ability — at runtime, activated/triggered abilities
 /// become objects on the stack with their own identity.
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AbilityDef {
     pub id: AbilityId,
     /// The ability's own text: its paragraph of the card's rules text (CR
@@ -209,33 +209,6 @@ pub struct AbilityDef {
     /// effective ability list. CDAs are never registered as continuous effects
     /// — see `Layer::Layer7aCdaPT`.
     pub is_characteristic_defining: bool,
-}
-
-/// Written out rather than derived, as the card fingerprints' view
-/// (`tests/card_data_fingerprint_test.rs`): it prints an activated ability's
-/// kind, costs and restriction as three fields of the ability, the shape the
-/// fingerprints were recorded in, so a change of shape behind it changes no
-/// fingerprint. It goes back to a derive when the fingerprints go.
-impl std::fmt::Debug for AbilityDef {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let kind = match self.ability_type {
-            AbilityType::Mana(_) => "Mana",
-            AbilityType::Activated(_) => "Activated",
-            AbilityType::Triggered => "Triggered",
-            AbilityType::Static => "Static",
-            AbilityType::Spell => "Spell",
-        };
-        f.debug_struct("AbilityDef")
-            .field("id", &self.id)
-            .field("rules_text", &self.rules_text)
-            .field("ability_type", &format_args!("{kind}"))
-            .field("costs", &self.costs())
-            .field("effect", &self.effect)
-            .field("instances", &self.instances)
-            .field("activation_restriction", &self.activation().map_or(ActivationRestriction::None, |activation| activation.restriction))
-            .field("is_characteristic_defining", &self.is_characteristic_defining)
-            .finish()
-    }
 }
 
 impl AbilityDef {
@@ -652,10 +625,10 @@ mod tests {
         let found = |card: Arc<CardData>| -> Vec<Option<u16>> {
             card.abilities.iter().map(|ability| ability.rules_text.paragraph()).collect()
         };
-        assert_eq!(found(crate::cards::phase_a4i_cards::seeds_of_strength()), [Some(0), Some(1), Some(2)]);
-        assert_eq!(found(crate::cards::phase_re_cards::platinum_angel()), [Some(1)]);
+        assert_eq!(found(crate::cards::printings::seeds_of_strength()), [Some(0), Some(1), Some(2)]);
+        assert_eq!(found(crate::cards::printings::platinum_angel()), [Some(1)]);
         assert_eq!(found(crate::test_support::one_paragraph_two_abilities()), [Some(0), Some(0)]);
-        assert_eq!(found(crate::cards::basic_lands::forest()), [None]);
+        assert_eq!(found(crate::cards::printings::forest()), [None]);
         assert_eq!(
             paragraphs("Choose one —\n• Draw a card.\n• You gain 2 life.\nFlying").collect::<Vec<_>>(),
             ["Choose one —\n• Draw a card.\n• You gain 2 life.", "Flying"]
@@ -669,18 +642,18 @@ mod tests {
     /// own effect, and a creature card has none.
     #[test]
     fn a_spell_resolves_its_abilities_in_printed_order_as_one_effect() {
-        let opt = crate::cards::phase_re8_cards::opt();
+        let opt = crate::cards::printings::opt();
         assert_eq!(opt.abilities[0].rules_text.words, "Scry 1.");
         assert_eq!(
             spell_effect(&opt.abilities),
             Some(Effect::Sequence(vec![opt.abilities[0].effect.clone(), opt.abilities[1].effect.clone()]))
         );
-        let seeds = crate::cards::phase_a4i_cards::seeds_of_strength();
+        let seeds = crate::cards::printings::seeds_of_strength();
         assert_eq!(seeds.abilities.len(), 3);
         assert_eq!(seeds.spell_instances.len(), 3);
-        let bolt = crate::cards::alpha::lightning_bolt();
+        let bolt = crate::cards::printings::lightning_bolt();
         assert_eq!(spell_effect(&bolt.abilities), Some(bolt.abilities[0].effect.clone()));
-        assert_eq!(spell_effect(&crate::cards::creatures::grizzly_bears().abilities), None);
+        assert_eq!(spell_effect(&crate::cards::printings::grizzly_bears().abilities), None);
     }
 
     #[test]

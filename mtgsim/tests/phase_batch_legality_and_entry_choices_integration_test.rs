@@ -6,8 +6,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::triggers::{counters_removed_from, dies, triggered_ability, whenever};
-use mtgsim::cards::phase_rc_cards::{containment_priest, master_biomancer, thunder_thrash_elder};
-use mtgsim::cards::phase_re_cards::soldier_token;
+use mtgsim::cards::printings::{containment_priest, master_biomancer, thunder_thrash_elder};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::events::event::{BatchId, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -16,8 +15,9 @@ use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_on_battlefield, put_on_battlefield_under, setup_game, setup_two_player_game,
     textless_static, test_ctx, test_dp, vanilla_creature,
 };
+use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, CreatureType};
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
 };
@@ -31,6 +31,11 @@ use mtgsim::types::replacement::{
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+
+/// A 1/1 white Soldier creature token.
+fn soldier_token() -> TokenDef {
+    TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier])
+}
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
     game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(object), counter, n, by: 0 }, &test_ctx())

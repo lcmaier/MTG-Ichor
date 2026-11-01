@@ -4,7 +4,8 @@
 //! recipient word takes. A recipient pairs with every verb in
 //! [`super::instructions`], so a new one works with all of them at once.
 
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, Subtype, Supertype};
+use crate::types::colors::Color;
 use crate::types::effects::{
     Antecedent, Choice, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet, SelectionFilter, TargetCount,
 };
@@ -138,10 +139,96 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
 // ---------------------------------------------------------------------------
 // The filters a recipient word takes
 // ---------------------------------------------------------------------------
+//
+// A word for each quality two cards print, in the CR's order, joined by
+// `ObjectFilter::and` and `ObjectFilter::or` as the text joins them. A
+// quality one card prints is the enum written out, as `ObjectFilter::All` is.
+
+/// "Non[quality]": "nonblack" (CR 105.2), "nontoken", "nonbasic" (CR
+/// 205.4c): every object `filter` does not describe.
+pub fn non(filter: ObjectFilter) -> ObjectFilter {
+    ObjectFilter::Not(Box::new(filter))
+}
+
+/// "Black", "red source" (CR 105.2): an object that is `which`, among any
+/// others it is.
+pub fn color(which: Color) -> ObjectFilter {
+    ObjectFilter::ByColor(which)
+}
+
+/// "You control" (CR 110.2), read against the effect's controller (CR
+/// 109.5): off the battlefield, its owner (CR 108.4a), so a card in a
+/// graveyard means its owner's.
+pub fn you_control() -> ObjectFilter {
+    ObjectFilter::ByController(PlayerRef::You)
+}
+
+/// "An opponent controls" (CR 110.2), an opponent of the effect's
+/// controller (CR 102.1).
+pub fn an_opponent_controls() -> ObjectFilter {
+    ObjectFilter::ByController(PlayerRef::Opponent)
+}
+
+/// "Spells you cast", for a cost effect (CR 601.2f), read while the spell is
+/// being cast, when its controller is its caster (CR 601.2a). Once control of
+/// a spell changes the two differ (CR 108.4), and a reader after casting asks
+/// who cast it, as `TriggerEvent::CastsSpell`'s `caster` does.
+pub fn you_cast(filter: ObjectFilter) -> ObjectFilter {
+    filter.and(you_control())
+}
+
+/// "Token" (CR 111.1); "nontoken" is `non(token())`.
+pub fn token() -> ObjectFilter {
+    ObjectFilter::Token
+}
+
+/// "Other", "each other": any object but the one whose ability this is
+/// (CR 113.7), which a granted or copied ability reads as its carrier.
+pub fn other_than_this() -> ObjectFilter {
+    ObjectFilter::NotSource
+}
+
+/// "Forest", "Aura", "Elf" (CR 205.3): an object with `subtype`.
+pub fn with_subtype(subtype: Subtype) -> ObjectFilter {
+    ObjectFilter::BySubtype(subtype)
+}
+
+/// "Basic" (CR 205.4c); "nonbasic land" is `land().and(non(basic()))`.
+pub fn basic() -> ObjectFilter {
+    ObjectFilter::BySupertype(Supertype::Basic)
+}
+
+/// "Artifact" (CR 301).
+pub fn artifact() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Artifact)
+}
+
+/// "Creature" (CR 302).
+pub fn creature() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Creature)
+}
+
+/// "Land" (CR 305).
+pub fn land() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Land)
+}
+
+/// "Planeswalker" (CR 306).
+pub fn planeswalker() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Planeswalker)
+}
 
 /// "Creatures you control" as a filter, which the layer walk reads against
 /// the effect's controller (CR 109.5): off the battlefield, its owner (CR
 /// 108.4), so a card in a graveyard means its owner's creatures.
 pub fn creatures_you_control() -> ObjectFilter {
-    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+    creature().and(you_control())
+}
+
+/// "Nonlegendary creature" — the filter Cytoshape and Mirrorweave scope
+/// their copy source with, and the reason CR 707 cards say it at all: a copy
+/// of a legend meets CR 704.5j the moment it exists, so the printed text
+/// keeps the effect from being a sacrifice.
+pub fn nonlegendary_creature() -> ObjectFilter {
+    creature().and(non(ObjectFilter::BySupertype(Supertype::Legendary)))
 }

@@ -8,7 +8,7 @@ use super::instructions::{attach_to, ContinuousChange};
 use super::recipients::{creatures_you_control, target_permanent};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType, Activation};
 use crate::types::costs::Cost;
-use crate::types::effects::{Condition, Duration, Effect};
+use crate::types::effects::{Condition, Duration, Effect, PlayerFact, PlayerSet};
 use crate::types::replacement::ReplacementDef;
 use crate::types::restriction::{Restriction, RestrictionDef};
 
@@ -49,6 +49,15 @@ impl StaticBody for ContinuousChange {
 /// effect exists exactly while its condition holds.
 pub fn as_long_as(condition: Condition, body: impl StaticBody) -> Effect {
     Effect::Conditional(condition, Box::new(body.into_static_body()))
+}
+
+/// "You control a Forest", "you have 40 or more life", "your library has no
+/// cards in it": a fact about the ability's controller (CR 109.5) as it
+/// stands when the condition is asked, for an "as long as", an intervening
+/// "if" or a state trigger alike. A count over the turn's history ("if you
+/// gained life this turn") is a history condition, not this.
+pub fn you_have(fact: PlayerFact) -> Condition {
+    Condition::Player { players: PlayerSet::You, fact }
 }
 
 /// A static ability whose effect is a replacement effect (CR 614.1a): never

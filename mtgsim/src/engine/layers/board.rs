@@ -1996,7 +1996,7 @@ pub(super) fn frame_at_ceiling(game: &GameState, id: ObjectId, ceiling: usize) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cards::{basic_lands, creatures, phase5_pre_cards, phase_ld_cards, phase_li_cards};
+    use crate::cards::{fixtures, printings};
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
 
     /// The order layer 4 applied its effects in, as `(source, reached)`.
@@ -2021,12 +2021,12 @@ mod tests {
     #[test]
     fn the_four_card_board_applies_opalescence_ashaya_blood_moon_and_urborg_never() {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let _forest = put_on_battlefield(&mut game, basic_lands::forest(), 0);
-        let urborg = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
-        let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
-        let ashaya = put_on_battlefield(&mut game, phase_li_cards::ashaya_soul_of_the_wild(), 0);
-        let opalescence = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+        let _forest = put_on_battlefield(&mut game, printings::forest(), 0);
+        let urborg = put_on_battlefield(&mut game, printings::urborg_tomb_of_yawgmoth(), 0);
+        let moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
+        let ashaya = put_on_battlefield(&mut game, printings::ashaya_soul_of_the_wild(), 0);
+        let opalescence = put_on_battlefield(&mut game, printings::opalescence(), 0);
 
         let order = layer_4_order(&game);
         let sources: Vec<ObjectId> = order.iter().map(|(source, _)| *source).collect();
@@ -2053,8 +2053,8 @@ mod tests {
     #[test]
     fn urborg_waits_for_blood_moon_and_the_reverse_pair_is_settled_statically() {
         let mut game = setup_two_player_game();
-        let urborg = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
-        let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+        let urborg = put_on_battlefield(&mut game, printings::urborg_tomb_of_yawgmoth(), 0);
+        let moon = put_on_battlefield(&mut game, printings::blood_moon(), 1);
         let before = game.diagnostics.dependency_checks();
         let order = layer_4_order(&game);
         assert_eq!(order.iter().map(|(source, _)| *source).collect::<Vec<_>>(), vec![moon, urborg]);
@@ -2073,10 +2073,10 @@ mod tests {
     #[test]
     fn a_conditional_static_applies_after_what_falsifies_its_condition() {
         let mut game = setup_two_player_game();
-        let taiga = put_on_battlefield(&mut game, crate::cards::dual_lands::taiga(), 0);
-        let clause = put_on_battlefield(&mut game, phase_li_cards::simian_clause(), 0);
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+        let taiga = put_on_battlefield(&mut game, crate::cards::printings::taiga(), 0);
+        let clause = put_on_battlefield(&mut game, fixtures::simian_clause(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+        let moon = put_on_battlefield(&mut game, printings::blood_moon(), 1);
 
         let before = game.diagnostics.dependency_checks();
         let order = layer_4_order(&game);
@@ -2105,8 +2105,8 @@ mod tests {
     fn a_pairwise_independent_layer_runs_no_hypothetical() {
         let mut game = setup_two_player_game();
         for _ in 0..3 {
-            put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-            put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+            put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+            put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
         }
         let before = game.diagnostics.dependency_checks();
         compute_board(&game, None);
@@ -2139,10 +2139,10 @@ mod tests {
         };
         let mut game = setup_two_player_game();
         for player in 0..2 {
-            put_on_battlefield(&mut game, creatures::grizzly_bears(), player);
+            put_on_battlefield(&mut game, printings::grizzly_bears(), player);
             put_in_hand(&mut game, vanilla_creature(2, 2, &[]), player);
             put_in_library(&mut game, vanilla_creature(2, 2, &[]), player);
-            put_in_library(&mut game, basic_lands::forest(), player);
+            put_in_library(&mut game, printings::forest(), player);
             put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), player);
             put_in_exile(&mut game, vanilla_creature(2, 2, &[]), player);
         }
@@ -2158,33 +2158,32 @@ mod tests {
     /// zone `left_out_zones` names and nothing else makes it a member.
     #[test]
     fn seed_and_pass_membership_agree_on_every_zone() {
-        use crate::cards::{phase_lj_cards, phase_ll_cards};
         use crate::test_support::{put_in_hand, put_in_library, registered};
 
         let mut boards: Vec<(&str, GameState)> = Vec::new();
         boards.push(("no row", every_zone()));
 
         let mut game = every_zone();
-        put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
+        put_on_battlefield(&mut game, fixtures::lattice_colorless_clause(), 0);
         boards.push(("Lattice's clause: every zone but the battlefield", game));
 
         let mut game = every_zone();
-        put_on_battlefield(&mut game, phase_ll_cards::library_assassins(), 0);
-        put_on_battlefield(&mut game, phase_ll_cards::library_artificer(), 1);
+        put_on_battlefield(&mut game, fixtures::library_assassins(), 0);
+        put_on_battlefield(&mut game, fixtures::library_artificer(), 1);
         boards.push(("the guard keeps the libraries in", game));
 
         let mut game = every_zone();
-        put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
-        put_in_hand(&mut game, phase_ll_cards::pocket_griffin(), 1);
+        put_on_battlefield(&mut game, fixtures::lattice_colorless_clause(), 0);
+        put_in_hand(&mut game, fixtures::pocket_griffin(), 1);
         boards.push(("a static source in a hand left out", game));
 
         let mut game = every_zone();
-        put_in_library(&mut game, phase_ll_cards::grist_insect_clause(), 1);
+        put_in_library(&mut game, fixtures::grist_insect_clause(), 1);
         boards.push(("a SourceOnly source in a library nothing reaches", game));
 
         let mut game = every_zone();
-        put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
-        let named = put_in_library(&mut game, creatures::grizzly_bears(), 1);
+        put_on_battlefield(&mut game, fixtures::lattice_colorless_clause(), 0);
+        let named = put_in_library(&mut game, printings::grizzly_bears(), 1);
         let timestamp = game.allocate_timestamp();
         game.continuous_effects.add(registered(
             named,

@@ -302,6 +302,21 @@ pub enum ObjectFilter {
     Not(Box<ObjectFilter>),
 }
 
+impl ObjectFilter {
+    /// "Creature you control", "black nontoken": what both filters
+    /// describe. A chain nests to the left, `a.and(b).and(c)` being
+    /// `And(And(a, b), c)`.
+    pub fn and(self, other: ObjectFilter) -> ObjectFilter {
+        ObjectFilter::And(Box::new(self), Box::new(other))
+    }
+
+    /// "Artifact or creature", and Root Maze's "artifacts and lands": what
+    /// either filter describes.
+    pub fn or(self, other: ObjectFilter) -> ObjectFilter {
+        ObjectFilter::Or(Box::new(self), Box::new(other))
+    }
+}
+
 /// Selects which objects an effect applies to — read by the layer walk, the
 /// restriction sweep and the replacement pipeline, which is why the name is
 /// the set's contents rather than any one reader's verb.
@@ -1347,6 +1362,41 @@ pub enum EntersAttacking {
 }
 
 impl TokenDef {
+    /// "A 1/1 white Soldier creature token", in the order an effect prints
+    /// it: a creature token of `colors` and `creature_types` with nothing the
+    /// effect does not say (CR 111.3), named by CR 111.4's default.
+    pub fn creature(power: i32, toughness: i32, colors: &[Color], creature_types: &[crate::types::card_types::CreatureType]) -> TokenDef {
+        TokenDef {
+            name: None,
+            colors: colors.to_vec(),
+            types: vec![crate::types::card_types::CardType::Creature],
+            subtypes: creature_types.iter().map(|t| crate::types::card_types::Subtype::Creature(*t)).collect(),
+            supertypes: Vec::new(),
+            power: Some(power),
+            toughness: Some(toughness),
+            keyword_flags: Vec::new(),
+            abilities: Vec::new(),
+            rules_text: String::new(),
+            enchant_filter: None,
+            enters_tapped: false,
+            enters_attacking: None,
+        }
+    }
+
+    /// "… with flying and vigilance".
+    pub fn with_keywords(mut self, keywords: &[KeywordFlag]) -> TokenDef {
+        self.keyword_flags = keywords.to_vec();
+        self
+    }
+
+    /// "… tapped and attacking" (CR 508.4), its controller choosing what it
+    /// attacks.
+    pub fn tapped_and_attacking(mut self) -> TokenDef {
+        self.enters_tapped = true;
+        self.enters_attacking = Some(EntersAttacking::Chosen);
+        self
+    }
+
     /// CR 111.4's name: the given one, or "[subtypes] Token" when the
     /// effect gave none — "Dwarf Berserker Token" for the rule's own
     /// example, "Token" for a token with neither.
@@ -1646,6 +1696,15 @@ impl TypeChange {
         remove_supertypes: Vec::new(),
         set_supertypes: None,
     };
+
+    /// "[It] is a [type] in addition to its other types" (CR 205.1b): each
+    /// listed supertype, card type and subtype added, and every other kept.
+    /// The lists run in the order a type line prints them (CR 205.4a), so
+    /// Super-Soldier Serum's "a legendary Soldier" is
+    /// `adding(&[Legendary], &[], &[Soldier])`.
+    pub fn adding(supertypes: &[crate::types::card_types::Supertype], types: &[crate::types::card_types::CardType], subtypes: &[crate::types::card_types::Subtype]) -> TypeChange {
+        TypeChange { add_types: types.to_vec(), add_subtypes: subtypes.to_vec(), add_supertypes: supertypes.to_vec(), ..TypeChange::NONE }
+    }
 
     /// CR 613.1d — the layer 4 modifications this change makes, axis by axis,
     /// a `set_*` taking the place of its axis' adds and removes. One lowering

@@ -878,7 +878,7 @@ kept as written for the record.*
   `AbilityDef`. The per-turn limit needs per-permanent turn-scoped state.
 - **Blocks** — every planeswalker card, which is a whole card type. Among
   them Grist, the Hunger Tide, whose first ability LL tests through a clause
-  fixture (`phase_ll_cards::grist_insect_clause`); the card waits on these
+  fixture (`fixtures::grist_insect_clause`); the card waits on these
   abilities, and its −2 on TR-3's reflexive trigger.
 - **Atoms** — 12, across CR 306 (10) and CR 209 (2).
 - **Owner** — `permission-architecture.md` for the timing (CR 306.5d,
@@ -920,7 +920,8 @@ kept as written for the record.*
   (60/4/15 and 40/none/none). **No validator exists** — nothing in the tree
   reads them. Configuration with no consumer, which is the §2.7 `chosen_modes`
   shape again in a milder form.
-- **Size** — tiny; one validation function against a `Decklist`. CR 100.4a is
+- **Size** — tiny; one validation function against a `scenario::Decklist`,
+  which holds the sideboard section the check reads. CR 100.4a is
   the only clause with a wrinkle: the copy limit counts **main deck and
   sideboard combined**, so the check is not per-list.
 - **Blocks** — nothing in play. It matters for a deckbuilding UI and for
@@ -1480,7 +1481,7 @@ mechanic rather than a migration, which is why it is here and not in
   classification below recorded 27 on 2026-09-15 and was right for its tree:
   `cast.rs` asked recipients from two sites, casting and activating, and A4i's
   `put_on_stack.rs` asks from one. A loose grep reads 28 today because two
-  test-function names in `cards/phase_rd_cards.rs` match `ask_…(`; count calls.
+  test-function names in `tests/phase_rd_integration_test.rs` match `ask_…(`; count calls.
   `ChoiceKind` has **25 variants**, every one answering `subject()` since A4j
   (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring:
   `cli_play` runs `AutoPayer(ManaWindowStop(Cli))` for the human and

@@ -5,10 +5,7 @@
 //! cleanup step expires UntilEndOfTurn effects.
 
 
-use mtgsim::cards::alpha;
-use mtgsim::cards::creatures;
-use mtgsim::cards::utility_creatures;
-use mtgsim::cards::phase5_pre_cards;
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::oracle::legality::candidate_priority_actions;
@@ -33,8 +30,8 @@ use mtgsim::test_support::{
 #[test]
 fn test_giant_growth_pumps_creature() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let growth_id = put_in_hand(&mut game, alpha::giant_growth(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let growth_id = put_in_hand(&mut game, printings::giant_growth(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
     // Verify base P/T
@@ -74,8 +71,8 @@ fn test_giant_growth_pumps_creature() {
 #[test]
 fn test_giant_growth_expires_at_cleanup() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _growth_id = put_in_hand(&mut game, alpha::giant_growth(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _growth_id = put_in_hand(&mut game, printings::giant_growth(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -129,9 +126,9 @@ fn test_giant_growth_expires_at_cleanup() {
 #[test]
 fn test_two_giant_growths_stack() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _growth1_id = put_in_hand(&mut game, alpha::giant_growth(), 0);
-    let _growth2_id = put_in_hand(&mut game, alpha::giant_growth(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _growth1_id = put_in_hand(&mut game, printings::giant_growth(), 0);
+    let _growth2_id = put_in_hand(&mut game, printings::giant_growth(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 2);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -183,12 +180,12 @@ fn test_glorious_anthem_buffs_creatures_on_etb() {
     let mut game = setup_two_player_game();
 
     // Place a creature first
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
 
     // Place Glorious Anthem — static effect registers on ETB
-    let _anthem_id = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let _anthem_id = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
 
     // Creature should now be 3/3
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
@@ -208,11 +205,11 @@ fn test_glorious_anthem_buffs_creatures_entering_later() {
     let mut game = setup_two_player_game();
 
     // Place Glorious Anthem first
-    let _anthem_id = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let _anthem_id = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
     assert_eq!(game.continuous_effects.len(), 1);
 
     // Now place a creature — should immediately get +1/+1
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(3));
 }
@@ -226,12 +223,12 @@ fn test_glorious_anthem_only_your_creatures() {
     let mut game = setup_two_player_game();
 
     // Player 0's creature
-    let my_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let my_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     // Player 1's creature
-    let opp_bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+    let opp_bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
 
     // Player 0 places Glorious Anthem
-    let _anthem_id = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let _anthem_id = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
 
     // Only player 0's creature gets the buff
     assert_eq!(get_effective_power(&game, my_bears), Some(3));
@@ -249,10 +246,10 @@ fn test_glorious_anthem_ignores_noncreatures() {
     let mut game = setup_two_player_game();
 
     // Place a land (not a creature)
-    let land_id = mtgsim::test_support::put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
+    let land_id = mtgsim::test_support::put_land_on_battlefield(&mut game, mtgsim::cards::printings::forest, 0);
 
     // Place Glorious Anthem
-    let _anthem_id = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let _anthem_id = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
 
     // Land has no P/T
     assert_eq!(get_effective_power(&game, land_id), None);
@@ -268,8 +265,8 @@ fn test_glorious_anthem_ignores_noncreatures() {
 fn test_glorious_anthem_removed_on_ltb() {
     let mut game = setup_two_player_game();
 
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let anthem_id = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let anthem_id = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
 
     // Buffed
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
@@ -293,9 +290,9 @@ fn test_glorious_anthem_removed_on_ltb() {
 fn test_two_anthems_stack() {
     let mut game = setup_two_player_game();
 
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _anthem1 = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
-    let _anthem2 = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _anthem1 = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
+    let _anthem2 = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
 
     // 2 + 1 + 1 = 4/4
     assert_eq!(get_effective_power(&game, bears_id), Some(4));
@@ -312,9 +309,9 @@ fn test_two_anthems_stack() {
 fn test_anthem_plus_pump_spell() {
     let mut game = setup_two_player_game();
 
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _anthem_id = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
-    let _growth_id = put_in_hand(&mut game, alpha::giant_growth(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _anthem_id = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
+    let _growth_id = put_in_hand(&mut game, printings::giant_growth(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
     // Base 2/2 + anthem +1/+1 = 3/3
@@ -349,8 +346,8 @@ fn test_anthem_plus_pump_spell() {
 #[test]
 fn test_zhalfirin_shapecraft_sets_base_pt() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _spell_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _spell_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
@@ -391,7 +388,7 @@ fn test_inside_out_switches_pt() {
         .power_toughness(4, 5)
         .build();
     let creature_id = put_on_battlefield(&mut game, creature_data, 0);
-    let _spell_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    let _spell_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
@@ -424,8 +421,8 @@ fn test_inside_out_switches_pt() {
 #[test]
 fn test_bull_rush_pumps_power() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let _spell_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let _spell_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
@@ -488,10 +485,10 @@ fn cast_and_resolve_targeted_spell(
 #[test]
 fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
-    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
-    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
     fill_library(&mut game, 0, 5);
     // Provide plenty of mana: Blue for Shapecraft+Inside Out, Red for Bull Rush
     game.players[0].mana_pool.add(ManaType::Blue, 10);
@@ -538,11 +535,11 @@ fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
 #[test]
 fn test_layer_ordering_cast_in_reverse_order() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     // Add to hand in CAST ORDER so index 1 always picks the next intended spell
-    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
-    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
-    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
+    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
+    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -575,11 +572,11 @@ fn test_layer_ordering_cast_in_reverse_order() {
 #[test]
 fn test_layer_ordering_cast_7c_7d_7b() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     // Add to hand in CAST ORDER so index 1 always picks the next intended spell
-    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
-    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
-    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
+    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -612,10 +609,10 @@ fn test_layer_ordering_cast_7c_7d_7b() {
 #[test]
 fn test_layer_effects_expire_at_cleanup() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let shapecraft_id = put_in_hand(&mut game, phase5_pre_cards::zhalfirin_shapecraft(), 0);
-    let bull_rush_id = put_in_hand(&mut game, phase5_pre_cards::bull_rush(), 0);
-    let inside_out_id = put_in_hand(&mut game, phase5_pre_cards::inside_out(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let shapecraft_id = put_in_hand(&mut game, fixtures::zhalfirin_shapecraft(), 0);
+    let bull_rush_id = put_in_hand(&mut game, fixtures::bull_rush(), 0);
+    let inside_out_id = put_in_hand(&mut game, fixtures::inside_out(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -668,9 +665,9 @@ fn test_merfolk_thaumaturgist_switches_pt_from_an_activated_ability() {
     // Placed before the Thaumaturgist so it holds the earlier timestamp and is
     // therefore index 0 in the target list — `battlefield_ordered` is what the
     // DP picks by, and the ordering is the point of that guarantee.
-    let elemental = put_on_battlefield(&mut game, creatures::earth_elemental(), 0);
+    let elemental = put_on_battlefield(&mut game, printings::earth_elemental(), 0);
     let thaumaturgist =
-        put_on_battlefield(&mut game, utility_creatures::merfolk_thaumaturgist(), 0);
+        put_on_battlefield(&mut game, printings::merfolk_thaumaturgist(), 0);
 
     assert_eq!(get_effective_power(&game, elemental), Some(4));
     assert_eq!(get_effective_toughness(&game, elemental), Some(5));

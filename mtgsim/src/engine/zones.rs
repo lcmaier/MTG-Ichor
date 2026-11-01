@@ -656,7 +656,7 @@ mod tests {
 
     #[test]
     fn the_construction_door_files_rows_and_counters_and_announces_nothing() {
-        use crate::cards::{phase5_pre_cards::glorious_anthem, creatures::grizzly_bears, phase_rd_cards::loyalty_probe};
+        use crate::cards::{printings::glorious_anthem, printings::grizzly_bears, fixtures::loyalty_probe};
         use crate::types::effects::CounterType;
         let (game, ids) = constructed(vec![glorious_anthem(), grizzly_bears(), loyalty_probe()]);
         assert_eq!(game.continuous_effects.len(), 1, "Glorious Anthem's row is filed");

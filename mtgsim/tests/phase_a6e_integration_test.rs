@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
+use mtgsim::cards::printings::rest_in_peace;
 use mtgsim::engine::actions::{GameAction, GameActionKind, GameActionKindMask};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;

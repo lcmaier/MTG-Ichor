@@ -11,7 +11,7 @@
 //! `engine/layers/board.rs`'s unit tests through the pass's trace hook.
 
 use mtgsim::engine::layers::types::EffectId;
-use mtgsim::cards::{basic_lands, creatures, dual_lands, phase_ld_cards, phase_lf_cards, phase_li_cards};
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
 };
@@ -105,15 +105,15 @@ fn creature_of_type(name: &str, creature_type: CreatureType) -> Arc<CardData> {
 fn test_urborg_and_blood_moon_in_both_orders() {
     for urborg_first in [true, false] {
         let mut game = setup_two_player_game();
-        let dual = put_on_battlefield(&mut game, dual_lands::tropical_island(), 0);
-        let forest = put_on_battlefield(&mut game, basic_lands::forest(), 0);
+        let dual = put_on_battlefield(&mut game, printings::tropical_island(), 0);
+        let forest = put_on_battlefield(&mut game, printings::forest(), 0);
         let (urborg, moon) = if urborg_first {
-            let u = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
-            let m = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+            let u = put_on_battlefield(&mut game, printings::urborg_tomb_of_yawgmoth(), 0);
+            let m = put_on_battlefield(&mut game, printings::blood_moon(), 1);
             (u, m)
         } else {
-            let m = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
-            let u = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
+            let m = put_on_battlefield(&mut game, printings::blood_moon(), 1);
+            let u = put_on_battlefield(&mut game, printings::urborg_tomb_of_yawgmoth(), 0);
             (u, m)
         };
         let order = if urborg_first { "Urborg first" } else { "Blood Moon first" };
@@ -146,8 +146,8 @@ fn test_urborg_and_blood_moon_in_both_orders() {
 #[test]
 fn test_urborg_is_itself_a_swamp() {
     let mut game = setup_two_player_game();
-    let forest = put_on_battlefield(&mut game, basic_lands::forest(), 0);
-    let urborg = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
+    let forest = put_on_battlefield(&mut game, printings::forest(), 0);
+    let urborg = put_on_battlefield(&mut game, printings::urborg_tomb_of_yawgmoth(), 0);
 
     assert_eq!(taps_for(&game, 0, urborg), vec![ManaType::Black]);
     assert!(land(&game, forest, LandType::Forest) && land(&game, forest, LandType::Swamp));
@@ -169,21 +169,21 @@ fn test_urborg_is_itself_a_swamp() {
 // supertypes."
 //
 // The printed card waits on layers item 9 (its library clause);
-// `phase_li_cards::purifier_clause` is its battlefield half under its own name.
+// `fixtures::purifier_clause` is its battlefield half under its own name.
 // ---------------------------------------------------------------------------
 
 #[test]
 fn test_purifier_clause_and_blood_moon_in_both_orders() {
     for purifier_first in [true, false] {
         let mut game = setup_two_player_game();
-        let mine = put_on_battlefield(&mut game, dual_lands::tropical_island(), 0);
-        let theirs = put_on_battlefield(&mut game, dual_lands::taiga(), 1);
+        let mine = put_on_battlefield(&mut game, printings::tropical_island(), 0);
+        let theirs = put_on_battlefield(&mut game, printings::taiga(), 1);
         if purifier_first {
-            put_on_battlefield(&mut game, phase_li_cards::purifier_clause(), 0);
-            put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+            put_on_battlefield(&mut game, fixtures::purifier_clause(), 0);
+            put_on_battlefield(&mut game, printings::blood_moon(), 1);
         } else {
-            put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
-            put_on_battlefield(&mut game, phase_li_cards::purifier_clause(), 0);
+            put_on_battlefield(&mut game, printings::blood_moon(), 1);
+            put_on_battlefield(&mut game, fixtures::purifier_clause(), 0);
         }
         let order = if purifier_first { "Purifier first" } else { "Blood Moon first" };
 
@@ -223,15 +223,15 @@ fn test_purifier_clause_and_blood_moon_in_both_orders() {
 fn test_ashaya_and_blood_moon_in_both_orders_cr_derived() {
     for ashaya_first in [true, false] {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let forest = put_on_battlefield(&mut game, basic_lands::forest(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+        let forest = put_on_battlefield(&mut game, printings::forest(), 0);
         let ashaya = if ashaya_first {
-            let a = put_on_battlefield(&mut game, phase_li_cards::ashaya_soul_of_the_wild(), 0);
-            put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+            let a = put_on_battlefield(&mut game, printings::ashaya_soul_of_the_wild(), 0);
+            put_on_battlefield(&mut game, printings::blood_moon(), 1);
             a
         } else {
-            put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
-            put_on_battlefield(&mut game, phase_li_cards::ashaya_soul_of_the_wild(), 0)
+            put_on_battlefield(&mut game, printings::blood_moon(), 1);
+            put_on_battlefield(&mut game, printings::ashaya_soul_of_the_wild(), 0)
         };
         let order = if ashaya_first { "Ashaya first" } else { "Blood Moon first" };
 
@@ -255,10 +255,10 @@ fn test_ashaya_and_blood_moon_in_both_orders_cr_derived() {
 #[test]
 fn test_ashaya_counts_itself_among_the_lands_it_makes() {
     let mut game = setup_two_player_game();
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    put_on_battlefield(&mut game, basic_lands::forest(), 0);
-    let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-    let ashaya = put_on_battlefield(&mut game, phase_li_cards::ashaya_soul_of_the_wild(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, printings::forest(), 0);
+    let theirs = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
+    let ashaya = put_on_battlefield(&mut game, printings::ashaya_soul_of_the_wild(), 0);
 
     // Forest, Bears, Ashaya: three lands you control.
     assert_eq!(pt(&game, ashaya), (Some(3), Some(3)));
@@ -306,8 +306,8 @@ fn test_humility_and_opalescence_in_both_orders_per_the_2009_ruling() {
     // Opalescence entered before Humility: 4/4 (Opalescence), then 1/1 (Humility).
     let mut game = setup_two_player_game();
     let idol = put_on_battlefield(&mut game, votive_idol(), 0);
-    let opalescence = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
-    let humility = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let opalescence = put_on_battlefield(&mut game, printings::opalescence(), 0);
+    let humility = put_on_battlefield(&mut game, printings::humility(), 0);
     for (name, id) in [("Humility", humility), ("Worship", idol)] {
         assert!(is_creature(&game, id) && get_effective_types(&game, id).contains(&CardType::Enchantment), "{name}: layer 4");
         assert!(get_effective_abilities(&game, id).is_empty(), "{name}: layer 6");
@@ -320,8 +320,8 @@ fn test_humility_and_opalescence_in_both_orders_per_the_2009_ruling() {
     // and its 7b part still applies to the set it locked (CR 613.6).
     let mut game = setup_two_player_game();
     let idol = put_on_battlefield(&mut game, votive_idol(), 0);
-    let humility = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
-    put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
+    let humility = put_on_battlefield(&mut game, printings::humility(), 0);
+    put_on_battlefield(&mut game, printings::opalescence(), 0);
     for (name, id) in [("Humility", humility), ("Worship", idol)] {
         assert!(is_creature(&game, id), "{name}: layer 4");
         assert!(get_effective_abilities(&game, id).is_empty(), "{name}: layer 6");
@@ -352,25 +352,25 @@ fn test_two_opalescences_and_humility_per_the_2006_ruling() {
 
     // Humility latest: all 1/1.
     let mut game = setup_two_player_game();
-    let o1 = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
-    let o2 = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
-    let h = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
+    let o1 = put_on_battlefield(&mut game, printings::opalescence(), 0);
+    let o2 = put_on_battlefield(&mut game, printings::opalescence(), 0);
+    let h = put_on_battlefield(&mut game, printings::humility(), 0);
     all(&game, &[o1, o2, h], 1);
 
     // Opalescence, Humility, Opalescence: the second Opalescence is 1/1, the
     // Humility and first Opalescence are 4/4.
     let mut game = setup_two_player_game();
-    let o1 = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
-    let h = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
-    let o2 = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
+    let o1 = put_on_battlefield(&mut game, printings::opalescence(), 0);
+    let h = put_on_battlefield(&mut game, printings::humility(), 0);
+    let o2 = put_on_battlefield(&mut game, printings::opalescence(), 0);
     all(&game, &[o1, h], 4);
     all(&game, &[o2], 1);
 
     // Humility earliest: everything 4/4.
     let mut game = setup_two_player_game();
-    let h = put_on_battlefield(&mut game, phase_lf_cards::humility(), 0);
-    let o1 = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
-    let o2 = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
+    let h = put_on_battlefield(&mut game, printings::humility(), 0);
+    let o1 = put_on_battlefield(&mut game, printings::opalescence(), 0);
+    let o2 = put_on_battlefield(&mut game, printings::opalescence(), 0);
     all(&game, &[o1, o2, h], 4);
 }
 
@@ -379,11 +379,11 @@ fn test_two_opalescences_and_humility_per_the_2006_ruling() {
 #[test]
 fn test_opalescence_animates_each_other_non_aura_enchantment() {
     let mut game = setup_two_player_game();
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let aura = put_on_battlefield(&mut game, mtgsim::cards::phase_lh_cards::holy_strength(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let aura = put_on_battlefield(&mut game, mtgsim::cards::printings::holy_strength(), 0);
     assert!(game.attach(aura, bears));
-    let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 0);
-    let opalescence = put_on_battlefield(&mut game, phase_li_cards::opalescence(), 0);
+    let moon = put_on_battlefield(&mut game, printings::blood_moon(), 0);
+    let opalescence = put_on_battlefield(&mut game, printings::opalescence(), 0);
 
     assert!(is_creature(&game, moon));
     assert_eq!(pt(&game, moon), (Some(3), Some(3)), "{{2}}{{R}} is mana value 3");
@@ -613,13 +613,13 @@ fn test_a_power_reading_row_older_than_a_counter_waits_for_the_counter() {
 fn test_urborg_never_applies_beside_blood_moon_ashaya_and_opalescence() {
     for reversed in [false, true] {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let forest = put_on_battlefield(&mut game, basic_lands::forest(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+        let forest = put_on_battlefield(&mut game, printings::forest(), 0);
         let cards: [fn() -> Arc<CardData>; 4] = [
-            phase_li_cards::opalescence,
-            phase_li_cards::ashaya_soul_of_the_wild,
-            phase_ld_cards::blood_moon,
-            phase_li_cards::urborg_tomb_of_yawgmoth,
+            printings::opalescence,
+            printings::ashaya_soul_of_the_wild,
+            printings::blood_moon,
+            printings::urborg_tomb_of_yawgmoth,
         ];
         let mut ids: Vec<ObjectId> = Vec::new();
         if reversed {
@@ -671,10 +671,10 @@ fn test_urborg_never_applies_beside_blood_moon_ashaya_and_opalescence() {
 #[test]
 fn test_the_hierophants_grant_waits_for_humility_whatever_the_timestamps() {
     let mut game = setup_two_player_game();
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let hierophants = put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let hierophants = put_on_battlefield(&mut game, printings::citanul_hierophants(), 0);
     assert_eq!(get_effective_abilities(&game, bears).len(), 1);
-    put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    put_on_battlefield(&mut game, printings::humility(), 1);
     assert!(get_effective_abilities(&game, bears).is_empty());
     assert!(get_effective_abilities(&game, hierophants).is_empty());
     assert!(game.diagnostics.dependency_checks() > 0, "the pair reached the hypothetical: a static reads its own abilities, Humility writes them");

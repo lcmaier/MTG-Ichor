@@ -24,15 +24,12 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::activated_ability;
-use mtgsim::cards::alpha::counterspell;
+use mtgsim::cards::printings::{
+    act_of_treason, counterspell, darksteel_colossus, grizzly_bears, leyline_of_the_void, multanis_presence, ray_of_command,
+};
 use mtgsim::cards::authoring::{
     an_opponent_gains_control_of, at_beginning_of, loses_the_game, triggered_ability, whenever, you_lose_control_of, Whose,
 };
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_rb_cards::leyline_of_the_void;
-use mtgsim::cards::phase_rf_cards::darksteel_colossus;
-use mtgsim::cards::phase_tr4d_cards::{multanis_presence, ray_of_command};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer, ObjectSet};

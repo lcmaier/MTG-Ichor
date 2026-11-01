@@ -22,8 +22,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::phase_re10_cards::aggravated_assault;
-use mtgsim::cards::phase_re_cards::moment_of_silence;
+use mtgsim::cards::printings::{aggravated_assault, moment_of_silence};
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;

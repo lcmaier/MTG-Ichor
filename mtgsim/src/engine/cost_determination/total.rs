@@ -668,7 +668,7 @@ mod tests {
     /// An artifact creature with `instances` copies of affinity for
     /// artifacts. Its own name is invented and it is registered nowhere
     /// (`engineering-practices.md#cards-and-pools`); the printed cards are
-    /// `cards::phase_cm_cards`.
+    /// in `cards::printings`.
     fn affinity_spell(mana: &[ManaSymbol], instances: usize) -> std::sync::Arc<CardData> {
         let mut builder = CardDataBuilder::new("Affinity Lesson")
             .mana_cost(cost(mana))
@@ -749,7 +749,7 @@ mod tests {
 
         // Thalia prints a cost ability whose subject is other spells, and she
         // is in hand rather than on the battlefield: nothing to ask.
-        let thalia = put_in_hand(&mut game, crate::cards::phase_cm_cards::thalia_guardian_of_thraben(), 0);
+        let thalia = put_in_hand(&mut game, crate::cards::printings::thalia_guardian_of_thraben(), 0);
         let before = queries(&game);
         let _ = preview_mana_cost(&game, thalia, &printed);
         assert_eq!(queries(&game), before, "a `Spells` subject in hand is not source 2's");

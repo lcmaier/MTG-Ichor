@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::{at_beginning_of, dies, triggered_ability, whenever, Whose};
-use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::printings::grizzly_bears;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};

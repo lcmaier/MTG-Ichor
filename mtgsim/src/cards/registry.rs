@@ -3,57 +3,14 @@ use std::sync::Arc;
 
 use crate::objects::card_data::CardData;
 
-use super::basic_lands;
-use super::dual_lands;
-use super::alpha;
-use super::artifacts;
-use super::creatures;
-use super::keyword_creatures;
-use super::utility_creatures;
-use super::phase5_pre_cards;
-use super::phase_lc_cards;
-use super::phase_ld_cards;
-use super::phase_le_cards;
-use super::phase_lf_cards;
-use super::phase_lg_cards;
-use super::phase_rb_cards;
-use super::phase_rc_cards;
-use super::phase_rd_cards;
-use super::phase_a4i_cards;
-use super::phase_tr1_cards;
-use super::phase_tr2a_cards;
-use super::phase_tr2b_cards;
-use super::phase_tr3a_cards;
-use super::phase_tr3b_cards;
-use super::phase_tr3c_cards;
-use super::phase_tr4a_cards;
-use super::phase_tr4b_cards;
-use super::phase_tr4c_cards;
-use super::phase_tr4d_cards;
-use super::phase_tr5a_cards;
-use super::phase_tr5b_cards;
-use super::phase_tr5c_cards;
-use super::phase_tr5d_cards;
-use super::phase_tr5g_cards;
-use super::phase_tr6_cards;
-use super::phase_tr7_cards;
-use super::phase_ma2_cards;
-use super::phase_tr5e_cards;
-use super::phase_tr5f_cards;
-use super::phase_lj_cards;
-use super::phase_re10_cards;
-use super::phase_re8_cards;
-use super::phase_re9_cards;
-use super::phase_re_cards;
-use super::phase_cv_cards;
-use super::phase_rg_cards;
-use super::phase_rs_cards;
-use super::phase_sba_cards;
-use super::phase_lh_cards;
-use super::phase_li_cards;
-use super::phase_lk_cards;
-use super::phase_rf_cards;
-use super::phase_cm_cards;
+use super::fixtures;
+use super::sets::{
+    aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
+    fic, fut, gpt, grn, gtc, hob, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
+    mkm, mmq, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
+    vis, war, wth, zen, znr,
+};
+use super::tokens;
 
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
@@ -366,9 +323,10 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // which the predicate asks about (`backlog.md` §2.29). Doubling Season
     // stays out: five mana, and its token half would double the pool's
     // Soldiers, a gameplay change the A/B should not carry with the engine
-    // change. Vorinclex, Winding Constrictor, Primal Vigor and Live Fast stay
-    // out for the module doc's reasons — the same path at more mana, or a
-    // subject nothing pooled produces.
+    // change. Vorinclex is six mana and legendary, Winding Constrictor two
+    // colors, Primal Vigor the Season with `Everyone`, and Live Fast a cantrip
+    // whose energy nothing pooled reads: each is the same path at more mana,
+    // or a path with no second card to meet.
     "Hardened Scales",
     // The pool's discard outside the cleanup step, and its scry. Two cards
     // because they are two keyword actions with nothing in common: Mind Rot is
@@ -671,52 +629,52 @@ impl CardRegistry {
         let mut registry = CardRegistry::new();
 
         // Basic lands
-        registry.register("Plains", basic_lands::plains);
-        registry.register("Island", basic_lands::island);
-        registry.register("Swamp", basic_lands::swamp);
-        registry.register("Mountain", basic_lands::mountain);
-        registry.register("Forest", basic_lands::forest);
+        registry.register("Plains", lea::plains);
+        registry.register("Island", lea::island);
+        registry.register("Swamp", lea::swamp);
+        registry.register("Mountain", lea::mountain);
+        registry.register("Forest", lea::forest);
 
-        // Alpha set spells
-        registry.register("Lightning Bolt", alpha::lightning_bolt);
-        registry.register("Ancestral Recall", alpha::ancestral_recall);
-        registry.register("Counterspell", alpha::counterspell);
-        registry.register("Burst of Energy", alpha::burst_of_energy);
-        registry.register("Volcanic Upheaval", alpha::volcanic_upheaval);
-        registry.register("Giant Growth", alpha::giant_growth);
+        // The first spells
+        registry.register("Lightning Bolt", lea::lightning_bolt);
+        registry.register("Ancestral Recall", lea::ancestral_recall);
+        registry.register("Counterspell", lea::counterspell);
+        registry.register("Burst of Energy", ulg::burst_of_energy);
+        registry.register("Volcanic Upheaval", bfz::volcanic_upheaval);
+        registry.register("Giant Growth", lea::giant_growth);
 
         // Vanilla creatures
-        registry.register("Grizzly Bears", creatures::grizzly_bears);
-        registry.register("Hill Giant", creatures::hill_giant);
-        registry.register("Savannah Lions", creatures::savannah_lions);
-        registry.register("Earth Elemental", creatures::earth_elemental);
+        registry.register("Grizzly Bears", lea::grizzly_bears);
+        registry.register("Hill Giant", lea::hill_giant);
+        registry.register("Savannah Lions", lea::savannah_lions);
+        registry.register("Earth Elemental", lea::earth_elemental);
 
         // Keyword creatures
-        registry.register("Serra Angel", keyword_creatures::serra_angel);
-        registry.register("Thornweald Archer", keyword_creatures::thornweald_archer);
-        registry.register("Raging Cougar", keyword_creatures::raging_cougar);
-        registry.register("Wall of Stone", keyword_creatures::wall_of_stone);
-        registry.register("Elvish Archers", keyword_creatures::elvish_archers);
-        registry.register("Ridgetop Raptor", keyword_creatures::ridgetop_raptor);
-        registry.register("War Mammoth", keyword_creatures::war_mammoth);
-        registry.register("Knight of Meadowgrain", keyword_creatures::knight_of_meadowgrain);
-        registry.register("Rhox War Monk", keyword_creatures::rhox_war_monk);
-        registry.register("Giant Spider", keyword_creatures::giant_spider);
-        registry.register("Vampire Nighthawk", keyword_creatures::vampire_nighthawk);
+        registry.register("Serra Angel", lea::serra_angel);
+        registry.register("Thornweald Archer", fut::thornweald_archer);
+        registry.register("Raging Cougar", por::raging_cougar);
+        registry.register("Wall of Stone", lea::wall_of_stone);
+        registry.register("Elvish Archers", lea::elvish_archers);
+        registry.register("Ridgetop Raptor", lgn::ridgetop_raptor);
+        registry.register("War Mammoth", lea::war_mammoth);
+        registry.register("Knight of Meadowgrain", lrw::knight_of_meadowgrain);
+        registry.register("Rhox War Monk", ala::rhox_war_monk);
+        registry.register("Giant Spider", lea::giant_spider);
+        registry.register("Vampire Nighthawk", zen::vampire_nighthawk);
 
-        // `phase5_pre_cards`
-        registry.register("Isamaru, Hound of Konda", phase5_pre_cards::isamaru_hound_of_konda);
-        registry.register("Night's Whisper", phase5_pre_cards::nights_whisper);
-        registry.register("Doom Blade", phase5_pre_cards::doom_blade);
-        registry.register("Angel's Mercy", phase5_pre_cards::angels_mercy);
-        registry.register("Dark Ritual", phase5_pre_cards::dark_ritual);
-        registry.register("Glorious Anthem", phase5_pre_cards::glorious_anthem);
+        // The cards that came before the layer system.
+        registry.register("Isamaru, Hound of Konda", chk::isamaru_hound_of_konda);
+        registry.register("Night's Whisper", set_5dn::nights_whisper);
+        registry.register("Doom Blade", m10::doom_blade);
+        registry.register("Angel's Mercy", m10::angels_mercy);
+        registry.register("Dark Ritual", lea::dark_ritual);
+        registry.register("Glorious Anthem", usg::glorious_anthem);
 
         // Layer-system cards.
         //
         // Only the ones whose definition is faithful to the printed card, because
-        // this registry feeds `cli_play` as well as `fuzz_games`. The other
-        // `phase_l*_cards` entries stay out and each has a reason:
+        // this registry feeds `cli_play` as well as `fuzz_games`. The layer
+        // phases' other cards stay out and each has a reason:
         //
         // - Chromatic Ward and Windswept Heights are invented cards.
         // - Urborg Effect is a deliberate stand-in (an Enchantment carrying the
@@ -727,157 +685,156 @@ impl CardRegistry {
         // - Underground Sea, Cloudspire Mesa and Moonlit Steppe are Lands whose
         //   phases modeled them loosely; the ten real dual lands below are what
         //   `fuzz_games::random_deck` draws its nonbasic land slots from.
-        registry.register("Cerulean Wisps", phase_lc_cards::cerulean_wisps);
-        registry.register("Crimson Wisps", phase_lc_cards::crimson_wisps);
-        registry.register("Moonlace", phase_lc_cards::moonlace);
-        registry.register("Blood Moon", phase_ld_cards::blood_moon);
-        registry.register("March of the Machines", phase_ld_cards::march_of_the_machines);
-        registry.register("Tarmogoyf", phase_le_cards::tarmogoyf);
-        registry.register("Culling Drone", phase_le_cards::culling_drone);
-        registry.register("Humility", phase_lf_cards::humility);
-        registry.register("Citanul Hierophants", phase_lf_cards::citanul_hierophants);
-        registry.register("Act of Treason", phase_lg_cards::act_of_treason);
+        registry.register("Cerulean Wisps", shm::cerulean_wisps);
+        registry.register("Crimson Wisps", shm::crimson_wisps);
+        registry.register("Moonlace", tsp::moonlace);
+        registry.register("Blood Moon", drk::blood_moon);
+        registry.register("March of the Machines", mrd::march_of_the_machines);
+        registry.register("Tarmogoyf", fut::tarmogoyf);
+        registry.register("Culling Drone", bfz::culling_drone);
+        registry.register("Humility", tmp::humility);
+        registry.register("Citanul Hierophants", usg::citanul_hierophants);
+        registry.register("Act of Treason", m10::act_of_treason);
 
         // Layer 7b and 7d's random-play coverage: March of the Machines needs an
         // artifact to animate, and nothing else switches a creature's P/T. Sol
         // Ring is colorless, so every deck gets it; the Thaumaturgist rides in
         // blue decks, which is where March lives too.
-        registry.register("Sol Ring", artifacts::sol_ring);
-        registry.register("Darksteel Myr", artifacts::darksteel_myr);
-        registry.register("Merfolk Thaumaturgist", utility_creatures::merfolk_thaumaturgist);
+        registry.register("Sol Ring", lea::sol_ring);
+        registry.register("Darksteel Myr", som::darksteel_myr);
+        registry.register("Merfolk Thaumaturgist", plc::merfolk_thaumaturgist);
 
         // The ten original duals. Nonbasic lands with basic land types, which is
         // what gives `fuzz_games` a mana base Blood Moon can actually affect.
-        registry.register("Tundra", dual_lands::tundra);
-        registry.register("Underground Sea", dual_lands::underground_sea);
-        registry.register("Badlands", dual_lands::badlands);
-        registry.register("Taiga", dual_lands::taiga);
-        registry.register("Savannah", dual_lands::savannah);
-        registry.register("Scrubland", dual_lands::scrubland);
-        registry.register("Volcanic Island", dual_lands::volcanic_island);
-        registry.register("Bayou", dual_lands::bayou);
-        registry.register("Plateau", dual_lands::plateau);
-        registry.register("Tropical Island", dual_lands::tropical_island);
+        registry.register("Tundra", lea::tundra);
+        registry.register("Underground Sea", lea::underground_sea);
+        registry.register("Badlands", lea::badlands);
+        registry.register("Taiga", lea::taiga);
+        registry.register("Savannah", lea::savannah);
+        registry.register("Scrubland", lea::scrubland);
+        registry.register("Volcanic Island", leb::volcanic_island);
+        registry.register("Bayou", lea::bayou);
+        registry.register("Plateau", lea::plateau);
+        registry.register("Tropical Island", lea::tropical_island);
         // The eleventh mana-base land, and a token rather than a card: the
         // registry's only source of every color, which is what lets
         // `fuzz_games --require` stop seeding a deck's colors from the
         // required card's.
-        registry.register("Everywhere", dual_lands::everywhere);
+        registry.register("Everywhere", tokens::everywhere);
 
         // The first replacement effect with printed card text.
-        registry.register("Kalitas, Traitor of Ghet", phase_rb_cards::kalitas_traitor_of_ghet);
+        registry.register("Kalitas, Traitor of Ghet", ogw::kalitas_traitor_of_ghet);
         // The second and third replacement sources, which make CR 616.1's "two
         // or more" branch reachable in a game
         // (`engineering-practices.md#how-many-cards-a-mechanic-owes`).
-        registry.register("Rest in Peace", phase_rb_cards::rest_in_peace);
-        registry.register("Leyline of the Void", phase_rb_cards::leyline_of_the_void);
+        registry.register("Rest in Peace", rtr::rest_in_peace);
+        registry.register("Leyline of the Void", gpt::leyline_of_the_void);
 
         // A CR 101.2 "can't" with printed card text, and
         // the resolution that makes its *absence of a prompt* observable.
-        registry.register("Sigarda, Host of Herons", phase_rs_cards::sigarda_host_of_herons);
-        registry.register("Diabolic Edict", phase_rs_cards::diabolic_edict);
+        registry.register("Sigarda, Host of Herons", avr::sigarda_host_of_herons);
+        registry.register("Diabolic Edict", tmp::diabolic_edict);
 
         // Cards that modify how a permanent enters
         // (CR 614.1c/d). One per half of `EnterMods`: status and counters.
-        registry.register("Idyllic Beachfront", phase_rc_cards::idyllic_beachfront);
-        registry.register("Chainbreaker", phase_rc_cards::chainbreaker);
-        registry.register("Adaptive Shimmerer", phase_rc_cards::adaptive_shimmerer);
+        registry.register("Idyllic Beachfront", dmu::idyllic_beachfront);
+        registry.register("Chainbreaker", shm::chainbreaker);
+        registry.register("Adaptive Shimmerer", iko::adaptive_shimmerer);
 
         // The registered `ObjectSet::Filter` replacement, and the card that makes
         // CR 616.1's multi-candidate branch reachable in a fuzz game.
-        registry.register("Root Maze", phase_rc_cards::root_maze);
+        registry.register("Root Maze", tmp::root_maze);
         // Containment Priest is the entry replacement that does *not* commute
         // with an `EnterWith`, so CR 616.1's multi-candidate branch stays
         // reachable while the commuting case does not prompt; Dryad Arbor is the
         // only road a fuzz game has to a creature that "wasn't cast". Keldon
         // Warlord counts the battlefield, and does not count itself while
-        // entering (`phase_rc_cards`).
-        registry.register("Containment Priest", phase_rc_cards::containment_priest);
-        registry.register("Dryad Arbor", phase_rc_cards::dryad_arbor);
-        registry.register("Keldon Warlord", phase_rc_cards::keldon_warlord);
+        // entering (its doc says why).
+        registry.register("Containment Priest", c14::containment_priest);
+        registry.register("Dryad Arbor", fut::dryad_arbor);
+        registry.register("Keldon Warlord", lea::keldon_warlord);
 
         // CR 614.13's auxiliary zone changes, one card per candidate
         // zone (the battlefield and a player's graveyard are two enumerations),
         // plus the first entry replacement whose counter amount is read off the
         // board rather than printed on the card.
-        registry.register("Thunder-Thrash Elder", phase_rc_cards::thunder_thrash_elder);
-        registry.register("Sutured Ghoul", phase_rc_cards::sutured_ghoul);
-        registry.register("Master Biomancer", phase_rc_cards::master_biomancer);
+        registry.register("Thunder-Thrash Elder", ala::thunder_thrash_elder);
+        registry.register("Sutured Ghoul", jud::sutured_ghoul);
+        registry.register("Master Biomancer", gtc::master_biomancer);
 
         // The cards that put a row in layer 1. A pair,
         // because `CopyRoles` has two arms and each card is one of them:
         // Cytoshape targets the permanent that becomes a copy and *chooses* its
         // donor, Mirrorweave targets the donor and affects everything else.
-        registry.register("Cytoshape", phase_cv_cards::cytoshape);
-        registry.register("Mirrorweave", phase_cv_cards::mirrorweave);
+        registry.register("Cytoshape", dis::cytoshape);
+        registry.register("Mirrorweave", shm::mirrorweave);
         // The third arm-consumer: Mirrorform prints Mirrorweave's shape without
         // the word "other", which is why `exclude_donor` is a field.
-        registry.register("Mirrorform", phase_cv_cards::mirrorform);
+        registry.register("Mirrorform", ecl::mirrorform);
         // CR 707.5: the permanent that enters as a copy, CR 616.1c's producer.
-        registry.register("Clone", phase_cv_cards::clone);
+        registry.register("Clone", lea::clone);
         // CR 707.9: the entry copy that makes exceptions, over a creature or
         // planeswalker its controller controls.
-        registry.register("Spark Double", phase_cv_cards::spark_double);
+        registry.register("Spark Double", war::spark_double);
         // CR 611.2a: a copy with no stated duration, which a move alone ends.
-        registry.register("Cryptoplasm", phase_cv_cards::cryptoplasm);
+        registry.register("Cryptoplasm", mbs::cryptoplasm);
         // CR 110.5b's other status: a permanent that enters untapped because
         // an effect says so (`replacement-architecture.md` §3.5).
-        registry.register("Archelos, Lagoon Mystic", phase_rg_cards::archelos_lagoon_mystic);
+        registry.register("Archelos, Lagoon Mystic", cmr::archelos_lagoon_mystic);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation had never happened in a fuzz
         // game — `engineering-practices.md#how-many-cards-a-mechanic-owes`.
-        registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
+        registry.register("Battlegrowth", mrd::battlegrowth);
 
         // An Aura whose static ability lowers to `ObjectSet::Host`, and a spell
         // whose recipient comes from `enchant_filter` (CR 303.4a) rather than a
         // spell ability — which is what makes CR 608.3b and CR 704.5m/n
-        // reachable from a fuzz game at all (`phase_lh_cards`).
-        registry.register("Holy Strength", phase_lh_cards::holy_strength);
-        registry.register("Bonesplitter", phase_lh_cards::bonesplitter);
-        registry.register("Cobbled Wings", phase_lh_cards::cobbled_wings);
-        registry.register("Loxodon Warhammer", phase_lh_cards::loxodon_warhammer);
+        // reachable from a fuzz game at all.
+        registry.register("Holy Strength", lea::holy_strength);
+        registry.register("Bonesplitter", mrd::bonesplitter);
+        registry.register("Cobbled Wings", isd::cobbled_wings);
+        registry.register("Loxodon Warhammer", mrd::loxodon_warhammer);
 
         // The CR 613.8 boards the rulings walk. Urborg is the existence
         // dependency and pooled; Ashaya is the applies-to dependency on a
         // printed card, with a CR-derived answer; Opalescence is the CR 613.6
         // test with the Humility rulings' answers, and the first "each other"
         // (`ObjectFilter::NotSource`). The Rootpath Purifier ruling's board is
-        // `phase_li_cards::purifier_clause`, a fixture registered nowhere.
-        registry.register("Urborg, Tomb of Yawgmoth", phase_li_cards::urborg_tomb_of_yawgmoth);
-        registry.register("Opalescence", phase_li_cards::opalescence);
-        registry.register("Ashaya, Soul of the Wild", phase_li_cards::ashaya_soul_of_the_wild);
+        // `fixtures::purifier_clause`, a fixture registered nowhere.
+        registry.register("Urborg, Tomb of Yawgmoth", plc::urborg_tomb_of_yawgmoth);
+        registry.register("Opalescence", uds::opalescence);
+        registry.register("Ashaya, Soul of the Wild", znr::ashaya_soul_of_the_wild);
 
         // Conditional statics. Kird Ape is the cheapest printed one
-        // and pooled; `phase_li_cards::flight_clause` (Rune of Flight's third
-        // line) and `phase_li_cards::simian_clause` (a layer-4 condition
+        // and pooled; `fixtures::flight_clause` (Rune of Flight's third
+        // line) and `fixtures::simian_clause` (a layer-4 condition
         // another layer-4 effect flips) are fixtures registered nowhere.
-        registry.register("Kird Ape", phase_li_cards::kird_ape);
+        registry.register("Kird Ape", arn::kird_ape);
 
         // Cost modification, one card per position in CR 601.2f's
         // order: an increase (pooled), a reduction, and the one printed card
-        // that "directly affects the total cost". The fixtures in
-        // `phase_cm_cards` — the reducers, the lessons, the locked sphere —
-        // are registered nowhere.
-        registry.register("Thalia, Guardian of Thraben", phase_cm_cards::thalia_guardian_of_thraben);
-        registry.register("Goblin Electromancer", phase_cm_cards::goblin_electromancer);
-        registry.register("Trinisphere", phase_cm_cards::trinisphere);
+        // that "directly affects the total cost". The cost fixtures — the
+        // reducers, the lessons, the locked sphere — are registered nowhere.
+        registry.register("Thalia, Guardian of Thraben", dka::thalia_guardian_of_thraben);
+        registry.register("Goblin Electromancer", ddj::goblin_electromancer);
+        registry.register("Trinisphere", dst::trinisphere);
 
         // Affinity for artifacts (CR 702.41a): the spell's own cost
         // ability, the gather's second source and its first dynamic amount.
         // Myr Enforcer is pooled; Frogmite is the second copy of the same
         // path, which buys a wider stress board and not a slower measured
         // one (`engineering-practices.md#cards-and-pools`).
-        registry.register("Myr Enforcer", phase_cm_cards::myr_enforcer);
-        registry.register("Frogmite", phase_cm_cards::frogmite);
+        registry.register("Myr Enforcer", mrd::myr_enforcer);
+        registry.register("Frogmite", mrd::frogmite);
 
         // Lock-in's payment side (CR 601.2h, 118.8b, 732.1)
-        registry.register("Altar's Reap", phase_cm_cards::altars_reap);
-        registry.register("Bone Splinters", phase_cm_cards::bone_splinters);
-        registry.register("Thunderscape Familiar", phase_cm_cards::thunderscape_familiar);
-        registry.register("Krark-Clan Ironworks", phase_cm_cards::krark_clan_ironworks);
-        registry.register("Foundry Inspector", phase_cm_cards::foundry_inspector);
-        registry.register("Mind Stone", phase_cm_cards::mind_stone);
+        registry.register("Altar's Reap", isd::altars_reap);
+        registry.register("Bone Splinters", ala::bone_splinters);
+        registry.register("Thunderscape Familiar", pls::thunderscape_familiar);
+        registry.register("Krark-Clan Ironworks", set_5dn::krark_clan_ironworks);
+        registry.register("Foundry Inspector", kld::foundry_inspector);
+        registry.register("Mind Stone", wth::mind_stone);
 
         // The damage event's two subjects and its results. Four printed
         // cards on two axes: which subject an effect is about, and what it does
@@ -887,29 +844,29 @@ impl CardRegistry {
         // twice on one card with both rounding directions, and Angel of
         // Suffering is the only prevention here and the only rider that rides
         // on a player subject.
-        registry.register("Furnace of Rath", phase_rd_cards::furnace_of_rath);
-        registry.register("Ghosts of the Innocent", phase_rd_cards::ghosts_of_the_innocent);
+        registry.register("Furnace of Rath", tmp::furnace_of_rath);
+        registry.register("Ghosts of the Innocent", rav::ghosts_of_the_innocent);
         registry.register(
             "Gisela, Blade of Goldnight",
-            phase_rd_cards::gisela_blade_of_goldnight,
+            avr::gisela_blade_of_goldnight,
         );
-        registry.register("Angel of Suffering", phase_rd_cards::angel_of_suffering);
+        registry.register("Angel of Suffering", snc::angel_of_suffering);
         // The CR 120.3c fixture, on the `graveyard_probe` convention: a
         // planeswalker with printed loyalty 3 and no abilities, because a
         // printed one would be a real name wearing three dead abilities.
         // Registered so a random agent's Lightning Bolt can find it — which is
         // what makes CR 704.5i reachable from a game — and pooled nowhere.
-        registry.register("Loyalty Probe", phase_rd_cards::loyalty_probe);
+        registry.register("Loyalty Probe", fixtures::loyalty_probe);
 
         // CR 615.7 prevention shields. One card per shape a
         // resolution-created prevention effect takes: Mending Hands' targeted
         // count (pooled), Samite Healer's tapped-for count, Safe Passage's
         // filter asked at each event, and Samite Censer-Bearer's one row per
         // creature at resolution (CR 615.11).
-        registry.register("Mending Hands", phase_rd_cards::mending_hands);
-        registry.register("Samite Healer", phase_rd_cards::samite_healer);
-        registry.register("Safe Passage", phase_rd_cards::safe_passage);
-        registry.register("Samite Censer-Bearer", phase_rd_cards::samite_censer_bearer);
+        registry.register("Mending Hands", bok::mending_hands);
+        registry.register("Samite Healer", lea::samite_healer);
+        registry.register("Safe Passage", m10::safe_passage);
+        registry.register("Samite Censer-Bearer", fut::samite_censer_bearer);
 
         // Sources. The axis is which half of CR 609.7's source
         // predicate each card writes: the Circle writes both, Reverse Damage
@@ -921,136 +878,136 @@ impl CardRegistry {
         // breadth.
         registry.register(
             "Circle of Protection: Red",
-            phase_rd_cards::circle_of_protection_red,
+            lea::circle_of_protection_red,
         );
-        registry.register("Reverse Damage", phase_rd_cards::reverse_damage);
-        registry.register("Dark Sphere", phase_rd_cards::dark_sphere);
-        registry.register("Guardian Seraph", phase_rd_cards::guardian_seraph);
-        registry.register("Daunting Defender", phase_rd_cards::daunting_defender);
-        registry.register("Pyroclasm", phase_rd_cards::pyroclasm);
-        registry.register("Fog", phase_rd_cards::fog);
+        registry.register("Reverse Damage", lea::reverse_damage);
+        registry.register("Dark Sphere", drk::dark_sphere);
+        registry.register("Guardian Seraph", m10::guardian_seraph);
+        registry.register("Daunting Defender", ons::daunting_defender);
+        registry.register("Pyroclasm", ice::pyroclasm);
+        registry.register("Fog", lea::fog);
 
         // Triggered abilities (CR 603), TR-1: the five cards of the spine.
-        registry.register("Soul Warden", phase_tr1_cards::soul_warden);
-        registry.register("Blood Artist", phase_tr1_cards::blood_artist);
-        registry.register("Verdant Force", phase_tr1_cards::verdant_force);
-        registry.register("Wild Growth", phase_tr1_cards::wild_growth);
-        registry.register("Felidar Sovereign", phase_tr1_cards::felidar_sovereign);
+        registry.register("Soul Warden", exo::soul_warden);
+        registry.register("Blood Artist", avr::blood_artist);
+        registry.register("Verdant Force", tmp::verdant_force);
+        registry.register("Wild Growth", lea::wild_growth);
+        registry.register("Felidar Sovereign", zen::felidar_sovereign);
 
         // TR-2a: the histories, the gates and each player.
-        registry.register("Paladin of Atonement", phase_tr2a_cards::paladin_of_atonement);
-        registry.register("Vengeful Warchief", phase_tr2a_cards::vengeful_warchief);
-        registry.register("Elvish Warmaster", phase_tr2a_cards::elvish_warmaster);
-        registry.register("Temple Bell", phase_tr2a_cards::temple_bell);
+        registry.register("Paladin of Atonement", rix::paladin_of_atonement);
+        registry.register("Vengeful Warchief", m20::vengeful_warchief);
+        registry.register("Elvish Warmaster", khm::elvish_warmaster);
+        registry.register("Temple Bell", m11::temple_bell);
 
         // TR-2b: "may", CR 118.12's answer, and the departed frames.
-        registry.register("Nykthos Paragon", phase_tr2b_cards::nykthos_paragon);
-        registry.register("Psychosis Crawler", phase_tr2b_cards::psychosis_crawler);
-        registry.register("Cosi's Trickster", phase_tr2b_cards::cosis_trickster);
+        registry.register("Nykthos Paragon", mh2::nykthos_paragon);
+        registry.register("Psychosis Crawler", mbs::psychosis_crawler);
+        registry.register("Cosi's Trickster", zen::cosis_trickster);
 
         // TR-3a: the delayed-trigger registry. Neither is pooled: Final
         // Fortune for Time Walk's reason, an extra turn moves `Avg turns/game`
         // by design; Blessed Wine because §12 pools the registry with TR-3b.
-        registry.register("Final Fortune", phase_tr3a_cards::final_fortune);
-        registry.register("Blessed Wine", phase_tr3a_cards::blessed_wine);
+        registry.register("Final Fortune", mir::final_fortune);
+        registry.register("Blessed Wine", ice::blessed_wine);
 
         // TR-3b: the returns, and "until". Both pooled (§12).
-        registry.register("Flickerwisp", phase_tr3b_cards::flickerwisp);
-        registry.register("Banishing Light", phase_tr3b_cards::banishing_light);
+        registry.register("Flickerwisp", eve::flickerwisp);
+        registry.register("Banishing Light", jou::banishing_light);
 
         // TR-3c: the reflexive trigger. Not pooled: no pooled card has a
         // "when you do", so the performance A/B stays IDENTICAL.
-        registry.register("Cornered Crook", phase_tr3c_cards::cornered_crook);
+        registry.register("Cornered Crook", mkm::cornered_crook);
 
         // TR-4a: the frame's facts. Strangleroot Geist is pooled (above);
         // Demonic Vigor and Compost are the two sides of CR 603.10's look-back,
         // which the tests carry.
-        registry.register("Strangleroot Geist", phase_tr4a_cards::strangleroot_geist);
-        registry.register("Demonic Vigor", phase_tr4a_cards::demonic_vigor);
-        registry.register("Compost", phase_tr4a_cards::compost);
+        registry.register("Strangleroot Geist", dka::strangleroot_geist);
+        registry.register("Demonic Vigor", dom::demonic_vigor);
+        registry.register("Compost", uds::compost);
 
         // TR-4b: attachment's records. Grafted Wargear reads "becomes
         // unattached" on every route CR 701.3d counts, Bramble Elemental
         // "becomes attached". Bramble is pooled (above); the Wargear's doc
         // says why it is not.
-        registry.register("Grafted Wargear", phase_tr4b_cards::grafted_wargear);
-        registry.register("Bramble Elemental", phase_tr4b_cards::bramble_elemental);
+        registry.register("Grafted Wargear", set_5dn::grafted_wargear);
+        registry.register("Bramble Elemental", rav::bramble_elemental);
 
         // TR-4c: the other two look-back classes and the zone statement.
         // Bridge from Below states its graveyard zone and is pooled (above),
         // Guerrilla Tactics triggers on its own discard where it went, and
         // Angelic Destiny finds the card it became (CR 400.7f) beside Rancor,
         // whose trigger is on itself going to the graveyard (400.7e).
-        registry.register("Bridge from Below", phase_tr4c_cards::bridge_from_below);
-        registry.register("Guerrilla Tactics", phase_tr4c_cards::guerrilla_tactics);
-        registry.register("Angelic Destiny", phase_tr4c_cards::angelic_destiny);
-        registry.register("Rancor", phase_tr4c_cards::rancor);
+        registry.register("Bridge from Below", fut::bridge_from_below);
+        registry.register("Guerrilla Tactics", all::guerrilla_tactics);
+        registry.register("Angelic Destiny", m12::angelic_destiny);
+        registry.register("Rancor", ulg::rancor);
 
         // TR-4d: control, countering and loss. Multani's Presence looks back at
         // who cast a countered spell (CR 603.10e); Ray of Command's delayed
         // trigger is on losing control, which its own steal ending at cleanup
         // makes (CR 603.10d, 514.3a).
-        registry.register("Multani's Presence", phase_tr4d_cards::multanis_presence);
-        registry.register("Ray of Command", phase_tr4d_cards::ray_of_command);
+        registry.register("Multani's Presence", ulg::multanis_presence);
+        registry.register("Ray of Command", ice::ray_of_command);
 
         // TR-5a: the binding's roles. Sphere Grid's "that creature" is the
         // damage's source, which its instruction names (CR 608.2c), and its
         // grant counts the counters on each creature.
-        registry.register("Sphere Grid", phase_tr5a_cards::sphere_grid);
+        registry.register("Sphere Grid", fic::sphere_grid);
 
         // TR-5e: the attack declaration. Hellrider triggers for each attacker
         // and deals its damage to what that attacker is attacking (CR 506.3).
-        registry.register("Hellrider", phase_tr5e_cards::hellrider);
+        registry.register("Hellrider", dka::hellrider);
 
         // TR-5f: creatures put onto the battlefield attacking, and the combat's
         // history. Hanweir Garrison's tokens are attacking and never attacked
         // (CR 508.4); Relentless Assault untaps the creatures that attacked this
         // turn, read off the history's rows, for a second combat.
-        registry.register("Hanweir Garrison", phase_tr5f_cards::hanweir_garrison);
-        registry.register("Relentless Assault", phase_tr5f_cards::relentless_assault);
+        registry.register("Hanweir Garrison", emn::hanweir_garrison);
+        registry.register("Relentless Assault", vis::relentless_assault);
 
         // TR-5b: counters. Simic Ascendancy's put is read once for each
         // creature, and its win is an intervening "if" over its own counters;
         // Protean Hydra's X is its spell's (CR 107.3m), and each counter
         // removed from it triggers, CR 704.5q's annihilation included.
-        registry.register("Simic Ascendancy", phase_tr5b_cards::simic_ascendancy);
-        registry.register("Protean Hydra", phase_tr5b_cards::protean_hydra);
+        registry.register("Simic Ascendancy", rna::simic_ascendancy);
+        registry.register("Protean Hydra", m10::protean_hydra);
 
         // MA-2: the legal values of X. Blaze is the plain X spell, offered
         // at its least X and announced from what the board can pay.
-        registry.register("Blaze", phase_ma2_cards::blaze);
+        registry.register("Blaze", por::blaze);
 
         // TR-5c: blocks. Loyal Sentry triggers once for each creature it
         // blocks (CR 509.3b) and destroys that creature and itself together.
-        registry.register("Loyal Sentry", phase_tr5c_cards::loyal_sentry);
+        registry.register("Loyal Sentry", s99::loyal_sentry);
         // Cephalid Aristocrat mills two each time it becomes the target of a
         // spell or ability, its controller's own included.
-        registry.register("Cephalid Aristocrat", phase_tr5c_cards::cephalid_aristocrat);
+        registry.register("Cephalid Aristocrat", tor::cephalid_aristocrat);
 
         // TR-5d: prevention. Selfless Squire's entry prevents the damage dealt
         // to its controller this turn, and it grows by each prevention to them
         // (CR 615.13), its own or another's.
-        registry.register("Selfless Squire", phase_tr5d_cards::selfless_squire);
+        registry.register("Selfless Squire", c16::selfless_squire);
         // The damage and excess a resolution dealt "this way": Goblin
         // Negotiation makes a Goblin for each point past lethal.
-        registry.register("Goblin Negotiation", phase_tr5d_cards::goblin_negotiation);
+        registry.register("Goblin Negotiation", fdn::goblin_negotiation);
 
         // TR-5g: CR 603.2d's count. Panharmonicon doubles every triggered
         // ability of its controller's permanents that an artifact or
         // creature entering causes, its own entry and one beside it included.
-        registry.register("Panharmonicon", phase_tr5g_cards::panharmonicon);
+        registry.register("Panharmonicon", kld::panharmonicon);
         // TR-6: CR 603.8's state check. "When you control no other
         // creatures" is asked of the board, never of an event.
-        registry.register("Emperor Crocodile", phase_tr6_cards::emperor_crocodile);
+        registry.register("Emperor Crocodile", uds::emperor_crocodile);
         // TR-7: the persist loop. With Blood Artist, sacrificing the
         // Scarecrow to the Seer under Grumgully returns it with two counters
         // that CR 704.5q removes, so it can persist again.
-        registry.register("Grumgully, the Generous", phase_tr7_cards::grumgully_the_generous);
-        registry.register("Wingrattle Scarecrow", phase_tr7_cards::wingrattle_scarecrow);
-        registry.register("Viscera Seer", phase_tr7_cards::viscera_seer);
+        registry.register("Grumgully, the Generous", eld::grumgully_the_generous);
+        registry.register("Wingrattle Scarecrow", shm::wingrattle_scarecrow);
+        registry.register("Viscera Seer", m11::viscera_seer);
         registry.register(
             "Torbran, Thane of Red Fell",
-            phase_rd_cards::torbran_thane_of_red_fell,
+            eld::torbran_thane_of_red_fell,
         );
 
         // Redirection and unpreventable damage. The axis is where a
@@ -1060,160 +1017,160 @@ impl CardRegistry {
         // feature and shares none of that — CR 615.12's per-event flag, and the
         // only one of its nine printed cards the engine can play whole.
         // Pariah is pooled; the rest are the stress pool's breadth.
-        registry.register("Pariah", phase_rd_cards::pariah);
-        registry.register("Palisade Giant", phase_rd_cards::palisade_giant);
-        registry.register("Pinpoint Avalanche", phase_rd_cards::pinpoint_avalanche);
-        registry.register("Reflect Damage", phase_rd_cards::reflect_damage);
+        registry.register("Pariah", usg::pariah);
+        registry.register("Palisade Giant", rtr::palisade_giant);
+        registry.register("Pinpoint Avalanche", ons::pinpoint_avalanche);
+        registry.register("Reflect Damage", mir::reflect_damage);
 
         // Skips, and the turn queue. The axis is which CR 614.10 unit a
         // skip names and where the effect comes from: a static on you
         // (Yawgmoth's Bargain), a static on everyone (Eon Hub), a consumable
         // row on you (Meditate), a targeted row (Moment of Silence) — plus
         // Time Walk, which makes the turn the others skip. Eon Hub is pooled;
-        // the rest are registered for the stress pool, and the module doc says
-        // why each stays out.
-        registry.register("Yawgmoth's Bargain", phase_re_cards::yawgmoths_bargain);
-        registry.register("Eon Hub", phase_re_cards::eon_hub);
-        registry.register("Meditate", phase_re_cards::meditate);
-        registry.register("Time Walk", phase_re_cards::time_walk);
-        registry.register("Moment of Silence", phase_re_cards::moment_of_silence);
-        registry.register("Thought Reflection", phase_re_cards::thought_reflection);
+        // the rest are registered for the stress pool, and its comment in
+        // `PERFORMANCE_POOL` says why each stays out.
+        registry.register("Yawgmoth's Bargain", uds::yawgmoths_bargain);
+        registry.register("Eon Hub", set_5dn::eon_hub);
+        registry.register("Meditate", tmp::meditate);
+        registry.register("Time Walk", lea::time_walk);
+        registry.register("Moment of Silence", mmq::moment_of_silence);
+        registry.register("Thought Reflection", shm::thought_reflection);
         registry.register(
             "Teferi's Ageless Insight",
-            phase_re_cards::teferis_ageless_insight,
+            m21::teferis_ageless_insight,
         );
-        registry.register("Alms Collector", phase_re_cards::alms_collector);
-        registry.register("Notion Thief", phase_re_cards::notion_thief);
+        registry.register("Alms Collector", c17::alms_collector);
+        registry.register("Notion Thief", dgm::notion_thief);
 
         // Life. Six cards over three events: a gain doubled (Rhox
         // Faithmender, Alhammarret's Archive), a gain turned into a loss
         // (Tainted Remedy), a draw turned into a gain (Words of Worship), the
         // loss inside damage clamped (Ali from Cairo), and the gain refused
         // outright (Skullcrack). Rhox Faithmender is pooled; Leyline of
-        // Punishment is deliberately unregistered and the module doc says why.
-        registry.register("Rhox Faithmender", phase_re_cards::rhox_faithmender);
-        registry.register("Tainted Remedy", phase_re_cards::tainted_remedy);
-        registry.register("Words of Worship", phase_re_cards::words_of_worship);
-        registry.register("Ali from Cairo", phase_re_cards::ali_from_cairo);
+        // Punishment is deliberately unregistered and Skullcrack's doc says why.
+        registry.register("Rhox Faithmender", m13::rhox_faithmender);
+        registry.register("Tainted Remedy", ori::tainted_remedy);
+        registry.register("Words of Worship", ons::words_of_worship);
+        registry.register("Ali from Cairo", arn::ali_from_cairo);
         registry.register(
             "Alhammarret's Archive",
-            phase_re_cards::alhammarrets_archive,
+            ori::alhammarrets_archive,
         );
-        registry.register("Skullcrack", phase_re_cards::skullcrack);
+        registry.register("Skullcrack", gtc::skullcrack);
 
         // The game's end. Four cards on one axis: a draw turned into a
         // win (Laboratory Maniac), a loss replaced by a static (Exquisite
         // Archangel) or by a one-turn row (Stunning Reversal), and a loss
         // refused outright (Platinum Angel). Laboratory Maniac is pooled;
-        // Platinum Angel is registered and not, and the module doc says why.
-        registry.register("Laboratory Maniac", phase_re_cards::laboratory_maniac);
-        registry.register("Exquisite Archangel", phase_re_cards::exquisite_archangel);
-        registry.register("Stunning Reversal", phase_re_cards::stunning_reversal);
-        registry.register("Platinum Angel", phase_re_cards::platinum_angel);
+        // Platinum Angel is registered and not, and the Maniac's comment in
+        // `PERFORMANCE_POOL` says why.
+        registry.register("Laboratory Maniac", isd::laboratory_maniac);
+        registry.register("Exquisite Archangel", aer::exquisite_archangel);
+        registry.register("Stunning Reversal", bbd::stunning_reversal);
+        registry.register("Platinum Angel", mrd::platinum_angel);
 
         // Tokens. Four cards on two axes: what makes a plural creation
         // (Raise the Alarm, Hordeling Outburst), what doubles one (Parallel
         // Lives), and what substitutes a token's entry (Hallowed Moonlight).
-        // Parallel Lives and Raise the Alarm are pooled; the module doc says
-        // why the other two stay out.
-        registry.register("Parallel Lives", phase_re_cards::parallel_lives);
-        registry.register("Raise the Alarm", phase_re_cards::raise_the_alarm);
-        registry.register("Hordeling Outburst", phase_re_cards::hordeling_outburst);
-        registry.register("Hallowed Moonlight", phase_re_cards::hallowed_moonlight);
+        // Parallel Lives and Raise the Alarm are pooled; `PERFORMANCE_POOL`
+        // says why the other two stay out.
+        registry.register("Parallel Lives", isd::parallel_lives);
+        registry.register("Raise the Alarm", mrd::raise_the_alarm);
+        registry.register("Hordeling Outburst", ktk::hordeling_outburst);
+        registry.register("Hallowed Moonlight", ori::hallowed_moonlight);
         // The kind-changing substitution over a creation (Divine Visitation) and
         // a card whose two halves the draw and token watchers already cover
         // (Bard, King of Dale). Neither pooled.
-        registry.register("Divine Visitation", phase_re_cards::divine_visitation);
-        registry.register("Bard, King of Dale", phase_re_cards::bard_king_of_dale);
+        registry.register("Divine Visitation", grn::divine_visitation);
+        registry.register("Bard, King of Dale", hob::bard_king_of_dale);
 
         // Counters. Six cards on two axes: which subject the effect
         // is around (a permanent, a player, or either) and what it does to
-        // the count. Hardened Scales is pooled; the module doc says why the
-        // other five stay out.
-        registry.register("Doubling Season", phase_re_cards::doubling_season);
-        registry.register("Hardened Scales", phase_re_cards::hardened_scales);
+        // the count. Hardened Scales is pooled; `PERFORMANCE_POOL` says why
+        // the other five stay out.
+        registry.register("Doubling Season", rav::doubling_season);
+        registry.register("Hardened Scales", ktk::hardened_scales);
         registry.register(
             "Vorinclex, Monstrous Raider",
-            phase_re_cards::vorinclex_monstrous_raider,
+            khm::vorinclex_monstrous_raider,
         );
-        registry.register("Winding Constrictor", phase_re_cards::winding_constrictor);
-        registry.register("Live Fast", phase_re_cards::live_fast);
-        registry.register("Primal Vigor", phase_re_cards::primal_vigor);
+        registry.register("Winding Constrictor", aer::winding_constrictor);
+        registry.register("Live Fast", kld::live_fast);
+        registry.register("Primal Vigor", c13::primal_vigor);
 
         // Discard and scry. Five cards on three axes: who picks a
         // discarded card (Mind Rot, Hymn to Tourach), what caused the discard
         // (Nephalia Academy, the one `ReplacementDef::by` in the registry),
         // and the scry both ways round (Opt makes one, Eligeth replaces one).
-        // Mind Rot and Opt are pooled; the module doc says why the other
-        // three stay out, and why the Dodecapod family is not here at all.
-        registry.register("Mind Rot", phase_re8_cards::mind_rot);
-        registry.register("Hymn to Tourach", phase_re8_cards::hymn_to_tourach);
-        registry.register("Nephalia Academy", phase_re8_cards::nephalia_academy);
-        registry.register("Opt", phase_re8_cards::opt);
+        // Mind Rot and Opt are pooled; `PERFORMANCE_POOL` says why the other
+        // three stay out.
+        registry.register("Mind Rot", por::mind_rot);
+        registry.register("Hymn to Tourach", fem::hymn_to_tourach);
+        registry.register("Nephalia Academy", emn::nephalia_academy);
+        registry.register("Opt", inv::opt);
         registry.register(
             "Eligeth, Crossroads Augur",
-            phase_re8_cards::eligeth_crossroads_augur,
+            cmr::eligeth_crossroads_augur,
         );
 
-        // Extra phases. Aggravated Assault is CR 500.8's only
-        // producer in reach whole; the module doc says why the other 45
-        // are not, and why it is unpooled (eight mana to use once, and
-        // every activation makes the game bigger).
-        registry.register("Aggravated Assault", phase_re10_cards::aggravated_assault);
+        // Extra phases. Aggravated Assault is CR 500.8's only producer in
+        // reach whole, and unpooled: eight mana to use once, and every
+        // activation makes the game bigger.
+        registry.register("Aggravated Assault", ons::aggravated_assault);
 
         // Mana. Three cards on two axes: CR 106.6a's multipliers (Mana
         // Reflection, pooled; Nyxbloom Ancient) and CR 106.12b's retyping
         // (Deep Water, the one of six printed type-changers that registers
-        // whole). The module doc says why the other eleven "tapped for mana"
-        // cards are not here.
-        registry.register("Mana Reflection", phase_re9_cards::mana_reflection);
-        registry.register("Nyxbloom Ancient", phase_re9_cards::nyxbloom_ancient);
-        registry.register("Deep Water", phase_re9_cards::deep_water);
-        registry.register("Pale Moon", phase_re9_cards::pale_moon);
-        registry.register("Doubling Cube", phase_re9_cards::doubling_cube);
+        // whole).
+        registry.register("Mana Reflection", shm::mana_reflection);
+        registry.register("Nyxbloom Ancient", thb::nyxbloom_ancient);
+        registry.register("Deep Water", drk::deep_water);
+        registry.register("Pale Moon", nem::pale_moon);
+        registry.register("Doubling Cube", set_5dn::doubling_cube);
 
         // The zone-reaching set. Yixlid Jailer is the printed consumer and
         // is pooled; Scarwood Treefolk is its partner in ATOM-614.12-001 and
         // opens no engine path, so it is registered and unpooled.
-        // `phase_lj_cards::graveyard_painter` and `graveyard_reveler` — the
+        // `fixtures::graveyard_painter` and `graveyard_reveler` — the
         // pair that proves a rule can *read* a zone-reaching change — are
         // fixtures registered nowhere, and so are `teferi_flash_clause` and
         // `lattice_colorless_clause`, the two rows item 181's measurement
         // places into a game: registering either would move every stress game.
-        registry.register("Yixlid Jailer", phase_lj_cards::yixlid_jailer);
-        registry.register("Scarwood Treefolk", phase_lj_cards::scarwood_treefolk);
+        registry.register("Yixlid Jailer", fut::yixlid_jailer);
+        registry.register("Scarwood Treefolk", tsp::scarwood_treefolk);
 
         // CR 113.6. Wonder is the registered card whose static
         // ability functions off the battlefield, and it is pooled: it opens
         // `move_object`'s registration path and puts a graveyard source in
         // front of the existence check.
         //
-        // `phase_lk_cards::exiled_ancestor` — CR 113.6c's complement, which
+        // `fixtures::exiled_ancestor` — CR 113.6c's complement, which
         // needs no second mechanism — is a fixture registered nowhere, for the
         // reason `registry.rs` gives elsewhere: the printed 113.6c population
         // is thin and every member of it wants something else as well.
-        registry.register("Wonder", phase_lk_cards::wonder);
+        registry.register("Wonder", jud::wonder);
 
         // RF — the gather's zone leg (`replacement-architecture.md` §3.3
         // source 2): a static *replacement* ability functioning off the
         // battlefield. Two shapes: a permanent card whose clause the library,
         // the hand and the stack all see, and an instant that is never a
-        // permanent at all. The module doc says why neither is Blightsteel.
+        // permanent at all. Darksteel Colossus's doc says why neither is
+        // Blightsteel.
         // The fixtures beside them — `timid_golem`, `hollow_hands`,
         // `sealing_ward` — are the CR 113.6 default, the effective-list read
         // and the affected side's zone check, and are registered nowhere.
-        registry.register("Darksteel Colossus", phase_rf_cards::darksteel_colossus);
-        registry.register("Nexus of Fate", phase_rf_cards::nexus_of_fate);
+        registry.register("Darksteel Colossus", dst::darksteel_colossus);
+        registry.register("Nexus of Fate", m19::nexus_of_fate);
 
-        // A4i — CR 601.2c's three shapes of "several instances of target". The
-        // module doc says which card presses on which; Seat of the Synod is
+        // A4i — CR 601.2c's three shapes of "several instances of target",
+        // each card's doc saying which it presses on; Seat of the Synod is
         // here because the CR's own example of one object satisfying two
         // clauses is an artifact land.
-        registry.register("Seeds of Strength", phase_a4i_cards::seeds_of_strength);
-        registry.register("Incremental Growth", phase_a4i_cards::incremental_growth);
-        registry.register("Jagged Lightning", phase_a4i_cards::jagged_lightning);
-        registry.register("Plague Spores", phase_a4i_cards::plague_spores);
-        registry.register("Seat of the Synod", phase_a4i_cards::seat_of_the_synod);
+        registry.register("Seeds of Strength", rav::seeds_of_strength);
+        registry.register("Incremental Growth", lrw::incremental_growth);
+        registry.register("Jagged Lightning", p02::jagged_lightning);
+        registry.register("Plague Spores", inv::plague_spores);
+        registry.register("Seat of the Synod", mrd::seat_of_the_synod);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);
@@ -1251,7 +1208,7 @@ impl CardRegistry {
     /// numbers stay real cards'.
     pub fn fixture_pool() -> Self {
         let mut pool = Self::default_registry();
-        for (name, fixture) in crate::cards::phase_history_and_frame_records_cards::CASTABLE {
+        for (name, fixture) in crate::cards::fixtures::CASTABLE {
             pool.register(name, fixture);
         }
         pool
@@ -1276,9 +1233,9 @@ mod tests {
         // Not named `registry`: `check_state_of_play.py` counts that name's
         // `register` calls as the cards registered.
         let mut lists = CardRegistry::new();
-        lists.register("Forest", basic_lands::forest);
-        lists.register_in_development("Zebra Bear", basic_lands::forest);
-        lists.register_in_development("Ape Bear", basic_lands::forest);
+        lists.register("Forest", lea::forest);
+        lists.register_in_development("Zebra Bear", lea::forest);
+        lists.register_in_development("Ape Bear", lea::forest);
         assert_eq!(lists.names_in_development(), ["Ape Bear", "Zebra Bear"]);
         assert_eq!(lists.card_names(), ["Forest"]);
     }

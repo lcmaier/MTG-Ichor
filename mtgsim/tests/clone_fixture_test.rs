@@ -15,7 +15,7 @@
 
 use std::sync::Mutex;
 
-use mtgsim::cards::phase_tr1_cards::blood_artist;
+use mtgsim::cards::printings::blood_artist;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::state::game_state::GameState;

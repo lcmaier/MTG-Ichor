@@ -17,9 +17,7 @@ use mtgsim::cards::authoring::{
     attacks, attacks_alone, attacks_defender, is_attacked, player_attacks, player_attacks_player, player_or_their_planeswalker,
     triggered_ability, whenever, Whose,
 };
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_tr5e_cards::hellrider;
+use mtgsim::cards::printings::{act_of_treason, grizzly_bears, hellrider};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, FilterIdentity};
 use mtgsim::events::cause::GeneratedBy;

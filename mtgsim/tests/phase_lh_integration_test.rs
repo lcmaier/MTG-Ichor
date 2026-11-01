@@ -8,7 +8,7 @@
 //! `test_support` (Pacifism, "Test Bond") carry no ability and could not tell
 //! a working row from a missing one.
 
-use mtgsim::cards::phase_lh_cards::holy_strength;
+use mtgsim::cards::printings::holy_strength;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::events::event::GameEvent;
@@ -317,13 +317,11 @@ fn test_holy_strength_is_registered_and_in_the_performance_pool() {
 // LH-2 — Equip (CR 702.6a), and the timestamp an attach gives (CR 613.7e)
 // ===========================================================================
 
-use mtgsim::cards::phase_lh_cards::bonesplitter;
+use mtgsim::cards::printings::{bonesplitter, cobbled_wings, humility};
 use mtgsim::objects::card_data::AbilityType;
 use mtgsim::oracle::characteristics::get_effective_abilities;
 use mtgsim::oracle::mana_helpers::activatable_abilities;
 use mtgsim::state::game_state::{Phase, PhaseType};
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_lh_cards::cobbled_wings;
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::engine::targeting::{TargetInstance};
@@ -664,7 +662,7 @@ fn test_an_equipment_that_becomes_a_creature_unattaches() {
     assert!(game.attach(splitter, bears));
     assert_eq!(pt(&game, bears), (4, 2), "equipped, before anything animates it");
 
-    put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::march_of_the_machines(), 0);
+    put_on_battlefield(&mut game, mtgsim::cards::printings::march_of_the_machines(), 0);
     game.check_state_based_actions_loop(&test_dp()).unwrap();
 
     assert!(

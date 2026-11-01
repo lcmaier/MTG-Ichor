@@ -10,7 +10,7 @@
 //! ```
 //!
 //! **Three arms play every game.** Right after setup, player 0 gets a blank
-//! artifact, or one of `phase_lj_cards`' two fixtures in its place: Teferi's
+//! artifact, or one of two layer fixtures in its place: Teferi's
 //! clause, whose filter matches one seat's creature cards, and Lattice's,
 //! which matches every card. Nothing else differs, so a seed is one game in
 //! all three arms until the row changes a choice, and table 1 says where that
@@ -38,7 +38,7 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
 
-use mtgsim::cards::phase_lj_cards::{lattice_colorless_clause, teferi_flash_clause};
+use mtgsim::cards::fixtures::{lattice_colorless_clause, teferi_flash_clause};
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};

@@ -11,8 +11,9 @@ use crate::engine::actions::GameAction;
 use crate::ui::ask::ask_discard;
 use crate::ui::decision::{DecisionProvider, Stop};
 
-/// A decklist: ordered list of card definitions that make up a player's deck.
-pub type Decklist = Vec<Arc<CardData>>;
+/// A player's deck, the cards CR 103.3 makes their library, in order. A
+/// [`crate::scenario::Decklist`] is the names it is built from.
+pub type Deck = Vec<Arc<CardData>>;
 
 /// Top-level game lifecycle wrapper.
 ///
@@ -41,21 +42,21 @@ impl Game {
         crate::ui::display::format_event_log(&self.state)
     }
 
-    /// Create a new game from config and decklists.
+    /// Create a new game from config and decks.
     ///
     /// Builds a `GameState` with the configured starting life and populates
-    /// each player's library from their decklist. Does NOT shuffle or draw
+    /// each player's library from their deck. Does NOT shuffle or draw
     /// opening hands — that happens in `setup()`.
-    pub fn new(config: GameConfig, decklists: Vec<Decklist>) -> Result<Self, String> {
-        let num_players = decklists.len();
+    pub fn new(config: GameConfig, decks: Vec<Deck>) -> Result<Self, String> {
+        let num_players = decks.len();
         if num_players < 2 {
             return Err("Game requires at least 2 players".to_string());
         }
 
         let mut state = GameState::new(num_players, config.starting_life);
 
-        for (player_id, decklist) in decklists.into_iter().enumerate() {
-            for card_data in decklist {
+        for (player_id, deck) in decks.into_iter().enumerate() {
+            for card_data in deck {
                 // Through the door that registers what functions in a library
                 // (CR 113.6), so a card whose static ability works "from
                 // anywhere" is a gather candidate from the first mill.
@@ -449,7 +450,7 @@ mod tests {
     use crate::types::mana::ManaType;
     use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
 
-    fn make_test_decklist(count: usize) -> Decklist {
+    fn make_test_decklist(count: usize) -> Deck {
         (0..count)
             .map(|_| {
                 CardDataBuilder::new("Forest")

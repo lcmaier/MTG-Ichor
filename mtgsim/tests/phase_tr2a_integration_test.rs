@@ -16,16 +16,10 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{at_beginning_of, enters, triggered_ability, whenever, Whose};
-use mtgsim::cards::basic_lands::forest;
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_ld_cards::blood_moon;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_li_cards::ashaya_soul_of_the_wild;
-use mtgsim::cards::phase_re_cards::{alms_collector, yawgmoths_bargain};
-use mtgsim::cards::phase_tr1_cards::blood_artist;
-use mtgsim::cards::phase_tr2a_cards::{
-    elf_warrior_token, elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief,
+use mtgsim::cards::printings::{
+    act_of_treason, alms_collector, ashaya_soul_of_the_wild, blood_artist, blood_moon, forest, grizzly_bears, yawgmoths_bargain,
 };
+use mtgsim::cards::printings::{elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -42,10 +36,10 @@ use mtgsim::test_support::{
     effect_ctx,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
+use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
-    ManaOutput, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter,
-    TargetCount, TypeChange,
+    AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerGroup, PlayerRef,
+    PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
@@ -58,6 +52,11 @@ use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
+
+/// A 1/1 green Elf Warrior creature token.
+fn elf_warrior_token() -> TokenDef {
+    TokenDef::creature(1, 1, &[Color::Green], &[CreatureType::Elf, CreatureType::Warrior])
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

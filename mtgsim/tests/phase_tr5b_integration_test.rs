@@ -11,9 +11,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::triggers::{counters_put_on, counters_removed_from, persist, triggered_ability, whenever};
-use mtgsim::cards::phase_rc_cards::{chainbreaker, master_biomancer};
-use mtgsim::cards::phase_tr5b_cards::{protean_hydra, simic_ascendancy};
-use mtgsim::cards::phase_tr4a_cards::strangleroot_geist;
+use mtgsim::cards::printings::{chainbreaker, master_biomancer, protean_hydra, simic_ascendancy, strangleroot_geist};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;

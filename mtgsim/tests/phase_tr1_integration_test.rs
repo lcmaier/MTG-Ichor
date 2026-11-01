@@ -15,23 +15,14 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::alpha::lightning_bolt;
-use mtgsim::cards::artifacts::sol_ring;
+use mtgsim::cards::printings::{
+    act_of_treason, eon_hub, fog, forest, grizzly_bears, humility, lightning_bolt, march_of_the_machines, plains, rest_in_peace, sol_ring, swamp,
+    yixlid_jailer,
+};
 use mtgsim::cards::authoring::{
     another, at_beginning_of, attacks, dies, enters, spell_ability, triggered_ability, whenever, Whose,
 };
-use mtgsim::cards::basic_lands::{forest, plains, swamp};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_ld_cards::march_of_the_machines;
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_lj_cards::yixlid_jailer;
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
-use mtgsim::cards::phase_rd_cards::fog;
-use mtgsim::cards::phase_re_cards::eon_hub;
-use mtgsim::cards::phase_tr1_cards::{
-    blood_artist, felidar_sovereign, saproling_token, soul_warden, verdant_force, wild_growth,
-};
+use mtgsim::cards::printings::{blood_artist, felidar_sovereign, soul_warden, verdant_force, wild_growth};
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -49,11 +40,12 @@ use mtgsim::test_support::{
     put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature, StackWatcher,
     effect_ctx,
 };
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, CreatureType};
+use mtgsim::types::colors::Color;
 use mtgsim::types::costs::{AdditionalCost, Cost};
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    ObjectSet, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
+    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, ObjectSet, PlayerFact, PlayerGroup, PlayerRef,
+    PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
@@ -66,6 +58,11 @@ use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
+
+/// A 1/1 green Saproling creature token.
+fn saproling_token() -> TokenDef {
+    TokenDef::creature(1, 1, &[Color::Green], &[CreatureType::Saproling])
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -23,12 +23,11 @@
 //! by hand would prove the resolution reads them and nothing about whether
 //! CR 601.2c filled them in.
 
-use mtgsim::cards::creatures;
-use mtgsim::cards::phase_a4i_cards::{
-    incremental_growth, jagged_lightning, plague_spores, seat_of_the_synod, seeds_of_strength,
+use mtgsim::cards::printings;
+use mtgsim::cards::printings::{
+    incremental_growth, jagged_lightning, plague_spores, seat_of_the_synod, seeds_of_strength, skullcrack, vorinclex_monstrous_raider,
 };
-use mtgsim::cards::phase_ld_cards::ensoul_artifact_spell;
-use mtgsim::cards::phase_re_cards::{skullcrack, vorinclex_monstrous_raider};
+use mtgsim::cards::fixtures::ensoul_artifact_spell;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
@@ -230,7 +229,7 @@ fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
 #[test]
 fn seeds_of_strength_can_name_one_creature_for_all_three_instances() {
     let mut game = setup_two_player_game();
-    let bear = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bear = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let seeds = put_in_hand(&mut game, seeds_of_strength(), 0);
     pay_for_seeds(&mut game, 0);
 

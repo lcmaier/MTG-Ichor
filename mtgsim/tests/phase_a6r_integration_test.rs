@@ -7,8 +7,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{triggered_ability, whenever};
-use mtgsim::cards::phase_re8_cards::opt;
-use mtgsim::cards::phase_re_cards::{notion_thief, teferis_ageless_insight, thought_reflection, words_of_worship};
+use mtgsim::cards::printings::{notion_thief, opt, teferis_ageless_insight, thought_reflection, words_of_worship};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::cause::GeneratedBy;

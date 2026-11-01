@@ -14,10 +14,7 @@
 use std::sync::Arc;
 
 use mtgsim::state::replacement_effects::ReplacementEffectId;
-use mtgsim::cards::phase_rd_cards::{
-    circle_of_protection_red, daunting_defender, fog, guardian_seraph, pyroclasm,
-    torbran_thane_of_red_fell,
-};
+use mtgsim::cards::printings::{circle_of_protection_red, daunting_defender, fog, guardian_seraph, pyroclasm, torbran_thane_of_red_fell};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::resolve::ResolutionContext;

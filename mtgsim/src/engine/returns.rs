@@ -243,7 +243,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
-    use crate::cards::creatures::grizzly_bears;
+    use crate::cards::printings::grizzly_bears;
     use crate::engine::actions::GameAction;
     use crate::events::cause::EventCause;
     use crate::test_support::{put_in_exile, put_on_battlefield, put_on_battlefield_under, setup_two_player_game, test_ctx};

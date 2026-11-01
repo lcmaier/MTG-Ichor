@@ -2,10 +2,7 @@
 //! agent's payment through a pool multiplier it rides on (`codebase-state.md`
 //! item 214): what MA-1's check offers, the agent now pays.
 
-use mtgsim::cards::basic_lands::{mountain, plains};
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_re9_cards::doubling_cube;
-use mtgsim::cards::phase_rf_cards::darksteel_colossus;
+use mtgsim::cards::printings::{darksteel_colossus, doubling_cube, humility, mountain, plains};
 use mtgsim::oracle::mana_helpers::can_cast;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType};
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
@@ -142,7 +139,7 @@ fn the_why_of_x_names_the_bound_and_what_set_it() {
         Some("601.2h")
     )), "{lines:#?}");
 
-    put_on_battlefield(&mut game, mtgsim::cards::phase_cm_cards::goblin_electromancer(), 0);
+    put_on_battlefield(&mut game, mtgsim::cards::printings::goblin_electromancer(), 0);
     let lines = why_lines(&game, choose_x(card, legal_values(&game, card)), card);
     assert!(lines.contains(&(
         "X above 4: alongside {R}, Player 0 can pay at most 3 generic mana, and each X adds {1}, less the {1} its reductions take off."
@@ -342,9 +339,7 @@ fn the_word_x_is_refused_where_nothing_has_an_x() {
 
 // --- Blaze, and Protean Hydra at the priority question ----------------------
 
-use mtgsim::cards::basic_lands::forest;
-use mtgsim::cards::phase_ma2_cards::blaze;
-use mtgsim::cards::phase_tr5b_cards::protean_hydra;
+use mtgsim::cards::printings::{blaze, forest, protean_hydra};
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::oracle::x_values::{LegalXValues, XOffer};

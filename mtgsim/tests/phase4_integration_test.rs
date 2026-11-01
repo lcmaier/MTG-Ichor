@@ -8,9 +8,8 @@
 use std::sync::Arc;
 
 use mtgsim::test_support::place_on_battlefield;
-use mtgsim::cards::creatures;
+use mtgsim::cards::printings;
 use mtgsim::test_support::{place_bare, test_ctx};
-use mtgsim::cards::keyword_creatures;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::combat::validation::{
     validate_attackers, validate_blockers, AttackConstraints, BlockConstraints, CombatError,
@@ -84,8 +83,8 @@ fn set_blocking(game: &mut GameState, blocker: ObjectId, blocking: Vec<ObjectId>
 #[test]
 fn test_flying_evasion_ground_cant_block() {
     let mut game = GameState::new(2, 20);
-    let angel = place_creature(&mut game, 0, keyword_creatures::serra_angel);
-    let bears = place_creature(&mut game, 1, creatures::grizzly_bears);
+    let angel = place_creature(&mut game, 0, printings::serra_angel);
+    let bears = place_creature(&mut game, 1, printings::grizzly_bears);
     set_attacking(&mut game, angel, 1);
 
     let result = validate_blockers(
@@ -103,8 +102,8 @@ fn test_flying_evasion_ground_cant_block() {
 #[test]
 fn test_reach_blocks_flyer() {
     let mut game = GameState::new(2, 20);
-    let angel = place_creature(&mut game, 0, keyword_creatures::serra_angel);
-    let spider = place_creature(&mut game, 1, keyword_creatures::giant_spider);
+    let angel = place_creature(&mut game, 0, printings::serra_angel);
+    let spider = place_creature(&mut game, 1, printings::giant_spider);
     set_attacking(&mut game, angel, 1);
 
     let result = validate_blockers(
@@ -123,7 +122,7 @@ fn test_reach_blocks_flyer() {
 fn test_haste_attacks_immediately() {
     let mut game = GameState::new(2, 20);
     // Place with summoning sickness
-    let cougar = place_creature_sick(&mut game, 0, keyword_creatures::raging_cougar);
+    let cougar = place_creature_sick(&mut game, 0, printings::raging_cougar);
 
     let result = validate_attackers(
         &game, 0,
@@ -141,7 +140,7 @@ fn test_haste_attacks_immediately() {
 #[test]
 fn test_vigilance_doesnt_tap() {
     let mut game = GameState::new(2, 20);
-    let angel = place_creature(&mut game, 0, keyword_creatures::serra_angel);
+    let angel = place_creature(&mut game, 0, printings::serra_angel);
 
     let scripted = ScriptedDecisionProvider::new();
     // Legal pairs: [(angel, Player(1))] — index 0
@@ -164,8 +163,8 @@ fn test_vigilance_doesnt_tap() {
 #[test]
 fn test_first_strike_kills_before_normal_damage() {
     let mut game = GameState::new(2, 20);
-    let archers = place_creature(&mut game, 0, keyword_creatures::elvish_archers);
-    let bears = place_creature(&mut game, 1, creatures::grizzly_bears);
+    let archers = place_creature(&mut game, 0, printings::elvish_archers);
+    let bears = place_creature(&mut game, 1, printings::grizzly_bears);
     set_attacking(&mut game, archers, 1);
     set_blocked_by(&mut game, archers, vec![bears]);
     set_blocking(&mut game, bears, vec![archers]);
@@ -204,7 +203,7 @@ fn test_first_strike_kills_before_normal_damage() {
 #[test]
 fn test_double_strike_deals_twice() {
     let mut game = GameState::new(2, 20);
-    let raptor = place_creature(&mut game, 0, keyword_creatures::ridgetop_raptor);
+    let raptor = place_creature(&mut game, 0, printings::ridgetop_raptor);
     set_attacking(&mut game, raptor, 1);
 
     let dp = ScriptedDecisionProvider::new();
@@ -234,8 +233,8 @@ fn test_double_strike_deals_twice() {
 #[test]
 fn test_trample_overflow_to_player() {
     let mut game = GameState::new(2, 20);
-    let mammoth = place_creature(&mut game, 0, keyword_creatures::war_mammoth);
-    let lions = place_creature(&mut game, 1, creatures::savannah_lions);
+    let mammoth = place_creature(&mut game, 0, printings::war_mammoth);
+    let lions = place_creature(&mut game, 1, printings::savannah_lions);
     set_attacking(&mut game, mammoth, 1);
     set_blocked_by(&mut game, mammoth, vec![lions]);
     set_blocking(&mut game, lions, vec![mammoth]);
@@ -271,8 +270,8 @@ fn test_trample_overflow_to_player() {
 #[test]
 fn test_deathtouch_trades_up() {
     let mut game = GameState::new(2, 20);
-    let archer = place_creature(&mut game, 0, keyword_creatures::thornweald_archer);
-    let giant = place_creature(&mut game, 1, creatures::hill_giant);
+    let archer = place_creature(&mut game, 0, printings::thornweald_archer);
+    let giant = place_creature(&mut game, 1, printings::hill_giant);
     set_attacking(&mut game, archer, 1);
     set_blocked_by(&mut game, archer, vec![giant]);
     set_blocking(&mut game, giant, vec![archer]);
@@ -303,7 +302,7 @@ fn test_deathtouch_trades_up() {
 #[test]
 fn test_lifelink_heals_on_combat_damage() {
     let mut game = GameState::new(2, 20);
-    let nighthawk = place_creature(&mut game, 0, keyword_creatures::vampire_nighthawk);
+    let nighthawk = place_creature(&mut game, 0, printings::vampire_nighthawk);
     set_attacking(&mut game, nighthawk, 1);
 
     let dp = ScriptedDecisionProvider::new();
@@ -323,7 +322,7 @@ fn test_lifelink_heals_on_combat_damage() {
 #[test]
 fn test_defender_cant_attack() {
     let mut game = GameState::new(2, 20);
-    let wall = place_creature(&mut game, 0, keyword_creatures::wall_of_stone);
+    let wall = place_creature(&mut game, 0, printings::wall_of_stone);
 
     let result = validate_attackers(
         &game, 0,
@@ -340,8 +339,8 @@ fn test_defender_cant_attack() {
 #[test]
 fn test_defender_blocks_normally() {
     let mut game = GameState::new(2, 20);
-    let bears = place_creature(&mut game, 0, creatures::grizzly_bears);
-    let wall = place_creature(&mut game, 1, keyword_creatures::wall_of_stone);
+    let bears = place_creature(&mut game, 0, printings::grizzly_bears);
+    let wall = place_creature(&mut game, 1, printings::wall_of_stone);
     set_attacking(&mut game, bears, 1);
 
     let result = validate_blockers(
@@ -369,7 +368,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
         .build();
     let trampler = place_bare(&mut game, data, 0);
 
-    let blocker = place_creature(&mut game, 1, creatures::grizzly_bears); // 2/2
+    let blocker = place_creature(&mut game, 1, printings::grizzly_bears); // 2/2
     set_attacking(&mut game, trampler, 1);
     set_blocked_by(&mut game, trampler, vec![blocker]);
     set_blocking(&mut game, blocker, vec![trampler]);

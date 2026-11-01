@@ -8,9 +8,8 @@
 //! a payment can make about what was determined — and one that no direct
 //! read of the pipeline can make, since it is the cast that locks.
 //!
-//! Three printed cards, one per position in the order, and the fixtures in
-//! `phase_cm_cards` for the boards the corpus names that no three printed
-//! cards build.
+//! Three printed cards, one per position in the order, and the cost fixtures
+//! for the boards the corpus names that no three printed cards build.
 //!
 //! **CM-2** adds the spell's own cost abilities (CR 113.6d, 702.41a) at the
 //! end of this file: Myr Enforcer and Frogmite, the gather's second source,
@@ -26,7 +25,7 @@
 use std::cell::RefCell;
 
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::cards::{alpha, phase_cm_cards, phase_lf_cards};
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -105,7 +104,7 @@ fn assert_costs_exactly(
 }
 
 fn bolt() -> Arc<CardData> {
-    alpha::lightning_bolt()
+    printings::lightning_bolt()
 }
 
 /// A {1} artifact with no text — a colorless spell for the lock-in board,
@@ -124,7 +123,7 @@ fn tin_trinket_costing(n: u8) -> Arc<CardData> {
 
 fn thalia_board(controller: PlayerId) -> GameState {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::thalia_guardian_of_thraben(), controller);
+    put_on_battlefield(&mut game, printings::thalia_guardian_of_thraben(), controller);
     game
 }
 
@@ -157,14 +156,14 @@ fn test_electromancer_reduces_the_generic_of_its_controllers_instants() {
     let board = |controller: PlayerId| {
         move || {
             let mut game = setup_two_player_game();
-            put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), controller);
+            put_on_battlefield(&mut game, printings::goblin_electromancer(), controller);
             game
         }
     };
     // {1}{R} less {1} is {R}.
-    assert_costs_exactly(board(0), phase_cm_cards::ember_lesson, &[(ManaType::Red, 1)], ManaType::Red, "Ember Lesson");
+    assert_costs_exactly(board(0), fixtures::ember_lesson, &[(ManaType::Red, 1)], ManaType::Red, "Ember Lesson");
     // Theirs reduces nothing of yours.
-    assert_costs_exactly(board(1), phase_cm_cards::ember_lesson, &[(ManaType::Red, 2)], ManaType::Red, "their Electromancer");
+    assert_costs_exactly(board(1), fixtures::ember_lesson, &[(ManaType::Red, 2)], ManaType::Red, "their Electromancer");
     // Nothing generic to reduce: Bolt is still {R}.
     assert_costs_exactly(board(0), bolt, &[(ManaType::Red, 1)], ManaType::Red, "Bolt has no generic");
 }
@@ -178,8 +177,8 @@ fn test_electromancer_reduces_the_generic_of_its_controllers_instants() {
 fn test_increases_apply_before_reductions() {
     let board = || {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, phase_cm_cards::thalia_guardian_of_thraben(), 0);
-        put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), 0);
+        put_on_battlefield(&mut game, printings::thalia_guardian_of_thraben(), 0);
+        put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
         game
     };
     assert_costs_exactly(board, bolt, &[(ManaType::Red, 1)], ManaType::Red, "Thalia + Electromancer on Bolt");
@@ -192,8 +191,8 @@ fn test_trinisphere_raises_the_total_to_three_after_reductions_while_untapped() 
     let board = |tapped: bool| {
         move || {
             let mut game = setup_two_player_game();
-            let sphere = put_on_battlefield(&mut game, phase_cm_cards::trinisphere(), 1);
-            put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), 0);
+            let sphere = put_on_battlefield(&mut game, printings::trinisphere(), 1);
+            put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
             game.battlefield.get_mut(&sphere).unwrap().tapped = tapped;
             game
         }
@@ -216,7 +215,7 @@ fn test_trinisphere_raises_the_total_to_three_after_reductions_while_untapped() 
 fn test_a_kicked_spell_under_a_tax_pays_one_mana_component() {
     assert_costs_exactly(
         || thalia_board(0),
-        phase_cm_cards::kicked_lesson,
+        fixtures::kicked_lesson,
         &[(ManaType::Red, 7)],
         ManaType::Red,
         "kicked {3}{R} under Thalia",
@@ -230,11 +229,11 @@ fn test_a_kicked_spell_under_a_tax_pays_one_mana_component() {
 #[test]
 fn test_reductions_floor_the_component_at_zero_and_a_zero_spell_is_free() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::generic_reducer(), 0);
-    put_on_battlefield(&mut game, phase_cm_cards::generic_reducer(), 0);
-    put_on_battlefield(&mut game, phase_cm_cards::green_reducer(), 0);
+    put_on_battlefield(&mut game, fixtures::generic_reducer(), 0);
+    put_on_battlefield(&mut game, fixtures::generic_reducer(), 0);
+    put_on_battlefield(&mut game, fixtures::green_reducer(), 0);
     let dp = RecordingDecisionProvider::picking(0);
-    let cast = cast_from_pool(&mut game, 0, phase_cm_cards::verdant_lesson(), &[], &dp);
+    let cast = cast_from_pool(&mut game, 0, fixtures::verdant_lesson(), &[], &dp);
     assert!(cast.is_ok(), "free: {cast:?}");
     assert_eq!(game.players[0].mana_pool.total(), 0);
     // Three reductions is "multiple", so the caster was asked to order them.
@@ -252,7 +251,7 @@ fn test_reductions_floor_the_component_at_zero_and_a_zero_spell_is_free() {
 #[test]
 fn test_a_chosen_alternative_cost_is_modified_too() {
     let mut game = thalia_board(0);
-    let card = phase_cm_cards::bargain_lesson();
+    let card = fixtures::bargain_lesson();
     let dp = ScriptedDecisionProvider::new();
     // Options are [the normal cost, the alternative]; take the alternative.
     dp.expect_pick_n(ChoiceKind::ChooseAlternativeCost { spell_id: ObjectId::UNASSIGNED }, vec![1]);
@@ -302,10 +301,10 @@ impl DecisionProvider for OrderingDp {
 fn test_two_reductions_are_ordered_by_the_caster_and_every_order_agrees() {
     for order in [vec![0, 1], vec![1, 0]] {
         let mut game = setup_two_player_game();
-        let electromancer = put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), 0);
-        let reducer = put_on_battlefield(&mut game, phase_cm_cards::red_reducer(), 0);
+        let electromancer = put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
+        let reducer = put_on_battlefield(&mut game, fixtures::red_reducer(), 0);
         let dp = OrderingDp { order: order.clone(), offered: RefCell::new(Vec::new()) };
-        let cast = cast_from_pool(&mut game, 0, phase_cm_cards::crimson_lesson(), &[(ManaType::Red, 1)], &dp);
+        let cast = cast_from_pool(&mut game, 0, fixtures::crimson_lesson(), &[(ManaType::Red, 1)], &dp);
         assert!(cast.is_ok(), "order {order:?}: {cast:?}");
         assert_eq!(game.players[0].mana_pool.total(), 0, "order {order:?}: {{R}} either way");
         let offered = dp.offered.borrow();
@@ -321,9 +320,9 @@ fn test_two_reductions_are_ordered_by_the_caster_and_every_order_agrees() {
     }
     // One reduction is not "multiple": nothing is asked.
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), 0);
+    put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
     let dp = RecordingDecisionProvider::picking(0);
-    cast_from_pool(&mut game, 0, phase_cm_cards::crimson_lesson(), &[(ManaType::Red, 2)], &dp).unwrap();
+    cast_from_pool(&mut game, 0, fixtures::crimson_lesson(), &[(ManaType::Red, 2)], &dp).unwrap();
     assert!(!dp.kinds().iter().any(|k| k == "OrderCostReductions"), "{:?}", dp.kinds());
 }
 
@@ -341,7 +340,7 @@ fn test_two_reductions_are_ordered_by_the_caster_and_every_order_agrees() {
 #[test]
 fn test_the_total_is_locked_before_the_mana_window_opens() {
     let mut game = setup_two_player_game();
-    let sphere = put_on_battlefield(&mut game, phase_cm_cards::locked_sphere(), 0);
+    let sphere = put_on_battlefield(&mut game, fixtures::locked_sphere(), 0);
     let dp = RecordingDecisionProvider::picking(0);
     let cast = cast_from_pool(&mut game, 0, tin_trinket(), &[(ManaType::Colorless, 2)], &dp);
     assert!(cast.is_ok(), "{cast:?}");
@@ -355,7 +354,7 @@ fn test_the_total_is_locked_before_the_mana_window_opens() {
 
     // The control: with the sphere already tapped, the same artifact is {1}.
     let mut game = setup_two_player_game();
-    let sphere = put_on_battlefield(&mut game, phase_cm_cards::locked_sphere(), 0);
+    let sphere = put_on_battlefield(&mut game, fixtures::locked_sphere(), 0);
     game.battlefield.get_mut(&sphere).unwrap().tapped = true;
     let cast = cast_from_pool(&mut game, 0, tin_trinket(), &[(ManaType::Colorless, 1)], &RecordingDecisionProvider::picking(0));
     assert!(cast.is_ok(), "{cast:?}");
@@ -374,8 +373,8 @@ fn test_the_total_is_locked_before_the_mana_window_opens() {
 fn test_thalia_under_humility_stops_taxing() {
     let board = || {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, phase_cm_cards::thalia_guardian_of_thraben(), 0);
-        put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+        put_on_battlefield(&mut game, printings::thalia_guardian_of_thraben(), 0);
+        put_on_battlefield(&mut game, printings::humility(), 1);
         game
     };
     assert_costs_exactly(board, bolt, &[(ManaType::Red, 1)], ManaType::Red, "Bolt under Thalia under Humility");
@@ -441,8 +440,8 @@ fn test_castable_spells_reads_the_modified_cost() {
     assert!(castable_spells(&game, 0).contains(&bolt_id));
 
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::goblin_electromancer(), 0);
-    let lesson = put_in_hand(&mut game, phase_cm_cards::ember_lesson(), 0);
+    put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
+    let lesson = put_in_hand(&mut game, fixtures::ember_lesson(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     assert!(
         castable_spells(&game, 0).contains(&lesson),
@@ -504,7 +503,7 @@ fn test_myr_enforcer_costs_one_less_for_each_artifact_you_control() {
     for (owned, pay) in [(0, 7), (1, 6), (4, 3)] {
         assert_costs_exactly(
             move || artifact_board(owned, 0),
-            phase_cm_cards::myr_enforcer,
+            printings::myr_enforcer,
             &[(ManaType::Colorless, pay)],
             ManaType::Colorless,
             &format!("{owned} artifacts"),
@@ -513,7 +512,7 @@ fn test_myr_enforcer_costs_one_less_for_each_artifact_you_control() {
     // "You control" — an opponent's artifacts are not yours to count.
     assert_costs_exactly(
         || artifact_board(4, 1),
-        phase_cm_cards::myr_enforcer,
+        printings::myr_enforcer,
         &[(ManaType::Colorless, 7)],
         ManaType::Colorless,
         "their artifacts",
@@ -522,7 +521,7 @@ fn test_myr_enforcer_costs_one_less_for_each_artifact_you_control() {
     // Seven artifacts: the component is reduced to nothing, and an empty
     // pool pays it.
     let mut game = artifact_board(7, 0);
-    let cast = cast_from_pool(&mut game, 0, phase_cm_cards::myr_enforcer(), &[], &RecordingDecisionProvider::picking(0));
+    let cast = cast_from_pool(&mut game, 0, printings::myr_enforcer(), &[], &RecordingDecisionProvider::picking(0));
     assert!(cast.is_ok(), "seven artifacts is {{0}}: {cast:?}");
 }
 
@@ -532,18 +531,18 @@ fn test_myr_enforcer_costs_one_less_for_each_artifact_you_control() {
 #[test]
 fn test_a_resolved_affinity_creature_counts_for_the_next_one() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::myr_enforcer(), 0);
-    let cast = cast_from_pool(&mut game, 0, phase_cm_cards::myr_enforcer(), &[(ManaType::Colorless, 6)], &RecordingDecisionProvider::picking(0));
+    put_on_battlefield(&mut game, printings::myr_enforcer(), 0);
+    let cast = cast_from_pool(&mut game, 0, printings::myr_enforcer(), &[(ManaType::Colorless, 6)], &RecordingDecisionProvider::picking(0));
     assert!(cast.is_ok(), "one Enforcer out: the next is {{6}}: {cast:?}");
 
     assert_costs_exactly(
         || {
             let mut game = setup_two_player_game();
-            put_on_battlefield(&mut game, phase_cm_cards::myr_enforcer(), 0);
-            put_on_battlefield(&mut game, phase_cm_cards::frogmite(), 0);
+            put_on_battlefield(&mut game, printings::myr_enforcer(), 0);
+            put_on_battlefield(&mut game, printings::frogmite(), 0);
             game
         },
-        phase_cm_cards::frogmite,
+        printings::frogmite,
         &[(ManaType::Colorless, 2)],
         ManaType::Colorless,
         "Frogmite behind an Enforcer and a Frogmite",
@@ -559,10 +558,10 @@ fn test_a_resolved_affinity_creature_counts_for_the_next_one() {
 fn test_affinity_joins_the_ordering_prompt_and_is_offered_last() {
     for order in [vec![0, 1], vec![1, 0]] {
         let mut game = setup_two_player_game();
-        let reducer = put_on_battlefield(&mut game, phase_cm_cards::generic_reducer(), 0);
+        let reducer = put_on_battlefield(&mut game, fixtures::generic_reducer(), 0);
         artifacts(&mut game, 2, 0);
         let dp = OrderingDp { order: order.clone(), offered: RefCell::new(Vec::new()) };
-        let spell = cast_from_pool(&mut game, 0, phase_cm_cards::myr_enforcer(), &[(ManaType::Colorless, 4)], &dp);
+        let spell = cast_from_pool(&mut game, 0, printings::myr_enforcer(), &[(ManaType::Colorless, 4)], &dp);
         let spell = spell.unwrap_or_else(|e| panic!("order {order:?}: {e}"));
         assert_eq!(game.players[0].mana_pool.total(), 0, "order {order:?}: {{4}} either way");
         let offered = dp.offered.borrow();
@@ -585,7 +584,7 @@ fn test_affinity_joins_the_ordering_prompt_and_is_offered_last() {
 fn test_trinisphere_applies_after_affinity_has_reduced() {
     let board = || {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, phase_cm_cards::trinisphere(), 0);
+        put_on_battlefield(&mut game, printings::trinisphere(), 0);
         artifacts(&mut game, 4, 0);
         game
     };
@@ -593,7 +592,7 @@ fn test_trinisphere_applies_after_affinity_has_reduced() {
     // three mana to cast costs three mana to cast".
     assert_costs_exactly(
         board,
-        phase_cm_cards::myr_enforcer,
+        printings::myr_enforcer,
         &[(ManaType::Colorless, 3)],
         ManaType::Colorless,
         "affinity under Trinisphere",
@@ -608,7 +607,7 @@ fn test_trinisphere_applies_after_affinity_has_reduced() {
 #[test]
 fn test_castable_spells_offers_an_enforcer_the_board_made_affordable() {
     let mut game = artifact_board(4, 0);
-    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+    let enforcer = put_in_hand(&mut game, printings::myr_enforcer(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 3);
     assert!(
         castable_spells(&game, 0).contains(&enforcer),
@@ -616,7 +615,7 @@ fn test_castable_spells_offers_an_enforcer_the_board_made_affordable() {
     );
 
     let mut game = setup_two_player_game();
-    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+    let enforcer = put_in_hand(&mut game, printings::myr_enforcer(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 3);
     assert!(
         !castable_spells(&game, 0).contains(&enforcer),
@@ -636,9 +635,9 @@ fn test_a_reduction_by_source_power_reads_the_effective_frame() {
     let board = |anthem: bool| {
         move || {
             let mut game = setup_two_player_game();
-            put_on_battlefield(&mut game, phase_cm_cards::power_reducer(), 0);
+            put_on_battlefield(&mut game, fixtures::power_reducer(), 0);
             if anthem {
-                put_on_battlefield(&mut game, mtgsim::cards::phase5_pre_cards::glorious_anthem(), 0);
+                put_on_battlefield(&mut game, mtgsim::cards::printings::glorious_anthem(), 0);
             }
             game
         }
@@ -669,7 +668,7 @@ fn test_a_reduction_by_source_power_reads_the_effective_frame() {
 /// The board CR 601.2h's own example is written on.
 fn familiar_board() -> GameState {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
+    put_on_battlefield(&mut game, printings::thunderscape_familiar(), 0);
     game
 }
 
@@ -692,7 +691,7 @@ fn ability_id_at(game: &GameState, id: ObjectId, index: usize) -> mtgsim::types:
 fn test_altars_reap_pays_the_cost_the_creature_it_sacrifices_reduced() {
     assert_costs_exactly(
         familiar_board,
-        phase_cm_cards::altars_reap,
+        printings::altars_reap,
         &[(ManaType::Black, 1)],
         ManaType::Black,
         "Altar's Reap under its own sacrifice",
@@ -703,7 +702,7 @@ fn test_altars_reap_pays_the_cost_the_creature_it_sacrifices_reduced() {
     let familiar = game.battlefield_ids_ordered()[0];
     let dp = RecordingDecisionProvider::picking(0);
     let reap = cast_from_pool(
-        &mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp,
+        &mut game, 0, printings::altars_reap(), &[(ManaType::Black, 1)], &dp,
     )
     .expect("castable for {B}");
 
@@ -721,7 +720,7 @@ fn test_altars_reap_pays_the_cost_the_creature_it_sacrifices_reduced() {
 fn test_a_mandatory_additional_cost_does_not_change_the_mana_cost() {
     let mut game = familiar_board();
     let reap = cast_from_pool(
-        &mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)],
+        &mut game, 0, printings::altars_reap(), &[(ManaType::Black, 1)],
         &RecordingDecisionProvider::picking(0),
     )
     .expect("castable for {B}");
@@ -737,7 +736,7 @@ fn test_a_mandatory_additional_cost_does_not_change_the_mana_cost() {
 fn test_a_mandatory_additional_cost_is_not_offered() {
     let mut game = familiar_board();
     let dp = RecordingDecisionProvider::picking(0);
-    cast_from_pool(&mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp)
+    cast_from_pool(&mut game, 0, printings::altars_reap(), &[(ManaType::Black, 1)], &dp)
         .expect("castable");
     assert!(
         !dp.kinds().iter().any(|k| k == "ChooseAdditionalCosts"),
@@ -759,7 +758,7 @@ fn test_sacrificing_for_a_cost_is_the_payers_choice() {
         ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: familiar, count: 1 },
         vec![1],
     );
-    let reap = put_in_hand(&mut game, phase_cm_cards::altars_reap(), 0);
+    let reap = put_in_hand(&mut game, printings::altars_reap(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.cast_spell(0, reap, &dp).expect("castable for {B}");
 
@@ -774,7 +773,7 @@ fn test_sacrificing_for_a_cost_is_the_payers_choice() {
 #[test]
 fn test_altars_reap_is_uncastable_and_unoffered_with_no_creature() {
     let mut game = setup_two_player_game();
-    let reap = put_in_hand(&mut game, phase_cm_cards::altars_reap(), 0);
+    let reap = put_in_hand(&mut game, printings::altars_reap(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
@@ -803,9 +802,9 @@ fn test_altars_reap_is_uncastable_and_unoffered_with_no_creature() {
 #[test]
 fn test_a_reducer_eaten_inside_the_mana_window_does_not_raise_the_locked_cost() {
     let mut game = setup_two_player_game();
-    let inspector = put_on_battlefield(&mut game, phase_cm_cards::foundry_inspector(), 0);
-    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
-    let stone = put_in_hand(&mut game, phase_cm_cards::mind_stone(), 0);
+    let inspector = put_on_battlefield(&mut game, printings::foundry_inspector(), 0);
+    let ironworks = put_on_battlefield(&mut game, printings::krark_clan_ironworks(), 0);
+    let stone = put_in_hand(&mut game, printings::mind_stone(), 0);
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(
@@ -849,7 +848,7 @@ fn test_a_reducer_eaten_inside_the_mana_window_does_not_raise_the_locked_cost() 
 #[test]
 fn test_ironworks_pays_its_own_cost_with_itself() {
     let mut game = setup_two_player_game();
-    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let ironworks = put_on_battlefield(&mut game, printings::krark_clan_ironworks(), 0);
     let ability = ability_id_at(&game, ironworks, 0);
 
     // The only artifact is the source, so the payment is forced.
@@ -876,8 +875,8 @@ fn test_ironworks_pays_its_own_cost_with_itself() {
 #[test]
 fn test_an_activation_whose_source_is_sacrificed_rewinds_and_the_mana_stands() {
     let mut game = setup_two_player_game();
-    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
-    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    let ironworks = put_on_battlefield(&mut game, printings::krark_clan_ironworks(), 0);
+    let stone = put_on_battlefield(&mut game, printings::mind_stone(), 0);
     let hand_before = game.players[0].hand.len();
 
     let dp = ScriptedDecisionProvider::new();
@@ -930,7 +929,7 @@ fn test_an_activation_whose_source_is_sacrificed_rewinds_and_the_mana_stands() {
 #[test]
 fn test_an_object_moving_cost_is_paid_after_the_tap_it_would_break() {
     let mut game = setup_two_player_game();
-    let engine = put_on_battlefield(&mut game, phase_cm_cards::self_eating_engine(), 0);
+    let engine = put_on_battlefield(&mut game, fixtures::self_eating_engine(), 0);
 
     let dp = ScriptedDecisionProvider::new();
     game.activate_ability(0, engine, 0, &dp)
@@ -959,7 +958,7 @@ fn test_one_cost_taking_two_creatures_is_one_event() {
         vec![0, 1],
     );
 
-    let offering = put_in_hand(&mut game, phase_cm_cards::twin_offering(), 0);
+    let offering = put_in_hand(&mut game, fixtures::twin_offering(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
     let before = game.recorded_events().len();
@@ -1058,8 +1057,8 @@ fn test_the_familiar_reduces_a_black_and_green_spell_once() {
 fn test_two_familiars_reduce_cumulatively() {
     let board = || {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
-        put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
+        put_on_battlefield(&mut game, printings::thunderscape_familiar(), 0);
+        put_on_battlefield(&mut game, printings::thunderscape_familiar(), 0);
         game
     };
     // {2}{B} under two Familiars is {B}.
@@ -1119,7 +1118,7 @@ fn test_altars_reap_sacrifices_exactly_one_however_many_are_offered() {
     assert_eq!(game.battlefield.len(), 3);
 
     let dp = RecordingDecisionProvider::picking_all();
-    cast_from_pool(&mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp)
+    cast_from_pool(&mut game, 0, printings::altars_reap(), &[(ManaType::Black, 1)], &dp)
         .expect("castable");
 
     assert_eq!(game.battlefield.len(), 2, "exactly one creature paid for it");
@@ -1137,11 +1136,11 @@ fn test_altars_reap_sacrifices_exactly_one_however_many_are_offered() {
 #[test]
 fn test_no_player_gets_priority_inside_a_cast() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 0);
-    put_on_battlefield(&mut game, phase_cm_cards::foundry_inspector(), 0);
+    put_on_battlefield(&mut game, printings::thunderscape_familiar(), 0);
+    put_on_battlefield(&mut game, printings::foundry_inspector(), 0);
 
     let dp = RecordingDecisionProvider::picking(0);
-    cast_from_pool(&mut game, 0, phase_cm_cards::altars_reap(), &[(ManaType::Black, 1)], &dp)
+    cast_from_pool(&mut game, 0, printings::altars_reap(), &[(ManaType::Black, 1)], &dp)
         .expect("castable");
 
     assert!(
@@ -1160,7 +1159,7 @@ fn test_no_player_gets_priority_inside_a_cast() {
 #[test]
 fn test_foundry_inspector_reduces_an_x_cost_after_x_is_chosen() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_cm_cards::foundry_inspector(), 0);
+    put_on_battlefield(&mut game, printings::foundry_inspector(), 0);
     let trinket = put_in_hand(&mut game, x_trinket(), 0);
 
     let dp = ScriptedDecisionProvider::new();
@@ -1214,7 +1213,7 @@ fn test_the_familiar_reduces_green_too_and_only_for_its_controller() {
     // "You cast": the opponent's black spell pays full price.
     let board = || {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, phase_cm_cards::thunderscape_familiar(), 1);
+        put_on_battlefield(&mut game, printings::thunderscape_familiar(), 1);
         game
     };
     assert_costs_exactly(
@@ -1242,7 +1241,7 @@ fn test_bone_splinters_costs_a_creature_and_a_black_mana() {
     let fodder = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    let splinters = put_in_hand(&mut game, phase_cm_cards::bone_splinters(), 0);
+    let splinters = put_in_hand(&mut game, printings::bone_splinters(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.cast_spell(0, splinters, &RecordingDecisionProvider::picking(0))
         .expect("{B} and a creature");
@@ -1340,7 +1339,7 @@ fn test_a_component_reduced_to_nothing_opens_no_mana_window() {
     for _ in 0..7 {
         put_on_battlefield(&mut game, free_trinket(), 0);
     }
-    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+    let enforcer = put_in_hand(&mut game, printings::myr_enforcer(), 0);
 
     let dp = RecordingDecisionProvider::picking(0);
     game.cast_spell(0, enforcer, &dp).expect("affinity for seven artifacts pays it out");
@@ -1363,7 +1362,7 @@ fn test_one_artifact_short_of_free_still_opens_the_window() {
     for _ in 0..6 {
         put_on_battlefield(&mut game, free_trinket(), 0);
     }
-    let enforcer = put_in_hand(&mut game, phase_cm_cards::myr_enforcer(), 0);
+    let enforcer = put_in_hand(&mut game, printings::myr_enforcer(), 0);
 
     let dp = RecordingDecisionProvider::picking(0);
     game.cast_spell(0, enforcer, &dp).expect("{1}, paid by the Forest");
@@ -1416,7 +1415,7 @@ fn test_a_mana_ability_resolves_immediately_and_never_uses_the_stack() {
 fn test_activating_an_ability_opens_the_same_window_a_cast_does() {
     let mut game = setup_two_player_game();
     let (forest, _) = place_forest(&mut game, 0);
-    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    let stone = put_on_battlefield(&mut game, printings::mind_stone(), 0);
     mtgsim::test_support::fill_library(&mut game, 0, 3);
     // `activate_ability` indexes the *effective* list (CLAUDE.md): 0 is
     // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
@@ -1457,10 +1456,10 @@ fn test_the_window_keeps_offering_after_the_cost_is_covered() {
     // Timestamp order fixes the option indices: Ironworks' mana ability is the
     // first offered, and the sacrifice candidates are that order filtered to
     // artifacts the payer still controls.
-    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let ironworks = put_on_battlefield(&mut game, printings::krark_clan_ironworks(), 0);
     let spare_a = put_on_battlefield(&mut game, free_trinket(), 0);
     let spare_b = put_on_battlefield(&mut game, free_trinket(), 0);
-    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    let stone = put_on_battlefield(&mut game, printings::mind_stone(), 0);
     mtgsim::test_support::fill_library(&mut game, 0, 3);
     // `activate_ability` indexes the *effective* list (CLAUDE.md): 0 is
     // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
@@ -1526,10 +1525,10 @@ fn test_the_window_keeps_offering_after_the_cost_is_covered() {
 #[test]
 fn test_the_payers_stop_ends_the_window_where_the_engine_used_to() {
     let mut game = setup_two_player_game();
-    let ironworks = put_on_battlefield(&mut game, phase_cm_cards::krark_clan_ironworks(), 0);
+    let ironworks = put_on_battlefield(&mut game, printings::krark_clan_ironworks(), 0);
     let spare_a = put_on_battlefield(&mut game, free_trinket(), 0);
     let spare_b = put_on_battlefield(&mut game, free_trinket(), 0);
-    let stone = put_on_battlefield(&mut game, phase_cm_cards::mind_stone(), 0);
+    let stone = put_on_battlefield(&mut game, printings::mind_stone(), 0);
     mtgsim::test_support::fill_library(&mut game, 0, 3);
     // `activate_ability` indexes the *effective* list (CLAUDE.md): 0 is
     // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".

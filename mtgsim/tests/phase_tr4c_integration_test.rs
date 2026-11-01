@@ -27,11 +27,9 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{leaves_the_battlefield, triggered_ability, whenever};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lj_cards::yixlid_jailer;
-use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
-use mtgsim::cards::phase_re8_cards::mind_rot;
-use mtgsim::cards::phase_tr4c_cards::{angelic_destiny, bridge_from_below, guerrilla_tactics, rancor};
+use mtgsim::cards::printings::{
+    angelic_destiny, bridge_from_below, grizzly_bears, guerrilla_tactics, leyline_of_the_void, mind_rot, rancor, rest_in_peace, yixlid_jailer,
+};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};

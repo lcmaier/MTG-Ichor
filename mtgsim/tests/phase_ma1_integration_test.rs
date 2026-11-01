@@ -8,15 +8,11 @@
 //! read the same before MA-1's gate and after it, so each under-offer board
 //! is shown failing on the tree before the fix.
 
-use mtgsim::cards::artifacts::sol_ring;
-use mtgsim::cards::basic_lands::plains;
-use mtgsim::cards::dual_lands::{badlands, everywhere};
-use mtgsim::cards::keyword_creatures::{knight_of_meadowgrain, thornweald_archer};
-use mtgsim::cards::phase_cm_cards::krark_clan_ironworks;
-use mtgsim::cards::phase_rc_cards::chainbreaker;
-use mtgsim::cards::phase_re9_cards::{doubling_cube, mana_reflection};
-use mtgsim::cards::phase_rf_cards::darksteel_colossus;
-use mtgsim::cards::phase_tr1_cards::wild_growth;
+use mtgsim::cards::printings::{
+    badlands, chainbreaker, darksteel_colossus, doubling_cube, knight_of_meadowgrain, krark_clan_ironworks, mana_reflection, plains, sol_ring,
+    thornweald_archer, wild_growth,
+};
+use mtgsim::cards::tokens::everywhere;
 use mtgsim::oracle::mana_helpers::{activatable_abilities, can_cast};
 use mtgsim::state::game_state::{GameState, Phase, PhaseType};
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};

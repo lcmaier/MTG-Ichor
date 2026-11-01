@@ -4,9 +4,8 @@
 
 use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::triggers::{becomes_blocked, becomes_blocked_by, blocks, triggered_ability, whenever};
-use mtgsim::cards::phase_history_and_frame_records_cards::{fixture_first_creature_tithe, fixture_mourners_tithe};
-use mtgsim::cards::phase_lh_cards::holy_strength;
-use mtgsim::cards::phase_rd_cards::dark_sphere;
+use mtgsim::cards::fixtures::{fixture_first_creature_tithe, fixture_mourners_tithe};
+use mtgsim::cards::printings::{dark_sphere, holy_strength};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
@@ -18,10 +17,10 @@ use mtgsim::test_support::{
     put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_this_turn, setup_game, setup_two_player_game, textless_static,
     test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, CreatureType};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -369,7 +368,7 @@ fn fixture_count_of_the_dead(name: &'static str, of: ObjectFilter) -> std::sync:
 fn a_creature_and_a_token_died() -> GameState {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let create = GameAction::CreateTokens { defs: vec![mtgsim::cards::phase_re_cards::goblin_token()], controller: 0, attacking: None };
+    let create = GameAction::CreateTokens { defs: vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])], controller: 0, attacking: None };
     game.execute_action(create, &test_ctx()).unwrap();
     let goblin = *game.battlefield_ids_ordered().iter().find(|&&id| game.objects[&id].is_token).expect("the Goblin");
     game.execute_actions(vec![GameAction::Destroy { object: bears }, GameAction::Destroy { object: goblin }], &test_ctx()).unwrap();

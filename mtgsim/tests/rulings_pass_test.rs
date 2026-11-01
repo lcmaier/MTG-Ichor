@@ -29,14 +29,9 @@
 //! A ruling this file does not answer is answered in the ledger, by a
 //! disposition naming what it is waiting for. Neither answer is silent.
 
-use mtgsim::cards::alpha::giant_growth;
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lc_cards::cerulean_wisps;
-use mtgsim::cards::phase_ld_cards::march_of_the_machines;
-use mtgsim::cards::phase_le_cards::{culling_drone, tarmogoyf};
-use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_lj_cards::yixlid_jailer;
-use mtgsim::cards::phase_rf_cards::darksteel_colossus;
+use mtgsim::cards::printings::{
+    cerulean_wisps, culling_drone, darksteel_colossus, giant_growth, grizzly_bears, humility, march_of_the_machines, tarmogoyf, yixlid_jailer,
+};
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{

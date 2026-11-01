@@ -5,8 +5,7 @@
 //! layer system computes effective colors → cleanup step expires effects.
 
 
-use mtgsim::cards::creatures;
-use mtgsim::cards::phase_lc_cards;
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power, get_effective_toughness};
 use mtgsim::oracle::legality::candidate_priority_actions;
@@ -48,8 +47,8 @@ fn cast_and_resolve_targeted_spell(
 #[test]
 fn test_cerulean_wisps_sets_color_to_blue() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let wisps_id = put_in_hand(&mut game, phase_lc_cards::cerulean_wisps(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let wisps_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
@@ -85,8 +84,8 @@ fn test_cerulean_wisps_sets_color_to_blue() {
 #[test]
 fn test_color_change_expires_at_cleanup() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let wisps_id = put_in_hand(&mut game, phase_lc_cards::cerulean_wisps(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let wisps_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
@@ -122,8 +121,8 @@ fn test_color_change_expires_at_cleanup() {
 #[test]
 fn test_moonlace_makes_creature_colorless() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let moonlace_id = put_in_hand(&mut game, phase_lc_cards::moonlace(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let moonlace_id = put_in_hand(&mut game, printings::moonlace(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
     // Base: green
@@ -147,12 +146,12 @@ fn test_chromatic_ward_static_adds_red() {
     let mut game = setup_two_player_game();
 
     // Player 0's green creature
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     // Player 1's green creature
-    let opp_bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+    let opp_bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
 
     // Place Chromatic Ward — static effect registers on ETB
-    let _ward_id = put_on_battlefield(&mut game, phase_lc_cards::chromatic_ward(), 0);
+    let _ward_id = put_on_battlefield(&mut game, fixtures::chromatic_ward(), 0);
 
     // Player 0's creature: green + red
     let colors = get_effective_colors(&game, bears_id);
@@ -176,10 +175,10 @@ fn test_chromatic_ward_applies_to_later_creatures() {
     let mut game = setup_two_player_game();
 
     // Enchantment first
-    let _ward_id = put_on_battlefield(&mut game, phase_lc_cards::chromatic_ward(), 0);
+    let _ward_id = put_on_battlefield(&mut game, fixtures::chromatic_ward(), 0);
 
     // Creature enters after
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
 
     let colors = get_effective_colors(&game, bears_id);
     assert!(colors.contains(&Color::Green));
@@ -194,8 +193,8 @@ fn test_chromatic_ward_applies_to_later_creatures() {
 #[test]
 fn test_chromatic_ward_removed_on_ltb() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let ward_id = put_on_battlefield(&mut game, phase_lc_cards::chromatic_ward(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let ward_id = put_on_battlefield(&mut game, fixtures::chromatic_ward(), 0);
 
     // Green + red
     let colors = get_effective_colors(&game, bears_id);
@@ -220,9 +219,9 @@ fn test_chromatic_ward_removed_on_ltb() {
 #[test]
 fn test_color_change_independent_of_pt_pump() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let wisps_id = put_in_hand(&mut game, phase_lc_cards::cerulean_wisps(), 0);
-    let growth_id = put_in_hand(&mut game, mtgsim::cards::alpha::giant_growth(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let wisps_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
+    let growth_id = put_in_hand(&mut game, mtgsim::cards::printings::giant_growth(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
@@ -251,9 +250,9 @@ fn test_color_change_independent_of_pt_pump() {
 #[test]
 fn test_two_set_colors_later_overrides() {
     let mut game = setup_two_player_game();
-    let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let wisps1_id = put_in_hand(&mut game, phase_lc_cards::cerulean_wisps(), 0);
-    let moonlace_id = put_in_hand(&mut game, phase_lc_cards::moonlace(), 0);
+    let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let wisps1_id = put_in_hand(&mut game, printings::cerulean_wisps(), 0);
+    let moonlace_id = put_in_hand(&mut game, printings::moonlace(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
@@ -281,10 +280,10 @@ fn test_chromatic_ward_ignores_noncreatures() {
     let mut game = setup_two_player_game();
 
     // Place a land
-    let land_id = mtgsim::test_support::put_land_on_battlefield(&mut game, mtgsim::cards::basic_lands::forest, 0);
+    let land_id = mtgsim::test_support::put_land_on_battlefield(&mut game, mtgsim::cards::printings::forest, 0);
 
     // Place Chromatic Ward
-    let _ward_id = put_on_battlefield(&mut game, phase_lc_cards::chromatic_ward(), 0);
+    let _ward_id = put_on_battlefield(&mut game, fixtures::chromatic_ward(), 0);
 
     // Land should still just be green (from its card data... though basic lands are typically colorless)
     let colors = get_effective_colors(&game, land_id);

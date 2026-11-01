@@ -3,12 +3,8 @@
 
 use mtgsim::cards::authoring::{dies, enters, triggered_ability, whenever};
 use mtgsim::objects::card_data::CardDataBuilder;
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_re_cards::platinum_angel;
-use mtgsim::cards::phase_tr6_cards::{
-    destroy_your_others_then_a_token, discard_your_hand_then_draw_that_many, draws_on_an_empty_hand, emperor_crocodile,
-    immortal_coils_state_trigger,
-};
+use mtgsim::cards::printings::{grizzly_bears, platinum_angel};
+use mtgsim::cards::{fixtures::{destroy_your_others_then_a_token, discard_your_hand_then_draw_that_many, draws_on_an_empty_hand, immortal_coils_state_trigger}, printings::emperor_crocodile};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;

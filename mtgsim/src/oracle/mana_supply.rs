@@ -1378,16 +1378,11 @@ mod tests {
     use super::*;
     use crate::types::effects::EffectRecipient;
     use crate::types::mana::ManaSymbol;
-    use crate::cards::artifacts::{darksteel_myr, sol_ring};
-    use crate::cards::creatures::grizzly_bears;
-    use crate::cards::basic_lands::{forest, island, plains};
-    use crate::cards::dual_lands::{badlands, everywhere, tundra};
-    use crate::cards::phase_cm_cards::{krark_clan_ironworks, mind_stone};
-    use crate::cards::phase_ld_cards::march_of_the_machines;
-    use crate::cards::phase_lf_cards::citanul_hierophants;
-    use crate::cards::phase_rc_cards::chainbreaker;
-    use crate::cards::phase_re9_cards::{deep_water, doubling_cube, mana_reflection, pale_moon};
-    use crate::cards::phase_tr1_cards::wild_growth;
+    use crate::cards::printings::{
+        badlands, chainbreaker, citanul_hierophants, darksteel_myr, deep_water, doubling_cube, forest, grizzly_bears, island, krark_clan_ironworks,
+        mana_reflection, march_of_the_machines, mind_stone, pale_moon, plains, sol_ring, tundra, wild_growth,
+    };
+    use crate::cards::tokens::everywhere;
     use crate::objects::card_data::{CardData, CardDataBuilder};
     use crate::test_support::{put_on_battlefield, put_on_battlefield_this_turn, setup_two_player_game, test_dp};
     use crate::types::card_types::CardType;
@@ -1852,7 +1847,7 @@ mod tests {
     /// every way, adds exactly the productions the inventory predicts.
     #[test]
     fn what_the_inventory_predicts_a_tap_makes_is_what_the_engine_makes() {
-        use crate::cards::phase_re9_cards::nyxbloom_ancient;
+        use crate::cards::printings::nyxbloom_ancient;
         use crate::ui::random::RandomDecisionProvider;
 
         let pool = |game: &GameState| {

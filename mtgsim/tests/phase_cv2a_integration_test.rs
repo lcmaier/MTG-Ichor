@@ -24,14 +24,10 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
-use mtgsim::cards::phase_cv_cards::{self, cytoshape};
-use mtgsim::cards::phase_lf_cards::citanul_hierophants;
-use mtgsim::cards::phase_rc_cards::{chainbreaker, dryad_arbor, master_biomancer, root_maze, thunder_thrash_elder};
-use mtgsim::cards::phase_re_cards::doubling_season;
-use mtgsim::cards::phase_rs_cards::{diabolic_edict, sigarda_host_of_herons};
-use mtgsim::cards::phase_tr1_cards::soul_warden;
+use mtgsim::cards::printings::{
+    self, chainbreaker, citanul_hierophants, cytoshape, diabolic_edict, doubling_season, dryad_arbor, grizzly_bears, master_biomancer, root_maze,
+    sigarda_host_of_herons, soul_warden, thalia_guardian_of_thraben, thunder_thrash_elder,
+};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::layers::types::{EffectModification, Layer, PtValue};
@@ -176,7 +172,7 @@ fn enter(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, dp: &dyn De
 /// Clone entering under `player` as a copy of `donor`, the only prompt.
 fn clone_of(game: &mut GameState, player: PlayerId, donor: ObjectId) -> ObjectId {
     let dp = ById::new().then(player, "ChooseCopySource", &[donor]);
-    enter(game, phase_cv_cards::clone(), player, &dp)
+    enter(game, printings::clone(), player, &dp)
 }
 
 /// Empty `player`'s pool, fill it with exactly `pool`, and cast `card` from
@@ -400,7 +396,7 @@ fn clone_cast_from_hand_enters_as_a_copy_of_a_five_five() {
     let mut game = setup_two_player_game();
     let donor = put_on_battlefield(&mut game, colossus(), 1);
     let dp = ManaWindowStop::new(ById::new());
-    let clone = cast_from_pool(&mut game, 0, phase_cv_cards::clone(), &[(ManaType::Blue, 1), (ManaType::Colorless, 3)], &dp)
+    let clone = cast_from_pool(&mut game, 0, printings::clone(), &[(ManaType::Blue, 1), (ManaType::Colorless, 3)], &dp)
         .expect("Clone is castable from exactly {3}{U}");
     assert_eq!(game.players[0].mana_pool.total(), 0, "the whole pool was the cost");
 
@@ -551,7 +547,7 @@ fn a_clone_that_copies_nothing_enters_as_a_zero_zero_and_dies() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, grizzly_bears(), 1);
     let dp = ById::new().then(0, "ChooseCopySource", &[]);
-    let clone = enter(&mut game, phase_cv_cards::clone(), 0, &dp);
+    let clone = enter(&mut game, printings::clone(), 0, &dp);
 
     assert_eq!(get_effective_name(&game, clone), "Clone");
     assert!(has_subtype(&game, clone, &Subtype::Creature(CreatureType::Shapeshifter)));
@@ -565,7 +561,7 @@ fn a_clone_that_copies_nothing_enters_as_a_zero_zero_and_dies() {
 #[test]
 fn a_clone_with_no_creature_to_copy_asks_nothing() {
     let mut game = setup_two_player_game();
-    let clone = enter(&mut game, phase_cv_cards::clone(), 0, &ById::new());
+    let clone = enter(&mut game, printings::clone(), 0, &ById::new());
     assert_eq!(get_effective_name(&game, clone), "Clone");
     settle(&mut game, &ById::new());
     assert_eq!(zone_of(&game, clone), Zone::Graveyard);
@@ -593,7 +589,7 @@ fn a_clone_may_copy_an_opponents_hexproof_creature() {
 fn a_creature_entering_beside_clone_is_not_a_candidate() {
     let mut game = setup_two_player_game();
     let donor = put_on_battlefield(&mut game, colossus(), 1);
-    let clone = put_in_graveyard(&mut game, phase_cv_cards::clone(), 0);
+    let clone = put_in_graveyard(&mut game, printings::clone(), 0);
     let bears = put_in_graveyard(&mut game, grizzly_bears(), 0);
     let entry = |id| GameAction::EnterBattlefield {
         object: id,
@@ -696,7 +692,7 @@ fn a_clone_beside_essence_of_the_wild_enters_as_the_essence() {
         let mut game = setup_two_player_game();
         let essence = put_on_battlefield(&mut game, essence_of_the_wild("Essence of the Wild", 6, 6), 0);
         let big = put_on_battlefield(&mut game, colossus(), 1);
-        let clone = put_in_graveyard(&mut game, phase_cv_cards::clone(), 0);
+        let clone = put_in_graveyard(&mut game, printings::clone(), 0);
         let dp = if clone_first {
             ById::new().then(0, "ChooseReplacementEffect", &[clone]).then(0, "ChooseCopySource", &[big])
         } else {
@@ -818,7 +814,7 @@ fn a_clone_of_thunder_thrash_elder_devours_for_its_own_controller() {
     let dp = ById::new()
         .then(0, "ChooseCopySource", &[elder])
         .then(0, "ChooseAuxiliaryZoneChange", &[fodder]);
-    let clone = enter(&mut game, phase_cv_cards::clone(), 0, &dp);
+    let clone = enter(&mut game, printings::clone(), 0, &dp);
 
     assert_eq!(get_effective_name(&game, clone), "Thunder-Thrash Elder");
     assert_eq!(counters(&game, clone, CounterType::PlusOnePlusOne), 3);
@@ -852,7 +848,7 @@ fn worms_of_the_earth_refuses_a_clone_of_dryad_arbor() {
     put_on_battlefield(&mut game, worms_of_the_earth(), 1);
     let arbor = put_on_battlefield(&mut game, dryad_arbor(), 1);
     let dp = ManaWindowStop::new(ById::new().then(0, "ChooseCopySource", &[arbor]));
-    let clone = cast_from_pool(&mut game, 0, phase_cv_cards::clone(), &[(ManaType::Blue, 4)], &dp).expect("castable");
+    let clone = cast_from_pool(&mut game, 0, printings::clone(), &[(ManaType::Blue, 4)], &dp).expect("castable");
     game.resolve_top_of_stack(&dp).expect("it resolves; it cannot arrive");
 
     assert_eq!(zone_of(&game, clone), Zone::Graveyard);

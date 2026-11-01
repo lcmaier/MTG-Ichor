@@ -164,10 +164,8 @@ fn audit(game: &GameState, caster: PlayerId, total: &TotalCostInX, at_most: u64)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cards::basic_lands::{mountain, plains};
+    use crate::cards::printings::{doubling_cube, goblin_electromancer, mountain, plains, thalia_guardian_of_thraben, trinisphere};
     use crate::engine::cost_determination::total_cost_in_x;
-    use crate::cards::phase_cm_cards::{goblin_electromancer, thalia_guardian_of_thraben, trinisphere};
-    use crate::cards::phase_re9_cards::doubling_cube;
     use crate::objects::card_data::{CardData, CardDataBuilder};
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
     use crate::types::card_types::CardType;

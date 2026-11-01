@@ -4,7 +4,7 @@
 
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::cards::{creatures, phase5_pre_cards, phase_ld_cards, phase_le_cards, phase_li_cards, phase_lj_cards};
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::layers::{compute_characteristics, explain, AppliedBy, Layer, LayerExplanation, StepResult};
 use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::GameStart;
@@ -138,8 +138,8 @@ fn humility_is_whichever_set_its_power_and_toughness_last() {
 #[test]
 fn urborg_waits_for_blood_moon_and_is_gone_by_its_turn() {
     let mut game = setup_two_player_game();
-    let urborg = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
-    let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+    let urborg = put_on_battlefield(&mut game, printings::urborg_tomb_of_yawgmoth(), 0);
+    let moon = put_on_battlefield(&mut game, printings::blood_moon(), 1);
     let explanation = explained(&game, urborg);
     assert_eq!(
         steps(&game, &explanation),
@@ -160,9 +160,9 @@ fn urborg_waits_for_blood_moon_and_is_gone_by_its_turn() {
 #[test]
 fn an_anthem_that_misses_a_creature_names_the_creatures_it_pumped() {
     let mut game = setup_two_player_game();
-    let anthem = put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let giant = put_on_battlefield(&mut game, creatures::hill_giant(), 1);
+    let anthem = put_on_battlefield(&mut game, printings::glorious_anthem(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
+    let giant = put_on_battlefield(&mut game, printings::hill_giant(), 1);
     let missed = explained(&game, giant);
     assert_eq!(steps(&game, &missed), [step(Layer::Layer7cModifyPT, "Glorious Anthem", "not matched")]);
     assert_eq!(missed.steps[0].affected, [bears]);
@@ -182,8 +182,8 @@ fn an_anthem_that_misses_a_creature_names_the_creatures_it_pumped() {
 #[test]
 fn a_cda_and_counters_are_steps_of_the_objects_own() {
     let mut game = setup_two_player_game();
-    let goyf = put_on_battlefield(&mut game, phase_le_cards::tarmogoyf(), 0);
-    put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
+    let goyf = put_on_battlefield(&mut game, printings::tarmogoyf(), 0);
+    put_in_graveyard(&mut game, printings::grizzly_bears(), 0);
     put_in_graveyard(&mut game, mtgsim::test_support::lightning_bolt(), 1);
     game.add_counters(goyf, CounterType::PlusOnePlusOne, 2);
     let explanation = explained(&game, goyf);
@@ -201,9 +201,9 @@ fn a_cda_and_counters_are_steps_of_the_objects_own() {
 #[test]
 fn a_card_off_the_battlefield_says_what_reached_its_zone() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
-    let in_library = put_in_library(&mut game, creatures::grizzly_bears(), 1);
-    let in_graveyard = put_in_graveyard(&mut game, creatures::grizzly_bears(), 1);
+    put_on_battlefield(&mut game, fixtures::lattice_colorless_clause(), 0);
+    let in_library = put_in_library(&mut game, printings::grizzly_bears(), 1);
+    let in_graveyard = put_in_graveyard(&mut game, printings::grizzly_bears(), 1);
     for card in [in_library, in_graveyard] {
         let explanation = explained(&game, card);
         assert_eq!(steps(&game, &explanation), [step(Layer::Layer5Color, "Lattice's Colorless Clause", "applied")]);

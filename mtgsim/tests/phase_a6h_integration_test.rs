@@ -14,11 +14,7 @@
 //! covers, then panicking when the leg is taken away: the board a missing leg
 //! would leave silently wrong.
 
-use mtgsim::cards::alpha::giant_growth;
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
-use mtgsim::cards::phase_rb_cards::rest_in_peace;
-use mtgsim::cards::phase_rs_cards::sigarda_host_of_herons;
+use mtgsim::cards::printings::{giant_growth, grizzly_bears, rest_in_peace, sigarda_host_of_herons, thalia_guardian_of_thraben};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::cost_determination::cost_modifications_for;
 use mtgsim::types::ids::ObjectOrPlayerId;

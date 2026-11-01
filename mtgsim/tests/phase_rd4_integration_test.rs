@@ -16,10 +16,7 @@ use std::sync::Arc;
 use mtgsim::state::replacement_effects::ReplacementEffectId;
 use mtgsim::state::restrictions::RestrictionId;
 use mtgsim::cards::authoring::static_restriction;
-use mtgsim::cards::phase_rd_cards::{
-    angel_of_suffering, mending_hands, palisade_giant, pariah, pinpoint_avalanche,
-    reflect_damage, reverse_damage,
-};
+use mtgsim::cards::printings::{angel_of_suffering, mending_hands, palisade_giant, pariah, pinpoint_avalanche, reflect_damage, reverse_damage};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::{

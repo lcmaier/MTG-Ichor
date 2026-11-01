@@ -471,7 +471,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::cards::authoring::whenever;
-    use crate::cards::creatures::grizzly_bears;
+    use crate::cards::printings::grizzly_bears;
     use crate::engine::actions::GameAction;
     use crate::test_support::{put_on_battlefield_under, setup_two_player_game, test_ctx};
     use crate::types::effects::{Effect, PlayerRef};

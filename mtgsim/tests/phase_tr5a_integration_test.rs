@@ -15,12 +15,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{attacks, dies, triggered_ability, whenever};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_re_cards::soldier_token;
-use mtgsim::cards::phase_tr4b_cards::grafted_wargear;
-use mtgsim::cards::phase_tr4d_cards::ray_of_command;
-use mtgsim::cards::phase_tr5a_cards::sphere_grid;
+use mtgsim::cards::printings::{act_of_treason, grafted_wargear, grizzly_bears, ray_of_command, sphere_grid};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
@@ -31,10 +26,11 @@ use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, set_active_player, set_attacking, set_blocked_by,
     set_blocking, setup_game, setup_two_player_game, test_dp, textless_static, vanilla_creature, RecordingDecisionProvider,
 };
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, CreatureType};
+use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, Antecedent, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
-    Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Antecedent, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+    SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::history::CountIs;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
@@ -366,7 +362,7 @@ fn them_over_entries_is_each_creature_still_there() {
         multiplicity: Multiplicity::OncePerEvent,
     };
     put_on_battlefield(&mut game, watcher("Fixture Muster Hall", enters, on_each), 0);
-    let two_soldiers = Effect::Atom(Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    let two_soldiers = Effect::Atom(Primitive::CreateToken(TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier]), AmountExpr::Fixed(2)), EffectRecipient::Controller);
     resolve_as(&mut game, 0, &two_soldiers, Vec::new());
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let soldiers: Vec<ObjectId> = game

@@ -14,7 +14,7 @@
 //! the condition is flipped by an effect in its own layer and CR 613.8's
 //! dependency check is what gets the answer right.
 
-use mtgsim::cards::{basic_lands, creatures, dual_lands, phase_ld_cards, phase_lf_cards, phase_li_cards};
+use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -75,13 +75,13 @@ fn adds_subtypes(subtypes: &[Subtype]) -> TypeChange {
 #[test]
 fn test_kird_ape_gets_its_bonus_only_while_you_control_a_forest() {
     let mut game = setup_two_player_game();
-    let ape = put_on_battlefield(&mut game, phase_li_cards::kird_ape(), 0);
+    let ape = put_on_battlefield(&mut game, printings::kird_ape(), 0);
     assert_eq!(pt(&game, ape), (Some(1), Some(1)), "no Forest, no bonus");
 
-    let theirs = put_on_battlefield(&mut game, basic_lands::forest(), 1);
+    let theirs = put_on_battlefield(&mut game, printings::forest(), 1);
     assert_eq!(pt(&game, ape), (Some(1), Some(1)), "their Forest is not yours (CR 109.5)");
 
-    let mine = put_on_battlefield(&mut game, basic_lands::forest(), 0);
+    let mine = put_on_battlefield(&mut game, printings::forest(), 0);
     assert_eq!(pt(&game, ape), (Some(2), Some(3)));
 
     // The row is still registered — one row, all along. Only its existence
@@ -105,15 +105,15 @@ fn test_kird_ape_gets_its_bonus_only_while_you_control_a_forest() {
 #[test]
 fn test_blood_moon_takes_kird_apes_forest_away_two_layers_earlier() {
     let mut game = setup_two_player_game();
-    let ape = put_on_battlefield(&mut game, phase_li_cards::kird_ape(), 0);
-    let taiga = put_on_battlefield(&mut game, dual_lands::taiga(), 0);
+    let ape = put_on_battlefield(&mut game, printings::kird_ape(), 0);
+    let taiga = put_on_battlefield(&mut game, printings::taiga(), 0);
     assert!(
         get_effective_subtypes(&game, taiga).contains(&Subtype::Land(LandType::Forest)),
         "a Taiga is a nonbasic Mountain Forest"
     );
     assert_eq!(pt(&game, ape), (Some(2), Some(3)));
 
-    put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+    put_on_battlefield(&mut game, printings::blood_moon(), 1);
     assert!(!get_effective_subtypes(&game, taiga).contains(&Subtype::Land(LandType::Forest)));
 
     let before = game.diagnostics.dependency_checks();
@@ -126,14 +126,14 @@ fn test_blood_moon_takes_kird_apes_forest_away_two_layers_earlier() {
 
     // A *basic* Forest is out of Blood Moon's reach ("Nonbasic lands are
     // Mountains"), so the same board with one gives the bonus back.
-    put_on_battlefield(&mut game, basic_lands::forest(), 0);
+    put_on_battlefield(&mut game, printings::forest(), 0);
     assert_eq!(pt(&game, ape), (Some(2), Some(3)));
 }
 
 // ---------------------------------------------------------------------------
 // The Flight Clause — a conditional layer-6 grant over `Host`.
 //
-// Rune of Flight's third line, as a fixture (`phase_li_cards`): "As long as
+// Rune of Flight's third line, as a fixture (`fixtures::flight_clause`): "As long as
 // enchanted permanent is a creature, it has flying." The condition is
 // `HostMatches`, read off `attached_to` the way `ObjectSet::Host` is, so
 // reattaching the Aura moves both the condition and the grant.
@@ -149,7 +149,7 @@ fn test_blood_moon_takes_kird_apes_forest_away_two_layers_earlier() {
 #[test]
 fn test_the_flight_clause_grants_only_while_its_host_is_a_creature() {
     let mut game = setup_two_player_game();
-    let aura = put_on_battlefield(&mut game, phase_li_cards::flight_clause(), 0);
+    let aura = put_on_battlefield(&mut game, fixtures::flight_clause(), 0);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let rock = put_on_battlefield(&mut game, card_of_type("Plain Rock", CardType::Artifact), 0);
 
@@ -190,9 +190,9 @@ fn test_the_flight_clause_grants_only_while_its_host_is_a_creature() {
 fn test_the_flight_clause_and_humility_in_both_orders() {
     // Humility first: it strips, and the later grant lands on top.
     let mut game = setup_two_player_game();
-    let humility = put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    let humility = put_on_battlefield(&mut game, printings::humility(), 1);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Vigilance]), 0);
-    let aura = put_on_battlefield(&mut game, phase_li_cards::flight_clause(), 0);
+    let aura = put_on_battlefield(&mut game, fixtures::flight_clause(), 0);
     assert!(game.attach(aura, bears));
 
     assert!(has_keyword(&game, bears, KeywordFlag::Flying), "granted after Humility applied");
@@ -203,11 +203,11 @@ fn test_the_flight_clause_and_humility_in_both_orders() {
     // The Aura first: the grant applies, and Humility takes it away again.
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let aura = put_on_battlefield(&mut game, phase_li_cards::flight_clause(), 0);
+    let aura = put_on_battlefield(&mut game, fixtures::flight_clause(), 0);
     assert!(game.attach(aura, bears));
     assert!(has_keyword(&game, bears, KeywordFlag::Flying));
 
-    put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
+    put_on_battlefield(&mut game, printings::humility(), 1);
     assert!(!has_keyword(&game, bears, KeywordFlag::Flying), "Humility applied later and cleared it");
     assert_eq!(pt(&game, bears), (Some(1), Some(1)));
 }
@@ -232,20 +232,20 @@ fn test_the_flight_clause_and_humility_in_both_orders() {
 fn test_a_conditional_static_waits_for_what_can_falsify_its_condition() {
     // Control: the Clause on its own does what it says.
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, dual_lands::taiga(), 0);
-    let clause = put_on_battlefield(&mut game, phase_li_cards::simian_clause(), 0);
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, printings::taiga(), 0);
+    let clause = put_on_battlefield(&mut game, fixtures::simian_clause(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     assert!(is_ape(&game, bears), "a Taiga is a Forest, so the effect exists");
     let _ = clause;
 
     // The Clause first, Blood Moon second. Timestamp order alone would apply
     // the Clause while the Taiga was still a Forest.
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, dual_lands::taiga(), 0);
-    put_on_battlefield(&mut game, phase_li_cards::simian_clause(), 0);
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, printings::taiga(), 0);
+    put_on_battlefield(&mut game, fixtures::simian_clause(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let before = game.diagnostics.dependency_checks();
-    put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+    put_on_battlefield(&mut game, printings::blood_moon(), 1);
     assert!(
         !is_ape(&game, bears),
         "the Clause waits for Blood Moon (CR 613.8a(b)), and finds no Forest when its turn comes"
@@ -258,15 +258,15 @@ fn test_a_conditional_static_waits_for_what_can_falsify_its_condition() {
     // Blood Moon first, the Clause second: timestamp order gives the same
     // answer here, and the CR's reason is still the dependency.
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, dual_lands::taiga(), 0);
-    put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
-    put_on_battlefield(&mut game, phase_li_cards::simian_clause(), 0);
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    put_on_battlefield(&mut game, printings::taiga(), 0);
+    put_on_battlefield(&mut game, printings::blood_moon(), 1);
+    put_on_battlefield(&mut game, fixtures::simian_clause(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     assert!(!is_ape(&game, bears));
 
     // A basic Forest is out of Blood Moon's reach, so applying it changes
     // nothing the Clause reads: no dependency, and the Clause applies.
-    put_on_battlefield(&mut game, basic_lands::forest(), 0);
+    put_on_battlefield(&mut game, printings::forest(), 0);
     assert!(is_ape(&game, bears));
 }
 
@@ -323,7 +323,7 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
 
     let mut game = setup_two_player_game();
     let rites = put_on_battlefield(&mut game, pale_rites(true), 0);
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     assert!(is_ape(&game, bears));
     assert_eq!(pt(&game, bears), (Some(4), Some(4)));
 
@@ -351,7 +351,7 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
     // gates both, and the lock that carries the second one.
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, pale_rites(false), 0);
-    let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+    let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     assert!(!is_ape(&game, bears), "no white permanent, no effect");
     assert_eq!(pt(&game, bears), (Some(2), Some(2)));
 }

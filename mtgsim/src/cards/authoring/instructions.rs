@@ -22,11 +22,11 @@ use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::PhaseType;
 use crate::types::effects::{
     AmountExpr, ColorChange, CopyException, CopyRoles, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
-    ExtraPhasesAfter, ManaOutput, PatternFill, PlayerRef, Primitive, ReturnUnder, TokenDef, TypeChange,
+    ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, TokenDef, TypeChange,
 };
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
-use crate::types::replacement::ReplacementDef;
+use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::triggers::{DelayedTriggerTemplate, TriggerEvent};
 
@@ -422,8 +422,8 @@ pub fn create_replacement(def: ReplacementDef) -> ContinuousRuleChange {
 
 /// [`create_replacement`] with a recipient: a target or a filter, which the
 /// resolution writes into the def's objects ("prevent the next 3 damage
-/// that would be dealt to any target this turn"), or `you()`, which it
-/// leaves to the def's own player set, read like no recipient at all.
+/// that would be dealt to any target this turn"). A def that names its own
+/// players is complete as authored, and is `create_replacement`'s.
 pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -> ContinuousRuleChange {
     let def = Box::new(def);
     ContinuousRuleChange(ContinuousChange::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored)))
@@ -436,11 +436,38 @@ pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> Continuou
     ContinuousRuleChange(ContinuousChange::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource)))
 }
 
-/// "[Recipient] can't [what]" from a resolution (CR 101.2, 614.17). A
-/// target's or a filter's objects are written into what can't happen; any
-/// other recipient leaves it as written ("players can't gain life this
-/// turn").
-pub fn cant(recipient: EffectRecipient, what: Restriction) -> ContinuousRuleChange {
+/// "Prevent the next `n` damage that would be dealt to … this turn" — the def
+/// every card that counts the damage it prevents shares.
+///
+/// [`AmountRewrite::PreventRemaining`] reads the count off
+/// `Uses::NextDamage(n)`, so the number is written once; the object set is the
+/// empty `Fixed` the resolution fills with its target — or, for Samite
+/// Censer-Bearer, with each creature its filter finds — and the duration is the
+/// card's "this turn", authored here because a duration the text did not state
+/// would last the game (CR 611.2a).
+pub fn prevent_the_next_n_damage_this_turn(recipient: EffectRecipient, n: u64) -> Effect {
+    create_replacement_for(
+        recipient,
+        ReplacementDef::new(
+            EventPattern::DealDamage { source: None, combat: None },
+            ObjectSet::NO_OBJECTS,
+            Rewrite::Amount(AmountRewrite::PreventRemaining),
+        )
+        .next_damage(n),
+    )
+    .until_end_of_turn()
+}
+
+/// "[What] can't happen" from a resolution (CR 101.2, 614.17), complete as
+/// authored: "players can't gain life this turn".
+pub fn cant(what: Restriction) -> ContinuousRuleChange {
+    cant_for(EffectRecipient::Implicit, what)
+}
+
+/// [`cant`] with a recipient: a target's or a filter's objects, which the
+/// resolution writes into what can't happen ("target creature can't be
+/// regenerated").
+pub fn cant_for(recipient: EffectRecipient, what: Restriction) -> ContinuousRuleChange {
     let def = RestrictionDef::new(what);
     ContinuousRuleChange(ContinuousChange::new(recipient, move |d| Primitive::Restrict(def, d)))
 }

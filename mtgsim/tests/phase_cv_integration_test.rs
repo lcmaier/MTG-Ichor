@@ -19,10 +19,7 @@ use std::sync::Arc;
 
 use mtgsim::engine::layers::types::EffectId;
 use mtgsim::cards::authoring::static_restriction;
-use mtgsim::cards::phase5_pre_cards::glorious_anthem;
-use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
-use mtgsim::cards::phase_rc_cards::containment_priest;
-use mtgsim::cards::phase_re_cards::laboratory_maniac;
+use mtgsim::cards::printings::{containment_priest, cytoshape, glorious_anthem, laboratory_maniac, mirrorform, mirrorweave};
 use mtgsim::engine::layers::copy::copiable_values;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;

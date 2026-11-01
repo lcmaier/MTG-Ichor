@@ -107,7 +107,6 @@ use std::time::Instant;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-use mtgsim::cards::phase_re_cards::goblin_token;
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction};
@@ -121,7 +120,9 @@ use mtgsim::state::diagnostics::TriggerDispatchWork;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
+use mtgsim::types::card_types::CreatureType;
 use mtgsim::types::colors::Color;
+use mtgsim::types::effects::TokenDef;
 use mtgsim::types::ids::{IdMap, ObjectId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
@@ -1234,7 +1235,7 @@ fn run_one_game(
             // so every recorded table's games stay byte-identical.
             let seats_with_tokens = if table.tokens_per_seat > 0 { table.players } else { 0 };
             for controller in 0..seats_with_tokens {
-                let create = GameAction::CreateTokens { defs: vec![goblin_token(); table.tokens_per_seat], controller, attacking: None };
+                let create = GameAction::CreateTokens { defs: vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin]); table.tokens_per_seat], controller, attacking: None };
                 let by_the_harness = ActionContext { dp, cause: EventCause::Harness };
                 if let Err(e) = game.state.execute_action(create, &by_the_harness) {
                     finish_trace(&game);

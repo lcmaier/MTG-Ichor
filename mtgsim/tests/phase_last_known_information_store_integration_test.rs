@@ -4,9 +4,8 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::alpha::counterspell;
+use mtgsim::cards::printings::{counterspell, grizzly_bears};
 use mtgsim::cards::authoring::{at_beginning_of, whenever, Whose};
-use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;

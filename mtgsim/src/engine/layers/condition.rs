@@ -452,7 +452,7 @@ fn controls_matching(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cards::{basic_lands, creatures};
+    use crate::cards::printings;
     use crate::test_support::{
         card_of_type, put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game,
         vanilla_creature,
@@ -470,7 +470,7 @@ mod tests {
         assert!(settled_holds(&Condition::SourceUntapped, &game, sphere, None, ConditionReferents::NONE));
         game.battlefield.get_mut(&sphere).unwrap().tapped = true;
         assert!(!settled_holds(&Condition::SourceUntapped, &game, sphere, None, ConditionReferents::NONE));
-        let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
+        let dead = put_in_graveyard(&mut game, printings::grizzly_bears(), 0);
         assert!(!settled_holds(&Condition::SourceUntapped, &game, dead, None, ConditionReferents::NONE), "no entity, not untapped");
     }
 
@@ -488,12 +488,12 @@ mod tests {
     fn a_negated_fact_holds_exactly_when_the_fact_does_not() {
         use crate::types::effects::ObjectFilter;
         let mut game = setup_two_player_game();
-        let crocodile = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let crocodile = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         let other_creature = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::NotSource));
         let none_other = Condition::Not(Box::new(yours(PlayerFact::ControlsPermanent(other_creature))));
-        put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+        put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
         assert!(settled_holds(&none_other, &game, crocodile, None, ConditionReferents::NONE), "only the opponent has another creature");
-        put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         assert!(!settled_holds(&none_other, &game, crocodile, None, ConditionReferents::NONE));
     }
 
@@ -501,11 +501,11 @@ mod tests {
     #[test]
     fn an_empty_hand_is_the_named_players_hand() {
         let mut game = setup_two_player_game();
-        let source = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let source = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         game.players[0].hand.clear();
         game.players[1].hand.clear();
         assert!(settled_holds(&yours(PlayerFact::HandEmpty), &game, source, None, ConditionReferents::NONE));
-        let card = game.add_object(crate::objects::object::GameObject::new(creatures::grizzly_bears(), 1, crate::types::zones::Zone::Hand));
+        let card = game.add_object(crate::objects::object::GameObject::new(printings::grizzly_bears(), 1, crate::types::zones::Zone::Hand));
         game.players[1].hand.push(card);
         assert!(settled_holds(&yours(PlayerFact::HandEmpty), &game, source, None, ConditionReferents::NONE), "the opponent's card is not yours");
         assert!(!settled_holds(&an_opponents(PlayerFact::HandEmpty), &game, source, None, ConditionReferents::NONE));
@@ -514,7 +514,7 @@ mod tests {
     #[test]
     fn life_thresholds_read_the_source_controllers_total() {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         game.players[0].life_total = 20;
         game.players[1].life_total = 3;
 
@@ -524,7 +524,7 @@ mod tests {
         assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(19))), &game, bears, None, ConditionReferents::NONE));
 
         // CR 109.5 — the *source's* controller, not either player at large.
-        let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+        let theirs = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
         assert!(settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, theirs, None, ConditionReferents::NONE));
         assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, bears, None, ConditionReferents::NONE));
     }
@@ -535,7 +535,7 @@ mod tests {
     #[test]
     fn an_opponent_is_any_one_opponent_still_in_the_game() {
         let mut game = setup_game(4);
-        let ghast = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let ghast = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         for seat in 1..4 {
             game.players[seat].life_total = 12;
         }
@@ -553,11 +553,11 @@ mod tests {
     #[test]
     fn card_in_graveyard_reads_your_graveyard_through_the_card_filter() {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         let card_in_yours = |filter: ObjectFilter| yours(PlayerFact::CardInGraveyard(filter));
         assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, bears, None, ConditionReferents::NONE));
 
-        put_in_graveyard(&mut game, basic_lands::forest(), 0);
+        put_in_graveyard(&mut game, printings::forest(), 0);
         assert!(settled_holds(&card_in_yours(ObjectFilter::All), &game, bears, None, ConditionReferents::NONE));
         assert!(settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Land)), &game, bears, None, ConditionReferents::NONE));
         assert!(!settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Creature)), &game, bears, None, ConditionReferents::NONE));
@@ -565,14 +565,14 @@ mod tests {
 
         // Your graveyard, not everybody's: the same card under the opponent
         // answers for their graveyard, which is empty.
-        let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
+        let theirs = put_on_battlefield(&mut game, printings::grizzly_bears(), 1);
         assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, theirs, None, ConditionReferents::NONE));
     }
 
     #[test]
     fn you_and_an_opponent_control_each_others_complement() {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         let forest = ObjectFilter::BySubtype(crate::types::card_types::Subtype::Land(
             crate::types::card_types::LandType::Forest,
         ));
@@ -582,11 +582,11 @@ mod tests {
         assert!(!settled_holds(&you_control, &game, bears, None, ConditionReferents::NONE));
         assert!(!settled_holds(&an_opponent_controls, &game, bears, None, ConditionReferents::NONE));
 
-        put_on_battlefield(&mut game, basic_lands::forest(), 1);
+        put_on_battlefield(&mut game, printings::forest(), 1);
         assert!(!settled_holds(&you_control, &game, bears, None, ConditionReferents::NONE));
         assert!(settled_holds(&an_opponent_controls, &game, bears, None, ConditionReferents::NONE));
 
-        put_on_battlefield(&mut game, basic_lands::forest(), 0);
+        put_on_battlefield(&mut game, printings::forest(), 0);
         assert!(settled_holds(&you_control, &game, bears, None, ConditionReferents::NONE));
         assert!(settled_holds(&an_opponent_controls, &game, bears, None, ConditionReferents::NONE));
     }
@@ -595,7 +595,7 @@ mod tests {
     #[test]
     fn all_holds_only_when_every_clause_does() {
         let mut game = setup_two_player_game();
-        let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
+        let dead = put_in_graveyard(&mut game, printings::grizzly_bears(), 0);
         let island = ObjectFilter::BySubtype(crate::types::card_types::Subtype::Land(
             crate::types::card_types::LandType::Island,
         ));
@@ -604,7 +604,7 @@ mod tests {
             yours(PlayerFact::ControlsPermanent(island)),
         ]);
         assert!(!settled_holds(&island_at_twenty, &game, dead, None, ConditionReferents::NONE), "at 20, no Island");
-        put_on_battlefield(&mut game, basic_lands::island(), 0);
+        put_on_battlefield(&mut game, printings::island(), 0);
         assert!(settled_holds(&island_at_twenty, &game, dead, None, ConditionReferents::NONE), "at 20, an Island");
 
         assert!(settled_holds(&Condition::All(Vec::new()), &game, dead, None, ConditionReferents::NONE));
@@ -648,7 +648,7 @@ mod tests {
     #[test]
     fn a_permanent_that_was_never_a_spell_was_not_kicked() {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         assert!(!settled_holds(&Condition::SpellWasKicked, &game, bears, None, ConditionReferents::NONE));
     }
 
@@ -657,7 +657,7 @@ mod tests {
     #[should_panic(expected = "no static-context evaluator")]
     fn mode_chosen_on_a_static_is_loud() {
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
         let _ = settled_holds(&Condition::ModeChosen(0), &game, bears, None, ConditionReferents::NONE);
     }
 }

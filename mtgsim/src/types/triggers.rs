@@ -2219,6 +2219,9 @@ pub(crate) mod samples {
     use super::*;
     use crate::events::event::DepartedObject;
     use crate::state::game_state::AbilityIdentity;
+    use crate::types::card_types::CreatureType;
+    use crate::types::colors::Color;
+    use crate::types::effects::TokenDef;
     use crate::types::ids::{AbilityId, ObjectRef};
 
     /// A frame for the records that carry one: a 2/2 as it was on the
@@ -2299,7 +2302,7 @@ pub(crate) mod samples {
                 token: identity.source,
                 owner: 0,
                 zone: Zone::Battlefield,
-                definition: Arc::new(crate::cards::phase_re_cards::goblin_token()),
+                definition: Arc::new(TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])),
             }),
             ("Targeted", GameEvent::Targeted {
                 target: crate::types::ids::ObjectOrPlayer::Object(identity.source),

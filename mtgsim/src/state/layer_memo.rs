@@ -808,7 +808,7 @@ mod tests {
     /// for them.
     #[test]
     fn a_fork_reading_a_left_out_card_leaves_the_originals_memo_as_it_was() {
-        use crate::cards::phase_lj_cards::lattice_colorless_clause;
+        use crate::cards::fixtures::lattice_colorless_clause;
         use crate::test_support::put_in_library;
 
         let mut game = crate::test_support::setup_two_player_game();

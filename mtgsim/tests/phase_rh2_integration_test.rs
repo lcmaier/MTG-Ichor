@@ -13,7 +13,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{another, leaves_the_battlefield, triggered_ability, whenever};
-use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
+use mtgsim::cards::printings::kalitas_traitor_of_ghet;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};

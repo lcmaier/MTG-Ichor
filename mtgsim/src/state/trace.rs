@@ -1002,8 +1002,8 @@ mod tests {
         use crate::ui::decision::PriorityAction;
 
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, crate::cards::phase_tr1_cards::soul_warden(), 0);
-        let bears = put_in_graveyard(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        put_on_battlefield(&mut game, crate::cards::printings::soul_warden(), 0);
+        let bears = put_in_graveyard(&mut game, crate::cards::printings::grizzly_bears(), 0);
         let trace = install_trace(&mut game, "a \"quoted\" label");
         // A walk the memo cannot serve writes a `layer_walk`.
         game.bump_layer_epoch();
@@ -1050,8 +1050,8 @@ mod tests {
         use crate::types::zones::{Zone, ZoneChangeAct};
 
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
-        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let bears = put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::printings::clone(), 0);
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         let trace = install_trace(&mut game, "names");
@@ -1074,7 +1074,7 @@ mod tests {
         use crate::test_support::{forest, put_in_library, put_on_battlefield, registered, setup_two_player_game};
 
         let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
         let card = put_in_library(&mut game, forest(), 0);
         let values = crate::engine::layers::copy::copiable_values(&game, bears).unwrap();
         let timestamp = game.allocate_timestamp();

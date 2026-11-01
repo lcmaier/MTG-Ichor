@@ -2,8 +2,8 @@
 //! "tapped for mana".
 //!
 //! Every board here is one mana ability resolving, or one spell adding mana,
-//! with something watching the production — the three printed cards in
-//! `cards::phase_re9_cards`, and two fixtures that are Contamination's and
+//! with something watching the production — the three printed cards that
+//! replace a production, and two fixtures that are Contamination's and
 //! Infernal Darkness's replacement lines without the upkeep halves item 6
 //! owns. Four groups:
 //!
@@ -26,11 +26,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{mana_ability, static_replacement};
-use mtgsim::cards::phase5_pre_cards::dark_ritual;
-use mtgsim::cards::phase_cm_cards::krark_clan_ironworks;
-use mtgsim::cards::phase_re9_cards::{
-    deep_water, doubling_cube, mana_reflection, nyxbloom_ancient, pale_moon,
-};
+use mtgsim::cards::printings::{dark_ritual, deep_water, doubling_cube, krark_clan_ironworks, mana_reflection, nyxbloom_ancient, pale_moon};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{

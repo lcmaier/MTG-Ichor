@@ -8,7 +8,7 @@
 //! charged nothing, and the re-ask names the action it reversed. Not choosing
 //! it again is an agent's policy (`ui::random`), not the engine's.
 
-use mtgsim::cards::creatures;
+use mtgsim::cards::printings;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{RejectionRecorder, place_forest, put_in_hand, setup_two_player_game};
@@ -23,7 +23,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 /// `Pass` alone.
 fn bears_and_two_forests() -> (GameState, ObjectId) {
     let mut game = setup_two_player_game();
-    let bears = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    let bears = put_in_hand(&mut game, printings::grizzly_bears(), 0);
     place_forest(&mut game, 0);
     place_forest(&mut game, 0);
     (game, bears)

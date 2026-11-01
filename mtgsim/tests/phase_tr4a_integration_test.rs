@@ -20,12 +20,8 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{attacks, dies, leaves_the_battlefield, persist, triggered_ability, undying, whenever};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_cv_cards;
-use mtgsim::cards::phase_lh_cards::holy_strength;
-use mtgsim::cards::phase_re_cards::doubling_season;
-use mtgsim::cards::phase_tr1_cards::blood_artist;
-use mtgsim::cards::phase_tr4a_cards::{compost, demonic_vigor, strangleroot_geist};
+use mtgsim::cards::printings::{blood_artist, compost, demonic_vigor, doubling_season, grizzly_bears, holy_strength, strangleroot_geist};
+use mtgsim::cards::printings;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
@@ -219,7 +215,7 @@ fn compost_does_not_see_a_clone_that_copied_a_black_creature() {
     let mut game = setup_two_player_game();
     let compost = put_on_battlefield(&mut game, compost(), 0);
     let donor = put_on_battlefield(&mut game, black_probe(), 1);
-    let clone = put_in_graveyard(&mut game, phase_cv_cards::clone(), 1);
+    let clone = put_in_graveyard(&mut game, printings::clone(), 1);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(donor)]);
     game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();

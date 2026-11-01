@@ -20,11 +20,7 @@
 use std::sync::Arc;
 
 use mtgsim::state::replacement_effects::ReplacementEffectId;
-use mtgsim::cards::keyword_creatures::knight_of_meadowgrain;
-use mtgsim::cards::phase_rd_cards::{
-    angel_of_suffering, furnace_of_rath, mending_hands, safe_passage, samite_censer_bearer,
-};
-use mtgsim::cards::basic_lands::plains;
+use mtgsim::cards::printings::{angel_of_suffering, furnace_of_rath, knight_of_meadowgrain, mending_hands, plains, safe_passage, samite_censer_bearer};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{BatchId, GameEvent};

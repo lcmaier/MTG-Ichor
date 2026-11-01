@@ -96,11 +96,11 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
-| 301 | Artifacts (incl. 301.5 Equipment — attachment + can't-attach-to-non-creature) | ✅ attachment tracking, `GameState::attach` / `detach` the one writer, **Equip ✅ (LH-2, 2026-09-05)** — 301.5b's "control matters when it resolves" is CR 608.2b's re-check; 301.5c's creature-Equipment clause and 702.6c qualities are card breadth | `state/game_state.rs`, `engine/resolve.rs`, `cards/phase_lh_cards.rs` |
+| 301 | Artifacts (incl. 301.5 Equipment — attachment + can't-attach-to-non-creature) | ✅ attachment tracking, `GameState::attach` / `detach` the one writer, **Equip ✅ (LH-2, 2026-09-05)** — 301.5b's "control matters when it resolves" is CR 608.2b's re-check; 301.5c's creature-Equipment clause and 702.6c qualities are card breadth | `state/game_state.rs`, `engine/resolve.rs`, `cards/authoring/abilities.rs` |
 | 302 | Creatures + summoning sickness | ✅ turn-based tracking (T09) | `oracle/characteristics.rs` `has_summoning_sickness` |
 | 303 | Enchantments / Auras — an Aura spell targets its enchant ability (303.4a), enters attached (303.4 / 608.3c), fizzles against a gone target (608.3b), "enchanted creature" reaches the host (303.4m, LH-1 2026-09-04), control on resolve (303.4e); non-stack ETB host choice (303.4f/g, TR-3b 2026-10-08: `engine/returns.rs`); an Aura enchanting a player ❌ (item 227) | 🟡 | `engine/targeting.rs` `spell_recipient`, `engine/stack.rs` Aura branch, `state/game_state.rs` `attach`/`detach`, `objects/card_data.rs` `enchant_filter` |
 | 304 | Instants | ✅ basic cast path | `engine/put_on_stack.rs` |
-| 305 | Lands | ✅ basic lands + mana abilities | `cards/basic_lands.rs` |
+| 305 | Lands | ✅ basic lands + mana abilities | `cards/sets/1993/08_05_lea.rs` |
 | 306 | Planeswalkers | ✅ loyalty ETB, 0-loyalty SBA; loyalty-ability costs ❌ (T19 pending) | `engine/sba.rs` |
 | 307 | Sorceries | ✅ basic cast path + sorcery-speed enforcement | `engine/put_on_stack.rs`, `oracle/legality.rs` |
 | 308 | Kindred (formerly Tribal) | ✅ data model only |
@@ -154,7 +154,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 701.8 | Destroy (destroy keyword action, respects indestructible) | ✅ (T16) | `engine/resolve.rs` Primitive::Destroy |
 | 701.21 | Sacrifice | 🟡 `Cost::SacrificeSelf` ✅; `Cost::Sacrifice(filter, count)` = `NotImplemented` (T18c) | `engine/costs.rs` |
 | 702.2 | Deathtouch | ✅ (combat lethal-damage check, T09 fuzz run confirmed) | `engine/combat/keywords.rs` |
-| 702.6 | **Equip** (activated ability "Equip {cost}") | ✅ (LH-2, 2026-09-05) `phase_lh_cards::equip`: `Primitive::Attach` behind `Target(Permanent(creature ∧ you control), Exactly(1))`, `ActivationRestriction::OnlyAsSorcery`; 702.6c/d/e variants are card breadth |
+| 702.6 | **Equip** (activated ability "Equip {cost}") | ✅ (LH-2, 2026-09-05) `authoring::equip`: `Primitive::Attach` behind `Target(Permanent(creature ∧ you control), Exactly(1))`, `ActivationRestriction::OnlyAsSorcery`; 702.6c/d/e variants are card breadth |
 | 702.10c | Untap symbol {Q} — summoning-sickness check | ✅ (T10) | `engine/costs.rs` |
 | 702.12 | Indestructible | ✅ (T16) | `engine/sba.rs`, `engine/resolve.rs` |
 | 702.15 | Flash | ✅ flash casting window honored |
@@ -1580,8 +1580,10 @@ section never asked.
     D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
     `max_deck_size`, `max_copies` and `sideboard_size`, and both `standard()`
     and `limited()` set them correctly — 60/4/15 and 40/none/none. **Nothing
-    in the tree reads them.** One validation function against a `Decklist`
-    closes it; until then a malformed decklist starts a game.
+    in the tree reads them.** One validation function against a
+    `scenario::Decklist`, the names and sections a player brings
+    (`setup-architecture.md#7d-the-decklist`), closes it; until then a
+    malformed decklist starts a game.
 
     Third instance of the same shape in one triage, after item 31 and
     `color_indicator`: **configuration or a field that looks like progress in a
@@ -1594,8 +1596,9 @@ section never asked.
     replacement from ~60 names, so a few percent of decks exceed `max_copies`;
     CR 100.2a is deck construction, and no rule of play reads it.
 
-    **Sized:** one `validate(&Decklist, &DeckLimits)` ~40 lines
-    plus tests (`backlog.md` §2.13: tiny), called from `Game::new`, and a 4-of
+    **Sized:** one `validate(&Decklist, &DeckLimits)` over a
+    `scenario::Decklist`, ~40 lines plus tests (`backlog.md` §2.13: tiny),
+    called as `game-formats` builds each seat's `Deck` from its decklist, and a 4-of
     cap in `random_deck` if the harness is to be held to it; lands with the
     `GameConfig::commander()` constructor, whose 100-card singleton limit is the
     first one a fuzz deck would actually break.
@@ -4915,7 +4918,14 @@ damage is divided only among the attackers it blocks.
     every card file's instruction is a verb in `cards/authoring/instructions.rs`
     on a recipient in `recipients.rs`, a continuous change stating its
     duration as a suffix, and four files' private recipient words are the
-    shared ones. The move is its third PR (`plans/handoffs/card-layer-cleanup.md`,
+    shared ones. **The move landed in its third PR (2026-11-01):** every
+    printing sits in its first printing's set file under `cards/sets/`,
+    every fixture in `cards::fixtures` by the architecture doc it tests,
+    the named token in `cards::tokens`, and a test names each through
+    `cards::printings`, `fixtures` or `tokens`, a creature token being
+    `TokenDef::creature` where it is made; filters are words, and the
+    helpers the move would have scattered are shared words. Items 204, 207
+    and 209 are the phase's last two PRs (`plans/handoffs/card-layer-cleanup.md`,
     "The split").
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
@@ -5062,18 +5072,21 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Commander (CR
     903)" item 1.
 
-2. **Commander setup hook.** Nothing yet flips `is_commander = true` at deck construction or game setup. Needs a `GameConfig::commander()` constructor + a designation step (probably a field on `Decklist` or an analogous role entry). No tests exercise this yet — the flag is only set via direct field mutation in unit tests.
+2. **Commander setup hook.** Nothing yet flips `is_commander = true` at deck construction or game setup. Needs a `GameConfig::commander()` constructor + a designation step (a `scenario::Decklist`'s commander section, `setup-architecture.md#7d-the-decklist`). No tests exercise this yet — the flag is only set via direct field mutation in unit tests.
 
    **Reachability (2026-09-03):** unreachable — nothing sets `is_commander`
    outside two unit tests (`actions.rs:1256`, `:1339`); CR 903.9a/b and 704.6d
    are live and have no commander to act on.
 
-   **Sized:** `GameConfig::commander()`, a designation on
-   `Decklist`, and the flag set in `Game::new`, ~80–120 lines with tests; the
+   **Sized:** `GameConfig::commander()`, the designation read off a
+   `scenario::Decklist`'s commander section, and the flag set as each `Deck`
+   is built, ~80–120 lines with tests; the
    first PR of the Commander interleave.
-   **Slotted:** `game-formats`, `GameConfig::commander()` with a designation on `Decklist`,
-   setting `is_commander` at game setup (CR 903.3, 903.7); item 3, merged here,
-   is the same constructor.
+   **Slotted:** `game-formats`, `GameConfig::commander()` reading a
+   `scenario::Decklist`'s commander section, which the decklist parses and
+   holds (`setup-architecture.md` §7d), and setting `is_commander` as it
+   builds each `Deck` (CR 903.3, 903.7); item 3, merged here, is the same
+   constructor.
 
 3. **~~`GameConfig::commander()` constructor.~~ — ✅ CLOSED 2026-10-09 (PR
    #238).** — archived.
@@ -10437,32 +10450,16 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
 
 ### Found by `card-layer-cleanup`'s first PR (2026-10-31)
 
-358. **The card fingerprints and `AbilityDef`'s written-out `Debug` are the
-     cleanup's scaffolding.** `tests/card_data_fingerprint_test.rs` holds
-     every card's value to `tests/card_fingerprints.txt`, written at the
-     cleanup's base, so each of its mechanical PRs is checked rather than
-     judged. `AbilityDef`'s `Debug` is written out to print what the derive
-     printed before decision 2 moved the costs and the restriction into the
-     activated kinds, which is what keeps that file unchanged through the
-     reshape. Both go together: once the file goes, the `Debug` is derived
-     again, and prints the kind as it now is.
-     **Reachability (2026-10-31):** nothing owed in a game — test
-     scaffolding; every fingerprint matches. The file was rewritten once, at
-     PR 2, for Platinum Angel alone, which became the one ability its
-     paragraph is.
-     **Owed when the file goes**, spellings the pin held to the base's
-     values: Crimson Wisps' and Call to Serve's chains follow their text's
-     order ("becomes red and gains haste", "gets +1/+2 and is an Angel"); a
-     row complete as authored has one word, where today it is
-     `create_replacement(def)` beside `create_replacement_for(you(), def)`,
-     and Skullcrack's `cant(you(), …)` names a recipient its resolution
-     reads as none; and "in addition to its other types" has one
-     constructor, where today it is two private helpers beside
-     `..TypeChange::NONE`.
-     **Sized:** ~200 lines out (the test and its file) and ~20 back to a
-     derive; the owed spellings ~60 more, each a fingerprint that moves.
-     **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
-     close-out (the move, PR 3 of its design note's split).
+358. **~~The card fingerprints and `AbilityDef`'s written-out `Debug` are the
+     cleanup's scaffolding.~~ — ✅ CLOSED 2026-11-01 (PR #303,
+     `cards-by-first-printing`).** — archived. The fingerprint test and its
+     file went once the move was checked against them, `AbilityDef` derives
+     `Debug` again, and the owed spellings landed: the two chains in their
+     text's order, `create_replacement` and `cant(what)` for a row complete
+     as authored beside `cant_for(recipient, what)`, and
+     `TypeChange::adding` for CR 205.1b.
+     **Reachability (2026-11-01):** closed — PR #303.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 358".
 
 ### Found by `card-layer-cleanup`'s second PR (2026-10-31)
 

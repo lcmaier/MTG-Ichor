@@ -26,16 +26,11 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use mtgsim::cards::artifacts::{darksteel_myr, sol_ring};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase5_pre_cards::{glorious_anthem, isamaru_hound_of_konda};
-use mtgsim::cards::phase_cv_cards::{self, spark_double};
-use mtgsim::cards::phase_ld_cards::march_of_the_machines;
-use mtgsim::cards::phase_le_cards::{culling_drone, tarmogoyf};
-use mtgsim::cards::phase_ll_cards::grist_insect_clause;
-use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, master_biomancer};
-use mtgsim::cards::phase_rd_cards::loyalty_probe;
-use mtgsim::cards::phase_re_cards::doubling_season;
+use mtgsim::cards::printings::{
+    self, adaptive_shimmerer, culling_drone, darksteel_myr, doubling_season, glorious_anthem, grizzly_bears, isamaru_hound_of_konda,
+    march_of_the_machines, master_biomancer, sol_ring, spark_double, tarmogoyf,
+};
+use mtgsim::cards::fixtures::{grist_insect_clause, loyalty_probe};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::layers::types::{EffectModification, Layer, PtValue};
@@ -526,7 +521,7 @@ fn a_clone_of_spark_double_is_not_legendary_either() {
     let mut game = setup_two_player_game();
     let isamaru = put_on_battlefield(&mut game, isamaru_hound_of_konda(), 0);
     let spark = spark_of(&mut game, 0, isamaru);
-    let clone = copy_of(&mut game, phase_cv_cards::clone(), 0, spark);
+    let clone = copy_of(&mut game, printings::clone(), 0, spark);
 
     assert_eq!(get_effective_name(&game, clone), "Isamaru, Hound of Konda");
     assert!(!is_legendary(&game, clone));
@@ -565,7 +560,7 @@ fn a_later_copy_takes_back_spark_doubles_counter() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, glorious_anthem(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let empty_clone = enter(&mut game, phase_cv_cards::clone(), 0, &Scripted::new().then(0, "ChooseCopySource", &[]));
+    let empty_clone = enter(&mut game, printings::clone(), 0, &Scripted::new().then(0, "ChooseCopySource", &[]));
     assert_eq!(get_effective_name(&game, empty_clone), "Clone");
 
     let dp = Scripted::new().then(0, "ChooseCopySource", &[empty_clone]).then(0, "ChooseCopySource", &[bears]);
@@ -777,7 +772,7 @@ fn spark_double_copying_an_x_creature_has_x_as_zero() {
 fn spark_double_copying_a_clone_enters_as_what_the_clone_copied() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let clone = copy_of(&mut game, phase_cv_cards::clone(), 0, bears);
+    let clone = copy_of(&mut game, printings::clone(), 0, bears);
     let spark = spark_of(&mut game, 0, clone);
     assert_eq!(get_effective_name(&game, spark), "Grizzly Bears");
     assert!(!has_subtype(&game, spark, &Subtype::Creature(CreatureType::Shapeshifter)));
@@ -934,7 +929,7 @@ fn a_copy_artifact_of_a_myr_is_an_enchantment_and_so_is_a_clone_of_it() {
     assert_eq!(get_effective_types(&game, copy), all_three);
     assert!(has_keyword(&game, copy, KeywordFlag::Indestructible));
 
-    let clone = copy_of(&mut game, phase_cv_cards::clone(), 0, copy);
+    let clone = copy_of(&mut game, printings::clone(), 0, copy);
     assert_eq!(get_effective_types(&game, clone), all_three);
 }
 
@@ -1018,7 +1013,7 @@ fn a_gained_ability_is_copiable_and_works() {
     assert_eq!(pt(&game, bystander), (Some(2), Some(2)));
     assert_eq!(pt(&game, copy), (Some(3), Some(3)));
 
-    let clone = copy_of(&mut game, phase_cv_cards::clone(), 0, copy);
+    let clone = copy_of(&mut game, printings::clone(), 0, copy);
     assert!(get_effective_abilities(&game, clone).iter().any(|a| a.id == stamped.id));
     assert_eq!(pt(&game, bystander), (Some(3), Some(3)), "two anthems now");
 }
@@ -1048,7 +1043,7 @@ fn a_vesuvan_of_culling_drone_keeps_its_blue_without_devoid() {
     assert_eq!(compute_characteristics(&game, vesuvan).unwrap().colors, blue);
     assert!(get_effective_abilities(&game, vesuvan).iter().all(|a| !a.is_characteristic_defining));
 
-    let clone = copy_of(&mut game, phase_cv_cards::clone(), 0, vesuvan);
+    let clone = copy_of(&mut game, printings::clone(), 0, vesuvan);
     assert_eq!(compute_characteristics(&game, clone).unwrap().colors, blue);
 }
 
@@ -1067,7 +1062,7 @@ fn a_name_exception_is_the_copys_name_and_a_clone_of_it_takes_it() {
     assert!(is_legendary(&game, sakashima));
     assert_eq!(pt(&game, sakashima), (Some(2), Some(2)));
 
-    let clone = copy_of(&mut game, phase_cv_cards::clone(), 1, sakashima);
+    let clone = copy_of(&mut game, printings::clone(), 1, sakashima);
     assert_eq!(get_effective_name(&game, clone), "Sakashima the Impostor");
 }
 
@@ -1153,7 +1148,7 @@ fn a_later_copy_puts_back_the_status_an_addition_replaced() {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, glorious_anthem(), 0);
         let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-        let empty_clone = enter(&mut game, phase_cv_cards::clone(), 0, &Scripted::new().then(0, "ChooseCopySource", &[]));
+        let empty_clone = enter(&mut game, printings::clone(), 0, &Scripted::new().then(0, "ChooseCopySource", &[]));
         let copier = put_in_graveyard(&mut game, enters_untapped_as_an_addition(), 0);
         let second: &[ObjectId] = if bear { &[bears] } else { &[] };
         let dp = Scripted::new().then(0, "ChooseCopySource", &[empty_clone]).then(0, "ChooseCopySource", second);

@@ -14,12 +14,9 @@ use std::sync::Arc;
 
 
 use mtgsim::cards::authoring::{persist, static_replacement};
-use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
-use mtgsim::cards::phase_cv_cards::clone;
-use mtgsim::cards::phase_lh_cards::holy_strength;
-use mtgsim::cards::phase_tr1_cards::blood_artist;
-use mtgsim::cards::phase_tr7_cards::{grumgully_the_generous, viscera_seer, wingrattle_scarecrow};
+use mtgsim::cards::printings::{
+    blood_artist, clone, grizzly_bears, grumgully_the_generous, holy_strength, thalia_guardian_of_thraben, viscera_seer, wingrattle_scarecrow,
+};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::validation::can_block;
 use mtgsim::engine::priority::PriorityResult;

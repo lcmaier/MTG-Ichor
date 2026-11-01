@@ -2204,7 +2204,7 @@ mod tests {
     #[test]
     fn test_look_ahead_row_is_stripped_by_humility_before_it_applies() {
         let mut game = GameState::new(2, 20);
-        put_on_battlefield(&mut game, crate::cards::phase_lf_cards::humility(), 1);
+        put_on_battlefield(&mut game, crate::cards::printings::humility(), 1);
         let anthem = in_graveyard(&mut game, anthem_bear(), 0);
 
         let frame = compute_as_entering(&game, anthem, 0, &EnterMods::NONE).unwrap();
@@ -2237,7 +2237,7 @@ mod tests {
 
         put_on_battlefield(&mut game, card_of_type("Rock", CardType::Artifact), 0);
         put_on_battlefield(&mut game, card_of_type("Their Rock", CardType::Artifact), 1);
-        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
         assert_eq!(settled_amount(&expr, &game, mine), Some(1), "P0's artifacts, not P1's and not a bear");
         assert_eq!(settled_amount(&expr, &game, theirs), Some(1), "and P1's, P1's");
     }
@@ -2250,10 +2250,10 @@ mod tests {
     fn settled_amount_answers_source_power_off_the_effective_frame() {
         use crate::types::effects::AmountExpr::SourcePower;
         let mut game = crate::test_support::setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
         assert_eq!(settled_amount(&SourcePower, &game, bears), Some(2));
 
-        put_on_battlefield(&mut game, crate::cards::phase5_pre_cards::glorious_anthem(), 0);
+        put_on_battlefield(&mut game, crate::cards::printings::glorious_anthem(), 0);
         assert_eq!(settled_amount(&SourcePower, &game, bears), Some(3), "the anthem is in the frame");
 
         let rock = put_on_battlefield(&mut game, crate::test_support::card_of_type("Rock", CardType::Artifact), 0);
@@ -2271,7 +2271,7 @@ mod tests {
     fn the_walks_evaluator_still_refuses_source_power() {
         use crate::engine::layers::board::Board;
         let mut game = crate::test_support::setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let bears = put_on_battlefield(&mut game, crate::cards::printings::grizzly_bears(), 0);
         let chars = compute_characteristics(&game, bears).unwrap();
         let _ = evaluate_amount(
             &crate::types::effects::AmountExpr::SourcePower,
