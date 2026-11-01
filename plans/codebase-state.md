@@ -4915,7 +4915,13 @@ damage is divided only among the attackers it blocks.
     every card file's instruction is a verb in `cards/authoring/instructions.rs`
     on a recipient in `recipients.rs`, a continuous change stating its
     duration as a suffix, and four files' private recipient words are the
-    shared ones. The move is its third PR (`plans/handoffs/card-layer-cleanup.md`,
+    shared ones. **The move landed in its third PR (2026-11-01):** every
+    printing sits in its first printing's set file under `cards/sets/`,
+    every fixture in `cards::fixtures` by the architecture doc it tests,
+    every token in `cards::tokens`, and a test names each through
+    `cards::printings`, `fixtures` or `tokens`; filters are words, and the
+    helpers the move would have scattered are shared words. Items 204, 207
+    and 209 are the phase's last two PRs (`plans/handoffs/card-layer-cleanup.md`,
     "The split").
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
@@ -10439,32 +10445,16 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
 
 ### Found by `card-layer-cleanup`'s first PR (2026-10-31)
 
-358. **The card fingerprints and `AbilityDef`'s written-out `Debug` are the
-     cleanup's scaffolding.** `tests/card_data_fingerprint_test.rs` holds
-     every card's value to `tests/card_fingerprints.txt`, written at the
-     cleanup's base, so each of its mechanical PRs is checked rather than
-     judged. `AbilityDef`'s `Debug` is written out to print what the derive
-     printed before decision 2 moved the costs and the restriction into the
-     activated kinds, which is what keeps that file unchanged through the
-     reshape. Both go together: once the file goes, the `Debug` is derived
-     again, and prints the kind as it now is.
-     **Reachability (2026-10-31):** nothing owed in a game — test
-     scaffolding; every fingerprint matches. The file was rewritten once, at
-     PR 2, for Platinum Angel alone, which became the one ability its
-     paragraph is.
-     **Owed when the file goes**, spellings the pin held to the base's
-     values: Crimson Wisps' and Call to Serve's chains follow their text's
-     order ("becomes red and gains haste", "gets +1/+2 and is an Angel"); a
-     row complete as authored has one word, where today it is
-     `create_replacement(def)` beside `create_replacement_for(you(), def)`,
-     and Skullcrack's `cant(you(), …)` names a recipient its resolution
-     reads as none; and "in addition to its other types" has one
-     constructor, where today it is two private helpers beside
-     `..TypeChange::NONE`.
-     **Sized:** ~200 lines out (the test and its file) and ~20 back to a
-     derive; the owed spellings ~60 more, each a fingerprint that moves.
-     **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
-     close-out (the move, PR 3 of its design note's split).
+358. **~~The card fingerprints and `AbilityDef`'s written-out `Debug` are the
+     cleanup's scaffolding.~~ — ✅ CLOSED 2026-11-01 (PR #303,
+     `cards-by-first-printing`).** — archived. The fingerprint test and its
+     file went once the move was checked against them, `AbilityDef` derives
+     `Debug` again, and the owed spellings landed: the two chains in their
+     text's order, `create_replacement` and `cant(what)` for a row complete
+     as authored beside `cant_for(recipient, what)`, and
+     `TypeChange::adding` for CR 205.1b.
+     **Reachability (2026-11-01):** closed — PR #303.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 358".
 
 ### Found by `card-layer-cleanup`'s second PR (2026-10-31)
 

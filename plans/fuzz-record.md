@@ -96,6 +96,34 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-11-01 for `card-layer-cleanup`'s third PR, the move by first printing**
+(`cards/cards-by-first-printing`, PR #303: filters as words, every card in its
+first printing's set file, `cards::fixtures` and `cards::tokens`, the decklist,
+the fingerprints gone and item 358's spellings). No pool changed, so no table is
+re-recorded. One `close_out.py` sitting against **main** `5ba2f4a8` (#302's
+merge): **engine** `f730a94a`, every code commit.
+
+**Predictions, written before any arm ran**: every gameplay row `IDENTICAL` on
+both pools at both seat counts, since every card built the value it built
+through the move and item 358's spellings change only atom order across layers
+and a recipient the resolution reads as none; instructions a decision within
+noise, since no engine path changed.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, callgrind, the budget's board | | 0.6494 M → 0.6498 M, **+0.05%** |
+| moved, inclusive, past half a point | | `random_deck` (14.2 K → 7.2 K, −1.1) and an iterator fold inside it (7.0 K, one arm only): an inlining boundary in a function that runs once a game |
+
+Every row inside its prediction, and the audit's counts equal the second PR's
+to the dispatch.
+
+**CI's other sittings, run locally**: the release clone, history and scenario
+tests pass; the `release-checked` stress and fixtures sittings (50 games, seed
+12345) exit clean, 0 errors, 0 panics, 0 turn-limit hits; the dev GUI's tests
+and its review boards pass.
+
 **Measured 2026-10-31 for `card-layer-cleanup`'s second PR, the instruction words**
 (`cards/card-instruction-words`: every card-file instruction built by a verb and
 recipient word, `RowId::UNASSIGNED`, every reader of a static body taking each

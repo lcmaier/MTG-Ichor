@@ -9464,3 +9464,47 @@ inside one around the whole list is still loud.
      that member's clause; ~100–150 lines with tests.
      **Slotted:** `combat-restrictions`, whose Aura paragraphs bring the
      first of these cards (Bonds of Faith's "can't attack or block").
+
+### Item 358 — closed 2026-11-01 by PR #303 (`cards-by-first-printing`)
+
+The fingerprints checked the filter words and the move, the last two
+changes that had to build every card equal: 277 of the 289 items the phase
+files held are byte-identical in their new files, the other 12 differ only
+where a doc comment named an old module path, and every fingerprint held.
+The test and `card_fingerprints.txt` went in the commit after the move, and
+`AbilityDef` derives `Debug` again. The owed spellings followed, each
+moving a card's value with no game moving (the close-out read every
+gameplay row identical): Crimson Wisps' and Call to Serve's chains in their
+text's order; Meditate's skip as `create_replacement`, and `cant(what)` for
+Skullcrack's two rows beside `cant_for(recipient, what)` for Plague Spores;
+and `TypeChange::adding`, CR 205.1b's one constructor, which landed before
+the move because the move needed a home for the helper it replaced.
+
+*Original entry:*
+
+358. **The card fingerprints and `AbilityDef`'s written-out `Debug` are the
+     cleanup's scaffolding.** `tests/card_data_fingerprint_test.rs` holds
+     every card's value to `tests/card_fingerprints.txt`, written at the
+     cleanup's base, so each of its mechanical PRs is checked rather than
+     judged. `AbilityDef`'s `Debug` is written out to print what the derive
+     printed before decision 2 moved the costs and the restriction into the
+     activated kinds, which is what keeps that file unchanged through the
+     reshape. Both go together: once the file goes, the `Debug` is derived
+     again, and prints the kind as it now is.
+     **Reachability (2026-10-31):** nothing owed in a game — test
+     scaffolding; every fingerprint matches. The file was rewritten once, at
+     PR 2, for Platinum Angel alone, which became the one ability its
+     paragraph is.
+     **Owed when the file goes**, spellings the pin held to the base's
+     values: Crimson Wisps' and Call to Serve's chains follow their text's
+     order ("becomes red and gains haste", "gets +1/+2 and is an Angel"); a
+     row complete as authored has one word, where today it is
+     `create_replacement(def)` beside `create_replacement_for(you(), def)`,
+     and Skullcrack's `cant(you(), …)` names a recipient its resolution
+     reads as none; and "in addition to its other types" has one
+     constructor, where today it is two private helpers beside
+     `..TypeChange::NONE`.
+     **Sized:** ~200 lines out (the test and its file) and ~20 back to a
+     derive; the owed spellings ~60 more, each a fingerprint that moves.
+     **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
+     close-out (the move, PR 3 of its design note's split).

@@ -1505,6 +1505,20 @@ phases, and §11-style findings still open. Rulings passes live in the *card's* 
 comment at registration (§3.4, corrected at RE-3's review); a sizing names the
 card and the rulings that become tests, one line each.
 
+**A moved line counts zero** (`card-layer-cleanup`'s design note, decision 7,
+recommended there and settled by the owner's approval of PR 3's brief,
+2026-11-01). Filing 266 card functions by first printing deleted each from a
+phase file and added it to a set file, so `git diff --numstat` read about
+15,000 a side for a PR whose moved bodies changed no line: six bands, or seven
+PRs split by set group, each a pure move nobody reads line by line either.
+What a moved line needs is the proof that it moved, not a reading, so a
+script compares each moved item's text at the base with its text after,
+byte for byte, its output goes in the PR body, and the band reads only what
+is not a move: module files, imports, paths, docs and the doc text a move
+carries. #303's script read 277 of 289 items identical and the rest changed
+only in doc comments naming an old path; outside them its larger side still
+passed the band, which the PR body says.
+
 ### 4.1 The standing review question
 
 **"What does this actually check, and what happens if it runs twice?"**

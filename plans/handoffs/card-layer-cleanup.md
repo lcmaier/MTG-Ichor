@@ -1,13 +1,12 @@
 # Handoff — `card-layer-cleanup`, the design note
 
-**Resume here: PRs 1 and 2 of the split are built: `card-ability-words`
-(#301) and `card-instruction-words` (`cards/card-instruction-words`). Next
-is PR 3, `cards-by-first-printing`**: decisions 4, 5 and 7, the move into
-per-set files, `cards::fixtures` and `cards::tokens`, and the decklist with
-its readers ("The split"). PR 2 built decision 1's verbs, recipients and
-duration suffixes, decision 3b's `RowId::UNASSIGNED` (closing item 7d), and
-one static ability with several kinds of effect, read by every reader of a
-static body, with Platinum Angel as one ability.
+**Resume here: PRs 1–3 of the split are built: `card-ability-words`
+(#301), `card-instruction-words` (#302) and `cards-by-first-printing`
+(#303). Next is PR 4, `creature-types-plus-fixture-names`**: items 204 and
+207 by decision 6, on the cards' new homes — the eight misnamed fixtures in
+`cards::fixtures`, the fourteen creatures in their set files ("The split").
+PR 3 filed every card by first printing, wrote filters as words, built the
+decklist with `cli_play` as its reader, and closed item 358.
 
 **Opened 2026-10-31** on `cards/card-layer-cleanup`, off `main` at
 `f7fa8a4e` (#300's merge). `card-layer-cleanup` is step 3 of
@@ -102,7 +101,7 @@ already slotted beside the phase.
 |---|---|---|---|---|
 | 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
 | 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | built (#302): +2,269 / −2,042, the words +1,335 / −1,630, the row id +178 / −94, the readers +488 / −183, the review round +391 / −315 with main item 359 | one |
-| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
+| 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | built (#303): 11,939 moved lines counted zero; the rest −4,688 / +3,755, past the band (below) | one, long |
 | 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
 
@@ -153,7 +152,29 @@ renamed words for what they do (`create_tokens`, `gains_keyword`,
 `triggering_object`, `take_an_extra_turn_after_this_one`,
 `deal_damage_unpreventable`, `ContinuousChange`) and gave `exile_until`
 CR 610.3c's `under`. The fingerprints were rewritten once, for Platinum
-Angel; what the pin owes is item 358's.
+Angel; what the pin owes is item 358's. The filter words the review asked
+for landed in PR 3, its first commit; the static "can't" word waits for
+`combat-restrictions`, whose Aura paragraphs bring its cards.
+
+**PR 3 as built** (2026-11-01). The filter words are the brief's table:
+`ObjectFilter::and` and `::or` beside the enum, `non` and a word for each
+quality two cards print in `recipients.rs`, `with_subtype` used for every
+subtype since it takes one. Filing by set split 18 private helpers' callers
+across files, so before the move each became a shared word, its body
+unchanged (a new `authoring/replacements.rs` for CR 614's builders, the rest
+beside their kind), was written out where the words already say it (a
+"you may" as `Effect::Optional`), or, for the one helper that builds a
+card, Volcanic Island was written out; `TypeChange::adding`, item 358's
+fourth spelling, landed then for the same reason. What a phase file's
+module doc said about one card went to that card first (the "Card | The
+path" rows as "It exercises …"). A card file's test module moved into
+`tests/`, into its phase's integration file as a module named for what it
+tests, the per-card data checks into `printings_test.rs`. The band: 277 of
+289 items byte-identical and 11,939 moved lines counted zero by decision 7;
+outside them the larger side is −4,688, of which 1,232 are the dropped
+module docs and 497 the fingerprints, and +3,755, of which 1,008 are the 97
+new card files' headers and imports. The decklist's five `tdc` lists come
+from MTGJSON once the owner approves the downloads.
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,
