@@ -572,18 +572,15 @@ const OF_EQUALS: &str = " of ";
 /// its place among the options whose words are the same when there are any.
 pub fn logged_choice(options: &[ChoiceOption], game: &GameState, index: usize) -> String {
     let logged = options[index].as_logged(game);
-    let equals: Vec<usize> = (0..options.len()).filter(|&i| options[i].as_logged(game) == logged).collect();
+    let equals = reading_as(options, game, &logged);
     match equals.iter().position(|&i| i == index) {
         Some(place) if equals.len() > 1 => format!("{logged} ({}{OF_EQUALS}{})", place + 1, equals.len()),
         _ => logged,
     }
 }
 
-/// Where the option an answer names sits in `options`: the one matcher a
-/// replayed answer, a scenario's setup line and a test's script find an
-/// option by (`setup-architecture.md` §7.2, decision 6), by what it is and
-/// never by where it sat. Positions in `taken` are passed over, so an answer
-/// naming two options with the same words takes two of them.
+/// Where the option an answer writes as `chosen`, a [`logged_choice`], sits in
+/// `options`: [`position_named`] once the words and the place are read apart.
 pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, taken: &[usize]) -> Option<usize> {
     let (words, place) = match chosen.rsplit_once(" (").and_then(|(words, rest)| Some((words, rest.strip_suffix(')')?))) {
         Some((words, rest)) => match rest.split_once(OF_EQUALS).and_then(|(place, _)| place.parse::<usize>().ok()) {
@@ -592,6 +589,17 @@ pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, tak
         },
         None => (chosen, None),
     };
+    position_named(options, game, words, place, taken)
+}
+
+/// Where the option an answer names sits in `options`, by its words and,
+/// among options whose words are the same, its place counted from 1: the one
+/// matcher a replayed answer, a scenario's setup line and a test's script
+/// find an option by (`setup-architecture.md` §7.2, decision 6), by what it
+/// is and never by where it sat. Words alone take the first such option not
+/// in `taken`, so an answer naming two options with the same words takes two
+/// of them.
+pub fn position_named(options: &[ChoiceOption], game: &GameState, words: &str, place: Option<usize>, taken: &[usize]) -> Option<usize> {
     let equals = reading_as(options, game, words);
     match place {
         Some(place) => equals.get(place.checked_sub(1)?).copied().filter(|i| !taken.contains(i)),
@@ -600,8 +608,7 @@ pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, tak
 }
 
 /// Every place in `options` whose words are `words`, in the list's order: the
-/// options an answer naming those words could mean, which a test's script
-/// and [`position_of`] both compare by.
+/// options an answer naming those words could mean.
 pub fn reading_as(options: &[ChoiceOption], game: &GameState, words: &str) -> Vec<usize> {
     (0..options.len()).filter(|&i| options[i].as_logged(game) == words).collect()
 }
@@ -750,7 +757,7 @@ mod tests {
     /// A name alone would mean whichever of two alike options the engine
     /// lists first, so it is refused there.
     #[test]
-    #[should_panic(expected = "so name its place among them")]
+    #[should_panic(expected = "its words alone cannot say which")]
     fn a_name_that_reads_like_another_option_needs_its_place() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);

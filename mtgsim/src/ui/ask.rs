@@ -1675,9 +1675,12 @@ mod tests {
     fn test_validation_rejects_wrong_count() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
-        let pass = ChoiceOption::Action(PriorityAction::Pass);
-        dp.expect_choice_among_alike(ChoiceKind::PriorityAction, vec![(pass.clone(), 1), (pass, 2)]);
-        let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
+        let land = crate::types::ids::new_object_id();
+        dp.expect_choice(
+            ChoiceKind::PriorityAction,
+            vec![ChoiceOption::Action(PriorityAction::Pass), ChoiceOption::Action(PriorityAction::PlayLand(land))],
+        );
+        let actions = vec![PriorityAction::Pass, PriorityAction::PlayLand(land)];
         let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 

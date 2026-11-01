@@ -5,7 +5,7 @@ use std::mem::discriminant;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, reading_as};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_named, reading_as};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
@@ -254,13 +254,13 @@ pub struct ScriptedExpectation {
 }
 
 /// An option as a script names it: what it is, and, when other options
-/// offered read the same, its place among them from 1, as the decision log
-/// writes `(2 of 3)`.
+/// offered read the same, its place among them counted from 1, as the
+/// decision log writes `(2 of 3)`.
 pub type Named = (ChoiceOption, Option<usize>);
 
 /// The response shape for a scripted expectation. Every answer names what it
 /// chooses, found in whatever order the engine lists the options, by the
-/// comparison a replay uses (`reading_as`).
+/// matcher a replay uses (`position_named`).
 #[derive(Debug)]
 pub enum ScriptedResponse {
     /// The options to pick.
@@ -274,26 +274,25 @@ pub enum ScriptedResponse {
     Take,
 }
 
-/// Where each of `chosen` sits in `options`. An option that reads like
-/// another offered one is refused without its place among them, since its
-/// words alone would mean whichever the engine lists first.
+/// The positions in `options` of the options `chosen` names, by the one
+/// matcher. A script is stricter than a replayed line: words alone that more
+/// than one offered option reads are refused, since they would mean whichever
+/// the engine lists first, and so is a place where no other option reads the
+/// same, which would mean nothing.
 fn found<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl IntoIterator<Item = &'a Named>) -> Vec<usize> {
     let offered = || options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>();
     let mut found = Vec::new();
     for (option, place) in chosen {
         let words = option.as_logged(game);
-        let alike = reading_as(options, game, &words);
-        let at = match (place, alike.len()) {
-            (None, 1) => Some(alike[0]),
-            (None, n) if n > 1 => panic!(
-                "ScriptedDecisionProvider: {n} options offered read {words}, so name its place among them: {:?}",
+        match (place, reading_as(options, game, &words).len()) {
+            (None, alike) if alike > 1 => panic!(
+                "ScriptedDecisionProvider: {alike} options offered read {words}, and its words alone cannot say which: {:?}",
                 offered()
             ),
             (Some(_), 1) => panic!("ScriptedDecisionProvider: no other option offered reads {words}, so name it without a place"),
-            (Some(place), _) => place.checked_sub(1).and_then(|at| alike.get(at).copied()),
-            (None, _) => None,
-        };
-        match at.filter(|at| !found.contains(at)) {
+            _ => {}
+        }
+        match position_named(options, game, &words, *place, &found) {
             Some(at) => found.push(at),
             None => panic!("ScriptedDecisionProvider: {words} is not offered: {:?}", offered()),
         }
@@ -381,9 +380,11 @@ impl ScriptedDecisionProvider {
     }
 
     /// [`Self::expect_choice`] for options that read the same as others
-    /// offered, each with its place among them. Only a question that offers
-    /// two abilities of one object as that object needs it: CR 616.1's
-    /// replacements, where place is all that tells them apart.
+    /// offered, each with its place among them counted from 1, as the log
+    /// writes `(2 of 2)`. Only a question that offers two effects as their one
+    /// source needs it: CR 616.1's replacements, a creature's printed one
+    /// beside its finality counter's, where place is all that tells them
+    /// apart.
     pub fn expect_choice_among_alike(&self, kind: ChoiceKind, chosen: Vec<(ChoiceOption, usize)>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
@@ -394,7 +395,8 @@ impl ScriptedDecisionProvider {
     /// Enqueue a take-or-leave answer that takes the one option offered: a
     /// "you may" whose option is an object the call that asks creates, a
     /// trigger's stack object or a token entering, which no script can name
-    /// beforehand. Refused when more than one option is offered.
+    /// beforehand. Refused when more than one option is offered. Leaving it
+    /// is `expect_choice` of nothing.
     pub fn expect_take(&self, kind: ChoiceKind) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
@@ -429,8 +431,8 @@ impl ScriptedDecisionProvider {
     }
 
     /// [`Self::expect_order`] for items that read the same as others, each
-    /// with its place among them: CR 603.3b's triggered abilities of one
-    /// source, which the order offers as that source.
+    /// with its place among them counted from 1: CR 603.3b's triggered
+    /// abilities of one source, which the order offers as that source.
     pub fn expect_order_among_alike(&self, kind: ChoiceKind, order: Vec<(ChoiceOption, usize)>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
