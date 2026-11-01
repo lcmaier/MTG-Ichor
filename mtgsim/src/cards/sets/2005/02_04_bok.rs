@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{any_target, prevent_the_next_this_turn, spell_ability};
+use crate::cards::authoring::{any_target, prevent_the_next_n_damage_this_turn, spell_ability};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -32,7 +32,7 @@ pub fn mending_hands() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Prevent the next 4 damage that would be dealt to any target this turn.")
         .ability(spell_ability("Prevent the next 4 damage that would be dealt to any target this turn.",
-            prevent_the_next_this_turn(any_target(), 4),
+            prevent_the_next_n_damage_this_turn(any_target(), 4),
         ))
         .build()
 }

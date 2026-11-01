@@ -445,7 +445,7 @@ pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> Continuou
 /// Censer-Bearer, with each creature its filter finds — and the duration is the
 /// card's "this turn", authored here because CR 608.2c will not let the engine
 /// infer it.
-pub fn prevent_the_next_this_turn(recipient: EffectRecipient, n: u64) -> Effect {
+pub fn prevent_the_next_n_damage_this_turn(recipient: EffectRecipient, n: u64) -> Effect {
     create_replacement_for(
         recipient,
         ReplacementDef::new(

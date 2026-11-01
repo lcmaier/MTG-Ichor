@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     activated_ability, create_tokens, creature, creatures_you_control, each, each_in, exile, functioning_in, has_base_power_and_toughness,
-    loses_all_abilities, non, prevent_the_next_this_turn, static_ability, this_object, token, triggered_ability, whenever, you,
+    loses_all_abilities, non, prevent_the_next_n_damage_this_turn, static_ability, this_object, token, triggered_ability, whenever, you,
 };
 use crate::cards::tokens::zombie_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -181,7 +181,7 @@ pub fn samite_censer_bearer() -> Arc<CardData> {
         )
         .ability(activated_ability("{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to each creature you control this turn.",
             vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf],
-            prevent_the_next_this_turn(each(creatures_you_control()), 1),
+            prevent_the_next_n_damage_this_turn(each(creatures_you_control()), 1),
         ))
         .build()
 }

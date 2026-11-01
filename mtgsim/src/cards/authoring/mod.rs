@@ -35,7 +35,7 @@ pub use instructions::{
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, create_tokens, deal_damage,
     deal_damage_unpreventable, destroy, discard, draw_cards, exile, exile_until, gain_control_of, gain_life, gains_ability, gains_keyword,
     get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life, lose_the_game, loses_all_abilities, mill,
-    prevent_the_next_this_turn, put_counters, remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
+    prevent_the_next_n_damage_this_turn, put_counters, remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
     shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
 };
 pub use recipients::{
