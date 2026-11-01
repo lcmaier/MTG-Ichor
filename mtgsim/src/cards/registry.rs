@@ -366,9 +366,10 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // which the predicate asks about (`backlog.md` §2.29). Doubling Season
     // stays out: five mana, and its token half would double the pool's
     // Soldiers, a gameplay change the A/B should not carry with the engine
-    // change. Vorinclex, Winding Constrictor, Primal Vigor and Live Fast stay
-    // out for the module doc's reasons — the same path at more mana, or a
-    // subject nothing pooled produces.
+    // change. Vorinclex is six mana and legendary, Winding Constrictor two
+    // colors, Primal Vigor the Season with `Everyone`, and Live Fast a cantrip
+    // whose energy nothing pooled reads: each is the same path at more mana,
+    // or a path with no second card to meet.
     "Hardened Scales",
     // The pool's discard outside the cleanup step, and its scry. Two cards
     // because they are two keyword actions with nothing in common: Mind Rot is
@@ -1070,8 +1071,8 @@ impl CardRegistry {
         // (Yawgmoth's Bargain), a static on everyone (Eon Hub), a consumable
         // row on you (Meditate), a targeted row (Moment of Silence) — plus
         // Time Walk, which makes the turn the others skip. Eon Hub is pooled;
-        // the rest are registered for the stress pool, and the module doc says
-        // why each stays out.
+        // the rest are registered for the stress pool, and its comment in
+        // `PERFORMANCE_POOL` says why each stays out.
         registry.register("Yawgmoth's Bargain", phase_re_cards::yawgmoths_bargain);
         registry.register("Eon Hub", phase_re_cards::eon_hub);
         registry.register("Meditate", phase_re_cards::meditate);
@@ -1090,7 +1091,7 @@ impl CardRegistry {
         // (Tainted Remedy), a draw turned into a gain (Words of Worship), the
         // loss inside damage clamped (Ali from Cairo), and the gain refused
         // outright (Skullcrack). Rhox Faithmender is pooled; Leyline of
-        // Punishment is deliberately unregistered and the module doc says why.
+        // Punishment is deliberately unregistered and Skullcrack's doc says why.
         registry.register("Rhox Faithmender", phase_re_cards::rhox_faithmender);
         registry.register("Tainted Remedy", phase_re_cards::tainted_remedy);
         registry.register("Words of Worship", phase_re_cards::words_of_worship);
@@ -1105,7 +1106,8 @@ impl CardRegistry {
         // win (Laboratory Maniac), a loss replaced by a static (Exquisite
         // Archangel) or by a one-turn row (Stunning Reversal), and a loss
         // refused outright (Platinum Angel). Laboratory Maniac is pooled;
-        // Platinum Angel is registered and not, and the module doc says why.
+        // Platinum Angel is registered and not, and the Maniac's comment in
+        // `PERFORMANCE_POOL` says why.
         registry.register("Laboratory Maniac", phase_re_cards::laboratory_maniac);
         registry.register("Exquisite Archangel", phase_re_cards::exquisite_archangel);
         registry.register("Stunning Reversal", phase_re_cards::stunning_reversal);
@@ -1114,8 +1116,8 @@ impl CardRegistry {
         // Tokens. Four cards on two axes: what makes a plural creation
         // (Raise the Alarm, Hordeling Outburst), what doubles one (Parallel
         // Lives), and what substitutes a token's entry (Hallowed Moonlight).
-        // Parallel Lives and Raise the Alarm are pooled; the module doc says
-        // why the other two stay out.
+        // Parallel Lives and Raise the Alarm are pooled; `PERFORMANCE_POOL`
+        // says why the other two stay out.
         registry.register("Parallel Lives", phase_re_cards::parallel_lives);
         registry.register("Raise the Alarm", phase_re_cards::raise_the_alarm);
         registry.register("Hordeling Outburst", phase_re_cards::hordeling_outburst);
@@ -1128,8 +1130,8 @@ impl CardRegistry {
 
         // Counters. Six cards on two axes: which subject the effect
         // is around (a permanent, a player, or either) and what it does to
-        // the count. Hardened Scales is pooled; the module doc says why the
-        // other five stay out.
+        // the count. Hardened Scales is pooled; `PERFORMANCE_POOL` says why
+        // the other five stay out.
         registry.register("Doubling Season", phase_re_cards::doubling_season);
         registry.register("Hardened Scales", phase_re_cards::hardened_scales);
         registry.register(
@@ -1144,8 +1146,8 @@ impl CardRegistry {
         // discarded card (Mind Rot, Hymn to Tourach), what caused the discard
         // (Nephalia Academy, the one `ReplacementDef::by` in the registry),
         // and the scry both ways round (Opt makes one, Eligeth replaces one).
-        // Mind Rot and Opt are pooled; the module doc says why the other
-        // three stay out, and why the Dodecapod family is not here at all.
+        // Mind Rot and Opt are pooled; `PERFORMANCE_POOL` says why the other
+        // three stay out.
         registry.register("Mind Rot", phase_re8_cards::mind_rot);
         registry.register("Hymn to Tourach", phase_re8_cards::hymn_to_tourach);
         registry.register("Nephalia Academy", phase_re8_cards::nephalia_academy);
@@ -1155,17 +1157,15 @@ impl CardRegistry {
             phase_re8_cards::eligeth_crossroads_augur,
         );
 
-        // Extra phases. Aggravated Assault is CR 500.8's only
-        // producer in reach whole; the module doc says why the other 45
-        // are not, and why it is unpooled (eight mana to use once, and
-        // every activation makes the game bigger).
+        // Extra phases. Aggravated Assault is CR 500.8's only producer in
+        // reach whole, and unpooled: eight mana to use once, and every
+        // activation makes the game bigger.
         registry.register("Aggravated Assault", phase_re10_cards::aggravated_assault);
 
         // Mana. Three cards on two axes: CR 106.6a's multipliers (Mana
         // Reflection, pooled; Nyxbloom Ancient) and CR 106.12b's retyping
         // (Deep Water, the one of six printed type-changers that registers
-        // whole). The module doc says why the other eleven "tapped for mana"
-        // cards are not here.
+        // whole).
         registry.register("Mana Reflection", phase_re9_cards::mana_reflection);
         registry.register("Nyxbloom Ancient", phase_re9_cards::nyxbloom_ancient);
         registry.register("Deep Water", phase_re9_cards::deep_water);
@@ -1198,15 +1198,16 @@ impl CardRegistry {
         // source 2): a static *replacement* ability functioning off the
         // battlefield. Two shapes: a permanent card whose clause the library,
         // the hand and the stack all see, and an instant that is never a
-        // permanent at all. The module doc says why neither is Blightsteel.
+        // permanent at all. Darksteel Colossus's doc says why neither is
+        // Blightsteel.
         // The fixtures beside them — `timid_golem`, `hollow_hands`,
         // `sealing_ward` — are the CR 113.6 default, the effective-list read
         // and the affected side's zone check, and are registered nowhere.
         registry.register("Darksteel Colossus", phase_rf_cards::darksteel_colossus);
         registry.register("Nexus of Fate", phase_rf_cards::nexus_of_fate);
 
-        // A4i — CR 601.2c's three shapes of "several instances of target". The
-        // module doc says which card presses on which; Seat of the Synod is
+        // A4i — CR 601.2c's three shapes of "several instances of target",
+        // each card's doc saying which it presses on; Seat of the Synod is
         // here because the CR's own example of one object satisfying two
         // clauses is an artifact land.
         registry.register("Seeds of Strength", phase_a4i_cards::seeds_of_strength);

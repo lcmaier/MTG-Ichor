@@ -28,6 +28,9 @@ use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerEvent, Trigg
 /// Panharmonicon's own referents, and the ability is any of a permanent its
 /// controller controls, whatever its own trigger event says.
 ///
+/// It exercises CR 603.2d's count, over every entering trigger of its
+/// controller's permanents.
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr5g_integration_test`.

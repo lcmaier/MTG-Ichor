@@ -36,6 +36,9 @@ use crate::types::triggers::{EventRole, TriggerSubject};
 /// the existence it was (CR 400.7): a creature that has left is not
 /// sacrificed, nor the new object it became.
 ///
+/// It exercises "becomes unattached" on every route CR 701.3d counts, looking
+/// back (CR 603.10c), and "that permanent" as the existence it was.
+///
 /// # Not pooled, and why
 ///
 /// Equip {0} at sorcery speed is offered to the random agent every main
@@ -96,6 +99,9 @@ pub fn grafted_wargear() -> Arc<CardData> {
 /// trigger it (CR 303.4f), as does one moved onto it from another object,
 /// and an attach to it while the Aura is already there does not. Brood
 /// Keeper's first ruling says so of the same text.
+///
+/// It exercises "becomes attached", an Aura entering attached included (CR
+/// 303.4f).
 ///
 /// # In `PERFORMANCE_POOL`, and why
 ///

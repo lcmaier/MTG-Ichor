@@ -29,6 +29,9 @@ use crate::types::triggers::{EventRole, TargetedBy, TriggerSubject};
 /// One trigger for each creature it blocks (CR 509.3b), and one instruction
 /// on both (CR 608.2f): the two are destroyed in one event.
 ///
+/// It exercises a block read once for each attacker it blocks, and one
+/// instruction on two objects.
+///
 /// # The ruling, and where it is tested
 ///
 /// In `phase_tr5c_integration_test`.
@@ -64,6 +67,9 @@ pub fn loyal_sentry() -> Arc<CardData> {
 /// Any spell or ability, its controller's own included, and once for each,
 /// however many of its instances chose it (CR 115.9a counts instances only
 /// for "with N targets").
+///
+/// It exercises becoming the target of a spell or ability, once for each,
+/// whoever controls it.
 ///
 /// # The rulings
 ///

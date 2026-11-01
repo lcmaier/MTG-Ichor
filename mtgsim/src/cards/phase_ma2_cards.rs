@@ -22,6 +22,9 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 /// "Blaze deals X damage to any target."
 ///
 /// No rulings (Scryfall, 2026-10-17).
+///
+/// It exercises the plain X spell: the gate at the least X, CR 601.2b's legal
+/// values, 601.2f's expansion, and the announced X read at resolution.
 pub fn blaze() -> Arc<CardData> {
     CardDataBuilder::new("Blaze")
         .card_type(CardType::Sorcery)

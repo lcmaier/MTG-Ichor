@@ -39,6 +39,9 @@ use crate::types::triggers::TriggerSubject;
 /// Registered, not pooled: the performance pool has no "when you do", and
 /// its A/B stays IDENTICAL.
 ///
+/// It exercises an optional sacrifice, then CR 603.12's "when you do", whose
+/// damage its source deals as it last existed if it has left.
+///
 /// # The ruling, and where it is tested
 ///
 /// In `phase_tr3c_integration_test`.

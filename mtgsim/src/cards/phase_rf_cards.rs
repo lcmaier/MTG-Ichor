@@ -55,6 +55,14 @@ use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 /// library or a hand that the zone leg reads on every gather — the cost this
 /// phase opens, and the one its A/B is read for.
 ///
+/// **This card and not Blightsteel Colossus**, which the owner named for the
+/// leg: Blightsteel's clause is this one plus infect, and infect (CR 702.90)
+/// is not a keyword the engine has, so a registered Blightsteel would wear a
+/// real name while behaving differently, which
+/// `engineering-practices.md#cards-and-pools` forbids. This card prints the
+/// same clause with only trample and indestructible, both of which the
+/// engine plays.
+///
 /// Its own ruling (Scryfall, 2013-07-01) is the board the battlefield half is
 /// tested on: indestructible stops destruction, "however, a creature with
 /// indestructible can be put into the graveyard for a number of reasons …

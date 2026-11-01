@@ -402,9 +402,10 @@ pub fn angel_of_suffering() -> Arc<CardData> {
 
 /// Loyalty Probe — a fixture planeswalker, and CR 120.3c's consumer.
 ///
-/// **Not a printed card**, and the module docs say why a printed one could not
-/// take its place. Printed loyalty 3, no abilities at all, `{2}` so any deck
-/// can cast it.
+/// **Not a printed card**: a printed planeswalker's loyalty abilities have no
+/// `AbilityType` and no activation path, so a real one would be a card with
+/// dead abilities wearing a real name. Printed loyalty 3, no abilities at all,
+/// `{2}` so any deck can cast it.
 ///
 /// Three is chosen rather than five: `SelectionFilter::Any` enumerates
 /// planeswalkers, so a random agent's Lightning Bolt finds this one, and three

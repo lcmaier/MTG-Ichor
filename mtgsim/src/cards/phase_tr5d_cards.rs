@@ -42,6 +42,9 @@ use crate::types::triggers::{DamageRecipient, TriggerSubject};
 /// the turn. The second reads CR 615.13's event, one record for each time a
 /// prevention effect is applied to the damage dealt to you.
 ///
+/// It exercises a prevention shield with one subject, and the arm over each
+/// application of a prevention effect.
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr5d_integration_test`.
@@ -82,6 +85,9 @@ pub fn selfless_squire() -> Arc<CardData> {
 /// The tokens read the damage record the resolution performed, which the
 /// window holds until the resolution ends. It deals damage to one creature
 /// only, so the excess dealt this way is the excess dealt to it.
+///
+/// It exercises the excess damage a resolution's own effect dealt, read later
+/// in the same resolution.
 ///
 /// # The rulings, and where each is tested
 ///

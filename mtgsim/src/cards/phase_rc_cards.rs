@@ -133,8 +133,7 @@ use crate::types::zones::{Zone, ZoneChangeAct};
 /// **The gate is not "no filter reaches an entry", which is what RC-2 wrote
 /// (corrected 2026-09-02).** `ReplacementDef.affected`'s object half is matched by
 /// `gather::set_affects` through a different and ungated function, so
-/// `root_maze` taps this land on the way in without any help from RC-3. The
-/// two paths are separated in this module's doc comment.
+/// `root_maze` taps this land on the way in without any help from RC-3.
 pub fn idyllic_beachfront() -> Arc<CardData> {
     CardDataBuilder::new("Idyllic Beachfront")
         .card_type(CardType::Land)

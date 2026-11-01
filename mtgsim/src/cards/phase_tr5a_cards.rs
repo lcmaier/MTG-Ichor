@@ -34,6 +34,10 @@ use crate::types::triggers::{DamageRecipient, EventRole, Multiplicity, TriggerEv
 /// "That creature" is the creature the condition names, the damage's source
 /// (`EventRole::DamageSource`). "Unlock Ability" is a flavor word (CR 207.2d).
 ///
+/// It exercises a damage trigger whose "that creature" is the source, which its
+/// instruction names (CR 608.2c), and a grant to the creatures with a counter
+/// on them.
+///
 /// # The ruling, and where it is tested
 ///
 /// In `phase_tr5a_integration_test`.

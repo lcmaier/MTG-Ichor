@@ -48,6 +48,9 @@ fn you_control_a_creature_of(color: Color) -> Condition {
 /// The gather sweeps the battlefield, where an entering Grumgully is not, so
 /// it neither counts itself nor a creature entering beside it.
 ///
+/// It exercises an entry counter over "not a Human", read after CR 616.1c's
+/// copy step.
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr7_integration_test`.
@@ -93,6 +96,9 @@ pub fn grumgully_the_generous() -> Arc<CardData> {
 /// asked off the frame of the Scarecrow that died (CR 603.10a), so it
 /// triggers if a black creature was there as it left, the black creature
 /// dying beside it included, and once on the stack it no longer needs one.
+///
+/// It exercises a triggered ability granted under a condition, asked off the
+/// frame of the object that left.
 ///
 /// # The rulings, and where each is tested
 ///
@@ -140,6 +146,8 @@ pub fn wingrattle_scarecrow() -> Arc<CardData> {
 ///
 /// The sacrifice is a cost (CR 602.2b), so the creature is gone before the
 /// ability is on the stack and its death triggers go above it.
+///
+/// It exercises an activated ability whose cost sacrifices a chosen creature.
 ///
 /// # Not in `PERFORMANCE_POOL`
 ///

@@ -45,6 +45,9 @@ use crate::state::game_state::StepType;
 /// the batch close is what makes two creatures entering together two
 /// triggers rather than one and none.
 ///
+/// It exercises the matcher at a batch's close: CR 603.6a's "another", two
+/// entries in one window.
+///
 /// # The rulings, and where each is tested
 ///
 /// - *"If this creature enters at the same time as one or more other
@@ -76,6 +79,9 @@ pub fn soul_warden() -> Arc<CardData> {
 /// the plain type filter; its own death is found on the CR 603.10a frame the
 /// record carries, and the target is chosen as the ability goes on the
 /// stack (CR 603.3d), which is the placement prompt the pool measures.
+///
+/// It exercises CR 603.10a's look-back off the frame, a target chosen at
+/// placement (603.3d).
 ///
 /// # The rulings, and where each is tested
 ///
@@ -127,6 +133,8 @@ pub fn saproling_token() -> TokenDef {
 /// "Each upkeep" is `Whose::Each`: the step's record carries whose it is
 /// (item 10) and this ability does not ask.
 ///
+/// It exercises "each upkeep" — a step beginning, a token from a trigger.
+///
 /// # The rulings, and where each is tested
 ///
 /// - *"Verdant Force's ability triggers at the beginning of each upkeep, not
@@ -162,6 +170,8 @@ pub fn verdant_force() -> Arc<CardData> {
 /// land was tapped there, and the stack never sees it. "Its controller adds"
 /// is the `Host` recipient: the land's controller, whoever controls the Aura.
 ///
+/// It exercises CR 605.1b's stackless mana trigger inside the mana window.
+///
 /// # The rulings, and where each is tested
 ///
 /// - *"The additional mana is not an ability of the land and is not
@@ -193,6 +203,8 @@ pub fn wild_growth() -> Arc<CardData> {
 ///
 /// CR 603.4's intervening "if": checked as the upkeep begins, and again as
 /// the ability resolves (608.2a). "Your upkeep" is `Whose::Yours`.
+///
+/// It exercises CR 603.4's intervening "if" at both instants, `WinGame`.
 ///
 /// # The rulings, and where each is tested
 ///

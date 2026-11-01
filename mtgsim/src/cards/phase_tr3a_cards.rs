@@ -47,6 +47,9 @@ use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTur
 /// **Registered, not pooled**, for Time Walk's reason: an extra turn moves
 /// `Avg turns/game` by design, and a loss at its end moves the outcomes.
 ///
+/// It exercises a spell's delayed trigger (CR 603.7d) in "that turn", the extra
+/// turn it made (CR 500.7).
+///
 /// # The rulings, and where each is tested
 ///
 /// Both below.
@@ -98,6 +101,8 @@ pub fn final_fortune() -> Arc<CardData> {
 ///
 /// **Registered, not pooled**: §12 pools the registry with TR-3b's two cards,
 /// so this PR's close-out reads the performance pool unmoved.
+///
+/// It exercises a spell's delayed trigger in the next turn, which ends no game.
 ///
 /// # The rulings, and where each is tested
 ///

@@ -31,6 +31,9 @@ use crate::types::triggers::EventRole;
 /// and stayed on the battlefield, and what it was attacking once it has left
 /// (CR 608.2h; Fathom Fleet Swordjack's ruling on the same words).
 ///
+/// It exercises an attack trigger for each creature its controller attacks
+/// with, and damage to what that creature is attacking (CR 506.3, 508.3a).
+///
 /// # The ruling, and where it is tested
 ///
 /// In `phase_tr5e_integration_test`.

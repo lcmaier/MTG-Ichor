@@ -37,6 +37,9 @@ use crate::types::mana::{ManaCost, ManaType};
 /// check's three moments. "No other creatures" is `Condition::Not` over the
 /// positive fact, and "other" is relative to the Crocodile itself.
 ///
+/// It exercises CR 603.8's state check, after a resolution's own batches and
+/// before placement.
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr6_integration_test`.

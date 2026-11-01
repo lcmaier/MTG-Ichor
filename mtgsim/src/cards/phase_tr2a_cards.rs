@@ -43,6 +43,9 @@ use crate::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerD
 /// the dies record's frame, the creature as it last existed on the
 /// battlefield (CR 608.2h).
 ///
+/// It exercises "last turn" off the histories; "its toughness" off the dies
+/// record's frame.
+///
 /// # The rulings, and where each is tested
 ///
 /// - *"...cares only whether you lost life last turn, even if Paladin of
@@ -90,6 +93,8 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
 ///
 /// "The first time each turn" is the loss record's place among this turn's
 /// losses (§3.5), so two losses in one batch are the first and the second.
+///
+/// It exercises "for the first time each turn": a record's place in its turn.
 ///
 /// # The rulings, and where each is tested
 ///
@@ -160,6 +165,9 @@ fn elves_you_control() -> ObjectFilter {
 /// its ruling is the phrase's definition (§3.5): the gate is the trigger's,
 /// written as the dispatcher queues it.
 ///
+/// It exercises "one or more" with "triggers only once each turn"; a pump over
+/// a filter, fixed as it resolves.
+///
 /// # The rulings, and where each is tested
 ///
 /// - *"It doesn't matter how many Elves enter the battlefield under your
@@ -213,6 +221,8 @@ pub fn elvish_warmaster() -> Arc<CardData> {
 ///
 /// One instruction to every player, which CR 121.2c performs in APNAP order:
 /// the active player draws first. No rulings.
+///
+/// It exercises "each player draws", in APNAP order (CR 121.2c).
 pub fn temple_bell() -> Arc<CardData> {
     CardDataBuilder::new("Temple Bell")
         .mana_cost(ManaCost::build(&[], 3))

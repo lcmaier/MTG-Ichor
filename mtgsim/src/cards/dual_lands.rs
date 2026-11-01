@@ -36,6 +36,17 @@ use crate::types::mana::ManaType;
 /// Subtype order follows the printed type line, which is also the order
 /// `land_types::basic_land_types_sorted` would produce — irrelevant to behavior,
 /// but it keeps the fixture readable next to the real card.
+///
+/// **One modeling shortcut, recorded rather than hidden.** CR 305.6 makes a
+/// land's mana abilities *intrinsic to its basic land types* — the reminder
+/// text in parentheses on the printed card is not rules text. Each dual gets
+/// two explicit `AbilityType::Mana` abilities instead, because base
+/// characteristics are read straight from `CardData` and nothing derives
+/// abilities from printed subtypes. The two models agree everywhere the
+/// engine can observe: CR 305.7 clears `chars.abilities` wholesale before
+/// granting the new intrinsic, and Humility removes mana abilities from an
+/// animated land either way (per its Scryfall ruling). Revisit if an effect
+/// ever needs to distinguish an intrinsic ability from a printed one.
 fn dual(name: &str, first: LandType, second: LandType) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Land)
@@ -131,7 +142,8 @@ pub fn tropical_island() -> Arc<CardData> {
 /// moved them into the text box, a characteristic-defining ability (CR 604.3)
 /// that applies first in layer 4 (CR 613.3), so the base subtypes here read the
 /// same under every effect in the registry. The five mana abilities are
-/// CR 305.6's intrinsics, written out for the reason in this module's doc.
+/// CR 305.6's intrinsics, written out as the dual lands' are, since nothing
+/// derives an ability from a printed subtype.
 ///
 /// **It does not enter tapped.** "Create a *tapped* Everywhere token" is the
 /// Overlord's instruction, not the token's text, so there is no `EnterWith` —

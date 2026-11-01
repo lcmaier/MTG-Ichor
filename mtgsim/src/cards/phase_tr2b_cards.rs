@@ -36,6 +36,9 @@ use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, Trigger
 /// the walk answers `Does` for a yes and the resolution writes the gate on
 /// that answer alone.
 ///
+/// It exercises "you may" behind CR 603.2h's gate, which only a yes closes;
+/// "that many" counters on each creature you control.
+///
 /// # The rulings, and where each is tested
 ///
 /// All in `phase_tr2b_integration_test`.
@@ -99,6 +102,9 @@ pub fn nykthos_paragon() -> Arc<CardData> {
 /// hand is a zone move, and every zone move bumps the layer epoch, so the
 /// count is never served stale.
 ///
+/// It exercises a hand's count in the layer walk; "whenever you draw a card";
+/// each opponent's life loss.
+///
 /// # The rulings, and where each is tested
 ///
 /// - *"If an effect causes you to draw multiple cards, Psychosis Crawler will
@@ -133,6 +139,9 @@ pub fn psychosis_crawler() -> Arc<CardData> {
 ///
 /// > Whenever an opponent shuffles their library, you may put a +1/+1 counter
 /// > on this creature.
+///
+/// It exercises "whenever an opponent shuffles their library"; a "may" on this
+/// creature.
 ///
 /// # The rulings, and where each is tested
 ///

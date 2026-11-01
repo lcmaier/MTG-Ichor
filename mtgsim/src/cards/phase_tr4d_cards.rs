@@ -32,6 +32,9 @@ use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTur
 /// "A spell you've cast" is who cast it, which an effect that took control of
 /// the spell does not change (`StackEntry::caster`).
 ///
+/// It exercises a trigger on a spell being countered, looking back at who cast
+/// it (CR 603.10e).
+///
 /// # The ruling, and where it is tested
 ///
 /// In `phase_tr4d_integration_test`.
@@ -66,6 +69,9 @@ pub fn multanis_presence() -> Arc<CardData> {
 /// CR 603.7c), and the delayed trigger's "you" is the spell's controller (CR
 /// 603.7d). Losing control is whatever ends it: the steal wearing off, a
 /// third player taking the creature, or its leaving the battlefield.
+///
+/// It exercises a delayed trigger on losing control, which a steal ending at
+/// cleanup makes, in a second cleanup step (CR 603.10d, 514.3a).
 ///
 /// # The rulings, and where each is tested
 ///

@@ -47,6 +47,9 @@ fn a_creature_you_control() -> ObjectFilter {
 /// 603.4's intervening "if" over the counters on it, asked as the upkeep
 /// begins and again as the ability resolves.
 ///
+/// It exercises a put read once per creature, that many counters of a kind no
+/// rule reads, and a win behind an intervening "if" over them.
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr5b_integration_test`.
@@ -115,6 +118,10 @@ pub fn simic_ascendancy() -> Arc<CardData> {
 /// and a CR 615.5 rider reading "that many", the damage that would have been
 /// dealt. The removal is read once for each counter, and each makes a delayed
 /// trigger whose "it" is this creature, found by identity (CR 400.7).
+///
+/// It exercises an entry template's X (CR 107.3m), a prevention whose rider
+/// removes that many counters, and a removal read once per counter that makes a
+/// delayed trigger.
 ///
 /// # The rulings, and where each is tested
 ///

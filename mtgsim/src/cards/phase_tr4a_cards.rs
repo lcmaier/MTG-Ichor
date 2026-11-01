@@ -40,6 +40,10 @@ use crate::types::zones::{Zone, ZoneChangePattern};
 /// graveyard (CR 400.7e), which returns as a new object (CR 400.7) with its
 /// +1/+1 counter as part of the entry (CR 122.6).
 ///
+/// It exercises undying: an intervening "if" about the counters it had, read
+/// off its last known information at both instants, and a return with a
+/// counter.
+///
 /// # In `PERFORMANCE_POOL`, and why
 ///
 /// The first pooled ability whose intervening "if" reads the triggering
@@ -77,6 +81,9 @@ pub fn strangleroot_geist() -> Arc<CardData> {
 /// graveyard, and what it enchanted is read off the creature's departure,
 /// which framed what was attached to it. "That card" is the one the creature
 /// became in the graveyard (CR 603.6e, 400.7).
+///
+/// It exercises an Aura's "when enchanted creature dies", asked of its host's
+/// departure, which framed what was attached to it.
 ///
 /// # The ruling, and where it is tested
 ///
@@ -118,6 +125,9 @@ pub fn demonic_vigor() -> Arc<CardData> {
 /// (CR 603.10). A Clone that copied a black creature dies blue, and a
 /// creature Darkest Hour made black dies its own color. A token is not a
 /// card (CR 108.2), and the graveyard is its owner's (CR 400.3).
+///
+/// It exercises "from anywhere", which reads the card where it went and not as
+/// it left.
 ///
 /// # The ruling, and where it is tested
 ///

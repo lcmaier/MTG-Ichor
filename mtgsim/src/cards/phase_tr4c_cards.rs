@@ -64,6 +64,9 @@ fn deals_damage_to_any_target(n: u64) -> Effect {
 /// discard: "whatever zone the card winds up in". So Yixlid Jailer stops it,
 /// as its second ruling says of Krosan Tusker's cycling trigger.
 ///
+/// It exercises a trigger on this card leaving a hidden zone (its discard),
+/// asked where the card went (CR 603.10, 113.6k, 702.29c).
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr4c_integration_test`.
@@ -114,6 +117,9 @@ pub fn guerrilla_tactics() -> Arc<CardData> {
 /// event as the creature, or by CR 704.5m's check that follows, which is
 /// the usual way: the Aura stays on the battlefield, unattached, until then.
 ///
+/// It exercises an Aura's trigger on its creature dying finds the card the Aura
+/// became in its owner's graveyard (CR 603.6e, 400.7f).
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr4c_integration_test`.
@@ -157,6 +163,9 @@ pub fn angelic_destiny() -> Arc<CardData> {
 /// A trigger on the Aura itself going to the graveyard: "it" is the card it
 /// became there (CR 400.7e), which the binding names since RH-3.
 ///
+/// It exercises an Aura's trigger on itself going to the graveyard, finding the
+/// card it became (CR 400.7e).
+///
 /// # The ruling, and where it is tested
 ///
 /// In `phase_tr4c_integration_test`.
@@ -196,6 +205,10 @@ pub fn rancor() -> Arc<CardData> {
 /// graveyard and nowhere else, so on the battlefield the card does nothing.
 /// Both abilities are leaves-the-battlefield abilities and look back (CR
 /// 603.10a), so the card has to be in the graveyard before the creature dies.
+///
+/// It exercises an intervening "if" that states the zone its ability works in
+/// (CR 113.6b), asked from a graveyard; a card that reaches the graveyard in
+/// the event answers none of its look-back triggers (CR 603.10a).
 ///
 /// # In `PERFORMANCE_POOL`, and why
 ///

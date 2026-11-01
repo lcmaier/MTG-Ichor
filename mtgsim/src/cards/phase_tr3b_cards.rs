@@ -42,6 +42,9 @@ use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTur
 /// meantime (CR 603.7c, 400.7). The delayed trigger is Flickerwisp's and its
 /// controller's as the enters trigger resolved (CR 603.7e).
 ///
+/// It exercises a triggered ability's delayed trigger (CR 603.7e) naming the
+/// card it exiled (603.7c), `ReturnToBattlefield`.
+///
 /// # The rulings, and where each is tested
 ///
 /// All in `phase_tr3b_integration_test`.
@@ -103,6 +106,9 @@ pub fn flickerwisp() -> Arc<CardData> {
 /// departure is dispatched, without the stack, under the card's owner's
 /// control (610.3c). The exile's object is the card in exile by identity, so
 /// a token that ceased to exist there returns nothing.
+///
+/// It exercises CR 610.3's "until" exile, and its return made at a dispatch
+/// without the stack.
 ///
 /// # The rulings, and where each is tested
 ///

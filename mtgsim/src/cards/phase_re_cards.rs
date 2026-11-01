@@ -1363,8 +1363,8 @@ pub fn stunning_reversal() -> Arc<CardData> {
 /// the pipeline (CR 101.2, 614.17): the state-based check proposes your loss
 /// at every check and `is_prohibited` drops it every time, which is the ruling
 /// — "you keep playing". Its own controller may still win: `PlayerSet::Opponents`
-/// is the second row's whole scope. **Registered and not pooled**, and the
-/// module doc says why.
+/// is the second row's whole scope. **Registered and not pooled**, and
+/// `PERFORMANCE_POOL`'s comment says why.
 /// # The rulings, and where each is tested
 ///
 /// - *"No game effect can cause you to lose the game or cause any opponent to
@@ -1477,7 +1477,7 @@ pub fn goblin_token() -> TokenDef {
 /// beside Hallowed Moonlight, CR 614.12 under Master Biomancer, CR 111.5
 /// under a "can't enter".
 ///
-/// **Pooled**, with Parallel Lives — the module doc says why.
+/// **Pooled**, with Parallel Lives — `PERFORMANCE_POOL`'s comment says why.
 pub fn raise_the_alarm() -> Arc<CardData> {
     CardDataBuilder::new("Raise the Alarm")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
@@ -1548,7 +1548,7 @@ pub fn hordeling_outburst() -> Arc<CardData> {
 ///   `EnterMods` — and the ruling's *structure* is what the test proves.
 ///   → `the_extra_tokens_are_the_same_tokens`
 ///
-/// **Pooled**, with Raise the Alarm — the module doc says why.
+/// **Pooled**, with Raise the Alarm — `PERFORMANCE_POOL`'s comment says why.
 pub fn parallel_lives() -> Arc<CardData> {
     CardDataBuilder::new("Parallel Lives")
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
@@ -1603,7 +1603,7 @@ pub fn parallel_lives() -> Arc<CardData> {
 ///   → Grizzly Bears cast from hand resolves and enters under it.
 ///   → `hallowed_moonlight_does_not_affect_a_creature_that_was_cast`
 ///
-/// **Registered and not pooled** — the module doc says why.
+/// **Registered and not pooled** — `PERFORMANCE_POOL`'s comment says why.
 pub fn hallowed_moonlight() -> Arc<CardData> {
     CardDataBuilder::new("Hallowed Moonlight")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
@@ -1886,7 +1886,7 @@ pub fn doubling_season() -> Arc<CardData> {
 ///   of +1/+1 counters placed on a creature you control by one."* → two
 ///   rows, each applied once; `two_hardened_scales_add_two`.
 ///
-/// **Pooled**, `PERFORMANCE_POOL` +1 — the module doc says why.
+/// **Pooled**, `PERFORMANCE_POOL` +1 — its comment there says why.
 pub fn hardened_scales() -> Arc<CardData> {
     CardDataBuilder::new("Hardened Scales")
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))

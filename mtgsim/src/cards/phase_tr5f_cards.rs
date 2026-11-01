@@ -56,6 +56,9 @@ pub fn attacking_human_token() -> TokenDef {
 /// meld: Hanweir Battlements carries the meld ability, so nothing on this card
 /// is dead.
 ///
+/// It exercises tokens put onto the battlefield attacking, each defender chosen
+/// as it enters (CR 508.4).
+///
 /// # The rulings, and where each is tested
 ///
 /// In `phase_tr5f_integration_test`.
@@ -95,6 +98,9 @@ pub fn hanweir_garrison() -> Arc<CardData> {
 /// turn (CR 508.1), so a creature put onto the battlefield attacking is not
 /// one (CR 508.4). The extra phases are Aggravated Assault's, anchored to
 /// this main phase.
+///
+/// It exercises "creatures that attacked this turn", the combat history's
+/// `Attacked` rows, and a second combat (CR 500.8).
 ///
 /// # The rulings, and where each is tested
 ///
