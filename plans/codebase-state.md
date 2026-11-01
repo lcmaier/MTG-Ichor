@@ -5071,9 +5071,11 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    **Sized:** `GameConfig::commander()`, a designation on
    `Decklist`, and the flag set in `Game::new`, ~80–120 lines with tests; the
    first PR of the Commander interleave.
-   **Slotted:** `game-formats`, `GameConfig::commander()` with a designation on `Decklist`,
-   setting `is_commander` at game setup (CR 903.3, 903.7); item 3, merged here,
-   is the same constructor.
+   **Slotted:** `game-formats`, `GameConfig::commander()` reading a
+   `scenario::Decklist`'s commander section, which the decklist parses and
+   holds (`setup-architecture.md` §7d), and setting `is_commander` as it
+   builds each `Deck` (CR 903.3, 903.7); item 3, merged here, is the same
+   constructor.
 
 3. **~~`GameConfig::commander()` constructor.~~ — ✅ CLOSED 2026-10-09 (PR
    #238).** — archived.

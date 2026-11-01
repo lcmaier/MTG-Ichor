@@ -15,7 +15,7 @@ use mtgsim::test_support::{put_on_battlefield, set_attacking, setup_two_player_g
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game::{Decklist, Game};
+use mtgsim::state::game::{Deck, Game};
 use mtgsim::state::game_state::GameResult;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{PhaseType, StepType};
@@ -32,8 +32,8 @@ use mtgsim::types::replacement::EnterMods;
 // Phase-specific helpers (operate on Game wrapper, delegate to common)
 // ---------------------------------------------------------------------------
 
-fn make_test_deck(creatures: Vec<fn() -> Arc<CardData>>, lands: usize) -> Decklist {
-    let mut deck: Decklist = Vec::new();
+fn make_test_deck(creatures: Vec<fn() -> Arc<CardData>>, lands: usize) -> Deck {
+    let mut deck: Deck = Vec::new();
     for factory in creatures {
         deck.push(factory());
     }

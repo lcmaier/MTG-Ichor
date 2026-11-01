@@ -111,6 +111,9 @@ code shape, cost and upkeep.
     triggered abilities were asked about it. A question about now is the
     engine's, asked at the seat. A question about then comes from a replay
     to the open question with the sink on. Three PRs, SU-6 to SU-8.
+11. **The decklist** (§7d, `card-layer-cleanup`'s design note, decision 5):
+    the deck sites' text, a third door beside `Game::new`'s and the
+    scenario's, whose names the registry resolves into CR 103.3's deck.
 
 **Size** (§8): SU-1's code ~1,010–1,360 lines and tests ~710–980; SU-2
 ~400–650 in all, built at 640 and 314. **A/B:** `IDENTICAL` predicted for each,
@@ -2381,6 +2384,40 @@ whole random games, which is the recorder's widest test.
    debug engine's trace in the window, and fixed there.
 
 ---
+
+## 7d. The decklist
+
+**What it is.** The names a player brings (CR 100.2a), as the deck sites
+write them, so a product's list is pasted from its source and diffed against
+it: a `count name` line under a `Commander`, `Companion`, `Deck` or
+`Sideboard` header, a line before any header the deck's, `#` comments, a name
+on several lines read in order, and Arena's and Moxfield's `(SET) 123`
+suffix read past. Decided at `card-layer-cleanup`'s design note (decision 5,
+the owner, 2026-10-31) over the scenario grammar's card lines, which would
+have meant rewriting every list from print line by line.
+
+**Where it lives.** `scenario::Decklist`, parsed by hand like the scenario
+(§4), its refusals `ScenarioError`s with a line. `Decklist::deck` resolves the
+deck section against the registry into a `state::game::Deck`, CR 103.3's word
+for what `Game::new` makes a library, and refuses a name no registered card
+has. `Decklist::unregistered_names` lists what a list from print still waits
+on. The files are `mtgsim/decks/*.txt`; `tests/decklists_test.rs` loads every
+one.
+
+**What it does not judge.** Whether a section is legal is the format's. The
+commander, companion and sideboard sections are parsed and held:
+`game-formats` validates a decklist against its format and designates the
+commander as it builds the game ("Before Commander" item 2), and a format
+whose rules name no commander refuses the section. A variant's own section —
+a planar deck, a scheme deck, an Attraction deck — arrives with that
+variant's format design, and until then the parser refuses a header it does
+not know.
+
+**Its readers.** `cli_play` deals `decks/cli-play.txt`, its forty cards in
+the order its builder dealt them. The five Tarkir: Dragonstorm Commander
+decks (`tdc`), the route's v0.5 table, are each checked for CR 903.5a–b
+before any of their cards is registered, and the test prints the names the
+registry lacks, which `tarkir-dragonstorm-decks`' gap census starts from.
 
 ## 8. The build, sized
 

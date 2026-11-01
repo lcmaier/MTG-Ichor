@@ -7,7 +7,7 @@ use std::sync::Arc;
 use mtgsim::cards::printings;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
-use mtgsim::state::game::{Decklist, Game};
+use mtgsim::state::game::{Deck, Game};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState, PhaseType};
 use mtgsim::types::mana::ManaType;
@@ -26,7 +26,7 @@ fn make_forest() -> Arc<CardData> {
     printings::forest()
 }
 
-fn make_test_decklist(count: usize) -> Decklist {
+fn make_test_decklist(count: usize) -> Deck {
     (0..count).map(|_| make_forest()).collect()
 }
 

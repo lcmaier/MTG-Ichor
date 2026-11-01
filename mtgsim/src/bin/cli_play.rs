@@ -34,12 +34,10 @@
 // control cancels it. Neither flag drops them, and the bot's seat takes
 // neither: its passes are its own.
 
-use std::sync::Arc;
-
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game::Game;
+use mtgsim::scenario::Decklist;
+use mtgsim::state::game::{Deck, Game};
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::state::game_state::GameResult;
 use mtgsim::state::game_config::GameConfig;
@@ -53,37 +51,10 @@ use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
-/// Build a simple test deck: lands + creatures + spells.
-fn build_test_deck(registry: &CardRegistry) -> Vec<Arc<CardData>> {
-    let mut deck: Vec<Arc<CardData>> = Vec::new();
-
-    // Lands: 10 Mountains, 10 Forests
-    for _ in 0..10 {
-        deck.push(registry.create("Mountain").unwrap());
-    }
-    for _ in 0..10 {
-        deck.push(registry.create("Forest").unwrap());
-    }
-
-    // Creatures
-    for _ in 0..4 {
-        deck.push(registry.create("Grizzly Bears").unwrap());
-    }
-    for _ in 0..4 {
-        deck.push(registry.create("Hill Giant").unwrap());
-    }
-
-    // Spells
-    for _ in 0..4 {
-        deck.push(registry.create("Lightning Bolt").unwrap());
-    }
-
-    // Pad to 40 with more lands
-    while deck.len() < 40 {
-        deck.push(registry.create("Mountain").unwrap());
-    }
-
-    deck
+/// The deck each seat is dealt, `decks/cli-play.txt`.
+fn cli_play_deck(registry: &CardRegistry) -> Deck {
+    let list = Decklist::parse(include_str!("../../decks/cli-play.txt")).expect("decks/cli-play.txt does not parse");
+    list.deck(registry).expect("decks/cli-play.txt names a card the registry lacks")
 }
 
 fn main() {
@@ -94,8 +65,8 @@ fn main() {
     let registry = CardRegistry::default_registry();
     let config = GameConfig::unrestricted();
 
-    let deck0 = build_test_deck(&registry);
-    let deck1 = build_test_deck(&registry);
+    let deck0 = cli_play_deck(&registry);
+    let deck1 = cli_play_deck(&registry);
 
     let mut game = Game::new(config, vec![deck0, deck1]).expect("Failed to create game");
     // A `GameState` is seeded to a fixed default so tests replay; an actual game
