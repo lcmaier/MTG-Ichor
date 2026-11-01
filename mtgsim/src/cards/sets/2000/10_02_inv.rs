@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{cant, colored, creature, destroy, draw_cards, land, non, scry, spell_ability, target_permanent, that_target, you};
+use crate::cards::authoring::{cant_for, colored, creature, destroy, draw_cards, land, non, scry, spell_ability, target_permanent, that_target, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -73,7 +73,7 @@ pub fn opt() -> Arc<CardData> {
 /// Scryfall lists none for this card.
 pub fn plague_spores() -> Arc<CardData> {
     let cant_regenerate = |recipient| {
-        cant(
+        cant_for(
             recipient,
             Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,

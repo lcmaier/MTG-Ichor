@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{cant, creature, deal_damage, spell_ability, static_replacement, target_player, you, you_control};
+use crate::cards::authoring::{cant, creature, deal_damage, spell_ability, static_replacement, target_player, you_control};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -147,12 +147,11 @@ pub fn skullcrack() -> Arc<CardData> {
                 // player, so the row is complete as authored and the
                 // resolution's target — the player it then damages — is not
                 // what it is about.
-                cant(you(), Restriction::Event { pattern: EventPattern::GainLife, affected: AffectedSet::players(PlayerSet::Everyone), by: None })
+                cant(Restriction::Event { pattern: EventPattern::GainLife, affected: AffectedSet::players(PlayerSet::Everyone), by: None })
                     .until_end_of_turn(),
                 // "Damage can't be prevented this turn." CR 615.12's row, whose
                 // two halves are a union: every object and every player.
                 cant(
-                    you(),
                     Restriction::ApplyReplacement {
                         kind: ReplacementKindFilter::Prevention,
                         affected: AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },

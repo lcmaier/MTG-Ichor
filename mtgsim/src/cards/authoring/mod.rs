@@ -31,7 +31,7 @@ pub use abilities::{
     activated_ability, as_long_as, equip, mana_ability, spell_ability, static_ability, static_replacement, static_restriction, StaticBody,
 };
 pub use instructions::{
-    add_mana, add_phases, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, copy, counter_spell,
+    add_mana, add_phases, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, cant_for, copy, counter_spell,
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, create_tokens, deal_damage,
     deal_damage_unpreventable, destroy, discard, draw_cards, exile, exile_until, gain_control_of, gain_life, gains_ability, gains_keyword,
     get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life, lose_the_game, loses_all_abilities, mill,

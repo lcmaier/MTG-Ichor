@@ -151,8 +151,8 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target creature gets +1/+2 and is an Angel in addition to its other types until end of turn.",
-            becomes_types(target_creature(), TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Angel)], &[]))
-                .and_gets(1, 2)
+            gets(target_creature(), 1, 2)
+                .and_becomes_types(TypeChange::adding(&[], &[Subtype::Creature(CreatureType::Angel)], &[]))
                 .until_end_of_turn(),
         ))
         .build()

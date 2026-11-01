@@ -422,8 +422,8 @@ pub fn create_replacement(def: ReplacementDef) -> ContinuousRuleChange {
 
 /// [`create_replacement`] with a recipient: a target or a filter, which the
 /// resolution writes into the def's objects ("prevent the next 3 damage
-/// that would be dealt to any target this turn"), or `you()`, which it
-/// leaves to the def's own player set, read like no recipient at all.
+/// that would be dealt to any target this turn"). A def that names its own
+/// players is complete as authored, and is `create_replacement`'s.
 pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -> ContinuousRuleChange {
     let def = Box::new(def);
     ContinuousRuleChange(ContinuousChange::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored)))
@@ -458,11 +458,16 @@ pub fn prevent_the_next_this_turn(recipient: EffectRecipient, n: u64) -> Effect 
     .until_end_of_turn()
 }
 
-/// "[Recipient] can't [what]" from a resolution (CR 101.2, 614.17). A
-/// target's or a filter's objects are written into what can't happen; any
-/// other recipient leaves it as written ("players can't gain life this
-/// turn").
-pub fn cant(recipient: EffectRecipient, what: Restriction) -> ContinuousRuleChange {
+/// "[What] can't happen" from a resolution (CR 101.2, 614.17), complete as
+/// authored: "players can't gain life this turn".
+pub fn cant(what: Restriction) -> ContinuousRuleChange {
+    cant_for(EffectRecipient::Implicit, what)
+}
+
+/// [`cant`] with a recipient: a target's or a filter's objects, which the
+/// resolution writes into what can't happen ("target creature can't be
+/// regenerated").
+pub fn cant_for(recipient: EffectRecipient, what: Restriction) -> ContinuousRuleChange {
     let def = RestrictionDef::new(what);
     ContinuousRuleChange(ContinuousChange::new(recipient, move |d| Primitive::Restrict(def, d)))
 }

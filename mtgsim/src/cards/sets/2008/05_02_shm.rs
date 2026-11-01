@@ -114,7 +114,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .rules_text("Target creature becomes red and gains haste until end of turn.\nDraw a card.")
         .ability(spell_ability(
             "Target creature becomes red and gains haste until end of turn.",
-            gains_keyword(target_creature(), KeywordFlag::Haste).and_becomes_color([Color::Red]).until_end_of_turn(),
+            becomes_color(target_creature(), [Color::Red]).and_gains_keyword(KeywordFlag::Haste).until_end_of_turn(),
         ))
         .ability(spell_ability(
             "Draw a card.",

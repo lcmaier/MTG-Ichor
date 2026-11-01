@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    artifact, at_beginning_of, chosen_by, create_replacement_for, create_tokens, creature, draw_cards, each, every_permanent_or_player, land,
+    artifact, at_beginning_of, chosen_by, create_replacement, create_tokens, creature, draw_cards, each, every_permanent_or_player, land,
     loses_all_abilities, sacrifice, skip, spell_ability, static_ability, static_replacement, target_player, triggered_ability, whenever, you, Whose,
 };
 use crate::cards::tokens::saproling_token;
@@ -190,7 +190,7 @@ pub fn meditate() -> Arc<CardData> {
                 // `PlayerSet::You` and a `you()` recipient: the row is the def
                 // as authored, and CR 109.5 resolves "you" against the row's
                 // controller at each event rather than at resolution.
-                create_replacement_for(you(), skip(EventPattern::BeginTurn, PlayerSet::You).once()).until_end_of_game(),
+                create_replacement(skip(EventPattern::BeginTurn, PlayerSet::You).once()).until_end_of_game(),
             ]),
         ))
         .build()
