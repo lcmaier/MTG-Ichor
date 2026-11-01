@@ -95,12 +95,12 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let sample = "../mtgsim/scenarios/humility-opalescence.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/humility-opalescence/seed-0.log"));
     results.add(picture(&partway(why_open(sample)), &line, None, "why_panel"));
-    let (blocks, mana) = (edited("blocks.scenario", "", ANGEL), edited("main.scenario", "Everywhere", "Mountain"));
+    let (blocks, mana) = (edited("blocks.scenario", "", ANGEL), edited("main.scenario", "Five-Color Land Fixture", "Mountain"));
     let line = |board: &str, edit: &str| (format!("scenario tests/scenarios/{board}, {edit} · seed 0"), PathBuf::new());
     let wall = why_on(&blocks, "Wall of Stone");
     results.add(picture(&partway(wall), &line("blocks.scenario", "Serra Angel edited in"), None, "why_blocks"));
     let bears = why_on(&mana, "Grizzly Bears");
-    results.add(picture(&partway(bears), &line("main.scenario", "Everywhere edited to a Mountain"), None, "why_mana"));
+    results.add(picture(&partway(bears), &line("main.scenario", "the five-color land edited to a Mountain"), None, "why_mana"));
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("boards/bolt-into-giant-growth/seed-0.log"));
     results.add(picture(&partway(why_event(sample)), &line, None, "why_event"));
@@ -272,7 +272,7 @@ fn why_prevented() -> WindowState {
 }
 
 /// `hydra.scenario` played by the click script: Protean Hydra cast at X = 9,
-/// paid with the Everywheres for green and then the Cubes, and, when `bolt`,
+/// paid with the five-color lands for green and then the Cubes, and, when `bolt`,
 /// player 1's Lightning Bolt at it once it has resolved. Stops at the first
 /// question whose log has a line starting `line`, and opens that line's why.
 fn why_on_hydra_line(line: &str, bolt: bool) -> WindowState {
@@ -350,7 +350,7 @@ fn fizzled() -> WindowState {
 
 /// The click script's board, `hydra.scenario`: Protean Hydra cast with X =
 /// 9, at the payment's first question. The window offers the seven
-/// Everywheres, and shows the two Doubling Cubes greyed, not offered until
+/// five-color lands, and shows the two Doubling Cubes greyed, not offered until
 /// the pool holds their {3}.
 fn not_offered_yet() -> WindowState {
     let engine = spawn(from_board("hydra.scenario"));
