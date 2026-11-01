@@ -586,6 +586,16 @@ and how the two cost shapes are named.
 
 **4a. How an effect is named.**
 
+**The worked example.** Bridge from Below is in your graveyard. A nontoken
+creature of yours and a creature of an opponent's die in one event, so both
+of its abilities trigger: one makes a Zombie, the other exiles Bridge. Its
+ruling says you choose the order, and the order matters: the Zombie ability
+checks "if this card is in your graveyard" again as it resolves, so it must
+resolve first to make anything. Today `OrderTriggers` offers
+`[Object(Bridge), Object(Bridge)]`. A client shows "Bridge from Below" twice,
+the log writes `Bridge from Below (#31) (1 of 2)`, and only the list's order
+says which ability is which.
+
 - **A. As today**: `Object(source)`, and its place among alike options. A
   replay across builds that lists them in another order applies the other
   effect without diverging.
@@ -605,9 +615,12 @@ and how the two cost shapes are named.
   this one, kept as a check the way a card's name is kept beside `#7`: a
   trigger's words name the objects its binding names (what triggered it,
   CR 603.2c's occurrences), and a registry row's name the stack object whose
-  resolution made it. `Thunder-Thrash Elder (#12) ability 7 effect 1`,
+  resolution made it. Bridge's two become `trigger 14: Bridge from Below
+  (#31) ability 1, for Grizzly Bears (#7)` and `trigger 15: Bridge from Below
+  (#31) ability 2, for Hill Giant (#9)`; the others read
+  `Thunder-Thrash Elder (#12) ability 7 effect 1`,
   `Words of Worship (#9) row 3, made by #41`, `Grizzly Bears (#7) finality
-  counter`, `trigger 14: Soul Warden (#5) ability 1, for Grizzly Bears (#40)`.
+  counter`.
   A build that mints in another order then fails the check and diverges
   loudly. What is left is two instances alike in every word: the same source,
   ability and triggering objects, which is as far as the log's convention
