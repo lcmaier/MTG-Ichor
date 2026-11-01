@@ -30,7 +30,6 @@ use crate::state::trace::{RecordKind, TraceRecord};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::Effect;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::oracle::x_values::LegalXValues;
@@ -523,12 +522,11 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
 /// At CR 614.13a's choice: why `id` may not be moved as `entering` enters, by
 /// the check the candidates were built by, read off `source`'s effect.
 fn auxiliary_refusal(game: &GameState, you: PlayerId, (entering, source, to): (ObjectId, ObjectId, Zone), id: ObjectId) -> Option<WhyLine> {
-    let moved = get_effective_abilities(game, source).iter().find_map(|ability| match &ability.effect {
-        Effect::Replacement(def) => match &def.rewrite {
+    let moved = get_effective_abilities(game, source).iter().flat_map(|ability| ability.effect.replacements()).find_map(|(_, def)| {
+        match &def.rewrite {
             Rewrite::EnterAfterMoving(aux) if aux.to == to => Some(aux.clone()),
             _ => None,
-        },
-        _ => None,
+        }
     })?;
     let reason = if id == entering {
         Some(NotAuxiliary::Entering)
@@ -565,10 +563,10 @@ fn copy_refusal(game: &GameState, source: ObjectId, id: ObjectId) -> WhyLine {
     if !game.battlefield.contains_key(&id) {
         return refusal("To be copied", ("it is not a permanent on the battlefield".to_string(), None));
     }
-    let entering = get_effective_abilities(game, source).iter().find_map(|ability| match &ability.effect {
-        Effect::Replacement(def) if def.class == ReplacementClass::CopyAsEnters => Some(ability.rules_text.words),
-        _ => None,
-    });
+    let entering = get_effective_abilities(game, source)
+        .iter()
+        .find(|ability| ability.effect.replacements().any(|(_, def)| def.class == ReplacementClass::CopyAsEnters))
+        .map(|ability| ability.rules_text.words);
     // AS PRINTED: a resolving spell's words, for a line no rule reads.
     let resolving = || {
         let card = &game.objects.get(&source)?.card_data;

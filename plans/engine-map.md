@@ -224,7 +224,10 @@ the arms: `cast_spell`, at CR 601.2i.
 ### 2.3 The gates, and the three legs a new source extends
 
 A static ability is discovered off the **effective** ability list, and each
-reader skips its sweep behind a gate. Each gate has three legs, one per route
+reader skips its sweep behind a gate. One ability can make effects of several
+kinds (CR 113.2c), so each reader takes its own kind from a static body's list,
+each member with its own "as long as" (`Effect::static_members`), and the layer
+lowering takes the layer changes. Each gate has three legs, one per route
 onto that list: **printed** (a set registration fills, an entry copy's list
 included), **granted** (a Layer 6 row) and **copied** (a layer 1 row). A new
 route onto the list needs a leg on every gate, or the ability is dead on every

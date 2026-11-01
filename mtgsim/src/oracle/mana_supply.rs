@@ -41,7 +41,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::mana::triggered_mana_recipient;
-use crate::engine::replacement::{applies_to_mana_production, functioning_replacement, replacement_exists, replacement_of};
+use crate::engine::replacement::{applies_to_mana_production, functioning_replacements, replacement_exists, replacements_of};
 use crate::engine::resolve::ResolutionContext;
 use crate::events::cause::GeneratedBy;
 use crate::engine::triggers::could_be_a_mana_ability;
@@ -855,8 +855,8 @@ fn scan_mana_production_watchers(game: &GameState) -> ManaProductionWatchers {
                 if could_be_a_mana_ability(def) {
                     found.triggers.push(at);
                 }
-            } else if functioning_replacement(ability, &chars.types, Zone::Battlefield)
-                .is_some_and(|(def, _)| matches!(def.pattern, EventPattern::ProduceMana { .. }))
+            } else if functioning_replacements(ability, &chars.types, Zone::Battlefield)
+                .any(|(def, _)| matches!(def.pattern, EventPattern::ProduceMana { .. }))
             {
                 found.replacements.push(at);
             }
@@ -926,13 +926,15 @@ fn mana_after_replacements(
     let mut rewrites: Vec<ManaRewrite> = Vec::new();
     for &at in &watchers.replacements {
         let abilities = get_effective_abilities(game, at.permanent);
-        let Some((def, condition)) = abilities.get(at.index).and_then(replacement_of) else { continue };
-        if !replacement_exists(condition, game, at.permanent) {
-            continue;
-        }
-        let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
-        if applies_to_mana_production(game, def, at.permanent, controller, player, producer, generated_by, tapped) {
-            rewrites.push(ManaRewrite::of(def));
+        let Some(ability) = abilities.get(at.index) else { continue };
+        for (def, condition) in replacements_of(ability) {
+            if !replacement_exists(condition, game, at.permanent) {
+                continue;
+            }
+            let controller = controller_or_owner(game, at.permanent).unwrap_or(0);
+            if applies_to_mana_production(game, def, at.permanent, controller, player, producer, generated_by, tapped) {
+                rewrites.push(ManaRewrite::of(def));
+            }
         }
     }
     for row in game.replacement_effects.iter() {

@@ -338,7 +338,7 @@ fn gather_sweeping(
     if sweep == Sweep::Everything {
         // The audit's: every object off the battlefield that could carry one,
         // asked with no printed precheck.
-        for id in game.objects_that_may_carry(|effect| matches!(effect, Effect::Replacement(_) | Effect::Conditional(..) | Effect::FunctionsIn(..))) {
+        for id in game.objects_that_may_carry(|effect| effect.replacements().next().is_some()) {
             if game.objects.get(&id).is_some_and(|obj| obj.zone != Zone::Battlefield) {
                 elsewhere.push((game.object_timestamp(id), id));
             }
@@ -628,32 +628,33 @@ fn push_static_ability_replacements(
 ) {
     let CheckedForReplacements { id, controller, chars, zone, scope } = *asked;
     for ability in chars.abilities.iter() {
-        let Some((def, condition)) = functioning_replacement(ability, &chars.types, zone) else { continue };
-        // Laboratory Maniac is a candidate exactly when the draw would fail,
-        // never a prompt beside Thought Reflection.
-        if !replacement_exists(condition, game, id) {
-            continue;
+        for (member, (def, condition)) in (0u8..).zip(functioning_replacements(ability, &chars.types, zone)) {
+            // Laboratory Maniac is a candidate exactly when the draw would fail,
+            // never a prompt beside Thought Reflection.
+            if !replacement_exists(condition, game, id) {
+                continue;
+            }
+            if scope == SelfScope::EnteringSelf && !matches!(def.affected.objects, ObjectSet::SourceOnly) {
+                continue;
+            }
+            let Some(object) = game.object_ref(id) else { continue };
+            push_if_applicable(
+                game,
+                out,
+                ReplacementInstance {
+                    id: ReplacementInstanceId::StaticAbility(object, ability.id, member),
+                    source: id,
+                    controller,
+                    def: def.clone(),
+                },
+                p,
+            );
         }
-        if scope == SelfScope::EnteringSelf && !matches!(def.affected.objects, ObjectSet::SourceOnly) {
-            continue;
-        }
-        let Some(object) = game.object_ref(id) else { continue };
-        push_if_applicable(
-            game,
-            out,
-            ReplacementInstance {
-                id: ReplacementInstanceId::StaticAbility(object, ability.id),
-                source: id,
-                controller,
-                def: def.clone(),
-            },
-            p,
-        );
     }
 }
 
-/// The replacement effect `ability` generates, if it generates one where
-/// its object is, together with the "as long as" it exists under.
+/// The replacement effects `ability` generates, if it generates them where
+/// its object is, each with the "as long as" it exists under.
 ///
 /// A printed "If … would …, … instead" is a static ability whose body is a
 /// replacement effect (CR 614.1). It exists only if three things hold: the
@@ -665,15 +666,13 @@ fn push_static_ability_replacements(
 /// replaced by; `oracle::mana_supply` asks this when it scans the battlefield
 /// for what changes a mana production (Mana Reflection), caching the scan, and
 /// asks the condition each time it uses the cache.
-pub(crate) fn functioning_replacement<'a>(
+pub(crate) fn functioning_replacements<'a>(
     ability: &'a AbilityDef,
     types: &CardTypes,
     zone: Zone,
-) -> Option<(&'a ReplacementDef, Option<&'a Condition>)> {
-    if !functions_as_static(ability, types, zone) {
-        return None;
-    }
-    replacement_of(ability)
+) -> impl Iterator<Item = (&'a ReplacementDef, Option<&'a Condition>)> {
+    let functions = functions_as_static(ability, types, zone);
+    replacements_of(ability).filter(move |_| functions)
 }
 
 /// CR 604.2 through the "as long as" wrapper: the effect exists while its
@@ -683,13 +682,10 @@ pub(crate) fn replacement_exists(condition: Option<&Condition>, game: &GameState
     condition.is_none_or(|condition| settled_holds(condition, game, source, None, ConditionReferents::NONE))
 }
 
-/// The replacement effect a static ability's body generates, and the "as
-/// long as" it exists under (CR 604.2): the one reading of that body.
-pub(crate) fn replacement_of(ability: &AbilityDef) -> Option<(&ReplacementDef, Option<&Condition>)> {
-    match ability.effect.with_its_condition() {
-        (condition, Effect::Replacement(def)) => Some((def, condition)),
-        _ => None,
-    }
+/// The replacement effects a static ability's body generates, each with the
+/// "as long as" it exists under (CR 604.2): the one reading of that body.
+pub(crate) fn replacements_of(ability: &AbilityDef) -> impl Iterator<Item = (&ReplacementDef, Option<&Condition>)> {
+    ability.effect.replacements().map(|(condition, def)| (def, condition))
 }
 
 /// Does `def`, from `source` under `controller`, apply to `player`'s mana
@@ -1305,7 +1301,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let faith = crate::test_support::put_on_battlefield(&mut game, crate::cards::phase_re_cards::rhox_faithmender(), 0);
         let doubling = crate::oracle::characteristics::get_effective_abilities(&game, faith)[0].id;
-        let applied = ReplacementInstanceId::StaticAbility(game.object_ref(faith).unwrap(), doubling);
+        let applied = ReplacementInstanceId::StaticAbility(game.object_ref(faith).unwrap(), doubling, 0);
         let gain_in_the_lineage = |game: &mut GameState| {
             let mut lineage = crate::engine::replacement::AppliedReplacements::EMPTY;
             lineage.apply(crate::events::event::AppliedReplacement {

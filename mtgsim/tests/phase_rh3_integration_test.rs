@@ -313,7 +313,7 @@ fn a_madness_discard_keeps_its_own_replacement_on_the_record() {
     assert_eq!((*to, *act), (Zone::Exile, ZoneChangeAct::Discarded), "discarded into exile");
     let applied = applied.as_deref().expect("a replacement applied");
     assert_eq!(applied.len(), 1);
-    assert_eq!(applied[0].instance, ReplacementInstanceId::StaticAbility(before, madness), "this card's own madness");
+    assert_eq!(applied[0].instance, ReplacementInstanceId::StaticAbility(before, madness, 0), "this card's own madness");
     assert!(applied[0].redirected, "it changed where the card went");
     assert_eq!(
         applied[0].by,

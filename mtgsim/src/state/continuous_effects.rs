@@ -326,13 +326,13 @@ impl RegistryScopeSummary {
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {
-                    if def.effect.as_restriction().is_some() {
+                    if def.effect.restrictions().next().is_some() {
                         summary.any_granted_restriction = true;
                     }
-                    if def.effect.as_cost_modification().is_some() {
+                    if def.effect.cost_modifications().next().is_some() {
                         summary.any_granted_cost_modification = true;
                     }
-                    if def.effect.as_trigger_multiplier().is_some() {
+                    if def.effect.trigger_multipliers().next().is_some() {
                         summary.any_granted_trigger_multiplier = true;
                     }
                 }
@@ -341,13 +341,13 @@ impl RegistryScopeSummary {
                 // copy of a vanilla creature must not turn either fast path on.
                 EffectModification::CopyFrom(values) => {
                     for ability in values.abilities.iter() {
-                        if ability.effect.as_restriction().is_some() {
+                        if ability.effect.restrictions().next().is_some() {
                             summary.any_copied_restriction = true;
                         }
-                        if ability.effect.as_cost_modification().is_some() {
+                        if ability.effect.cost_modifications().next().is_some() {
                             summary.any_copied_cost_modification = true;
                         }
-                        if ability.effect.as_trigger_multiplier().is_some() {
+                        if ability.effect.trigger_multipliers().next().is_some() {
                             summary.any_copied_trigger_multiplier = true;
                         }
                     }
@@ -394,9 +394,8 @@ pub fn triggered_ability_kinds(effect: &ContinuousEffect) -> EventKindMask {
 pub fn replacement_ability_kinds(effect: &ContinuousEffect) -> GameActionKindMask {
     use crate::engine::layers::types::EffectModification;
 
-    let kinds = |def: &crate::objects::card_data::AbilityDef| match def.effect.replacement_body() {
-        Some(replacement) => replacement.action_kinds_in_place(),
-        None => GameActionKindMask::EMPTY,
+    let kinds = |def: &crate::objects::card_data::AbilityDef| {
+        def.effect.replacements().fold(GameActionKindMask::EMPTY, |mask, (_, replacement)| mask | replacement.action_kinds_in_place())
     };
     match &effect.modification {
         EffectModification::GrantAbility(def) => kinds(def),

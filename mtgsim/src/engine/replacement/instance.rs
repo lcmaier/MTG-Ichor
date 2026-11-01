@@ -29,7 +29,7 @@ use super::gather::CounterEffectKind;
 /// - a static ability is `(ObjectRef, AbilityId)` — the pair
 ///   `EffectOrigin::StaticAbility` and `activatable_abilities` use, because
 ///   `AbilityId` names a *definition* that two objects sharing an
-///   `Arc<CardData>` also share;
+///   `Arc<CardData>` also share — and which of its replacement effects;
 /// - a counter-derived effect is the permanent plus the counter kind plus
 ///   which of CR 122.1c's two effects it is.
 ///
@@ -41,8 +41,12 @@ use super::gather::CounterEffectKind;
 pub enum ReplacementInstanceId {
     /// A row in the replacement registry (CR 614.3, 615.7, 701.19a).
     Registered(ReplacementEffectId),
-    /// A static ability of an object (CR 614.1a).
-    StaticAbility(ObjectRef, AbilityId),
+    /// A static ability of an object (CR 614.1a), and which of the
+    /// replacement effects its body makes, in its order
+    /// (`Effect::replacements`): two effects of one ability are two to CR
+    /// 614.5. A byte, which a paragraph's handful needs and the enum's tag
+    /// leaves room for, so no event grows.
+    StaticAbility(ObjectRef, AbilityId, u8),
     /// Synthesized from counters on a permanent (CR 122.1c/d/h).
     ///
     /// Three components rather than two because **CR 122.1c makes two effects

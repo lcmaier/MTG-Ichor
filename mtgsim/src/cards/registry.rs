@@ -1375,7 +1375,7 @@ mod tests {
             let mut copy = (*card).clone();
             for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
                 let check = |def: &AbilityDef| {
-                    if let Some((_, multiplier)) = def.effect.as_trigger_multiplier() {
+                    for (_, multiplier) in def.effect.trigger_multipliers() {
                         assert_eq!(multiplier.refusal(), None, "{name} ability #{i}");
                     }
                 };

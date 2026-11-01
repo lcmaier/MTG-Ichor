@@ -125,7 +125,7 @@ fn cost_modifications_sweeping(game: &GameState, spell: ObjectId, sweep: Sweep) 
     out
 }
 
-/// Push one ability's cost modification, if it has one that applies.
+/// Push each of one ability's cost modifications that applies.
 fn push_if_applies(
     game: &GameState,
     ability: &AbilityDef,
@@ -138,19 +138,18 @@ fn push_if_applies(
     if ability.ability_type != AbilityType::Static {
         return;
     }
-    let Some((condition, def)) = ability.effect.as_cost_modification() else {
-        return;
-    };
-    // "As long as [X]", read against the settled board, which for a status
-    // leaf such as `SourceUntapped` is the entity and for a characteristic leaf
-    // is the finished frame. A spell on the stack has no entity, so a status
-    // clause on one is simply false.
-    if let Some(condition) = condition
-        && !settled_holds(condition, game, source, None, ConditionReferents::NONE) {
-        return;
-    }
-    if applies_to(game, def, source, controller, spell, frame) {
-        out.push(CostModificationInstance { source, controller, def: def.clone() });
+    for (condition, def) in ability.effect.cost_modifications() {
+        // "As long as [X]", read against the settled board, which for a status
+        // leaf such as `SourceUntapped` is the entity and for a characteristic leaf
+        // is the finished frame. A spell on the stack has no entity, so a status
+        // clause on one is simply false.
+        if let Some(condition) = condition
+            && !settled_holds(condition, game, source, None, ConditionReferents::NONE) {
+            continue;
+        }
+        if applies_to(game, def, source, controller, spell, frame) {
+            out.push(CostModificationInstance { source, controller, def: def.clone() });
+        }
     }
 }
 
@@ -230,10 +229,7 @@ fn prints_cost_ability(game: &GameState, spell: ObjectId) -> bool {
     game.objects.get(&spell).is_some_and(|obj| {
         obj.card_data.abilities.iter().any(|ability| {
             ability.ability_type == AbilityType::Static
-                && ability
-                    .effect
-                    .as_cost_modification()
-                    .is_some_and(|(_, def)| def.applies_to.applies_to_its_own_object())
+                && ability.effect.cost_modifications().any(|(_, def)| def.applies_to.applies_to_its_own_object())
         })
     })
 }

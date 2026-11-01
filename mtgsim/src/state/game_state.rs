@@ -2147,7 +2147,7 @@ impl GameState {
             // the battlefield the zone leg's map keeps the printed def, so it can
             // ask whether it could apply before reading a frame. The two sets below
             // stay battlefield-only, as their sweeps are.
-            if let Some(def) = ability.effect.replacement_body() {
+            for (_, def) in ability.effect.replacements() {
                 let kinds = def.action_kinds_in_place();
                 if kinds.is_empty() {
                     // Its own entry only: source 1a reads it off the object as it
@@ -2163,7 +2163,7 @@ impl GameState {
             // restriction ability generates no continuous effect either; what it
             // needs is for `engine::restriction::is_prohibited` to know this
             // permanent is worth asking about.
-            if zone == Zone::Battlefield && ability.effect.as_restriction().is_some() {
+            if zone == Zone::Battlefield && ability.effect.restrictions().next().is_some() {
                 self.restriction_ability_sources.insert(id);
             }
 
@@ -2171,12 +2171,12 @@ impl GameState {
             // effect off the effective list, through "as long as" too. Battlefield
             // only, by the gate above: a spell's own cost ability functions on the
             // stack (CR 113.6d).
-            if zone == Zone::Battlefield && ability.effect.as_cost_modification().is_some() {
+            if zone == Zone::Battlefield && ability.effect.cost_modifications().next().is_some() {
                 self.cost_modification_ability_sources.insert(id);
             }
 
             // CR 603.2d — and the count's, for the same reasons.
-            if zone == Zone::Battlefield && ability.effect.as_trigger_multiplier().is_some() {
+            if zone == Zone::Battlefield && ability.effect.trigger_multipliers().next().is_some() {
                 self.trigger_multiplier_sources.insert(id);
             }
 
@@ -2380,7 +2380,7 @@ impl GameState {
             Effect::FunctionsIn(_, body) => body,
             body => body,
         };
-        Self::atoms_of_static_body(body, label)
+        Self::atoms_of_static_body(body, label, false)
     }
 
     /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
@@ -2391,9 +2391,14 @@ impl GameState {
     /// what its twelve callers hold and what its name promises; only the
     /// recursion needs an `Effect`. Collapsing the two would push
     /// `&ability.effect` into every call site to save one line here.
+    ///
+    /// `in_as_long_as` says the body is inside an "as long as" around a
+    /// whole list, where a member may not carry its own
+    /// (`Effect::static_members`).
     fn atoms_of_static_body<'a>(
         body: &'a crate::types::effects::Effect,
         label: &str,
+        in_as_long_as: bool,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
         use crate::types::effects::Effect;
 
@@ -2424,17 +2429,36 @@ impl GameState {
             // reads it off the effective list.
             Effect::Triggered(_) => Vec::new(),
 
+            // CR 113.2c — one paragraph, one ability, effects of several
+            // kinds: the layer changes are this list's, and each other member
+            // is its own reader's (`Effect::static_members`). A member's own
+            // "as long as" is read by those readers only, since a layer row's
+            // existence check asks the ability's one clause; on a layer change
+            // it would be dropped, so it is loud, as is any member no reader
+            // takes.
             Effect::Sequence(effects) => {
                 let mut atoms = Vec::with_capacity(effects.len());
                 for effect in effects {
                     match effect {
                         Effect::Atom(p, r) => atoms.push((p, r)),
+                        Effect::Replacement(_) | Effect::Restriction(_) | Effect::CostModification(_) | Effect::TriggerMultiplier(_) => {}
+                        Effect::Conditional(_, member)
+                            if !in_as_long_as
+                                && matches!(
+                                    **member,
+                                    Effect::Replacement(_)
+                                        | Effect::Restriction(_)
+                                        | Effect::CostModification(_)
+                                        | Effect::TriggerMultiplier(_)
+                                ) => {}
                         _ => debug_assert!(
                             false,
-                            "static ability on {} has a non-atomic entry inside \
-                             its `Effect::Sequence`. Only `Effect::Atom` lowers \
-                             to a continuous effect, so that entry registers \
-                             nothing while its siblings register normally — a \
+                            "static ability on {} has a member of its \
+                             `Effect::Sequence` no reader takes: a layer change \
+                             with an \"as long as\" of its own, a member with its \
+                             own inside one around the whole list, or a shape \
+                             that is not a static effect. It registers nothing \
+                             while its siblings register normally — a \
                              half-working card, which is worse than one that \
                              does nothing at all.",
                             label
@@ -2450,7 +2474,7 @@ impl GameState {
             // decision 5). A card whose condition is false as it enters still registers
             // its rows, the only reading that survives a condition changing with no zone
             // change to notice.
-            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, label),
+            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, label, true),
 
             _ => {
                 debug_assert!(
@@ -2811,12 +2835,49 @@ mod tests {
         /// half-works.
         #[cfg(debug_assertions)]
         #[test]
-        #[should_panic(expected = "non-atomic entry")]
+        #[should_panic(expected = "no reader takes")]
         fn test_non_atom_inside_a_sequence_is_loud() {
             let ability = textless_static(Effect::Sequence(vec![
                 anthem_atom(),
                 Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) },
             ]));
+            let _ = GameState::static_ability_atoms(&ability, "Test Card");
+        }
+
+        /// A layer row's existence check asks the ability's one "as long
+        /// as", so a layer change's own inside a list would be dropped.
+        #[cfg(debug_assertions)]
+        #[test]
+        #[should_panic(expected = "no reader takes")]
+        fn test_a_layer_change_with_its_own_condition_inside_a_list_is_loud() {
+            let condition = crate::types::effects::Condition::Player {
+                players: crate::types::effects::PlayerSet::You,
+                fact: crate::types::effects::PlayerFact::HandEmpty,
+            };
+            let ability = textless_static(Effect::Sequence(vec![anthem_atom(), Effect::Conditional(condition, Box::new(anthem_atom()))]));
+            let _ = GameState::static_ability_atoms(&ability, "Test Card");
+        }
+
+        /// One "as long as" per member: its own or the list's, never both.
+        #[cfg(debug_assertions)]
+        #[test]
+        #[should_panic(expected = "no reader takes")]
+        fn test_a_member_with_its_own_condition_inside_one_around_the_list_is_loud() {
+            let condition = crate::types::effects::Condition::Player {
+                players: crate::types::effects::PlayerSet::You,
+                fact: crate::types::effects::PlayerFact::HandEmpty,
+            };
+            let cant = Effect::Restriction(Box::new(crate::types::restriction::RestrictionDef::new(
+                crate::types::restriction::Restriction::Event {
+                    pattern: crate::types::replacement::EventPattern::GainLife,
+                    affected: crate::types::effects::AffectedSet::players(crate::types::effects::PlayerSet::You),
+                    by: None,
+                },
+            )));
+            let ability = textless_static(Effect::Conditional(
+                condition.clone(),
+                Box::new(Effect::Sequence(vec![anthem_atom(), Effect::Conditional(condition, Box::new(cant))])),
+            ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }
 
