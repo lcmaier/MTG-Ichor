@@ -3,8 +3,9 @@
 **Resume here: PR 1 of the split, `card-ability-words`, is built on
 `cards/card-layer-cleanup` (#301). Next is PR 2, `card-instruction-words`**:
 decision 1's verbs, recipients and duration suffixes over the 238 card-file
-instructions, and decision 3b, the registry rows' `RowId::UNASSIGNED`, which
-moved here from PR 1 ("The split").
+instructions, decision 3b, the registry rows' `RowId::UNASSIGNED`, which
+moved here from PR 1, and one static ability with several kinds of effect,
+folded in at #301's review ("The split").
 
 **Opened 2026-10-31** on `cards/card-layer-cleanup`, off `main` at
 `f7fa8a4e` (#300's merge). `card-layer-cleanup` is step 3 of
@@ -98,7 +99,7 @@ already slotted beside the phase.
 | # | PR | What | Size, code plus tests (larger side) | Session |
 |---|---|---|---|---|
 | 1 | `card-ability-words` | Decisions 2 and 3a, and decision 1's ability words; every `AbilityDef` literal in the tree rebuilt from them; the equality test | built (#301): −2,560 / +1,557, 60 past the band, almost all of it deleted boilerplate | one |
-| 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id | about −1,500 / +1,100 | one |
+| 2 | `card-instruction-words` | Decision 1's verbs, recipients and duration helper; the 238 card-file instructions rebuilt from them; decision 3b, the registry rows' id; one static ability with several kinds of effect, below | about −1,500 / +1,100, plus an estimated 300–500 for the readers | one |
 | 3 | `cards-by-first-printing` | Decisions 4, 5 and 7: the move, the fixtures and tokens modules, the decklist and its readers | the move counted by decision 7; the rest about +1,400 / −900 | one, long |
 | 4 | `creature-types-plus-fixture-names` | Items 204 and 207 by decision 6, and the misnamed functions that are printings registered | about +150 / −40, more per printing registered; both pools re-recorded | short |
 | 5 | `scripted-answers-by-identity` | Item 209 | about 670 changed lines | one |
@@ -112,6 +113,25 @@ moved from PR 1 to PR 2 during PR 1's build** (2026-10-31): PR 1 measured
 −2,430 before decision 2, decision 3a's privacy made every test literal
 part of it, and 3b, the registry rows' id, touches no ability. PR 2 sat at
 the band's floor without it.
+
+**One static ability with several kinds of effect joined PR 2 at #301's
+review** (the owner, 2026-10-31). A card's paragraph is one ability (CR
+113.2c), and one ability can make effects of different kinds, but every
+reader of a static body takes the whole body as its one kind:
+`replacement_of` for the replacement gather, `as_restriction` for the
+"can't" gate, `as_cost_modification`, `as_trigger_multiplier`. A mixed
+`Effect::Sequence` is dropped, loudly in tests through the layer lowering's
+`debug_assert` and silently in release. So Platinum Angel's one paragraph
+is written as two abilities, which is wrong wherever abilities are counted,
+granted or listed. PR 2's "and" is the first word that writes a mixed body,
+and about 78 printed Aura and Equipment paragraphs mix layer changes with a
+"can't" (Aether Tunnel) and 42 hold two different can'ts (Arrest), Scryfall
+regexes kept within one paragraph. The build: each of those readers yields
+every member of its kind in a static body's list, each with its own "as
+long as"; the gather's carrier filter learns the list; the layer lowering
+takes the atoms and leaves the other kinds to their readers; Platinum Angel
+becomes one ability. About 30 call sites. The gather is hot, so the
+close-out's callgrind arm reads it.
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,
