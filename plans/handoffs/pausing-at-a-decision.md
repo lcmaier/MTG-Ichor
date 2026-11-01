@@ -8,7 +8,12 @@ their own, which owns the save and the decision log's replay, and this file is
 deleted in the same PR. Every count below was read against `91b182a2`, `main`
 at `159f92bc` (#305's merge) plus this branch's first commit, which merged
 item 360 into item 336. The build comes after v0.5, with the AI harness;
-decision 4's part is built before the decks.
+decision 4's part is built before the decks. **Revised at #306's first review
+round (2026-11-01)**, where the owner asked questions and took no decision
+yet: decision 1 recommends B, and its clone cost, which the first draft set
+against C alone, is B's too; decision 2 measures D's surface and lists its
+costs beyond the rewrite, and says no dev GUI code moves; decision 3 says
+what it is under D; decision 4a walks through Bridge from Below.
 
 **What changes in a game: nothing a player sees.** A game becomes something
 that can stop at any question, be copied there, and go on from an answer.
@@ -254,7 +259,7 @@ and play the decisions to the point?) sets the other road beside it.
 `drew <card>`, `entered <card>`, `left <card>`, `<card> attacked`,
 `<card> blocked`, `<card> dealt N damage to …`, `<card> became a target`, each
 a history row stated with its card's printed frame, as `cast <card>` is: ~40
-lines with its test, ~300–450 for the eight, plus C's three words below for
+lines with its test, ~300–450 for the eight, plus B's three words below for
 the spans before this turn, and a text row each in the editor. *Upkeep*: the
 grammar grows with the history log, every phase that
 records a new fact adds a word, and a token's row cannot be named, since no
@@ -264,17 +269,17 @@ registry holds a token. Setup lines stay as they are.
 board is the state before the untap step. CR 514.2's cleanup has ended every
 "this turn" effect and removed all damage, the stack is empty and combat is
 over, so nothing about the turn exists to be written. What happened since is
-the decision log's answer lines. The words `step`, `attacking`, `blocking`,
-`blocked`, `damage N`, `dealt first-strike damage`, `arrived this turn`, the
-`this turn:` lines and the "this turn" counts go. *Cost*: all 14 scenario
-files and the 11 test files that parse one migrate, and the editor loses its
-mid-turn controls. A hand-written test of a declare-blockers board writes the
-turn's answers instead of `attacking player 1`.
-
-**C. Both doors.** A hand-written board keeps today's grammar, any step's
-round start, with no new word. A board **written from a game** is that turn's
-beginning plus the turn's answers since: a save, a scenario and a log, which
-`--load` already replays. *Code*: the copy is decision 2's paused game's,
+played: by the window's seats, a test's script, or, in a board saved from a
+game, the decision log's answer lines. `step` stays, meaning every seat
+passes, declaring nothing, until that step's first priority, where the setup
+lines play, so a main-phase board reads as it does today with its draw step
+drawn. `attacking`, `blocking`, `blocked`, `damage N`, `dealt first-strike
+damage`, `arrived this turn`, the `this turn:` lines and the "this turn"
+counts go, and with them the loader's refusals of states no play reaches (an
+attacker in a main phase, a blocker of a creature not attacking, `setup-architecture.md#41-how-a-bad-board-fails`).
+A board **written from a game** is that turn's beginning plus the turn's
+answers since: a save, a scenario and a log, which `--load` already replays.
+*Code*: the copy is decision 2's paused game's,
 taken on its own stack between two `run_turn` calls (item 143's checkpoint:
 the state just before a turn runs), beside its anchors, so nothing new hooks
 `GameState` and one thing keeps "a copy and the answers since". The event
@@ -288,15 +293,27 @@ cards), `player q last turn: attacked player p` (3), and `<card> has dealt
 damage to player p` over the game (1, The Fallen). Premature Burial's entry
 is `arrived turn N`'s already, and the 21 commander-cast cards wait on the
 field `command-zone-casting` counts. ~200–330 lines in the engine with tests,
-~50–100 in the dev GUI. *Upkeep*: the writer's report shrinks to what
-outlives a turn (delayed triggers, returns, a resolution's long rows), and
-the grammar grows only with the state a turn's beginning holds.
+~50–100 in the dev GUI. *Migration*: the mid-turn words are in 9 of the 14
+scenario files (`attacking` 7, `this turn:` 7, `blocking` 4, `damage` 3,
+`arrived this turn` 2), in the inline boards of four integration-test files
+(SU-1's loader tests hold most of them, then SU-7's, A6r's and TR-5h's), and
+in the board editor's mid-turn controls. ~400–700 lines changed, more deleted
+than added: an estimate from those counts, not a measurement. *Upkeep*: the
+writer's report shrinks to what outlives a turn (delayed triggers, returns, a
+resolution's long rows), and the grammar holds only the state a turn's
+beginning holds.
 
-**Clone cost**: none for A and B. For C, one copy a turn, kept by the paused
-game, at the probe's 1.1–1.7 µs, a few microseconds in a game of tens of
-milliseconds.
+**C. Both doors.** B, and a hand-written board also keeps today's mid-turn
+grammar, any step's round start, with none of B's migration. *Upkeep*: the
+mid-turn words, their editor controls and the loader's refusals stay, for
+boards the writer no longer produces.
 
-**Setup lines and alike options.** Under C, setup lines stay what they are
+**Clone cost**: none for A. For B and C the same: one copy a turn, kept by
+the paused game, at the probe's 1.1–1.7 µs, a few microseconds in a game of
+tens of milliseconds, and only in a game that saves boards. (The first draft
+set this against C alone; B's writer needs the same copy.)
+
+**Setup lines and alike options.** Under B or C, setup lines stay what they are
 (an action, its targets, its X, its ability's place), since what happens
 later in a turn is the log's lines, not setup's. Whether a setup line refuses
 an option that reads like another: under decision 4 no two offered options
@@ -315,11 +332,13 @@ board no longer reaches, naming it (`setup-architecture.md#72-the-decisions`,
 decision 6). The pair is exact for the turn in progress less what that report
 names.
 
-**Recommendation: C.** It closes item 287 with three words for the spans
-before a turn, where A needs those and eight more, it keeps all 14 files and
-the editor as they are, and a board saved from a game is exact for the turn
-in progress but for what its report names. B is C's writer without its
-hand-written door, and that door is what every existing scenario uses.
+**Recommendation: B** (revised at the owner's first review round, which
+asked what C buys over B). C buys only the hand-written mid-turn door, and
+the dev GUI's use says a situation is reached by playing it, not by writing it
+mid-turn. B closes item 287 with three words for the spans before a turn,
+where A needs those and eight more, it shrinks the grammar and the loader,
+and a board saved from a game is exact for the turn in progress but for what
+its report names. The performance is the same for B and C.
 
 ### Decision 2 — the `DecisionProvider`'s shape: which drives which
 
@@ -638,12 +657,13 @@ from Below's two triggers, both orders.
 | | the fork: a copy at each anchor, the answers since, the replay; its consumer, the fork test at every decision of seeded games at two seats and four, each branch replaying the original's event log and end state | ~120–200 | ~150–250 |
 | | item 140's round started at any seat, and CR 514.3a's re-loop; item 41's test gains the mid-round forks | ~60 | ~60–80 |
 | | the paused game's copy at each turn's start, the writer's turn-start save, and decision 1's three words for the spans before a turn (closing item 287) | ~140–230 | ~60–100 |
+| | decision 1's B: `step` re-read as the step to pass to, the mid-turn words and their refusals out of the grammar and the loader, the engine's six scenario files and four test files' inline boards migrated | ~50–100 added, more deleted | ~100–200 changed |
 | | items 40 and 233 closed as superseded | docs | |
-| | **the engine PR** | **~570–890** | **~470–730** |
-| **dev GUI** | the bridge drives a paused game (`spawn_game`'s thread, `GuiSeat`, `HandOver` go); "Save board as scenario" writes the turn's beginning and its save | ~200–350 | ~50–100 |
+| | **the engine PR** | **~620–990** | **~570–930** |
+| **dev GUI** | the bridge drives a paused game (`spawn_game`'s thread, `GuiSeat`, `HandOver` go); "Save board as scenario" writes the turn's beginning and its save; the editor's mid-turn controls go and its eight test scenarios migrate | ~250–450 | ~100–200 |
 | with the harness | the coroutine, chosen by item 140's spike against the thread, with the binding floor item 140 proposes | sized there | |
 
-The engine PR reads ~1,040–1,620: inside the band (1,500–2,500,
+The engine PR reads ~1,190–1,920: inside the band (1,500–2,500,
 `engineering-practices.md#sizing-a-phase`) at its upper estimate, under it at
 its lower, so it is one PR. The paused game and the fork are one consumer's
 two halves. Fuzz A/B: `IDENTICAL` predicted. Every fuzz game runs
