@@ -227,14 +227,14 @@ fn a_counter_doubler_doubles_each_devour_tokens_counters() {
 #[test]
 fn an_entry_replaced_after_devour_chose_sacrifices_nothing() {
     let mut game = setup_two_player_game();
-    let priest = put_on_battlefield(&mut game, containment_priest(), 0);
+    put_on_battlefield(&mut game, containment_priest(), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
     // Devour, the Elder's own effect, applies first.
     dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
-    dp.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![ChoiceOption::Object(priest)]);
+    dp.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![ChoiceOption::Object(bear)]);
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it is proposed");
     assert!(dp.is_empty());
 
