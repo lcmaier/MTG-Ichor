@@ -24,7 +24,7 @@ use crate::types::zones::DrawFilter;
 /// Alhammarret's Archive's draw half beside Parallel Lives' token half. RE-2's
 /// ledger row named Bard as waiting on "RE-4's token doubler"; the review
 /// found both halves built and registered it (`plans/handoffs/re-4-review.md`,
-/// R5 — the review also caught this file's first draft calling it a card that
+/// R5 — the review also caught the card's first draft calling it a card that
 /// replaces draws with tokens, which is Hullbreacher).
 ///
 /// # The rulings (Scryfall, 2026-09-13), and where each is tested

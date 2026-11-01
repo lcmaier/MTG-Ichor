@@ -97,7 +97,7 @@ pub fn doom_blade() -> Arc<CardData> {
 /// item 91). The predicate is CR 609.7c's, not 609.7a's: nothing is chosen, so
 /// the filter is asked of every source, on the battlefield or not.
 ///
-/// **The pooled card of this PR.** It is the first source in
+/// **The pooled card of RD-3.** It is the first source in
 /// `PERFORMANCE_POOL` whose gather evaluates an `ObjectFilter` on the damage's
 /// *source* rather than on its target, which is a new read per damage event
 /// for as long as it is on the battlefield.
@@ -248,7 +248,7 @@ pub fn protean_hydra() -> Arc<CardData> {
 ///
 /// A `Filter` + `You` row with no count and `Uses::Static` — the shape whose
 /// set is evaluated **at the event**, which is the whole difference between it
-/// and Samite Censer-Bearer below.
+/// and Samite Censer-Bearer.
 ///
 /// # The rulings (Scryfall, 2026-09-08), and where each is tested
 ///

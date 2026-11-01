@@ -26,8 +26,8 @@ use crate::types::replacement::{AmountRewrite, ReplacementDef, Rewrite};
 /// # The rulings, and where each is tested
 ///
 /// Its four rulings are Mana Reflection's four with the number changed, so
-/// three of them are tested once, above. The fourth is its own: *"The
-/// effects of multiple Nyxbloom Ancients are cumulative. For example, if you
+/// three of them are tested once, on Mana Reflection. The fourth is its own:
+/// *"The effects of multiple Nyxbloom Ancients are cumulative. For example, if you
 /// have two Nyxbloom Ancients on the battlefield, you'll get nine times the
 /// original amount and type of mana."* → nine, no prompt
 /// (`two_nyxbloom_ancients_produce_nine_times_the_mana`) — and the two cards

@@ -31,7 +31,7 @@ use crate::types::zones::{Zone, ZoneChangeAct};
 /// two cards. Altar's Reap stays registered: it is CR 601.2h's own example and
 /// its tests are the rule's.
 ///
-/// Its two rulings are the two this phase already tests on Altar's Reap, which
+/// Its two rulings are the two CM-3 already tests on Altar's Reap, which
 /// is the same code path: "you must sacrifice exactly one creature … you can't
 /// sacrifice additional creatures", and "once you begin to cast Bone Splinters,
 /// no player may take actions until you're done."

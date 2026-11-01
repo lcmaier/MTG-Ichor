@@ -26,7 +26,7 @@ use crate::types::triggers::{EventRole, TriggerSubject};
 /// wrote `ATOM-106.6-001` named this card as the integration test for
 /// restricted mana under doubling and deferred it to the suite; it lands
 /// here because RE-9 is where a production became an event. Its first ruling
-/// is what makes it this phase's: *"Doubling Cube's ability is a mana
+/// is what makes it RE-9's: *"Doubling Cube's ability is a mana
 /// ability"* — CR 605.1a, no target, adds mana — and its cost includes {T},
 /// so by CR 106.12 tapping it is "tapping a permanent for mana" and Mana
 /// Reflection doubles what it produces.
@@ -100,7 +100,7 @@ pub fn doubling_cube() -> Arc<CardData> {
 /// - *"Upkeep-triggered abilities don't trigger, and 'activate only during your
 ///   upkeep' abilities can't be activated."* → the first half falls out and is
 ///   item 6's: a step that does not begin emits no event for a trigger to read,
-///   which is why this PR went first. The second half has **no facility to
+///   which is why RE-1 went first. The second half has **no facility to
 ///   assert against** — `ActivationRestriction` has no step-scoped arm and no
 ///   registered card carries one. Recorded, not skipped.
 /// - *"Any triggered abilities that triggered during the untap step will go

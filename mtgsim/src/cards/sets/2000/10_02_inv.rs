@@ -20,9 +20,9 @@ use crate::types::restriction::{ReplacementKindFilter, Restriction};
 ///
 /// **The scry producer, and CR 608.2c's "A, then B" in one resolution.** The
 /// two instructions are an `Effect::Sequence`, so the scry is complete before
-/// the draw is proposed — which is what makes the Eligeth board below say
-/// something: under Eligeth the first instruction becomes a draw too, and the
-/// card draws two.
+/// the draw is proposed — which is what makes the board with Eligeth,
+/// Crossroads Augur say something: under Eligeth the first instruction
+/// becomes a draw too, and the card draws two.
 ///
 /// A scry 1 asks exactly one question — which is CR 701.22a's "put any number
 /// of them on the bottom" with one card — and never asks the ordering one,

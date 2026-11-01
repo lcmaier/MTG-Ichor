@@ -80,7 +80,8 @@ pub fn final_fortune() -> Arc<CardData> {
 /// redirect does nothing — and the row is still there, which is the atom's "the
 /// shield is NOT used up" and decision 7's `took_effect: false` in one board.
 ///
-/// Two things separate it from every other chosen-source card in this file.
+/// Two things separate it from every other chosen-source card (Circle of
+/// Protection: Red, Reverse Damage, Dark Sphere).
 /// Its affected sets are **everything** — "would deal damage", with no "to you"
 /// — so it is the first row whose `Filter { All }` and `PlayerSet::Everyone`
 /// are load-bearing on a redirect. And its rewrite reads the *damage's* source

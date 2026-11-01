@@ -92,7 +92,7 @@ pub fn diabolic_edict() -> Arc<CardData> {
 /// - *Prevent 4 then double the remaining 1, or double to 10 then prevent 4* →
 ///   **RD-2's**, when Mending Hands exists to be the prevention half. Its
 ///   ordering half is covered here by Ghosts of the Innocent, which is the same
-///   CR 616.1 question with two rewrites this PR does build.
+///   CR 616.1 question with two rewrites RD-1 does build.
 pub fn furnace_of_rath() -> Arc<CardData> {
     CardDataBuilder::new("Furnace of Rath")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red, ManaType::Red], 1))
@@ -236,7 +236,7 @@ pub fn meditate() -> Arc<CardData> {
 /// which is `ObjectFilter::ByController(PlayerRef::Opponent)` — and that
 /// leaf reads `chars.controller`, which for an entering permanent comes from
 /// `compute::base_controller`'s owner fallback. Right for a land drop, wrong
-/// for a permanent spell cast by a non-owner, and unowned until this phase
+/// for a permanent spell cast by a non-owner, and unowned until RC-3 recorded it
 /// (see `codebase-state.md`). Root Maze scopes by *type* and asks nothing about
 /// controllers, so it exercises the multi-candidate branch without standing on
 /// a read RC-3 is still fixing.

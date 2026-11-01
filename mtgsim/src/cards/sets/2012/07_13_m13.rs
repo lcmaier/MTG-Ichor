@@ -26,7 +26,7 @@ use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rew
 /// # The rulings, and where each is tested
 ///
 /// - *"If you control two Rhox Faithmenders, life you gain will be multiplied by
-///   four. Three ... by eight, and so on."* → **the test this phase was built
+///   four. Three ... by eight, and so on."* → **the test RE-3 was built
 ///   around**, and it failed as an unexpected CR 616.1 *prompt* before it could
 ///   fail as a number (§11 item 58).
 ///   → `test_two_rhox_faithmenders_quadruple`, with

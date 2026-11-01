@@ -29,13 +29,14 @@ use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTur
 /// 500.10) is not it.
 ///
 /// **Registered, not pooled**: §12 pools the registry with TR-3b's two cards,
-/// so this PR's close-out reads the performance pool unmoved.
+/// so TR-3a's close-out read the performance pool unmoved.
 ///
 /// It exercises a spell's delayed trigger in the next turn, which ends no game.
 ///
 /// # The rulings, and where each is tested
 ///
-/// Scryfall lists no rulings (2026-10-07). The tests are below: cast from
+/// Scryfall lists no rulings (2026-10-07). The tests are
+/// `phase_tr3a_integration_test`'s `final_fortune_and_blessed_wine`: cast from
 /// hand, and the second upkeep it waits past.
 pub fn blessed_wine() -> Arc<CardData> {
     let draw_next_upkeep = DelayedTriggerTemplate {

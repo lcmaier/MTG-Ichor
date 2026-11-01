@@ -30,7 +30,7 @@ use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate,
 /// **The cheapest whole card for CR 500.8**, and the only one of the 46 that
 /// needs nothing this engine does not have: `ActivationRestriction::OnlyAsSorcery`
 /// has been enforced since Bonesplitter's equip (`cast.rs:345`), and its untap
-/// is the recipient arm this PR adds.
+/// is the recipient arm RE-10 added.
 ///
 /// **The two phases are one `Primitive::ExtraPhases`, not two.** "An additional
 /// combat phase followed by an additional main phase" is one resolution

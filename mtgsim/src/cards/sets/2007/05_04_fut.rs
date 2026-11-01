@@ -270,7 +270,7 @@ pub fn thornweald_archer() -> Arc<CardData> {
 /// board without this card, because `RegistryScopeSummary::reachable_zones`
 /// is `BATTLEFIELD` there and the seed's loop does not run.
 ///
-/// # The ruling this card is famous for, and why it is not this phase's
+/// # The ruling this card is famous for, and why it is not LJ's
 ///
 /// Yixlid Jailer's own rulings are about cards *changing zones* — a creature
 /// card that leaves the graveyard has its abilities again, and a card put into

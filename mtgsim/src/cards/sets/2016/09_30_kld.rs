@@ -64,7 +64,7 @@ pub fn foundry_inspector() -> Arc<CardData> {
 ///   first card (`backlog.md` §2.16's close).
 ///
 /// **Registered and not pooled**: a three-mana cantrip whose counters nothing
-/// pooled reads. Its job in this phase is to be Vorinclex's and Winding
+/// pooled reads. Its job in RE-5 was to be Vorinclex's and Winding
 /// Constrictor's producer.
 pub fn live_fast() -> Arc<CardData> {
     CardDataBuilder::new("Live Fast")

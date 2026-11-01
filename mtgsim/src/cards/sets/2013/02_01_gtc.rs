@@ -56,7 +56,7 @@ use crate::types::restriction::{ReplacementKindFilter, Restriction};
 ///
 /// # In `PERFORMANCE_POOL`
 ///
-/// The dynamic amount is a second new engine path this phase opens, and it is
+/// The dynamic amount is a second new engine path RC-5 opened, and it is
 /// the one that costs a layer read per application. With `Everywhere` in the
 /// pool a `{2}{G}{U}` card is castable in every deck.
 pub fn master_biomancer() -> Arc<CardData> {
@@ -117,7 +117,7 @@ pub fn master_biomancer() -> Arc<CardData> {
 /// - *"[This] targets only the player or planeswalker. If that player or
 ///   planeswalker is an illegal target when [it] tries to resolve, it won't
 ///   resolve and none of its effects will happen."* → CR 608.2b's fizzle, which
-///   is the stack's and predates this phase; the card adds no new claim to it.
+///   is the stack's and predates RE-3; the card adds no new claim to it.
 ///   Recorded rather than re-tested.
 /// - *"Spells and abilities that would cause a player to gain life or that would
 ///   prevent damage still resolve, but the life-gain and damage-prevention parts

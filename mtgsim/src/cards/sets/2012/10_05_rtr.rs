@@ -79,10 +79,10 @@ pub fn palisade_giant() -> Arc<CardData> {
 ///
 /// # `ObjectFilter::All`, deliberately
 ///
-/// "a card **or token**" is the widest filter in the file, and the absence of
-/// `Not(Token)` is the whole difference from Leyline below. It also means this
-/// competes with Kalitas on exactly the deaths Kalitas cares about while
-/// applying to plenty it does not.
+/// "a card **or token**" is the widest filter of RB's three cards, and the
+/// absence of `Not(Token)` is the whole difference from Leyline of the Void.
+/// It also means this competes with Kalitas on exactly the deaths Kalitas
+/// cares about while applying to plenty it does not.
 ///
 /// # What is deferred, and on what precedent
 ///
