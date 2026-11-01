@@ -32,6 +32,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::get_effective_controller;
+use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{
     AbilityIdentity, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
 };
@@ -116,13 +117,13 @@ fn stack_sources(game: &GameState) -> Vec<ObjectId> {
 }
 
 /// A `SelectRecipients` expectation for Blood Artist's "target player".
-fn expect_target_player(dp: &ScriptedDecisionProvider, index: usize) {
-    dp.expect_pick_n(
+fn expect_target_player(dp: &ScriptedDecisionProvider, player: PlayerId) {
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![index],
+        vec![ChoiceOption::Player(player)],
     );
 }
 
@@ -550,8 +551,8 @@ fn a_player_with_two_different_triggers_chooses_their_order() {
     next_upkeep(&mut game);
     assert_eq!(pending(&game), 2);
     let dp = ScriptedDecisionProvider::new();
-    // Options in trigger order: [gainer, drawer]. Put the drawer's on first.
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![1, 0]);
+    // The drawer's goes on first.
+    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![ChoiceOption::Object(drawer), ChoiceOption::Object(gainer)]);
     place(&mut game, &dp);
 
     assert_eq!(stack_sources(&game), vec![drawer, gainer]);
@@ -630,6 +631,7 @@ fn identical_triggers_that_read_different_bindings_are_asked_their_order() {
     destroy_all(&mut game, &[a, b], source);
     assert_eq!(pending(&game), 2);
     let dp = ScriptedDecisionProvider::new();
+    // Both triggers are the Mourner's, so only a position tells them apart.
     dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![1, 0]);
     place(&mut game, &dp);
     assert_eq!(game.stack.len(), 2);
@@ -718,7 +720,10 @@ fn attack_triggers_fire_as_attackers_are_declared() {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
+    dp.expect_choice(
+        ChoiceKind::DeclareAttackers,
+        vec![ChoiceOption::AttackerTarget(a, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(b, AttackTarget::Player(1))],
+    );
     game.process_declare_attackers(&dp).unwrap();
 
     assert_eq!(pending(&game), 2, "one per attacker");
@@ -1255,12 +1260,12 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     let target = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     advance_to(&mut game, 0, StepType::Upkeep);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![1],
+        vec![ChoiceOption::Object(target)],
     );
     place(&mut game, &dp);
     game.players[0].life_total = 10;
@@ -1282,12 +1287,12 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     let target = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     advance_to(&mut game, 0, StepType::Upkeep);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![1],
+        vec![ChoiceOption::Object(target)],
     );
     place(&mut game, &dp);
     let ability = *game.stack.last().unwrap();
@@ -2047,8 +2052,8 @@ fn cast_from_exact_pool(card: Arc<CardData>, pool: &[ManaType], kick: bool) -> (
         game.players[0].mana_pool.add(t, 1);
     }
     let dp = ScriptedDecisionProvider::new();
-    let kicked = if kick { vec![0] } else { Vec::new() };
-    dp.expect_pick_n(ChoiceKind::ChooseAdditionalCosts { spell_id: id }, kicked);
+    let kicked = if kick { vec![ChoiceOption::AdditionalCost(kicker_red())] } else { Vec::new() };
+    dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: id }, kicked);
     game.cast_spell(0, id, &dp).expect("cast from an exact pool");
     assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
     resolve_top(&mut game, &test_dp());

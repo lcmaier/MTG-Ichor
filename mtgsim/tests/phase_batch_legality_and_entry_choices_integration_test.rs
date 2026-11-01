@@ -87,12 +87,12 @@ fn devourer(name: &str, per: PerChosen) -> Arc<CardData> {
         .build()
 }
 
-/// Enter `entering` from its graveyard, answering devour's prompt with
-/// `picks`, and check `chooser` was the one asked.
-fn reanimate_devouring(game: &mut GameState, entering: ObjectId, chooser: PlayerId, picks: Vec<usize>) {
+/// Enter `entering` from its graveyard, devouring `devoured`, and check
+/// `chooser` was the one asked.
+fn reanimate_devouring(game: &mut GameState, entering: ObjectId, chooser: PlayerId, devoured: &[ObjectId]) {
     let prompt = || ChoiceKind::ChooseAuxiliaryZoneChange { entering, source: entering, to: Zone::Graveyard };
     let dp = test_dp();
-    dp.expect_pick_n(prompt(), picks);
+    dp.expect_choice(prompt(), devoured.iter().map(|&creature| ChoiceOption::Object(creature)).collect());
     game.change_zone(entering, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
     assert_asked(&dp, &[(chooser, prompt())]);
 }
@@ -145,16 +145,16 @@ fn doubles_your_plus_one_counters() -> Arc<CardData> {
         .build()
 }
 
-/// Two of the token above, created at once, the first devouring two
-/// creatures and the second one. `placeholder` stands for each token in the
-/// scripted prompt, which matches the prompt's kind and not its fields: the
-/// tokens have no id until they are created.
-fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId) -> Vec<ObjectId> {
+/// Two of the token above, created at once, the first devouring the first
+/// two of `creatures` and the second the third. `placeholder` stands for
+/// each token in the scripted prompt, which matches the prompt's kind and
+/// not its fields: the tokens have no id until they are created.
+fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId, creatures: &[ObjectId]) -> Vec<ObjectId> {
     let dp = test_dp();
     let devour_prompt =
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: placeholder, source: placeholder, to: Zone::Graveyard };
-    dp.expect_pick_n(devour_prompt.clone(), vec![0, 1]);
-    dp.expect_pick_n(devour_prompt, vec![0]);
+    dp.expect_choice(devour_prompt.clone(), vec![ChoiceOption::Object(creatures[0]), ChoiceOption::Object(creatures[1])]);
+    dp.expect_choice(devour_prompt, vec![ChoiceOption::Object(creatures[2])]);
     let before: Vec<ObjectId> = game.battlefield_ids_ordered();
     game.execute_action(
         GameAction::CreateTokens { defs: vec![devouring_dragon_token(), devouring_dragon_token()], controller: 0, attacking: None },
@@ -179,12 +179,10 @@ fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId) -> 
 fn two_devour_tokens_entering_together_sacrifice_as_one_event() {
     let mut game = setup_two_player_game();
     let bell = put_on_battlefield(&mut game, gains_when_creatures_die(), 0);
-    for _ in 0..3 {
-        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    }
+    let creatures: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0)).collect();
     let mark = game.recorded_events().len();
 
-    let dragons = create_two_devouring_dragons(&mut game, bell);
+    let dragons = create_two_devouring_dragons(&mut game, bell, &creatures);
 
     assert_eq!(dragons.len(), 2);
     let mut given: Vec<u32> = dragons.iter().map(|&id| counters(&game, id, CounterType::PlusOnePlusOne)).collect();
@@ -214,11 +212,9 @@ fn two_devour_tokens_entering_together_sacrifice_as_one_event() {
 fn a_counter_doubler_doubles_each_devour_tokens_counters() {
     let mut game = setup_two_player_game();
     let doubler = put_on_battlefield(&mut game, doubles_your_plus_one_counters(), 0);
-    for _ in 0..3 {
-        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    }
+    let creatures: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0)).collect();
 
-    let dragons = create_two_devouring_dragons(&mut game, doubler);
+    let dragons = create_two_devouring_dragons(&mut game, doubler, &creatures);
 
     let mut given: Vec<u32> = dragons.iter().map(|&id| counters(&game, id, CounterType::PlusOnePlusOne)).collect();
     given.sort();
@@ -231,14 +227,14 @@ fn a_counter_doubler_doubles_each_devour_tokens_counters() {
 #[test]
 fn an_entry_replaced_after_devour_chose_sacrifices_nothing() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, containment_priest(), 0);
+    let priest = put_on_battlefield(&mut game, containment_priest(), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
     // Devour, the Elder's own effect, applies first.
     dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
-    dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![0]);
+    dp.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![ChoiceOption::Object(priest)]);
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it is proposed");
     assert!(dp.is_empty());
 
@@ -259,7 +255,7 @@ fn a_devoured_permanents_own_entry_effect_still_applies() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
     let dp = test_dp();
     dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
-    dp.expect_pick_n(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![0]);
+    dp.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![ChoiceOption::Object(biomancer)]);
 
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
 
@@ -314,7 +310,7 @@ fn a_shockland_paid_for_enters_untapped() {
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, shockland(), 0);
     let dp = test_dp();
-    dp.expect_pick_n(the_offer(land), vec![0]);
+    dp.expect_choice(the_offer(land), vec![ChoiceOption::Object(land)]);
 
     game.play_land(0, land, &dp).expect("the land drop");
 
@@ -329,7 +325,7 @@ fn a_shockland_declined_enters_tapped() {
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, shockland(), 0);
     let dp = test_dp();
-    dp.expect_pick_n(the_offer(land), vec![]);
+    dp.expect_choice(the_offer(land), vec![]);
 
     game.play_land(0, land, &dp).expect("the land drop");
 
@@ -444,7 +440,7 @@ fn a_shockland_is_payable_at_exactly_its_cost() {
     game.players[0].life_total = 2;
     let land = put_in_hand(&mut game, shockland(), 0);
     let dp = test_dp();
-    dp.expect_pick_n(the_offer(land), vec![0]);
+    dp.expect_choice(the_offer(land), vec![ChoiceOption::Object(land)]);
 
     game.play_land(0, land, &dp).expect("the land drop");
 
@@ -508,7 +504,7 @@ fn tribute_asks_its_controller_for_an_opponent_who_may_put_the_counters() {
     let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
     let dp = test_dp();
     dp.expect_choice(the_putter(beast), vec![ChoiceOption::Player(2)]);
-    dp.expect_pick_n(the_counters(beast), vec![0]);
+    dp.expect_choice(the_counters(beast), vec![ChoiceOption::Object(beast)]);
     let mark = game.recorded_events().len();
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
@@ -526,7 +522,7 @@ fn tributes_chosen_opponent_may_decline() {
     let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
     let dp = test_dp();
     dp.expect_choice(the_putter(beast), vec![ChoiceOption::Player(1)]);
-    dp.expect_pick_n(the_counters(beast), vec![]);
+    dp.expect_choice(the_counters(beast), vec![]);
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
 
@@ -540,7 +536,7 @@ fn tribute_with_one_opponent_asks_only_whether_to_put_them() {
     let mut game = setup_two_player_game();
     let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
     let dp = test_dp();
-    dp.expect_pick_n(the_counters(beast), vec![0]);
+    dp.expect_choice(the_counters(beast), vec![ChoiceOption::Object(beast)]);
     let mark = game.recorded_events().len();
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
@@ -565,7 +561,7 @@ fn a_granted_devour_is_chosen_by_the_entering_creatures_controller() {
     let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let entering = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
 
-    reanimate_devouring(&mut game, entering, 0, vec![0]);
+    reanimate_devouring(&mut game, entering, 0, &[mine]);
 
     assert_eq!(game.get_object(mine).expect("its card").zone, Zone::Graveyard, "player 0 sacrificed their own creature");
     assert!(game.battlefield.contains_key(&theirs), "player 1's creature was never a candidate");
@@ -581,12 +577,10 @@ fn a_granted_devour_is_chosen_by_the_entering_creatures_controller() {
 #[test]
 fn devour_by_the_count_gives_the_count_squared() {
     let mut game = setup_two_player_game();
-    for _ in 0..3 {
-        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    }
+    let creatures: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0)).collect();
     let gorger = put_in_graveyard(&mut game, devourer("Fixture Squaring Gorger", PerChosen::Count), 0);
 
-    reanimate_devouring(&mut game, gorger, 0, vec![0, 1, 2]);
+    reanimate_devouring(&mut game, gorger, 0, &creatures);
 
     assert_eq!(counters(&game, gorger, CounterType::PlusOnePlusOne), 9);
     assert_eq!(game.players[0].graveyard.len(), 3, "the three it devoured");
@@ -597,12 +591,10 @@ fn devour_by_the_count_gives_the_count_squared() {
 #[test]
 fn devour_by_the_count_reads_this_entrys_count() {
     let mut game = setup_two_player_game();
-    for _ in 0..3 {
-        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    }
+    let creatures: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0)).collect();
     let gorger = put_in_graveyard(&mut game, devourer("Fixture Squaring Gorger", PerChosen::Count), 0);
 
-    reanimate_devouring(&mut game, gorger, 0, vec![0, 2]);
+    reanimate_devouring(&mut game, gorger, 0, &[creatures[0], creatures[2]]);
 
     assert_eq!(counters(&game, gorger, CounterType::PlusOnePlusOne), 4);
 }

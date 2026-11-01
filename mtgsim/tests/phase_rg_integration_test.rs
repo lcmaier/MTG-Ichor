@@ -115,13 +115,13 @@ fn with_a_charge_counter() -> EnterModsTemplate {
 }
 
 /// Return `card` from `owner`'s graveyard to the battlefield, answering each
-/// CR 616.1 prompt about it from `picks` in order. An unscripted prompt, or a
-/// scripted one left over, fails the test.
-fn return_to_battlefield(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, picks: &[usize]) -> ObjectId {
+/// CR 616.1 prompt about it with the source in `applied` it applies next. An
+/// unscripted prompt, or a scripted one left over, fails the test.
+fn return_to_battlefield(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, applied: &[ObjectId]) -> ObjectId {
     let id = put_in_graveyard(game, card, owner);
     let dp = ScriptedDecisionProvider::new();
-    for &pick in picks {
-        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![pick]);
+    for &source in applied {
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![ChoiceOption::Object(source)]);
     }
     game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the entry is proposed");
@@ -181,11 +181,11 @@ fn the_last_applied_status_is_the_one_the_permanent_enters_with() {
 #[test]
 fn opposite_statuses_are_an_order_and_equal_ones_are_not() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
-    put_on_battlefield(&mut game, entry_effect("Permanents enter untapped", ObjectFilter::All, EnterModsTemplate::untapped()), 1);
-    let tapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[0]);
+    let tapper = put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+    let untapper = put_on_battlefield(&mut game, entry_effect("Permanents enter untapped", ObjectFilter::All, EnterModsTemplate::untapped()), 1);
+    let tapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[tapper]);
     assert!(!game.battlefield[&tapped_first].tapped, "untapped applied last");
-    let untapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[1]);
+    let untapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[untapper]);
     assert!(game.battlefield[&untapped_first].tapped, "tapped applied last");
 
     let mut game = setup_two_player_game();
@@ -222,11 +222,11 @@ fn a_power_filter_beside_members_that_raise_no_power_is_not_asked() {
 #[test]
 fn an_added_subtype_asks_only_where_a_not_reads_it() {
     let non_mutants = and(creatures(), ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(mutant()))));
-    for (pick, tapped) in [(0, false), (1, true)] {
+    for (edit_first, tapped) in [(true, false), (false, true)] {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, creatures_enter_as_mutants(), 0);
-        put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
-        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[pick]);
+        let edit = put_on_battlefield(&mut game, creatures_enter_as_mutants(), 0);
+        let tapper = put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
+        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[if edit_first { edit } else { tapper }]);
         assert!(has_subtype(&game, bears, &mutant()));
         assert_eq!(game.battlefield[&bears].tapped, tapped, "the Mutant edit first unmatches the tapper");
     }
@@ -280,12 +280,12 @@ fn artifact_while_untapped() -> Arc<CardData> {
 /// counter or none, and the controller is asked.
 #[test]
 fn a_status_write_is_an_order_where_the_entering_permanents_type_hangs_on_its_status() {
-    for (pick, charged) in [(0, 0), (1, 1)] {
+    for (tapper_first, charged) in [(true, 0), (false, 1)] {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+        let tapper = put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
         let artifacts = ObjectFilter::ByType(CardType::Artifact);
-        put_on_battlefield(&mut game, entry_effect("Artifacts enter charged", artifacts, with_a_charge_counter()), 1);
-        let id = return_to_battlefield(&mut game, artifact_while_untapped(), 0, &[pick]);
+        let charger = put_on_battlefield(&mut game, entry_effect("Artifacts enter charged", artifacts, with_a_charge_counter()), 1);
+        let id = return_to_battlefield(&mut game, artifact_while_untapped(), 0, &[if tapper_first { tapper } else { charger }]);
         let entry = &game.battlefield[&id];
         assert!(entry.tapped);
         assert_eq!(entry.counter_count(CounterType::Charge), charged);
@@ -367,11 +367,11 @@ fn the_mutant_is_not_copied_and_a_copy_effect_over_it_leaves_it() {
 #[test]
 fn master_biomancer_beside_a_non_mutant_filter_is_an_order() {
     let non_mutants = and(creatures(), ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(mutant()))));
-    for (pick, tapped) in [(0, false), (1, true)] {
+    for (biomancer_first, tapped) in [(true, false), (false, true)] {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, master_biomancer(), 0);
-        put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
-        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[pick]);
+        let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+        let tapper = put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
+        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[if biomancer_first { biomancer } else { tapper }]);
         assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 2);
         assert_eq!(game.battlefield[&bears].tapped, tapped);
     }

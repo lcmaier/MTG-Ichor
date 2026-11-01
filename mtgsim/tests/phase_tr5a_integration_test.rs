@@ -21,6 +21,7 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::has_keyword;
+use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, set_active_player, set_attacking, set_blocked_by,
@@ -341,7 +342,10 @@ fn them_over_an_attack_is_each_attacker() {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
+    dp.expect_choice(
+        ChoiceKind::DeclareAttackers,
+        vec![ChoiceOption::AttackerTarget(first, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(second, AttackTarget::Player(1))],
+    );
     game.process_declare_attackers(&dp).unwrap();
     resolve_all(&mut game, &test_dp());
     assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 1));
@@ -492,7 +496,7 @@ fn a_reach_block(game: &mut GameState) -> (ObjectId, ObjectId) {
     game.add_counters(blocker, CounterType::PlusOnePlusOne, 1);
     set_attacking(game, flier, 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
+    dp.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(blocker, flier)]);
     game.process_declare_blockers(&dp).unwrap();
     assert!(dp.is_empty(), "reach let it block the flier");
     (flier, blocker)

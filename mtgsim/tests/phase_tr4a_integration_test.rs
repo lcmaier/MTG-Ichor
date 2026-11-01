@@ -26,7 +26,7 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_type};
-use mtgsim::state::battlefield::CostChoices;
+use mtgsim::state::battlefield::{AttackTarget, CostChoices};
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     effect_ctx, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_under,
@@ -904,7 +904,10 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
+    dp.expect_choice(
+        ChoiceKind::DeclareAttackers,
+        vec![ChoiceOption::AttackerTarget(plain, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(countered, AttackTarget::Player(1))],
+    );
     game.process_declare_attackers(&dp).unwrap();
     let subjects: Vec<_> = game.pending_triggers.iter().map(|t| t.binding.triggering_object(EventRole::Attacker).map(|o| o.id)).collect();
     assert_eq!(subjects, vec![Some(plain)], "one trigger, for the attacker with no counter");

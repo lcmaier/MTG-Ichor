@@ -50,7 +50,7 @@ use mtgsim::types::mana::{
 use mtgsim::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 /// CR 616.1's choice between two applicable effects.
@@ -648,16 +648,15 @@ fn deep_water_and_mana_reflection_commute() {
 
 /// Contamination's line — "{B} instead of any other type *and amount*" —
 /// beside Mana Reflection is CR 616.1's real question: doubled first is one
-/// black, fixed first is two. The tapping player chooses, and the
-/// candidates are offered in timestamp order, the Reflection's first.
+/// black, fixed first is two. The tapping player chooses.
 #[test]
 fn contamination_line_beside_mana_reflection_is_a_real_choice() {
     let doubled_first = {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, mana_reflection(), 0);
+        let reflection = put_on_battlefield(&mut game, mana_reflection(), 0);
         put_on_battlefield(&mut game, blackened_earth(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![0]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(reflection)]);
         tap_for_mana(&mut game, forest(), 0, &dp).unwrap();
         assert!(dp.is_empty(), "one prompt");
         pool(&game, 0, ManaType::Black)
@@ -665,9 +664,9 @@ fn contamination_line_beside_mana_reflection_is_a_real_choice() {
     let fixed_first = {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, mana_reflection(), 0);
-        put_on_battlefield(&mut game, blackened_earth(), 0);
+        let earth = put_on_battlefield(&mut game, blackened_earth(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![1]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(earth)]);
         tap_for_mana(&mut game, forest(), 0, &dp).unwrap();
         assert!(dp.is_empty(), "one prompt");
         pool(&game, 0, ManaType::Black)

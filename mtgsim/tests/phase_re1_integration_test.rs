@@ -38,7 +38,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -171,14 +171,14 @@ fn at_the_turn_boundary(num_players: usize) -> GameState {
 #[test]
 fn two_meditates_make_a_player_skip_their_next_two_turns() {
     let mut game = at_the_turn_boundary(2);
-    resolve_spell(&mut game, meditate(), 0, vec![]);
+    let first = resolve_spell(&mut game, meditate(), 0, vec![]);
     resolve_spell(&mut game, meditate(), 0, vec![]);
     assert_eq!(game.replacement_effects.len(), 2, "one row per Meditate");
 
     // Two applicable rows on one event is a real CR 616.1 choice, and the
     // affected player makes it — here player 0, whose turn is being skipped.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(first)]);
 
     // Player 0's next two turns do not happen and advance no turn number
     // (CR 614.10a, 500.11): player 1 takes turns 2, 3 and 4 in a row, and

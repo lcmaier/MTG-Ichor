@@ -258,7 +258,7 @@ fn each_doubled_instance_makes_its_own_choice() {
     assert_eq!(waiting_from(&game, healer), 2);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: healer }, vec![0]);
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: healer }, Vec::new());
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: healer }, Vec::new());
     resolve_all(&mut game, &dp);
     assert_eq!(life(&game, 0), before + 1, "one said yes and the other no");
 }
@@ -675,10 +675,11 @@ fn scry(game: &mut GameState, player: PlayerId, n: u64) {
     let dp = ScriptedDecisionProvider::new();
     let looked_at = game.players[player].library.len().min(n as usize);
     if looked_at > 0 {
-        dp.expect_pick_n(PICK_SCRY, Vec::new());
+        dp.expect_choice(PICK_SCRY, Vec::new());
     }
     if looked_at > 1 {
-        dp.expect_ordering(ChoiceKind::ScryOrder { source: None, bottom: false }, (0..looked_at).collect());
+        let top_down = game.players[player].library.iter().rev().take(looked_at).map(|&card| ChoiceOption::Object(card)).collect();
+        dp.expect_order(ChoiceKind::ScryOrder { source: None, bottom: false }, top_down);
     }
     game.execute_action(GameAction::Scry { player, n }, &ActionContext::new(&dp)).expect("the scry is performed");
 }
@@ -1015,11 +1016,11 @@ fn teysa_dying_beside_a_creature_doubles_both_deaths() {
 fn two_teysas_make_three_as_the_legend_rule_kills_one() {
     let mut game = audited_game();
     let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(a_creature()), gain_one())), 0);
-    put_on_battlefield(&mut game, teysa_karlov(), 0);
+    let first = put_on_battlefield(&mut game, teysa_karlov(), 0);
     resolve_all(&mut game, &test_dp());
     put_on_battlefield(&mut game, teysa_karlov(), 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::LegendRule { legend_name: "Teysa Karlov".into() }, vec![0]);
+    dp.expect_choice(ChoiceKind::LegendRule { legend_name: "Teysa Karlov".into() }, vec![ChoiceOption::Object(first)]);
     game.perform_sba_and_triggers(&dp).unwrap();
     assert!(dp.is_empty(), "the legend rule chose");
     let stacked = game.stack.iter().filter(|id| game.stack_entries[*id].ability_identity.is_some_and(|i| i.source.id == mourner)).count();

@@ -41,7 +41,7 @@ use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 
@@ -824,8 +824,7 @@ fn two_exquisite_archangels_you_choose_which_applies() {
     let second = put_on_battlefield(&mut game, exquisite_archangel(), 0);
     game.players[0].life_total = -2;
     let dp = ScriptedDecisionProvider::new();
-    // Offered in battlefield order; the second is chosen.
-    dp.expect_pick_n(PICK_REPLACEMENT, vec![1]);
+    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(second)]);
 
     assert!(sba(&mut game, &dp));
 

@@ -56,21 +56,11 @@ fn stocked(players: usize) -> GameState {
 }
 
 /// Player 0 declares `attacks`, each attacker against its player.
-/// `attackers` is every creature that can attack, in the order they entered:
-/// the declaration's options are each of them against each opponent, the
-/// opponents in seat order.
-fn declare(game: &mut GameState, attackers: &[ObjectId], attacks: &[(ObjectId, PlayerId)]) {
-    let opponents = game.players.len() - 1;
-    let picks = attacks
-        .iter()
-        .map(|&(attacker, player)| {
-            let at = attackers.iter().position(|&a| a == attacker).unwrap();
-            at * opponents + (player - 1)
-        })
-        .collect();
+fn declare(game: &mut GameState, attacks: &[(ObjectId, PlayerId)]) {
+    let declared = attacks.iter().map(|&(attacker, player)| ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(player))).collect();
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::DeclareAttackers, picks);
+    dp.expect_choice(ChoiceKind::DeclareAttackers, declared);
     game.process_declare_attackers(&dp).unwrap();
 }
 
@@ -178,7 +168,7 @@ fn watcher(name: &str, arm: impl Into<TriggerEvent>, effect: Effect) -> Arc<Card
 fn an_effect_announces_what_it_removed_from_combat() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[bears], &[(bears, 1)]);
+    declare(&mut game, &[(bears, 1)]);
 
     resolve_as(&mut game, 1, &at_target_creature(Primitive::RemoveFromCombat), bears);
     assert!(game.battlefield[&bears].attacking.is_none());
@@ -196,7 +186,7 @@ fn an_effect_announces_what_it_removed_from_combat() {
 fn regeneration_announces_its_removal() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[bears], &[(bears, 1)]);
+    declare(&mut game, &[(bears, 1)]);
 
     regenerate(&mut game, 0, bears);
     assert!(game.battlefield.contains_key(&bears), "the shield replaced the destruction");
@@ -260,7 +250,7 @@ fn the_end_of_combat_removes_everything_at_once() {
 fn leaving_the_battlefield_removes_it_with_no_removal_record() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[bears], &[(bears, 1)]);
+    declare(&mut game, &[(bears, 1)]);
 
     resolve_as(&mut game, 1, &at_target_creature(Primitive::ReturnToHand), bears);
     assert_eq!(game.objects[&bears].zone, Zone::Hand);
@@ -296,7 +286,7 @@ fn warcaller() -> Arc<CardData> {
 fn warcaller_leaves_combat(leave: impl Fn(&mut GameState, ObjectId)) -> [i64; 3] {
     let mut game = stocked(4);
     let warcaller = put_on_battlefield(&mut game, warcaller(), 0);
-    declare(&mut game, &[warcaller], &[(warcaller, 3)]);
+    declare(&mut game, &[(warcaller, 3)]);
     assert_eq!(game.pending_triggers.len(), 1);
     leave(&mut game, warcaller);
     assert!(game.battlefield.get(&warcaller).is_none_or(|entry| entry.attacking.is_none()), "it left combat");
@@ -358,7 +348,7 @@ fn an_attacker_that_stops_being_a_creature_leaves_combat() {
     let mut game = stocked(2);
     let march = put_on_battlefield(&mut game, march_of_the_machines(), 0);
     let ring = put_on_battlefield(&mut game, sol_ring(), 0);
-    declare(&mut game, &[ring], &[(ring, 1)]);
+    declare(&mut game, &[(ring, 1)]);
     let before = game.recorded_events().len();
 
     resolve_as(&mut game, 1, &destroy_target_enchantment(), march);
@@ -409,7 +399,7 @@ fn a_player_leaving_with_the_animator_takes_the_attacker_out_of_combat() {
     let mut game = stocked(4);
     put_on_battlefield(&mut game, march_of_the_machines(), 2);
     let ring = put_on_battlefield(&mut game, sol_ring(), 0);
-    declare(&mut game, &[ring], &[(ring, 1)]);
+    declare(&mut game, &[(ring, 1)]);
 
     game.players[2].life_total = 0;
     game.perform_sba_and_triggers(&test_dp()).unwrap();
@@ -538,7 +528,7 @@ fn a_token_put_onto_the_battlefield_attacking_never_attacked() {
     let mut game = stocked(2);
     let hellrider = put_on_battlefield(&mut game, hellrider(), 0);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
-    declare(&mut game, &[hellrider, garrison], &[(hellrider, 1), (garrison, 1)]);
+    declare(&mut game, &[(hellrider, 1), (garrison, 1)]);
     assert_eq!(game.pending_triggers.len(), 3, "Hellrider's two and the Garrison's");
 
     let dp = RecordingDecisionProvider::picking(0);
@@ -569,7 +559,7 @@ fn a_token_put_onto_the_battlefield_attacking_triggers_no_defender_or_player() {
     put_on_battlefield(&mut game, watcher("Fixture Watchtower", is_attacked(DefenderFilter::Player(None)), gain_one()), 0);
     put_on_battlefield(&mut game, watcher("Fixture War Drum", player_attacks(Whose::Yours), gain_one()), 0);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
-    declare(&mut game, &[garrison], &[(garrison, 1)]);
+    declare(&mut game, &[(garrison, 1)]);
 
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
     assert_eq!(tokens(&game).len(), 2);
@@ -590,7 +580,7 @@ fn attacks_alone_counts_only_the_declared() {
         let entered = put_attacking(&mut game, 0);
         assert_eq!(attack_of(&game, entered), Some(AttackTarget::Player(1)), "{way}");
 
-        declare(&mut game, &[bears], &[(bears, 1)]);
+        declare(&mut game, &[(bears, 1)]);
         resolve_all(&mut game, &test_dp());
         assert_eq!(life(&game, 0), 21, "{way}: the Bears attacked alone, and the other did not attack");
     }
@@ -604,7 +594,7 @@ fn attacks_alone_counts_only_the_declared() {
 fn each_token_chooses_what_it_attacks_at_four_seats() {
     let mut game = stocked(4);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
-    declare(&mut game, &[garrison], &[(garrison, 1)]);
+    declare(&mut game, &[(garrison, 1)]);
 
     let dp = ScriptedDecisionProvider::new();
     let asked = ChoiceKind::ChooseEnteringDefender { object: ObjectId::UNASSIGNED };
@@ -732,7 +722,7 @@ fn a_token_attacking_that_player_attacks_the_player_named() {
         let effect =
             Effect::Atom(Primitive::CreateToken(a_human(entering.clone()), AmountExpr::Fixed(1)), EffectRecipient::Controller);
         let leader = put_on_battlefield(&mut game, on_its_attack("Fixture Vanguard", effect), 0);
-        declare(&mut game, &[leader], &[(leader, 2)]);
+        declare(&mut game, &[(leader, 2)]);
         resolve_all(&mut game, &test_dp());
         let [token] = tokens(&game)[..] else { panic!("one token") };
         assert_eq!(attack_of(&game, token), Some(AttackTarget::Player(2)), "{entering:?}");
@@ -746,7 +736,7 @@ fn parallel_lives_doubles_the_attacking_tokens() {
     let mut game = stocked(4);
     put_on_battlefield(&mut game, parallel_lives(), 0);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
-    declare(&mut game, &[garrison], &[(garrison, 1)]);
+    declare(&mut game, &[(garrison, 1)]);
 
     let dp = RecordingDecisionProvider::picking(0);
     resolve_all(&mut game, &dp);
@@ -763,7 +753,7 @@ fn divine_visitations_angels_are_tapped_and_attacking() {
     let mut game = stocked(2);
     put_on_battlefield(&mut game, divine_visitation(), 0);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
-    declare(&mut game, &[garrison], &[(garrison, 1)]);
+    declare(&mut game, &[(garrison, 1)]);
 
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
     let angels = tokens(&game);
@@ -810,7 +800,7 @@ fn an_attack_trigger_beside_it_cannot_target_the_tokens() {
         );
         let captain = put_on_battlefield(&mut game, on_its_attack("Fixture Captain", counter_on_target), 0);
         let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
-        declare(&mut game, &[captain, garrison], &[(captain, 1), (garrison, 1)]);
+        declare(&mut game, &[(captain, 1), (garrison, 1)]);
         resolve_all(&mut game, &RecordingDecisionProvider::picking(order));
         let humans = tokens(&game);
         assert_eq!(humans.len(), 2);
@@ -911,7 +901,7 @@ fn relentless_assault_untaps_what_attacked_and_attack_triggers_fire_again() {
     let mut game = stocked(2);
     let hellrider = put_on_battlefield(&mut game, hellrider(), 0);
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
-    declare(&mut game, &[hellrider, garrison], &[(hellrider, 1), (garrison, 1)]);
+    declare(&mut game, &[(hellrider, 1), (garrison, 1)]);
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
     let humans = tokens(&game);
     assert_eq!(life(&game, 1), 18);
@@ -926,7 +916,7 @@ fn relentless_assault_untaps_what_attacked_and_attack_triggers_fire_again() {
         game.advance_turn(&dp).unwrap();
     }
     let attack = ScriptedDecisionProvider::new();
-    attack.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    attack.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(hellrider, AttackTarget::Player(1))]);
     game.process_declare_attackers(&attack).unwrap();
     assert_eq!(game.pending_triggers.len(), 1, "Hellrider's, in the second combat");
     resolve_all(&mut game, &test_dp());
@@ -943,7 +933,7 @@ fn relentless_assault_untaps_what_attacked_and_attack_triggers_fire_again() {
 fn relentless_assault_adds_no_phase_outside_a_main_phase() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[bears], &[(bears, 1)]);
+    declare(&mut game, &[(bears, 1)]);
     let phases = game.turn_plan.phases.len();
     relentless_assault_resolves(&mut game, 0);
     assert!(!game.battlefield[&bears].tapped, "it attacked, so it untaps");
@@ -958,7 +948,7 @@ fn relentless_assault_adds_no_phase_outside_a_main_phase() {
 fn relentless_assault_on_an_opponents_turn_is_that_players_combat() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[bears], &[(bears, 1)]);
+    declare(&mut game, &[(bears, 1)]);
     walk_to_postcombat_main(&mut game);
     let phases = game.turn_plan.phases.len();
 
@@ -1045,7 +1035,7 @@ fn a_static_reading_its_defending_player_answers_anew_as_it_attacks() {
     let creature = put_on_battlefield(&mut game, while_it("Fixture Raider", condition, plus_one()), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 1);
     assert_eq!(power(&game, creature), Some(1));
-    declare(&mut game, &[creature], &[(creature, 1)]);
+    declare(&mut game, &[(creature, 1)]);
     assert_eq!(power(&game, creature), Some(2));
 }
 
@@ -1065,7 +1055,7 @@ fn a_static_naming_what_attacked_this_turn_answers_anew_as_it_attacks() {
     put_on_battlefield(&mut game, banner, 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     assert_eq!(power(&game, bears), Some(2));
-    declare(&mut game, &[bears], &[(bears, 1)]);
+    declare(&mut game, &[(bears, 1)]);
     assert_eq!(power(&game, bears), Some(3));
 }
 
@@ -1080,7 +1070,7 @@ fn a_life_loss_that_ends_an_attackers_creature_type_removes_it_from_combat() {
         Duration::WhileSourceOnBattlefield,
     );
     let creature = put_on_battlefield(&mut game, while_it("Fixture Fading Spirit", at_most_ten_life(), not_a_creature), 0);
-    declare(&mut game, &[creature], &[(creature, 1)]);
+    declare(&mut game, &[(creature, 1)]);
     assert_eq!(attack_of(&game, creature), Some(AttackTarget::Player(1)));
 
     lose_life(&mut game, 0, 15);

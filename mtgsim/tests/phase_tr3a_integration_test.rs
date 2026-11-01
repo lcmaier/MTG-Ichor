@@ -29,6 +29,7 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer}
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::is_creature;
+use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
     forest, pass_turn, put_in_hand, put_on_battlefield, registered, setup_two_player_game, stock_libraries, test_ctx,
@@ -570,12 +571,14 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
+    dp.expect_choice(
+        ChoiceKind::DeclareAttackers,
+        vec![ChoiceOption::AttackerTarget(small, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(big, AttackTarget::Player(1))],
+    );
     dp.expect_choice(ChoiceKind::ChooseDelayedTriggerEvent { source: spell }, vec![ChoiceOption::Object(big)]);
     game.process_declare_attackers(&dp).unwrap();
     assert!(dp.is_empty(), "both attacked, and the controller chose");
     assert_eq!(the_delayed_pending(&game).binding.triggering_object(EventRole::Attacker).map(|s| s.id), Some(big));
-    let _ = small;
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 23);
 }

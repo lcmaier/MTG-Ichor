@@ -9,8 +9,8 @@ use mtgsim::state::game::{Halt, RandomStreams};
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode, Stop};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider, SeatMode, Stop};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -104,8 +104,8 @@ fn each_verb_builds_the_stack_its_lines_describe() {
     let mountains = state.battlefield_ordered().into_iter().filter(|(id, _)| state.objects[id].card_data.name == "Mountain").map(|(_, entry)| entry.tapped);
     assert_eq!(mountains.collect::<Vec<_>>(), [true, false], "one Mountain pays the first Bolt");
     // The seats' own from here: each is asked, and passing resolves the top.
-    seats.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    seats.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+    seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
     assert_eq!(game.state.run_priority_round(&driver), Ok(PriorityResult::StackResolved));
     assert_eq!(game.state.stack.len(), 2);
 }

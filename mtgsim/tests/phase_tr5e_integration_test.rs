@@ -35,7 +35,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{DefenderFilter, EventRole, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
 
@@ -52,21 +52,11 @@ fn stocked(players: usize) -> GameState {
 }
 
 /// Player 0 declares `attacks`, each attacker against its player.
-/// `attackers` is every creature that can attack, in the order they entered:
-/// the declaration's options are each of them against each opponent, the
-/// opponents in seat order.
-fn declare(game: &mut GameState, attackers: &[ObjectId], attacks: &[(ObjectId, PlayerId)]) {
-    let opponents = game.players.len() - 1;
-    let picks = attacks
-        .iter()
-        .map(|&(attacker, player)| {
-            let at = attackers.iter().position(|&a| a == attacker).unwrap();
-            at * opponents + (player - 1)
-        })
-        .collect();
+fn declare(game: &mut GameState, attacks: &[(ObjectId, PlayerId)]) {
+    let declared = attacks.iter().map(|&(attacker, player)| ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(player))).collect();
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::DeclareAttackers, picks);
+    dp.expect_choice(ChoiceKind::DeclareAttackers, declared);
     game.process_declare_attackers(&dp).unwrap();
 }
 
@@ -107,11 +97,12 @@ fn a_counter_on_the_attackers() -> Effect {
     )
 }
 
-/// A provider that answers one ordering prompt, `player`'s two triggers,
-/// which differ in the attackers they read.
-fn ordered_by(player: PlayerId) -> ScriptedDecisionProvider {
+/// A provider that answers one ordering prompt, `player`'s two triggers of
+/// `source`, which differ in the attackers they read. Both name `source`, so
+/// they are taken in the order they triggered.
+fn ordered_by(player: PlayerId, source: ObjectId) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, vec![0, 1]);
+    dp.expect_order(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, vec![ChoiceOption::Object(source); 2]);
     dp
 }
 
@@ -165,7 +156,7 @@ fn the_declaration_names_what_each_attacker_attacks() {
     let mut game = stocked(4);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+    declare(&mut game, &[(first, 1), (second, 3)]);
 
     assert_eq!(declared(&game), vec![(first, AttackTarget::Player(1)), (second, AttackTarget::Player(3))]);
     let log = format_event_log(&game);
@@ -182,12 +173,12 @@ fn the_declaration_names_what_each_attacker_attacks() {
 #[test]
 fn a_creature_attacks_triggers_for_each_attacker() {
     let mut game = stocked(4);
-    put_on_battlefield(&mut game, watcher("Fixture War Horn", attacks(TriggerSubject::Any), a_counter_on_the_attackers()), 2);
+    let horn = put_on_battlefield(&mut game, watcher("Fixture War Horn", attacks(TriggerSubject::Any), a_counter_on_the_attackers()), 2);
     let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
-    declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+    declare(&mut game, &[(first, 1), (second, 3)]);
 
     assert_eq!(attackers_per_trigger(&game), vec![1, 1]);
-    resolve_all(&mut game, &ordered_by(2));
+    resolve_all(&mut game, &ordered_by(2, horn));
     assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 1));
 }
 
@@ -201,7 +192,7 @@ fn a_creature_attacks_you_triggers_for_your_attacker_only() {
         let attacks_you = attacks_defender(TriggerSubject::Any, you);
         put_on_battlefield(&mut game, watcher("Fixture Sentry Bell", attacks_you, a_counter_on_the_attackers()), 1);
         let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
-        declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+        declare(&mut game, &[(first, 1), (second, 3)]);
 
         assert_eq!(attackers_per_trigger(&game), vec![1]);
         resolve_all(&mut game, &test_dp());
@@ -216,12 +207,12 @@ fn a_creature_attacks_you_triggers_for_your_attacker_only() {
 fn a_player_is_attacked_triggers_for_each_player_with_its_attackers() {
     let mut game = stocked(4);
     let attacked = is_attacked(DefenderFilter::Player(None));
-    put_on_battlefield(&mut game, watcher("Fixture Watchtower", attacked, a_counter_on_the_attackers()), 2);
+    let watchtower = put_on_battlefield(&mut game, watcher("Fixture Watchtower", attacked, a_counter_on_the_attackers()), 2);
     let [first, second, third] = bears(&mut game, 3)[..] else { unreachable!() };
-    declare(&mut game, &[first, second, third], &[(first, 1), (second, 3), (third, 1)]);
+    declare(&mut game, &[(first, 1), (second, 3), (third, 1)]);
 
     assert_eq!(attackers_per_trigger(&game), vec![2, 1], "player 1's two attackers, then player 3's one");
-    resolve_all(&mut game, &ordered_by(2));
+    resolve_all(&mut game, &ordered_by(2, watchtower));
     assert_eq!([first, second, third].map(|id| plus_ones(&game, id)), [1, 1, 1]);
 }
 
@@ -235,7 +226,7 @@ fn you_attack_with_a_creature_triggers_for_each_of_yours() {
     put_on_battlefield(&mut game, yours(), 0);
     put_on_battlefield(&mut game, yours(), 1);
     let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
-    declare(&mut game, &[first, second], &[(first, 1), (second, 1)]);
+    declare(&mut game, &[(first, 1), (second, 1)]);
 
     assert_eq!(attackers_per_trigger(&game), vec![1, 1]);
     assert!(game.pending_triggers.iter().all(|t| t.controller == 0));
@@ -249,7 +240,7 @@ fn you_attack_triggers_once_for_the_declaration() {
     put_on_battlefield(&mut game, watcher("Fixture Drum", player_attacks(Whose::Yours), a_counter_on_the_attackers()), 0);
     put_on_battlefield(&mut game, watcher("Fixture Drum", player_attacks(Whose::Yours), a_counter_on_the_attackers()), 1);
     let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
-    declare(&mut game, &[first, second], &[(first, 1), (second, 3)]);
+    declare(&mut game, &[(first, 1), (second, 3)]);
 
     assert_eq!(attackers_per_trigger(&game), vec![2], "player 0's one trigger; player 1 did not attack");
     resolve_all(&mut game, &test_dp());
@@ -268,7 +259,7 @@ fn you_attack_a_player_triggers_for_each_player_attacked() {
     put_on_battlefield(&mut game, watcher("Fixture Alarm", attacks_you(), effect()), 2);
     put_on_battlefield(&mut game, watcher("Fixture Alarm", attacks_you(), effect()), 3);
     let [first, second, third] = bears(&mut game, 3)[..] else { unreachable!() };
-    declare(&mut game, &[first, second, third], &[(first, 1), (second, 3), (third, 1)]);
+    declare(&mut game, &[(first, 1), (second, 3), (third, 1)]);
 
     let mut by_controller: Vec<(PlayerId, usize)> = game
         .pending_triggers
@@ -288,7 +279,7 @@ fn attacks_alone_triggers_only_for_a_lone_attacker() {
         put_on_battlefield(&mut game, watcher("Fixture Duelist's Oath", attacks_alone(TriggerSubject::Any), a_counter_on_the_attackers()), 0);
         let creatures = bears(&mut game, attackers);
         let attacks: Vec<(ObjectId, PlayerId)> = creatures.iter().map(|&id| (id, 1)).collect();
-        declare(&mut game, &creatures, &attacks);
+        declare(&mut game, &attacks);
         assert_eq!(game.pending_triggers.len(), triggers, "{attackers} attacking");
     }
 }
@@ -318,7 +309,7 @@ fn a_creature_turned_green_after_it_attacks_triggers_nothing() {
     put_on_battlefield(&mut game, watcher("Fixture Verdant Banner", attacks(green), a_counter_on_the_attackers()), 0);
     let drake = CardDataBuilder::new("Fixture Blue Drake").card_type(CardType::Creature).color(Color::Blue).power_toughness(2, 2).build();
     let drake = put_on_battlefield(&mut game, drake, 0);
-    declare(&mut game, &[drake], &[(drake, 1)]);
+    declare(&mut game, &[(drake, 1)]);
     assert!(game.pending_triggers.is_empty(), "blue as it was declared");
 
     let make_green = Effect::Atom(
@@ -343,7 +334,7 @@ fn a_creature_turned_green_after_it_attacks_triggers_nothing() {
     let mut game = stocked(2);
     put_on_battlefield(&mut game, watcher("Fixture Verdant Banner", attacks(ObjectFilter::ByColor(Color::Green)), a_counter_on_the_attackers()), 0);
     let bear = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[bear], &[(bear, 1)]);
+    declare(&mut game, &[(bear, 1)]);
     resolve_all(&mut game, &test_dp());
     assert_eq!(plus_ones(&game, bear), 1);
 }
@@ -362,11 +353,12 @@ fn hellrider_deals_each_attackers_damage_to_what_it_attacks() {
     let rider = put_on_battlefield(&mut game, hellrider(), 0);
     let [first, second] = bears(&mut game, 2)[..] else { unreachable!() };
     let before = [1, 2, 3].map(|p| life(&game, p));
-    declare(&mut game, &[rider, first, second], &[(rider, 2), (first, 1), (second, 3)]);
+    declare(&mut game, &[(rider, 2), (first, 1), (second, 3)]);
     assert_eq!(game.pending_triggers.len(), 3, "one for each creature its controller attacks with");
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1, 2]);
+    // All three are Hellrider's, so they are taken in the order they triggered.
+    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![ChoiceOption::Object(rider); 3]);
     resolve_all(&mut game, &dp);
     assert_eq!([1, 2, 3].map(|p| before[p - 1] - life(&game, p)), [1, 1, 1]);
 }
@@ -374,9 +366,9 @@ fn hellrider_deals_each_attackers_damage_to_what_it_attacks() {
 /// Hellrider's trigger waiting for Grizzly Bears, which attack player 1.
 fn bears_attack_beside_hellrider() -> (GameState, ObjectId) {
     let mut game = stocked(2);
-    let rider = put_on_battlefield(&mut game, hellrider(), 0);
+    put_on_battlefield(&mut game, hellrider(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    declare(&mut game, &[rider, bears], &[(bears, 1)]);
+    declare(&mut game, &[(bears, 1)]);
     assert_eq!(declared(&game), vec![(bears, AttackTarget::Player(1))], "Hellrider stays home");
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(game.stack.len(), 1, "the trigger is on the stack");
@@ -452,16 +444,18 @@ fn tap_target_creature_of(defending: PlayerRef) -> Effect {
 /// creature you control attacks, defending player loses 1 life", with
 /// "defending player" read for `creature`. The Warcaller attacks player 1 and
 /// Grizzly Bears attack player 3, so the trigger fires twice, once for each.
-/// Returns how much life players 1, 2 and 3 lost once both resolve.
-fn warcaller_and_bears_attack(creature: Antecedent, dp: &dyn DecisionProvider) -> [i64; 3] {
+/// Returns how much life players 1, 2 and 3 lost once both resolve, player 0
+/// asked their order when `ordered`.
+fn warcaller_and_bears_attack(creature: Antecedent, ordered: bool) -> [i64; 3] {
     let mut game = stocked(4);
     let def = whenever(attacks(creature_you_control()), loses_one(creature));
     let warcaller = put_on_battlefield(&mut game, attacking_watcher("Fixture Warcaller", def), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let before = [1, 2, 3].map(|p| life(&game, p));
-    declare(&mut game, &[warcaller, bears], &[(warcaller, 1), (bears, 3)]);
+    declare(&mut game, &[(warcaller, 1), (bears, 3)]);
     assert_eq!(game.pending_triggers.len(), 2);
-    resolve_all(&mut game, dp);
+    let dp = if ordered { ordered_by(0, warcaller) } else { test_dp() };
+    resolve_all(&mut game, &dp);
     [1, 2, 3].map(|p| before[p - 1] - life(&game, p))
 }
 
@@ -472,7 +466,7 @@ fn warcaller_and_bears_attack(creature: Antecedent, dp: &dyn DecisionProvider) -
 /// orders them.
 #[test]
 fn defending_player_of_the_attacker_is_each_attackers_defender() {
-    assert_eq!(warcaller_and_bears_attack(its_attacker(), &ordered_by(0)), [1, 0, 1]);
+    assert_eq!(warcaller_and_bears_attack(its_attacker(), true), [1, 0, 1]);
 }
 
 /// The same board with "defending player" for the source, "an ability of an
@@ -481,7 +475,7 @@ fn defending_player_of_the_attacker_is_each_attackers_defender() {
 /// nothing asks their order.
 #[test]
 fn defending_player_of_the_source_is_one_player_for_every_trigger() {
-    assert_eq!(warcaller_and_bears_attack(Antecedent::ThisObject, &test_dp()), [2, 0, 0]);
+    assert_eq!(warcaller_and_bears_attack(Antecedent::ThisObject, false), [2, 0, 0]);
 }
 
 /// "Whenever this creature attacks, tap target creature defending player
@@ -497,7 +491,7 @@ fn a_targets_defending_player_is_read_at_placement() {
         let mut game = stocked(4);
         let theirs: Vec<ObjectId> = (1..4).map(|p| put_on_battlefield(&mut game, grizzly_bears(), p)).collect();
         let attacker = put_on_battlefield(&mut game, attacking_watcher("Fixture Binder", def), 0);
-        declare(&mut game, &[attacker], &[(attacker, attacked)]);
+        declare(&mut game, &[(attacker, attacked)]);
         resolve_all(&mut game, &test_dp());
         let tapped: Vec<bool> = theirs.iter().map(|id| game.battlefield[id].tapped).collect();
         let expected: Vec<bool> = (1..4).map(|p| p == attacked).collect();
@@ -518,7 +512,7 @@ fn an_intervening_if_reads_the_defending_player_of_a_creature_that_left() {
     let mut game = stocked(4);
     put_on_battlefield(&mut game, grizzly_bears(), 3);
     let source = put_on_battlefield(&mut game, attacking_watcher("Fixture Raider", def), 0);
-    declare(&mut game, &[source], &[(source, 3)]);
+    declare(&mut game, &[(source, 3)]);
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert_eq!(game.stack.len(), 1, "player 3 controls a creature as it attacks");
 

@@ -47,7 +47,7 @@ use mtgsim::types::effects::{AmountExpr, ColorChange, Duration, Effect, EffectRe
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -278,8 +278,9 @@ fn bridge_from_below_can_make_its_token_before_it_exiles_itself() {
 
         destroy_all(&mut game, &[yours, theirs]);
         assert_eq!(waiting_from(&game, bridge), 2);
-        // Options in trigger order, the token's first. The last put on the
-        // stack resolves first.
+        // Options in trigger order, the token's first; both name the Bridge,
+        // so only their place tells them apart. The last put on the stack
+        // resolves first.
         let dp = ScriptedDecisionProvider::new();
         let order = if token_first { vec![1, 0] } else { vec![0, 1] };
         dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
@@ -534,7 +535,8 @@ fn guerrilla_tactics_triggers_on_an_optional_discard_an_opponent_causes() {
         effect: Box::new(Effect::Atom(Primitive::Discard(AmountExpr::Fixed(1), chooser), recipient)),
     };
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: next_object(&game) }, vec![0]);
+    let spell = next_object(&game);
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: spell }, vec![ChoiceOption::Object(spell)]);
     resolve_spell_at_player(&mut game, &may_discard, 1, 0, &dp);
 
     assert_eq!(zone(&game, tactics), Some(Zone::Graveyard), "discarded by choice");
