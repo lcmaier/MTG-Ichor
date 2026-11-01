@@ -2697,7 +2697,8 @@ impl Effect {
 
     /// A static body and the CR 604.2 "as long as" clause around it, if
     /// there is one: the one peel [`Self::static_members`] reads through, and
-    /// the clause a layer row exists under.
+    /// the clause a layer row exists under when its member carries none of
+    /// its own (`RowClause::Ability`).
     pub(crate) fn with_its_condition(&self) -> (Option<&Condition>, &Effect) {
         let body = match self {
             Effect::FunctionsIn(_, inner) => inner,

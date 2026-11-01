@@ -7,10 +7,10 @@
 //! The fixtures write the list as the enum, as Platinum Angel's two
 //! "can't"s do.
 
-use mtgsim::cards::authoring::{gets, this_object, StaticBody};
+use mtgsim::cards::authoring::{as_long_as, gains_keyword, gets, this_object, StaticBody};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
-use mtgsim::oracle::characteristics::get_effective_power;
+use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_keyword};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     creature_with_ability, place_forest, put_in_hand, put_on_battlefield, setup_game, test_dp, textless_static, vanilla_creature,
@@ -20,6 +20,7 @@ use mtgsim::types::effects::{
     AffectedSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::ids::PlayerId;
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use std::sync::Arc;
@@ -116,6 +117,49 @@ fn each_member_of_one_ability_exists_under_its_own_as_long_as() {
     assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 6, "no Forest: the replacement exists, the \"can't\" does not");
     place_forest(&mut game, 0);
     assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 0, "a Forest: the \"can't\" exists, the replacement does not");
+}
+
+/// CR 604.2 — Clutch of Undeath's shape, "gets +3/+3 as long as …. Otherwise,
+/// it gets …": two layer changes of one ability, each under its own clause,
+/// which the board flips with no zone change. Each is an effect of its own,
+/// so the one that applies does not carry the set it started with to the
+/// other (CR 613.6): sharing one, a Forest would give both.
+#[test]
+fn each_layer_change_of_one_ability_exists_under_its_own_as_long_as() {
+    let mut game = setup_game(2);
+    let bear = put_on_battlefield(
+        &mut game,
+        two_two_with(vec![
+            as_long_as(you_control_a_forest(), gets(this_object(), 3, 3)),
+            as_long_as(Condition::Not(Box::new(you_control_a_forest())), gets(this_object(), 1, 0)),
+        ]),
+        0,
+    );
+
+    assert_eq!((get_effective_power(&game, bear), get_effective_toughness(&game, bear)), (Some(3), Some(2)), "no Forest: the second change alone");
+    place_forest(&mut game, 0);
+    assert_eq!((get_effective_power(&game, bear), get_effective_toughness(&game, bear)), (Some(5), Some(5)), "a Forest: the first alone");
+}
+
+/// Tenza, Godo's Maul's shape: an unconditional change, then a member under
+/// its own clause, each in its own layer, in one ability.
+#[test]
+fn a_layer_change_beside_one_under_its_own_as_long_as_each_apply_as_their_clause_says() {
+    let mut game = setup_game(2);
+    let bear = put_on_battlefield(
+        &mut game,
+        two_two_with(vec![
+            gets(this_object(), 1, 1).into_static_body(),
+            as_long_as(you_control_a_forest(), gains_keyword(this_object(), KeywordFlag::Trample)),
+        ]),
+        0,
+    );
+
+    assert_eq!(get_effective_power(&game, bear), Some(3));
+    assert!(!has_keyword(&game, bear, KeywordFlag::Trample), "no Forest: no trample");
+    place_forest(&mut game, 0);
+    assert_eq!(get_effective_power(&game, bear), Some(3), "the unconditional change is untouched");
+    assert!(has_keyword(&game, bear, KeywordFlag::Trample), "a Forest: trample");
 }
 
 /// The prohibition gate's granted leg: a Layer 6 grant of an ability with a

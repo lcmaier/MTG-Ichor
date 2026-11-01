@@ -965,7 +965,7 @@ fn applied_by_words(game: &GameState, step: &LayerStep) -> String {
 /// the spell that resolved.
 fn step_words(game: &GameState, step: &LayerStep) -> Option<&'static str> {
     let words = match step.by {
-        AppliedBy::Effect { source, origin: EffectOrigin::StaticAbility { ability }, .. } => {
+        AppliedBy::Effect { source, origin: EffectOrigin::StaticAbility { ability, .. }, .. } => {
             static_ability_words(game, source, ability)
         }
         AppliedBy::Effect { source, origin: EffectOrigin::Resolution, .. } => {

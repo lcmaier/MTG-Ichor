@@ -117,12 +117,12 @@ fn would_be_rows(
         // `Effect::Replacement`, `Effect::Restriction` and
         // `Effect::CostModification` lower to no atoms:
         // they are discovered off the effective ability list, not registered.
-        for (affected, lowered) in GameState::static_ability_rows(ability, name) {
+        for (clause, affected, lowered) in GameState::static_ability_rows(ability, name) {
             for (layer, modification) in lowered {
                 rows.push(ContinuousEffect {
                     id: game.continuous_effects.next_id_after(rows.len()),
                     source: object,
-                    origin: EffectOrigin::StaticAbility { ability: ability.id },
+                    origin: EffectOrigin::StaticAbility { ability: ability.id, clause },
                     layer,
                     duration: Duration::WhileSourceOnBattlefield,
                     controller,

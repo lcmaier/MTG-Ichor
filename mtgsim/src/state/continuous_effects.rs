@@ -610,7 +610,7 @@ impl ContinuousEffectRegistry {
             rows.remove_references_to(object, |row| !hidden.contains(&row.id));
             rows.retain(|row| {
                 !(row.source == object
-                    && matches!(row.origin, EffectOrigin::StaticAbility { ability }
+                    && matches!(row.origin, EffectOrigin::StaticAbility { ability, .. }
                         if ability.granting_row().is_some_and(|copy| hidden.contains(&copy))))
             });
         });
@@ -742,7 +742,7 @@ mod tests {
         let ability = crate::types::ids::new_ability_id();
         let static_row = |ts| {
             let mut e = make_effect(src, Layer::Layer6Ability, ts);
-            e.origin = EffectOrigin::StaticAbility { ability };
+            e.origin = EffectOrigin::StaticAbility { ability, clause: RowClause::Ability };
             e
         };
         let a = reg.add(static_row(1));
@@ -752,7 +752,7 @@ mod tests {
         // A static row of the same source in another layer moves with them and
         // stays in its own layer's range.
         let mut seven_c = make_effect(src, Layer::Layer7cModifyPT, 1);
-        seven_c.origin = EffectOrigin::StaticAbility { ability };
+        seven_c.origin = EffectOrigin::StaticAbility { ability, clause: RowClause::Ability };
         let c = reg.add(seven_c);
         let before = reg.mutations();
 
@@ -779,7 +779,7 @@ mod tests {
         let ability = crate::types::ids::new_ability_id();
         for (source, ts) in [(src, 1), (other, 2)] {
             let mut e = make_effect(source, Layer::Layer6Ability, ts);
-            e.origin = EffectOrigin::StaticAbility { ability };
+            e.origin = EffectOrigin::StaticAbility { ability, clause: RowClause::Ability };
             reg.add(e);
         }
         let mut fork = reg.clone();
@@ -827,7 +827,7 @@ mod tests {
             e
         };
         let ability = crate::types::ids::new_ability_id();
-        reg.add(grant(Duration::WhileSourceOnBattlefield, EffectOrigin::StaticAbility { ability }));
+        reg.add(grant(Duration::WhileSourceOnBattlefield, EffectOrigin::StaticAbility { ability, clause: RowClause::Ability }));
         reg.add(grant(Duration::WhileSourceOnBattlefield, EffectOrigin::Resolution));
         let lasting = reg.add(grant(Duration::UntilEndOfTurn, EffectOrigin::Resolution));
         assert!(reg.summary().ability_list_sources.contains(&src));

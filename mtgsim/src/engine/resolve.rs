@@ -1912,7 +1912,7 @@ impl GameState {
         // get +1/+1" must produce the row a printed one does. Assertions included —
         // a grant that lowers to nothing is exactly as inert and as invisible.
         let label = format!("granted ability {:?}", granted.id);
-        for (affected, rows) in GameState::static_ability_rows(granted, &label) {
+        for (clause, affected, rows) in GameState::static_ability_rows(granted, &label) {
             let timestamp =
                 self.static_effect_timestamp(grantee, granted, Some(granting_timestamp));
 
@@ -1938,7 +1938,7 @@ impl GameState {
                 self.continuous_effects.add(ContinuousEffect {
                     id: EffectId::UNASSIGNED,
                     source: grantee,
-                    origin: EffectOrigin::StaticAbility { ability: granted.id.granted_by(row) },
+                    origin: EffectOrigin::StaticAbility { ability: granted.id.granted_by(row), clause },
                     layer,
                     duration,
                     controller,

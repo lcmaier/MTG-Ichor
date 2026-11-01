@@ -619,7 +619,7 @@ fn rows_from_copied_statics(game: &GameState, id: ObjectId, copy: RowId) -> usiz
         .iter()
         .filter(|row| {
             row.source == id
-                && matches!(row.origin, EffectOrigin::StaticAbility { ability } if ability.granting_row() == Some(copy))
+                && matches!(row.origin, EffectOrigin::StaticAbility { ability, .. } if ability.granting_row() == Some(copy))
         })
         .count()
 }

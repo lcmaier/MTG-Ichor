@@ -1770,12 +1770,15 @@ impl EntryWrites {
 
 /// Does the entering object have a static ability that changes its own
 /// characteristics under a condition on its status or counters? The feeds
-/// table's last row.
+/// table's last row, asked of each layer change's own clause.
 fn characteristics_depend_on_entry_state(chars: &EffectiveCharacteristics) -> bool {
+    use crate::types::effects::Condition;
     chars.abilities.iter().any(|ability| {
         ability.ability_type == AbilityType::Static
-            && ability.effect.with_its_condition().0.is_some_and(crate::types::effects::Condition::reads_entry_state)
-            && !GameState::static_ability_atoms(ability, &chars.name).is_empty()
+            && ability.effect.static_members().any(|(condition, _)| condition.is_some_and(Condition::reads_entry_state))
+            && GameState::static_ability_atoms(ability, &chars.name)
+                .into_iter()
+                .any(|(clause, ..)| clause.condition_in(&ability.effect).is_some_and(Condition::reads_entry_state))
     })
 }
 

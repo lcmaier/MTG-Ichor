@@ -395,7 +395,7 @@ mod tests {
                 .flat_map(|a| {
                     GameState::static_ability_atoms(a, &card.name)
                         .into_iter()
-                        .flat_map(|(p, _)| GameState::static_primitive_rows(p))
+                        .flat_map(|(_, p, _)| GameState::static_primitive_rows(p))
                         .collect::<Vec<_>>()
                 })
                 .collect()

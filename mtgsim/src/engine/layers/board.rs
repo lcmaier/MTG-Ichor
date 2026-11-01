@@ -925,10 +925,10 @@ fn conditional_reads_of(
     out: &mut Reads,
     you_channel: Channels,
 ) {
-    let EffectOrigin::StaticAbility { ability: ability_id } = effect.origin else { return };
+    let EffectOrigin::StaticAbility { ability: ability_id, clause } = effect.origin else { return };
     let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return };
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return };
-    if let (Some(cond), _) = ability.effect.with_its_condition() {
+    if let Some(cond) = clause.condition_in(&ability.effect) {
         condition_reads(cond, out, you_channel);
     }
 }
@@ -1197,9 +1197,9 @@ fn static_ability_still_exists(
     effect: &ContinuousEffect,
     layer_index: usize,
 ) -> bool {
-    let ability_id = match effect.origin {
+    let (ability_id, clause) = match effect.origin {
         EffectOrigin::Resolution => return true,
-        EffectOrigin::StaticAbility { ability } => ability,
+        EffectOrigin::StaticAbility { ability, clause } => (ability, clause),
     };
     // Source is gone from the object store entirely.
     let Some(frame) = board.frame_of(game, effect.source, layer_index) else { return false };
@@ -1211,8 +1211,7 @@ fn static_ability_still_exists(
     if ability.effect.stated_zones().is_some_and(|zones| !board.in_zones_or_entering(game, effect.source, zones)) {
         return false;
     }
-    let (as_long_as, _) = ability.effect.with_its_condition();
-    as_long_as.is_none_or(|cond| condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE))
+    clause.condition_in(&ability.effect).is_none_or(|cond| condition::holds(cond, game, board, effect.source, layer_index, None, condition::ConditionReferents::NONE))
 }
 
 /// CR 604.2 for a CDA: still on the object, and still characteristic-defining
