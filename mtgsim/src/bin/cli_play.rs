@@ -54,7 +54,7 @@ use mtgsim::ui::random::RandomDecisionProvider;
 /// The deck each seat is dealt, `decks/cli-play.txt`.
 fn cli_play_deck(registry: &CardRegistry) -> Deck {
     let list = Decklist::parse(include_str!("../../decks/cli-play.txt")).expect("decks/cli-play.txt does not parse");
-    list.deck(registry).expect("decks/cli-play.txt names a card the registry lacks")
+    list.build_deck(registry).expect("decks/cli-play.txt names a card the registry lacks")
 }
 
 fn main() {

@@ -1,6 +1,6 @@
-//! A decklist, in the deck sites' text (`setup-architecture.md` §7d): the
-//! names a player brings, resolved against the registry into the [`Deck`]
-//! CR 103.3 makes their library.
+//! A decklist, in the deck sites' text: the names a player brings, resolved
+//! against the registry into the [`Deck`] CR 103.3 makes their library
+//! (`setup-architecture.md#7d-the-decklist`).
 //!
 //! A line is a count and a name, `4 Lightning Bolt`, under a `Commander`,
 //! `Companion`, `Deck` or `Sideboard` header; a line before any header is
@@ -16,7 +16,7 @@ use super::error::{ScenarioError, ScenarioErrorKind};
 
 /// One line of a decklist: how many copies of which card.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeckEntry {
+pub struct DecklistLine {
     pub count: u32,
     pub name: String,
     /// 1-based, for a refusal to name.
@@ -24,24 +24,24 @@ pub struct DeckEntry {
 }
 
 /// A decklist's sections, each in the order its lines were written.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Decklist {
     /// "An attribute of the card itself" (CR 903.3), which the format
     /// designates as the game is built; two for partners (CR 702.124).
-    pub commander: Vec<DeckEntry>,
+    pub commander: Vec<DecklistLine>,
     /// Revealed from outside the game (CR 702.139a, 103.2b).
-    pub companion: Vec<DeckEntry>,
+    pub companion: Vec<DecklistLine>,
     /// The cards that become the library (CR 103.3).
-    pub deck: Vec<DeckEntry>,
+    pub deck: Vec<DecklistLine>,
     /// Set aside before the game begins (CR 100.4a, 103.2a).
-    pub sideboard: Vec<DeckEntry>,
+    pub sideboard: Vec<DecklistLine>,
 }
 
 impl Decklist {
     /// Read a decklist, refusing a line that is neither a known header nor
     /// a count and a name.
     pub fn parse(text: &str) -> Result<Decklist, ScenarioError> {
-        let mut list = Decklist::default();
+        let mut list = Decklist { commander: Vec::new(), companion: Vec::new(), deck: Vec::new(), sideboard: Vec::new() };
         let mut section = Section::Deck;
         for (ix, raw) in text.lines().enumerate() {
             let line = ix + 1;
@@ -63,7 +63,7 @@ impl Decklist {
             if count == 0 {
                 return Err(ScenarioError::at(ScenarioErrorKind::Syntax, line, format!("`{name}` has a count of 0")));
             }
-            let entry = DeckEntry { count, name: without_printing(name).to_string(), line };
+            let entry = DecklistLine { count, name: without_printing(name).to_string(), line };
             match section {
                 Section::Commander => list.commander.push(entry),
                 Section::Companion => list.companion.push(entry),
@@ -78,7 +78,7 @@ impl Decklist {
     /// as its line counts, in the order written: CR 103.3's deck, which
     /// `Game::new` makes a library. A name the registry lacks is refused with
     /// its line.
-    pub fn deck(&self, registry: &CardRegistry) -> Result<Deck, ScenarioError> {
+    pub fn build_deck(&self, registry: &CardRegistry) -> Result<Deck, ScenarioError> {
         let mut deck = Deck::new();
         for entry in &self.deck {
             let card = registry
@@ -90,7 +90,7 @@ impl Decklist {
     }
 
     /// Every line of every section, commander first.
-    pub fn entries(&self) -> impl Iterator<Item = &DeckEntry> {
+    pub fn lines(&self) -> impl Iterator<Item = &DecklistLine> {
         self.commander.iter().chain(&self.companion).chain(&self.deck).chain(&self.sideboard)
     }
 
@@ -98,7 +98,7 @@ impl Decklist {
     /// appear: what a list from print still waits on.
     pub fn unregistered_names(&self, registry: &CardRegistry) -> Vec<&str> {
         let mut names: Vec<&str> = Vec::new();
-        for entry in self.entries() {
+        for entry in self.lines() {
             if registry.create(&entry.name).is_err() && !names.contains(&entry.name.as_str()) {
                 names.push(&entry.name);
             }
@@ -153,8 +153,8 @@ fn without_printing(name: &str) -> &str {
 mod tests {
     use super::*;
 
-    fn names(entries: &[DeckEntry]) -> Vec<(u32, &str)> {
-        entries.iter().map(|e| (e.count, e.name.as_str())).collect()
+    fn names(lines: &[DecklistLine]) -> Vec<(u32, &str)> {
+        lines.iter().map(|e| (e.count, e.name.as_str())).collect()
     }
 
     #[test]
@@ -194,12 +194,12 @@ mod tests {
     fn the_deck_is_built_in_order_and_an_unknown_name_is_refused_with_its_line() {
         let registry = CardRegistry::default_registry();
         let list = Decklist::parse("Commander\n1 Nobody's Card\nDeck\n2 Mountain\n1 Lightning Bolt\n").unwrap();
-        let deck = list.deck(&registry).unwrap();
+        let deck = list.build_deck(&registry).unwrap();
         let built: Vec<&str> = deck.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(built, vec!["Mountain", "Mountain", "Lightning Bolt"]);
         assert_eq!(list.unregistered_names(&registry), vec!["Nobody's Card"]);
 
-        let err = Decklist::parse("2 Mountain\n1 Nobody's Card\n").unwrap().deck(&registry).unwrap_err();
+        let err = Decklist::parse("2 Mountain\n1 Nobody's Card\n").unwrap().build_deck(&registry).unwrap_err();
         assert_eq!((err.kind, err.line), (ScenarioErrorKind::NotACard, Some(2)));
     }
 }

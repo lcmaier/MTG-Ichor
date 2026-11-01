@@ -1,8 +1,9 @@
 //! Every decklist in `mtgsim/decks/` against the registry
-//! (`setup-architecture.md` §7d). A list whose cards are all registered
-//! builds its deck; a Commander list holds what CR 903.5a–b ask of one
-//! before any of its cards is registered, and prints the names the registry
-//! still lacks (`cargo test --test decklists_test -- --nocapture`).
+//! (`setup-architecture.md#7d-the-decklist`). A list whose cards are all
+//! registered builds its deck; a Commander list holds what CR 903.3 and
+//! 903.5a–b ask of one before any of its cards is registered, and prints the
+//! names the registry still lacks (`cargo test --test decklists_test --
+//! --nocapture`).
 
 use std::fs;
 use std::path::PathBuf;
@@ -41,7 +42,7 @@ fn every_decklist_parses_and_a_registered_one_builds() {
     assert!(lists.iter().any(|(name, _)| name == "cli-play.txt"));
     for (name, list) in &lists {
         if list.unregistered_names(&registry).is_empty() {
-            let deck = list.deck(&registry).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let deck = list.build_deck(&registry).unwrap_or_else(|e| panic!("{name}: {e}"));
             let written: u32 = list.deck.iter().map(|entry| entry.count).sum();
             assert_eq!(deck.len(), written as usize, "{name}");
         }
@@ -53,7 +54,7 @@ fn every_decklist_parses_and_a_registered_one_builds() {
 fn cli_plays_deck_is_its_forty_cards_in_order() {
     let registry = CardRegistry::default_registry();
     let (_, list) = decklists().into_iter().find(|(name, _)| name == "cli-play.txt").unwrap();
-    let deck = list.deck(&registry).unwrap();
+    let deck = list.build_deck(&registry).unwrap();
     let names: Vec<&str> = deck.iter().map(|card| card.name.as_str()).collect();
     let mut expected = vec!["Mountain"; 10];
     expected.extend(["Forest"; 10]);
@@ -67,7 +68,13 @@ fn cli_plays_deck_is_its_forty_cards_in_order() {
 #[test]
 fn a_commander_list_holds_a_hundred_cards_one_of_each_but_basics() {
     let registry = CardRegistry::default_registry();
-    for (name, list) in decklists().iter().filter(|(_, list)| !list.commander.is_empty()) {
+    let lists = decklists();
+    for (name, list) in lists.iter().filter(|(name, _)| name.starts_with("tdc-")) {
+        assert!(!list.commander.is_empty(), "{name}: a Commander deck names its commander");
+    }
+    for (name, list) in lists.iter().filter(|(_, list)| !list.commander.is_empty()) {
+        let commanders: u32 = list.commander.iter().map(|line| line.count).sum();
+        assert!((1..=2).contains(&commanders), "{name}: one commander, or two that partner (CR 903.3, 702.124)");
         let total: u32 = list.commander.iter().chain(&list.deck).map(|entry| entry.count).sum();
         assert_eq!(total, 100, "{name}: CR 903.5a, a hundred cards with the commander");
         let mut seen: Vec<&str> = Vec::new();
