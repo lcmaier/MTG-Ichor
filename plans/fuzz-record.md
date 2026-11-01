@@ -125,6 +125,28 @@ prediction.
 scenario tests pass; the `release-checked` stress sitting (50 games, seed
 12345) exits clean, 0 errors and 0 panics.
 
+**Re-measured 2026-11-01 at the review round's head** (`f503f3df`: the
+words' names, `RowId`'s constructors, main item 359's layer row under its
+own clause, and the CR 603.11 fixture), one more `close_out.py` sitting
+against the same **main** `856aafd1`.
+
+**Predictions, written before any arm's output was read**: every gameplay
+row `IDENTICAL`, since every fingerprint is unchanged and no card writes a
+layer change under a member's own clause; instructions a decision within
+0.3 points of the first sitting's +0.75%, since the existence check asks
+the ability's clause as it did and the group key grows by a byte.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,116 / 173,542 | 339,764 / 353,021 |
+| instructions / decision, callgrind, the budget's board | | 0.6434 M → 0.6494 M, **+0.94%**, 0.19 points past the first sitting's |
+| inclusive, the replacement gather: `gather` / `apply_replacements` / `prohibition_sweeping` | | 463.4 M → 464.1 M / 615.8 M → 618.2 M / 119.9 M → 121.7 M |
+| moved, inclusive, past half a point | | the first sitting's inlining boundaries again, and `run_pass` (+1.1, one arm only) and `compute_as_entering` (−0.6) |
+
+Every row inside its prediction. The audit's counts equal the first
+sitting's to the dispatch.
+
 **Measured 2026-10-31 for `card-layer-cleanup`'s first PR, the ability words**
 (`cards/card-layer-cleanup`, PR #301: every `AbilityDef` built by a word or
 `AbilityDef::new`, the instance lists private, the activated kinds' `Activation`,

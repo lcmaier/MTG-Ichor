@@ -9424,3 +9424,43 @@ Built to the design note `git show 7a2c8ae5:plans/handoffs/readiness-close.md`, 
      **Slotted:** A6e, readiness's second PR, beside item 352, as a small fix
      (`engineering-practices.md#the-spine-phase-audit`): both narrow the same
      sweep and share one A/B.
+
+### Item 359 — closed 2026-11-01 by PR #302 (`card-instruction-words`), at its review
+
+Built at the owner's answer to the PR's first decision ("it's not a
+combat-specific issue"): `RowClause` on `EffectOrigin::StaticAbility`, filled
+by the lowering on each route (printed, copied, granted, the look-ahead) and
+read by `RowClause::condition_in` in `static_ability_still_exists`,
+`conditional_reads_of` and the pipeline's `characteristics_depend_on_entry_state`.
+`EffectGroup::StaticAbility` carries it, since without it CR 613.6's lock
+applied Clutch of Undeath's "otherwise" to the set the first change started
+on: taken out, the integration test's Forest gives the creature both changes.
+The lowering reads the body once from its root, so the enum that said whether
+a list sat inside an "as long as" went with it, and a chain under a member's
+own clause lowers each link under that clause. A member with its own clause
+inside one around the whole list is still loud.
+
+*Original entry:*
+
+359. **A layer change with its own "as long as" inside one ability's list
+     is refused.** One paragraph is one ability (CR 113.2c), and printed
+     cards give one member of it a condition of its own beside another:
+     Clutch of Undeath's "Enchanted creature gets +3/+3 as long as it's a
+     Zombie. Otherwise, it gets -3/-3", Bonds of Faith's "+2/+2 as long as
+     it's a Human. Otherwise, it can't attack or block", Tenza, Godo's
+     Maul's two clauses after an unconditional +1/+1. Counted on Scryfall
+     (`game:paper -is:funny`, 2026-10-31): `o:/as long as [^.]*\. otherwise, /`
+     13, `o:". as long as"` 4. The other kinds' readers take a member's own
+     clause (`Effect::static_members`), but a layer row's CR 604.2
+     existence check asks only the ability's one clause, so the lowering
+     refuses a layer change carrying its own: loud in tests, dropped in
+     release.
+     **Reachability (2026-10-31):** unreachable — no registered card writes
+     the shape, and the lowering's assert stops the first that does.
+     **Sized:** the row names its member as the replacement instance does:
+     `EffectOrigin::StaticAbility` gains the member's place (28 sites), the
+     lowering records it on each route (printed, granted, copied, the
+     look-ahead), and the existence check and the condition's reads take
+     that member's clause; ~100–150 lines with tests.
+     **Slotted:** `combat-restrictions`, whose Aura paragraphs bring the
+     first of these cards (Bonds of Faith's "can't attack or block").

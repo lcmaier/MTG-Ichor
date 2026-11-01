@@ -4497,11 +4497,14 @@ The layer system's designated single-point change site is `oracle/characteristic
     CR 613.8 application — a static whose atoms have different recipients
     would share them.** `Board::started` (CR 613.6) and `board::Kind::Effect`
     (CR 613.8's unit of ordering, LI-2) both key on
-    `EffectGroup::StaticAbility(source, ability)`, so an ability authored as
-    one `Sequence` over two filters — "creatures you control get +1/+1 and
-    creatures you don't control get -1/-1" as one `AbilityDef` — is one
-    effect, one bundle and one locked set, and its second atom would apply to
-    the first's set. The CR reads such text as two effects.
+    `EffectGroup::StaticAbility(source, ability, clause)`, so an ability
+    authored as one `Sequence` over two filters — "creatures you control get
+    +1/+1 and creatures you don't control get -1/-1" as one `AbilityDef` — is
+    one effect, one bundle and one locked set, and its second atom would apply
+    to the first's set. The CR reads such text as two effects. The clause
+    joined the key with item 359 (2026-11-01), which split a member under its
+    own "as long as" into an effect of its own; two members under one clause
+    still share it.
 
     **Reachability (2026-10-23):** unreachable — no registered static ability
     has atoms with different recipients (item 184's read of all 215,
@@ -4510,11 +4513,11 @@ The layer system's designated single-point change site is `oracle/characteristic
     gives the CR's answer today, and the loud lowering (item 12) does not
     catch this one because both atoms lower fine.
 
-    **Sized:** `EffectGroup::StaticAbility` gains the atom's index in the
-    ability (~30 lines: `ContinuousEffect::group`, the two static
-    registrations, `would_be_rows`, `register_copied_static_effects`), or
-    the lowering splits a multi-recipient `Sequence` into one group per
-    recipient; with the first card that needs it.
+    **Sized:** `RowClause` gains a recipient's place, or a field beside it
+    (~30 lines: `ContinuousEffect::group` and the lowering, which every
+    route already reads its clause from), or the lowering splits a
+    multi-recipient `Sequence` into one group per recipient; with the first
+    card that needs it.
     **Slotted:** `layers-combat-and-counters` builds it (the
     card-homed triage, 2026-10-23): beside item 184,
     `EffectGroup::StaticAbility` keyed by the atom too, so one static ability
@@ -10463,26 +10466,15 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
 
 ### Found by `card-layer-cleanup`'s second PR (2026-10-31)
 
-359. **A layer change with its own "as long as" inside one ability's list
-     is refused.** One paragraph is one ability (CR 113.2c), and printed
-     cards give one member of it a condition of its own beside another:
-     Clutch of Undeath's "Enchanted creature gets +3/+3 as long as it's a
-     Zombie. Otherwise, it gets -3/-3", Bonds of Faith's "+2/+2 as long as
-     it's a Human. Otherwise, it can't attack or block", Tenza, Godo's
-     Maul's two clauses after an unconditional +1/+1. Counted on Scryfall
-     (`game:paper -is:funny`, 2026-10-31): `o:/as long as [^.]*\. otherwise, /`
-     13, `o:". as long as"` 4. The other kinds' readers take a member's own
-     clause (`Effect::static_members`), but a layer row's CR 604.2
-     existence check asks only the ability's one clause, so the lowering
-     refuses a layer change carrying its own: loud in tests, dropped in
-     release.
-     **Reachability (2026-10-31):** unreachable — no registered card writes
-     the shape, and the lowering's assert stops the first that does.
-     **Sized:** the row names its member as the replacement instance does:
-     `EffectOrigin::StaticAbility` gains the member's place (28 sites), the
-     lowering records it on each route (printed, granted, copied, the
-     look-ahead), and the existence check and the condition's reads take
-     that member's clause; ~100–150 lines with tests.
-     **Slotted:** `combat-restrictions`, whose Aura paragraphs bring the
-     first of these cards (Bonds of Faith's "can't attack or block").
+359. **~~A layer change with its own "as long as" inside one ability's list
+     is refused.~~ — ✅ CLOSED 2026-11-01 (PR #302,
+     `card-instruction-words`, at its review).** — archived. A layer row
+     names the CR 604.2 clause it exists under (`RowClause`: the
+     ability's, or a member's own at its place in the list), which the
+     existence check, the dependency reads and the entering object's feeds
+     check ask, and `EffectGroup` is keyed by it, so CR 613.6's lock stays
+     inside one clause. Item 16's other half, two recipients under one
+     clause, is still one group.
+     **Reachability (2026-11-01):** closed — PR #302.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 359".
 
