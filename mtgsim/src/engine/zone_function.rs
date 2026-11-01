@@ -53,9 +53,9 @@ pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     // which is `CostSubject`'s split: affinity is `Itself`, Thalia's "creature
     // spells cost {1} more" is `Spells(_)` on the battlefield. Through "as long
     // as", which `cost_modifications` sees past.
-    let mut costs = ability.effect.cost_modifications().peekable();
-    if costs.peek().is_some() {
-        if costs.any(|(_, def)| def.applies_to.applies_to_its_own_object()) {
+    let mut cost_effects = ability.effect.cost_modifications().peekable();
+    if cost_effects.peek().is_some() {
+        if cost_effects.any(|(_, def)| def.applies_to.applies_to_its_own_object()) {
             return ZoneSet::STACK;
         }
         return default_zones(types);

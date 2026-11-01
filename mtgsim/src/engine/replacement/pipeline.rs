@@ -302,7 +302,7 @@ fn event_amount(action: &GameAction) -> Option<u64> {
 /// ability's is its own, and a counter's is the counter's (CR 122.1c/d/h).
 fn replacement_generator(game: &GameState, chosen: &ReplacementInstance) -> Result<GeneratedBy, String> {
     match chosen.id {
-        ReplacementInstanceId::StaticAbility(..) => Ok(GeneratedBy::StaticAbility),
+        ReplacementInstanceId::StaticAbility { .. } => Ok(GeneratedBy::StaticAbility),
         ReplacementInstanceId::Counter(_, counter, _) => Ok(GeneratedBy::Counters(counter)),
         ReplacementInstanceId::Registered(id) => game
             .replacement_effects

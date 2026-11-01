@@ -880,7 +880,7 @@ pub fn registered(
     modification: EffectModification,
 ) -> ContinuousEffect {
     ContinuousEffect {
-        id: EffectId::UNASSIGNED, // assigned by the registry on add()
+        id: EffectId::UNASSIGNED,
         source: id,
         origin: EffectOrigin::Resolution,
         layer,

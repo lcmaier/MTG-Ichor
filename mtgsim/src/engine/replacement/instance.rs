@@ -42,11 +42,17 @@ pub enum ReplacementInstanceId {
     /// A row in the replacement registry (CR 614.3, 615.7, 701.19a).
     Registered(ReplacementEffectId),
     /// A static ability of an object (CR 614.1a), and which of the
-    /// replacement effects its body makes, in its order
-    /// (`Effect::replacements`): two effects of one ability are two to CR
-    /// 614.5. A byte, which a paragraph's handful needs and the enum's tag
-    /// leaves room for, so no event grows.
-    StaticAbility(ObjectRef, AbilityId, u8),
+    /// replacement effects its body makes (CR 614.5 counts two effects of one
+    /// ability as two).
+    StaticAbility {
+        object: ObjectRef,
+        ability: AbilityId,
+        /// The effect's place among the replacement effects its ability's
+        /// body makes, in their order (`Effect::replacements`), which the
+        /// ability never reorders. A byte, which a paragraph's handful needs
+        /// and the enum's tag leaves room for, so no event grows.
+        member: u8,
+    },
     /// Synthesized from counters on a permanent (CR 122.1c/d/h).
     ///
     /// Three components rather than two because **CR 122.1c makes two effects

@@ -1724,7 +1724,7 @@ mod tests {
                 is_combat: false,
                 source_lki: None,
             },
-            GameEvent::DamagePrevented { recipient: ObjectOrPlayer::Object(reference(game, c)), amount: 1, by: ReplacementInstanceId::StaticAbility(reference(game, d), AbilityId::printed("x", 0), 0) },
+            GameEvent::DamagePrevented { recipient: ObjectOrPlayer::Object(reference(game, c)), amount: 1, by: ReplacementInstanceId::StaticAbility { object: reference(game, d), ability: AbilityId::printed("x", 0), member: 0 } },
             GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 },
             GameEvent::StepBegin { step: StepType::Upkeep, player: 0 },
             GameEvent::TurnBegin { player: 0, turn_number: 1 },

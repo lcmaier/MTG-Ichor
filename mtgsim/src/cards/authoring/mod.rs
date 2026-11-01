@@ -26,14 +26,14 @@ pub mod recipients;
 pub mod triggers;
 
 pub use abilities::{
-    activated_ability, as_long_as, equip, mana_ability, spell_ability, static_ability, static_replacement, static_restriction, Statement,
+    activated_ability, as_long_as, equip, mana_ability, spell_ability, static_ability, static_replacement, static_restriction, StaticBody,
 };
 pub use instructions::{
     add_mana, add_phases, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, copy, counter_spell, create,
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, deal_damage, deal_damage_that_cant_be_prevented, destroy, discard,
     draw_cards, exile, exile_until, gain_control_of, gain_life, gains, gains_ability, get_counters, gets, has_base_power_and_toughness, is_also_color,
     its_controller_adds, lose_life, lose_the_game, loses_all_abilities, mill, put_counters, remove_counters, return_to_hand, return_to_the_battlefield,
-    sacrifice, scry, set_life_total, shuffle_library, switch_power_and_toughness, take_an_extra_turn, tap, untap, win_the_game, Change,
+    sacrifice, scry, set_life_total, shuffle_library, switch_power_and_toughness, take_an_extra_turn, tap, untap, win_the_game, Change, CreatedEffect,
 };
 pub use recipients::{
     any_target, attacked_by, chosen_by, creatures_you_control, each, each_in, each_opponent, each_player, host, referred, target, target_creature,

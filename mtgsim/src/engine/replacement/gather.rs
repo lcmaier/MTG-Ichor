@@ -642,7 +642,7 @@ fn push_static_ability_replacements(
                 game,
                 out,
                 ReplacementInstance {
-                    id: ReplacementInstanceId::StaticAbility(object, ability.id, member),
+                    id: ReplacementInstanceId::StaticAbility { object, ability: ability.id, member },
                     source: id,
                     controller,
                     def: def.clone(),
@@ -1301,7 +1301,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let faith = crate::test_support::put_on_battlefield(&mut game, crate::cards::phase_re_cards::rhox_faithmender(), 0);
         let doubling = crate::oracle::characteristics::get_effective_abilities(&game, faith)[0].id;
-        let applied = ReplacementInstanceId::StaticAbility(game.object_ref(faith).unwrap(), doubling, 0);
+        let applied = ReplacementInstanceId::StaticAbility { object: game.object_ref(faith).unwrap(), ability: doubling, member: 0 };
         let gain_in_the_lineage = |game: &mut GameState| {
             let mut lineage = crate::engine::replacement::AppliedReplacements::EMPTY;
             lineage.apply(crate::events::event::AppliedReplacement {

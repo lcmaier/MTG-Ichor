@@ -69,24 +69,23 @@ impl RowId {
         id
     }
 
-    /// The id the `n`th draw from a counter now at `next` will be, read
-    /// without drawing it.
-    pub(crate) fn ahead_of(next: u64, n: usize) -> RowId {
-        RowId(next + n as u64)
+    /// The id a counter now at `next` hands out after `draws` more, read
+    /// without drawing any.
+    pub(crate) fn from_counter_after(next: u64, draws: usize) -> RowId {
+        RowId(next + draws as u64)
     }
 }
 
 #[cfg(test)]
 impl RowId {
-    /// The `n`th id a fresh registry stamps, `RowId::nth(1)` its first: the
-    /// id a test expects.
-    pub(crate) fn nth(n: u64) -> RowId {
-        RowId(n)
+    /// The `k`th id a fresh registry stamps, counting from one: the id a
+    /// test expects.
+    pub(crate) fn stamped_by_a_fresh_registry(k: u64) -> RowId {
+        RowId(k)
     }
 }
 
-/// The bare number, both ways, as the `u64` it replaced printed, so a
-/// message or a dump that names a row reads as it did.
+/// The bare number, both ways: a message or a dump names a row by it.
 impl std::fmt::Debug for RowId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -582,7 +581,8 @@ mod tests {
     #[test]
     fn two_grants_of_one_ability_are_two_instances_of_one_definition() {
         let printed = AbilityId::printed("Diffusion Sliver", 3);
-        let (first, second) = (printed.granted_by(RowId::nth(7)), printed.granted_by(RowId::nth(8)));
+        let (first, second) =
+            (printed.granted_by(RowId::stamped_by_a_fresh_registry(7)), printed.granted_by(RowId::stamped_by_a_fresh_registry(8)));
         assert_ne!(first, second);
         assert_ne!(first, printed);
         assert_eq!(first.definition(), printed);

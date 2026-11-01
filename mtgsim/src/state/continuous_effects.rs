@@ -448,10 +448,10 @@ impl ContinuousEffectRegistry {
         self.effects.next_id()
     }
 
-    /// The id the `n`th add from now will assign, `0` being [`Self::next_id`]:
-    /// the rest of a look-ahead's would-be rows.
-    pub fn nth_next_id(&self, n: usize) -> EffectId {
-        self.effects.nth_next_id(n)
+    /// The id an add will assign after `adds` more, `0` being
+    /// [`Self::next_id`]: the rest of a look-ahead's would-be rows.
+    pub fn next_id_after(&self, adds: usize) -> EffectId {
+        self.effects.next_id_after(adds)
     }
 
     /// Run a mutation against the rows, then rebuild the summary.
@@ -710,10 +710,10 @@ mod tests {
         let mut reg = ContinuousEffectRegistry::new();
         let src = new_object_id();
         let id = reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
-        assert_eq!(id, RowId::nth(1));
+        assert_eq!(id, RowId::stamped_by_a_fresh_registry(1));
         assert_eq!(reg.len(), 1);
-        assert_eq!(reg.iter().next().unwrap().id, RowId::nth(1));
-        assert_eq!(reg.add(make_effect(src, Layer::Layer7cModifyPT, 2)), RowId::nth(2), "ids ascend");
+        assert_eq!(reg.iter().next().unwrap().id, RowId::stamped_by_a_fresh_registry(1));
+        assert_eq!(reg.add(make_effect(src, Layer::Layer7cModifyPT, 2)), RowId::stamped_by_a_fresh_registry(2), "ids ascend");
     }
 
     #[test]

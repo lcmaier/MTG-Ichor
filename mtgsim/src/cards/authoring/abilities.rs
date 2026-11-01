@@ -22,32 +22,33 @@ pub fn spell_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> Abil
 /// functions. One whose whole effect is a replacement effect or a "can't" is
 /// written `static_replacement` or `static_restriction`, which build the same
 /// value, so a card file writes each one way.
-pub fn static_ability(rules_text: impl Into<AbilityText>, effect: impl Statement) -> AbilityDef {
+pub fn static_ability(rules_text: impl Into<AbilityText>, effect: impl StaticBody) -> AbilityDef {
     AbilityDef::new(AbilityType::Static, rules_text, effect.into_static_body())
 }
 
-/// What a static ability states: an [`Effect`], or a bare [`Change`], which
-/// lasts as long as the ability does (CR 611.3a) and so states no duration.
-pub trait Statement {
+/// What a static ability's effect is written as: an [`Effect`], or a bare
+/// [`Change`], which applies while its source does (CR 611.3b) and so states
+/// no duration.
+pub trait StaticBody {
     fn into_static_body(self) -> Effect;
 }
 
-impl Statement for Effect {
+impl StaticBody for Effect {
     fn into_static_body(self) -> Effect {
         self
     }
 }
 
-impl Statement for Change {
+impl StaticBody for Change {
     fn into_static_body(self) -> Effect {
         self.lasting(Duration::WhileSourceOnBattlefield)
     }
 }
 
-/// "As long as [condition], [statement]" (CR 604.2): a static ability's
+/// "As long as [condition], [effect]" (CR 604.2): a static ability's
 /// effect exists exactly while its condition holds.
-pub fn as_long_as(condition: Condition, statement: impl Statement) -> Effect {
-    Effect::Conditional(condition, Box::new(statement.into_static_body()))
+pub fn as_long_as(condition: Condition, body: impl StaticBody) -> Effect {
+    Effect::Conditional(condition, Box::new(body.into_static_body()))
 }
 
 /// A static ability whose effect is a replacement effect (CR 614.1a): never

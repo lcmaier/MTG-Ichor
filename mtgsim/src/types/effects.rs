@@ -598,6 +598,13 @@ pub enum NamedPlayers {
     FirstInstance,
 }
 
+/// So an amount a card prints is written as the number: `draw_cards(you(), 2)`.
+impl From<u64> for AmountExpr {
+    fn from(n: u64) -> Self {
+        AmountExpr::Fixed(n)
+    }
+}
+
 /// Duration for continuous effects (rule 611)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Duration {

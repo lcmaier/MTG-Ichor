@@ -2288,7 +2288,11 @@ pub(crate) mod samples {
             ("DamagePrevented", GameEvent::DamagePrevented {
                 recipient: ObjectOrPlayer::Player(0),
                 amount: 1,
-                by: crate::engine::replacement::ReplacementInstanceId::StaticAbility(identity.source, identity.ability, 0),
+                by: crate::engine::replacement::ReplacementInstanceId::StaticAbility {
+                    object: identity.source,
+                    ability: identity.ability,
+                    member: 0,
+                },
             }),
             ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
             ("TokenCreated", GameEvent::TokenCreated {

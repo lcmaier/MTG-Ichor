@@ -120,7 +120,7 @@ fn would_be_rows(
         for (affected, lowered) in GameState::static_ability_rows(ability, name) {
             for (layer, modification) in lowered {
                 rows.push(ContinuousEffect {
-                    id: game.continuous_effects.nth_next_id(rows.len()),
+                    id: game.continuous_effects.next_id_after(rows.len()),
                     source: object,
                     origin: EffectOrigin::StaticAbility { ability: ability.id },
                     layer,

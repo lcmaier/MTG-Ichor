@@ -4,10 +4,10 @@
 //! effects, or each under its own "as long as" (Dog Umbra). Every reader of
 //! a static body takes its own kind from the list, so none is dropped.
 //!
-//! The fixtures write the list as the enum: a member's own word lands with
-//! its first printed card.
+//! The fixtures write the list as the enum, as Platinum Angel's two
+//! "can't"s do.
 
-use mtgsim::cards::authoring::{gets, this_object, Statement};
+use mtgsim::cards::authoring::{gets, this_object, StaticBody};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
@@ -22,7 +22,6 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
 use std::sync::Arc;
 
 /// "You can't gain life."
@@ -54,7 +53,7 @@ fn two_two_with(members: Vec<Effect>) -> Arc<CardData> {
 
 /// "You gain `n` life", resolved as a spell would for `player`; how much
 /// their life changed.
-fn gains(game: &mut GameState, player: PlayerId, n: u64) -> i64 {
+fn life_changed_by_gaining(game: &mut GameState, player: PlayerId, n: u64) -> i64 {
     let before = game.players[player].life_total;
     let source = put_in_hand(game, CardDataBuilder::new("Fixture").build(), player);
     let ctx = ResolutionContext::untargeted(source, player, mtgsim::events::cause::GeneratedBy::Spell);
@@ -71,7 +70,7 @@ fn a_layer_change_and_a_cant_in_one_ability_both_apply() {
     let bear = put_on_battlefield(&mut game, two_two_with(vec![gets(this_object(), 1, 0).into_static_body(), cant_gain_life()]), 0);
 
     assert_eq!(get_effective_power(&game, bear), Some(3), "the layer change applies");
-    assert_eq!(gains(&mut game, 0, 3), 0, "and the \"can't\" refuses the gain (CR 101.2)");
+    assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 0, "and the \"can't\" refuses the gain (CR 101.2)");
 }
 
 /// A layer change and a replacement effect in one ability: the gather takes
@@ -82,7 +81,7 @@ fn a_layer_change_and_a_replacement_in_one_ability_both_apply() {
     let bear = put_on_battlefield(&mut game, two_two_with(vec![gets(this_object(), 1, 0).into_static_body(), twice_the_life()]), 0);
 
     assert_eq!(get_effective_power(&game, bear), Some(3));
-    assert_eq!(gains(&mut game, 0, 3), 6, "the replacement doubles the gain (CR 614.1a)");
+    assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 6, "the replacement doubles the gain (CR 614.1a)");
 }
 
 /// CR 614.5 — two replacement effects of one ability are two effects, each
@@ -94,15 +93,9 @@ fn two_replacement_effects_of_one_ability_each_apply_once() {
     let mut game = setup_game(2);
     put_on_battlefield(&mut game, two_two_with(vec![twice_the_life(), twice_the_life()]), 0);
 
-    let dp = ScriptedDecisionProvider::new();
-    let before = game.players[0].life_total;
-    let source = put_in_hand(&mut game, CardDataBuilder::new("Fixture").build(), 0);
-    let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
-    let effect = Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller);
-    game.resolve_effect(&effect, &ctx, &dp).expect("resolving");
-
-    assert_eq!(game.players[0].life_total - before, 12);
-    assert!(dp.is_empty(), "two multipliers commute, so CR 616.1 has nothing to ask");
+    // Scripted with nothing, so a CR 616.1 prompt would fail the resolution:
+    // two multipliers commute, and there is nothing to ask.
+    assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 12);
 }
 
 /// CR 604.2 — Dog Umbra's shape: "As long as …, [a can't]. Otherwise, [a
@@ -120,17 +113,16 @@ fn each_member_of_one_ability_exists_under_its_own_as_long_as() {
         0,
     );
 
-    assert_eq!(gains(&mut game, 0, 3), 6, "no Forest: the replacement exists, the \"can't\" does not");
+    assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 6, "no Forest: the replacement exists, the \"can't\" does not");
     place_forest(&mut game, 0);
-    assert_eq!(gains(&mut game, 0, 3), 0, "a Forest: the \"can't\" exists, the replacement does not");
+    assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 0, "a Forest: the \"can't\" exists, the replacement does not");
 }
 
-/// The granted leg of the prohibition gate (`engine-map.md` §2.3): a Layer 6
-/// grant of an ability with a layer change and a "can't" lights the summary
-/// flag that sends the sweep to the creature, and the sweep finds the "can't"
-/// in the list. The granted layer change is not asked about: a static grant
-/// of a static ability over a filter registers no rows yet, which is
-/// "Before Layers" item 7's open half.
+/// The prohibition gate's granted leg: a Layer 6 grant of an ability with a
+/// layer change and a "can't" lights the registry summary's flag that sends
+/// the sweep to the creature, and the sweep finds the "can't" in the list.
+/// The granted layer change is not asked about: a static ability that grants
+/// a static ability over a filter registers no layer rows yet.
 #[test]
 fn a_granted_ability_with_several_kinds_is_found_by_the_gate_it_carries() {
     let mut game = setup_game(2);
@@ -145,5 +137,5 @@ fn a_granted_ability_with_several_kinds_is_found_by_the_gate_it_carries() {
     put_on_battlefield(&mut game, CardDataBuilder::new("Fixture Grantor").card_type(CardType::Enchantment).ability(grantor).build(), 0);
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
 
-    assert_eq!(gains(&mut game, 0, 3), 0, "the granted \"can't\" is found beside the layer change");
+    assert_eq!(life_changed_by_gaining(&mut game, 0, 3), 0, "the granted \"can't\" is found beside the layer change");
 }

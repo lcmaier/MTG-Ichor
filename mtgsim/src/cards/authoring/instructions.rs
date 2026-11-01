@@ -7,8 +7,10 @@
 //! A verb that makes a continuous effect returns a [`Change`], which states
 //! its duration as the text does (`.until_end_of_turn()`), so a spell that
 //! forgets one does not compile. Only [`super::static_ability`] takes one
-//! bare, since a static ability's effect lasts as long as the ability does
-//! (CR 611.3a).
+//! bare, since a static ability's effect applies while its source does (CR
+//! 611.3b). A replacement effect or a "can't" a resolution creates is a
+//! [`CreatedEffect`]: it states a duration too, but it is no change to an
+//! object, so it joins no `.and_…` chain and no static ability takes it.
 //!
 //! The words run in the CR's order: CR 701's keyword actions in 701's order,
 //! then the plain verbs by their rules, then the continuous changes by
@@ -26,13 +28,6 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::ReplacementDef;
 use crate::types::restriction::{Restriction, RestrictionDef};
 use crate::types::triggers::{DelayedTriggerTemplate, TriggerEvent};
-
-/// So an amount a card prints is written as the number: `draw_cards(you(), 2)`.
-impl From<u64> for AmountExpr {
-    fn from(n: u64) -> Self {
-        AmountExpr::Fixed(n)
-    }
-}
 
 // ---------------------------------------------------------------------------
 // CR 701's keyword actions
@@ -70,14 +65,6 @@ pub fn exile(recipient: EffectRecipient) -> Effect {
     Effect::Atom(Primitive::Exile, recipient)
 }
 
-/// "Exile [recipient] until [event]" (CR 610.3): returned under its owner's
-/// control as the event happens.
-pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>) -> Effect {
-    Effect::Atom(
-        Primitive::ExileUntil { until: Box::new(until.into()), refers_to: None, under: ReturnUnder::Owner },
-        recipient,
-    )
-}
 
 /// "[Recipient] mills [amount] cards" (CR 701.17a).
 pub fn mill(recipient: EffectRecipient, amount: impl Into<AmountExpr>) -> Effect {
@@ -216,6 +203,15 @@ pub fn create_delayed_trigger(recipient: EffectRecipient, template: DelayedTrigg
     Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(template)), recipient)
 }
 
+/// "Exile [recipient] until [event]" (CR 610.3): returned under its owner's
+/// control as the event happens.
+pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>) -> Effect {
+    Effect::Atom(
+        Primitive::ExileUntil { until: Box::new(until.into()), refers_to: None, under: ReturnUnder::Owner },
+        recipient,
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Continuous changes, by layer (CR 613.1)
 // ---------------------------------------------------------------------------
@@ -250,7 +246,8 @@ impl Change {
         self
     }
 
-    /// "… and is [types]": [`becomes_types`] to the same recipient.
+    /// "… and is [types]", "… and becomes [types]": [`becomes_types`] to the
+    /// same recipient.
     pub fn and_becomes_types(self, change: TypeChange) -> Self {
         self.and(move |d| Primitive::ChangeType(change, d))
     }
@@ -290,10 +287,6 @@ impl Change {
         self.lasting(Duration::UntilEndOfTurn)
     }
 
-    /// "For as long as you control [this]" (CR 611.2b).
-    pub fn for_as_long_as_you_control_this(self) -> Effect {
-        self.lasting(Duration::WhileYouControlSource)
-    }
 
     /// No duration printed: CR 611.2a's "until the end of the game".
     pub fn until_end_of_game(self) -> Effect {
@@ -391,31 +384,53 @@ pub fn switch_power_and_toughness(recipient: EffectRecipient) -> Change {
 // What a resolution creates that changes no object
 // ---------------------------------------------------------------------------
 
+/// A replacement effect or a "can't" a resolution creates (CR 614.1,
+/// 101.2), awaiting its duration (CR 611.2a). Not a [`Change`]: it changes
+/// no object, so nothing chains to it and a static ability, whose effects
+/// last while it does, never writes one.
+#[must_use = "a created effect lasts as long as its text says: end it with its duration"]
+pub struct CreatedEffect(Change);
+
+impl CreatedEffect {
+    /// "This turn", "until end of turn" (CR 514.2).
+    pub fn until_end_of_turn(self) -> Effect {
+        self.0.lasting(Duration::UntilEndOfTurn)
+    }
+
+    /// No duration printed: CR 611.2a's "until the end of the game".
+    pub fn until_end_of_game(self) -> Effect {
+        self.0.lasting(Duration::Indefinite)
+    }
+}
+
 /// A replacement or prevention effect a resolution creates (CR 614.1,
 /// 615.1), applying to what its def names: "prevent all combat damage that
 /// would be dealt this turn".
-pub fn create_replacement(def: ReplacementDef) -> Change {
+pub fn create_replacement(def: ReplacementDef) -> CreatedEffect {
     create_replacement_for(EffectRecipient::Implicit, def)
 }
 
-/// [`create_replacement`] applying to the recipient, which the resolution
-/// writes into the def: "prevent the next 3 damage that would be dealt to
-/// any target this turn".
-pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -> Change {
+/// [`create_replacement`] with a recipient: a target or a filter, which the
+/// resolution writes into the def's objects ("prevent the next 3 damage
+/// that would be dealt to any target this turn"), or `you()`, which it
+/// leaves to the def's own player set, read like no recipient at all.
+pub fn create_replacement_for(recipient: EffectRecipient, def: ReplacementDef) -> CreatedEffect {
     let def = Box::new(def);
-    Change::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored))
+    CreatedEffect(Change::new(recipient, move |d| Primitive::CreateReplacement(def, d, PatternFill::Authored)))
 }
 
 /// [`create_replacement`] for "a source of your choice" (CR 609.7a): the
 /// source is chosen as the effect is created and written into the def.
-pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> Change {
+pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> CreatedEffect {
     let def = Box::new(def);
-    Change::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource))
+    CreatedEffect(Change::new(EffectRecipient::Implicit, move |d| Primitive::CreateReplacement(def, d, PatternFill::ChosenDamageSource)))
 }
 
-/// "[Recipient] can't [what]" from a resolution (CR 101.2, 614.17): "players
-/// can't gain life this turn".
-pub fn cant(recipient: EffectRecipient, what: Restriction) -> Change {
+/// "[Recipient] can't [what]" from a resolution (CR 101.2, 614.17). A
+/// target's or a filter's objects are written into what can't happen; any
+/// other recipient leaves it as written ("players can't gain life this
+/// turn").
+pub fn cant(recipient: EffectRecipient, what: Restriction) -> CreatedEffect {
     let def = RestrictionDef::new(what);
-    Change::new(recipient, move |d| Primitive::Restrict(def, d))
+    CreatedEffect(Change::new(recipient, move |d| Primitive::Restrict(def, d)))
 }

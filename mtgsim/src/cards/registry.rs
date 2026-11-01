@@ -1642,8 +1642,9 @@ mod instance_references {
     /// `authoring::Change` writes the second change's back-reference as the
     /// effect's first instance of "target", which is right only when the
     /// chain's own target is that first one. A chain after another target
-    /// names the wrong object and still names a declared one, so the check
-    /// above passes it: this one reads the shape the chain leaves, a
+    /// names the wrong object and still names a declared one, so
+    /// `every_instance_back_reference_names_a_declared_clause` passes it:
+    /// this one reads the shape the chain leaves, a
     /// declaring change and then a change of the same duration on
     /// `SameInstanceAs`, and asks that the reference is to the instance the
     /// change before it declared.

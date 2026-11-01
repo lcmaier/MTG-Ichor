@@ -121,14 +121,14 @@ impl<T: DurationRow> DurationRegistry<T> {
 
     /// The id the next [`Self::add`] will stamp, read without advancing it.
     pub fn next_id(&self) -> RowId {
-        self.nth_next_id(0)
+        self.next_id_after(0)
     }
 
-    /// The id the `n`th [`Self::add`] from now will stamp, `0` being the
+    /// The id [`Self::add`] will stamp after `adds` more adds, `0` being the
     /// next: what a look-ahead's rows carry, so they sort where the rows they
     /// predict would.
-    pub fn nth_next_id(&self, n: usize) -> RowId {
-        RowId::ahead_of(self.next_id, n)
+    pub fn next_id_after(&self, adds: usize) -> RowId {
+        RowId::from_counter_after(self.next_id, adds)
     }
 
     /// Store a row, stamping it with a fresh id. Returns that id. The row
@@ -502,7 +502,7 @@ mod tests {
         let a = reg.add(Row::new(src, Duration::UntilEndOfTurn));
         reg.remove(a);
         let b = reg.add(Row::new(src, Duration::UntilEndOfTurn));
-        assert_eq!(a, RowId::nth(1));
+        assert_eq!(a, RowId::stamped_by_a_fresh_registry(1));
         assert_ne!(a, b);
     }
 
@@ -534,7 +534,8 @@ mod tests {
         let keys: Vec<(u8, RowId)> = reg.iter().map(|r| (r.sort_key(), r.id())).collect();
         // Equal keys keep insertion order via the id tiebreak: the rank-2 row
         // added first (id 2) still precedes the one added last (id 4).
-        assert_eq!(keys, vec![(2, RowId::nth(2)), (2, RowId::nth(4)), (5, RowId::nth(1)), (9, RowId::nth(3))]);
+        let stamped = RowId::stamped_by_a_fresh_registry;
+        assert_eq!(keys, vec![(2, stamped(2)), (2, stamped(4)), (5, stamped(1)), (9, stamped(3))]);
         assert!(reg.is_sorted());
     }
 
@@ -603,7 +604,7 @@ mod tests {
         assert_eq!(reg.generation(), 0);
         let id = reg.add(Row::new(src, Duration::UntilEndOfTurn));
         assert_eq!(reg.generation(), 1);
-        assert!(reg.remove(RowId::nth(999)).is_none());
+        assert!(reg.remove(RowId::stamped_by_a_fresh_registry(999)).is_none());
         assert_eq!(reg.generation(), 1);
         assert!(reg.remove_expired_at_turn_start(0, 5).is_empty());
         assert_eq!(reg.generation(), 1);

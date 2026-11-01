@@ -2197,7 +2197,7 @@ impl GameState {
 
                 for (layer, modification) in rows {
                     let effect = ContinuousEffect {
-                        id: EffectId::UNASSIGNED, // assigned by registry
+                        id: EffectId::UNASSIGNED,
                         source: id,
                         origin: EffectOrigin::StaticAbility { ability: ability.id },
                         layer,
@@ -2380,7 +2380,7 @@ impl GameState {
             Effect::FunctionsIn(_, body) => body,
             body => body,
         };
-        Self::atoms_of_static_body(body, label, false)
+        Self::atoms_of_static_body(body, label, AroundTheList::Nothing)
     }
 
     /// [`static_ability_atoms`](Self::static_ability_atoms) over an effect
@@ -2392,13 +2392,13 @@ impl GameState {
     /// recursion needs an `Effect`. Collapsing the two would push
     /// `&ability.effect` into every call site to save one line here.
     ///
-    /// `in_as_long_as` says the body is inside an "as long as" around a
+    /// `around` says whether the body is inside an "as long as" around a
     /// whole list, where a member may not carry its own
     /// (`Effect::static_members`).
     fn atoms_of_static_body<'a>(
         body: &'a crate::types::effects::Effect,
         label: &str,
-        in_as_long_as: bool,
+        around: AroundTheList,
     ) -> Vec<(&'a crate::types::effects::Primitive, &'a crate::types::effects::EffectRecipient)> {
         use crate::types::effects::Effect;
 
@@ -2443,7 +2443,7 @@ impl GameState {
                         Effect::Atom(p, r) => atoms.push((p, r)),
                         Effect::Replacement(_) | Effect::Restriction(_) | Effect::CostModification(_) | Effect::TriggerMultiplier(_) => {}
                         Effect::Conditional(_, member)
-                            if !in_as_long_as
+                            if around == AroundTheList::Nothing
                                 && matches!(
                                     **member,
                                     Effect::Replacement(_)
@@ -2474,7 +2474,7 @@ impl GameState {
             // decision 5). A card whose condition is false as it enters still registers
             // its rows, the only reading that survives a condition changing with no zone
             // change to notice.
-            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, label, true),
+            Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, label, AroundTheList::AsLongAs),
 
             _ => {
                 debug_assert!(
@@ -2723,6 +2723,14 @@ impl GameState {
         self.players.len()
     }
 
+}
+
+/// What a static body's list sits inside, for the lowering's one rule about
+/// it: a member carries one "as long as", its own or the list's.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AroundTheList {
+    Nothing,
+    AsLongAs,
 }
 
 #[cfg(test)]
