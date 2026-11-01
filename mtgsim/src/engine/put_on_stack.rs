@@ -101,7 +101,7 @@ impl GameState {
         } else {
             return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
-        let instances = &card_data.spell_instances;
+        let instances = card_data.spell_instances();
 
         // --- 601.2a: Move to stack ---
         // Capture the origin first: once the card is on the stack its `zone`
@@ -482,7 +482,7 @@ impl GameState {
         can_begin_to_activate(self, player_id, ability).map_err(|reason| reason.to_string())?;
 
         let effect = ability.effect.clone();
-        let ability_costs = ability.costs.clone();
+        let ability_costs = ability.costs().to_vec();
         let identity = crate::state::game_state::AbilityIdentity {
             source: crate::types::ids::ObjectRef {
                 id: source_id,
@@ -492,7 +492,7 @@ impl GameState {
         };
         // Off the def the effective list carries, never `card_data.abilities`:
         // a granted ability exists in no `CardData` (CLAUDE.md).
-        let instances = &ability.instances;
+        let instances = ability.instances();
 
         // Create a new object on the stack representing the ability (rule 602.2a)
         // Abilities on the stack are not cards — they have no CardData.
@@ -744,9 +744,10 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::spell_ability;
     use super::*;
     use crate::types::ids::ObjectOrPlayerId;
-    use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
+    use crate::objects::card_data::{AbilityType, CardDataBuilder};
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
@@ -807,7 +808,7 @@ mod tests {
 
         let abilities = crate::oracle::characteristics::get_effective_abilities(&game, thaum);
         let idx = abilities.iter()
-            .position(|a| a.ability_type == AbilityType::Activated)
+            .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
             .unwrap();
         let ability_id = abilities[idx].id;
 
@@ -856,7 +857,7 @@ mod tests {
         let decisions = ScriptedDecisionProvider::new();
         let ability_id = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
             .iter()
-            .find(|a| a.ability_type == AbilityType::Activated)
+            .find(|a| matches!(a.ability_type, AbilityType::Activated(_)))
             .expect("Merfolk Thaumaturgist has an activated ability")
             .id;
         // Forced target, so nothing to script — see the test above.
@@ -939,19 +940,13 @@ mod tests {
             .card_type(CardType::Sorcery)
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(sorcery_data, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -1072,10 +1067,9 @@ mod tests {
     fn test_cast_x_spell_with_no_payable_x_is_reversed_at_the_announcement() {
         use crate::types::costs::AdditionalCost;
         let mut game = GameState::new(2, 20);
-        let kicked = std::sync::Arc::new(crate::objects::card_data::CardData {
-            additional_costs: vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])],
-            ..(*crate::cards::phase_ma2_cards::blaze()).clone()
-        });
+        let mut kicked = (*crate::cards::phase_ma2_cards::blaze()).clone();
+        kicked.additional_costs = vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])];
+        let kicked = std::sync::Arc::new(kicked);
         let obj = GameObject::new(kicked, 0, Zone::Hand);
         let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
@@ -1104,16 +1098,10 @@ mod tests {
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Blue)
             .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Sequence(Vec::new()),
-            })
+            .ability(spell_ability(
+                "",
+                Effect::Sequence(Vec::new()),
+            ).with_id(crate::types::ids::new_ability_id()))
             .alternative_cost(AlternativeCost::Custom(
                 "Pay 3 life".to_string(),
                 vec![Cost::PayLife(3)],

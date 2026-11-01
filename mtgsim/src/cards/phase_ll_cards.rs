@@ -8,29 +8,16 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::static_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, TypeChange,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
-
-fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect,
-    }
-}
 
 /// A type change that adds and removes nothing but `add_types` and
 /// `add_subtypes`.

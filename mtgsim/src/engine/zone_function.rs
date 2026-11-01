@@ -191,8 +191,9 @@ fn default_zones(types: &CardTypes) -> ZoneSet {
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::static_ability;
     use super::*;
-    use crate::objects::card_data::{AbilityType, ActivationRestriction};
+    
     use crate::types::card_types::{LandType, Subtype};
     use crate::types::cost_modification::{CostChange, CostModificationDef};
     use crate::types::effects::{
@@ -202,16 +203,10 @@ mod tests {
     use crate::types::mana::ManaCost;
 
     fn ability(effect: Effect) -> AbilityDef {
-        AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
+        static_ability(
+            "",
             effect,
-            activation_restriction: ActivationRestriction::None,
-            is_characteristic_defining: false,
-        }
+        ).with_id(new_ability_id())
     }
 
     fn anthem() -> Effect {

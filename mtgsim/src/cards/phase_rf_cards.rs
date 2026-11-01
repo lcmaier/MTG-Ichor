@@ -26,44 +26,18 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, static_ability, static_replacement};
+use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use crate::types::zones::{Zone, ZoneSet, ZoneChangePattern};
 
-/// `codebase-state.md` item 120's constructor, the copy this file owes it.
-fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
-
-fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
-        effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
 
 /// "If [this] would be put into a graveyard from anywhere, reveal [this] and
 /// shuffle it into its owner's library instead." — one clause, and each of
@@ -198,14 +172,14 @@ pub fn timid_golem() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Golem))
         .power_toughness(2, 2)
         .rules_text("If this creature would be put into a graveyard, exile it instead.")
-        .ability(static_ability("If this creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_replacement("If this creature would be put into a graveyard, exile it instead.", ReplacementDef::new(
             EventPattern::ZoneChange {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::SourceOnly,
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-        )))))
+        )))
         .build()
 }
 
@@ -259,13 +233,13 @@ pub fn sealing_ward() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("If a creature would be put into a graveyard, exile it instead.")
-        .ability(static_ability("If a creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_replacement("If a creature would be put into a graveyard, exile it instead.", ReplacementDef::new(
             EventPattern::ZoneChange {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-        )))))
+        )))
         .build()
 }

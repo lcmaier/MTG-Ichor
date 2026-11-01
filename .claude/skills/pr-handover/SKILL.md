@@ -44,6 +44,11 @@ section and open the PR with `gh pr create --body-file`. Write the PR number
 into any doc only after the PR exists. Lead with engine changes and their
 `file:line` when the PR also touches the dev GUI.
 
+When the diff is mostly a sweep or a move, open "How to read this PR" with
+"N files carry the design; everything else is mechanical", list those files,
+and say what checks the rest (fingerprints, close-out, compiler). Lead the
+chat handover with the same list.
+
 ## 5. In chat
 
 The same list of changes by concept as the PR body: for each, what was wrong

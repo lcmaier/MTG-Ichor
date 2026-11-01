@@ -13,14 +13,14 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_ability;
 use crate::cards::authoring::{dies, triggered_ability, undying, whenever};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
@@ -93,15 +93,9 @@ pub fn demonic_vigor() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .rules_text("Enchant creature\nEnchanted creature gets +1/+1.\nWhen enchanted creature dies, return that card to its owner's hand.")
         .enchant_filter(SelectionFilter::Creature)
-        .ability(AbilityDef {
-            rules_text: "Enchanted creature gets +1/+1.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Enchanted creature gets +1/+1.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(1),
                     AmountExpr::Fixed(1),
@@ -109,7 +103,7 @@ pub fn demonic_vigor() -> Arc<CardData> {
                 ),
                 EffectRecipient::Host,
             ),
-        })
+        ))
         .ability(triggered_ability(
             text,
             whenever(

@@ -19,12 +19,14 @@ The card-list reorganization (roadmap-v2 §C's `card-layer-cleanup`) is a move d
 classification, so the classification has to be re-runnable rather than a
 number someone wrote down once.
 
-    python plans/references/classify_cards.py --first-printings
+    python plans/references/classify_cards.py --first-printings [--list]
 
 **The set a card is filed under is its *first* printing**, which is the only
-key that never changes — `card-layer-cleanup` files the list by it. That costs one request per
-card and is behind the flag; without it the run is two requests and answers
-only the printing/fixture split, which is what most re-runs want.
+key that never changes — `card-layer-cleanup` files the list by it: the earliest
+paper printing that is no promo. That costs one request per card and is behind
+the flag; without it the run is two requests and answers only the
+printing/fixture split, which is what most re-runs want. `--list` adds each
+printing's set, which the move reads.
 
 Scryfall 403s a bare urllib request, so this shells out to curl with a UA
 header, the way `plans/references/*-census.py` and `CLAUDE.md` both say to.
@@ -59,7 +61,7 @@ def defined() -> list[tuple[str, str]]:
     """(module, function) for every `pub fn` in a card file."""
     out = []
     for path in sorted(CARDS.glob("*.rs")):
-        if path.stem in ("registry", "mod"):
+        if path.stem in ("registry", "mod", "random_deck"):
             continue
         for fn in re.findall(r"^pub fn ([a-z_0-9]+)", path.read_text(encoding="utf-8"), re.M):
             out.append((path.stem, fn))
@@ -115,20 +117,35 @@ def curl(args: list[str]) -> dict:
 
 
 def first_printings(names: list[str]) -> dict[str, tuple[str, str]]:
-    """name -> (set code, year) of its earliest printing.
+    """name -> (set code, year) of its earliest paper printing that is no promo.
 
     One request per card: Scryfall's collection endpoint answers a name lookup
     with a printing of its own choosing, and there is no bulk way to ask for
     the earliest. `unique=prints` ordered ascending by release makes the first
     result the answer.
+
+    A promo set is no set to file a card under: a prerelease promo is dated
+    days before its set (`pdka` before `dka`), and an Arena League or FNM
+    printing is a reprint. The exclusion is the set's type, not the
+    printing's promo flag, which a buy-a-box card printed inside its own set
+    carries too (Nexus of Fate in `m19`). A boxed reprint collection is no
+    first printing either, though one can come first (Salvat 2005 printed
+    Bramble Elemental before Ravnica). So the earliest paper printing outside
+    a promo, memorabilia or box set wins; any paper printing only for a card
+    printed nowhere else (a Secret Lair original); and a token is searched
+    with the extras it is filed among (Everywhere, `tdsk`).
     """
     out = {}
     for i, n in enumerate(names, 1):
-        q = urllib.parse.quote(f'!"{n}"')
-        data = curl([
-            f"https://api.scryfall.com/cards/search"
-            f"?q={q}&unique=prints&order=released&dir=asc"
-        ])
+        for scope in ("game:paper -st:promo -st:memorabilia -st:box", "game:paper", "include:extras"):
+            q = urllib.parse.quote(f'!"{n}" {scope}'.strip())
+            data = curl([
+                f"https://api.scryfall.com/cards/search"
+                f"?q={q}&unique=prints&order=released&dir=asc"
+            ])
+            time.sleep(SLEEP)
+            if data.get("object") != "error" and data.get("data"):
+                break
         if data.get("object") == "error" or not data.get("data"):
             out[n] = ("?", "?")
         else:
@@ -136,7 +153,6 @@ def first_printings(names: list[str]) -> dict[str, tuple[str, str]]:
             out[n] = (c.get("set", "?"), c.get("released_at", "????")[:4])
         if i % 20 == 0:
             print(f"    ... {i}/{len(names)}", file=sys.stderr)
-        time.sleep(SLEEP)
     return out
 
 
@@ -171,6 +187,10 @@ def main() -> int:
     for s, n in sets.most_common():
         print(f"  {s:6s} {years.get(s, '?'):4s}  {n}")
     print(f"  sets holding exactly one card: {sum(1 for n in sets.values() if n == 1)}")
+    if "--list" in sys.argv:
+        print("\neach printing's first set:")
+        for n in real:
+            print(f"  {firsts[n][0]:6s} {n}")
     return 0
 
 

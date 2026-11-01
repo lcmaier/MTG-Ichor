@@ -312,7 +312,8 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{activated_ability, spell_ability, static_ability, static_replacement, static_restriction};
+use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -322,7 +323,6 @@ use crate::types::effects::{
     PatternFill, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
     TokenDef,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{
@@ -332,66 +332,17 @@ use crate::types::replacement::{
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
 use crate::types::zones::{DrawFilter, Zone};
 
-/// A static ability whose effect is a replacement effect — never a resolution,
-/// so it carries no `Duration` and is re-derived off the source's *effective*
-/// ability list on every gather.
-fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
-
 /// A static ability whose replacement effect exists only while `condition`
 /// holds — CR 604.2's "as long as", asked by `replacement::gather` at each
 /// proposal, the way the layer pass asks it of a Kird Ape.
 fn static_conditional_replacement(rules_text: &'static str, condition: Condition, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Conditional(condition, Box::new(Effect::Replacement(Box::new(def)))),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
+    static_ability(
+        rules_text,
+        Effect::Conditional(condition, Box::new(Effect::Replacement(Box::new(def)))),
+    )
 }
 
-/// A static "can't" (CR 101.2, 614.17) — read off the source's *effective*
-/// ability list by `engine::restriction::is_prohibited` at each proposal.
-fn static_restriction(rules_text: &'static str, what: Restriction) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Restriction(Box::new(RestrictionDef::new(what))),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
 
-/// One ability with no costs beyond the ones given.
-fn one_shot(rules_text: &'static str, ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type,
-        costs,
-        effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
-}
 
 /// "Skip [unit]" as CR 614.10 defines it: *"instead of doing [something], do
 /// nothing"*, which CR 614.1b says is a replacement effect and CR 614.6 says is
@@ -435,8 +386,7 @@ pub fn yawgmoths_bargain() -> Arc<CardData> {
             EventPattern::BeginStep { step: Some(StepType::Draw) },
             PlayerSet::You,
         )))
-        .ability(one_shot("Pay 1 life: Draw a card.",
-            AbilityType::Activated,
+        .ability(activated_ability("Pay 1 life: Draw a card.",
             vec![Cost::PayLife(1)],
             Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         ))
@@ -512,9 +462,7 @@ pub fn meditate() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .rules_text("Draw four cards. You skip your next turn.")
-        .ability(one_shot("Draw four cards. You skip your next turn.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Draw four cards. You skip your next turn.",
             Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(4)),
@@ -561,9 +509,7 @@ pub fn time_walk() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Sorcery)
         .rules_text("Take an extra turn after this one.")
-        .ability(one_shot("Take an extra turn after this one.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Take an extra turn after this one.",
             Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller),
         ))
         .build()
@@ -604,9 +550,7 @@ pub fn moment_of_silence() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Target player skips their next combat phase this turn.")
-        .ability(one_shot("Target player skips their next combat phase this turn.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Target player skips their next combat phase this turn.",
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
@@ -1019,8 +963,7 @@ pub fn words_of_worship() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("{1}: The next time you would draw a card this turn, you gain 5 life instead.")
-        .ability(one_shot("{1}: The next time you would draw a card this turn, you gain 5 life instead.",
-            AbilityType::Activated,
+        .ability(activated_ability("{1}: The next time you would draw a card this turn, you gain 5 life instead.",
             vec![Cost::Mana(ManaCost::build(&[], 1))],
             Effect::Atom(
                 Primitive::CreateReplacement(
@@ -1209,9 +1152,7 @@ pub fn skullcrack() -> Arc<CardData> {
         .rules_text(
             "Players can't gain life this turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to target player or planeswalker.",
         )
-        .ability(one_shot("Players can't gain life this turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to target player or planeswalker.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Players can't gain life this turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to target player or planeswalker.",
             Effect::Sequence(vec![
                 // "Players can't gain life this turn." No object and every
                 // player, so the row is complete as authored and the
@@ -1471,10 +1412,8 @@ pub fn stunning_reversal() -> Arc<CardData> {
         .rules_text(
             "The next time you would lose the game this turn, instead draw seven cards and your life total becomes 1.\nExile Stunning Reversal.",
         )
-        .ability(one_shot(
+        .ability(spell_ability(
             "The next time you would lose the game this turn, instead draw seven cards and your life total becomes 1.",
-            AbilityType::Spell,
-            Vec::new(),
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
@@ -1502,10 +1441,8 @@ pub fn stunning_reversal() -> Arc<CardData> {
             ),
         ))
         // CR 608.2c's second instruction, on the spell itself.
-        .ability(one_shot(
+        .ability(spell_ability(
             "Exile Stunning Reversal.",
-            AbilityType::Spell,
-            Vec::new(),
             Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
         ))
         .build()
@@ -1636,9 +1573,7 @@ pub fn raise_the_alarm() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Create two 1/1 white Soldier creature tokens.")
-        .ability(one_shot("Create two 1/1 white Soldier creature tokens.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Create two 1/1 white Soldier creature tokens.",
             Effect::Atom(
                 Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(2)),
                 EffectRecipient::Controller,
@@ -1665,9 +1600,7 @@ pub fn hordeling_outburst() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Create three 1/1 red Goblin creature tokens.")
-        .ability(one_shot("Create three 1/1 red Goblin creature tokens.",
-            AbilityType::Spell,
-            Vec::new(),
+        .ability(spell_ability("Create three 1/1 red Goblin creature tokens.",
             Effect::Atom(
                 Primitive::CreateToken(goblin_token(), AmountExpr::Fixed(3)),
                 EffectRecipient::Controller,
@@ -1775,10 +1708,8 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
             "Until end of turn, if a creature would enter and it wasn't cast, exile it \
              instead.\nDraw a card.",
         )
-        .ability(one_shot(
+        .ability(spell_ability(
             "Until end of turn, if a creature would enter and it wasn't cast, exile it instead.",
-            AbilityType::Spell,
-            Vec::new(),
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(ReplacementDef::new(
@@ -1792,10 +1723,8 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
                 EffectRecipient::Implicit,
             ),
         ))
-        .ability(one_shot(
+        .ability(spell_ability(
             "Draw a card.",
-            AbilityType::Spell,
-            Vec::new(),
             Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         ))
         .build()
@@ -2275,13 +2204,9 @@ pub fn live_fast() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Sorcery)
         .rules_text("You draw two cards, lose 2 life, and get {E}{E}.")
-        .ability(AbilityDef {
-            rules_text: "You draw two cards, lose 2 life, and get {E}{E}.".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "You draw two cards, lose 2 life, and get {E}{E}.",
+            Effect::Sequence(vec![
                 Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller),
                 Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
                 Effect::Atom(
@@ -2292,9 +2217,7 @@ pub fn live_fast() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
             ]),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        })
+        ))
         .build()
 }
 

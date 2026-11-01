@@ -15,15 +15,15 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::{activated_ability, static_ability, static_replacement};
 use crate::cards::authoring::persist;
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
@@ -71,20 +71,14 @@ pub fn grumgully_the_generous() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Shaman))
         .power_toughness(3, 3)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_replacement(
+            text,
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(non_human_creature_you_control),
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
-            ))),
-        })
+            ),
+        ))
         .build()
 }
 
@@ -125,16 +119,10 @@ pub fn grumgully_the_generous() -> Arc<CardData> {
 pub fn wingrattle_scarecrow() -> Arc<CardData> {
     let flying = "This creature has flying as long as you control a blue creature.";
     let persists = "This creature has persist as long as you control a black creature.";
-    let has_while_you_control_a = |text: &'static str, color: Color, grant: Primitive| AbilityDef {
-        rules_text: text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Conditional(you_control_a_creature_of(color), Box::new(Effect::Atom(grant, EffectRecipient::ThisObject))),
-    };
+    let has_while_you_control_a = |text: &'static str, color: Color, grant: Primitive| static_ability(
+        text,
+        Effect::Conditional(you_control_a_creature_of(color), Box::new(Effect::Atom(grant, EffectRecipient::ThisObject))),
+    );
     CardDataBuilder::new("Wingrattle Scarecrow")
         .mana_cost(ManaCost::build(&[], 3))
         .card_type(CardType::Artifact)
@@ -178,15 +166,10 @@ pub fn viscera_seer() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Wizard))
         .power_toughness(1, 1)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
-            effect: Effect::Atom(Primitive::Scry(AmountExpr::Fixed(1)), EffectRecipient::Controller),
-        })
+        .ability(activated_ability(
+            text,
+            vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
+            Effect::Atom(Primitive::Scry(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        ))
         .build()
 }

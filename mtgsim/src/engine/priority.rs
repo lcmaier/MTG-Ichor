@@ -144,7 +144,7 @@ impl GameState {
                         let found = crate::oracle::characteristics::effective_ability(self, *permanent_id, *ability_id);
                         let is_mana = found
                             .as_ref()
-                            .is_some_and(|a| a.ability_type == crate::objects::card_data::AbilityType::Mana);
+                            .is_some_and(|a| matches!(a.ability_type, crate::objects::card_data::AbilityType::Mana(_)));
                         let result = if is_mana {
                             self.activate_mana_ability(
                                 current_priority, *permanent_id, *ability_id, decisions,
@@ -295,9 +295,10 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::spell_ability;
     use super::*;
     use crate::types::zones::Zone;
-    use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
+    use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::game_state::PhaseType;
     use crate::types::card_types::CardType;
@@ -346,19 +347,13 @@ mod tests {
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(bolt_data, 0, Zone::Hand);
         let card_id = game.add_object(obj);

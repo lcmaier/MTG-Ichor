@@ -12,7 +12,8 @@
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::persist;
+
+use mtgsim::cards::authoring::{persist, static_replacement};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
 use mtgsim::cards::phase_cv_cards::clone;
@@ -23,19 +24,19 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::validation::can_block;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_name, get_effective_toughness, has_keyword, has_type};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     effect_ctx, put_in_graveyard, put_in_hand, put_on_battlefield, set_attacking, set_blocked_by, set_blocking, setup_two_player_game,
-    static_ability, stock_libraries, test_ctx, test_dp, vanilla_creature,
+    stock_libraries, test_ctx, test_dp, textless_static, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, SelectionFilter, TypeChange,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
@@ -84,23 +85,17 @@ fn human_clone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .power_toughness(0, 0)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(ReplacementDef {
+        .ability(static_replacement(
+            text,
+            ReplacementDef {
                 optional: true,
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
                     ObjectSet::SourceOnly,
                     Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(SelectionFilter::Creature), except: Vec::new() }),
                 )
-            })),
-        })
+            },
+        ))
         .build()
 }
 
@@ -110,7 +105,7 @@ fn persist_anthem() -> Arc<CardData> {
     let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
     CardDataBuilder::new("Fixture: creatures you control have persist")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(persist()), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(yours),
         )))
@@ -122,7 +117,7 @@ fn artifacts_are_not_creatures() -> Arc<CardData> {
     let not_creatures = TypeChange { remove_types: vec![CardType::Creature], ..TypeChange::NONE };
     CardDataBuilder::new("Fixture: artifacts are not creatures")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeType(not_creatures, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Artifact)),
         )))

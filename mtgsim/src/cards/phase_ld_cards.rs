@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, static_ability};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
     TargetCount, TypeChange,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 // ===========================================================================
@@ -25,15 +25,9 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
     CardDataBuilder::new("Liquimetal Torque")
         .mana_cost(ManaCost::build(&[ManaType::Colorless], 1))
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Target permanent becomes an artifact in addition to its other types until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Target permanent becomes an artifact in addition to its other types until end of turn.",
+            Effect::Atom(
                 Primitive::ChangeType(
                     TypeChange {
                         add_types: vec![CardType::Artifact],
@@ -53,7 +47,7 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }
 
@@ -70,15 +64,9 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
         .color(Color::Blue)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Target artifact becomes an artifact creature with base power and toughness 5/5 until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "Target artifact becomes an artifact creature with base power and toughness 5/5 until end of turn.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::ChangeType(
                         TypeChange {
@@ -110,7 +98,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
                     EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
-        })
+        ))
         .build()
 }
 
@@ -131,15 +119,9 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .color(Color::White)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Target creature gets +1/+2 and is an Angel in addition to its other types until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "Target creature gets +1/+2 and is an Angel in addition to its other types until end of turn.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::ChangeType(
                         TypeChange {
@@ -168,7 +150,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
                     EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
-        })
+        ))
         .build()
 }
 
@@ -185,15 +167,9 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 3))
         .color(Color::White)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Target creature is legendary and gets +1/+1 until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "Target creature is legendary and gets +1/+1 until end of turn.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::ChangeType(
                         TypeChange {
@@ -222,7 +198,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
                     EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
-        })
+        ))
         .build()
 }
 
@@ -251,15 +227,9 @@ pub fn blood_moon() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Enchantment)
         .rules_text("Nonbasic lands are Mountains.")
-        .ability(AbilityDef {
-            rules_text: "Nonbasic lands are Mountains.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Nonbasic lands are Mountains.",
+            Effect::Atom(
                 Primitive::ChangeType(
                     TypeChange {
                         add_types: Vec::new(),
@@ -276,7 +246,7 @@ pub fn blood_moon() -> Arc<CardData> {
                 ),
                 EffectRecipient::FilteredPermanents(nonbasic_land_filter),
             ),
-        })
+        ))
         .build()
 }
 
@@ -300,15 +270,9 @@ pub fn urborg_effect() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
         .card_type(CardType::Enchantment)
-        .ability(AbilityDef {
-            rules_text: "Each land is a Swamp in addition to its other land types.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Each land is a Swamp in addition to its other land types.",
+            Effect::Atom(
                 Primitive::ChangeType(
                     TypeChange {
                         add_types: Vec::new(),
@@ -325,7 +289,7 @@ pub fn urborg_effect() -> Arc<CardData> {
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -342,32 +306,13 @@ pub fn urborg_effect() -> Arc<CardData> {
 /// Deliberately has NO Basic supertype, so Blood Moon's "nonbasic lands" filter
 /// matches it.
 pub fn dual_land_ub() -> Arc<CardData> {
-    fn mana_ability(mana_type: ManaType) -> AbilityDef {
-        AbilityDef {
-            rules_text: crate::objects::card_data::tap_to_add_text(mana_type).into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![crate::types::costs::Cost::TapSelf],
-            effect: Effect::Atom(
-                Primitive::ProduceMana(crate::types::effects::ManaOutput {
-                    mana: vec![(mana_type, AmountExpr::Fixed(1))],
-                    special: vec![],
-                }),
-                EffectRecipient::Implicit,
-            ),
-        }
-    }
-
     CardDataBuilder::new("Underground Sea")
         .card_type(CardType::Land)
         .subtype(Subtype::Land(LandType::Island))
         .subtype(Subtype::Land(LandType::Swamp))
         .rules_text("{T}: Add {U}. {T}: Add {B}.")
-        .ability(mana_ability(ManaType::Blue))
-        .ability(mana_ability(ManaType::Black))
+        .mana_ability_single(ManaType::Blue)
+        .mana_ability_single(ManaType::Black)
         .build()
 }
 
@@ -389,22 +334,16 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("Lands have flying.")
-        .ability(AbilityDef {
-            rules_text: "Lands have flying.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Lands have flying.",
+            Effect::Atom(
                 Primitive::GrantKeywordFlag(
                     crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Land)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -438,15 +377,9 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
-        .ability(AbilityDef {
-            rules_text: "Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(static_ability(
+            "Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::ChangeType(
                         TypeChange {
@@ -473,7 +406,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
                     EffectRecipient::FilteredPermanents(noncreature_artifact),
                 ),
             ]),
-        })
+        ))
         .build()
 }
 
@@ -504,22 +437,16 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
     CardDataBuilder::new("Cloudspire Mesa")
         .card_type(CardType::Land)
         .rules_text("Creatures have flying.")
-        .ability(AbilityDef {
-            rules_text: "Creatures have flying.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Creatures have flying.",
+            Effect::Atom(
                 Primitive::GrantKeywordFlag(
                     crate::types::keywords::KeywordFlag::Flying,
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -558,15 +485,9 @@ pub fn self_stripping_land() -> Arc<CardData> {
     CardDataBuilder::new("Moonlit Steppe")
         .card_type(CardType::Land)
         .rules_text("Nonbasic lands are Mountains.")
-        .ability(AbilityDef {
-            rules_text: "Nonbasic lands are Mountains.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Nonbasic lands are Mountains.",
+            Effect::Atom(
                 Primitive::ChangeType(
                     TypeChange {
                         add_types: Vec::new(),
@@ -583,6 +504,6 @@ pub fn self_stripping_land() -> Arc<CardData> {
                 ),
                 EffectRecipient::FilteredPermanents(nonbasic_land_filter),
             ),
-        })
+        ))
         .build()
 }

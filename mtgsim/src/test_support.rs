@@ -262,19 +262,14 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-        .ability(AbilityDef {
-            rules_text: "Lightning Bolt deals 3 damage to any target.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(AbilityDef::new(
+            AbilityType::Spell,
+            "Lightning Bolt deals 3 damage to any target.",
+            Effect::Atom(
                 Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                 EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -933,24 +928,29 @@ pub fn fixed_target_bounds(recipient: &EffectRecipient) -> crate::types::effects
     }
 }
 
-/// A static [`AbilityDef`] carrying `effect`, with a fresh id and the CDA flag
-/// clear.
+/// A static [`AbilityDef`] carrying `effect`, with no rules text, a fresh id
+/// and the CDA flag clear.
 ///
 /// The id is what Layer 6 tests care about: `EffectModification::LoseAbility`
 /// removes by id, and CR 113.10b makes "every instance with this id" the
 /// question. Clone the returned def to put the *same* ability on an object
 /// twice — a fresh call would give a second id and prove nothing.
-pub fn static_ability(effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        id: new_ability_id(),
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
+pub fn textless_static(effect: Effect) -> AbilityDef {
+    AbilityDef::new(
+        AbilityType::Static,
+        "",
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-    }
+    ).with_id(new_ability_id())
+}
+
+/// The spell ability (CR 113.3a) a fixture instant or sorcery carries:
+/// `effect`, with no rules text and a fresh id.
+pub fn textless_spell(effect: Effect) -> AbilityDef {
+    AbilityDef::new(
+        AbilityType::Spell,
+        "",
+        effect,
+    ).with_id(new_ability_id())
 }
 
 /// A creature named `name` with the given P/T carrying `ability` as printed

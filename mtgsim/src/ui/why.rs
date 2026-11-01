@@ -663,7 +663,7 @@ fn priority_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) ->
             let abilities = get_effective_abilities(game, id);
             let activated: Vec<&AbilityDef> = abilities
                 .iter()
-                .filter(|ability| matches!(ability.ability_type, AbilityType::Activated | AbilityType::Mana))
+                .filter(|ability| matches!(ability.ability_type, AbilityType::Activated(_) | AbilityType::Mana(_)))
                 .collect();
             let Some(first) = activated.first() else {
                 return vec![WhyLine::under("It has no ability to activate.")];
@@ -711,7 +711,7 @@ fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> V
         return Vec::new();
     }
     let abilities = get_effective_abilities(game, id);
-    let mana: Vec<&AbilityDef> = abilities.iter().filter(|ability| ability.ability_type == AbilityType::Mana).collect();
+    let mana: Vec<&AbilityDef> = abilities.iter().filter(|ability| matches!(ability.ability_type, AbilityType::Mana(_))).collect();
     let Some(first) = mana.first() else {
         return vec![WhyLine::under("It has no mana ability.")];
     };
@@ -721,7 +721,7 @@ fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> V
     mana.iter()
         .filter(|ability| !window_offers(question, id, ability.id))
         .filter_map(|ability| {
-            let reason = game.can_pay_costs(&ability.costs, player, id).err()?;
+            let reason = game.can_pay_costs(ability.costs(), player, id).err()?;
             let action = format!("To activate “{}”", ability.rules_text.words);
             Some(refusal(action, cannot_pay(game, player, id, &reason)))
         })
@@ -767,15 +767,15 @@ pub fn not_offered_yet(game: &GameState, question: &OpenQuestion) -> Vec<NotOffe
         }
         let abilities = get_effective_abilities(game, source);
         let mut seen: Vec<AbilityId> = Vec::new();
-        for ability in abilities.iter().filter(|ability| ability.ability_type == AbilityType::Mana) {
+        for ability in abilities.iter().filter(|ability| matches!(ability.ability_type, AbilityType::Mana(_))) {
             if seen.contains(&ability.id.definition()) || window_offers(question, source, ability.id) {
                 continue;
             }
             seen.push(ability.id.definition());
             // The mana is checked first, so a short pool hides a tapped source:
             // the rest is asked on its own.
-            let short = game.can_pay_costs(&ability.costs, player, source) == Err(CannotPay::PoolShort);
-            let rest: Vec<Cost> = ability.costs.iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
+            let short = game.can_pay_costs(ability.costs(), player, source) == Err(CannotPay::PoolShort);
+            let rest: Vec<Cost> = ability.costs().iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
             if short && game.can_pay_costs(&rest, player, source).is_ok() {
                 let option = ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability.id));
                 let (reason, rule) = cannot_pay(game, player, source, &CannotPay::PoolShort);

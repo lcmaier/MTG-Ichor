@@ -153,7 +153,7 @@ fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
     let mut shown: Vec<(AbilityText, Option<u64>)> = Vec::new();
     for ability in get_effective_abilities(game, id).iter() {
         match ability.ability_type {
-            AbilityType::Mana | AbilityType::Activated | AbilityType::Triggered | AbilityType::Static => {}
+            AbilityType::Mana(_) | AbilityType::Activated(_) | AbilityType::Triggered | AbilityType::Static => {}
             // An instant's or sorcery's (CR 113.3a), which no permanent is.
             AbilityType::Spell => continue,
         }
@@ -689,7 +689,7 @@ pub fn cannot_activate(
         ),
         CannotActivate::Cost(cost) => cannot_pay(game, player, source, cost),
         CannotActivate::ManaShort => {
-            let cost = ability.costs.iter().find_map(|cost| match cost {
+            let cost = ability.costs().iter().find_map(|cost| match cost {
                 Cost::Mana(mana) => Some(format!(" {mana}")),
                 _ => None,
             });
@@ -1545,7 +1545,7 @@ mod tests {
     fn activation_labels(game: &GameState, id: ObjectId) -> Vec<String> {
         get_effective_abilities(game, id)
             .iter()
-            .filter(|ability| matches!(ability.ability_type, AbilityType::Mana | AbilityType::Activated))
+            .filter(|ability| matches!(ability.ability_type, AbilityType::Mana(_) | AbilityType::Activated(_)))
             .map(|ability| option_label(game, &ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability.id))))
             .collect()
     }

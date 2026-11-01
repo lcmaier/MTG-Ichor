@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{spell_ability, static_replacement};
 use mtgsim::cards::alpha::counterspell;
 use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
 use mtgsim::cards::phase_rc_cards::{containment_priest, dryad_arbor};
@@ -28,7 +29,7 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GeneratedBy, SpecialAction, StateBasedAction};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{
-    AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
+    CardData, CardDataBuilder,
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
@@ -126,22 +127,16 @@ fn resolve_at_player(
 fn fixture_enchantment_breaker() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Enchantment Breaker")
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "",
+            Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(
                     SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Enchantment)),
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -333,16 +328,10 @@ fn fixture_draw_exiler() -> Arc<CardData> {
     );
     CardDataBuilder::new("Fixture Draw Exiler")
         .card_type(CardType::Enchantment)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(def)),
-        })
+        .ability(static_replacement(
+            "",
+            def,
+        ).with_id(new_ability_id()))
         .build()
 }
 

@@ -2,6 +2,7 @@
 //! object that is gone, and the history log's rows as every "this turn"
 //! fact's one store (`plans/handoffs/item-6-audit.md`, pass 3's cleanup).
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::authoring::triggers::{becomes_blocked, becomes_blocked_by, blocks, triggered_ability, whenever};
 use mtgsim::cards::phase_history_and_frame_records_cards::{fixture_first_creature_tithe, fixture_mourners_tithe};
 use mtgsim::cards::phase_lh_cards::holy_strength;
@@ -10,11 +11,11 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::{GameEvent, UnattachRoute};
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_this_turn, setup_game, setup_two_player_game, static_ability,
+    put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_this_turn, setup_game, setup_two_player_game, textless_static,
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -23,7 +24,7 @@ use mtgsim::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
@@ -214,16 +215,10 @@ fn one_drop(name: &'static str, card_type: CardType) -> std::sync::Arc<CardData>
     match card_type {
         CardType::Creature => builder.power_toughness(1, 1).build(),
         _ => builder
-            .ability(AbilityDef {
-                rules_text: "You gain 0 life.".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(0)), EffectRecipient::Controller),
-            })
+            .ability(spell_ability(
+                "You gain 0 life.",
+                Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(0)), EffectRecipient::Controller),
+            ))
             .build(),
     }
 }
@@ -263,7 +258,7 @@ fn the_first_spell_of_a_kind_each_turn_counts_only_that_kind() {
 fn fixture_mourning_ink(fact: ObjectFact) -> std::sync::Arc<CardData> {
     CardDataBuilder::new("Fixture Mourning Ink")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeColor(ColorChange::Add(Color::Black), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::ThisTurn(fact), ZoneSet::GRAVEYARD),
         )))
@@ -311,7 +306,7 @@ fn milled_and_discarded_this_turn_read_the_act_of_the_move() {
 fn banner_over(fact: ObjectFact) -> std::sync::Arc<CardData> {
     CardDataBuilder::new("Fixture Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(fact)),
         )))
@@ -360,19 +355,13 @@ fn fixture_count_of_the_dead(name: &'static str, of: ObjectFilter) -> std::sync:
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[], 1))
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "",
+            Effect::Atom(
                 Primitive::GainLife(AmountExpr::History(HistorySpan::ThisTurn, Box::new(died))),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }
 

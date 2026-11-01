@@ -63,8 +63,10 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::{activated_ability, mana_ability, spell_ability};
+use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{
-    AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
+    CardData, CardDataBuilder,
 };
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -73,28 +75,11 @@ use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
     AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
-
-/// A static ability whose effect is a replacement effect — never a resolution,
-/// so it carries no `Duration` and is re-derived off the source's *effective*
-/// ability list on every gather.
-fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
-}
 
 /// CR 106.12's "tapped for mana", optionally of a permanent matching `source`.
 fn tapped_for_mana(source: Option<ObjectFilter>) -> EventPattern {
@@ -239,15 +224,10 @@ pub fn deep_water() -> Arc<CardData> {
         .rules_text(
             "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
         )
-        .ability(AbilityDef {
-            rules_text: "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Blue], 0))],
-            effect: Effect::Atom(
+        .ability(activated_ability(
+            "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
+            vec![Cost::Mana(ManaCost::build(&[ManaType::Blue], 0))],
+            Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
                         ReplacementDef::new(
@@ -267,7 +247,7 @@ pub fn deep_water() -> Arc<CardData> {
                 ),
                 EffectRecipient::Implicit,
             ),
-        })
+        ))
         .build()
 }
 
@@ -299,15 +279,9 @@ pub fn pale_moon() -> Arc<CardData> {
         .rules_text(
             "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
         )
-        .ability(AbilityDef {
-            rules_text: "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
+            Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(
                         ReplacementDef::new(
@@ -329,7 +303,7 @@ pub fn pale_moon() -> Arc<CardData> {
                 ),
                 EffectRecipient::Implicit,
             ),
-        })
+        ))
         .build()
 }
 
@@ -379,15 +353,10 @@ pub fn doubling_cube() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("{3}, {T}: Double the amount of each type of unspent mana you have.")
-        .ability(AbilityDef {
-            rules_text: "{3}, {T}: Double the amount of each type of unspent mana you have.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
-            effect: Effect::Atom(
+        .ability(mana_ability(
+            "{3}, {T}: Double the amount of each type of unspent mana you have.",
+            vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
+            Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: [
                         ManaType::White,
@@ -404,6 +373,6 @@ pub fn doubling_cube() -> Arc<CardData> {
                 }),
                 EffectRecipient::Implicit,
             ),
-        })
+        ))
         .build()
 }

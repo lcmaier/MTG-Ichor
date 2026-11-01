@@ -13,14 +13,16 @@
 //! both, and a GUI card builder presents "Any" itself whatever the Rust type
 //! says.
 //!
-//! One file per subsystem whose vocabulary has landed — [`triggers`] today.
-//! `codebase-state.md`'s "Before card breadth" item 10 is the rest of the
-//! same debt: the static- and activated-ability shapes, written out 31 times
-//! across `src/cards/`, belong in this directory and not in a 32nd private
-//! copy.
+//! One file per subsystem whose vocabulary has landed: [`abilities`], the
+//! kinds of ability every card is written in, and [`triggers`], CR 603's
+//! words. A word sits in its file by the CR rule it names, not by the card
+//! that brought it, so the file reads in the CR's order whichever card came
+//! first.
 
+pub mod abilities;
 pub mod triggers;
 
+pub use abilities::{activated_ability, equip, mana_ability, spell_ability, static_ability, static_replacement, static_restriction};
 pub use triggers::{
     activates_an_ability_of, an_opponent_gains_control_of, another, at_beginning_of, attacks, attacks_alone, attacks_and_isnt_blocked, attacks_defender, becomes_attached,
     becomes_blocked, becomes_blocked_by, becomes_the_target_of, becomes_unattached, blocks, blocks_a_creature, counters_put_on, creates_a_token, counters_removed_from, damage_to_is_prevented, dies, draws_a_card, enters, functioning_in, is_attacked, is_sacrificed, leaves_the_battlefield, loses_the_game, persist,

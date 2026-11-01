@@ -122,7 +122,7 @@ fn can_cast_with(
     // requires targets if no legal target exists. Asked of the card, not
     // the spell ability — an Aura's target is its enchant ability
     // (CR 303.4a) and it has no spell ability to ask.
-    if !every_instance_has_a_choice(game, &obj.card_data.spell_instances, player_id, card_id) {
+    if !every_instance_has_a_choice(game, obj.card_data.spell_instances(), player_id, card_id) {
         return Err(CannotCast::NoLegalTarget);
     }
 
@@ -293,14 +293,14 @@ pub fn can_activate_its_abilities(game: &GameState, player_id: PlayerId, source_
 /// and, if it may be activated only as a sorcery, at sorcery timing
 /// (CR 602.5d).
 pub fn can_begin_to_activate(game: &GameState, player_id: PlayerId, ability: &AbilityDef) -> Result<(), CannotActivate> {
-    match ability.ability_type {
-        AbilityType::Activated => {}
-        AbilityType::Mana => return Err(CannotActivate::ManaAbility),
+    let activation = match &ability.ability_type {
+        AbilityType::Activated(activation) => activation,
+        AbilityType::Mana(_) => return Err(CannotActivate::ManaAbility),
         AbilityType::Spell | AbilityType::Triggered | AbilityType::Static => {
             return Err(CannotActivate::NotActivated);
         }
-    }
-    if ability.activation_restriction == ActivationRestriction::OnlyAsSorcery {
+    };
+    if activation.restriction == ActivationRestriction::OnlyAsSorcery {
         game.check_sorcery_timing(player_id).map_err(CannotActivate::Timing)?;
     }
     Ok(())
@@ -333,7 +333,7 @@ fn can_activate_as_its_controller(
 ) -> Result<(), CannotActivate> {
     can_begin_to_activate(game, player_id, ability)?;
 
-    let (symbols, other_costs) = Cost::split_out_mana_costs(ability.costs.iter().cloned());
+    let (symbols, other_costs) = Cost::split_out_mana_costs(ability.costs().iter().cloned());
     for cost in &other_costs {
         game.can_pay_costs(std::slice::from_ref(cost), player_id, source_id).map_err(CannotActivate::Cost)?;
     }
@@ -342,7 +342,7 @@ fn can_activate_as_its_controller(
     // and has none is not activatable, `can_cast`'s check. `UpTo` stays, zero
     // targets being legal; the oracle filters only what a static read proves
     // illegal (`dp-middleware-and-candidate-enumeration.md` §2).
-    if !every_instance_has_a_choice(game, &ability.instances, player_id, source_id) {
+    if !every_instance_has_a_choice(game, ability.instances(), player_id, source_id) {
         return Err(CannotActivate::NoLegalTarget);
     }
 
@@ -492,8 +492,9 @@ fn every_instance_has_a_choice(
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::spell_ability;
     use super::*;
-    use crate::objects::card_data::{AbilityDef, CardDataBuilder};
+    use crate::objects::card_data::CardDataBuilder;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase, PhaseType};
@@ -530,19 +531,13 @@ mod tests {
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -564,19 +559,13 @@ mod tests {
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -652,19 +641,13 @@ mod tests {
         let spell = CardDataBuilder::new("Shock Plus")
             .card_type(CardType::Instant)
             .mana_cost(ManaCost::build(&[ManaType::Red], 1))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(spell, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -686,19 +669,13 @@ mod tests {
         let sorcery = CardDataBuilder::new("Lava Axe")
             .card_type(CardType::Sorcery)
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-                id: crate::types::ids::new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
-                effect: Effect::Atom(
+            .ability(spell_ability(
+                "",
+                Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
                 ),
-            })
+            ).with_id(crate::types::ids::new_ability_id()))
             .build();
         let obj = GameObject::new(sorcery, 0, Zone::Hand);
         let card_id = game.add_object(obj);

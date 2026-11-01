@@ -290,7 +290,7 @@ fn each_ability_says_why_it_is_not_offered() {
         let id = find(&game, name);
         let abilities = get_effective_abilities(&game, id);
         let activated = |a: &&mtgsim::objects::card_data::AbilityDef| {
-            matches!(a.ability_type, AbilityType::Activated | AbilityType::Mana)
+            matches!(a.ability_type, AbilityType::Activated(_) | AbilityType::Mana(_))
         };
         let ability = abilities.iter().filter(activated).find(|a| can_activate(&game, 0, id, a).is_err()).expect("refused");
         assert_eq!(can_activate(&game, 0, id, ability), Err(reason), "{name}");

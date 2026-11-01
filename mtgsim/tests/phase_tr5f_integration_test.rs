@@ -28,7 +28,7 @@ use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::history_log::RowFact;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
-    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, static_ability, test_ctx, set_active_player, set_attacking, set_blocked_by, set_blocking, setup_game,
+    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, textless_static, test_ctx, set_active_player, set_attacking, set_blocked_by, set_blocking, setup_game,
     setup_two_player_game, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -983,7 +983,7 @@ fn while_it(name: &str, condition: Condition, effect: Primitive) -> Arc<CardData
         .card_type(CardType::Creature)
         .color(Color::Green)
         .power_toughness(1, 1)
-        .ability(static_ability(Effect::Conditional(condition, Box::new(Effect::Atom(effect, EffectRecipient::ThisObject)))))
+        .ability(textless_static(Effect::Conditional(condition, Box::new(Effect::Atom(effect, EffectRecipient::ThisObject)))))
         .build()
 }
 
@@ -1062,7 +1062,7 @@ fn a_static_naming_what_attacked_this_turn_answers_anew_as_it_attacks() {
     let attacked = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ThisTurn(ObjectFact::Attacked)));
     let banner = CardDataBuilder::new("Fixture War Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(attacked),
         )))

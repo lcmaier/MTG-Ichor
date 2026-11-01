@@ -33,7 +33,8 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{activated_ability, mana_ability, spell_ability};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::cost_modification::{CostChange, CostModificationDef};
@@ -41,7 +42,6 @@ use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{
     AmountExpr, Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -349,19 +349,13 @@ fn lesson(name: &str, cost: ManaCost, color: Color, card_type: CardType) -> Card
         .color(color)
         .card_type(card_type)
         .rules_text("Draw a card.")
-        .ability(AbilityDef {
-            rules_text: "Draw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Draw a card.",
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
 }
 
 /// Ember Lesson — {1}{R} Instant: "Draw a card." `ATOM-118.7-001`'s {1}{R}.
@@ -443,19 +437,13 @@ pub fn altars_reap() -> Arc<CardData> {
             ObjectFilter::ByType(CardType::Creature),
             1,
         )]))
-        .ability(AbilityDef {
-            rules_text: "Draw two cards.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Draw two cards.",
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(2)),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }
 
@@ -515,22 +503,17 @@ pub fn krark_clan_ironworks() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 4))
         .card_type(CardType::Artifact)
         .rules_text("Sacrifice an artifact: Add {C}{C}.")
-        .ability(AbilityDef {
-            rules_text: "Sacrifice an artifact: Add {C}{C}.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1)],
-            effect: Effect::Atom(
+        .ability(mana_ability(
+            "Sacrifice an artifact: Add {C}{C}.",
+            vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1)],
+            Effect::Atom(
                 Primitive::ProduceMana(crate::types::effects::ManaOutput {
                     mana: vec![(ManaType::Colorless, AmountExpr::Fixed(2))],
                     special: vec![],
                 }),
                 EffectRecipient::Implicit,
             ),
-        })
+        ))
         .build()
 }
 
@@ -592,23 +575,18 @@ pub fn mind_stone() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
         .mana_ability_single(ManaType::Colorless)
-        .ability(AbilityDef {
-            rules_text: "{1}, {T}, Sacrifice this artifact: Draw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![
+        .ability(activated_ability(
+            "{1}, {T}, Sacrifice this artifact: Draw a card.",
+            vec![
                 Cost::Mana(ManaCost::build(&[], 1)),
                 Cost::TapSelf,
                 Cost::SacrificeSelf,
             ],
-            effect: Effect::Atom(
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }
 
@@ -646,15 +624,9 @@ pub fn bone_splinters() -> Arc<CardData> {
             ObjectFilter::ByType(CardType::Creature),
             1,
         )]))
-        .ability(AbilityDef {
-            rules_text: "Destroy target creature.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Destroy target creature.",
+            Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(
                     crate::types::effects::SelectionFilter::Permanent(ObjectFilter::ByType(
@@ -663,7 +635,7 @@ pub fn bone_splinters() -> Arc<CardData> {
                     crate::types::effects::TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }
 
@@ -700,21 +672,16 @@ pub fn self_eating_engine() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("Sacrifice an artifact, {T}: Draw a card.")
-        .ability(AbilityDef {
-            rules_text: "Sacrifice an artifact, {T}: Draw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![
+        .ability(activated_ability(
+            "Sacrifice an artifact, {T}: Draw a card.",
+            vec![
                 Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1),
                 Cost::TapSelf,
             ],
-            effect: Effect::Atom(
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }

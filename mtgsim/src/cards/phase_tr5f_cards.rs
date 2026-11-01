@@ -12,8 +12,9 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::spell_ability;
 use crate::cards::authoring::{attacks, triggered_ability, whenever};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::history::ObjectFact;
@@ -21,7 +22,6 @@ use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Effect, EffectRecipient, EntersAttacking, ExtraPhasesAfter, ObjectFilter, Primitive, TokenDef,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::TriggerSubject;
 
@@ -118,15 +118,9 @@ pub fn relentless_assault() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![
                 Effect::Atom(Primitive::Untap, EffectRecipient::FilteredPermanents(attacked_this_turn)),
                 Effect::Atom(
                     Primitive::ExtraPhases {
@@ -136,6 +130,6 @@ pub fn relentless_assault() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
             ]),
-        })
+        ))
         .build()
 }

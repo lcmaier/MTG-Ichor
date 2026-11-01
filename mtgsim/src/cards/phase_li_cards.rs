@@ -19,7 +19,8 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::static_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
@@ -27,7 +28,6 @@ use crate::types::effects::{
     PlayerSet, Primitive, SelectionFilter, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// A `TypeChange` that adds and nothing else.
@@ -42,19 +42,6 @@ fn adds(types: &[CardType], subtypes: &[Subtype], supertypes: &[Supertype]) -> T
         add_supertypes: supertypes.to_vec(),
         remove_supertypes: Vec::new(),
         set_supertypes: None,
-    }
-}
-
-fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect,
     }
 }
 
@@ -216,15 +203,9 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
         // `*/*` — the CDA supplies both numbers, in every zone (CR 208.2a).
         .power_toughness(0, 0)
         .rules_text("Ashaya's power and toughness are each equal to the number of lands you control.\nNontoken creatures you control are Forest lands in addition to their other types.")
-        .ability(AbilityDef {
-            rules_text: "Ashaya's power and toughness are each equal to the number of lands you control.".into(),
-            is_characteristic_defining: true,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Ashaya's power and toughness are each equal to the number of lands you control.",
+            Effect::Atom(
                 Primitive::SetPowerToughness(
                     lands_you_control.clone(),
                     lands_you_control,
@@ -232,7 +213,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
                 ),
                 EffectRecipient::ThisObject,
             ),
-        })
+        ).characteristic_defining())
         .ability(static_ability("Nontoken creatures you control are Forest lands in addition to their other types.", Effect::Atom(
             Primitive::ChangeType(
                 adds(&[CardType::Land], &[Subtype::Land(LandType::Forest)], &[]),
@@ -437,6 +418,7 @@ pub fn simian_clause() -> Arc<CardData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::objects::card_data::AbilityType;
 
     /// A sanity check on the lowering of each card: the rows a static ability
     /// registers are what the tests reason about.

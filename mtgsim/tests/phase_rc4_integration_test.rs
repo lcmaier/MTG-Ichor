@@ -34,7 +34,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{RecordingDecisionProvider, 
     creature_with_ability, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game,
-    setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
+    setup_two_player_game, textless_static, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
@@ -93,7 +93,7 @@ fn enter_tapped_when(name: &str, filter: ObjectFilter) -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(filter),
             Rewrite::EnterWith(EnterModsTemplate::tapped()),
@@ -128,7 +128,7 @@ fn anthem_bear() -> Arc<CardData> {
         "Anthem Bear",
         2,
         2,
-        static_ability(Effect::Atom(
+        textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(
                 AmountExpr::Fixed(1),
                 AmountExpr::Fixed(1),
@@ -161,7 +161,7 @@ fn castable_bear(name: &str, color: ManaType) -> CardDataBuilder {
 /// sentence alone, as a black 2/2.
 fn defector() -> Arc<CardData> {
     castable_bear("Defector", ManaType::Black)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterUnderControlOf(PlayerRef::Opponent),
@@ -173,12 +173,12 @@ fn defector() -> Arc<CardData> {
 /// counters", so CR 616.1b has something to be ordered ahead of.
 fn defector_with_counters() -> Arc<CardData> {
     castable_bear("Defector with counters", ManaType::Black)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterUnderControlOf(PlayerRef::Opponent),
         )))))
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 2)),
@@ -192,7 +192,7 @@ fn static_restriction(name: &str, what: Restriction) -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(what)))))
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(what)))))
         .build()
 }
 
@@ -231,7 +231,7 @@ fn every_permanent(name: &str, change: TypeChange) -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeType(change, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::All),
         )))
@@ -821,5 +821,5 @@ fn test_blood_moon_makes_dryad_arbor_a_mountain_dryad() {
     assert!(is_creature(&game, arbor));
     let abilities = get_effective_abilities(&game, arbor);
     assert_eq!(abilities.len(), 1, "CR 305.7: its own abilities are gone, the intrinsic one is here");
-    assert_eq!(abilities[0].ability_type, AbilityType::Mana);
+    assert!(matches!(abilities[0].ability_type, AbilityType::Mana(_)));
 }

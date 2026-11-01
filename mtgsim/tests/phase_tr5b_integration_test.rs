@@ -22,7 +22,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameResult, GameState, StepType};
 use mtgsim::test_support::{
-    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, RecordingDecisionProvider, setup_two_player_game, static_ability, test_ctx,
+    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, RecordingDecisionProvider, setup_two_player_game, textless_static, test_ctx,
     test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
@@ -243,7 +243,7 @@ fn a_stun_counters_own_replacement_is_its_permanents_controllers_removal() {
 fn fixture_static(name: &str, def: ReplacementDef) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(def))))
+        .ability(textless_static(Effect::Replacement(Box::new(def))))
         .build()
 }
 
@@ -252,7 +252,7 @@ fn enters_with_a_counter() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Grower")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
@@ -427,7 +427,7 @@ fn a_creature_entering_with_counters_triggers_its_own_per_counter_arm() {
     let grower = CardDataBuilder::new("Fixture Mage")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
@@ -796,7 +796,7 @@ fn enters_with_x_counters() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Green)]))
         .power_toughness(0, 0)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(CounterType::PlusOnePlusOne, AmountExpr::X)),

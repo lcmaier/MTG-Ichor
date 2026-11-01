@@ -13,14 +13,14 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::static_ability;
 use crate::cards::authoring::{draws_a_card, shuffles_their_library, triggered_ability, whenever, Whose};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
     Primitive, };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit};
 
@@ -126,19 +126,13 @@ pub fn psychosis_crawler() -> Arc<CardData> {
             "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.\n\
              Whenever you draw a card, each opponent loses 1 life.",
         )
-        .ability(AbilityDef {
-            rules_text: "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.",
+            Effect::Atom(
                 Primitive::SetPowerToughness(cards_in_your_hand(), cards_in_your_hand(), Duration::WhileSourceOnBattlefield),
                 EffectRecipient::ThisObject,
             ),
-            is_characteristic_defining: true,
-            activation_restriction: ActivationRestriction::None,
-        })
+        ).characteristic_defining())
         .ability(triggered_ability("Whenever you draw a card, each opponent loses 1 life.", whenever(
             draws_a_card(Whose::Yours),
             Effect::Atom(

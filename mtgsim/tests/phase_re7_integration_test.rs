@@ -17,10 +17,11 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::static_ability;
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::events::cause::{EventCause, GameRule, StateBasedAction};
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::{
@@ -125,19 +126,13 @@ fn mind_control() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "",
+            Effect::Atom(
                 Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
                 EffectRecipient::Host,
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 

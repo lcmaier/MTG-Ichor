@@ -19,7 +19,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     card_of_type, equipment, put_in_graveyard, put_on_battlefield, setup_two_player_game,
-    static_ability, test_dp, vanilla_creature,
+    textless_static, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -36,7 +36,7 @@ fn pt(game: &GameState, id: ObjectId) -> (Option<i32>, Option<i32>) {
 
 /// "Equipped creature has flying", as a static ability a spell could grant.
 fn equipped_creature_has_flying() -> mtgsim::objects::card_data::AbilityDef {
-    static_ability(Effect::Atom(
+    textless_static(Effect::Atom(
         Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
         EffectRecipient::Host,
     ))

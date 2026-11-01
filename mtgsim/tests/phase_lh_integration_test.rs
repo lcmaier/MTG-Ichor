@@ -49,7 +49,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
     let obj = GameObject::new(holy_strength(), controller, Zone::Stack);
     let id = game.add_object(obj);
     game.stack.push(id);
-    let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let enchant = holy_strength().spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let chosen_targets = vec![TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap()];
     game.set_stack_entry(StackEntry {
         object_id: id,
@@ -331,7 +331,7 @@ use mtgsim::engine::targeting::{TargetInstance};
 fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
     get_effective_abilities(game, equipment)
         .iter()
-        .position(|a| a.ability_type == AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("an Equipment with an equip ability")
 }
 
@@ -542,11 +542,11 @@ fn strip_then_grant_equipment() -> std::sync::Arc<mtgsim::objects::card_data::Ca
         .card_type(CardType::Artifact)
         .subtype(Subtype::Artifact(ArtifactType::Equipment))
         .mana_cost(mtgsim::types::mana::ManaCost::build(&[], 1))
-        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+        .ability(mtgsim::test_support::textless_static(Effect::Atom(
             Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
             EffectRecipient::Host,
         )))
-        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+        .ability(mtgsim::test_support::textless_static(Effect::Atom(
             Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
             EffectRecipient::Host,
         )))

@@ -21,7 +21,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::oracle::mana_supply::available_mana_sources;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature};
+use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, textless_static, vanilla_creature};
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use mtgsim::types::effects::{
     CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
@@ -54,7 +54,7 @@ fn taps_for(game: &GameState, player: PlayerId, id: ObjectId) -> Vec<ManaType> {
 fn type_changer(name: &str, card_type: CardType, change: TypeChange, filter: ObjectFilter) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(card_type)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeType(change, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(filter),
         )))
@@ -522,7 +522,7 @@ fn test_dependencies_are_re_evaluated_after_each_application() {
 #[test]
 fn test_a_cda_and_a_non_cda_in_one_layer_are_independent() {
     // "This creature is an Elf" as a CDA (CR 604.3a: subtypes qualify).
-    let mut is_an_elf = static_ability(Effect::Atom(
+    let mut is_an_elf = textless_static(Effect::Atom(
         Primitive::ChangeType(
             TypeChange { set_subtypes: Some(Subtypes::from([Subtype::Creature(CreatureType::Elf)])), ..no_change() },
             Duration::WhileSourceOnBattlefield,
@@ -683,7 +683,7 @@ fn test_the_hierophants_grant_waits_for_humility_whatever_the_timestamps() {
 /// the way the cards build theirs is a static ability the registry lowers.
 #[test]
 fn test_fixture_abilities_are_static() {
-    let def: AbilityDef = static_ability(Effect::Atom(
+    let def: AbilityDef = textless_static(Effect::Atom(
         Primitive::ChangeType(no_change(), Duration::WhileSourceOnBattlefield),
         EffectRecipient::ThisObject,
     ));

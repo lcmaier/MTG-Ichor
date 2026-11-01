@@ -16,6 +16,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{
     another, dies, enters, is_sacrificed, triggered_ability, when_you_do, when_you_dont, whenever,
 };
@@ -30,11 +31,12 @@ use mtgsim::cards::phase_tr3c_cards::cornered_crook;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::legality::damage_sources;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    card_of_type, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
+    card_of_type, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp, textless_spell,
+    textless_static,
     vanilla_creature, RecordingDecisionProvider,
     effect_ctx,
 };
@@ -45,7 +47,7 @@ use mtgsim::types::effects::{
     AmountExpr, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, Pick, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
@@ -459,16 +461,11 @@ fn marrowgnaw_ghoul() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Sacrifice(another(ObjectFilter::ByType(CardType::Creature)), 1)],
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(activated_ability(
+            text,
+            vec![Cost::Sacrifice(another(ObjectFilter::ByType(CardType::Creature)), 1)],
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        ))
         .build()
 }
 
@@ -570,16 +567,11 @@ fn spitefang_manticore() -> Arc<CardData> {
 fn bonegrinder_altar() -> Arc<CardData> {
     CardDataBuilder::new("Bonegrinder Altar")
         .card_type(CardType::Artifact)
-        .ability(AbilityDef {
-            rules_text: "Sacrifice a creature: You gain 1 life.".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(activated_ability(
+            "Sacrifice a creature: You gain 1 life.",
+            vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+        ))
         .build()
 }
 
@@ -587,7 +579,7 @@ fn bonegrinder_altar() -> Arc<CardData> {
 fn venomweave_charm() -> Arc<CardData> {
     CardDataBuilder::new("Venomweave Charm")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantKeywordFlag(KeywordFlag::Deathtouch, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -607,7 +599,7 @@ fn withheld_tithe() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
         .card_type(CardType::Instant)
-        .ability(spell_ability(may_sacrifice_then(
+        .ability(textless_spell(may_sacrifice_then(
             ObjectFilter::ByType(CardType::Creature),
             when_you_dont(you_sacrifice(), lose_2, "When you don't, you lose 2 life."),
         )))
@@ -628,7 +620,7 @@ fn bloodtithe_rite() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
         .card_type(CardType::Instant)
-        .ability(spell_ability(Effect::Sequence(vec![
+        .ability(textless_spell(Effect::Sequence(vec![
             sacrifice_now(Pick::exactly(2, ObjectFilter::ByType(CardType::Creature))),
             create(when_you_do(each, gain_1, "When a creature is sacrificed this way, you gain 1 life.")),
             create(when_you_do(one_or_more, draw, "When one or more creatures are sacrificed this way, draw a card.")),
@@ -648,7 +640,7 @@ fn twofold_tithe() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 0))
         .color(Color::Black)
         .card_type(CardType::Instant)
-        .ability(spell_ability(Effect::Sequence(vec![
+        .ability(textless_spell(Effect::Sequence(vec![
             sacrifice_now(Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))),
             may_sacrifice_then(
                 ObjectFilter::ByType(CardType::Creature),
@@ -678,19 +670,14 @@ fn firstlight_lantern() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Mana(ManaCost::build(&[], 1))],
-            effect: Effect::Sequence(vec![
+        .ability(activated_ability(
+            text,
+            vec![Cost::Mana(ManaCost::build(&[], 1))],
+            Effect::Sequence(vec![
                 Effect::Optional { chooser: PlayerRef::You, effect: Box::new(gain_1) },
                 create(first_time),
             ]),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        ))
         .build()
 }
 
@@ -703,19 +690,6 @@ fn light(game: &mut GameState, lantern: ObjectId) -> usize {
     let waiting = game.pending_triggers.len();
     resolve_all(game, &test_dp());
     waiting
-}
-
-fn spell_ability(effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
-        effect,
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
 }
 
 /// Empty `player`'s pool, fill it with exactly `pool`, and cast `card` from

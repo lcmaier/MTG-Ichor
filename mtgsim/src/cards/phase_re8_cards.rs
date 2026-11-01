@@ -45,10 +45,10 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, static_replacement};
+use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::effects::{
     ObjectSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerRef,
@@ -64,19 +64,13 @@ use crate::types::zones::{Zone, ZoneChangeAct, ZoneSet, ZoneChangePattern};
 /// A spell whose whole text is "target player discards N cards", differing
 /// only in who picks (CR 701.9b).
 fn target_player_discards(rules_text: &'static str, n: u64, chooser: DiscardChooser) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
-        effect: Effect::Atom(
+    spell_ability(
+        rules_text,
+        Effect::Atom(
             Primitive::Discard(AmountExpr::Fixed(n), chooser),
             EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
         ),
-    }
+    )
 }
 
 /// Mind Rot — {2}{B}
@@ -180,34 +174,26 @@ pub fn nephalia_academy() -> Arc<CardData> {
         .rules_text(
             "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.\n{T}: Add {C}.",
         )
-        .ability(AbilityDef {
-            rules_text: "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(
-                ReplacementDef::new(
-                    EventPattern::ZoneChange {
-                        // "instead of putting it **anywhere else**" — the
-                        // destination is not asked about, only the departure
-                        // and the act.
-                        change: ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) },
-                        object: None,
-                    },
-                    // "causes **you** to discard a card": the cards in this
-                    // permanent's controller's hand. Ownership rather than
-                    // control, because a card in a hand has no controller and
-                    // CR 400.3 sends a discard to its owner's graveyard.
-                    ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::HAND),
-                    Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
-                )
-                .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent))
-                .optional(),
-            )),
-        })
+        .ability(static_replacement(
+            "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.",
+            ReplacementDef::new(
+                EventPattern::ZoneChange {
+                    // "instead of putting it **anywhere else**" — the
+                    // destination is not asked about, only the departure
+                    // and the act.
+                    change: ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) },
+                    object: None,
+                },
+                // "causes **you** to discard a card": the cards in this
+                // permanent's controller's hand. Ownership rather than
+                // control, because a card in a hand has no controller and
+                // CR 400.3 sends a discard to its owner's graveyard.
+                ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::HAND),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
+            )
+            .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent))
+            .optional(),
+        ))
         .mana_ability_single(ManaType::Colorless)
         .build()
 }
@@ -241,32 +227,20 @@ pub fn opt() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .rules_text("Scry 1.\nDraw a card.")
-        .ability(AbilityDef {
-            rules_text: "Scry 1.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Scry 1.",
+            Effect::Atom(
                 Primitive::Scry(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
             ),
-        })
-        .ability(AbilityDef {
-            rules_text: "Draw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        ))
+        .ability(spell_ability(
+            "Draw a card.",
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }
 
@@ -314,27 +288,19 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
         .power_toughness(5, 6)
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying\nIf you would scry a number of cards, draw that many cards instead.\nPartner")
-        .ability(AbilityDef {
-            rules_text: "If you would scry a number of cards, draw that many cards instead.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(
-                ReplacementDef::new(
-                    EventPattern::Scry,
-                    PlayerSet::You,
-                    Rewrite::Instead(GameActionTemplate::DrawCards {
-                        // "that many" — CR 615.5's amount, read off the scry.
-                        n: TemplateAmount::ReplacedAmount,
-                        // "draw" with no player named: the scrying player is
-                        // the one who draws.
-                        player: None,
-                    }),
-                ),
-            )),
-        })
+        .ability(static_replacement(
+            "If you would scry a number of cards, draw that many cards instead.",
+            ReplacementDef::new(
+                EventPattern::Scry,
+                PlayerSet::You,
+                Rewrite::Instead(GameActionTemplate::DrawCards {
+                    // "that many" — CR 615.5's amount, read off the scry.
+                    n: TemplateAmount::ReplacedAmount,
+                    // "draw" with no player named: the scrying player is
+                    // the one who draws.
+                    player: None,
+                }),
+            ),
+        ))
         .build()
 }

@@ -241,7 +241,7 @@ impl ManaSupply {
             for ability in abilities.iter() {
                 match mana_ability_cost_of(ability) {
                     ManaAbilityCost::SpendsItsTapOrItself { taps, sacrifices } => {
-                        if game.can_pay_costs(&ability.costs, player, id).is_err() {
+                        if game.can_pay_costs(ability.costs(), player, id).is_err() {
                             continue;
                         }
                         let Some(base) = mana_production_of(game, &ability.effect, id, player) else { continue };
@@ -497,7 +497,7 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
     let mut sources = Vec::new();
     for (id, abilities) in controlled_mana_abilities(game, player_id) {
         for ability in abilities.iter() {
-            if game.can_pay_costs(&ability.costs, player_id, id).is_err() {
+            if game.can_pay_costs(ability.costs(), player_id, id).is_err() {
                 continue;
             }
             for produces in mana_types_made(game, &watchers, ability, id, player_id) {
@@ -591,7 +591,7 @@ impl ManaAbilityWindowOffer {
                 if !seen.insert((permanent, ability.id.definition())) {
                     continue;
                 }
-                let paid = match ability.costs.as_slice() {
+                let paid = match ability.costs() {
                     [Cost::TapSelf] => CostRecheck::WhileUntapped { sick: has_summoning_sickness(game, permanent) },
                     costs => CostRecheck::Costs(costs.to_vec()),
                 };
@@ -721,7 +721,7 @@ enum ManaAbilityCost<'a> {
 
 fn mana_ability_cost_of(ability: &AbilityDef) -> ManaAbilityCost<'_> {
     let (mut taps, mut sacrifices, mut sacrifice, mut mana, mut other) = (false, false, None, None, false);
-    for cost in &ability.costs {
+    for cost in ability.costs() {
         match cost {
             Cost::TapSelf => taps = true,
             Cost::SacrificeSelf => sacrifices = true,
@@ -760,7 +760,7 @@ struct ManaAbilities(Arc<Vec<AbilityDef>>);
 
 impl ManaAbilities {
     fn iter(&self) -> impl Iterator<Item = &AbilityDef> {
-        self.0.iter().filter(|ability| ability.ability_type == AbilityType::Mana)
+        self.0.iter().filter(|ability| matches!(ability.ability_type, AbilityType::Mana(_)))
     }
 }
 
@@ -1369,6 +1369,7 @@ fn views(ways: &[ManaBag], asked: ManaTypes) -> Vec<ManaBag> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::mana_ability;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
@@ -1385,7 +1386,7 @@ mod tests {
     use crate::cards::phase_rc_cards::chainbreaker;
     use crate::cards::phase_re9_cards::{deep_water, doubling_cube, mana_reflection, pale_moon};
     use crate::cards::phase_tr1_cards::wild_growth;
-    use crate::objects::card_data::{ActivationRestriction, CardData, CardDataBuilder};
+    use crate::objects::card_data::{CardData, CardDataBuilder};
     use crate::test_support::{put_on_battlefield, put_on_battlefield_this_turn, setup_two_player_game, test_dp};
     use crate::types::card_types::CardType;
     use crate::types::effects::ManaOutput;
@@ -1407,8 +1408,8 @@ mod tests {
     /// payment takes.
     fn other_costs(game: &GameState, id: ObjectId) -> Vec<Cost> {
         let abilities = get_effective_abilities(game, id);
-        let ability = abilities.iter().find(|a| a.ability_type == AbilityType::Activated).unwrap();
-        ability.costs.iter().filter(|c| !matches!(c, Cost::Mana(_))).cloned().collect()
+        let ability = abilities.iter().find(|a| matches!(a.ability_type, AbilityType::Activated(_))).unwrap();
+        ability.costs().iter().filter(|c| !matches!(c, Cost::Mana(_))).cloned().collect()
     }
 
     /// One Everywhere is one mana of any color, not five sources: SU-7's
@@ -1529,19 +1530,14 @@ mod tests {
     fn an_outlet_that_is_not_its_own_fodder_counts_only_its_fodder() {
         let altar = CardDataBuilder::new("Ashnod's Altar")
             .card_type(CardType::Artifact)
-            .ability(AbilityDef {
-                rules_text: "Sacrifice a creature: Add {C}{C}.".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
-                effect: Effect::Atom(
+            .ability(mana_ability(
+                "Sacrifice a creature: Add {C}{C}.",
+                vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
+                Effect::Atom(
                     Primitive::ProduceMana(ManaOutput { mana: vec![(Colorless, AmountExpr::Fixed(2))], special: vec![] }),
                     EffectRecipient::Implicit,
                 ),
-            })
+            ))
             .build();
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, altar, 0);
@@ -1686,16 +1682,11 @@ mod tests {
     fn land_making(name: &str, output: ManaOutput) -> Arc<CardData> {
         CardDataBuilder::new(name)
             .card_type(CardType::Land)
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::TapSelf],
-                effect: Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
-            })
+            .ability(mana_ability(
+                "",
+                vec![Cost::TapSelf],
+                Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
+            ))
             .build()
     }
 
@@ -1728,22 +1719,17 @@ mod tests {
         let morgue_toad = CardDataBuilder::new("Morgue Toad")
             .card_type(CardType::Creature)
             .power_toughness(2, 2)
-            .ability(AbilityDef {
-                rules_text: "Sacrifice this creature: Add {U}{R}.".into(),
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-                id: AbilityId::UNASSIGNED,
-                instances: Vec::new(),
-                ability_type: AbilityType::Mana,
-                costs: vec![Cost::SacrificeSelf],
-                effect: Effect::Atom(
+            .ability(mana_ability(
+                "Sacrifice this creature: Add {U}{R}.",
+                vec![Cost::SacrificeSelf],
+                Effect::Atom(
                     Primitive::ProduceMana(ManaOutput {
                         mana: vec![(Blue, AmountExpr::Fixed(1)), (Red, AmountExpr::Fixed(1))],
                         special: Vec::new(),
                     }),
                     EffectRecipient::Implicit,
                 ),
-            })
+            ))
             .build();
         let mut game = setup_two_player_game();
         let land = put_on_battlefield(&mut game, forest(), 0);
@@ -1900,7 +1886,7 @@ mod tests {
         for game in &boards {
             let watchers = mana_production_watchers(game);
             for id in permanents_controlled_by(game, 0) {
-                for ability in get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana) {
+                for ability in get_effective_abilities(game, id).iter().filter(|a| matches!(a.ability_type, AbilityType::Mana(_))) {
                     let taps = match mana_ability_cost_of(ability) {
                         ManaAbilityCost::SpendsItsTapOrItself { taps, .. } => taps,
                         ManaAbilityCost::SacrificesOthers { .. } => false,

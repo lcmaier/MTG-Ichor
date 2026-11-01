@@ -22,6 +22,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
@@ -36,7 +37,7 @@ use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::layers::types::{EffectModification, Layer, PtValue};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_controller, get_effective_name, get_effective_power,
@@ -45,7 +46,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, place_bare, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game,
-    static_ability, vanilla_creature,
+    textless_static, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::colors::Color;
@@ -247,7 +248,7 @@ fn creatures_you_control() -> ObjectFilter {
 }
 
 fn replacement(pattern: EventPattern, affected: ObjectSet, rewrite: Rewrite) -> AbilityDef {
-    static_ability(Effect::Replacement(Box::new(ReplacementDef::new(pattern, affected, rewrite))))
+    textless_static(Effect::Replacement(Box::new(ReplacementDef::new(pattern, affected, rewrite))))
 }
 
 /// "This creature enters with ..." or "enters tapped", on the creature itself.
@@ -338,7 +339,7 @@ fn worms_of_the_earth() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .color(Color::Black)
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Black], 2))
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::ZoneChange { change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None }, object: None },
             affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Land))),
             by: None,
@@ -353,7 +354,7 @@ fn anthem_bear() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 2))
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(creatures_you_control()),
         )))
@@ -378,16 +379,10 @@ fn idle_thought() -> Arc<CardData> {
     CardDataBuilder::new("Idle Thought")
         .card_type(CardType::Instant)
         .mana_cost(ManaCost::build(&[], 0))
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(Vec::new()),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(spell_ability(
+            "",
+            Effect::Sequence(Vec::new()),
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -477,16 +472,11 @@ fn a_clone_copies_no_counters_status_or_noncopy_effects() {
 #[test]
 fn a_clone_of_an_animated_artifact_is_that_artifact() {
     let mut game = setup_two_player_game();
-    let staff_ability = AbilityDef {
-        rules_text: "".into(),
-        id: new_ability_id(),
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: vec![mtgsim::types::costs::Cost::Mana(ManaCost::from_symbols(vec![ManaSymbol::X]))],
-        effect: Effect::Sequence(Vec::new()),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    let staff_ability = activated_ability(
+        "",
+        vec![mtgsim::types::costs::Cost::Mana(ManaCost::from_symbols(vec![ManaSymbol::X]))],
+        Effect::Sequence(Vec::new()),
+    ).with_id(new_ability_id());
     let staff_card = CardDataBuilder::new("Chimeric Staff")
         .card_type(CardType::Artifact)
         .mana_cost(ManaCost::build(&[], 4))
@@ -941,7 +931,7 @@ fn a_clone_of_citanul_hierophants_grants_the_mana_ability() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let mana_abilities = |game: &GameState, id| {
-        get_effective_abilities(game, id).iter().filter(|a| a.ability_type == AbilityType::Mana).count()
+        get_effective_abilities(game, id).iter().filter(|a| matches!(a.ability_type, AbilityType::Mana(_))).count()
     };
     assert_eq!(mana_abilities(&game, bears), 0);
 

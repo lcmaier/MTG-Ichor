@@ -40,7 +40,8 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::spell_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
@@ -48,7 +49,6 @@ use crate::types::effects::{
     SelectionFilter,
     TargetCount,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Battlegrowth — {G}
@@ -106,15 +106,9 @@ pub fn battlegrowth() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .rules_text("Put a +1/+1 counter on target creature.")
-        .ability(AbilityDef {
-            rules_text: "Put a +1/+1 counter on target creature.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Put a +1/+1 counter on target creature.",
+            Effect::Atom(
                 Primitive::AddCounters {
                     counter: CounterType::PlusOnePlusOne,
                     amount: AmountExpr::Fixed(1),
@@ -125,6 +119,6 @@ pub fn battlegrowth() -> Arc<CardData> {
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }

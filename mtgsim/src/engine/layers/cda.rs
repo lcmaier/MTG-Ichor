@@ -231,6 +231,7 @@ fn atoms(ability: &AbilityDef) -> Vec<(&Primitive, &EffectRecipient)> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cards::authoring::static_ability;
     use super::*;
     use crate::engine::layers::compute_characteristics;
     use crate::state::game_state::GameState;
@@ -251,16 +252,10 @@ mod tests {
 
     /// A CDA-flagged static ability carrying one atom about the object itself.
     fn cda(primitive: Primitive) -> AbilityDef {
-        AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(primitive, EffectRecipient::ThisObject),
-            is_characteristic_defining: true,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        }
+        static_ability(
+            "",
+            Effect::Atom(primitive, EffectRecipient::ThisObject),
+        ).with_id(new_ability_id()).characteristic_defining()
     }
 
     /// "This card is colorless" on a card whose mana cost is colored — CR

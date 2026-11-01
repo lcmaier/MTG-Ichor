@@ -11,8 +11,10 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::activated_ability;
+use crate::cards::authoring::static_replacement;
 use crate::cards::authoring::{at_beginning_of, counters_put_on, counters_removed_from, triggered_ability, whenever, Whose};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -22,24 +24,9 @@ use crate::types::effects::{
     SelectionFilter, TargetCount,
 };
 use crate::types::history::CountIs;
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerCondition, TriggerDef, TriggerSubject};
-
-/// A static ability carrying one replacement effect.
-fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect: Effect::Replacement(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
-}
 
 fn a_creature_you_control() -> ObjectFilter {
     ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
@@ -103,19 +90,14 @@ pub fn simic_ascendancy() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .rules_text(&format!("{activated_text}\n{growth_text}\n{win_text}"))
-        .ability(AbilityDef {
-            rules_text: activated_text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Blue], 1))],
-            effect: Effect::Atom(
+        .ability(activated_ability(
+            activated_text,
+            vec![Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Blue], 1))],
+            Effect::Atom(
                 Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
                 EffectRecipient::Target(SelectionFilter::Permanent(a_creature_you_control()), TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .ability(triggered_ability(
             growth_text,
             whenever(counters_put_on(a_creature_you_control(), CounterType::PlusOnePlusOne).once_per_object(), growth),

@@ -21,6 +21,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{spell_ability, static_replacement};
 use mtgsim::cards::phase_re8_cards::{
     eligeth_crossroads_augur, hymn_to_tourach, mind_rot, nephalia_academy, opt,
 };
@@ -29,7 +30,7 @@ use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{EventRecord, GameEvent};
 use mtgsim::objects::card_data::{
-    AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
+    CardData, CardDataBuilder,
 };
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
@@ -78,22 +79,16 @@ fn blank(name: &str) -> Arc<CardData> {
 /// (`engineering-practices.md#cards-and-pools`).
 fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
     CardDataBuilder::new(name)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "",
+            Effect::Atom(
                 primitive,
                 EffectRecipient::Target(
                     mtgsim::types::effects::SelectionFilter::Player,
                     mtgsim::types::effects::TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -101,19 +96,13 @@ fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
 /// one target player — CR 608.2c's "A, then B".
 fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
     CardDataBuilder::new(name)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
+        .ability(spell_ability(
+            "",
             // "**Target** player draws a card, then discards a card" — one
             // instance of "target" and several instructions (CR 115.3), which
             // is the shape Notion Thief's ruling is about. The first atom
             // declares the instance; the rest refer back.
-            effect: Effect::Sequence(
+            Effect::Sequence(
                 primitives
                     .into_iter()
                     .enumerate()
@@ -130,7 +119,7 @@ fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
                     })
                     .collect(),
             ),
-        })
+        ).with_id(new_ability_id()))
         .build()
 }
 
@@ -688,22 +677,14 @@ fn test_a_scry_with_cards_to_spare_looked_at_all_of_them() {
 fn scry_plus_one() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Scry Doubler")
         .card_type(CardType::Enchantment)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(
-                ReplacementDef::new(
-                    EventPattern::Scry,
-                    PlayerSet::You,
-                    Rewrite::Amount(AmountRewrite::Plus(1)),
-                ),
-            )),
-        })
+        .ability(static_replacement(
+            "",
+            ReplacementDef::new(
+                EventPattern::Scry,
+                PlayerSet::You,
+                Rewrite::Amount(AmountRewrite::Plus(1)),
+            ),
+        ).with_id(new_ability_id()))
         .build()
 }
 

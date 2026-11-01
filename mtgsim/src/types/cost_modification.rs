@@ -22,9 +22,8 @@
 //! `#[non_exhaustive]`: an arm the pipeline cannot apply is a card that
 //! silently does nothing (`CLAUDE.md`, the growth contracts).
 
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::types::effects::{AmountExpr, Condition, Effect, ObjectFilter};
-use crate::types::ids::AbilityId;
 use crate::types::mana::ManaCost;
 
 /// One cost-modifying effect: what it applies to, and what it does.
@@ -66,19 +65,14 @@ impl CostModificationDef {
 
     fn into_ability_body(self, rules_text: &'static str, condition: Option<Condition>) -> AbilityDef {
         let body = Effect::CostModification(Box::new(self));
-        AbilityDef {
-            rules_text: rules_text.into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: match condition {
+        AbilityDef::new(
+            AbilityType::Static,
+            rules_text,
+            match condition {
                 Some(condition) => Effect::Conditional(condition, Box::new(body)),
                 None => body,
             },
-            activation_restriction: ActivationRestriction::None,
-            is_characteristic_defining: false,
-        }
+        )
     }
 }
 

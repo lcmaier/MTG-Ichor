@@ -34,7 +34,7 @@ use mtgsim::oracle::mana_helpers::castable_spells;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     place_forest, put_in_hand, put_on_battlefield, registered, setup_two_player_game,
-    static_ability, test_ctx, vanilla_creature, RecordingDecisionProvider,
+    textless_static, test_ctx, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::cost_modification::{CostChange, CostModificationDef};
@@ -390,7 +390,7 @@ fn test_a_granted_cost_effect_is_found_through_the_registry_summary() {
     let board = || {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-        let tax = static_ability(Effect::CostModification(Box::new(CostModificationDef::spells(
+        let tax = textless_static(Effect::CostModification(Box::new(CostModificationDef::spells(
             ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature))),
             CostChange::Increase(ManaCost::build(&[], 1)),
         ))));

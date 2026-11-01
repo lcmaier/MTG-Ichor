@@ -17,7 +17,7 @@ use mtgsim::events::cause::StateBasedAction;
 use mtgsim::state::game_state::{GameResult, StepType};
 use mtgsim::test_support::{
     card_of_type, put_in_graveyard, put_on_battlefield, put_on_battlefield_under, setup_game, setup_two_player_game,
-    static_ability, test_ctx, test_dp,
+    textless_static, test_ctx, test_dp,
 };
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::effects::{
@@ -271,7 +271,7 @@ fn an_opponent_gains_control_asks_nothing_with_one_opponent() {
 fn rule_does_not_apply(name: &str, rule: RuleAction, affected: AffectedSet) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::RuleDoesNotApply {
+        .ability(textless_static(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::RuleDoesNotApply {
             rule,
             affected,
         })))))

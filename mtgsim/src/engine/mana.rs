@@ -38,9 +38,9 @@ impl GameState {
         let ability = crate::oracle::characteristics::effective_ability(self, permanent_id, ability_id)
             .ok_or_else(|| format!("Ability {} not found on permanent {}", ability_id, permanent_id))?;
 
-        if ability.ability_type != AbilityType::Mana {
+        let AbilityType::Mana(activation) = &ability.ability_type else {
             return Err("This is not a mana ability".to_string());
-        }
+        };
 
         if !self.battlefield.contains_key(&permanent_id) {
             return Err(format!("Permanent {} not on battlefield", permanent_id));
@@ -57,7 +57,7 @@ impl GameState {
         let paying = ActionContext::paying_cost(dp, player_id, permanent_id);
         let source = self.object_ref(permanent_id).ok_or_else(|| format!("Permanent {permanent_id} is in no zone"))?;
         let from = self.get_object(permanent_id)?.zone;
-        let plan = self.plan_payment(&ability.costs, player_id, permanent_id, &paying)?;
+        let plan = self.plan_payment(&activation.costs, player_id, permanent_id, &paying)?;
         self.pay_costs(&plan, player_id, permanent_id, &paying)?;
 
         // CR 605.3a: activated, and announced as it is, before it resolves
@@ -71,7 +71,7 @@ impl GameState {
         // ability of that permanent that includes the {T} symbol in its
         // activation cost" — the ability's costs, read here where the
         // effective ability is in hand, and never the payment plan.
-        let tapped_for_mana = ability.costs.iter().any(|c| matches!(c, Cost::TapSelf));
+        let tapped_for_mana = activation.costs.iter().any(|c| matches!(c, Cost::TapSelf));
 
         // Resolve effect immediately (mana abilities don't use the stack)
         let producer = ManaProducer { id: permanent_id, tapped_for_mana, lki: moved.as_ref() };

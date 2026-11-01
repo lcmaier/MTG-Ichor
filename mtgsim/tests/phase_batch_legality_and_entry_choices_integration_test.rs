@@ -14,7 +14,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_on_battlefield, put_on_battlefield_under, setup_game, setup_two_player_game,
-    static_ability, test_ctx, test_dp, vanilla_creature,
+    textless_static, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::costs::Cost;
 use mtgsim::types::card_types::CardType;
@@ -78,7 +78,7 @@ fn devourer(name: &str, per: PerChosen) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(static_ability(devour(per)))
+        .ability(textless_static(devour(per)))
         .build()
 }
 
@@ -94,11 +94,11 @@ fn reanimate_devouring(game: &mut GameState, entering: ObjectId, chooser: Player
 
 /// "Creatures have devour `n`", a Layer 6 grant.
 fn grants_devour_to_creatures(n: u32) -> Arc<CardData> {
-    let mut granted = static_ability(devour(PerChosen::Fixed(n)));
+    let mut granted = textless_static(devour(PerChosen::Fixed(n)));
     granted.id = new_ability_id();
     CardDataBuilder::new("Fixture Devour Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))
@@ -109,7 +109,7 @@ fn grants_devour_to_creatures(n: u32) -> Arc<CardData> {
 /// with flying and devour 2".
 fn devouring_dragon_token() -> TokenDef {
     let mut token = soldier_token();
-    token.abilities.push(static_ability(devour(PerChosen::Fixed(2))));
+    token.abilities.push(textless_static(devour(PerChosen::Fixed(2))));
     token.rules_text = "Devour 2".into();
     token
 }
@@ -129,7 +129,7 @@ fn gains_when_creatures_die() -> Arc<CardData> {
 fn doubles_your_plus_one_counters() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Counter Doubler")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -277,7 +277,7 @@ fn shock_replacement() -> Effect {
 }
 
 fn shockland() -> Arc<CardData> {
-    CardDataBuilder::new("Fixture Shock Land").card_type(CardType::Land).ability(static_ability(shock_replacement())).build()
+    CardDataBuilder::new("Fixture Shock Land").card_type(CardType::Land).ability(textless_static(shock_replacement())).build()
 }
 
 /// A land token with the shockland's replacement, so two can enter at once
@@ -290,7 +290,7 @@ fn shockland_token() -> TokenDef {
     token.subtypes = Vec::new();
     token.power = None;
     token.toughness = None;
-    token.abilities = vec![static_ability(shock_replacement())];
+    token.abilities = vec![textless_static(shock_replacement())];
     token.rules_text = "As this land enters, you may pay 2 life. If you don't, it enters tapped.".into();
     token
 }
@@ -393,7 +393,7 @@ fn two_shocklands_entering_together_cannot_both_be_paid_for_at_three_life() {
 /// instead", printed after the choice, so the choice applies first.
 fn vanishing_shockland_token() -> TokenDef {
     let mut token = shockland_token();
-    token.abilities.push(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+    token.abilities.push(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
         EventPattern::EnterBattlefield { cast: None },
         ObjectSet::SourceOnly,
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
@@ -457,7 +457,7 @@ fn tribute_beast() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Tribute Beast")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate {

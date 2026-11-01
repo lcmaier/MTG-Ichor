@@ -394,7 +394,7 @@ fn produced_mana_types(
 
     let mut out: Vec<ManaType> = get_effective_abilities(game, id)
         .iter()
-        .filter(|a| a.ability_type == AbilityType::Mana)
+        .filter(|a| matches!(a.ability_type, AbilityType::Mana(_)))
         .filter_map(|a| match &a.effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
                 output.mana.first().map(|(mt, _)| *mt)

@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, static_ability};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Cerulean Wisps — {U}
@@ -23,35 +23,23 @@ pub fn cerulean_wisps() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .rules_text("Target creature becomes blue until end of turn. Untap that creature.\nDraw a card.")
-        .ability(AbilityDef {
-            rules_text: "Target creature becomes blue until end of turn. Untap that creature.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Target creature becomes blue until end of turn. Untap that creature.",
+            Effect::Atom(
                 Primitive::ChangeColor(
                     ColorChange::Set(blue_set),
                     Duration::UntilEndOfTurn,
                 ),
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
-        .ability(AbilityDef {
-            rules_text: "Draw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        ))
+        .ability(spell_ability(
+            "Draw a card.",
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }
 
@@ -65,22 +53,16 @@ pub fn moonlace() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .rules_text("Target spell or permanent becomes colorless.")
-        .ability(AbilityDef {
-            rules_text: "Target spell or permanent becomes colorless.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Target spell or permanent becomes colorless.",
+            Effect::Atom(
                 Primitive::ChangeColor(
                     ColorChange::RemoveAll,
                     Duration::UntilEndOfTurn,
                 ),
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -99,15 +81,9 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Instant)
         .rules_text("Target creature becomes red and gains haste until end of turn.\nDraw a card.")
-        .ability(AbilityDef {
-            rules_text: "Target creature becomes red and gains haste until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "Target creature becomes red and gains haste until end of turn.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
@@ -122,20 +98,14 @@ pub fn crimson_wisps() -> Arc<CardData> {
                     EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
-        })
-        .ability(AbilityDef {
-            rules_text: "Draw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        ))
+        .ability(spell_ability(
+            "Draw a card.",
+            Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
             ),
-        })
+        ))
         .build()
 }
 
@@ -148,15 +118,9 @@ pub fn chromatic_ward() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 1))
         .color(Color::Red)
         .card_type(CardType::Enchantment)
-        .ability(AbilityDef {
-            rules_text: "Creatures you control are red in addition to their other colors.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Creatures you control are red in addition to their other colors.",
+            Effect::Atom(
                 Primitive::ChangeColor(
                     ColorChange::Add(Color::Red),
                     Duration::WhileSourceOnBattlefield,
@@ -166,6 +130,6 @@ pub fn chromatic_ward() -> Arc<CardData> {
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             ),
-        })
+        ))
         .build()
 }

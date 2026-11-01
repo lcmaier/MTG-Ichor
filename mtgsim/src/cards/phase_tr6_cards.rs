@@ -13,14 +13,14 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::spell_ability;
 use crate::cards::authoring::triggered_ability;
 use crate::cards::phase_re_cards::soldier_token;
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     ObjectSet, AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet, Primitive, };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
 
@@ -146,15 +146,9 @@ fn spell(name: &str, text: &'static str, effect: Effect) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
+        .ability(spell_ability(
+            text,
             effect,
-        })
+        ))
         .build()
 }

@@ -50,10 +50,11 @@ pub struct CardData {
     /// the castability pre-check, the announcement and CR 608.2b's re-check
     /// all read this, so all three see `enchant_filter`.
     ///
-    /// Written by `CardDataBuilder::build` and nothing else. A `CardData` is
-    /// built once and shared behind an `Arc`, so this is computed once per card
-    /// rather than once per card in hand per priority pass.
-    pub spell_instances: Vec<EffectRecipient>,
+    /// Written by `CardDataBuilder::build` and nothing else, which its
+    /// privacy keeps true. A `CardData` is built once and shared behind an
+    /// `Arc`, so this is computed once per card rather than once per card in
+    /// hand per priority pass.
+    spell_instances: Vec<EffectRecipient>,
     /// Alternative costs this card can be cast for (rule 118.9).
     /// A player may choose at most one when casting.
     pub alternative_costs: Vec<AlternativeCost>,
@@ -65,29 +66,72 @@ pub struct CardData {
     pub x_cant_be_zero: bool,
 }
 
-/// The type of an ability
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+impl CardData {
+    /// CR 601.2c's instances of "target" for this card cast as a spell, in
+    /// printed order: its spell abilities', or an Aura's enchant ability
+    /// (CR 303.4a).
+    pub fn spell_instances(&self) -> &[EffectRecipient] {
+        &self.spell_instances
+    }
+}
+
+/// The kind of an ability (CR 113.3, 605.1a). The two activated kinds carry
+/// what an activation says besides its effect, and no other kind can.
+#[derive(Debug, Clone, PartialEq)]
 pub enum AbilityType {
-    /// Mana abilities (special — don't use the stack)
-    Mana,
-    /// Activated abilities (cost: effect)
-    Activated,
-    /// Triggered abilities (when/whenever/at)
+    /// An activated mana ability (CR 605.1a), which doesn't use the stack.
+    Mana(Activation),
+    /// An activated ability (CR 113.3b).
+    Activated(Activation),
+    /// A triggered ability (when/whenever/at)
     Triggered,
-    /// Static abilities (continuous effect)
+    /// A static ability (continuous effect)
     Static,
-    /// Spell ability (the effect of an instant/sorcery)
+    /// A spell ability (the effect of an instant/sorcery)
     Spell,
+}
+
+/// What an activated ability's text says besides its effect: "[Cost]:
+/// [Effect.] [Activation instructions (if any).]" (CR 602.1). A mana ability
+/// is an activated ability (CR 605.1a), so CR 602.5's restrictions reach it
+/// as they reach any other. `permission-design` grows what this holds
+/// (`permission-architecture.md#3-what-it-must-express-at-v1`): who may
+/// activate, and every restriction a card prints beside its timing.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Activation {
+    /// The activation cost, everything before the colon (CR 602.1a).
+    pub costs: Vec<Cost>,
+    /// When it may be activated beyond having priority (CR 602.5).
+    pub restriction: ActivationRestriction,
+}
+
+impl Activation {
+    /// `costs`, activated at any time its controller has priority.
+    pub fn new(costs: Vec<Cost>) -> Activation {
+        Activation { costs, restriction: ActivationRestriction::None }
+    }
+
+    /// This activation, only as a sorcery (CR 602.5d).
+    pub fn only_as_sorcery(self) -> Activation {
+        Activation { restriction: ActivationRestriction::OnlyAsSorcery, ..self }
+    }
+}
+
+/// An ability word given its cost alone: activated whenever its controller
+/// has priority.
+impl From<Vec<Cost>> for Activation {
+    fn from(costs: Vec<Cost>) -> Activation {
+        Activation::new(costs)
+    }
 }
 
 /// When an activated ability may be activated (CR 602.5d), beyond having
 /// priority.
 ///
-/// One value, not `backlog.md` §2.8's activation-restriction surface: Equip
-/// (CR 702.6a) reads "Activate only as a sorcery", and that is the whole of
-/// what this enum can say. §2.8 owns the rest — "activate only once each
-/// turn", "only during combat", the functioning zone — and grows this enum
-/// when a card needs it, rather than this enum guessing at their shape.
+/// One value: Equip (CR 702.6a) reads "Activate only as a sorcery", and that
+/// is the whole of what this enum can say. `permission-design` owns the rest
+/// — "activate only once each turn", "only during combat", a condition — and
+/// grows it when a card needs it.
 ///
 /// Honored at all three ability-index sites CLAUDE.md names:
 /// `activatable_abilities` does not offer a restricted ability out of its
@@ -107,7 +151,7 @@ pub enum ActivationRestriction {
 ///
 /// This is the printed ability — at runtime, activated/triggered abilities
 /// become objects on the stack with their own identity.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct AbilityDef {
     pub id: AbilityId,
     /// The ability's own text: its paragraph of the card's rules text (CR
@@ -123,24 +167,19 @@ pub struct AbilityDef {
     /// registered card's abilities to its text.
     pub rules_text: AbilityText,
     pub ability_type: AbilityType,
-    pub costs: Vec<Cost>,
     pub effect: Effect,
     /// CR 601.2c's instances of "target" that `effect` declares, in printed
-    /// order — [`Effect::instances`], stored.
+    /// order — [`Effect::instances`], stored, since every priority check
+    /// reads it ([`Self::instances`]).
     ///
-    /// **A struct literal writes `Vec::new()` here, and `CardDataBuilder::build`
-    /// overwrites it** on every def it can reach from the card, the way it
-    /// stamps `id`: the printed list, then every def nested in an effect. A
-    /// def that never meets the builder keeps the empty list, which is the
-    /// right answer for every one that exists — CR 305.6's synthesized mana
-    /// ability and the static abilities the test helpers build announce
-    /// nothing. A runtime-built def with a targeting effect would announce
-    /// nothing too, silently: `cards::registry`'s test is the gate for every
-    /// def a card carries, and a new runtime birth site owes the same check.
-    pub instances: Vec<EffectRecipient>,
-    /// CR 602.5d. Meaningful only when `ability_type` is `Activated`; every
-    /// other kind carries `None`.
-    pub activation_restriction: ActivationRestriction,
+    /// Private, so nothing but this module writes it: [`Self::new`] reads it
+    /// off the effect it is given, so an ability built at run time has its
+    /// list from birth, and `CardDataBuilder::build` reads it again on every
+    /// def it reaches. `effect` stays public, so a write to it keeps this
+    /// list right only by keeping the effect's instances; the one such write,
+    /// `authoring::functioning_in`'s wrap, does (CR 113.6b's zone statement
+    /// declares no target).
+    instances: Vec<EffectRecipient>,
     /// CR 604.3 — this ability is a characteristic-defining ability.
     ///
     /// CR 604.3a lists five criteria. Four of them are properties of the
@@ -170,6 +209,96 @@ pub struct AbilityDef {
     /// effective ability list. CDAs are never registered as continuous effects
     /// — see `Layer::Layer7aCdaPT`.
     pub is_characteristic_defining: bool,
+}
+
+/// Written out rather than derived, as the card fingerprints' view
+/// (`tests/card_data_fingerprint_test.rs`): it prints an activated ability's
+/// kind, costs and restriction as three fields of the ability, the shape the
+/// fingerprints were recorded in, so a change of shape behind it changes no
+/// fingerprint. It goes back to a derive when the fingerprints go.
+impl std::fmt::Debug for AbilityDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let kind = match self.ability_type {
+            AbilityType::Mana(_) => "Mana",
+            AbilityType::Activated(_) => "Activated",
+            AbilityType::Triggered => "Triggered",
+            AbilityType::Static => "Static",
+            AbilityType::Spell => "Spell",
+        };
+        f.debug_struct("AbilityDef")
+            .field("id", &self.id)
+            .field("rules_text", &self.rules_text)
+            .field("ability_type", &format_args!("{kind}"))
+            .field("costs", &self.costs())
+            .field("effect", &self.effect)
+            .field("instances", &self.instances)
+            .field("activation_restriction", &self.activation().map_or(ActivationRestriction::None, |activation| activation.restriction))
+            .field("is_characteristic_defining", &self.is_characteristic_defining)
+            .finish()
+    }
+}
+
+impl AbilityDef {
+    /// An ability of `ability_type` whose words are `rules_text` (CR 113.2c)
+    /// and whose effect is `effect`, not characteristic-defining: what
+    /// `cards::authoring`'s ability words build, and what the engine builds
+    /// an ability it makes with. Its id is [`AbilityId::UNASSIGNED`] until
+    /// `CardDataBuilder::build` stamps it or [`Self::with_id`] sets it.
+    pub fn new(ability_type: AbilityType, rules_text: impl Into<AbilityText>, effect: Effect) -> AbilityDef {
+        AbilityDef {
+            id: AbilityId::UNASSIGNED,
+            rules_text: rules_text.into(),
+            ability_type,
+            instances: effect.instances(),
+            effect,
+            is_characteristic_defining: false,
+        }
+    }
+
+    /// What an activated ability's text says besides its effect (CR 602.1),
+    /// for either activated kind; `None` for the others.
+    pub fn activation(&self) -> Option<&Activation> {
+        match &self.ability_type {
+            AbilityType::Activated(activation) | AbilityType::Mana(activation) => Some(activation),
+            AbilityType::Triggered | AbilityType::Static | AbilityType::Spell => None,
+        }
+    }
+
+    /// The activation cost (CR 602.1a): an activated ability's, and none for
+    /// any other kind, which has none to pay.
+    pub fn costs(&self) -> &[Cost] {
+        self.activation().map_or(&[], |activation| &activation.costs)
+    }
+
+    /// CR 601.2c's instances of "target" its effect declares, in printed
+    /// order.
+    pub fn instances(&self) -> &[EffectRecipient] {
+        &self.instances
+    }
+
+    /// CR 305.6's "{T}: Add [mana symbol].", the ability a basic land type
+    /// gives and a printed card's with the same words: one function, so the
+    /// two stay one ability (`tap_to_add_text`).
+    pub fn tap_for(mana_type: ManaType) -> AbilityDef {
+        let produce = Primitive::ProduceMana(ManaOutput { mana: vec![(mana_type, AmountExpr::Fixed(1))], special: vec![] });
+        let kind = AbilityType::Mana(Activation::new(vec![Cost::TapSelf]));
+        AbilityDef::new(kind, tap_to_add_text(mana_type), Effect::Atom(produce, EffectRecipient::Implicit))
+    }
+
+    /// This ability, with `id` in place of the one the builder would stamp:
+    /// a test that reads its ability back by id, or an ability the engine
+    /// derives an id for.
+    pub fn with_id(mut self, id: AbilityId) -> AbilityDef {
+        self.id = id;
+        self
+    }
+
+    /// This ability, as one that defines a characteristic (CR 604.3).
+    pub fn characteristic_defining(mut self) -> AbilityDef {
+        self.is_characteristic_defining = true;
+        self
+    }
+
 }
 
 /// An ability's words, and which paragraph of its card's rules text they are.
@@ -336,22 +465,7 @@ impl CardDataBuilder {
     /// Shorthand: add a mana ability that taps to produce one mana of the given type.
     /// This is the standard basic land ability.
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
-        Arc::make_mut(&mut self.data.abilities).push(AbilityDef {
-            rules_text: tap_to_add_text(mana_type).into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Mana,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Atom(
-                Primitive::ProduceMana(ManaOutput {
-                    mana: vec![(mana_type, AmountExpr::Fixed(1))],
-                    special: vec![],
-                }),
-                EffectRecipient::Implicit,
-            ),
-        });
+        Arc::make_mut(&mut self.data.abilities).push(AbilityDef::tap_for(mana_type));
         self
     }
 
@@ -522,7 +636,7 @@ mod tests {
         assert!(forest.supertypes.contains(&Supertype::Basic));
         assert!(forest.mana_cost.is_none());
         assert_eq!(forest.abilities.len(), 1);
-        assert_eq!(forest.abilities[0].ability_type, AbilityType::Mana);
+        assert!(matches!(forest.abilities[0].ability_type, AbilityType::Mana(_)));
         assert_eq!(forest.abilities[0].rules_text.words, "{T}: Add {G}.");
     }
 

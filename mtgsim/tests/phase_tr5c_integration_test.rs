@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, mana_ability};
 use mtgsim::cards::alpha::{giant_growth, lightning_bolt};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::authoring::{
@@ -18,10 +19,9 @@ use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
 use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::phase_tr5c_cards::{cephalid_aristocrat, loyal_sentry};
 use mtgsim::cards::utility_creatures::merfolk_thaumaturgist;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use mtgsim::objects::card_data::AbilityType;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::ManaOutput;
-use mtgsim::types::ids::AbilityId;
 use mtgsim::types::card_types::{EnchantmentType, Subtype};
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::display::{format_record, log_lines};
@@ -34,7 +34,7 @@ use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_hand, put_on_battlefield, put_on_battlefield_this_turn, put_on_battlefield_under, set_active_player,
-    set_attacking, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp,
+    set_attacking, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp,
 };
 use mtgsim::cards::phase_re9_cards::deep_water;
 use mtgsim::engine::resolve::ResolutionContext;
@@ -107,7 +107,7 @@ fn banner(name: &str, filter: ObjectFilter) -> Arc<CardData> {
     let creatures = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(filter));
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(creatures),
         )))
@@ -631,7 +631,7 @@ fn bolt_at_player(game: &mut GameState, player: PlayerId, at: PlayerId) -> Objec
 /// `player` activates Merfolk Thaumaturgist's `{T}` ability at `target`.
 fn thaumaturgist_at(game: &mut GameState, player: PlayerId, thaumaturgist: ObjectId, target: ObjectId) {
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(game, thaumaturgist);
-    let index = abilities.iter().position(|a| a.ability_type == AbilityType::Activated).expect("an activated ability");
+    let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
         ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
@@ -966,7 +966,7 @@ fn mentor_fixture() -> Arc<CardData> {
 /// `player` taps `permanent` for its mana ability.
 fn tap_for_mana(game: &mut GameState, player: PlayerId, permanent: ObjectId) {
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(game, permanent);
-    let ability = abilities.iter().find(|a| a.ability_type == AbilityType::Mana).expect("a mana ability").id;
+    let ability = abilities.iter().find(|a| matches!(a.ability_type, AbilityType::Mana(_))).expect("a mana ability").id;
     game.activate_mana_ability(player, permanent, ability, &test_dp()).unwrap();
 }
 
@@ -1007,16 +1007,11 @@ fn shaman_fixture() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Shaman")
         .card_type(CardType::Creature)
         .power_toughness(1, 2)
-        .ability(AbilityDef {
-            rules_text: "{T}: Target player gains 1 life. Add {C}.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::TapSelf],
-            effect: Effect::Sequence(vec![gain, add]),
-        })
+        .ability(activated_ability(
+            "{T}: Target player gains 1 life. Add {C}.",
+            vec![Cost::TapSelf],
+            Effect::Sequence(vec![gain, add]),
+        ))
         .build()
 }
 
@@ -1031,7 +1026,7 @@ fn an_ability_that_adds_mana_with_a_target_is_no_mana_ability() {
     let shaman = put_on_battlefield(&mut game, shaman_fixture(), 1);
     set_active_player(&mut game, 1);
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, shaman);
-    let index = abilities.iter().position(|a| a.ability_type == AbilityType::Activated).expect("an activated ability");
+    let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
         ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
@@ -1085,19 +1080,14 @@ fn a_source_sacrificed_as_a_cost_is_read_as_it_was() {
 /// `card` with "[{T},] Sacrifice this artifact: Add {C}."
 fn with_a_sacrifice_for_mana(card: CardDataBuilder, costs: &[Cost]) -> Arc<CardData> {
     let text = if costs.contains(&Cost::TapSelf) { "{T}, Sacrifice this artifact: Add {C}." } else { "Sacrifice this artifact: Add {C}." };
-    card.ability(AbilityDef {
-        rules_text: text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Mana,
-        costs: costs.iter().cloned().chain([Cost::SacrificeSelf]).collect(),
-        effect: Effect::Atom(
+    card.ability(mana_ability(
+        text,
+        costs.iter().cloned().chain([Cost::SacrificeSelf]).collect::<Vec<_>>(),
+        Effect::Atom(
             Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))], special: vec![] }),
             EffectRecipient::Implicit,
         ),
-    })
+    ))
     .build()
 }
 

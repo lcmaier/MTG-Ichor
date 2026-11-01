@@ -4770,7 +4770,10 @@ damage is divided only among the attackers it blocks.
     mana, beside `authoring::triggered_ability`), with builder methods for the
     two rare fields, and the migration takes every literal in the card files:
     116 on 2026-09-28, against the 31 static ones counted above. And
-    `activation_restriction` moves into `AbilityType::Activated`, the one kind
+    `activation_restriction` moves into `AbilityType::Activated` (superseded
+    at `card-layer-cleanup`'s design: an `Activation`, its costs and its
+    restriction, on both activated kinds, since a mana ability prints
+    restrictions too), the one kind
     it means anything for. Today 145 literals write
     `ActivationRestriction::None`, 2 printed cards use anything else, and 19
     reads compare `AbilityType::Activated`. Inside `card-layer-cleanup` the edits come before
@@ -4909,6 +4912,11 @@ damage is divided only among the attackers it blocks.
     **Slotted:** `card-layer-cleanup`, which moves cards to per-set files and fixtures to
     `cards::fixtures`, and rebuilds every ability and instruction literal from
     `cards/authoring/`.
+    **The abilities landed in its first PR (2026-10-31):** every
+    `AbilityDef` outside `objects::card_data` is built by a word in
+    `cards/authoring/abilities.rs` or by `AbilityDef::new`, and the private
+    copies are gone. The instructions and the move are its next two PRs
+    (`plans/handoffs/card-layer-cleanup.md`, "The split").
 
 ### Before card breadth (Phase 8) — added by the RD-2 review (2026-09-09)
 
@@ -8133,9 +8141,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      2026`; game 1's Merfolk Thaumaturgist, tapped at event 406, the Wisps
      resolved at 441). Moonlace's half is read from its source.
 
-     **Sized:** ~20–40 lines: each becomes a fixture with an invented name
-     and its own text, and the real card is registered only if written
-     whole. The pool's names change, so it is a pool change with its
+     **Widened by `card-layer-cleanup`'s design note (2026-10-31):** the two
+     are a family. Eight card functions registered nowhere carry eight
+     printed cards' names: the four `*_spell` stand-ins (Liquimetal Torque,
+     Ensoul Artifact, Call to Serve, On Serra's Wings), Underground Sea,
+     Inside Out, Bull Rush and Zhalfirin Shapecraft (Scryfall
+     `/cards/collection`). None is dealt, so none changes a game; each is
+     read against its card.
+
+     **Sized:** ~20–40 lines for the two, and the eight beside them, by the
+     owner's rule at #301's first review round: a card the engine can express
+     is written whole, its rulings read, and registered; one it cannot keeps
+     its shape as a fixture, its function and its name taking the suffix
+     `_fixture`. The pool's names change, so it is a pool change with its
      re-record (`engineering-practices.md#cards-and-pools`). **Slotted:** the test-card
      cleanup before Phase 8's breadth (the owner, 2026-10-01), with
      `roadmap-v2.md` §C's `card-layer-cleanup`, which moves the fixtures into
@@ -8441,6 +8459,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      item 242's, the `can_pay` pair item 243's, the two `ui/ask.rs` wrappers
      item 246's, and `static_replacement` and `intrinsic_mana_ability` `card-layer-cleanup`'s
      ("Before card breadth" item 10). The first two stay here.
+     **The card half landed in `card-layer-cleanup`'s first PR (2026-10-31):**
+     `static_replacement` is one word in `cards/authoring/abilities.rs`, and
+     CR 305.6's ability is `AbilityDef::tap_for`, which `mana_ability_single`
+     and `intrinsic_mana_ability` both call.
      **Slotted:** `names-and-hygiene-sweeps`, the cleanup before release in
      Phase 10 (`route-review`, 2026-10-29), which takes the first two cleanups.
 
@@ -10412,4 +10434,22 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      files in `src`, 19 in `tests` and 6 in the dev GUI (2026-10-30), a
      path sweep through `plans/replace_exact.py`.
      **Slotted:** `information-model-design`, at its design stop.
+
+### Found by `card-layer-cleanup`'s first PR (2026-10-31)
+
+358. **The card fingerprints and `AbilityDef`'s written-out `Debug` are the
+     cleanup's scaffolding.** `tests/card_data_fingerprint_test.rs` holds
+     every card's value to `tests/card_fingerprints.txt`, written at the
+     cleanup's base, so each of its mechanical PRs is checked rather than
+     judged. `AbilityDef`'s `Debug` is written out to print what the derive
+     printed before decision 2 moved the costs and the restriction into the
+     activated kinds, which is what keeps that file unchanged through the
+     reshape. Both go together: once the file goes, the `Debug` is derived
+     again, and prints the kind as it now is.
+     **Reachability (2026-10-31):** nothing owed in a game — test
+     scaffolding; every fingerprint matches.
+     **Sized:** ~200 lines out (the test and its file) and ~20 back to a
+     derive.
+     **Slotted:** `card-layer-cleanup`, at its last mechanical PR's
+     close-out (the move, PR 3 of its design note's split).
 

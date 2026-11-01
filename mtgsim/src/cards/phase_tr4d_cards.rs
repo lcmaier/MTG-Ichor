@@ -12,14 +12,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_is_countered, triggered_ability, whenever, you_lose_control_of, Whose};
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, spell_is_countered, triggered_ability, whenever, you_lose_control_of, Whose};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerSubject};
@@ -101,17 +100,11 @@ pub fn ray_of_command() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(AbilityDef {
-            rules_text: text.into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
+        .ability(spell_ability(
+            text,
             // One instance of "target" (CR 115.3): "it" and "that creature"
             // are back-references to it.
-            effect: Effect::Sequence(vec![
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::Untap,
                     EffectRecipient::Target(SelectionFilter::Permanent(creature_an_opponent_controls), TargetCount::Exactly(1)),
@@ -126,6 +119,6 @@ pub fn ray_of_command() -> Arc<CardData> {
                 ),
                 Effect::Atom(Primitive::CreateDelayedTrigger(Box::new(tap_it)), EffectRecipient::Controller),
             ]),
-        })
+        ))
         .build()
 }

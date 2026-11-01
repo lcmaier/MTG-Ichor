@@ -31,6 +31,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::alpha::giant_growth;
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
@@ -43,7 +44,7 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Effect
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_colors, get_effective_name, get_effective_power, get_effective_toughness,
@@ -64,7 +65,7 @@ use mtgsim::types::effects::{
     AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
@@ -459,19 +460,13 @@ fn chosen_pump() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .color(Color::Green)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Choose a creature. It gets +2/+2 until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Choose a creature. It gets +2/+2 until end of turn.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(2), AmountExpr::Fixed(2), Duration::UntilEndOfTurn),
                 EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -554,7 +549,7 @@ fn anthem_bearer() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(mtgsim::test_support::static_ability(Effect::Atom(
+        .ability(mtgsim::test_support::textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -633,15 +628,9 @@ fn lasting_shape() -> Arc<CardData> {
     use mtgsim::types::effects::CopyRoles;
     CardDataBuilder::new("Lasting Shape")
         .card_type(CardType::Sorcery)
-        .ability(AbilityDef {
-            rules_text: "Choose a creature. Target creature becomes a copy of it.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Choose a creature. Target creature becomes a copy of it.",
+            Effect::Atom(
                 Primitive::Copy {
                     roles: CopyRoles::RecipientsCopyChosen(SelectionFilter::Creature),
                     except: Vec::new(),
@@ -649,7 +638,7 @@ fn lasting_shape() -> Arc<CardData> {
                 },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -901,22 +890,17 @@ fn another_pumper() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(AbilityDef {
-            rules_text: "{T}: Another target creature gets +1/+1 until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![mtgsim::types::costs::Cost::TapSelf],
-            effect: Effect::Atom(
+        .ability(activated_ability(
+            "{T}: Another target creature gets +1/+1 until end of turn.",
+            vec![mtgsim::types::costs::Cost::TapSelf],
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::UntilEndOfTurn),
                 EffectRecipient::Target(
                     SelectionFilter::Permanent(mtgsim::cards::authoring::another(ObjectFilter::ByType(CardType::Creature))),
                     TargetCount::Exactly(1),
                 ),
             ),
-        })
+        ))
         .build()
 }
 
@@ -1257,7 +1241,7 @@ fn essence_of_might() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Creature)
         .power_toughness(6, 6)
-        .ability(mtgsim::test_support::static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(mtgsim::test_support::textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(big_creatures_you_control),
             Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
@@ -1302,15 +1286,9 @@ fn shared_shape() -> Arc<CardData> {
     use mtgsim::types::effects::{Characteristic, CopyException, CopyRoles, ObjectFilter, PlayerRef};
     CardDataBuilder::new("Shared Shape")
         .card_type(CardType::Sorcery)
-        .ability(AbilityDef {
-            rules_text: "Each creature you control becomes a copy of target creature until end of turn, except it doesn't copy that creature's color.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Each creature you control becomes a copy of target creature until end of turn, except it doesn't copy that creature's color.",
+            Effect::Atom(
                 Primitive::Copy {
                     roles: CopyRoles::FilteredCopyRecipient {
                         filter: ObjectFilter::And(
@@ -1324,7 +1302,7 @@ fn shared_shape() -> Arc<CardData> {
                 },
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 

@@ -20,7 +20,8 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
 use mtgsim::cards::creatures::grizzly_bears;
-use mtgsim::cards::phase_lh_cards::{bonesplitter, equip, holy_strength};
+use mtgsim::cards::authoring::equip;
+use mtgsim::cards::phase_lh_cards::{bonesplitter, holy_strength};
 use mtgsim::cards::phase_tr4b_cards::{bramble_elemental, grafted_wargear};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
@@ -33,7 +34,7 @@ use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_con
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_in_graveyard, put_on_battlefield,
-    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp, RecordingDecisionProvider,
+    put_spell_on_stack, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
@@ -104,7 +105,7 @@ fn animator(subtype: Subtype, keywords: &[KeywordFlag]) -> Arc<CardData> {
     CardDataBuilder::new("Probe Animator")
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(static_ability(Effect::Sequence(effects)))
+        .ability(textless_static(Effect::Sequence(effects)))
         .build()
 }
 
@@ -381,7 +382,7 @@ fn a_fortification_stays_on_a_land_and_is_unattached_from_a_creature() {
 /// after CR 601.2c: its enchant clause (CR 303.4a) is its one instance.
 fn aura_spell_targeting(game: &mut GameState, controller: PlayerId, target: ObjectId) -> ObjectId {
     let aura = put_spell_on_stack(game, holy_strength(), controller);
-    let enchant = holy_strength().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let enchant = holy_strength().spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
     game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
     aura
@@ -481,7 +482,7 @@ fn an_equip_ability_does_not_attach_its_equipment_once_it_has_left_and_returned(
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
     let equip = get_effective_abilities(&game, splitter)
         .iter()
-        .position(|a| a.ability_type == AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("Bonesplitter's equip");
     game.activate_ability(0, splitter, equip, &test_dp()).unwrap();
     assert_eq!(game.stack.len(), 1, "one creature, so the target was forced");
@@ -543,7 +544,7 @@ fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
 fn equip_to(game: &mut GameState, equipment: ObjectId, pick: usize) {
     let index = get_effective_abilities(game, equipment)
         .iter()
-        .position(|a| a.ability_type == AbilityType::Activated)
+        .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("an equip ability");
     let dp = RecordingDecisionProvider::picking(pick);
     game.activate_ability(0, equipment, index, &dp).unwrap();
@@ -707,7 +708,7 @@ fn control_aura() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .enchant_filter(SelectionFilter::Creature)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GainControl { to: PlayerRef::You, duration: Duration::WhileSourceOnBattlefield },
             EffectRecipient::Host,
         )))
@@ -724,7 +725,7 @@ fn an_aura_that_takes_a_creature_triggers_siona_as_the_creature_it_made_yours() 
     let start = life(&game);
 
     let aura = put_spell_on_stack(&mut game, control_aura(), 0);
-    let enchant = control_aura().spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let enchant = control_aura().spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let chosen = TargetInstance::from_announcement(&game, enchant, &[ObjectOrPlayerId::Object(theirs)]).unwrap();
     game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -744,7 +745,7 @@ fn granting_equipment() -> Arc<CardData> {
     CardDataBuilder::new("Probe Granting Equipment")
         .card_type(CardType::Artifact)
         .subtype(equipment_subtype())
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::GrantAbility(Arc::new(granted), Duration::WhileSourceOnBattlefield),
             EffectRecipient::Host,
         )))

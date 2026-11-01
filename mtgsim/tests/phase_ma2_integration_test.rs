@@ -71,12 +71,11 @@ fn the_agent_activates_the_cube_last() {
 fn ember_lesson(x_cant_be_zero: bool) -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
     use mtgsim::types::mana::{ManaCost, ManaType};
     let bolt = mtgsim::test_support::lightning_bolt();
-    std::sync::Arc::new(mtgsim::objects::card_data::CardData {
-        name: "Ember Lesson".to_string(),
-        mana_cost: Some(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)])),
-        x_cant_be_zero,
-        ..(*bolt).clone()
-    })
+    let mut lesson = (*bolt).clone();
+    lesson.name = "Ember Lesson".to_string();
+    lesson.mana_cost = Some(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]));
+    lesson.x_cant_be_zero = x_cant_be_zero;
+    std::sync::Arc::new(lesson)
 }
 
 /// The gate asks whether the least legal X is payable (CR 107.3a): `{X}{R}`

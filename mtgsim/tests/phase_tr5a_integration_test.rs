@@ -24,12 +24,12 @@ use mtgsim::cards::phase_tr5a_cards::sphere_grid;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, set_active_player, set_attacking, set_blocked_by,
-    set_blocking, setup_game, setup_two_player_game, test_dp, vanilla_creature, RecordingDecisionProvider,
+    set_blocking, setup_game, setup_two_player_game, test_dp, textless_static, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -37,7 +37,7 @@ use mtgsim::types::effects::{
     Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::CountIs;
-use mtgsim::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
@@ -168,19 +168,6 @@ fn combat_damage_to_a_player(multiplicity: Multiplicity) -> TriggerEvent {
         recipient: DamageRecipient::Player(None),
         combat: Some(true),
         excess: false, multiplicity,
-    }
-}
-
-fn static_ability(effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Static,
-        costs: Vec::new(),
-        effect,
     }
 }
 
@@ -428,7 +415,7 @@ fn a_filter_with_no_kind_counts_every_kind_of_counter() {
         Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
         EffectRecipient::FilteredPermanents(bare),
     );
-    put_on_battlefield(&mut game, CardDataBuilder::new("Fixture Bare Sky").card_type(CardType::Enchantment).ability(static_ability(flying)).build(), 0);
+    put_on_battlefield(&mut game, CardDataBuilder::new("Fixture Bare Sky").card_type(CardType::Enchantment).ability(textless_static(flying)).build(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     assert!(has_keyword(&game, bears, KeywordFlag::Flying));
 

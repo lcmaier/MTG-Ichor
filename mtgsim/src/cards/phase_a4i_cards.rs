@@ -30,28 +30,15 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::spell_ability;
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
-
-fn spell(rules_text: &'static str, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: rules_text.into(),
-        is_characteristic_defining: false,
-        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
-        effect,
-    }
-}
 
 fn target_creature() -> EffectRecipient {
     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
@@ -103,9 +90,9 @@ pub fn seeds_of_strength() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Target creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.")
-        .ability(spell("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
-        .ability(spell("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
-        .ability(spell("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
+        .ability(spell_ability("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
+        .ability(spell_ability("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
+        .ability(spell_ability("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
         .build()
 }
 
@@ -171,7 +158,7 @@ pub fn incremental_growth() -> Arc<CardData> {
             "Put a +1/+1 counter on target creature, two +1/+1 counters on another target \
              creature, and three +1/+1 counters on a third target creature.",
         )
-        .ability(spell("Put a +1/+1 counter on target creature, two +1/+1 counters on another target creature, and three +1/+1 counters on a third target creature.", Effect::Sequence(vec![
+        .ability(spell_ability("Put a +1/+1 counter on target creature, two +1/+1 counters on another target creature, and three +1/+1 counters on a third target creature.", Effect::Sequence(vec![
             grow(1, target_creature()),
             grow(2, other_than(&[0])),
             grow(3, other_than(&[0, 1])),
@@ -203,7 +190,7 @@ pub fn jagged_lightning() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Jagged Lightning deals 3 damage to each of two target creatures.")
-        .ability(spell("Jagged Lightning deals 3 damage to each of two target creatures.", Effect::Atom(
+        .ability(spell_ability("Jagged Lightning deals 3 damage to each of two target creatures.", Effect::Atom(
             Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(2)),
         )))
@@ -252,7 +239,7 @@ pub fn plague_spores() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Destroy target nonblack creature and target land. They can't be regenerated.")
-        .ability(spell("Destroy target nonblack creature and target land. They can't be regenerated.", Effect::Sequence(vec![
+        .ability(spell_ability("Destroy target nonblack creature and target land. They can't be regenerated.", Effect::Sequence(vec![
             // The shields are stripped before the destruction, or CR 701.19a's
             // replacement would have already applied by the time the
             // restriction existed.

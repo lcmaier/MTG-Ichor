@@ -33,7 +33,7 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, place_bare, put_in_graveyard, put_in_hand, put_on_battlefield,
-    setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
+    setup_two_player_game, textless_static, test_ctx, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{
@@ -630,7 +630,7 @@ fn hallowed_moonlight_exiles_a_returned_card_in_one_move() {
 #[test]
 fn a_token_that_cannot_enter_is_not_created() {
     let mut game = setup_two_player_game();
-    let no_creatures = static_ability(Effect::Restriction(Box::new(RestrictionDef::new(
+    let no_creatures = textless_static(Effect::Restriction(Box::new(RestrictionDef::new(
         Restriction::Event {
             pattern: EventPattern::ZoneChange {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Battlefield), act: None },
@@ -671,7 +671,7 @@ fn a_token_that_cannot_enter_is_not_created() {
 #[test]
 fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
     let mut game = setup_two_player_game();
-    let may_refuse = static_ability(Effect::Replacement(Box::new(
+    let may_refuse = textless_static(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
@@ -721,7 +721,7 @@ fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
 #[test]
 fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
     let mut game = setup_two_player_game();
-    let plus_one = static_ability(Effect::Replacement(Box::new(
+    let plus_one = textless_static(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: None },
             PlayerSet::You,
@@ -853,7 +853,7 @@ fn a_token_def_lowers_every_field_it_carries() {
         power: None,
         toughness: None,
         keyword_flags: Vec::new(),
-        abilities: vec![static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        abilities: vec![textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::Untap,
             ObjectSet::Host,
             Rewrite::Prevent,
@@ -1067,7 +1067,7 @@ fn divine_visitation_beside_parallel_lives_is_four_angels_in_either_order() {
 #[test]
 fn an_append_template_keeps_the_creation_and_joins_its_own_def() {
     let mut game = setup_two_player_game();
-    let one_more = static_ability(Effect::Replacement(Box::new(
+    let one_more = textless_static(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Artifact)) },
             PlayerSet::You,
@@ -1145,7 +1145,7 @@ fn bard_doubles_each_kind_of_a_mixed_creation() {
 #[test]
 fn a_multiplier_on_a_kind_repeats_only_that_kind() {
     let mut game = setup_two_player_game();
-    let creatures_twice = static_ability(Effect::Replacement(Box::new(
+    let creatures_twice = textless_static(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
             PlayerSet::You,

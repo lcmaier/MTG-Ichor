@@ -22,9 +22,10 @@
 //! cost in the pool — the announcement loop reached for real, all three
 //! instances filled, and the creature 3 points larger for it.
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::creatures;
 use mtgsim::cards::phase_a4i_cards::seeds_of_strength;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData,
+use mtgsim::objects::card_data::{CardData,
     CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::oracle::mana_helpers::castable_spells;
@@ -73,16 +74,10 @@ fn one_clause_pump() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Target creature gets +1/+1 until end of turn.")
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-            id: mtgsim::types::ids::AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: pump(target_creature()),
-        })
+        .ability(spell_ability(
+            "",
+            pump(target_creature()),
+        ))
         .build()
 }
 

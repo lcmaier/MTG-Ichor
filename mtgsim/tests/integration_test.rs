@@ -31,7 +31,7 @@ fn build_test_deck(game: &mut GameState, player_id: usize, land_fn: fn() -> Arc<
 fn get_mana_ability_id(game: &GameState, permanent_id: mtgsim::types::ids::ObjectId) -> AbilityId {
     let obj = game.get_object(permanent_id).unwrap();
     obj.card_data.abilities.iter()
-        .find(|a| a.ability_type == AbilityType::Mana)
+        .find(|a| matches!(a.ability_type, AbilityType::Mana(_)))
         .expect("Permanent has no mana ability")
         .id
 }

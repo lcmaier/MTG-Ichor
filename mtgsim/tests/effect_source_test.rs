@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::activated_ability;
 use mtgsim::cards::authoring::{at_beginning_of, dies as when_it_dies, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lh_cards::loxodon_warhammer;
@@ -25,7 +26,7 @@ use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::test_support::{
@@ -38,7 +39,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerGroup, PlayerRef, PlayerSet, Primitive,
 };
-use mtgsim::types::ids::{AbilityId, ObjectId, PlayerId};
+use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::replacement::{EventPattern, ReplacementDef, RetargetSpec, Rewrite, SourcePattern};
 use mtgsim::types::triggers::{
@@ -71,16 +72,11 @@ fn pinger() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .color(Color::Red)
         .power_toughness(1, 1)
-        .ability(AbilityDef {
-            rules_text: "{T}: This creature deals 1 damage to each opponent.".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Activated,
-            costs: vec![Cost::TapSelf],
-            effect: damage_each_opponent(1),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(activated_ability(
+            "{T}: This creature deals 1 damage to each opponent.",
+            vec![Cost::TapSelf],
+            damage_each_opponent(1),
+        ))
         .build()
 }
 

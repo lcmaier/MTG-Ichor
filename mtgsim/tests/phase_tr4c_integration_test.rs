@@ -41,7 +41,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     effect_ctx, put_in_exile, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_under,
-    put_spell_on_stack, setup_game, setup_two_player_game, static_ability, test_ctx, test_dp, RecordingDecisionProvider,
+    put_spell_on_stack, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -142,7 +142,7 @@ fn painted_black(zones: ZoneSet) -> Arc<CardData> {
     let black = std::collections::HashSet::from([Color::Black]);
     CardDataBuilder::new("Fixture Pall")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ChangeColor(ColorChange::Set(black), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::All, zones),
         )))
@@ -621,7 +621,7 @@ fn leng_shaped() -> Arc<CardData> {
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
     )
     .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent));
-    CardDataBuilder::new("Fixture Leng").card_type(CardType::Artifact).ability(static_ability(Effect::Replacement(Box::new(def)))).build()
+    CardDataBuilder::new("Fixture Leng").card_type(CardType::Artifact).ability(textless_static(Effect::Replacement(Box::new(def)))).build()
 }
 
 /// Library of Leng's board (`plans/atomic-tests/supplemental-docs/603-2f-complexity.md`):
@@ -797,7 +797,7 @@ fn rancor_returns_to_its_owners_hand_when_its_creature_dies() {
 /// `aura` on the stack as `controller`'s spell, its enchant clause targeting
 /// `target`, as `cast_spell` leaves it.
 fn aura_spell_targeting(game: &mut GameState, aura: Arc<CardData>, controller: PlayerId, target: ObjectId) -> ObjectId {
-    let enchant = aura.spell_instances.last().cloned().expect("an Aura announces its enchant clause");
+    let enchant = aura.spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let id = put_spell_on_stack(game, aura, controller);
     let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
     game.stack_entries.get_mut(&id).unwrap().chosen_targets = vec![chosen];

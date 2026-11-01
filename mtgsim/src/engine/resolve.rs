@@ -2111,7 +2111,7 @@ impl GameState {
     /// away does not take "this ability" from the copy. A rebuilt def is held
     /// to what `CardDataBuilder::build` does, its instances of "target" listed.
     fn with_this_ability(&self, except: &[CopyException], ctx: &ResolutionContext) -> Result<Vec<CopyException>, String> {
-        use crate::objects::card_data::{AbilityType, ActivationRestriction};
+        use crate::objects::card_data::AbilityType;
         use crate::types::effects::CharacteristicEdit;
         let names_it = |e: &CopyException| matches!(e, CopyException::Modifies(CharacteristicEdit::GainsThisAbility));
         if !except.iter().any(names_it) {
@@ -2136,16 +2136,8 @@ impl GameState {
                     crate::objects::card_data::printed_place(&obj.card_data.abilities, identity.ability)
                         .map(|place| obj.card_data.abilities[place].rules_text)
                 });
-                crate::objects::card_data::AbilityDef {
-                    id: identity.ability,
-                    rules_text: printed.unwrap_or_else(|| "".into()),
-                    ability_type: AbilityType::Triggered,
-                    costs: Vec::new(),
-                    instances: effect.instances(),
-                    effect,
-                    is_characteristic_defining: false,
-                    activation_restriction: ActivationRestriction::None,
-                }
+                crate::objects::card_data::AbilityDef::new(AbilityType::Triggered, printed.unwrap_or_else(|| "".into()), effect)
+                    .with_id(identity.ability)
             }
         };
         Ok(except

@@ -16,6 +16,8 @@
 
 use std::sync::Arc;
 
+
+use mtgsim::cards::authoring::static_restriction;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rc_cards::containment_priest;
@@ -23,7 +25,7 @@ use mtgsim::cards::phase_re_cards::laboratory_maniac;
 use mtgsim::engine::layers::copy::copiable_values;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
     get_effective_abilities, get_effective_controller, get_effective_name, get_effective_power,
@@ -31,7 +33,7 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    copy_onto, place_bare, put_on_battlefield, setup_two_player_game, static_ability, vanilla_creature,
+    copy_onto, place_bare, put_on_battlefield, setup_two_player_game, textless_static, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -44,7 +46,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
-use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
+use mtgsim::types::restriction::{Restriction, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -111,7 +113,7 @@ fn anthem_bear() -> Arc<CardData> {
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White], 2))
         .power_toughness(2, 2)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(
                 AmountExpr::Fixed(1),
                 AmountExpr::Fixed(1),
@@ -760,23 +762,17 @@ fn restriction_creature() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: new_ability_id(),
-            instances: Vec::new(),
-            is_characteristic_defining: false,
-            activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        .ability(static_restriction(
+            "",
+            Restriction::Event {
                 pattern: EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
                 affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
-            }))),
-        })
+            },
+        ).with_id(new_ability_id()))
         .build()
 }
 

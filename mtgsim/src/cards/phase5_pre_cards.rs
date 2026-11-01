@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use crate::cards::authoring::{spell_ability, static_ability};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, Subtype, Supertype, CreatureType};
 use crate::types::colors::Color;
 use crate::types::effects::{AmountExpr, Duration, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, TargetCount, EffectRecipient, SelectionFilter};
-use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Isamaru, Hound of Konda - {W}
@@ -30,15 +30,9 @@ pub fn nights_whisper() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Sorcery)
         .rules_text("You draw two cards and lose 2 life.")
-        .ability(AbilityDef {
-            rules_text: "You draw two cards and lose 2 life.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "You draw two cards and lose 2 life.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(2)), 
                     EffectRecipient::Controller
@@ -47,8 +41,8 @@ pub fn nights_whisper() -> Arc<CardData> {
                     Primitive::LoseLife(AmountExpr::Fixed(2)),
                     EffectRecipient::Controller
                 )
-            ])
-        })
+            ]),
+        ))
         .build()
 }
 
@@ -61,15 +55,9 @@ pub fn doom_blade() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Instant)
         .rules_text("Destroy target nonblack creature.")
-        .ability(AbilityDef {
-            rules_text: "Destroy target nonblack creature.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Destroy target nonblack creature.",
+            Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(SelectionFilter::Permanent(
                     ObjectFilter::And(
@@ -78,8 +66,8 @@ pub fn doom_blade() -> Arc<CardData> {
                     )),
                     TargetCount::Exactly(1)
                 )
-            )
-        })
+            ),
+        ))
         .build()
 }
 
@@ -89,16 +77,10 @@ pub fn angels_mercy() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("You gain 7 life.")
-        .ability(AbilityDef {
-            rules_text: "You gain 7 life.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Controller)
-        })
+        .ability(spell_ability(
+            "You gain 7 life.",
+            Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Controller),
+        ))
         .build()
 }
 
@@ -111,15 +93,9 @@ pub fn glorious_anthem() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("Creatures you control get +1/+1.")
-        .ability(AbilityDef {
-            rules_text: "Creatures you control get +1/+1.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(static_ability(
+            "Creatures you control get +1/+1.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(1),
                     AmountExpr::Fixed(1),
@@ -130,7 +106,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
             ),
-        })
+        ))
         .build()
 }
 
@@ -143,15 +119,9 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
         .color(Color::Blue)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Target creature has base power and toughness 4/3 until end of turn.\nDraw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "Target creature has base power and toughness 4/3 until end of turn.\nDraw a card.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::SetPowerToughness(
                         AmountExpr::Fixed(4),
@@ -165,7 +135,7 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
             ]),
-        })
+        ))
         .build()
 }
 
@@ -184,15 +154,9 @@ pub fn inside_out() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
         .color(Color::Blue)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Switch target creature's power and toughness until end of turn.\nDraw a card.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Sequence(vec![
+        .ability(spell_ability(
+            "Switch target creature's power and toughness until end of turn.\nDraw a card.",
+            Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::SwitchPowerToughness(Duration::UntilEndOfTurn),
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
@@ -202,7 +166,7 @@ pub fn inside_out() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
             ]),
-        })
+        ))
         .build()
 }
 
@@ -214,15 +178,9 @@ pub fn bull_rush() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .color(Color::Red)
         .card_type(CardType::Instant)
-        .ability(AbilityDef {
-            rules_text: "Target creature gets +2/+0 until end of turn.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Target creature gets +2/+0 until end of turn.",
+            Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(2),
                     AmountExpr::Fixed(0),
@@ -230,7 +188,7 @@ pub fn bull_rush() -> Arc<CardData> {
                 ),
                 EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             ),
-        })
+        ))
         .build()
 }
 
@@ -243,21 +201,15 @@ pub fn dark_ritual() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Instant)
         .rules_text("Add {B}{B}{B}.")
-        .ability(AbilityDef {
-            rules_text: "Add {B}{B}{B}.".into(),
-            is_characteristic_defining: false,
-            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Spell,
-            costs: Vec::new(),
-            effect: Effect::Atom(
+        .ability(spell_ability(
+            "Add {B}{B}{B}.",
+            Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: vec![(ManaType::Black, AmountExpr::Fixed(3))],
                     special: vec![],
                 }),
                 EffectRecipient::Implicit,
             ),
-        })
+        ))
         .build()
 }

@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, spell_ability};
 use mtgsim::cards::artifacts::sol_ring;
 use mtgsim::cards::authoring::{
     another, becomes_the_target_of, creates_a_token, dies, enters, is_sacrificed, leaves_the_battlefield, scries, triggered_ability, when_you_do,
@@ -25,11 +26,11 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer}
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::test_support::{
-    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game, static_ability,
+    creature_with_ability, fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_two_player_game, textless_static,
     test_dp, vanilla_creature,
 };
 use mtgsim::events::event::GameEvent;
@@ -40,7 +41,7 @@ use mtgsim::types::effects::{
     SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::history::CountIs;
-use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::triggers::{
@@ -180,7 +181,7 @@ fn every_trigger_twice() -> Arc<CardData> {
 /// Panharmonicon's ability as a Layer 6 grant or a copy would put it on a
 /// permanent nothing printed it on.
 fn panharmonicons_ability() -> AbilityDef {
-    static_ability(panharmonicon().abilities[0].effect.clone())
+    textless_static(panharmonicon().abilities[0].effect.clone())
 }
 
 // ---------------------------------------------------------------------------
@@ -550,16 +551,11 @@ fn ajanis_zero() -> Effect {
 /// Ajani, with a red creature beside him or not, his 0 ability activated
 /// and resolved: an artifact's "{0}: ..." until `remaining-costs` builds loyalty.
 fn ajani_activates(game: &mut GameState, red_beside: bool) -> ObjectId {
-    let zero = AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: Vec::new(),
-        effect: ajanis_zero(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    let zero = activated_ability(
+        "",
+        Vec::new(),
+        ajanis_zero(),
+    );
     let ajani = CardDataBuilder::new("Ajani, Nacatl Avenger").card_type(CardType::Artifact).ability(zero).build();
     let ajani = put_on_battlefield(game, ajani, 0);
     if red_beside {
@@ -797,16 +793,11 @@ fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
     for &bear in &bears {
         game.add_counters(bear, CounterType::PlusOnePlusOne, 1);
     }
-    let tap_two = AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: Vec::new(),
-        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpTo(3))),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    let tap_two = activated_ability(
+        "",
+        Vec::new(),
+        Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpTo(3))),
+    );
     let wand = put_on_battlefield(&mut game, CardDataBuilder::new("Wand").card_type(CardType::Artifact).ability(tap_two).build(), 1);
     resolve_all(&mut game, &test_dp());
     let dp = ScriptedDecisionProvider::new();
@@ -828,16 +819,11 @@ fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
         Box::new(a_creature()),
         Box::new(ObjectFilter::ByController(PlayerRef::You)),
     ))));
-    let ping = AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: Vec::new(),
-        effect: Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    let ping = activated_ability(
+        "",
+        Vec::new(),
+        Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
+    );
     let pinger = put_on_battlefield(&mut game, creature_with_ability("Counter", 1, 1, ping), 0);
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -1051,16 +1037,10 @@ fn two_teysas_make_three_as_the_legend_rule_kills_one() {
 
 /// {X}{U} sorcery: "Tap X target creatures."
 fn tap_x() -> Arc<CardData> {
-    let spell = AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
-        effect: Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X))),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    };
+    let spell = spell_ability(
+        "",
+        Effect::Atom(Primitive::Tap, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X))),
+    );
     CardDataBuilder::new("Tap X")
         .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Blue)]))
         .card_type(CardType::Sorcery)

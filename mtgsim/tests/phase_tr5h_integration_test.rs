@@ -8,13 +8,14 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::spell_ability;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_power;
 use mtgsim::scenario::Scenario;
 use mtgsim::engine::layers::compute_characteristics;
@@ -22,7 +23,7 @@ use mtgsim::state::battlefield::CostChoices;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::history_log::RowFact;
 use mtgsim::test_support::{
-    put_in_hand, put_on_battlefield, setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
+    put_in_hand, put_on_battlefield, setup_two_player_game, textless_static, test_ctx, test_dp, vanilla_creature,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -42,16 +43,10 @@ fn free_spell(name: &str, card_type: CardType, effect: Effect) -> Arc<CardData> 
     let builder = CardDataBuilder::new(name).card_type(card_type).mana_cost(ManaCost::build(&[], 0));
     match card_type {
         CardType::Instant | CardType::Sorcery => builder
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                id: new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Spell,
-                costs: Vec::new(),
+            .ability(spell_ability(
+                "",
                 effect,
-                is_characteristic_defining: false,
-                activation_restriction: ActivationRestriction::None,
-            })
+            ).with_id(new_ability_id()))
             .build(),
         _ => builder.build(),
     }
@@ -109,7 +104,7 @@ fn a_rows_frame_sees_the_rows_of_its_own_window() {
     let mut game = setup_two_player_game();
     let banner = CardDataBuilder::new("Lifted Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Conditional(
+        .ability(textless_static(Effect::Conditional(
             Condition::ThisTurn(HistoryCount { players: PlayerSet::You, fact: TurnFact::LifeGainEvents, of: None }, CountIs::AtLeast(1)),
             Box::new(Effect::Atom(
                 Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
@@ -202,7 +197,7 @@ fn an_amount_reads_a_history_count_in_a_layer() {
     let spells = AmountExpr::History(HistorySpan::ThisTurn, Box::new(spells_you_cast(None)));
     let banner = CardDataBuilder::new("Rally Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(spells, AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))
@@ -258,7 +253,7 @@ fn narrowing_an_unnamed_count_is_loud() {
 fn banner_over(fact: ObjectFact) -> Arc<CardData> {
     CardDataBuilder::new("Veteran's Banner")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ThisTurn(fact)),
         )))
@@ -321,7 +316,7 @@ fn steal(game: &mut GameState, victim: ObjectId, player: PlayerId) {
 fn anthem_of(amount: AmountExpr) -> Arc<CardData> {
     CardDataBuilder::new("Measuring Totem")
         .card_type(CardType::Artifact)
-        .ability(static_ability(Effect::Atom(
+        .ability(textless_static(Effect::Atom(
             Primitive::ModifyPowerToughness(amount, AmountExpr::Fixed(0), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredPermanents(ObjectFilter::ByType(CardType::Creature)),
         )))

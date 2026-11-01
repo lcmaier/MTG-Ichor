@@ -1,0 +1,272 @@
+Act of Treason	ec0c5eea2b7d57b6
+Adaptive Shimmerer	05959504aeef054c
+Aggravated Assault	e0a30b14507302db
+Alhammarret's Archive	b1199c600ecab115
+Ali from Cairo	82d7aef2acefba6f
+Alms Collector	60c39e1b5079dd42
+Altar's Reap	876bff6621a61126
+Ancestral Recall	4a8bc7d43f310297
+Angel of Suffering	8c225ca88047c893
+Angel's Mercy	c396e4d3d57ace93
+Angelic Destiny	3921b6fbf4f57564
+Archelos, Lagoon Mystic	24af24b34c56988b
+Ashaya, Soul of the Wild	978e9551b53dcafb
+Badlands	082ac90d2ca8833f
+Banishing Light	b8d4479afa939c42
+Bard, King of Dale	1ecf048de4a59f81
+Battlegrowth	58642f0c2e256c4f
+Bayou	7a67fadeb9c432c3
+Blaze	fa23f0b015c2d072
+Blessed Wine	3aa024f123c577b6
+Blood Artist	ee07884bc9df5700
+Blood Moon	7dde75390f45c4ab
+Bone Splinters	c609a699e3e8aa81
+Bonesplitter	ded06cbadd130572
+Bramble Elemental	a14b953ddbb64b5f
+Bridge from Below	57b83a66985c879b
+Burst of Energy	e8c2647e8c118030
+Cephalid Aristocrat	c14c7dcf39701f84
+Cerulean Wisps	df3f0e47248bd2df
+Chainbreaker	509c967ad3da9737
+Circle of Protection: Red	9546d4b794d3effa
+Citanul Hierophants	20f3ed135dcaaeac
+Clone	b34e69307ce19952
+Cobbled Wings	40de169b1dd15c40
+Compost	f0a14184c9370d3c
+Containment Priest	8dfd51f79cda2cad
+Cornered Crook	9c458be71a6f1bd4
+Cosi's Trickster	8fefb31581457140
+Counterspell	a648179cba2251d8
+Crimson Wisps	e1072c34cae25916
+Cryptoplasm	456efcedf32d3a66
+Culling Drone	ebd86e1fabb0615d
+Cytoshape	e253c98db7484c2b
+Dark Ritual	2c68f48528d05c23
+Dark Sphere	d7ae6150665591b8
+Darksteel Colossus	4a6e468eeacb8c11
+Darksteel Myr	021177e2ca8825cf
+Daunting Defender	6c92cf5bf938cf0d
+Deep Water	6c7611ebeca0db71
+Demonic Vigor	3ad882b5ca500856
+Diabolic Edict	e353e0cdecdd29ee
+Divine Visitation	3eac139e7effe235
+Doom Blade	960cc5514b1f4146
+Doubling Cube	450446902e3fc576
+Doubling Season	05b8be787911f7b7
+Dryad Arbor	78e9df32b1f2edce
+Earth Elemental	2708503bdc6c130e
+Eligeth, Crossroads Augur	500174e5dc11b060
+Elvish Archers	57d4abade049e0ba
+Elvish Warmaster	7a9bb42d210eb0b1
+Emperor Crocodile	8e58be9704f7b0df
+Eon Hub	9150a23a1f3b6ba5
+Everywhere	475d25ad189d44c0
+Exquisite Archangel	4a4ba2380e77a524
+Felidar Sovereign	b6ec1d7f2f8737cc
+Final Fortune	3739161d8ab81509
+Flickerwisp	8fc6d6e72496fe82
+Fog	961b32494f910ed9
+Forest	88f9a5b8700c00e7
+Foundry Inspector	64118e3a553aa6d5
+Frogmite	d4ade0f5e675aa8e
+Furnace of Rath	e326047d73595db8
+Ghosts of the Innocent	89f9810ccc4aaae8
+Giant Growth	cafd769a8511417f
+Giant Spider	df2f6ca05ecf64b6
+Gisela, Blade of Goldnight	5c2bafbe42220e70
+Glorious Anthem	6ae671cf0486888c
+Goblin Electromancer	bc40292b84026569
+Goblin Negotiation	e53f7bb9e601bb64
+Grafted Wargear	2e26e10785586dd5
+Grizzly Bears	a9b8e6e65f7588ea
+Grumgully, the Generous	8c0b4d05d2c41370
+Guardian Seraph	1f05e9a7d527029c
+Guerrilla Tactics	4c319245fdb1b8a8
+Hallowed Moonlight	730e0acbeae26529
+Hanweir Garrison	eb27e8f42f6986c9
+Hardened Scales	8ce67115184de915
+Hellrider	8b4f0c1362082f3d
+Hill Giant	29792ea4c6c0e722
+Holy Strength	20e1184b7b02ec45
+Hordeling Outburst	a43f05e178457e02
+Humility	5636c1c0b52d582f
+Hymn to Tourach	3d4677784db66531
+Idyllic Beachfront	f13912ffe98e82dc
+Incremental Growth	49c0bfe458e85728
+Isamaru, Hound of Konda	840e4cc23464f6bc
+Island	45733128f6423d3f
+Jagged Lightning	4b6d352616562a5c
+Kalitas, Traitor of Ghet	b66ef60cd9fd6fd0
+Keldon Warlord	3b8553119483fd1a
+Kird Ape	6c48971aab4cd7bf
+Knight of Meadowgrain	013639b6aded5de1
+Krark-Clan Ironworks	27591b9dd95d98be
+Laboratory Maniac	84c8ddffdf48c44c
+Leyline of the Void	0e01daad38e254bb
+Lightning Bolt	c71296e734f5b6f8
+Live Fast	a36fd272b96ab45e
+Loxodon Warhammer	d6ae6ba5d1096636
+Loyal Sentry	c9d238e89a20d949
+Loyalty Probe	fea5682e112d9ecc
+Mana Reflection	d1d296ef6d95c3cd
+March of the Machines	cdfad1dd2320e51b
+Master Biomancer	16a39274c1727319
+Meditate	22f4b223fe40b9d1
+Mending Hands	d3b3825e329a8329
+Merfolk Thaumaturgist	73c31d1d36d34adc
+Mind Rot	50fc9b55abda3d78
+Mind Stone	7079384bc56a3649
+Mirrorform	53e6d486e87bd8b3
+Mirrorweave	6e0c3ed09a18de71
+Moment of Silence	9caab0998c3dcd2a
+Moonlace	d1dfeba8d4da6cfe
+Mountain	39b443bf253a3af9
+Multani's Presence	559a1777f88a69ca
+Myr Enforcer	13f6097cb6dc0542
+Nephalia Academy	d9d05df562b33de7
+Nexus of Fate	296fe4c7723e4beb
+Night's Whisper	a6206e5e7acf8da2
+Notion Thief	4ad76cb34023e98b
+Nykthos Paragon	067c94bc19669f75
+Nyxbloom Ancient	3802c7f59a8f531a
+Opalescence	d1cf79321a24663a
+Opt	b3776ad597a19838
+Paladin of Atonement	1be2cbf5e7108bb1
+Pale Moon	75ababff95762c01
+Palisade Giant	1c88e3f0a6e016be
+Panharmonicon	f8a623dd88314a07
+Parallel Lives	34a98308029378f5
+Pariah	4947ffa92c45e774
+Pinpoint Avalanche	0062b70911800f01
+Plague Spores	7bad02727f96b1cf
+Plains	2d4d77945c107f1b
+Plateau	6dc2bdf6be04ed72
+Platinum Angel	4200fca816ee1dbe
+Primal Vigor	16894c4fde7e1f67
+Protean Hydra	3c4dfc3b8ed9a316
+Psychosis Crawler	2493d8368caf78e7
+Pyroclasm	b19d7faccb14325e
+Raging Cougar	514da840a50f834e
+Raise the Alarm	086ecea81e10db61
+Rancor	18fc21ddb948439e
+Ray of Command	b049920dedc4f94c
+Reflect Damage	e77c5b25b7e3da06
+Relentless Assault	7353c54f0d79e128
+Rest in Peace	27c539f33b9bf1fd
+Reverse Damage	4c493ba942c30853
+Rhox Faithmender	8ad226fe5ae33bb4
+Rhox War Monk	6a9b2721293647b4
+Ridgetop Raptor	c66a3c64f328134f
+Root Maze	f7912b5fb1041146
+Safe Passage	c23a6eab91f12d40
+Samite Censer-Bearer	d35721491c8f8957
+Samite Healer	08066ad3fc846f9e
+Savannah	a3dbaa29cc466e57
+Savannah Lions	917c407cc3e12927
+Scarwood Treefolk	50b2ffe4955f5683
+Scrubland	c4c62198ce7e3f89
+Seat of the Synod	5871677439e76adf
+Seeds of Strength	f2625da3fcde60fe
+Selfless Squire	f8ac7fb7dad84cb7
+Serra Angel	efa658e3411c5982
+Sigarda, Host of Herons	94b41d6d48aae030
+Simic Ascendancy	6c72245dafbf2cad
+Skullcrack	49542af5bc794fbf
+Sol Ring	0daf9ea7e18220bf
+Soul Warden	d8fe9ca957c1919c
+Spark Double	be3fdd42ad1d9347
+Sphere Grid	e6190e6041bcbf4f
+Strangleroot Geist	62d7ac353866ec2b
+Stunning Reversal	a62ab6f104f45178
+Sutured Ghoul	b59e8b4d598fb0c8
+Swamp	60d6762ecf1e801c
+Taiga	9da2c6ec70adf52c
+Tainted Remedy	e60a66165fc33d07
+Tarmogoyf	234775d27405e8ad
+Teferi's Ageless Insight	be62d4b0ba7e0026
+Temple Bell	93d33a51362b2b80
+Thalia, Guardian of Thraben	e667253f609f07c0
+Thornweald Archer	d7bbef14e3d0f914
+Thought Reflection	5fadf50e04d384c1
+Thunder-Thrash Elder	1e4cef95c25138b5
+Thunderscape Familiar	ef6c88c0740b0d30
+Time Walk	0423c12e13be8f6f
+Torbran, Thane of Red Fell	35457c37bd00149a
+Trinisphere	9267eace8a01f95a
+Tropical Island	64e3381f34176ca1
+Tundra	50ae594d98381de4
+Underground Sea	48a00c681ab2292a
+Urborg, Tomb of Yawgmoth	6c5671f626ed0aaa
+Vampire Nighthawk	e8ff6fa472a829ea
+Vengeful Warchief	7aee145fc6e6eb97
+Verdant Force	f15598b7a7bd7e2d
+Viscera Seer	e53ec2b88ea0a114
+Volcanic Island	c8b2a412a41c2383
+Volcanic Upheaval	a7bb574e1ce98432
+Vorinclex, Monstrous Raider	020bfe03228302f8
+Wall of Stone	7c4cececc7fb8ae2
+War Mammoth	e58ba361608a8bdf
+Wild Growth	f4994a9273fa4aea
+Winding Constrictor	53309ff22b14d7b2
+Wingrattle Scarecrow	f4f12811b6f835ac
+Wonder	bbac0c7fd700493f
+Words of Worship	617715ab6599d549
+Yawgmoth's Bargain	4b26ca1a0b137649
+Yixlid Jailer	bf7d1c1c4dbb036c
+fn angel_token	592aafab5917f79c
+fn arcane_adaptation_elf_clause	fdb04dc6231f2141
+fn attacking_human_token	0f2915ebdff03e0d
+fn bargain_lesson	8136fe6532be9689
+fn bull_rush	d87f1502c779a412
+fn call_to_serve_spell	0b9bb820a65363b5
+fn chromatic_ward	7052795f8837e1ce
+fn crimson_lesson	f146ffcfc6bf36fa
+fn destroy_your_others_then_a_token	3d2d44a4a70ebe79
+fn discard_your_hand_then_draw_that_many	613755b45607c294
+fn draws_on_an_empty_hand	90b8d6dc25139c28
+fn dual_land_ub	87575a9c2cce7b15
+fn elf_warrior_token	1499c472aae0f62f
+fn ember_lesson	d5ef85f18030be8a
+fn ensoul_artifact_spell	4944a5b9728df4cd
+fn exiled_ancestor	d67023f214059645
+fn fixture_curtain	2bda01262d8647ad
+fn fixture_first_creature_tithe	9dbdbb7002ca372a
+fn fixture_mourners_tithe	54031826de721690
+fn fixture_mourning_ink	50168953fcef5a09
+fn fixture_token_tally	7a84d129f8651add
+fn flight_clause	c17effe02adb173b
+fn generic_reducer	50645c4c5046b74e
+fn goblin_token	4572053b188add0d
+fn graveyard_painter	89d495265bc5532c
+fn graveyard_reveler	b0cc1a84da87171f
+fn green_reducer	12a24d571478aed7
+fn grist_insect_clause	5629ca4a16080e5c
+fn hollow_hands	dc16d16738ec8e50
+fn immortal_coils_state_trigger	f8ce183b6dfade60
+fn inside_out	a568461e27148d98
+fn kicked_lesson	06c356b66e655e68
+fn land_creatures_have_flying	a2bbb06dec3ed9c3
+fn lands_have_flying	62b1e77c83780afd
+fn lattice_colorless_clause	8b9a2a20636d0ecc
+fn library_artificer	ee71ee5f42a67521
+fn library_assassins	8806d4f78aa23014
+fn liquimetal_coating_spell	0b90c3120a097420
+fn locked_sphere	401c27cf19f77cad
+fn on_serras_wings_spell	8e8bf8fd5f2bbe87
+fn pocket_griffin	92cf9b68b0477508
+fn power_reducer	183c06a4df618e3c
+fn purifier_clause	af381ebbded9a932
+fn red_reducer	e3a77b1ea18bfb4f
+fn saproling_token	4c0bd9b5f75c5267
+fn sealing_ward	8118f79afdc97e98
+fn self_eating_engine	b8d7eb5270b7b374
+fn self_stripping_land	88539bd27ece42f4
+fn simian_clause	f56872ae5e7de83b
+fn soldier_token	9f37e6dc89dfd2ea
+fn teferi_flash_clause	d398a29e5b2bd1c2
+fn timid_golem	dee489897817da8b
+fn titanias_song_clause	028ec0112ce97d37
+fn twin_offering	ce8d48066c7e637f
+fn urborg_effect	4b8f707ba99e6c92
+fn verdant_lesson	83611199d981fbc4
+fn zhalfirin_shapecraft	24e11472698b9484

@@ -21,12 +21,13 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::authoring::{activated_ability, spell_ability, static_replacement};
 use mtgsim::cards::authoring::{at_beginning_of, attacks, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_re_cards::time_walk;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -38,7 +39,7 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerGroup,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
-use mtgsim::types::ids::{new_ability_id, AbilityId, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{
@@ -93,30 +94,19 @@ fn instant(name: &str, cost: ManaCost, effect: Effect) -> Arc<CardData> {
 }
 
 fn spell(effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Spell,
-        costs: Vec::new(),
+    spell_ability(
+        "",
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
+    )
 }
 
 /// "{0}: [effect]", or "{T}: [effect]".
 fn activated(tap: bool, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Activated,
-        costs: if tap { vec![mtgsim::types::costs::Cost::TapSelf] } else { Vec::new() },
+    activated_ability(
+        "",
+        if tap { vec![mtgsim::types::costs::Cost::TapSelf] } else { Vec::new() },
         effect,
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
+    )
 }
 
 /// A 2/2 creature with `abilities`.
@@ -310,7 +300,7 @@ fn a_spell_creates_a_delayed_trigger_that_fires_at_the_next_end_step() {
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
         )),
     );
-    assert!(doom.spell_instances.is_empty(), "the delayed trigger's target is not the spell's");
+    assert!(doom.spell_instances().is_empty(), "the delayed trigger's target is not the spell's");
     resolve_spell(&mut game, doom, 0);
     assert_eq!(game.delayed_triggers.len(), 1, "registered as the spell resolved");
     assert!(game.pending_triggers.is_empty(), "and nothing has happened");
@@ -757,16 +747,10 @@ fn archivist_whose_rider(rider: Effect) -> Arc<CardData> {
     .with_then(rider);
     CardDataBuilder::new("Grim Archivist")
         .card_type(CardType::Enchantment)
-        .ability(AbilityDef {
-            rules_text: "".into(),
-            id: AbilityId::UNASSIGNED,
-            instances: Vec::new(),
-            ability_type: AbilityType::Static,
-            costs: Vec::new(),
-            effect: Effect::Replacement(Box::new(replacement)),
-            is_characteristic_defining: false,
-            activation_restriction: ActivationRestriction::None,
-        })
+        .ability(static_replacement(
+            "",
+            replacement,
+        ))
         .build()
 }
 

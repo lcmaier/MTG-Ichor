@@ -27,17 +27,18 @@ use std::sync::Arc;
 use mtgsim::cards::phase_re_cards::{
     eon_hub, meditate, moment_of_silence, time_walk, yawgmoths_bargain,
 };
+use mtgsim::cards::authoring::{at_beginning_of, triggered_ability, whenever, Whose};
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData};
+use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_dp,
 };
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
-use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -594,65 +595,66 @@ fn a_skipped_phase_proposes_none_of_its_steps() {
 // CR 614.1b — "skip" identifies a replacement effect
 // ---------------------------------------------------------------------------
 
-// COVERS: BOUNDARY-DEF-614.1b-001
-#[test]
-fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
-    // In-set: Yawgmoth's Bargain's "Skip your draw step" is a static ability
-    // whose effect is a `ReplacementDef`, discovered by the replacement sweep
-    // off the permanent's effective ability list.
-    let bargain = yawgmoths_bargain();
-    let skip_ability = &bargain.abilities[0];
-    assert_eq!(skip_ability.ability_type, AbilityType::Static);
-    assert!(matches!(skip_ability.effect, Effect::Replacement(_)));
-
-    // Out-of-set: "At the beginning of your draw step, draw an additional
-    // card" is a **triggered** ability. It is not a replacement effect, and the
-    // engine's proof of that is the one that matters — the replacement sweep
-    // does not find it, so the draw step still happens.
-    let trigger = Arc::new(
-        mtgsim::objects::card_data::CardDataBuilder::new("Draw-Step Trigger Fixture")
-            .card_type(mtgsim::types::card_types::CardType::Enchantment)
-            .rules_text("At the beginning of your draw step, draw an additional card.")
-            .ability(AbilityDef {
-                rules_text: "".into(),
-                id: new_ability_id(),
-                instances: Vec::new(),
-                ability_type: AbilityType::Triggered,
-                costs: Vec::new(),
-                effect: Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
-                is_characteristic_defining: false,
-                activation_restriction:
-                    mtgsim::objects::card_data::ActivationRestriction::None,
-            })
-            .build()
-            .as_ref()
-            .clone(),
-    );
+/// Player 0's upkeep, with "At the beginning of your draw step, draw an
+/// additional card" on their battlefield, and Yawgmoth's Bargain beside it
+/// when `with_skip`. Advanced one step, then its triggers put on the stack.
+fn from_the_upkeep_with_a_draw_step_trigger(with_skip: bool) -> (GameState, usize, (PhaseType, Option<StepType>)) {
+    let trigger = mtgsim::objects::card_data::CardDataBuilder::new("Draw-Step Trigger Fixture")
+        .card_type(mtgsim::types::card_types::CardType::Enchantment)
+        .rules_text("At the beginning of your draw step, draw an additional card.")
+        .ability(triggered_ability(
+            "At the beginning of your draw step, draw an additional card.",
+            whenever(
+                at_beginning_of(StepType::Draw, Whose::Yours),
+                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            ),
+        ))
+        .build();
 
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     put_on_battlefield(&mut game, trigger, 0);
+    if with_skip {
+        put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
+    }
     game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
-
     let before = game.recorded_events().len();
-    let (phase, step) = game.advance_turn(&test_dp()).unwrap();
-    assert_eq!(
-        (phase, step),
-        (PhaseType::Beginning, Some(StepType::Draw)),
-        "a triggered ability replaces nothing: the draw step begins"
-    );
-    assert_eq!(
-        game.recorded_events()
-            .records_from(before)
-            .iter()
-            .filter(|r| matches!(r.event, GameEvent::CardDrawn { .. }))
-            .count(),
-        1,
-        "the turn-based draw happened; the trigger's own draw is item 6's"
-    );
+    let reached = game.advance_turn(&test_dp()).unwrap();
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+    (game, before, reached)
+}
+
+fn cards_drawn_from(game: &GameState, from: usize) -> usize {
+    game.recorded_events()
+        .records_from(from)
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::CardDrawn { .. }))
+        .count()
+}
+
+/// The same board twice, the second time with "Skip your draw step" added.
+/// The skip changes the step; the trigger only watches for it.
+// COVERS: BOUNDARY-DEF-614.1b-001
+#[test]
+fn skip_replaces_the_draw_step_and_an_at_the_beginning_of_ability_only_watches_for_it() {
+    // The trigger alone replaces nothing: the draw step begins, its turn-based
+    // draw happens, and the ability triggers as it began (CR 603.2b), goes on
+    // the stack and draws the additional card.
+    let (mut game, before, reached) = from_the_upkeep_with_a_draw_step_trigger(false);
+    assert_eq!(reached, (PhaseType::Beginning, Some(StepType::Draw)), "the draw step begins");
+    assert_eq!(cards_drawn_from(&game, before), 1, "the turn-based draw");
+    assert_eq!(game.stack.len(), 1, "the trigger is on the stack");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(cards_drawn_from(&game, before), 2, "and it drew the additional card");
+
+    // Yawgmoth's Bargain's "Skip your draw step" is a replacement effect (CR
+    // 614.1b, 614.10): the draw step is replaced with nothing, so it never
+    // happens (CR 614.6). It never begins, so the trigger has nothing to
+    // trigger on, and neither draw happens.
+    let (game, before, reached) = from_the_upkeep_with_a_draw_step_trigger(true);
+    assert_eq!(reached, (PhaseType::Precombat, None), "the turn goes from the upkeep to the main phase");
+    assert_eq!(cards_drawn_from(&game, before), 0, "no turn-based draw");
+    assert!(game.stack.is_empty(), "and nothing triggered");
 }
 
 // ---------------------------------------------------------------------------

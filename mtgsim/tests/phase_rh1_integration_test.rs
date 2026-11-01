@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{triggered_ability, whenever};
+use mtgsim::cards::authoring::{
+    activated_ability, spell_ability, static_replacement, static_restriction, triggered_ability, whenever,
+};
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_re8_cards::mind_rot;
 use mtgsim::cards::phase_rs_cards::diabolic_edict;
@@ -16,7 +18,7 @@ use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::{EventCause, GameRule, GeneratedBy, SpecialAction, StateBasedAction, TurnBasedAction};
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
@@ -29,7 +31,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
-use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
+use mtgsim::types::restriction::{Restriction, SourceFilter};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -56,18 +58,6 @@ fn gain_one() -> Effect {
     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
 }
 
-fn ability(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
-    AbilityDef {
-        rules_text: "".into(),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-        id: new_ability_id(),
-        instances: Vec::new(),
-        ability_type,
-        costs,
-        effect,
-    }
-}
 
 /// **Fixture.** One of three test enchantments, picked by `shape`, each with
 /// a single ability that asks of `change` to its controller's cards whether a
@@ -80,23 +70,21 @@ fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
     let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::ALL);
     let pattern = EventPattern::ZoneChange { change, object: None };
     let ability = match shape {
-        Shape::Cant => ability(
-            AbilityType::Static,
-            Vec::new(),
-            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+        Shape::Cant => static_restriction(
+            "",
+            Restriction::Event {
                 pattern,
                 affected: AffectedSet::objects(yours),
                 by: Some(by),
-            }))),
-        ),
-        Shape::Replacement => ability(
-            AbilityType::Static,
-            Vec::new(),
-            Effect::Replacement(Box::new(
-                ReplacementDef::new(pattern, yours, Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }))
-                    .caused_by(by),
-            )),
-        ),
+            },
+        )
+        .with_id(new_ability_id()),
+        Shape::Replacement => static_replacement(
+            "",
+            ReplacementDef::new(pattern, yours, Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }))
+                .caused_by(by),
+        )
+        .with_id(new_ability_id()),
         Shape::Trigger => triggered_ability(
             "",
             whenever(
@@ -168,7 +156,7 @@ fn sacrifices_itself_for_life() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Self-Sacrificer")
         .card_type(CardType::Creature)
         .power_toughness(1, 1)
-        .ability(ability(AbilityType::Activated, vec![Cost::SacrificeSelf], gain_one()))
+        .ability(activated_ability("", vec![Cost::SacrificeSelf], gain_one()).with_id(new_ability_id()))
         .build()
 }
 
@@ -246,7 +234,7 @@ fn zero_toughness(shape: Option<Shape>) -> Outcome {
 fn free_instant() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Free Instant")
         .card_type(CardType::Instant)
-        .ability(ability(AbilityType::Spell, Vec::new(), gain_one()))
+        .ability(spell_ability("", gain_one()).with_id(new_ability_id()))
         .build()
 }
 
