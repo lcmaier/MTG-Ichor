@@ -1595,9 +1595,8 @@ mod tests {
         assert_eq!(activation_labels(&game, bears), [format!("Grizzly Bears ({bears}) · {{T}}: Add {{G}}.")]);
     }
 
-    /// A printed ability shows once however the engine builds it: Platinum
-    /// Angel's second paragraph is two abilities, a can't-lose and a
-    /// can't-win. The same words are two abilities when one is printed and
+    /// A printed ability shows once: Platinum Angel's second paragraph is one
+    /// ability making two "can't"s. The same words are two abilities when one is printed and
     /// one granted: Dryad Arbor's own mana ability and the one Citanul
     /// Hierophants grants it.
     #[test]

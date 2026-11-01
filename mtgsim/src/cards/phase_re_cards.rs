@@ -314,8 +314,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     activated_ability, cant, create, create_replacement, create_replacement_for, deal_damage, draw_cards, exile, get_counters, lose_life,
-    set_life_total, spell_ability, static_ability, static_replacement, static_restriction, take_an_extra_turn, target_player, this_object, you,
-    you_and_that_player,
+    set_life_total, spell_ability, static_ability, static_replacement, take_an_extra_turn, target_player, this_object, you, you_and_that_player,
 };
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
@@ -332,7 +331,7 @@ use crate::types::replacement::{
     AmountRewrite, EventPattern, GameActionTemplate, LifeLossCausePattern, ReplacementDef,
     Rewrite, Rounding, TemplateAmount, TokenKind, TokenSubstitution,
 };
-use crate::types::restriction::{ReplacementKindFilter, Restriction};
+use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
 use crate::types::zones::{DrawFilter, Zone};
 
 /// A static ability whose replacement effect exists only while `condition`
@@ -1432,16 +1431,22 @@ pub fn platinum_angel() -> Arc<CardData> {
         .power_toughness(4, 4)
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying\nYou can't lose the game and your opponents can't win the game.")
-        .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
-            pattern: EventPattern::PlayerLoses,
-            affected: AffectedSet::players(PlayerSet::You),
-            by: None,
-        }))
-        .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
-            pattern: EventPattern::PlayerWins,
-            affected: AffectedSet::players(PlayerSet::Opponents),
-            by: None,
-        }))
+        // One paragraph, one ability (CR 113.2c), making two "can't"s.
+        .ability(static_ability(
+            "You can't lose the game and your opponents can't win the game.",
+            Effect::Sequence(vec![
+                Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+                    pattern: EventPattern::PlayerLoses,
+                    affected: AffectedSet::players(PlayerSet::You),
+                    by: None,
+                }))),
+                Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+                    pattern: EventPattern::PlayerWins,
+                    affected: AffectedSet::players(PlayerSet::Opponents),
+                    by: None,
+                }))),
+            ]),
+        ))
         .build()
 }
 
