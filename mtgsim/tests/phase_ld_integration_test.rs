@@ -103,8 +103,8 @@ fn test_call_to_serve_adds_angel_subtype() {
     let _spell = put_in_hand(&mut game, fixtures::call_to_serve_spell_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::White, 2);
 
-    // Base: no subtypes (Grizzly Bears has no subtype in card data)
     let subtypes = get_effective_subtypes(&game, bears_id);
+    assert!(subtypes.contains(&Subtype::Creature(CreatureType::Bear)));
     assert!(!subtypes.contains(&Subtype::Creature(CreatureType::Angel)));
 
     let decisions = ScriptedDecisionProvider::new();
@@ -114,9 +114,10 @@ fn test_call_to_serve_adds_angel_subtype() {
         None,
     );
 
-    // Should now have Angel subtype
+    // An Angel in addition to its other types: still a Bear.
     let subtypes = get_effective_subtypes(&game, bears_id);
     assert!(subtypes.contains(&Subtype::Creature(CreatureType::Angel)));
+    assert!(subtypes.contains(&Subtype::Creature(CreatureType::Bear)));
 
     // +1/+2 applied (L7c)
     assert_eq!(get_effective_power(&game, bears_id), Some(3));

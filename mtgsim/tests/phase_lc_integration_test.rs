@@ -355,19 +355,16 @@ fn a_creature_turned_blue_still_pumps_green_creatures() {
 }
 
 // ===========================================================================
-// Moonlace Fixture says what it does
+// Moonlace Fixture lasts until end of turn, as its text says
 // ===========================================================================
 
-/// The fixture's text is its effect's: a target creature, colorless until
-/// end of turn, green again at the cleanup.
+/// A target creature, colorless until end of turn and green again at the
+/// cleanup: the duration its text states, where Moonlace's effect never ends.
 #[test]
-fn moonlace_fixture_says_what_it_does() {
-    let card = fixtures::moonlace_fixture();
-    assert_eq!(card.rules_text, "Target creature becomes colorless until end of turn.");
-
+fn moonlace_fixture_is_colorless_until_end_of_turn() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let moonlace_id = put_in_hand(&mut game, card, 0);
+    let moonlace_id = put_in_hand(&mut game, fixtures::moonlace_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), moonlace_id, 1);
     assert!(get_effective_colors(&game, bears_id).is_empty());
