@@ -19,7 +19,7 @@ use mtgsim::cards::authoring::{at_beginning_of, enters, triggered_ability, whene
 use mtgsim::cards::printings::{
     act_of_treason, alms_collector, ashaya_soul_of_the_wild, blood_artist, blood_moon, forest, grizzly_bears, yawgmoths_bargain,
 };
-use mtgsim::cards::printings::{elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief};
+use mtgsim::cards::printings::{elvish_warmaster, paladin_of_atonement, temple_bell, thornweald_archer, vengeful_warchief};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::condition::{settled_holds, ConditionReferents};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -1331,6 +1331,27 @@ fn warmasters_pump_is_fixed_as_it_resolves() {
     assert_eq!(get_effective_power(&game, bear), Some(2), "became an Elf afterwards");
     assert!(!has_keyword(&game, bear, KeywordFlag::Deathtouch));
     assert!(!has_keyword(&game, late, KeywordFlag::Deathtouch), "an Elf that arrived afterwards");
+}
+
+/// Thornweald Archer is an Elf Archer, so the Warmaster both triggers on it
+/// and pumps it.
+#[test]
+fn warmaster_sees_thornweald_archer_as_an_elf() {
+    let mut game = setup_two_player_game();
+    let warmaster = put_on_battlefield(&mut game, elvish_warmaster(), 0);
+    let archer = put_on_battlefield(&mut game, thornweald_archer(), 0);
+    assert_eq!(pending_triggers(&game), 1, "an Elf entered under the Warmaster");
+    let before = game.battlefield.len();
+    resolve_all(&mut game);
+    assert_eq!(game.battlefield.len(), before + 1, "the Elf Warrior token");
+
+    for _ in 0..7 {
+        game.players[0].mana_pool.add(ManaType::Green, 1);
+    }
+    let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
+    game.activate_ability(0, warmaster, 1, &dp).expect("{5}{G}{G} from an exact pool");
+    resolve_all(&mut game);
+    assert_eq!(get_effective_power(&game, archer), Some(4), "2/1, and +2/+2 for an Elf");
 }
 
 fn elf() -> Subtype {

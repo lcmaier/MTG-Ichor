@@ -416,7 +416,7 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // ("for the first time each turn"), which every life loss in a game
     // advances. Elvish Warmaster is "one or more" behind "triggers only once
     // each turn", and its pump is a one-shot over a filter; the pool's Elvish
-    // Archers is an Elf for it to see.
+    // Archers and Thornweald Archer are Elves for it to see.
     "Vengeful Warchief",
     "Elvish Warmaster",
     // TR-2b's two. Psychosis Crawler is a hand's count in the layer walk,

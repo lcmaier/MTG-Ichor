@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{any_target, deal_damage, discard, spell_ability, target_player};
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{AmountExpr, DiscardChooser};
 use crate::types::keywords::KeywordFlag;
@@ -64,6 +64,7 @@ pub fn mind_rot() -> Arc<CardData> {
 pub fn raging_cougar() -> Arc<CardData> {
     CardDataBuilder::new("Raging Cougar")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Cat))
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .power_toughness(2, 2)

@@ -238,6 +238,8 @@ pub fn tarmogoyf() -> Arc<CardData> {
 pub fn thornweald_archer() -> Arc<CardData> {
     CardDataBuilder::new("Thornweald Archer")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Elf))
+        .subtype(Subtype::Creature(CreatureType::Archer))
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 1)

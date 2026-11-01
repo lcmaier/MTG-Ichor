@@ -6,7 +6,7 @@ use crate::cards::authoring::{
     add_mana, all_damage_to_you, creatures_you_control, each, gains_ability, gets, mana_ability, static_ability, static_replacement,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::types::card_types::{CardType, Subtype};
+use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, ManaOutput, ObjectSet, SelectionFilter};
@@ -50,6 +50,8 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .color(Color::Green)
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Druid))
         .power_toughness(3, 2)
         .rules_text("Creatures you control have \"{T}: Add {G}.\"")
         .ability(static_ability(

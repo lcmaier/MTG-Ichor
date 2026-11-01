@@ -104,6 +104,8 @@ pub fn felidar_sovereign() -> Arc<CardData> {
 pub fn vampire_nighthawk() -> Arc<CardData> {
     CardDataBuilder::new("Vampire Nighthawk")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Vampire))
+        .subtype(Subtype::Creature(CreatureType::Shaman))
         .color(Color::Black)
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 1))
         .power_toughness(2, 3)

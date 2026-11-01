@@ -8222,30 +8222,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      a fixture effect; whether a type given back gives its subtypes back is
      read against the rulings first, as above.
 
-207. **Fourteen registered creatures lack the creature types they print.**
-     Citanul Hierophants, Earth Elemental, Giant Spider, Grizzly Bears, Hill
-     Giant, Knight of Meadowgrain, Raging Cougar, Rhox War Monk, Ridgetop
-     Raptor, Savannah Lions, Serra Angel, Thornweald Archer, Vampire
-     Nighthawk and War Mammoth: a relic of the bootstrapped tests (the owner,
-     2026-10-02). A census of type lines against Scryfall found them: the
-     order the card files list types in reproduces the printed line for 165
-     of the 180 real registered cards, and these are 14 of the other 15. The
-     fifteenth is Everywhere, a token the pools deal as a land card, printed
-     as "Token Land".
-
-     **Reachability (2026-10-22):** reachable — wrong today: Thornweald Archer
-     is no Elf, so Elvish Warmaster neither triggers on it nor pumps it, in
-     both pools since the Warmaster joined `PERFORMANCE_POOL` (`70188c40`).
-     60 games each at seed 2026 (`--require "Elvish Warmaster,Thornweald
-     Archer"`): every Archer that entered under its controller's Warmaster
-     triggered nothing, 4 of 4 in `stress` and 3 of 3 in `performance`.
-
-     **Sized:** ~20 lines of card data and a fixture, Warmaster seeing the
-     Archer; every creature type the fourteen need is in `CreatureType`. It
-     moves both pools' streams, so it carries a re-record of each. **Slotted:**
-     beside `card-layer-cleanup` (`roadmap-v2.md` §C), the test-card reorganization before
-     Phase 8's breadth (the owner, 2026-10-02), as its own commit after the
-     move: `card-layer-cleanup`'s text keeps behavior out of the move, so the move stays a move.
+207. **~~Fourteen registered creatures lack the creature types they print.~~
+     — ✅ CLOSED 2026-11-01 (PR #304, `creature-types-plus-fixture-names`).**
+     — archived. Each of the fourteen prints its type line in its printed
+     order, and `warmaster_sees_thornweald_archer_as_an_elf` shows Elvish
+     Warmaster triggering on the Archer and pumping it. The census's
+     fifteenth, Everywhere, left the registry in the same PR.
+     **Reachability (2026-11-01):** closed — PR #304.
 
 ### Found at SU-3's merge (2026-10-03)
 

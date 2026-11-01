@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{creature, put_counters, spell_ability, target_creature, target_permanent};
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{CounterType, Effect, ObjectFilter};
 use crate::types::keywords::KeywordFlag;
@@ -76,6 +76,8 @@ pub fn incremental_growth() -> Arc<CardData> {
 pub fn knight_of_meadowgrain() -> Arc<CardData> {
     CardDataBuilder::new("Knight of Meadowgrain")
         .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Kithkin))
+        .subtype(Subtype::Creature(CreatureType::Knight))
         .color(Color::White)
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 0))
         .power_toughness(2, 2)
