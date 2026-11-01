@@ -622,7 +622,7 @@ mod tests {
     use crate::types::colors::Color;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
-    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
     use crate::ui::decision::ScriptedDecisionProvider;
 
     #[test]
@@ -766,7 +766,7 @@ mod tests {
         let arrived: Vec<_> = game.arrivals_since_last_sba_check.iter().map(|arrival| arrival.id).collect();
         assert_eq!(arrived, [token, commander], "in the order they arrived");
 
-        dp.expect_pick_n(ChoiceKind::CommanderToCommandZoneSba { commander }, vec![0]);
+        dp.expect_choice(ChoiceKind::CommanderToCommandZoneSba { commander }, vec![ChoiceOption::Object(commander)]);
         assert!(game.check_state_based_actions(&dp).unwrap());
         assert!(!game.objects.contains_key(&token), "CR 704.5d");
         assert_eq!(game.objects[&commander].zone, Zone::Command, "CR 704.6d, offered and taken");
@@ -983,12 +983,10 @@ mod tests {
 
         // The player is asked, and keeps the one that is about to die anyway.
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(
+        dp.expect_choice(
             ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
-            vec![0],
+            vec![ChoiceOption::Object(doomed)],
         );
-        let keep_first = game.battlefield_ids_ordered()[0];
-        assert_eq!(keep_first, doomed, "fixture assumes the damaged one sorts first");
 
         assert!(game.check_state_based_actions(&dp).unwrap());
 
@@ -1026,11 +1024,10 @@ mod tests {
         game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(
+        dp.expect_choice(
             ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
-            vec![1],
+            vec![ChoiceOption::Object(healthy)],
         );
-        assert_eq!(game.battlefield_ids_ordered()[1], healthy, "fixture assumes this order");
 
         assert!(game.check_state_based_actions(&dp).unwrap());
 
@@ -1099,9 +1096,9 @@ mod tests {
         assert!(game.battlefield.contains_key(&id2));
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(ChoiceKind::LegendRule {
+        dp.expect_choice(ChoiceKind::LegendRule {
             legend_name: "Isamaru, Hound of Konda".to_string(),
-        }, vec![0]);
+        }, vec![ChoiceOption::Object(id1)]);
         let performed = game.check_state_based_actions(&dp).unwrap();
         assert!(performed);
 
@@ -1145,24 +1142,24 @@ mod tests {
         game.begin_turn(2, 1);
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(
+        dp.expect_choice(
             ChoiceKind::LegendRule { legend_name: String::new() },
-            vec![0],
+            vec![ChoiceOption::Object(p1_first)],
         );
-        dp.expect_pick_n(
+        dp.expect_choice(
             ChoiceKind::LegendRule { legend_name: String::new() },
-            vec![1],
+            vec![ChoiceOption::Object(p0_second)],
         );
         assert!(game.check_state_based_actions(&dp).unwrap());
 
         assert!(
             game.battlefield.contains_key(&p1_first),
-            "the active player was asked first and kept index 0"
+            "the active player was asked first and kept their first Thalia"
         );
         assert!(!game.battlefield.contains_key(&p1_second));
         assert!(
             game.battlefield.contains_key(&p0_second),
-            "the nonactive player was asked second and kept index 1"
+            "the nonactive player was asked second and kept their second Isamaru"
         );
         assert!(!game.battlefield.contains_key(&p0_first));
     }

@@ -130,8 +130,8 @@ mod tests {
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::decision::ScriptedDecisionProvider;
 
-    fn buckets(n: usize) -> Vec<ChoiceOption> {
-        (0..n).map(|_| ChoiceOption::ManaType(ManaType::Green)).collect()
+    fn mana(mana: ManaType) -> ChoiceOption {
+        ChoiceOption::ManaType(mana)
     }
 
     fn split_ctx() -> ChoiceContext {
@@ -141,9 +141,9 @@ mod tests {
         })
     }
 
-    fn expects_split(answer: Vec<u64>) -> ScriptedDecisionProvider {
+    fn expects_split(answer: Vec<(ChoiceOption, u64)>) -> ScriptedDecisionProvider {
         let inner = ScriptedDecisionProvider::new();
-        inner.expect_allocation(
+        inner.expect_split(
             ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: ManaCost::zero(),
@@ -161,8 +161,9 @@ mod tests {
     #[test]
     fn defers_a_split_that_decides_what_is_left_in_the_pool() {
         let game = setup_two_player_game();
-        let dp = AutoPayer::new(expects_split(vec![0, 2]));
-        let alloc = dp.allocate(&game, 0, &split_ctx(), 2, &buckets(2), &[0, 0], Some(&[2, 2]));
+        let dp = AutoPayer::new(expects_split(vec![(mana(ManaType::Blue), 0), (mana(ManaType::Green), 2)]));
+        let buckets = [mana(ManaType::Blue), mana(ManaType::Green)];
+        let alloc = dp.allocate(&game, 0, &split_ctx(), 2, &buckets, &[0, 0], Some(&[2, 2]));
         assert_eq!(alloc, vec![0, 2], "the player spent green and kept blue up");
     }
 
@@ -174,8 +175,9 @@ mod tests {
     #[test]
     fn a_forced_split_is_the_wrapped_providers_too() {
         let game = setup_two_player_game();
-        let dp = AutoPayer::new(expects_split(vec![1, 2, 1]));
-        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets(3), &[0, 0, 0], Some(&[1, 2, 1]));
+        let buckets = [mana(ManaType::White), mana(ManaType::Blue), mana(ManaType::Green)];
+        let dp = AutoPayer::new(expects_split(buckets.iter().cloned().zip([1, 2, 1]).collect()));
+        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets, &[0, 0, 0], Some(&[1, 2, 1]));
         assert_eq!(alloc, vec![1, 2, 1], "the answer is the inner provider's, not computed here");
     }
 
@@ -195,17 +197,18 @@ mod tests {
     #[test]
     fn the_sacrifice_choice_passes_through() {
         let game = setup_two_player_game();
+        let (first, second) = (new_object_id(), new_object_id());
         let inner = ScriptedDecisionProvider::new();
-        inner.expect_pick_n(
+        inner.expect_choice(
             ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: new_object_id(), count: 1 },
-            vec![1],
+            vec![ChoiceOption::Object(second)],
         );
         let dp = AutoPayer::new(inner);
         let ctx = ChoiceContext::new(ChoiceKind::ChooseSacrificeForCost {
             spell_or_ability_id: new_object_id(),
             count: 1,
         });
-        let options = vec![ChoiceOption::Object(new_object_id()); 2];
+        let options = vec![ChoiceOption::Object(first), ChoiceOption::Object(second)];
         assert_eq!(dp.pick_n(&game, 0, &ctx, &options, (1, 1)), vec![1]);
     }
 
@@ -216,9 +219,10 @@ mod tests {
         let game = setup_two_player_game();
         let inner = ScriptedDecisionProvider::new();
         let attacker_id = new_object_id();
-        inner.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id }, vec![2, 1]);
+        let blockers = [ChoiceOption::Object(new_object_id()), ChoiceOption::Object(new_object_id())];
+        inner.expect_split(ChoiceKind::AssignCombatDamage { attacker_id }, blockers.iter().cloned().zip([2, 1]).collect());
         let dp = AutoPayer::new(inner);
         let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id });
-        assert_eq!(dp.allocate(&game, 0, &ctx, 3, &buckets(2), &[0, 0], None), vec![2, 1]);
+        assert_eq!(dp.allocate(&game, 0, &ctx, 3, &blockers, &[0, 0], None), vec![2, 1]);
     }
 }

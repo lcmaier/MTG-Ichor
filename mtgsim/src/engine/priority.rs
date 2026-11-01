@@ -329,8 +329,8 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new()
             .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
 
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
@@ -361,13 +361,11 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Red, 1);
 
         let decisions = ScriptedDecisionProvider::new();
-        // Player 0 casts bolt (index 1 in [Pass, CastSpell(card_id)])
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-        // Target: Player(1) is at index 1 in [Player(0), Player(1)]
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(card_id))]);
+        decisions.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![1]);
+        }, vec![ChoiceOption::Player(1)]);
 
         // First round: player 0 casts bolt (returns ActionTaken immediately)
         let result = game.run_priority_round(&decisions).unwrap();

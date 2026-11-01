@@ -893,10 +893,9 @@ mod tests {
         );
 
         let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
-        // Legal pairs: [(angel, Player(1))] — index 0
-        scripted.expect_pick_n(
+        scripted.expect_choice(
             crate::ui::choice_types::ChoiceKind::DeclareAttackers,
-            vec![0],
+            vec![crate::ui::choice_types::ChoiceOption::AttackerTarget(angel, AttackTarget::Player(1))],
         );
         game.process_declare_attackers(&scripted).unwrap();
 
@@ -912,10 +911,9 @@ mod tests {
         let bears = place_creature(&mut game, 0);
 
         let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
-        // Legal pairs: [(bears, Player(1))] — index 0
-        scripted.expect_pick_n(
+        scripted.expect_choice(
             crate::ui::choice_types::ChoiceKind::DeclareAttackers,
-            vec![0],
+            vec![crate::ui::choice_types::ChoiceOption::AttackerTarget(bears, AttackTarget::Player(1))],
         );
         game.process_declare_attackers(&scripted).unwrap();
 
@@ -1039,34 +1037,12 @@ mod tests {
         set_attacking(&mut game, att1, 1);
         set_attacking(&mut game, att2, 1);
 
-        // Mirror `process_declare_blockers`' pair construction so the DP script
-        // can name a pair by index. The order is deterministic now
-        // (`battlefield_ordered`), but deriving the index rather than hardcoding
-        // it keeps the test about the retry loop instead of the list layout.
-        let blocker_ids = crate::oracle::legality::legal_blockers(&game, 1);
-        let attackers_in_combat: Vec<ObjectId> = game.battlefield_ordered()
-            .into_iter()
-            .filter_map(|(id, e)| e.attacking.as_ref().map(|_| id))
-            .collect();
-        let pairs: Vec<(ObjectId, ObjectId)> = blocker_ids
-            .iter()
-            .flat_map(|&bid| attackers_in_combat.iter().map(move |&aid| (bid, aid)))
-            .filter(|&(bid, aid)| can_block(&game, 1, bid, aid).is_ok())
-            .collect();
-        assert_eq!(pairs.len(), 2, "expected 2 legal pairs (blocker × 2 attackers)");
-        let idx_att1 = pairs.iter().position(|p| *p == (blocker, att1)).unwrap();
-
+        let block = |attacker| crate::ui::choice_types::ChoiceOption::BlockerAttacker(blocker, attacker);
         let scripted = crate::ui::decision::ScriptedDecisionProvider::new();
-        // Invalid: pick both pairs — blocker is used twice.
-        scripted.expect_pick_n(
-            crate::ui::choice_types::ChoiceKind::DeclareBlockers,
-            vec![0, 1],
-        );
-        // Re-ask: pick just the pair where blocker blocks att1.
-        scripted.expect_pick_n(
-            crate::ui::choice_types::ChoiceKind::DeclareBlockers,
-            vec![idx_att1],
-        );
+        // Invalid: the blocker blocks both attackers.
+        scripted.expect_choice(crate::ui::choice_types::ChoiceKind::DeclareBlockers, vec![block(att1), block(att2)]);
+        // Re-ask: it blocks att1 alone.
+        scripted.expect_choice(crate::ui::choice_types::ChoiceKind::DeclareBlockers, vec![block(att1)]);
         let seat = crate::test_support::RejectionRecorder::new(scripted);
 
         game.process_declare_blockers(&seat).unwrap();
@@ -1078,7 +1054,7 @@ mod tests {
         let att2_info = game.battlefield.get(&att2).unwrap().attacking.as_ref().unwrap();
         assert!(!att2_info.is_blocked);
         let rejected = crate::ui::choice_types::Rejection::IllegalBlocks {
-            blocks: pairs.clone(),
+            blocks: vec![(blocker, att1), (blocker, att2)],
             why: CombatError::TooManyBlocks(blocker, 1),
         };
         assert_eq!(seat.rejected_at("DeclareBlockers"), [None, Some(rejected)]);

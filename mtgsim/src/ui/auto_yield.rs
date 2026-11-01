@@ -180,18 +180,20 @@ mod tests {
 
     const PRIORITY: ChoiceContext = ChoiceContext::new(ChoiceKind::PriorityAction);
 
-    /// `[Pass, Cast]`: the seat has something to do, so a pass is a choice.
-    fn pass_or_cast() -> Vec<ChoiceOption> {
-        vec![
-            ChoiceOption::Action(PriorityAction::Pass),
-            ChoiceOption::Action(PriorityAction::CastSpell(new_object_id())),
-        ]
+    /// A spell the seat could cast.
+    fn a_cast() -> ChoiceOption {
+        ChoiceOption::Action(PriorityAction::CastSpell(new_object_id()))
+    }
+
+    /// `[Pass, cast]`: the seat has something to do, so a pass is a choice.
+    fn pass_or(cast: &ChoiceOption) -> Vec<ChoiceOption> {
+        vec![ChoiceOption::Action(PriorityAction::Pass), cast.clone()]
     }
 
     /// The seat's person, asked once, casting.
-    fn asked_once() -> ScriptedDecisionProvider {
+    fn asked_once(cast: &ChoiceOption) -> ScriptedDecisionProvider {
         let person = ScriptedDecisionProvider::new();
-        person.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        person.expect_choice(ChoiceKind::PriorityAction, vec![cast.clone()]);
         person
     }
 
@@ -200,11 +202,12 @@ mod tests {
         let mut game = setup_two_player_game();
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilEndOfTurn));
-        let seat = AutoYield::new(asked_once(), yields);
+        let cast = a_cast();
+        let seat = AutoYield::new(asked_once(&cast), yields);
 
-        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "yielded");
+        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![0], "yielded");
         game.turn_number += 1;
-        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![1], "asked");
+        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![1], "asked");
         game.turn_number -= 1;
         assert!(!seat.yields.holds(&game, 0), "an ended yield does not come back");
     }
@@ -215,11 +218,12 @@ mod tests {
         game.stack.push(new_object_id());
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilStackChanges));
-        let seat = AutoYield::new(asked_once(), yields);
+        let cast = a_cast();
+        let seat = AutoYield::new(asked_once(&cast), yields);
 
-        assert_eq!(seat.pick_n(&game, 1, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "yielded");
+        assert_eq!(seat.pick_n(&game, 1, &PRIORITY, &pass_or(&cast), (1, 1)), vec![0], "yielded");
         game.stack.push(new_object_id());
-        assert_eq!(seat.pick_n(&game, 1, &PRIORITY, &pass_or_cast(), (1, 1)), vec![1], "a response is wanted");
+        assert_eq!(seat.pick_n(&game, 1, &PRIORITY, &pass_or(&cast), (1, 1)), vec![1], "a response is wanted");
     }
 
     /// With nothing on the stack there is nothing to wait on, and a yield
@@ -239,15 +243,16 @@ mod tests {
         let mut game = setup_two_player_game();
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilYourNextTurn));
-        let seat = AutoYield::new(asked_once(), yields);
+        let cast = a_cast();
+        let seat = AutoYield::new(asked_once(&cast), yields);
 
-        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "the rest of this turn");
+        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![0], "the rest of this turn");
         game.turn_number += 1;
         game.active_player = 1;
-        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "the opponent's turn");
+        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![0], "the opponent's turn");
         game.turn_number += 1;
         game.active_player = 0;
-        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![1], "its own turn asks");
+        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![1], "its own turn asks");
     }
 
     /// A yield passes priority and nothing else: blocks are still declared.
@@ -257,7 +262,7 @@ mod tests {
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let person = ScriptedDecisionProvider::new();
-        person.expect_pick_n(ChoiceKind::DeclareBlockers, vec![]);
+        person.expect_choice(ChoiceKind::DeclareBlockers, vec![]);
         let seat = AutoYield::new(person, yields);
         let blockers = ChoiceContext::new(ChoiceKind::DeclareBlockers);
 
@@ -272,10 +277,11 @@ mod tests {
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let switch = FullControlSwitch::default();
-        let seat = FullControl::new(AutoYield::new(ScriptedDecisionProvider::new(), yields), asked_once(), switch.clone());
+        let cast = a_cast();
+        let seat = FullControl::new(AutoYield::new(ScriptedDecisionProvider::new(), yields), asked_once(&cast), switch.clone());
 
-        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "yielded");
+        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![0], "yielded");
         switch.set(true);
-        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![1], "asked");
+        assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![1], "asked");
     }
 }
