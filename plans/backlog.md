@@ -321,8 +321,8 @@ record, corrected where it was wrong.*
   whose events exist but no arm pairs them. Each arrives with its event and
   its kind; `plans/references/replacement-kinds-census.py --names` lists the
   cards. Unreachable: no registered card.
-- **Owner** — each arm with its first card, since the verdict makes the
-  entry a feature by contract. Reality Shift's manifest (`tdc`) is
+- **Owner** — by arm, since the verdict makes the entry a feature by
+  contract. Reality Shift's manifest (`tdc`) is
   `face-down-and-morph`'s manifest build, which the route brings before the
   decks; Glorybringer's exert and the decks' connive and proliferate (the
   card census) are `tarkir-dragonstorm-decks`'; cloak and manifest dread go
