@@ -2,8 +2,8 @@
 //! testable, and is filed by the architecture doc whose path it tests, or by
 //! the CR subject it exists for when no doc owns one. A fixture must not wear
 //! a real card's name while behaving differently
-//! (`engineering-practices.md#cards-and-pools`); eight here still do, until
-//! `creature-types-plus-fixture-names` settles each.
+//! (`engineering-practices.md#cards-and-pools`): one shaped like a printed
+//! card takes that card's name with "Fixture" after it.
 
 mod layers;
 mod replacement;

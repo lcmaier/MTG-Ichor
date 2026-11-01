@@ -93,6 +93,8 @@ pub mod ala;
 pub mod m10;
 #[path = "2009/10_02_zen.rs"]
 pub mod zen;
+#[path = "2010/02_05_wwk.rs"]
+pub mod wwk;
 #[path = "2010/07_16_m11.rs"]
 pub mod m11;
 #[path = "2010/10_01_som.rs"]
@@ -177,6 +179,8 @@ pub mod mh2;
 pub mod snc;
 #[path = "2022/09_09_dmu.rs"]
 pub mod dmu;
+#[path = "2023/04_21_mom.rs"]
+pub mod mom;
 #[path = "2024/02_09_mkm.rs"]
 pub mod mkm;
 #[path = "2024/11_15_fdn.rs"]

@@ -231,7 +231,7 @@ pub fn mana_reflection() -> Arc<CardData> {
 /// forbids, and CR 202.2's colors come out W and U exactly as printed.
 ///
 /// `codebase-state.md`'s 2026-08-24 entry set the opposite precedent —
-/// `fixtures::inside_out` stays unregistered because simplifying its
+/// `fixtures::inside_out_fixture` stays unregistered because simplifying its
 /// hybrid cost would "misrepresent the card". That was the right call there and
 /// is the wrong one here, for a reason that is about the *pool* rather than
 /// about the card: Inside Out had a registered substitute for the engine path it

@@ -7,8 +7,8 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
-    vis, war, wth, zen, znr,
+    mkm, mmq, mom, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
+    vis, war, wth, wwk, zen, znr,
 };
 use super::tokens;
 
@@ -679,12 +679,13 @@ impl CardRegistry {
         // - Chromatic Ward and Windswept Heights are invented cards.
         // - Urborg Effect is a deliberate stand-in (an Enchantment carrying the
         //   land's ability) rather than Urborg itself.
-        // - The four `*_spell` cards are Auras and an Artifact re-modeled as
-        //   Instants to avoid machinery their phase did not need. Real names,
-        //   wrong card types.
-        // - Underground Sea, Cloudspire Mesa and Moonlit Steppe are Lands whose
-        //   phases modeled them loosely; the ten real dual lands below are what
-        //   `fuzz_games::random_deck` draws its nonbasic land slots from.
+        // - The four `*_spell_fixture` cards are an Aura's or an Artifact's
+        //   effect cast as an Instant, sparing machinery their phase did not
+        //   need.
+        // - Inside Out Fixture is Inside Out at a cost with no hybrid pip.
+        // - Cloudspire Mesa and Moonlit Steppe are invented Lands; the ten
+        //   real dual lands below are what `fuzz_games::random_deck` draws its
+        //   nonbasic land slots from.
         //
         // Moonlace Fixture is the one registered here under its own name: the
         // pool's Layer 5 colorless setter, Moonlace's shape narrowed to a
@@ -699,6 +700,11 @@ impl CardRegistry {
         registry.register("Humility", tmp::humility);
         registry.register("Citanul Hierophants", usg::citanul_hierophants);
         registry.register("Act of Treason", m10::act_of_treason);
+        // Layer 7b's and 7c's spells from the layer phase, written whole. Not
+        // pooled: Humility and March of the Machines already reach 7b, and
+        // Giant Growth reaches 7c from a resolution.
+        registry.register("Zhalfirin Shapecraft", mom::zhalfirin_shapecraft);
+        registry.register("Bull Rush", wwk::bull_rush);
 
         // Layer 7b and 7d's random-play coverage: March of the Machines needs an
         // artifact to animate, and nothing else switches a creature's P/T. Sol

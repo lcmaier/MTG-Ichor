@@ -9533,3 +9533,36 @@ the move because the move needed a home for the helper it replaced.
      beside `card-layer-cleanup` (`roadmap-v2.md` §C), the test-card reorganization before
      Phase 8's breadth (the owner, 2026-10-02), as its own commit after the
      move: `card-layer-cleanup`'s text keeps behavior out of the move, so the move stays a move.
+
+204. **Two test cards carry real cards' names: Cerulean Wisps and
+     Moonlace.** Each was written narrower than the card on purpose, to test
+     a color-changing effect (the owner, 2026-10-01): Cerulean Wisps leaves
+     out "Untap that creature.", and Moonlace targets a creature until end of
+     turn where the card makes a spell or permanent colorless for good (its
+     doc says "Simplified"). Their rules text became Oracle's in A6g's
+     ability names, so each now says more than it does.
+
+     **Reachability (2026-10-22):** reachable — wrong today: both are in
+     `PERFORMANCE_POOL`, and a tapped creature Cerulean Wisps targets stays
+     tapped. 5 of the 39 Wisps that resolved with a target in 40 performance
+     games left it tapped with no untap (`--require "Cerulean Wisps" --seed
+     2026`; game 1's Merfolk Thaumaturgist, tapped at event 406, the Wisps
+     resolved at 441). Moonlace's half is read from its source.
+
+     **Widened by `card-layer-cleanup`'s design note (2026-10-31):** the two
+     are a family. Eight card functions registered nowhere carry eight
+     printed cards' names: the four `*_spell` stand-ins (Liquimetal Torque,
+     Ensoul Artifact, Call to Serve, On Serra's Wings), Underground Sea,
+     Inside Out, Bull Rush and Zhalfirin Shapecraft (Scryfall
+     `/cards/collection`). None is dealt, so none changes a game; each is
+     read against its card.
+
+     **Sized:** ~20–40 lines for the two, and the eight beside them, by the
+     owner's rule at #301's first review round: a card the engine can express
+     is written whole, its rulings read, and registered; one it cannot keeps
+     its shape as a fixture, its function and its name taking the suffix
+     `_fixture`. The pool's names change, so it is a pool change with its
+     re-record (`engineering-practices.md#cards-and-pools`). **Slotted:** the test-card
+     cleanup before Phase 8's breadth (the owner, 2026-10-01), with
+     `roadmap-v2.md` §C's `card-layer-cleanup`, which moves the fixtures into
+     `cards::fixtures`.
