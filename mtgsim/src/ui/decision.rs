@@ -262,7 +262,29 @@ pub enum ScriptedResponse {
     Choose(Vec<ChoiceOption>),
     Number(u64),
     Allocation(Vec<u64>),
+    /// Each bucket with its amount, the buckets named as `Choose` names an
+    /// option: the decision log's allocation.
+    Split(Vec<(ChoiceOption, u64)>),
     Ordering(Vec<usize>),
+    /// The items, first first, each named as `Choose` names an option.
+    Order(Vec<ChoiceOption>),
+}
+
+/// Where each of `chosen` sits in `options`, found by what it is through the
+/// matcher a replay uses, so an option named twice takes two that read alike.
+fn found<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl IntoIterator<Item = &'a ChoiceOption>) -> Vec<usize> {
+    let mut found = Vec::new();
+    for option in chosen {
+        match position_of(options, game, &option.as_logged(game), &found) {
+            Some(index) => found.push(index),
+            None => panic!(
+                "ScriptedDecisionProvider: {} is not offered: {:?}",
+                option.as_logged(game),
+                options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>()
+            ),
+        }
+    }
+    found
 }
 
 /// A test-oriented generic decision provider with a single queue of
@@ -368,11 +390,29 @@ impl ScriptedDecisionProvider {
         });
     }
 
+    /// Enqueue an allocate expectation that names every bucket the engine
+    /// offers, in any order, with what it gets.
+    pub fn expect_split(&self, kind: ChoiceKind, amounts: Vec<(ChoiceOption, u64)>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Split(amounts),
+        });
+    }
+
     /// Enqueue a choose_ordering expectation.
     pub fn expect_ordering(&self, kind: ChoiceKind, order: Vec<usize>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
             response: ScriptedResponse::Ordering(order),
+        });
+    }
+
+    /// Enqueue a choose_ordering expectation that names the items, first
+    /// first.
+    pub fn expect_order(&self, kind: ChoiceKind, order: Vec<ChoiceOption>) {
+        self.queue.borrow_mut().push_back(ScriptedExpectation {
+            expected_kind: kind,
+            response: ScriptedResponse::Order(order),
         });
     }
 
@@ -446,20 +486,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "pick_n") {
             ScriptedResponse::PickN(indices) => indices,
-            ScriptedResponse::Choose(chosen) => {
-                let mut picked = Vec::new();
-                for option in &chosen {
-                    match position_of(options, game, &option.as_logged(game), &picked) {
-                        Some(index) => picked.push(index),
-                        None => panic!(
-                            "ScriptedDecisionProvider: {} is not offered: {:?}",
-                            option.as_logged(game),
-                            options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>()
-                        ),
-                    }
-                }
-                picked
-            }
+            ScriptedResponse::Choose(chosen) => found(options, game, &chosen),
             // A number answers a pick over numbers by value: CR 601.2b's X as
             // a set with a gap (`ChoiceKind::ChooseXValue`).
             ScriptedResponse::Number(n) => match options.iter().position(|option| matches!(option, ChoiceOption::Number(offered) if *offered == n)) {
@@ -492,17 +519,32 @@ impl DecisionProvider for ScriptedDecisionProvider {
 
     fn allocate(
         &self,
-        _game: &GameState,
+        game: &GameState,
         player: PlayerId,
         context: &ChoiceContext,
         _total: u64,
-        _buckets: &[ChoiceOption],
+        buckets: &[ChoiceOption],
         per_bucket_mins: &[u64],
         _per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.allocation_mins.borrow_mut().push(per_bucket_mins.to_vec());
         match self.pop_and_validate(player, &context.kind, "allocate") {
             ScriptedResponse::Allocation(alloc) => alloc,
+            ScriptedResponse::Split(amounts) => {
+                let at = found(buckets, game, amounts.iter().map(|(bucket, _)| bucket));
+                assert_eq!(
+                    at.len(),
+                    buckets.len(),
+                    "ScriptedDecisionProvider: the split names {} buckets, and the engine offers {:?}",
+                    at.len(),
+                    buckets.iter().map(|bucket| bucket.as_logged(game)).collect::<Vec<_>>()
+                );
+                let mut allocation = vec![0; buckets.len()];
+                for (&bucket, &(_, amount)) in at.iter().zip(&amounts) {
+                    allocation[bucket] = amount;
+                }
+                allocation
+            }
             other => panic!(
                 "ScriptedDecisionProvider: allocate called but scripted response is {:?}, expected Allocation",
                 other
@@ -512,13 +554,14 @@ impl DecisionProvider for ScriptedDecisionProvider {
 
     fn choose_ordering(
         &self,
-        _game: &GameState,
+        game: &GameState,
         player: PlayerId,
         context: &ChoiceContext,
-        _items: &[ChoiceOption],
+        items: &[ChoiceOption],
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "choose_ordering") {
             ScriptedResponse::Ordering(order) => order,
+            ScriptedResponse::Order(order) => found(items, game, &order),
             other => panic!(
                 "ScriptedDecisionProvider: choose_ordering called but scripted response is {:?}, expected Ordering",
                 other
