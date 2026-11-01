@@ -398,10 +398,38 @@ coroutine. *Performance*: §4's +71–83% of a game.
 turn loop and a prompt kept on `GameState` as a resumable state (the priority
 round, the cast's sequence, the batch's DECIDE loop, a resolution's place in
 its instructions, placement, the state-based checks, combat), so a copy at any
-prompt resumes by itself. *Code*: a rewrite of the rules code above the 38
-call sites, thousands of lines, and every later choice kind written as a
-state. *Performance*: a fork anywhere is one copy, 1.7 µs, where B pays up to
-79 µs more at a prompt that is not an anchor.
+prompt resumes by itself, and a paused game is a `GameState` and nothing
+else. *Code*: measured on the tree, 150 functions in 29 files take a provider
+or a context that carries one, in ~23,600 lines of engine code outside tests;
+the core of it is `resolve.rs` (41 functions), `actions.rs` (25),
+`replacement/pipeline.rs` (11), `turns.rs` (9), `state/game.rs` (8),
+`triggers/dispatch.rs` (7) and `put_on_stack.rs` (6). Each such function
+becomes a step that saves its locals into a frame and returns when it needs an
+answer, and the recursion (the effect walk, a batch inside a batch, a rider's
+own resolution, a dispatch inside a dispatch) becomes an explicit stack of
+frames on `GameState`. No precedent in the tree calibrates the size; RA-1
+threaded a parameter through the engine, not its control flow. The order of
+magnitude is several band-sized PRs, likely five to ten, and a one-subsystem
+spike should size it before it is chosen. *Performance*: a fork anywhere is
+one copy, 1.7 µs, where B pays up to 79 µs more at a prompt that is not an
+anchor. *Upkeep, beyond the rewrite*:
+- the rules code stops reading like the CR: `cast_spell` reads CR 601.2a to
+  601.2i top to bottom today (`engine/put_on_stack.rs:77`), and becomes a
+  `match` over a cast's step, each arm restoring and saving its locals;
+- every later choice kind is written as states and transitions, in each of
+  the route's steps to v1 (modes, linked abilities, recipients, permission,
+  combat requirements), where under B it is one `ask_*` call;
+- a frame cannot hold a borrow of `GameState`, so code that holds a card's
+  data across a question today re-reads it by id after;
+- the rewrite runs through the code every card resolves through, and the
+  route waits for it.
+What D buys: a fork anywhere at a copy's price, no thread, coroutine or
+`unsafe`, and the shape research APIs ask for (OpenSpiel's `clone` and
+`apply_action` at any decision) with nothing in between. B serves that API
+too, its `clone` at a prompt off an anchor costing the 35–79 µs replay. A
+search's rollout plays the game on: from the middle of a Commander game
+(§4: 477 prompts a game) that is ~240 decisions at ~65 µs each, ~15 ms, so
+the difference is about half a percent of a rollout.
 
 | | A | B | C | D |
 |---|---|---|---|---|
@@ -417,8 +445,17 @@ agent, a script, the CLI) still plays through `Game::run(&provider)` with
 nothing in between, and a paused game answers with one through a single
 adapter that calls the right primitive for a question. The dev GUI's
 `GuiSeat` and `HandOver` go once its bridge drives a paused game, in the dev
-GUI's PR. Under D every implementation becomes a policy called by a driver
-loop, and every `ask_*` site is rewritten.
+GUI's PR. Under D the implementations keep their signatures too, called by a
+driver loop on each question, and what changes is every `ask_*` site and the
+150 functions above them.
+
+**What each leaves to decide.** Under B: the suspension (a thread now; a
+coroutine against the thread at the harness, by item 140's spike), and
+decision 3's choice of what `GameState` keeps. Under D: decision 3 is
+forced (everything), but each subsystem's frame is a design of its own in the
+rewrite: the cast's steps, the batch's DECIDE state, the resolution's walk,
+the dispatch, combat's steps. Decision 2b and a halted game's answer are the
+same under both, since a client answers a question either way.
 
 **Who answers.** The question names the player whose decision it is (CR
 722.3). The seat that answers is routed by `DispatchDecisionProvider`, which
@@ -429,8 +466,9 @@ players. The question carries no answering seat of its own.
 **Recommendation: B, on a thread first.** It is the only option that serves
 all three customers with no rewrite, it keeps the trait and every
 implementation, and its one cost that grows, a fork off an anchor, is paid by
-the search that asked for it. D buys a 79 µs-cheaper fork for a rewrite. C
-fails floor 1 by measurement.
+the search that asked for it. D buys a fork up to 79 µs cheaper, about half
+a percent of a rollout, for a rewrite of the engine's control flow and a cost
+on every later choice kind. C fails floor 1 by measurement.
 
 **2b. How a client's answer names what it chose.** The `Answer` B hands back
 in is the engine's, so it picks one way.
@@ -487,6 +525,13 @@ stack, and a fork re-derives it.
 passes since. *Clone cost*: nothing. By §4, the agents' stack meets 0–2
 mid-round prompts a game, but a seat that stops at every priority point
 (a person, and an AI that acts at instant speed) meets mostly those.
+
+**Under decision 2's D there is no choice here.** Every row of the table goes
+on `GameState`, and with it everything above each prompt: the resolution's
+place in its effect tree, the batch's undecided groups and queued riders, the
+cast's remaining steps, the dispatch in progress. That is (a) and the rest of
+the rewrite. The 2026-10-08 rule stands and widens from the trigger code's
+prompts to every prompt, and the gate is the same fork test.
 
 **(b) and (c) withdraw a ruling of yours.** The rule that a prompt keeps
 what it has decided on `GameState` is the owner's (2026-10-08, at A6k's
