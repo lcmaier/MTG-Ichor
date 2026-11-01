@@ -950,16 +950,8 @@ fn test_a_creature_entering_before_its_controllers_first_turn_is_sick() {
 /// Act of Treason as its card is written, beside this file's helper of
 /// the same name that casts it.
 mod act_of_treason_card {
-    
-
-    
     use mtgsim::cards::printings::act_of_treason;
-    
-    
-    
     use mtgsim::types::effects::Effect;
-    
-    
     use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 
     #[test]

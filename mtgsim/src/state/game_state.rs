@@ -2985,16 +2985,11 @@ mod tests {
     mod each_card_lowered {
         use std::sync::Arc;
 
-        
         use crate::cards::fixtures::{flight_clause, purifier_clause, simian_clause};
         use crate::cards::printings::{ashaya_soul_of_the_wild, kird_ape, opalescence, urborg_tomb_of_yawgmoth};
-        use crate::objects::card_data::CardData;
+        use crate::objects::card_data::{AbilityType, CardData};
         use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
-        
-        
         use crate::types::keywords::KeywordFlag;
-        
-        use crate::objects::card_data::AbilityType;
 
         /// A sanity check on the lowering of each card: the rows a static ability
         /// registers are what the tests reason about.

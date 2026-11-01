@@ -635,7 +635,7 @@ impl CardRegistry {
         registry.register("Mountain", lea::mountain);
         registry.register("Forest", lea::forest);
 
-        // Alpha set spells
+        // The first spells
         registry.register("Lightning Bolt", lea::lightning_bolt);
         registry.register("Ancestral Recall", lea::ancestral_recall);
         registry.register("Counterspell", lea::counterspell);

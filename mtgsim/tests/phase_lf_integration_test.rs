@@ -732,16 +732,7 @@ fn test_humility_before_hierophants_retires_the_grant() {
 
 /// Humility as its card is written.
 mod humility_card {
-    
-
-    
     use mtgsim::cards::printings::humility;
-    
-    
-    
-    
-    
-    
     use mtgsim::types::effects::Effect;
 
     #[test]

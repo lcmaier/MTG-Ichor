@@ -2592,20 +2592,11 @@ fn test_rest_in_peace_applies_to_a_noncreature_permanent() {
 
 /// Kalitas as its card is written.
 mod kalitas_card {
-    
-
-    
     use mtgsim::cards::printings::kalitas_traitor_of_ghet;
-    
-    
-    
-    
+    use mtgsim::types::effects::Effect;
     use mtgsim::types::effects::ObjectSet;
-    
-    
     use mtgsim::types::replacement::EventPattern;
     use mtgsim::types::zones::{Zone, ZoneChangePattern};
-    use mtgsim::types::effects::Effect;
 
     #[test]
     fn kalitas_watches_dying_rather_than_being_destroyed() {

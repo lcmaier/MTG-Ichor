@@ -931,21 +931,16 @@ fn a_delayed_trigger_created_during_the_end_step_waits_for_the_next() {
 mod final_fortune_and_blessed_wine {
     use std::sync::Arc;
 
-    
     use mtgsim::cards::printings::{blessed_wine, final_fortune};
-    use mtgsim::objects::card_data::CardData;
-    use mtgsim::state::game_state::StepType;
-    
-    
-    
-    use mtgsim::types::mana::ManaType;
-    
     use mtgsim::cards::printings::{meditate, time_walk};
     use mtgsim::engine::actions::GameAction;
     use mtgsim::engine::resolve::ResolutionContext;
+    use mtgsim::objects::card_data::CardData;
+    use mtgsim::state::game_state::StepType;
     use mtgsim::state::game_state::{GameResult, GameState};
     use mtgsim::test_support::{put_in_hand, setup_two_player_game, stock_libraries, test_ctx, test_dp, RecordingDecisionProvider};
     use mtgsim::types::ids::{ObjectId, PlayerId};
+    use mtgsim::types::mana::ManaType;
     use mtgsim::types::triggers::{TriggerOrigin, TriggerTurn};
     use mtgsim::types::zones::Zone;
     use mtgsim::ui::mana_window_stop::ManaWindowStop;

@@ -763,26 +763,25 @@ mod the_damage_cards {
         gisela_blade_of_goldnight, guardian_seraph, mending_hands, palisade_giant, pariah, reverse_damage,
         safe_passage, samite_censer_bearer, samite_healer, torbran_thane_of_red_fell,
     };
-    use mtgsim::objects::card_data::{CardData, CardDataBuilder};
-    use mtgsim::types::card_types::CardType;
-    use mtgsim::types::colors::Color;
-    use mtgsim::types::costs::Cost;
-    use mtgsim::types::effects::{ObjectSet, PlayerSet};
-    
-    use mtgsim::types::mana::{ManaCost, ManaType};
-    use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
+    use mtgsim::engine::actions::{ActionContext, GameAction};
+    use mtgsim::engine::combat::resolution::assign_combat_damage;
     use mtgsim::engine::targeting::ChosenTargets;
     use mtgsim::objects::card_data::AbilityType;
-    use mtgsim::engine::actions::{ActionContext, GameAction};
-    use mtgsim::types::ids::ObjectOrPlayerId;
+    use mtgsim::objects::card_data::{CardData, CardDataBuilder};
     use mtgsim::state::game_state::GameState;
-    use mtgsim::engine::combat::resolution::assign_combat_damage;
+    use mtgsim::state::replacement_effects::ReplacementEffectId;
     use mtgsim::test_support::{
         place_vanilla_creature, put_on_battlefield, set_attacking, setup_two_player_game,
         test_ctx, RecordingDecisionProvider,
     };
-    use mtgsim::state::replacement_effects::ReplacementEffectId;
+    use mtgsim::types::card_types::CardType;
+    use mtgsim::types::colors::Color;
+    use mtgsim::types::costs::Cost;
     use mtgsim::types::effects::{CounterType, Duration, Effect, EffectRecipient, PatternFill, Primitive};
+    use mtgsim::types::effects::{ObjectSet, PlayerSet};
+    use mtgsim::types::ids::ObjectOrPlayerId;
+    use mtgsim::types::mana::{ManaCost, ManaType};
+    use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 
     /// A 2/2 for P0 and a board with no replacement source but the one under
     /// test. Damage to a *creature* throughout: RD-1's tests of damage to a
