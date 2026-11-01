@@ -40,7 +40,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ fn lose_one() -> Effect {
 /// A provider that answers the one "you may" `source` asks.
 fn answering_may(source: ObjectId, yes: bool) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source }, if yes { vec![0] } else { Vec::new() });
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source }, if yes { vec![ChoiceOption::Object(source)] } else { Vec::new() });
     dp
 }
 

@@ -46,7 +46,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -131,15 +131,15 @@ fn counters(game: &GameState, id: ObjectId) -> u32 {
         .unwrap_or(0)
 }
 
-/// Answer the next `SelectRecipients` prompt with these option indices.
+/// Answer the next `SelectRecipients` prompt with `chosen`.
 fn answer_targets(
     dp: &ManaWindowStop<ScriptedDecisionProvider>,
     recipient: EffectRecipient,
     spell: ObjectId,
-    picks: Vec<usize>,
+    chosen: ChoiceOption,
 ) {
     dp.inner()
-        .expect_pick_n(ChoiceKind::SelectRecipients { recipient, spell_id: spell }, picks);
+        .expect_choice(ChoiceKind::SelectRecipients { recipient, spell_id: spell }, vec![chosen]);
 }
 
 fn target_creature() -> EffectRecipient {
@@ -256,10 +256,8 @@ fn seeds_of_strength_can_split_its_three_instances_across_creatures() {
     pay_for_seeds(&mut game, 0);
 
     let dp = stopping_dp();
-    // Candidates are offered in `battlefield_ids_ordered` (CR 613.7 timestamp)
-    // order, so index 0/1/2 is a/b/c.
-    for pick in [0usize, 1, 2] {
-        answer_targets(&dp, target_creature(), seeds, vec![pick]);
+    for pick in [a, b, c] {
+        answer_targets(&dp, target_creature(), seeds, ChoiceOption::Object(pick));
     }
     cast_and_resolve(&mut game, 0, seeds, &dp);
 
@@ -276,8 +274,8 @@ fn seeds_of_strength_can_split_its_three_instances_across_creatures() {
     pay_for_seeds(&mut game, 0);
 
     let dp = stopping_dp();
-    for pick in [0usize, 0, 1] {
-        answer_targets(&dp, target_creature(), seeds, vec![pick]);
+    for pick in [a, a, b] {
+        answer_targets(&dp, target_creature(), seeds, ChoiceOption::Object(pick));
     }
     cast_and_resolve(&mut game, 0, seeds, &dp);
 
@@ -314,9 +312,7 @@ fn plague_spores_can_name_one_artifact_land_for_both_instances() {
         )),
         TargetCount::Exactly(1),
     );
-    let candidates: Vec<ObjectId> = game.battlefield_ids_ordered();
-    let land_ix = candidates.iter().position(|&id| id == land).expect("on the battlefield");
-    answer_targets(&dp, nonblack_creature, spores, vec![land_ix]);
+    answer_targets(&dp, nonblack_creature, spores, ChoiceOption::Object(land));
     // Instance 1, "target land": the only land, so it is forced and unasked.
 
     cast_and_resolve(&mut game, 0, spores, &dp);
@@ -550,8 +546,8 @@ fn incremental_growth_counters_three_different_creatures() {
     let dp = stopping_dp();
     // Instance 0 offers all three; instance 1 offers the two left; instance 2's
     // single remaining creature is forced and unasked.
-    answer_targets(&dp, target_creature(), growth, vec![0]);
-    answer_targets(&dp, another_target_creature(&[0]), growth, vec![0]);
+    answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
+    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
     let asked = decisions_during(&mut game, |game| {
         cast_and_resolve(game, 0, growth, &dp);
     });
@@ -580,8 +576,8 @@ fn incremental_growth_still_counters_the_creatures_that_are_left() {
     pay_for_growth(&mut game, 0);
 
     let dp = stopping_dp();
-    answer_targets(&dp, target_creature(), growth, vec![0]);
-    answer_targets(&dp, another_target_creature(&[0]), growth, vec![0]);
+    answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
+    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
     game.cast_spell(0, growth, &dp).expect("three creatures, so castable");
     exile(&mut game, a);
 
@@ -605,8 +601,8 @@ fn incremental_growth_does_not_resolve_with_every_creature_gone() {
     pay_for_growth(&mut game, 0);
 
     let dp = stopping_dp();
-    answer_targets(&dp, target_creature(), growth, vec![0]);
-    answer_targets(&dp, another_target_creature(&[0]), growth, vec![0]);
+    answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
+    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
     game.cast_spell(0, growth, &dp).expect("three creatures, so castable");
     for id in [a, b, c] {
         exile(&mut game, id);
@@ -660,7 +656,7 @@ fn skullcrack_cast_from_hand_deals_its_three_damage() {
         &dp,
         EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
         card,
-        vec![1],
+        ChoiceOption::Player(1),
     );
     cast_and_resolve(&mut game, 0, card, &dp);
 
@@ -691,8 +687,8 @@ fn incremental_growth_resolves_on_its_last_legal_creature() {
     pay_for_growth(&mut game, 0);
 
     let dp = stopping_dp();
-    answer_targets(&dp, target_creature(), growth, vec![0]);
-    answer_targets(&dp, another_target_creature(&[0]), growth, vec![0]);
+    answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
+    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
     game.cast_spell(0, growth, &dp).expect("three creatures, so castable");
     exile(&mut game, a);
     exile(&mut game, b);
@@ -733,12 +729,11 @@ fn vorinclex_doubles_each_of_incremental_growths_three_instructions() {
     pay_for_growth(&mut game, 0);
 
     // Vorinclex is itself a creature, so the board has four and every
-    // announcement is a real prompt. Battlefield order is timestamp order, so
-    // index 1 skips past Vorinclex each time.
+    // announcement is a real prompt.
     let dp = stopping_dp();
-    answer_targets(&dp, target_creature(), growth, vec![1]);
-    answer_targets(&dp, another_target_creature(&[0]), growth, vec![1]);
-    answer_targets(&dp, another_target_creature(&[0, 1]), growth, vec![1]);
+    answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
+    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
+    answer_targets(&dp, another_target_creature(&[0, 1]), growth, ChoiceOption::Object(c));
     cast_and_resolve(&mut game, 0, growth, &dp);
 
     assert_eq!(counters(&game, a), 2, "one, doubled");

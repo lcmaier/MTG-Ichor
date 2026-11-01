@@ -45,10 +45,11 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
+use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use std::sync::Arc;
 
@@ -56,13 +57,13 @@ use std::sync::Arc;
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Cast the one card in `player`'s hand and resolve it, with one legal target.
+/// Cast `spell` and resolve it, with one legal target.
 ///
 /// The LC file's idiom: with a single legal target the choice is
 /// forced, so nothing is scripted but the cast itself.
-fn cast_and_resolve(game: &mut GameState, cast_index: usize) {
+fn cast_and_resolve(game: &mut GameState, spell: ObjectId) {
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
     assert_eq!(
         game.run_priority_round(&decisions).unwrap(),
         PriorityResult::ActionTaken
@@ -119,12 +120,12 @@ fn test_devoid_makes_the_card_colorless_rather_than_colorless_and_black() {
 fn test_a_color_given_to_a_devoid_card_replaces_colorlessness_rather_than_joining_it() {
     let mut game = setup_two_player_game();
     let drone = put_on_battlefield(&mut game, culling_drone(), 0);
-    put_in_hand(&mut game, cerulean_wisps(), 0);
+    let wisps = put_in_hand(&mut game, cerulean_wisps(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
     assert!(get_effective_colors(&game, drone).is_empty());
-    cast_and_resolve(&mut game, 1);
+    cast_and_resolve(&mut game, wisps);
 
     let colors = get_effective_colors(&game, drone);
     assert_eq!(colors.len(), 1, "just the new color: {colors:?}");
@@ -298,10 +299,10 @@ fn test_the_capture_excludes_layer_4_types_and_layer_5_colors() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, march_of_the_machines(), 0);
     let donor = put_on_battlefield(&mut game, mana_rock(), 0);
-    put_in_hand(&mut game, cerulean_wisps(), 0);
+    let wisps = put_in_hand(&mut game, cerulean_wisps(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
-    cast_and_resolve(&mut game, 1);
+    cast_and_resolve(&mut game, wisps);
 
     // On the board the donor is an animated, blue artifact creature.
     assert!(get_effective_types(&game, donor).contains(&CardType::Creature));
@@ -343,13 +344,13 @@ fn test_the_capture_excludes_layer_4_types_and_layer_5_colors() {
 fn test_a_pump_that_predates_the_copy_still_applies_to_it() {
     let mut game = setup_two_player_game();
     let target = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    put_in_hand(&mut game, giant_growth(), 0);
+    let growth = put_in_hand(&mut game, giant_growth(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
     // The one creature on the battlefield while the Growth is cast, so its
-    // target is forced and the test scripts no index into a prompt.
-    cast_and_resolve(&mut game, 1);
+    // target is forced and only the cast is scripted.
+    cast_and_resolve(&mut game, growth);
     assert_eq!(get_effective_power(&game, target), Some(4), "1/1 and +3/+3");
 
     let donor = put_on_battlefield(&mut game, grizzly_bears(), 0);

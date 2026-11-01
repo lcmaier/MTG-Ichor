@@ -32,7 +32,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -275,12 +275,12 @@ fn test_a_failed_cast_announces_nothing() {
     // No mana, so CR 601.2h cannot be completed and the whole proposal rewinds.
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
+    decisions.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
-        vec![1],
+        vec![ChoiceOption::Player(1)],
     );
     assert!(game.cast_spell(0, bolt, &decisions).is_err());
 
@@ -368,8 +368,13 @@ fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
             spell_or_ability_id: ObjectId::UNASSIGNED,
             mana_cost: ManaCost::zero(),
         },
-        // [Blue, Red, Green]: bucket 2 is the Green, and the {G} pip has it
-        vec![0, 0, 1],
+        // The {1} on the Green, which the {G} pip has. The validator's panic
+        // names the Green by where it sits among the buckets: bucket 2.
+        vec![
+            (ChoiceOption::ManaType(ManaType::Blue), 0),
+            (ChoiceOption::ManaType(ManaType::Red), 0),
+            (ChoiceOption::ManaType(ManaType::Green), 1),
+        ],
     );
     let _ = game.cast_spell(0, bear, &decisions);
 }
@@ -385,12 +390,12 @@ fn test_an_event_names_the_resolution_that_proposed_it() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
+    decisions.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
-        vec![1],
+        vec![ChoiceOption::Player(1)],
     );
     game.cast_spell(0, bolt, &decisions).unwrap();
     game.resolve_top_of_stack(&decisions).unwrap();
@@ -519,12 +524,12 @@ fn test_a_resolving_instant_moves_through_the_chokepoint() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
+    decisions.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
-        vec![1],
+        vec![ChoiceOption::Player(1)],
     );
     game.cast_spell(0, bolt, &decisions).unwrap();
     game.resolve_top_of_stack(&decisions).unwrap();
@@ -565,13 +570,12 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    // Candidates for `Any` are [Player(0), Player(1), <the one creature>].
-    decisions.expect_pick_n(
+    decisions.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
-        vec![2],
+        vec![ChoiceOption::Object(victim)],
     );
     game.cast_spell(0, bolt, &decisions).unwrap();
 
@@ -665,9 +669,9 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
     let other = put_on_battlefield(&mut game, printings::isamaru_hound_of_konda(), 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
+    decisions.expect_choice(
         ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
-        vec![0],
+        vec![ChoiceOption::Object(doomed)],
     );
     assert!(game.check_state_based_actions(&decisions).unwrap());
 

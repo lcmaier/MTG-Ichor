@@ -482,7 +482,8 @@ fn viscera_seer_can_sacrifice_itself() {
     stock_libraries(&mut game, 3);
     let seer = put_on_battlefield(&mut game, viscera_seer(), 0);
     let dp = test_dp();
-    dp.expect_pick_n(ChoiceKind::Scry { source: Some(seer), n: 1 }, vec![0]);
+    let top = *game.players[0].library.last().expect("a stocked library");
+    dp.expect_choice(ChoiceKind::Scry { source: Some(seer), n: 1 }, vec![ChoiceOption::Object(top)]);
     game.activate_ability(0, seer, 0, &dp).unwrap();
     assert_eq!(zone(&game, seer), Some(Zone::Graveyard), "paid before the ability is on the stack");
     assert_eq!(game.stack.len(), 1);

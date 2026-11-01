@@ -33,7 +33,7 @@ use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{Multiplicity, ObjectOrPlayerSubject, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -1001,10 +1001,10 @@ fn protean_hydra_enters_with_x_counters_and_none_put_onto_the_battlefield() {
     assert_eq!(plus_counters(&game, hydra), 3);
 
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, master_biomancer(), 0);
+    let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
     // Two entry effects, so CR 616.1e asks its controller which first.
     let hydra = cast_with_x_answering(&mut game, 0, protean_hydra(), 2, |decisions, id| {
-        decisions.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![0]);
+        decisions.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![ChoiceOption::Object(biomancer)]);
     });
     assert_eq!(plus_counters(&game, hydra), 4, "X and the Biomancer's power");
 

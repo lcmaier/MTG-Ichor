@@ -19,6 +19,7 @@ use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::oracle::characteristics::get_effective_abilities;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, textless_static,
@@ -35,8 +36,8 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
 // Log readers
@@ -482,15 +483,16 @@ fn test_a_zone_change_onto_the_battlefield_is_not_a_proposal() {
 fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
     let mut game = setup_two_player_game();
     let land = put_on_battlefield(&mut game, forest(), 0);
+    let tap = get_effective_abilities(&game, land)[0].id;
     let bear = put_in_hand(&mut game, bear_costing(0), 0);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ManaAbilityWindow {
             spell_or_ability_id: bear,
             remaining_cost: ManaCost::build(&[ManaType::Green], 0),
         },
-        vec![0],
+        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))],
     );
     let start = game.recorded_events().records().len();
     game.cast_spell(0, bear, &dp).expect("the Forest pays for it");
@@ -525,15 +527,16 @@ fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
 fn test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change() {
     let mut game = setup_two_player_game();
     let land = put_on_battlefield(&mut game, forest(), 0);
+    let tap = get_effective_abilities(&game, land)[0].id;
     let bear = put_in_hand(&mut game, bear_costing(1), 0);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ManaAbilityWindow {
             spell_or_ability_id: bear,
             remaining_cost: ManaCost::build(&[ManaType::Green], 1),
         },
-        vec![0],
+        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))],
     );
     let start = game.recorded_events().records().len();
     assert!(game.cast_spell(0, bear, &dp).is_err(), "{{1}}{{G}} against one Forest");
@@ -559,12 +562,12 @@ fn test_a_rewound_cast_leaves_no_zone_change() {
     let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
-        vec![1],
+        vec![ChoiceOption::Player(1)],
     );
     let start = game.recorded_events().records().len();
     assert!(game.cast_spell(0, bolt, &dp).is_err());

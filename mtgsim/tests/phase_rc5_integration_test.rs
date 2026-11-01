@@ -41,7 +41,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -364,21 +364,21 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, grants_devour("Jund", 5), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
     // CR 616.1: two applicable effects on one entry, and the choice is real —
     // neither is an `EnterWith`, so nothing suppresses the prompt. Both are
     // the Elder's own, one printed and one granted, so they share a source
-    // and only their place tells them apart: index 0 is the printed devour 3,
-    // ahead of the grant in the Elder's effective ability list.
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
-    dp.expect_pick_n(
+    // and only their place tells them apart: the first is the printed devour
+    // 3, ahead of the grant in the Elder's effective ability list.
+    dp.expect_choice_among_alike(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![(ChoiceOption::Object(elder), 1)]);
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: bear, source: bear, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
     // The granted devour 5 applies next and finds nothing left to choose, so it
     // asks nothing at all.
-    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
@@ -413,15 +413,16 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
     // moves it" is the `ByController(You)` leaf on the filter.
     let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 3);
 
+    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 2);
     let dp = ScriptedDecisionProvider::new();
-    // Index 1 is the granted devour 5 — see the order note above.
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
-    dp.expect_pick_n(
+    // Both devours are offered as the Elder, and the granted devour 5 is the
+    // second — see the order note above.
+    dp.expect_choice_among_alike(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![(ChoiceOption::Object(elder), 2)]);
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(mine)],
     );
 
-    let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 2);
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
 
@@ -608,9 +609,9 @@ fn test_devour_sacrifices_happen_before_the_entry_and_set_its_counters() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![0, 1],
+        vec![ChoiceOption::Object(first), ChoiceOption::Object(second)],
     );
 
     let mark = game.recorded_events().len();
@@ -654,13 +655,13 @@ fn test_devour_sacrifices_happen_before_the_entry_and_set_its_counters() {
 #[test]
 fn test_the_auxiliary_moves_are_their_own_batch() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
 
     let mark = game.recorded_events().len();
@@ -693,7 +694,7 @@ fn test_devour_declined_enters_with_no_counters_and_asks_once() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![],
     );
@@ -769,11 +770,10 @@ fn test_sigarda_does_not_stop_your_own_devour() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    // Both are candidates, in `battlefield_ids_ordered` order — Sigarda entered
-    // first, so she is index 0, and she is not even protected from herself.
-    dp.expect_pick_n(
+    // Both are candidates, and Sigarda is not even protected from herself.
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![0, 1],
+        vec![ChoiceOption::Object(sigarda), ChoiceOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -815,9 +815,9 @@ fn test_a_devoured_creature_with_a_finality_counter_is_exiled_and_still_counts()
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -924,10 +924,10 @@ fn test_a_biomancer_bucket_is_still_order_invariant() {
 #[test]
 fn test_a_self_read_amount_forces_the_ordering_prompt() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, creatures_enter_tapped("Kismet-ish"), 0);
+    let kismet = put_on_battlefield(&mut game, creatures_enter_tapped("Kismet-ish"), 0);
 
     let dp = test_dp();
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(kismet)]);
 
     let id = put_in_graveyard(
         &mut game,
@@ -960,9 +960,9 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
 
     let dp = test_dp();
     let first = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: first, source: first, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
     game.change_zone(first, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -970,9 +970,9 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
     // The second Elder is a different event, so the first Elder itself is a
     // legal candidate for it — nothing about the earlier batch survives.
     let second = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: second, source: second, to: Zone::Graveyard },
-        vec![0, 1],
+        vec![ChoiceOption::Object(cub), ChoiceOption::Object(first)],
     );
     game.change_zone(second, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -1019,13 +1019,12 @@ fn test_a_devoured_creature_cannot_then_be_exiled_by_the_next_effect() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    // Devour first (index 1 — the entering permanent's own effect is spliced in
-    // after the sweep), so the Bear is in the graveyard when the second effect
+    // Devour first, so the Bear is in the graveyard when the second effect
     // asks.
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
-    dp.expect_pick_n(
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
 
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
@@ -1056,18 +1055,18 @@ fn test_a_later_entry_may_choose_what_an_earlier_one_chose() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
     assert!(game.players[0].graveyard.contains(&bear));
 
     let ghoul = put_in_graveyard(&mut game, sutured_ghoul(), 0);
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: ghoul, source: ghoul, to: Zone::Exile },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
     game.change_zone(ghoul, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -1094,9 +1093,9 @@ fn test_a_prevented_sacrifice_is_not_counted() {
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
 
     let dp = test_dp();
-    dp.expect_pick_n(
+    dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![0],
+        vec![ChoiceOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");

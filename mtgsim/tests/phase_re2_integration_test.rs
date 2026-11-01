@@ -38,7 +38,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -294,14 +294,12 @@ fn three_thought_reflections_draw_eight() {
 /// claim — the other half is that the two answers really are different.
 #[test]
 fn a_draw_doubler_beside_a_notion_thief_is_a_real_choice() {
-    // Candidate order is the battlefield's (CR 613.7 timestamps), so the
-    // Reflection is index 0 and the Thief index 1 on both boards.
     let doubled_first = {
         let mut game = stocked(2);
-        put_on_battlefield(&mut game, thought_reflection(), 0);
+        let reflection = put_on_battlefield(&mut game, thought_reflection(), 0);
         put_on_battlefield(&mut game, notion_thief(), 1);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(reflection)]);
         draw_instruction(&mut game, 0, 1, &dp);
         assert!(dp.is_empty(), "one prompt");
         (drawn_by(&game, 0), drawn_by(&game, 1))
@@ -309,9 +307,9 @@ fn a_draw_doubler_beside_a_notion_thief_is_a_real_choice() {
     let stolen_first = {
         let mut game = stocked(2);
         put_on_battlefield(&mut game, thought_reflection(), 0);
-        put_on_battlefield(&mut game, notion_thief(), 1);
+        let thief = put_on_battlefield(&mut game, notion_thief(), 1);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(thief)]);
         draw_instruction(&mut game, 0, 1, &dp);
         assert!(dp.is_empty(), "one prompt");
         (drawn_by(&game, 0), drawn_by(&game, 1))
@@ -684,13 +682,13 @@ fn three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order() {
 
     // Player 0 would draw. Two Thieves watch that draw — player 1's and player
     // 2's, since nobody is their own opponent — and player 0 chooses. Taking
-    // candidate 0 hands the draw to player 1; player 1 then chooses between
-    // player 0's Thief and player 2's, and takes candidate 0 again, which hands
-    // it back to player 0. Each choice is made by the player the draw is
+    // player 1's hands the draw to player 1; player 1 then chooses between
+    // player 0's Thief and player 2's, and takes player 0's, which hands it
+    // back to player 0. Each choice is made by the player the draw is
     // currently about, which is the ruling's "repeats this process".
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![0]);
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(thieves[1])]);
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(thieves[0])]);
 
     draw_instruction(&mut game, 0, 1, &dp);
 
@@ -723,13 +721,13 @@ fn three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order() {
 fn a_third_player_chooses_which_alms_collector_applies() {
     let mut game = stocked(4);
     put_on_battlefield(&mut game, alms_collector(), 0);
-    put_on_battlefield(&mut game, alms_collector(), 1);
+    let player_ones = put_on_battlefield(&mut game, alms_collector(), 1);
 
-    // Player 2 draws two and picks the second candidate, so player 1 is the one
+    // Player 2 draws two and picks player 1's Collector, so player 1 is the one
     // who draws — which is the ruling's "and therefore which of the first two
     // players draws a card".
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![1]);
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(player_ones)]);
 
     draw_instruction(&mut game, 2, 2, &dp);
 

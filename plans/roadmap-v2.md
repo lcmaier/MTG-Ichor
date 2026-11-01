@@ -379,7 +379,7 @@ cards before it — 287 of them, and the entry was an inventory line with no dat
 until 2026-09-09), **`card-layer-cleanup` below, which is the phase's first PR**, and **`rulings-for-every-card`**, the
 rulings backlog read and tested. Milestone: **core-rules-complete** (§6).
 
-**`card-layer-cleanup` — put the card layer in order first (1 PR, mechanical, added 2026-09-08).**
+**`card-layer-cleanup` — put the card layer in order first (added 2026-09-08). ✅ 2026-11-01 in five PRs, #301–#305, recorded at "Before card breadth" item 10's archived entry.**
 Card definitions live in files named after the *engine phase* that first needed
 them, and the static-`AbilityDef` shape is written out 31 times because there is
 no shared helper a card file may use (`test_support` is a test-only crate

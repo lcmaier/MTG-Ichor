@@ -572,18 +572,15 @@ const OF_EQUALS: &str = " of ";
 /// its place among the options whose words are the same when there are any.
 pub fn logged_choice(options: &[ChoiceOption], game: &GameState, index: usize) -> String {
     let logged = options[index].as_logged(game);
-    let equals: Vec<usize> = (0..options.len()).filter(|&i| options[i].as_logged(game) == logged).collect();
+    let equals = reading_as(options, game, &logged);
     match equals.iter().position(|&i| i == index) {
         Some(place) if equals.len() > 1 => format!("{logged} ({}{OF_EQUALS}{})", place + 1, equals.len()),
         _ => logged,
     }
 }
 
-/// Where the option an answer names sits in `options`: the one matcher a
-/// replayed answer, a scenario's setup line and a test's script find an
-/// option by (`setup-architecture.md` §7.2, decision 6), by what it is and
-/// never by where it sat. Positions in `taken` are passed over, so an answer
-/// naming two options with the same words takes two of them.
+/// Where the option an answer writes as `chosen`, a [`logged_choice`], sits in
+/// `options`: [`position_named`] once the words and the place are read apart.
 pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, taken: &[usize]) -> Option<usize> {
     let (words, place) = match chosen.rsplit_once(" (").and_then(|(words, rest)| Some((words, rest.strip_suffix(')')?))) {
         Some((words, rest)) => match rest.split_once(OF_EQUALS).and_then(|(place, _)| place.parse::<usize>().ok()) {
@@ -592,11 +589,28 @@ pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, tak
         },
         None => (chosen, None),
     };
-    let mut equals = (0..options.len()).filter(|&i| options[i].as_logged(game) == words);
+    position_named(options, game, words, place, taken)
+}
+
+/// Where the option an answer names sits in `options`, by its words and,
+/// among options whose words are the same, its place counted from 1: the one
+/// matcher a replayed answer, a scenario's setup line and a test's script
+/// find an option by (`setup-architecture.md` §7.2, decision 6), by what it
+/// is and never by where it sat. Words alone take the first such option not
+/// in `taken`, so an answer naming two options with the same words takes two
+/// of them.
+pub fn position_named(options: &[ChoiceOption], game: &GameState, words: &str, place: Option<usize>, taken: &[usize]) -> Option<usize> {
+    let equals = reading_as(options, game, words);
     match place {
-        Some(place) => equals.nth(place.checked_sub(1)?).filter(|i| !taken.contains(i)),
-        None => equals.find(|i| !taken.contains(i)),
+        Some(place) => equals.get(place.checked_sub(1)?).copied().filter(|i| !taken.contains(i)),
+        None => equals.into_iter().find(|i| !taken.contains(i)),
     }
+}
+
+/// Every place in `options` whose words are `words`, in the list's order: the
+/// options an answer naming those words could mean.
+pub fn reading_as(options: &[ChoiceOption], game: &GameState, words: &str) -> Vec<usize> {
+    (0..options.len()).filter(|&i| options[i].as_logged(game) == words).collect()
 }
 
 #[cfg(test)]
@@ -606,7 +620,7 @@ mod tests {
     use crate::engine::priority::PriorityResult;
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
     use crate::types::costs::Cost;
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
     fn card(name: &str) -> std::sync::Arc<crate::objects::card_data::CardData> {
         CardRegistry::default_registry().create(name).unwrap()
@@ -687,5 +701,85 @@ mod tests {
         seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(forest))]);
         assert_eq!(game.run_priority_round(&seats), Ok(PriorityResult::ActionTaken));
         assert!(game.battlefield.contains_key(&forest), "the Forest was played");
+    }
+
+    /// An allocation names each bucket with its amount, and an order names
+    /// its items, so either is found wherever the engine lists them.
+    #[test]
+    fn a_script_allocates_and_orders_by_what_each_option_is() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 1);
+        let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 1);
+        let listed = [ChoiceOption::Object(wall), ChoiceOption::Object(bears)];
+        let seats = ScriptedDecisionProvider::new();
+        let damage = ChoiceKind::AssignCombatDamage { attacker_id: bears };
+        seats.expect_allocation(damage.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(wall), 1)]);
+        let order = ChoiceKind::ScryOrder { source: None, bottom: false };
+        seats.expect_order(order.clone(), vec![ChoiceOption::Object(bears), ChoiceOption::Object(wall)]);
+
+        assert_eq!(seats.allocate(&game, 0, &ChoiceContext::new(damage), 3, &listed, &[0, 0], None), vec![1, 2]);
+        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &listed), vec![1, 0]);
+    }
+
+    /// An allocation that leaves a bucket out is refused, as a replayed one
+    /// is: the script would otherwise give it nothing without saying so.
+    #[test]
+    #[should_panic(expected = "the allocation names 1 buckets")]
+    fn an_allocation_names_every_bucket() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 1);
+        let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 1);
+        let seats = ScriptedDecisionProvider::new();
+        let damage = ChoiceKind::AssignCombatDamage { attacker_id: bears };
+        seats.expect_allocation(damage.clone(), vec![(ChoiceOption::Object(bears), 3)]);
+        let listed = [ChoiceOption::Object(wall), ChoiceOption::Object(bears)];
+        seats.allocate(&game, 0, &ChoiceContext::new(damage), 3, &listed, &[0, 0], None);
+    }
+
+    /// Two options that read the same, as one object's two replacements do,
+    /// are told apart by their place among themselves, as the log writes
+    /// `(2 of 2)`, in a pick and in an order.
+    #[test]
+    fn a_script_names_options_that_read_alike_by_their_place() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
+        let seats = ScriptedDecisionProvider::new();
+        let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+        seats.expect_choice_among_alike(which.clone(), vec![(ChoiceOption::Object(bears), 2)]);
+        let order = ChoiceKind::ScryOrder { source: None, bottom: false };
+        seats.expect_order_among_alike(order.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(bears), 1)]);
+
+        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1)), vec![1]);
+        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![1, 0]);
+    }
+
+    /// A name alone would mean whichever of two alike options the engine
+    /// lists first, so it is refused there.
+    #[test]
+    #[should_panic(expected = "its words alone cannot say which")]
+    fn a_name_that_reads_like_another_option_needs_its_place() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let seats = ScriptedDecisionProvider::new();
+        let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+        seats.expect_choice(which.clone(), vec![ChoiceOption::Object(bears)]);
+        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
+        seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1));
+    }
+
+    /// A take answers a take-or-leave question's one option, and nothing
+    /// that offers two.
+    #[test]
+    #[should_panic(expected = "takes the one option offered")]
+    fn a_take_is_refused_where_two_options_are_offered() {
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 0);
+        let seats = ScriptedDecisionProvider::new();
+        let may = ChoiceKind::ApplyOptionalEffect { source: bears };
+        seats.expect_take(may.clone());
+        let two = [ChoiceOption::Object(bears), ChoiceOption::Object(wall)];
+        seats.pick_n(&game, 0, &ChoiceContext::new(may), &two, (0, 1));
     }
 }

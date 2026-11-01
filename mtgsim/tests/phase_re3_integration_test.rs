@@ -28,7 +28,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -420,11 +420,11 @@ fn two_tainted_remedies_lose_the_same_three_whichever_applies() {
 fn the_gaining_player_chooses_between_the_archive_and_tainted_remedy() {
     let doubled_first = {
         let mut game = setup_game(2);
-        put_on_battlefield(&mut game, alhammarrets_archive(), 1);
+        let archive = put_on_battlefield(&mut game, alhammarrets_archive(), 1);
         put_on_battlefield(&mut game, tainted_remedy(), 0);
         let before = life(&game, 1);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![0]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(archive)]);
         gain_life(&mut game, 1, 3, &dp);
         assert!(dp.is_empty(), "one prompt");
         before - life(&game, 1)
@@ -432,10 +432,10 @@ fn the_gaining_player_chooses_between_the_archive_and_tainted_remedy() {
     let remedied_first = {
         let mut game = setup_game(2);
         put_on_battlefield(&mut game, alhammarrets_archive(), 1);
-        put_on_battlefield(&mut game, tainted_remedy(), 0);
+        let remedy = put_on_battlefield(&mut game, tainted_remedy(), 0);
         let before = life(&game, 1);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![1]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(remedy)]);
         gain_life(&mut game, 1, 3, &dp);
         assert!(dp.is_empty(), "one prompt");
         before - life(&game, 1)
@@ -504,8 +504,10 @@ fn two_words_rows_are_a_choice_and_each_draw_uses_one_up() {
     activate_words(&mut game, words, 0, &test_dp());
     activate_words(&mut game, words, 0, &test_dp());
 
+    // Both rows are offered as the Words, so the answer names one by its
+    // place; either does here.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(PICK_REPLACEMENT, vec![1]);
+    dp.expect_choice_among_alike(PICK_REPLACEMENT, vec![(ChoiceOption::Object(words), 2)]);
     draw_one(&mut game, 0, &dp);
     assert!(dp.is_empty(), "two rows, so CR 616.1 asks which one applies");
     assert_eq!(life(&game, 0), before + 5, "one row applied, not both");

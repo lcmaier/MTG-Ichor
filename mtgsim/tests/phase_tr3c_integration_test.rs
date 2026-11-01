@@ -723,8 +723,9 @@ fn place_targeting(game: &mut GameState, target: ChoiceOption) {
 /// Resolve the trigger on top, answering its "may" with `yes`, and choosing
 /// `sacrifice` where the sacrifice is a choice.
 fn resolve_may(game: &mut GameState, yes: bool, sacrifice: Option<ObjectId>) {
+    let resolving = *game.stack.last().expect("something on the stack");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, if yes { vec![0] } else { vec![] });
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, if yes { vec![ChoiceOption::Object(resolving)] } else { vec![] });
     if let Some(chosen) = sacrifice {
         dp.expect_choice(select(), vec![ChoiceOption::Object(chosen)]);
     }
@@ -1046,7 +1047,7 @@ fn when_you_do_asks_about_that_action_and_no_other_instruction() {
     game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(select(), vec![ChoiceOption::Object(first)]);
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![]);
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![]);
     game.resolve_top_of_stack(&dp).unwrap();
     assert!(dp.is_empty());
     assert_eq!(zone(&game, first), Zone::Graveyard);
@@ -1058,7 +1059,7 @@ fn when_you_do_asks_about_that_action_and_no_other_instruction() {
     game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(select(), vec![ChoiceOption::Object(second)]);
-    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![0]);
+    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Object(tithe)]);
     game.resolve_top_of_stack(&dp).unwrap();
     assert!(dp.is_empty());
     assert_eq!((zone(&game, second), zone(&game, third)), (Zone::Graveyard, Zone::Graveyard));

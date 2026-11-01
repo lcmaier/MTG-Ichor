@@ -146,34 +146,36 @@ mod tests {
     #[test]
     fn passes_an_uncovered_window_through() {
         let game = setup_two_player_game();
+        let source = one_option();
         let inner = ScriptedDecisionProvider::new();
-        inner.expect_pick_n(
+        inner.expect_choice(
             ChoiceKind::ManaAbilityWindow {
                 spell_or_ability_id: new_object_id(),
                 remaining_cost: ManaCost::zero(),
             },
-            vec![0],
+            source.clone(),
         );
         let dp = ManaWindowStop::new(inner);
         let ctx = window(ManaCost::build(&[ManaType::Green], 0));
-        assert_eq!(dp.pick_n(&game, 0, &ctx, &one_option(), (0, 1)), vec![0]);
+        assert_eq!(dp.pick_n(&game, 0, &ctx, &source, (0, 1)), vec![0]);
     }
 
     /// Generic still owed reads the same as a pip: `{1}` is one symbol.
     #[test]
     fn generic_still_owed_is_not_covered() {
         let game = setup_two_player_game();
+        let source = one_option();
         let inner = ScriptedDecisionProvider::new();
-        inner.expect_pick_n(
+        inner.expect_choice(
             ChoiceKind::ManaAbilityWindow {
                 spell_or_ability_id: new_object_id(),
                 remaining_cost: ManaCost::zero(),
             },
-            vec![0],
+            source.clone(),
         );
         let dp = ManaWindowStop::new(inner);
         let ctx = window(ManaCost::build(&[], 1));
-        assert_eq!(dp.pick_n(&game, 0, &ctx, &one_option(), (0, 1)), vec![0]);
+        assert_eq!(dp.pick_n(&game, 0, &ctx, &source, (0, 1)), vec![0]);
     }
 
     /// Every other kind passes through untouched — the decorator owns one
@@ -181,10 +183,11 @@ mod tests {
     #[test]
     fn a_prompt_that_is_not_the_window_is_the_inner_providers() {
         let game = setup_two_player_game();
+        let source = one_option();
         let inner = ScriptedDecisionProvider::new();
-        inner.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        inner.expect_choice(ChoiceKind::PriorityAction, source.clone());
         let dp = ManaWindowStop::new(inner);
         let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
-        assert_eq!(dp.pick_n(&game, 0, &ctx, &one_option(), (0, 1)), vec![0]);
+        assert_eq!(dp.pick_n(&game, 0, &ctx, &source, (0, 1)), vec![0]);
     }
 }

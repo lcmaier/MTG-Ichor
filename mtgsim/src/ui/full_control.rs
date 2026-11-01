@@ -173,16 +173,17 @@ mod tests {
     #[test]
     fn the_switch_takes_the_decorators_off_and_puts_them_back() {
         let game = setup_two_player_game();
+        let source = a_source();
         let raw = ScriptedDecisionProvider::new();
-        raw.expect_pick_n(covered_window().kind, vec![0]);
+        raw.expect_choice(covered_window().kind, source.clone());
         let switch = FullControlSwitch::default();
         let seat = FullControl::new(ManaWindowStop::new(ScriptedDecisionProvider::new()), raw, switch.clone());
 
-        assert!(seat.pick_n(&game, 0, &covered_window(), &a_source(), (0, 1)).is_empty(), "the stop declined");
+        assert!(seat.pick_n(&game, 0, &covered_window(), &source, (0, 1)).is_empty(), "the stop declined");
         switch.set(true);
-        assert_eq!(seat.pick_n(&game, 0, &covered_window(), &a_source(), (0, 1)), vec![0], "the person tapped it");
+        assert_eq!(seat.pick_n(&game, 0, &covered_window(), &source, (0, 1)), vec![0], "the person tapped it");
         switch.set(false);
-        assert!(seat.pick_n(&game, 0, &covered_window(), &a_source(), (0, 1)).is_empty(), "the stop is back");
+        assert!(seat.pick_n(&game, 0, &covered_window(), &source, (0, 1)).is_empty(), "the stop is back");
     }
 
     /// A window's thread flips it; the next prompt on the engine's reads it.
@@ -205,16 +206,14 @@ mod tests {
         use crate::ui::auto_yield::{AutoYield, Yield};
         let game = setup_two_player_game();
         let priority = ChoiceContext::new(ChoiceKind::PriorityAction);
-        let options = vec![
-            ChoiceOption::Action(PriorityAction::Pass),
-            ChoiceOption::Action(PriorityAction::CastSpell(new_object_id())),
-        ];
+        let cast = ChoiceOption::Action(PriorityAction::CastSpell(new_object_id()));
+        let options = vec![ChoiceOption::Action(PriorityAction::Pass), cast.clone()];
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let person = ScriptedDecisionProvider::new();
-        person.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        person.expect_choice(ChoiceKind::PriorityAction, vec![cast.clone()]);
         let raw = ScriptedDecisionProvider::new();
-        raw.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        raw.expect_choice(ChoiceKind::PriorityAction, vec![cast]);
         let switch = FullControlSwitch::default();
         let seat = FullControl::new(AutoYield::new(person, yields.clone()), raw, switch.clone()).superseding(yields);
 
@@ -232,7 +231,7 @@ mod tests {
         let mut game = setup_two_player_game();
         game.set_turn_position(Phase::new(PhaseType::Precombat));
         let raw = ScriptedDecisionProvider::new();
-        raw.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        raw.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
         let switch = FullControlSwitch::default();
         switch.set(true);
         let dp = DispatchDecisionProvider::new(vec![

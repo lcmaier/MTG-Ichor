@@ -106,14 +106,15 @@ mod tests {
     #[test]
     fn the_trigger_order_is_taken_as_offered_unless_full_control_is_on() {
         let game = setup_two_player_game();
+        let triggers = three_triggers();
         let raw = ScriptedDecisionProvider::new();
-        raw.expect_ordering(order_triggers().kind, vec![2, 1, 0]);
+        raw.expect_order(order_triggers().kind, triggers.iter().rev().cloned().collect());
         let switch = FullControlSwitch::default();
         let seat = FullControl::new(AutoOrderTriggers::new(ScriptedDecisionProvider::new()), raw, switch.clone());
 
-        assert_eq!(seat.choose_ordering(&game, 0, &order_triggers(), &three_triggers()), vec![0, 1, 2], "taken for them");
+        assert_eq!(seat.choose_ordering(&game, 0, &order_triggers(), &triggers), vec![0, 1, 2], "taken for them");
         switch.set(true);
-        assert_eq!(seat.choose_ordering(&game, 0, &order_triggers(), &three_triggers()), vec![2, 1, 0], "asked");
+        assert_eq!(seat.choose_ordering(&game, 0, &order_triggers(), &triggers), vec![2, 1, 0], "asked");
     }
 
     /// The order of cards scried to the bottom is an ordering too, and the
@@ -123,9 +124,10 @@ mod tests {
         let game = setup_two_player_game();
         let person = ScriptedDecisionProvider::new();
         let scry_order = ChoiceContext::new(ChoiceKind::ScryOrder { source: None, bottom: true });
-        person.expect_ordering(scry_order.kind.clone(), vec![1, 0]);
+        let cards = [ChoiceOption::Object(new_object_id()), ChoiceOption::Object(new_object_id())];
+        person.expect_order(scry_order.kind.clone(), vec![cards[1].clone(), cards[0].clone()]);
         let seat = AutoOrderTriggers::new(person);
 
-        assert_eq!(seat.choose_ordering(&game, 0, &scry_order, &three_triggers()[..2]), vec![1, 0]);
+        assert_eq!(seat.choose_ordering(&game, 0, &scry_order, &cards), vec![1, 0]);
     }
 }

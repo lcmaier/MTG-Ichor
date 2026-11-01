@@ -23,7 +23,7 @@ Six fields, and no seventh:
 | **Size** | rough, in phases or in the project's 1,500–2,500-addition PR band |
 | **Blocks** | what stays unwritable until it lands |
 | **Atoms** | corpus atoms filed under `Backlog`, and where the rest of them are |
-| **Owner** | the doc that will take it — blank until one does |
+| **Owner** | where it will be built, and why there: a route row, an architecture doc, or "after v0.5, wider card work". Never blank — an entry always names its home, and a home that lands or moves takes the entry with it. A post-v1 piece stays here, homed "after v1", while it can still inform a design before then; one that cannot goes to the owner's post-v1 notes, outside the repository |
 
 **An entry is not a design.** One mechanic, a few lines. When a mechanic is
 actually designed it *graduates*: an architecture doc takes it (extending
@@ -236,7 +236,11 @@ record, corrected where it was wrong.*
   six motivating gaps that was genuinely *dark*. Authoring atoms for it is corpus
   work — writing atoms for a rule that carries a verdict but has none — and that
   is explicitly unscheduled (audit §6).
-- **Owner** — none yet.
+- **Owner** — `modes-plus-choice-kinds`. A vote is a choice kind the trait
+  lacks, asked of each player in turn from a named seat (CR 701.38a), and
+  Selvala's Stampede in `tdc`'s Temur Roar asks one. CR 201.4's card name,
+  which no `tdc` card asks, is the same question about the trait's shapes,
+  so the one design answers both.
 
 ### 2.5 CR 701 keyword actions — the unimplemented half of `Primitive`
 
@@ -317,7 +321,14 @@ record, corrected where it was wrong.*
   whose events exist but no arm pairs them. Each arrives with its event and
   its kind; `plans/references/replacement-kinds-census.py --names` lists the
   cards. Unreachable: no registered card.
-- **Owner** — none yet.
+- **Owner** — by arm, since the verdict makes the entry a feature by
+  contract. Reality Shift's manifest (`tdc`) is
+  `face-down-and-morph`'s manifest build, which the route brings before the
+  decks; Glorybringer's exert and the decks' connive and proliferate (the
+  card census) are `tarkir-dragonstorm-decks`'; cloak and manifest dread go
+  with the rest of `face-down-and-morph`, after v0.5; unattach, P/T doubling
+  (`codebase-state.md` Deferred Migrations item 5) and the replaced events
+  above are after v0.5, wider card work, no `tdc` card printing one.
 
 ### 2.6 CR 702 keyword abilities
 
@@ -376,7 +387,12 @@ record, corrected where it was wrong.*
     102. Each is a card over the surfaces its census row names. The 601.2b
     count of multikicker, replicate and squad is `remaining-costs`'s.
 - **Atoms** — 20, not re-filed.
-- **Owner** — none yet.
+- **Owner** — `tarkir-dragonstorm-decks` for the keywords `tdc`'s cards
+  print (the card census names battle cry, demonstrate, dethrone, fabricate,
+  harmonize, mentor, mobilize and riot, and Stormbreath Dragon has
+  protection), its gap census slotting each to the row its surface names;
+  after v0.5, wider card work for the rest. The verdict's reason: card
+  breadth, not a missing surface.
 
 ### 2.24 "As though" effects (CR 609.4) — a rule fiction, scoped to one question
 
@@ -522,7 +538,7 @@ types cannot say, which is this file's subject.
 | **Size** | one field on `ResolutionContext`, written by the draw performer through the resolution that proposed it, plus a `SelectionFilter` leaf that reads it — the shape `ResolutionContext::replaced_event` already has. ~80 lines, and the same field is what CR 701's "the cards milled this way" and "the token created this way" will want |
 | **Blocks** | the "draw and reveal" four — Fa'adiyah Seer, Sindbad, Pact Weapon, Breathstealer's Crypt (Scryfall, 2026-09-12) — each of which *also* needs `Primitive::Discard` (RE-8) or the information model (§2.9), so none is unblocked by this alone |
 | **Atoms** | `ATOM-614.11b-001`, uncovered with this reason in `tests/phase_re2_integration_test.rs`'s module doc |
-| **Owner** | — |
+| **Owner** | after v0.5, wider card work, after `information-model`: each card it unblocks draws and reveals, so it waits on the reveal (the note below), and no `tdc` card draws and reveals (Scryfall, `e:tdc o:"draw a card" o:"reveal it"`, 0) |
 
 **Note what the four cards have in common**: every one of them is "draw and
 reveal, then act on what it was", and none is "draw, then act on it blind". The
@@ -654,9 +670,11 @@ critical path, which lists neither; that is the owner's line to add.
   not yet left the stack", so a Siege stays while its 310.11b trigger waits,
   and that trigger exiles it. The check reads the trigger queue, as §2.44's
   Sagas do.
-- **Owner** — none yet. Entered 2026-09-08 by RD's design check, because no
-  document owned CR 310 and the results-of-damage decomposition needed to
-  point somewhere real rather than at a `T##`.
+- **Owner** — after v0.5, wider card work: no `tdc` card is a battle
+  (Scryfall, `e:tdc t:battle`, 0), and its first cards are March of the
+  Machine's. Entered 2026-09-08 by RD's design check, because no document
+  owned CR 310 and the results-of-damage decomposition needed to point
+  somewhere real rather than at a `T##`.
 
 ### 2.7 Modal spells and abilities (CR 700.2), and devotion (700.5)
 
@@ -720,7 +738,7 @@ kept as written for the record.*
   controller change (602.5b); §2.3, in the sense that it is where those
   keywords will be expressed. No longer "activate only as a sorcery".
 - **Atoms** — 14 across CR 602 (9) and CR 604 (5), not re-filed.
-- **Owner** — none yet.
+- **Owner** — `permission-architecture.md`, where it graduated (above).
 
 ### 2.9 The information model — who can see what
 
@@ -839,7 +857,9 @@ kept as written for the record.*
     hidden card is unknown, so the redeal shuffles all of them, and the
     observation makes no visibility query. The build pays a lookup per card
     for the first and the per-viewer query for the second.
-- **Owner** — none yet.
+- **Owner** — `information-model-design`, then `information-model` (the
+  route's step 8): 39 `tdc` cards, the dev GUI's one-player view and an AI's
+  observation all read through it.
 
 ### 2.10 color is a derived characteristic, and the engine stores it
 
@@ -859,7 +879,10 @@ kept as written for the record.*
 - **Blocks** — devotion (§2.7's CR 700.5a); protection from a color (§2.6);
   every color-matters card; the color indicator's `double-faced-cards` landing.
 - **Atoms** — 20, across CR 202 (11) and CR 105 (9).
-- **Owner** — none yet.
+- **Owner** — `card-and-object-model`, which designs what a face's
+  characteristics are: CR 202.2 derives a face's color from its mana cost
+  rather than storing it, and the decks' 373 cards are authored against
+  whichever shape that design leaves.
 
 ### 2.11 Loyalty abilities — ✅ graduated 2026-10-05 to `permission-architecture.md` and `remaining-costs`
 
@@ -901,7 +924,9 @@ kept as written for the record.*
 - **Blocks** — every "until end of combat" pump; 511.3's combat cleanup of
   `AttackingInfo`/`BlockingInfo`; 703.4q's mana-pool emptying per step.
 - **Atoms** — 8.
-- **Owner** — none yet, and the hooks now exist: RE-1 landed
+- **Owner** — after v0.5, wider card work: no `tdc` card prints a step- or
+  phase-scoped duration (Scryfall, `e:tdc o:"until end of combat"`, 0;
+  myriad's "at end of combat" is a delayed trigger). And the hooks exist: RE-1 landed
   `GameEvent::{TurnBegin, PhaseBegin, StepBegin}` and
   `GameState::{begin_phase, begin_step}` (2026-09-11), so a step- or
   phase-scoped `Duration` has a place to expire from. CR 500.4's "as a step or
@@ -930,7 +955,8 @@ kept as written for the record.*
   Migrations instead of a backlog entry** — it is unconsumed scaffolding, not an
   unbuilt mechanic — and is filed here only because the whole cluster surfaced
   together. Move it if that reads better.
-- **Owner** — none yet.
+- **Owner** — `game-formats`, whose row validates `DeckLimits` against each
+  format's limits.
 
 ### 2.14 Untap restrictions — "doesn't untap"
 
@@ -957,7 +983,12 @@ triage's thirteen entries plus one.*
   **This entry captures their tickets, so §3.3's policy re-files them at the
   next `owed` pass** — left in place for now so this addition moves no gate
   number.
-- **Owner** — none yet; RS scoping decides.
+- **Owner** — `tarkir-dragonstorm-decks`: Glorybringer's exert, "choose to
+  have it not untap during your next untap step" (CR 701.43a), is `tdc`'s
+  one "doesn't untap", and the untap step asks it where
+  `cant-effects-architecture.md` places the family, Tier 2 at CR 502.3's
+  turn-based action. RS-1 left both atoms uncovered. The 248 statics are
+  after v0.5, wider card work.
 
 ### 2.15 Player-scoped continuous effects (CR 613.10–613.11)
 
@@ -1412,12 +1443,12 @@ mechanic rather than a migration, which is why it is here and not in
   legal → resolve, the illegal ones unaffected), ATOM-601.2d-001/-002
   (division), ATOM-115.3-001/-002. None claimed; every one of them needs two
   target clauses to build.
-- **Owner** — none yet; **scheduled** in `roadmap-v2.md` §3a beside A,
-  back-stopped before `cant-be-targeted` and before A6's first PR (2026-09-04), because
-  both would otherwise build on the one-recipient shape. (Recorded 2026-09-04
-  in LH-1's review: the `effect_recipient` doc had described the first-atom
-  rule as "the convention of every card written so far", and the reviewer
-  asked for the whole pool.)
+- **Owner** — `modes-plus-choice-kinds`, which builds `divided-among-targets`,
+  CR 601.2d's division and the half A4i left; three `tdc` cards divide (the
+  card census). (Scheduled 2026-09-04 in LH-1's review: the
+  `effect_recipient` doc had described the first-atom rule as "the
+  convention of every card written so far", and the reviewer asked for the
+  whole pool.)
 
 ### 2.22 Which `DecisionProvider` middleware v1 ships with — the census (A4k, 2026-09-18)
 
@@ -2141,7 +2172,8 @@ design. The entry is kept as written for the record.*
   question (`engineering-practices.md#the-standing-review-question`) has corrected three times; wants
   a session of its own, at the sixth shape.
 - **Blocks** — nothing today; a needless prompt per uncovered pair.
-- **Owner** — none; raised at RE-4's review (R22). **RE-5 added no shape
+- **Owner** — `replacement-architecture.md`'s pipeline, which built it
+  (above); raised at RE-4's review (R22). **RE-5 added no shape
   (2026-09-13) and put the pairs it makes reachable on this list instead.**
   Season beside Season is the multiplier bucket and asks nothing; Season
   beside Scales is a multiplier beside a plus, does not commute, and the
@@ -2243,7 +2275,7 @@ shape with two outcomes.
 | **Size** | one RE-shaped kind — a `GameAction::RollDice { player, sides, count }` family, its `EventPattern` arm, a performer drawing from `GameState.rng` (never ambient, `CLAUDE.md`), an `AmountExpr` for the result — ~300–400 lines with two cards, on RE's per-kind measure; coins fold in as `sides: 2` |
 | **Blocks** | ~84 printed cards roll a die outside Un-sets (Scryfall, 2026-09-15: the AFR and CLB Dragons, Barbarian Class, Pixie Guide, Wyll, Blade of Frontiers, …); seven of them replace the roll |
 | **Atoms** | the CR 705/706 atoms are Phase 8's and Phase 9's in the corpus |
-| **Owner** | — (a die roll as a cost, Clay Golem's, is one `Cost` arm with this entry's first card, in C: item 212's census, 2026-10-05) |
+| **Owner** | after v0.5, wider card work: no `tdc` card rolls a die or flips a coin (Scryfall, `e:tdc (o:/\broll/ or o:"flip a coin")`, 0). A die roll as a cost, Clay Golem's, is one `Cost` arm with this entry's first card (item 212's census, 2026-10-05) |
 
 ### 2.32 Mulligans (CR 103.5)
 
@@ -2262,7 +2294,7 @@ comment sweep found the `TODO` in `Game::setup` with no owner.
 | **Size** | ~100 lines in `Game::setup`: two `ChoiceKind`s, the loop CR 103.5 states, 103.5c keyed on the player count, and the random provider's policy — keep, always, so no fuzz counter moves; the pool moves only if an agent ever mulligans |
 | **Blocks** | every game's opening: the RL harness's first decision (the post-RE audit's fork model, `codebase-state.md` main item 41) and `cli_play`'s human seat |
 | **Atoms** | `ATOM-103.5-001` |
-| **Owner** | — |
+| **Owner** | `game-formats`, in `setup-architecture.md`, which owns CR 103: every game opens with CR 103.5, the five-seat table is the first a person sits down at, and `roadmap-v2.md` §D brings Commander's mulligans forward with the formats; CR 103.5c's free mulligan is keyed on the seat count |
 
 ### 2.33 Choice versus target — when a non-targeting selection is made (CR 601.2b, 608.2c)
 
@@ -2313,7 +2345,7 @@ constructor on `Pick`", 22 cards, built with the first of them
 | **Size** | the survey is a sitting. The change after it is small if `Choose` leaves the instance list — one arm and its readers — and medium if it gains a timing axis: a second recipient kind, `announce_targets` filtering on it, and `resolve_effect` asking the rest |
 | **Blocks** | nothing today — zero cards. The first card with a non-targeting choice, and the Black Gate class that carries both timings in one ability. **And A6**: CR 603.3d hands `announce_targets` its clauses, so a triggered ability with a "choose" clause inherits whatever this decides. Pool scale (Scryfall, `game:paper`, 2026-09-18): `o:"choose a player"` 17, `o:"choose a creature type"` 91, `o:"as you cast this spell"` 37 |
 | **Atoms** | none filed under `Backlog`. CR 601.2b's seven atoms are cost and mode announcement and `ATOM-608.2c-001` is instruction order, so the question this entry asks has no atom — the survey's first output is whether it needs one |
-| **Owner** | — |
+| **Owner** | `modes-plus-choice-kinds`, whose design sets the choices CR 601.2b makes while casting and the choice at resolution (CR 608.2d) against one decision boundary, the line this entry asks to have drawn; the survey opens it |
 ### 2.34 A search over a cloned `GameState` sees its next draw — determinization, and what §2.9 does not do
 
 **The surface that cannot express it.** Phase 10's AI harness is search: clone
@@ -2367,7 +2399,7 @@ discover this one training run at a time.
 | **Size** | medium, after §2.9: a per-viewer knowledge record written by the reveal, look and scry paths; a redeal from a viewer that shuffles each library's unknown portion and swaps unknown hand cards with unknown library cards, drawing on `GameState.rng` so a determinized branch is itself seeded and replayable; and a test that a searcher over many samples predicts its next draw no better than chance |
 | **Blocks** | Phase 10's search harness — any look-ahead past what the searcher knows, and any training signal from self-play, which otherwise learns to play against known draws. Nothing on the spine |
 | **Atoms** | none; the CR does not speak to a harness's honesty, and none should be written |
-| **Owner** | — ; filed 2026-09-18 by the owner, from A4j's review. Designed together with §2.9, right after item 6's close (`roadmap-v2.md` `information-model-design`, 2026-09-25) |
+| **Owner** | `information-model-design`, designed together with §2.9 as filed: the redeal reads the per-viewer knowledge record that design shapes. Filed 2026-09-18 by the owner, from A4j's review |
 
 ### 2.35 "Why can't I?" — the permanent that prohibits an action, as an oracle question
 
@@ -2404,7 +2436,7 @@ builder asks between them.
 | **Size** | small: a collecting twin of the sweep, ~60–100 lines plus a fixture with two forbidding sources on one board so the answer is a list and not a flag; after §2.9's per-viewer query if the answer must respect hidden information (a face-down source forbids too, and the client may not be told what it is) |
 | **Blocks** | the GUI half of v1's explanation of a greyed action; an observation that names why an action is absent. Nothing on the spine |
 | **Atoms** | none; the CR does not speak to interfaces, and none should be written |
-| **Owner** | — ; filed 2026-09-18 by A4k, from A4j's review |
+| **Owner** | `permission-design`, where `cant-cast-play-or-activate`'s reasons are designed (the route's step 9): a greyed action's reason is each source that forbids it. SU-8's `prohibition` names the first; the reasons name every one, designed once with the checks, and after `information-model`, which decides what a face-down source may say. Filed 2026-09-18 by A4k, from A4j's review |
 
 
 ### 2.36 How an object or a player is named in text — `#17` was a mistake
@@ -2439,7 +2471,7 @@ take it from.
 | **Size** | small: one `Display` decision, the four renderers, the viewer's regex, and the `format_event` fixtures that assert a line's text; a docs pass over the trace pages' examples is not owed (they are pinned) |
 | **Blocks** | nothing on the spine; the readability of every log, trace and prompt line, and main item 141's wire shape, which should not inherit a spelling by accident |
 | **Atoms** | none |
-| **Owner** | — ; filed 2026-09-18 from the owner's review of A4c (PR #170) |
+| **Owner** | `names-and-hygiene-sweeps`, before release: one spelling for every human-facing line, swept once against a tree that has stopped growing, and the decision log's words with it, since `ChoiceOption::as_logged` writes `#N` too. Nothing on the route reads it. Filed 2026-09-18 from the owner's review of A4c (PR #170) |
 
 ### 2.37 Which clause fits which slot — parity at TR-6's close, the matrix with custom-card design
 
@@ -2490,7 +2522,7 @@ the matrix waits for the design that needs it.
 | **Size** | parity is a table, about an hour. The matrix is a docs pass, about a session. The refactor the entry was first filed to decide is not expected to pay |
 | **Blocks** | the matrix blocks post-v1 custom card support. Nothing on the spine |
 | **Atoms** | none; the CR states the slots, not their implementation |
-| **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
+| **Owner** | parity: `tarkir-dragonstorm-decks`' gap census, in `triggers-architecture.md`, since TR-6 closed without the table and the decks are the first Commander pool, which this entry expected to exercise both sides of most events. The matrix: after v1, with custom-card design, since which holes matter turns on how custom cards are authored; it stays here because it informs designs before then, `remaining-costs`' choice between a cost arm per action and a cost composed of a `GameAction` among them (below). Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
 **Costs are a slot too** (the owner, 2026-10-05, at `codebase-state.md` item
 212's census). `Cost` has ten arms and the cards ask for about fifty actions
@@ -2668,7 +2700,7 @@ the desktop app.
 | **Size** | a judgment, ±50%: the frontend ~12,000–20,000 lines, the protocol and host ~2,500–4,000; about 5–8 weeks at the rate measured 2026-08-19 → 09-25 (151 PRs, ~2,200 net Rust lines a calendar day), about a third of it writing and the rest tuning; plus 2–3 weeks if the seats are four machines. Re-derive from A6g's measured rate before scheduling |
 | **Blocks** | v1's first use case. Nothing on the spine |
 | **Atoms** | none; the CR does not speak to interfaces |
-| **Owner** | — ; Phase 10 (`roadmap-v2.md` §E), with A6g's dev GUI as its first slice. Filed 2026-09-25 from the owner's question about a GUI |
+| **Owner** | Phase 10 (`roadmap-v2.md` §E), the GUI built for players, with A6g's dev GUI as its first slice. Filed 2026-09-25 from the owner's question about a GUI |
 
 ### 2.39 The grain of the CR 613.8 pre-check — a performance lever
 
@@ -2731,7 +2763,7 @@ reads. The custom-card design lists both; this grain narrows the second.
 | **Size** | ~150 lines and ~60 of tests in `board.rs` for card-type, supertype and color values, with a debug audit that runs the exact test wherever the finer grain says "independent" and the coarse one would have looked. Direction is ~40 more. Subtypes (a large enum) and seats ("you own" rows under different players, which share no card) are further grains with no measured waste yet |
 | **Blocks** | nothing; a performance lever. `Dependency checks` falls on the pools, and every gameplay row stays identical |
 | **Atoms** | none; the rule is implemented, and this is its cost |
-| **Owner** | — ; `layers-architecture.md` when taken. Filed 2026-09-25 at the owner's request at LL's approval, conditional on the data, which supports it |
+| **Owner** | Phase 10's profile-driven performance work (`roadmap-v2.md` §E), in `layers-architecture.md`: about 1% of engine time, a lever §E gates on a measurement, with every gameplay row identical at either grain. Filed 2026-09-25 at the owner's request at LL's approval, conditional on the data, which supports it |
 
 ### 2.40 Enters untapped (CR 110.5b, 614.1c–d) — a status the last effect sets — ✅ graduated 2026-09-28 (RG)
 
@@ -2841,7 +2873,7 @@ reaches nothing once Humility has removed it. No `ObjectFilter` leaf can say
 | **Size** | a leaf, ~100–150 lines with tests. Besides its arm in `object_filter::evaluate`, the compiler asks for two: `filter_reads`, on the abilities and keywords channels, and `EntryWrites::unmatches`, where keyword counters and CV-2b's "has flying" exceptions start to unmatch it. The test is Kwende beside a first-strike grant, then under Humility |
 | **Blocks** | the census's `ability-filter` class, 7 cards in Commander; the 7c anthems that name a keyword ("creatures you control with flying get +1/+1") need the same leaf, and close no loop, since they read the layer before theirs |
 | **Atoms** | none filed |
-| **Owner** | — ; `layers-architecture.md` when taken |
+| **Owner** | `tarkir-dragonstorm-decks`: four `tdc` cards filter by flying (Dragon Tempest, Frontier Siege, Harbinger of the Hunt, Will of the Temur; Scryfall, 2026-11-01). The leaf's CR 613.8a(b) dependency is `layers-architecture.md`'s |
 
 ### 2.44 Sagas and dungeons, the state-based actions that wait on a trigger
 
@@ -2860,7 +2892,7 @@ same of a dungeon's last room, and 704.5v of a battle (§2.23).
 | **Size** | one PR in the band for Sagas, after TR-5b, since a chapter ability triggers on lore counters being put on (CR 714.2b) and `CountersPutOn` is TR-5b's arm; dungeons after it |
 | **Blocks** | the census's `saga` class, 223 Sagas in Commander; venture's cards, uncounted |
 | **Atoms** | 11 under CR 714, all Phase 8's, none covered |
-| **Owner** | — |
+| **Owner** | after v0.5, wider card work: no `tdc` card is a Saga or ventures (Scryfall, `e:tdc t:saga`, 0), and TR-5b's `CountersPutOn`, which a chapter ability triggers on, has landed |
 
 ### 2.45 Stickers (CR 123), with tickets (107.17)
 
@@ -2881,8 +2913,8 @@ between public zones, one of CR 400.7's twelve exceptions (400.7m,
 | **Verdict** | nothing: no sheet in a game's setup, no sticker on an object, no `{TK}`. A sticker is not an object (123.1), so it is state on the object that `move_object`'s prune must keep between public zones and drop into a hidden one. A name sticker needs Layer 3, which no effect reaches yet (`ATOM-400.7a-002`'s row) |
 | **Size** | unsized. Sheets, placement, tickets and the carry look like one PR in the band with the ability and power-and-toughness kinds; the name kind waits on Layer 3 |
 | **Blocks** | `s:unf o:sticker f:c`: 47 cards; `s:unf o:sticker f:v`: 9, each only reading a sticker, with `s:unf o:sticker banned:vintage` at 37. `o:{TK} -is:acorn legal:commander`: 69. Attractions (CR 717) share the ban and have no entry: `s:unf o:attraction f:c` 27, `f:v` 3 |
-| **Atoms** | none: session 1 ruled CR 123 out, so they are authored when an owner takes the entry |
-| **Owner** | — |
+| **Atoms** | none: session 1 ruled CR 123 out, so they are authored when the entry is built |
+| **Owner** | after v0.5, wider card work: no `tdc` card places a sticker or pays a ticket (Scryfall, `e:tdc (o:sticker or o:{TK})`, 0) |
 
 ### 2.46 Revealing until a card matches — a library walk on the information model
 
@@ -2901,7 +2933,7 @@ any zone but the stack). The walk is not.
 | **Size** | unsized. A primitive, its destinations and its rulings' edge cases (an empty library, no match), once the model can record what was revealed to whom |
 | **Blocks** | `o:"until you reveal"`: 80 cards (Scryfall, 2026-10-17). The same walk with exile in place of reveal is cascade and discover, whose cast half `permission-architecture.md`'s census owns ("cast while something resolves"): `o:"exile cards from the top of your library until"` 26, `keyword:cascade` 38, `keyword:discover` 32 |
 | **Atoms** | none of its own: CR 701.20's atoms are the information model's |
-| **Owner** | — ; after `information-model-design`'s design, with `information-model` |
+| **Owner** | `information-model`: Selvala's Stampede, in `tdc`'s Temur Roar, reveals until it reveals a creature card, and the walk waits on the model's record of what each player saw |
 
 ### 2.47 Counts over the whole game — a game-only row, and counts by name
 
@@ -2918,7 +2950,7 @@ no store today.
 | **Size** | each reading with its first card: a `ByName` filter leaf, ~30 lines and a test, with Approach of the Second Sun, whose six rulings are its tests; a cast count by zone, ~20 lines, with the first command-zone count and `game-formats`'s designation |
 | **Blocks** | the 17 printed cards that count a player's casts of a commander from the command zone (Captain Vargus Wrath, Commander's Insignia, the Storm cycle), with `game-formats`'s designation; the two Frodos' count of the Ring tempting you; Approach, Yidaro and Gollum by name; and the custom "this game" cards the owner expects |
 | **Atoms** | none |
-| **Owner** | — ; each reading with its first registered card |
+| **Owner** | the count by zone: `game-formats`, since Commander's Insignia, in `tdc`, counts the times you've cast your commander from the command zone this game, which reads that row's designation. The count by name: after v0.5, wider card work, no `tdc` card counting by name |
 
 ### 2.48 The history log's chunk size — a performance lever, for a mature engine
 
@@ -2953,7 +2985,7 @@ added.
 | **Size** | a sweep of 8, 16, 32 and 64 on the harness's search workload: clone time and allocations per fork (floor 2), instructions per decision, held bytes per game, a long game's "this game" read; a probe of ~50 lines and a sitting, then a one-line change if a size wins |
 | **Blocks** | nothing; a performance lever. Every gameplay row stays identical at any size |
 | **Atoms** | none |
-| **Owner** | — ; the AI harness's performance work in Phase 10, after B10's structural sharing changes what a fork copies (`roadmap-v2.md`) |
+| **Owner** | Phase 10's AI harness performance work (`roadmap-v2.md` §E): the trade can only be read on the harness's search workload, which v0.5 does not run (the owner, at #262's review) |
 
 ### 2.49 Dredge (CR 702.52) — a draw replaced from a graveyard
 
@@ -2969,7 +3001,7 @@ tested the trigger on a fixture.
 | **Size** | ~1 PR with its first card: the arm, the condition, and its boards (Golgari Brownscale's, Life from the Loam's) |
 | **Blocks** | `keyword:dredge`: 14 cards (Scryfall, 2026-10-22), Golgari Brownscale and Life from the Loam among them |
 | **Atoms** | ATOM-702.52a-001, ATOM-702.52b-001 (Phase 8) |
-| **Owner** | — |
+| **Owner** | `tarkir-dragonstorm-decks`: Life from the Loam, in `tdc`'s Sultai Arisen, dredges |
 
 ### 2.50 "Target spell or permanent" — one target from two zones
 

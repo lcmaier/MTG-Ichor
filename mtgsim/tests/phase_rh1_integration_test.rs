@@ -32,7 +32,7 @@ use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDe
 use mtgsim::types::restriction::{Restriction, SourceFilter};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -189,7 +189,8 @@ fn the_cleanup_discard(shape: Option<Shape>) -> Outcome {
         put_in_hand(&mut game.state, CardDataBuilder::new("Extra").build(), active);
     }
     // Eight after the draw step: the first card goes.
-    dp.expect_pick_n(ChoiceKind::Discard { source: None }, vec![0]);
+    let first = game.state.players[active].hand[0];
+    dp.expect_choice(ChoiceKind::Discard { source: None }, vec![ChoiceOption::Object(first)]);
     game.run_turn(&dp).expect("turn");
     let discarded = game
         .state

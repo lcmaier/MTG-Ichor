@@ -215,7 +215,7 @@ mod tests {
     use crate::test_support::test_ctx;
     use crate::state::battlefield::{AttackTarget, AttackingInfo};
     use crate::types::keywords::KeywordFlag;
-    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::test_support::{
         place_vanilla_creature as place_creature_with_keywords, set_attacking, set_blocked_by,
@@ -508,14 +508,13 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        // Script trample allocation: [2 to blocker, 2 to player]
         let scripted = ScriptedDecisionProvider::new();
         scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![2, 2],
+            vec![(ChoiceOption::Object(blocker), 2), (ChoiceOption::Player(1), 2)],
         );
         let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
@@ -593,14 +592,14 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        // Deathtouch: lethal=1. Script: [1 to blocker, 3 to player]
+        // Deathtouch makes 1 lethal (CR 702.2c).
         let scripted = ScriptedDecisionProvider::new();
         scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![1, 3],
+            vec![(ChoiceOption::Object(blocker), 1), (ChoiceOption::Player(1), 3)],
         );
         let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
@@ -641,7 +640,7 @@ mod tests {
         let scripted = ScriptedDecisionProvider::new();
         scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage { attacker_id: trampler, defending_target: ObjectOrPlayerId::Player(1) },
-            vec![0, 4],
+            vec![(ChoiceOption::Object(blocker), 0), (ChoiceOption::Player(1), 4)],
         );
         let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
@@ -667,7 +666,7 @@ mod tests {
         let scripted = ScriptedDecisionProvider::new();
         scripted.expect_allocation(
             ChoiceKind::AssignTrampleDamage { attacker_id: second, defending_target: ObjectOrPlayerId::Player(1) },
-            vec![0, 3],
+            vec![(ChoiceOption::Object(blocker), 0), (ChoiceOption::Player(1), 3)],
         );
         let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
@@ -709,7 +708,7 @@ mod tests {
         let scripted = ScriptedDecisionProvider::new();
         scripted.expect_allocation(
             ChoiceKind::AssignCombatDamage { attacker_id: attacker },
-            vec![2, 3],
+            vec![(ChoiceOption::Object(b1), 2), (ChoiceOption::Object(b2), 3)],
         );
         let assignments = assign_combat_damage(&game, &scripted, 0, false);
 

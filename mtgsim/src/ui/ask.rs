@@ -1427,12 +1427,10 @@ mod tests {
     fn test_pick_n_returns_correct_index() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
-        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        let land = crate::types::ids::new_object_id();
+        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(land))]);
 
-        let actions = vec![
-            PriorityAction::Pass,
-            PriorityAction::PlayLand(crate::types::ids::new_object_id()),
-        ];
+        let actions = vec![PriorityAction::Pass, PriorityAction::PlayLand(land)];
         let result = ask_choose_priority_action(&dp, &game, 0, &actions, None);
         assert!(matches!(result, PriorityAction::PlayLand(_)));
     }
@@ -1462,7 +1460,7 @@ mod tests {
         let id_b = crate::types::ids::new_object_id();
         dp.expect_allocation(
             ChoiceKind::AssignCombatDamage { attacker_id: id_a },
-            vec![2, 1],
+            vec![(ChoiceOption::Object(id_a), 2), (ChoiceOption::Object(id_b), 1)],
         );
         let result = ask_choose_attacker_damage_assignment(&dp, &game, 0, id_a, &[id_a, id_b], 3);
         assert_eq!(result, vec![(id_a, 2), (id_b, 1)]);
@@ -1484,7 +1482,7 @@ mod tests {
                 attacker_id: attacker,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![2, 1, 2],
+            vec![(ChoiceOption::Object(blocker_a), 2), (ChoiceOption::Object(blocker_b), 1), (ChoiceOption::Player(1), 2)],
         );
         let (blockers, overflow) = ask_choose_trample_damage_assignment(
             &dp, &game, 0, attacker,
@@ -1511,7 +1509,7 @@ mod tests {
                 attacker_id: attacker,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![1, 4],
+            vec![(ChoiceOption::Object(blocker), 1), (ChoiceOption::Player(1), 4)],
         );
         let _ = ask_choose_trample_damage_assignment(
             &dp, &game, 0, attacker,
@@ -1632,7 +1630,13 @@ mod tests {
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
 
-        dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 1]);
+        dp.expect_choice(
+            ChoiceKind::DeclareAttackers,
+            vec![
+                ChoiceOption::AttackerTarget(id_a, AttackTarget::Player(1)),
+                ChoiceOption::AttackerTarget(id_b, AttackTarget::Player(1)),
+            ],
+        );
         let legal = vec![
             (id_a, AttackTarget::Player(1)),
             (id_b, AttackTarget::Player(1)),
@@ -1663,11 +1667,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "DP returned index 5 but only 2 options available")]
     fn test_validation_rejects_out_of_bounds() {
-        let dp = ScriptedDecisionProvider::new();
-        let game = test_game_state();
-        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![5]);
-        let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
+        check_pick_n(&[5], 2, (1, 1), "test", &Diagnostics::default());
     }
 
     #[test]
@@ -1675,8 +1675,12 @@ mod tests {
     fn test_validation_rejects_wrong_count() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
-        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0, 1]);
-        let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
+        let land = crate::types::ids::new_object_id();
+        dp.expect_choice(
+            ChoiceKind::PriorityAction,
+            vec![ChoiceOption::Action(PriorityAction::Pass), ChoiceOption::Action(PriorityAction::PlayLand(land))],
+        );
+        let actions = vec![PriorityAction::Pass, PriorityAction::PlayLand(land)];
         let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
@@ -1689,7 +1693,7 @@ mod tests {
         let id_b = crate::types::ids::new_object_id();
         dp.expect_allocation(
             ChoiceKind::AssignCombatDamage { attacker_id: id_a },
-            vec![2, 2],
+            vec![(ChoiceOption::Object(id_a), 2), (ChoiceOption::Object(id_b), 2)],
         );
         let _ = ask_choose_attacker_damage_assignment(&dp, &game, 0, id_a, &[id_a, id_b], 3);
     }
@@ -1701,7 +1705,7 @@ mod tests {
     fn test_scripted_wrong_kind_panics() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
-        dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+        dp.expect_choice(ChoiceKind::DeclareAttackers, vec![]);
         // Engine asks for PriorityAction but we expected DeclareAttackers
         let actions = vec![PriorityAction::Pass];
         let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
@@ -1713,8 +1717,8 @@ mod tests {
     #[should_panic(expected = "unconsumed expectation")]
     fn test_scripted_unconsumed_panics() {
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(ChoiceKind::DeclareAttackers, vec![]);
         // Only consume one
         let game = test_game_state();
         let actions = vec![PriorityAction::Pass];
@@ -1742,9 +1746,10 @@ mod tests {
         let dp0 = ScriptedDecisionProvider::new();
         let dp1 = ScriptedDecisionProvider::new();
 
-        // Player 0 should get action index 0, player 1 should get index 1
-        dp0.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        dp1.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        // Player 0 passes, and player 1 plays the land
+        let land = crate::types::ids::new_object_id();
+        dp0.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp1.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(land))]);
 
         let dispatch = DispatchDecisionProvider::new(vec![
             Box::new(dp0),
@@ -1752,16 +1757,10 @@ mod tests {
         ]);
 
         let game = test_game_state();
-        let actions = vec![
-            PriorityAction::Pass,
-            PriorityAction::PlayLand(crate::types::ids::new_object_id()),
-        ];
+        let actions = vec![PriorityAction::Pass, PriorityAction::PlayLand(land)];
 
-        // Player 0 chooses index 0 → Pass
         let result0 = ask_choose_priority_action(&dispatch, &game, 0, &actions, None);
         assert!(matches!(result0, PriorityAction::Pass));
-
-        // Player 1 chooses index 1 → PlayLand
         let result1 = ask_choose_priority_action(&dispatch, &game, 1, &actions, None);
         assert!(matches!(result1, PriorityAction::PlayLand(_)));
     }

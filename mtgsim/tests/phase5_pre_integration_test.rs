@@ -12,7 +12,7 @@ use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
@@ -48,8 +48,7 @@ fn test_nights_whisper_draw_and_life_loss() {
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    // [Pass, CastSpell(whisper_id)] → idx 1
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(whisper_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
@@ -97,7 +96,7 @@ fn test_angels_mercy_gains_life() {
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(mercy_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
@@ -119,7 +118,7 @@ fn test_dark_ritual_adds_three_black_mana() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &decisions);
@@ -138,7 +137,7 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
 
     // Cast — it should go on the stack
     let result = game.run_priority_round(&decisions).unwrap();
@@ -169,8 +168,7 @@ fn test_doom_blade_destroys_nonblack_creature() {
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    // [Pass, CastSpell(blade_id)] → idx 1
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(blade_id))]);
     // The only nonblack creature, so the target is forced and not asked.
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
@@ -250,17 +248,16 @@ fn test_isamaru_legend_rule_second_copy_dies() {
     game.players[0].mana_pool.add(ManaType::White, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(second_id))]);
     // Both pass → resolve. SBAs fire after resolution and detect legend rule.
-    // LegendRule fires during SBA check after resolution: keep first (index 0)
-    decisions.expect_pick_n(ChoiceKind::LegendRule {
+    // LegendRule fires during SBA check after resolution: keep the first
+    decisions.expect_choice(ChoiceKind::LegendRule {
         legend_name: "Isamaru, Hound of Konda".to_string(),
-    }, vec![0]);
+    }, vec![ChoiceOption::Object(first_id)]);
 
     // Cast and resolve — second Isamaru enters, SBAs kill one
     cast_and_resolve(&mut game, &decisions);
 
-    // ScriptedDecisionProvider keeps the first legendary (legendaries[0]).
     // One Isamaru should remain, one should be in the graveyard.
     let first_on_bf = game.battlefield.contains_key(&first_id);
     let second_on_bf = game.battlefield.contains_key(&second_id);

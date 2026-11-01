@@ -14,8 +14,8 @@ use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::types::colors::Color;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::test_ctx;
@@ -25,10 +25,9 @@ use mtgsim::test_support::{creature_with_ability, fill_library, put_in_hand, put
 fn cast_and_resolve_targeted_spell(
     game: &mut mtgsim::state::game_state::GameState,
     decisions: &ScriptedDecisionProvider,
-    _spell_id: mtgsim::types::ids::ObjectId,
-    cast_index: usize,
+    spell_id: mtgsim::types::ids::ObjectId,
 ) {
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
+    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
     // No target to script: one legal target on these boards, so the choice
     // is forced and no prompt is made.
     let result = game.run_priority_round(decisions).unwrap();
@@ -37,7 +36,7 @@ fn cast_and_resolve_targeted_spell(
     // Both pass → resolve. The caster is asked while another spell in hand is
     // castable; the opponent has `Pass` alone, which the engine takes.
     if candidate_priority_actions(game, game.active_player).len() > 1 {
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
     }
     game.run_priority_round(decisions).unwrap();
 }
@@ -60,7 +59,7 @@ fn test_cerulean_wisps_sets_color_to_blue() {
     assert!(!colors.contains(&Color::Blue));
 
     let decisions = ScriptedDecisionProvider::new();
-    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps_id);
 
     // Creature should now be blue (not green)
     let colors = get_effective_colors(&game, bears_id);
@@ -92,7 +91,7 @@ fn test_color_change_expires_at_cleanup() {
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps_id);
 
     // Blue now
     let colors = get_effective_colors(&game, bears_id);
@@ -131,7 +130,7 @@ fn test_moonlace_makes_creature_colorless() {
     assert!(get_effective_colors(&game, bears_id).contains(&Color::Green));
 
     let decisions = ScriptedDecisionProvider::new();
-    cast_and_resolve_targeted_spell(&mut game, &decisions, moonlace_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, moonlace_id);
 
     // Now colorless
     let colors = get_effective_colors(&game, bears_id);
@@ -231,10 +230,10 @@ fn test_color_change_independent_of_pt_pump() {
     let decisions = ScriptedDecisionProvider::new();
 
     // Cast Cerulean Wisps → creature becomes blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps_id);
 
     // Cast Giant Growth → creature gets +3/+3
-    cast_and_resolve_targeted_spell(&mut game, &decisions, growth_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, growth_id);
 
     // Color should be blue (L5), P/T should be 5/5 (L7c)
     let colors = get_effective_colors(&game, bears_id);
@@ -261,12 +260,12 @@ fn test_two_set_colors_later_overrides() {
     let decisions = ScriptedDecisionProvider::new();
 
     // Cast Cerulean Wisps → becomes blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps1_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, wisps1_id);
     let colors = get_effective_colors(&game, bears_id);
     assert!(colors.contains(&Color::Blue));
 
     // Cast Moonlace → becomes colorless
-    cast_and_resolve_targeted_spell(&mut game, &decisions, moonlace_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &decisions, moonlace_id);
     let colors = get_effective_colors(&game, bears_id);
     assert!(colors.is_empty());
 
@@ -307,7 +306,7 @@ fn cerulean_wisps_untaps_the_creature_it_targets() {
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     assert!(game.battlefield[&bears_id].tapped);
 
-    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id);
 
     assert!(!game.battlefield[&bears_id].tapped, "untapped by the Wisps");
     assert_eq!(get_effective_colors(&game, bears_id), [Color::Blue].into());
@@ -323,7 +322,7 @@ fn cerulean_wisps_makes_a_three_color_creature_just_blue() {
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     assert_eq!(get_effective_colors(&game, monk).len(), 3, "green, white and blue as printed");
 
-    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id);
 
     assert_eq!(get_effective_colors(&game, monk), [Color::Blue].into(), "blue alone, though it was blue before");
 }
@@ -347,7 +346,7 @@ fn a_creature_turned_blue_still_pumps_green_creatures() {
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     assert_eq!(get_effective_power(&game, bearer), Some(3), "green, so it pumps itself");
 
-    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), wisps_id);
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
 
     assert_eq!(get_effective_power(&game, bearer), Some(2), "blue now, so not a green creature");
@@ -366,7 +365,7 @@ fn moonlace_fixture_is_colorless_until_end_of_turn() {
     let bears_id = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let moonlace_id = put_in_hand(&mut game, fixtures::moonlace_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
-    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), moonlace_id, 1);
+    cast_and_resolve_targeted_spell(&mut game, &ScriptedDecisionProvider::new(), moonlace_id);
     assert!(get_effective_colors(&game, bears_id).is_empty());
 
     for _ in 0..6 {

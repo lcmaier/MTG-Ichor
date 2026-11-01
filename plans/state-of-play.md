@@ -170,7 +170,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 217 |
 | …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2891 |
+| `#[test]` functions | 2896 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -191,8 +191,8 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 410 |
-| …closed, still recorded | 256 |
+| Numbered items | 412 |
+| …closed, still recorded | 258 |
 | …open — unreachable, and says why | 106 |
 | **…open — reachable, wrong today** | **2** |
 | …open — reachable, not wrong (perf, a name, a harness) | 31 |
@@ -247,7 +247,6 @@ discipline. → `engineering-practices.md#the-spec-database`.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/card-layer-cleanup.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
 
 ## What this file deliberately does not know

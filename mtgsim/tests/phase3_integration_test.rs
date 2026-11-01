@@ -24,8 +24,9 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode};
+use mtgsim::state::battlefield::AttackTarget;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::types::replacement::EnterMods;
 
 // ---------------------------------------------------------------------------
@@ -113,8 +114,7 @@ fn test_unblocked_attacker_deals_damage() {
     // Now run through the combat phase with a scripted decision provider
     // that attacks with the bears
     let scripted = ScriptedDecisionProvider::new();
-    // Legal pairs: [(bears_id, Player(1))] — index 0
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(bears_id, AttackTarget::Player(1))]);
     // No blocks (player 1 has no creatures) — no DeclareBlockers call when legal_block_pairs is empty
 
     // Process declare attackers
@@ -164,10 +164,8 @@ fn test_blocked_creatures_trade() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    // Legal pairs: [(attacker, Player(1))] — index 0
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
-    // Legal block pairs: [(blocker, attacker)] — index 0
-    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(1))]);
+    scripted.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(blocker, attacker)]);
 
     // Declare attackers
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -231,8 +229,8 @@ fn test_bigger_creature_survives() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(1))]);
+    scripted.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(blocker, attacker)]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
     game.state.advance_turn(&test_dp()).unwrap();
@@ -280,8 +278,8 @@ fn test_overkill_damage_both_die() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(bears, AttackTarget::Player(1))]);
+    scripted.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(lions, bears)]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
     game.state.advance_turn(&test_dp()).unwrap();
@@ -334,10 +332,10 @@ fn test_no_attackers_no_damage() {
     // could play one; every other priority point offers `Pass` alone, which
     // the engine takes. Bears is not summoning-sick (placed before run_turn),
     // so ask_choose_attackers fires. We choose no attackers.
-    dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]); // precombat main
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]); // precombat main
     // DeclareAttackers TBA: choose no attackers
-    dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![]);
-    dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]); // postcombat main
+    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]); // postcombat main
     game.run_turn(&dp).unwrap();
 
     // No damage should have been dealt
@@ -399,12 +397,12 @@ fn test_combat_damage_kills_player() {
     // Set player 1 to 2 life so a single 2/2 attack kills them
     game.state.players[1].life_total = 2;
 
-    let _bears_id = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
+    let bears_id = place_creature_on_battlefield(&mut game, 0, printings::grizzly_bears);
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(bears_id, AttackTarget::Player(1))]);
 
     game.state.process_declare_attackers(&scripted).unwrap();
     game.state.advance_turn(&test_dp()).unwrap();
@@ -451,7 +449,7 @@ fn test_combat_state_cleared_after_combat() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(bears_id, AttackTarget::Player(1))]);
     // No blocks (player 1 has no creatures) — no DeclareBlockers call when legal_block_pairs is empty
 
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -512,8 +510,8 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(elemental, AttackTarget::Player(1))]);
+    scripted.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(lions, elemental)]);
 
     // Declare attackers
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -551,17 +549,16 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     // Player 1 casts bolt targeting Elemental
     // Player 0 is active → gets priority first, passes (no castable spells)
     let bolt_scripted = ScriptedDecisionProvider::new();
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]); // Player 0 passes
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![1]); // Player 1 casts bolt
-    // Target elemental at idx 2 in [Player(0), Player(1), Object(elemental)] for Any
-    bolt_scripted.expect_pick_n(ChoiceKind::SelectRecipients {
+    bolt_scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]); // Player 0 passes
+    bolt_scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]); // Player 1 casts bolt
+    bolt_scripted.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
-    }, vec![2]);
+    }, vec![ChoiceOption::Object(elemental)]);
     // Both pass → resolve: with the bolt on the stack neither has more than
     // `Pass`, which the engine takes. After it, SBAs kill Elemental, player 0
     // passes holding a land, and the phase ends
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    bolt_scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
 
     // Run priority loop: P0 pass → P1 cast bolt → all pass → resolve → SBAs fire
     game.state.run_priority_loop(&bolt_scripted).unwrap();
@@ -597,14 +594,14 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     // Player 0: Earth Elemental (4/5)
     let elemental = place_creature_on_battlefield(&mut game, 0, printings::earth_elemental);
     // Player 1: Savannah Lions (2/1)
-    let _lions = place_creature_on_battlefield(&mut game, 1, printings::savannah_lions);
+    let lions = place_creature_on_battlefield(&mut game, 1, printings::savannah_lions);
 
     // Advance to DeclareAttackers
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));
 
     let scripted = ScriptedDecisionProvider::new();
-    scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::DeclareBlockers, vec![0]);
+    scripted.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(elemental, AttackTarget::Player(1))]);
+    scripted.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(lions, elemental)]);
 
     // Run combat
     game.state.process_declare_attackers(&scripted).unwrap();
@@ -635,13 +632,11 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     // It's now player 1's turn (active player rotated after cleanup).
     // Active player gets priority first, so player 1 casts immediately.
     let bolt_scripted = ScriptedDecisionProvider::new();
-    // CastSpell at idx 1 in [Pass, CastSpell(bolt_id)]
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // Target elemental at idx 2 in [Player(0), Player(1), Object(elemental)] for Any
-    bolt_scripted.expect_pick_n(ChoiceKind::SelectRecipients {
+    bolt_scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    bolt_scripted.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
-    }, vec![2]);
+    }, vec![ChoiceOption::Object(elemental)]);
     // Both pass → resolve, then SBAs check (elemental survives) and both pass
     // → phase ends: neither has more than `Pass`, which the engine takes
 

@@ -751,7 +751,7 @@ mod tests {
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::test_support::lightning_bolt as make_bolt;
 
@@ -768,11 +768,10 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+        decisions.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![1]);
+        }, vec![ChoiceOption::Player(1)]);
 
         (game, card_id, decisions)
     }
@@ -983,11 +982,10 @@ mod tests {
 
         let decisions = ScriptedDecisionProvider::new();
         decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
-        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+        decisions.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![1]);
+        }, vec![ChoiceOption::Player(1)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
@@ -1018,11 +1016,10 @@ mod tests {
         // X = 0 is the one value `{R}` pays, so it is announced without a
         // prompt (`backlog.md` §2.22's rule 1): nothing is scripted for it.
         let decisions = ScriptedDecisionProvider::new();
-        // SelectionFilter::Any → [Player(0), Player(1)] — Player(1) is at index 1
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+        decisions.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![1]);
+        }, vec![ChoiceOption::Player(1)]);
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -1047,10 +1044,10 @@ mod tests {
         use crate::oracle::x_values::{LegalXValues, XOffer};
         let decisions = ScriptedDecisionProvider::new();
         decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+        decisions.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![1]);
+        }, vec![ChoiceOption::Player(1)]);
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -1068,7 +1065,8 @@ mod tests {
         use crate::types::costs::AdditionalCost;
         let mut game = GameState::new(2, 20);
         let mut kicked = (*crate::cards::printings::blaze()).clone();
-        kicked.additional_costs = vec![AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))])];
+        let kicker = AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[], 2))]);
+        kicked.additional_costs = vec![kicker.clone()];
         let kicked = std::sync::Arc::new(kicked);
         let obj = GameObject::new(kicked, 0, Zone::Hand);
         let card_id = game.add_object(obj);
@@ -1078,7 +1076,7 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![0]);
+        decisions.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
 
         let result = game.cast_spell(0, card_id, &decisions);
         assert!(result.is_err());
@@ -1094,6 +1092,7 @@ mod tests {
         use crate::types::costs::AlternativeCost;
 
         // Card with alt cost: "Pay 3 life instead of mana cost"
+        let pay_life = AlternativeCost::Custom("Pay 3 life".to_string(), vec![Cost::PayLife(3)]);
         let card = CardDataBuilder::new("Force Spike Variant")
             .card_type(CardType::Instant)
             .color(crate::types::colors::Color::Blue)
@@ -1102,10 +1101,7 @@ mod tests {
                 "",
                 Effect::Sequence(Vec::new()),
             ).with_id(crate::types::ids::new_ability_id()))
-            .alternative_cost(AlternativeCost::Custom(
-                "Pay 3 life".to_string(),
-                vec![Cost::PayLife(3)],
-            ))
+            .alternative_cost(pay_life.clone())
             .build();
 
         let mut game = GameState::new(2, 20);
@@ -1117,8 +1113,7 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        // Options: [NormalCost, AlternativeCost(Custom(...))] — index 1 = first alt cost
-        decisions.expect_pick_n(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![1]);
+        decisions.expect_choice(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![ChoiceOption::AlternativeCost(pay_life)]);
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -1135,14 +1130,13 @@ mod tests {
         use crate::types::costs::AdditionalCost;
 
         // Card: {1}{R} with kicker {R}
+        let kicker = AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))]);
         let card = CardDataBuilder::new("Goblin Bushwhacker")
             .card_type(CardType::Creature)
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 1))
             .power_toughness(1, 1)
-            .additional_cost(AdditionalCost::Kicker(vec![
-                Cost::Mana(ManaCost::build(&[ManaType::Red], 0)),
-            ]))
+            .additional_cost(kicker.clone())
             .build();
 
         let mut game = GameState::new(2, 20);
@@ -1155,8 +1149,7 @@ mod tests {
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        // Options: [AdditionalCost::Kicker(...)] — index 0 = first (only) additional cost
-        decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![0]);
+        decisions.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).

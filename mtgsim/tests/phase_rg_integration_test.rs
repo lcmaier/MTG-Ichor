@@ -61,7 +61,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite, TapStatus};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_named};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -115,13 +115,13 @@ fn with_a_charge_counter() -> EnterModsTemplate {
 }
 
 /// Return `card` from `owner`'s graveyard to the battlefield, answering each
-/// CR 616.1 prompt about it from `picks` in order. An unscripted prompt, or a
-/// scripted one left over, fails the test.
-fn return_to_battlefield(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, picks: &[usize]) -> ObjectId {
+/// CR 616.1 prompt about it with the source in `applied` it applies next. An
+/// unscripted prompt, or a scripted one left over, fails the test.
+fn return_to_battlefield(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, applied: &[ObjectId]) -> ObjectId {
     let id = put_in_graveyard(game, card, owner);
     let dp = ScriptedDecisionProvider::new();
-    for &pick in picks {
-        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![pick]);
+    for &source in applied {
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![ChoiceOption::Object(source)]);
     }
     game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the entry is proposed");
@@ -181,11 +181,11 @@ fn the_last_applied_status_is_the_one_the_permanent_enters_with() {
 #[test]
 fn opposite_statuses_are_an_order_and_equal_ones_are_not() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
-    put_on_battlefield(&mut game, entry_effect("Permanents enter untapped", ObjectFilter::All, EnterModsTemplate::untapped()), 1);
-    let tapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[0]);
+    let tapper = put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+    let untapper = put_on_battlefield(&mut game, entry_effect("Permanents enter untapped", ObjectFilter::All, EnterModsTemplate::untapped()), 1);
+    let tapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[tapper]);
     assert!(!game.battlefield[&tapped_first].tapped, "untapped applied last");
-    let untapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[1]);
+    let untapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[untapper]);
     assert!(game.battlefield[&untapped_first].tapped, "tapped applied last");
 
     let mut game = setup_two_player_game();
@@ -222,11 +222,11 @@ fn a_power_filter_beside_members_that_raise_no_power_is_not_asked() {
 #[test]
 fn an_added_subtype_asks_only_where_a_not_reads_it() {
     let non_mutants = and(creatures(), ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(mutant()))));
-    for (pick, tapped) in [(0, false), (1, true)] {
+    for (edit_first, tapped) in [(true, false), (false, true)] {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, creatures_enter_as_mutants(), 0);
-        put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
-        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[pick]);
+        let edit = put_on_battlefield(&mut game, creatures_enter_as_mutants(), 0);
+        let tapper = put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
+        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[if edit_first { edit } else { tapper }]);
         assert!(has_subtype(&game, bears, &mutant()));
         assert_eq!(game.battlefield[&bears].tapped, tapped, "the Mutant edit first unmatches the tapper");
     }
@@ -280,12 +280,12 @@ fn artifact_while_untapped() -> Arc<CardData> {
 /// counter or none, and the controller is asked.
 #[test]
 fn a_status_write_is_an_order_where_the_entering_permanents_type_hangs_on_its_status() {
-    for (pick, charged) in [(0, 0), (1, 1)] {
+    for (tapper_first, charged) in [(true, 0), (false, 1)] {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+        let tapper = put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
         let artifacts = ObjectFilter::ByType(CardType::Artifact);
-        put_on_battlefield(&mut game, entry_effect("Artifacts enter charged", artifacts, with_a_charge_counter()), 1);
-        let id = return_to_battlefield(&mut game, artifact_while_untapped(), 0, &[pick]);
+        let charger = put_on_battlefield(&mut game, entry_effect("Artifacts enter charged", artifacts, with_a_charge_counter()), 1);
+        let id = return_to_battlefield(&mut game, artifact_while_untapped(), 0, &[if tapper_first { tapper } else { charger }]);
         let entry = &game.battlefield[&id];
         assert!(entry.tapped);
         assert_eq!(entry.counter_count(CounterType::Charge), charged);
@@ -367,11 +367,11 @@ fn the_mutant_is_not_copied_and_a_copy_effect_over_it_leaves_it() {
 #[test]
 fn master_biomancer_beside_a_non_mutant_filter_is_an_order() {
     let non_mutants = and(creatures(), ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(mutant()))));
-    for (pick, tapped) in [(0, false), (1, true)] {
+    for (biomancer_first, tapped) in [(true, false), (false, true)] {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, master_biomancer(), 0);
-        put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
-        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[pick]);
+        let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+        let tapper = put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
+        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[if biomancer_first { biomancer } else { tapper }]);
         assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 2);
         assert_eq!(game.battlefield[&bears].tapped, tapped);
     }
@@ -400,16 +400,16 @@ fn a_mutant_stays_one_when_every_ability_is_lost() {
 
 /// The tests' `DecisionProvider`. It answers CR 616.1's "which replacement
 /// effect applies first" prompt (`ChooseReplacementEffect`) from a script of
-/// (the player who must be asked, the candidate they pick), in order, and
-/// asserts the player. Any other prompt panics, and so does a script left
-/// over when it is dropped, so a test states every order it expects and
-/// whose choice it is.
+/// (the player who must be asked, the source of the effect they pick), in
+/// order, and asserts the player. Any other prompt panics, and so does a
+/// script left over when it is dropped, so a test states every order it
+/// expects and whose choice it is.
 struct ScriptedReplacementChoices {
-    script: RefCell<VecDeque<(PlayerId, usize)>>,
+    script: RefCell<VecDeque<(PlayerId, ObjectId)>>,
 }
 
 impl ScriptedReplacementChoices {
-    fn new(script: &[(PlayerId, usize)]) -> Self {
+    fn new(script: &[(PlayerId, ObjectId)]) -> Self {
         ScriptedReplacementChoices { script: RefCell::new(script.iter().copied().collect()) }
     }
 }
@@ -423,15 +423,16 @@ impl Drop for ScriptedReplacementChoices {
 }
 
 impl DecisionProvider for ScriptedReplacementChoices {
-    fn pick_n(&self, _: &GameState, player: PlayerId, ctx: &ChoiceContext, _: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
         assert!(
             matches!(ctx.kind, ChoiceKind::ChooseReplacementEffect { .. }),
             "unscripted prompt: {:?}",
             ctx.kind
         );
-        let (who, pick) = self.script.borrow_mut().pop_front().unwrap_or_else(|| panic!("unscripted order for {player}"));
+        let (who, source) = self.script.borrow_mut().pop_front().unwrap_or_else(|| panic!("unscripted order for {player}"));
         assert_eq!(who, player, "CR 616.1's chooser is the entering permanent's controller");
-        vec![pick]
+        let words = ChoiceOption::Object(source).as_logged(game);
+        vec![position_named(options, game, &words, None, &[]).unwrap_or_else(|| panic!("{words} is not offered: {options:?}"))]
     }
 
     fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: u64) -> u64 {
@@ -448,9 +449,20 @@ impl DecisionProvider for ScriptedReplacementChoices {
 }
 
 /// `return_to_battlefield` with a provider that checks who is asked.
-fn return_asking(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, orders: &[(PlayerId, usize)]) -> ObjectId {
+fn return_asking(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, orders: &[(PlayerId, ObjectId)]) -> ObjectId {
+    return_asking_with(game, card, owner, |_| orders.to_vec())
+}
+
+/// [`return_asking`] with the script written once the card has its id, for
+/// an order that names the card's own entry effect, offered as the card.
+fn return_asking_with(
+    game: &mut GameState,
+    card: Arc<CardData>,
+    owner: PlayerId,
+    orders: impl FnOnce(ObjectId) -> Vec<(PlayerId, ObjectId)>,
+) -> ObjectId {
     let id = put_in_graveyard(game, card, owner);
-    let dp = ScriptedReplacementChoices::new(orders);
+    let dp = ScriptedReplacementChoices::new(&orders(id));
     game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the entry is proposed");
     id
@@ -482,8 +494,7 @@ fn cast_from_pool(
 //   permanent's controller chooses whether it enters tapped or untapped.
 /// Archelos cast from hand, then a land that enters tapped by its own
 /// ability. The two statuses are opposite, so the land's controller orders
-/// them and the one applied last is the one it enters with: candidates in
-/// sweep order, Archelos before the land's own ability (source 1a).
+/// them and the one applied last is the one it enters with.
 // COVERS-PARTIAL: ATOM-110.5b-002
 #[test]
 fn archelos_cast_from_hand_makes_a_tapland_its_controllers_order() {
@@ -497,9 +508,9 @@ fn archelos_cast_from_hand_makes_a_tapland_its_controllers_order() {
     assert!(!game.battlefield[&archelos].tapped);
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, &ScriptedReplacementChoices::new(&[(0, 1)])).unwrap();
+    game.play_land(0, land, &ScriptedReplacementChoices::new(&[(0, land)])).unwrap();
     assert!(!game.battlefield[&land].tapped, "its own ability first, then Archelos");
-    let land = return_asking(&mut game, idyllic_beachfront(), 0, &[(0, 0)]);
+    let land = return_asking(&mut game, idyllic_beachfront(), 0, &[(0, archelos)]);
     assert!(game.battlefield[&land].tapped, "Archelos first, then its own ability");
 }
 
@@ -577,13 +588,14 @@ fn archelos_overrides_an_instructions_tapped_and_taps_what_enters_while_tapped()
 /// the same state agree, and nobody is asked.
 #[test]
 fn two_archelos_in_opposite_states_ask_the_entering_permanents_controller() {
-    for (pick, tapped) in [(0, true), (1, false)] {
+    for untapped_first in [true, false] {
         let mut game = setup_game(4);
-        put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
+        let untapped_one = put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
         let tapped_one = put_on_battlefield(&mut game, archelos_lagoon_mystic(), 1);
         game.execute_action(GameAction::Tap { object: tapped_one }, &test_ctx()).unwrap();
-        let bears = return_asking(&mut game, grizzly_bears(), 2, &[(2, pick)]);
-        assert_eq!(game.battlefield[&bears].tapped, tapped, "the one applied last");
+        let first = if untapped_first { untapped_one } else { tapped_one };
+        let bears = return_asking(&mut game, grizzly_bears(), 2, &[(2, first)]);
+        assert_eq!(game.battlefield[&bears].tapped, untapped_first, "the one applied last");
     }
 
     let mut game = setup_game(4);
@@ -697,14 +709,15 @@ fn a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not() {
 // COVERS-PARTIAL: ATOM-616.1-001
 #[test]
 fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
-    for (pick, loyalty) in [(0, 1), (1, 4)] {
+    for (oath_first, loyalty) in [(true, 1), (false, 4)] {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, oath_of_gideon_shaped(), 0);
+        let oath = put_on_battlefield(&mut game, oath_of_gideon_shaped(), 0);
         let pool = [(ManaType::Blue, 1), (ManaType::Black, 1), (ManaType::Colorless, 2)];
         let kaito = cast_from_pool(&mut game, 0, kaito_shaped(), &pool, &ManaWindowStop::new(ScriptedReplacementChoices::new(&[])))
             .expect("castable from exactly {2}{U}{B}");
         assert_eq!(game.players[0].mana_pool.total(), 0, "the whole pool was the cost");
-        game.resolve_top_of_stack(&ManaWindowStop::new(ScriptedReplacementChoices::new(&[(0, pick)]))).expect("it resolves");
+        let first = if oath_first { oath } else { kaito };
+        game.resolve_top_of_stack(&ManaWindowStop::new(ScriptedReplacementChoices::new(&[(0, first)]))).expect("it resolves");
 
         assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), loyalty);
         assert_eq!(get_effective_types(&game, kaito), CardTypes::from([CardType::Creature]));
@@ -765,12 +778,15 @@ fn loyalty_beside_an_additional_counter_asks_nothing_without_a_multiplier() {
 #[test]
 fn shimmerer_under_biomancer_and_doubling_season_reaches_every_order() {
     let mut outcomes = Vec::new();
-    for first in 0..2 {
-        for second in 0..2 {
+    for shimmerer_first in [false, true] {
+        for season_second in [false, true] {
             let mut game = setup_two_player_game();
-            put_on_battlefield(&mut game, master_biomancer(), 0);
-            put_on_battlefield(&mut game, doubling_season(), 0);
-            let shimmerer = return_asking(&mut game, adaptive_shimmerer(), 0, &[(0, first), (0, second)]);
+            let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+            let season = put_on_battlefield(&mut game, doubling_season(), 0);
+            let shimmerer = return_asking_with(&mut game, adaptive_shimmerer(), 0, |shimmerer| {
+                let (first, other) = if shimmerer_first { (shimmerer, biomancer) } else { (biomancer, shimmerer) };
+                vec![(0, first), (0, if season_second { season } else { other })]
+            });
             outcomes.push(game.battlefield[&shimmerer].counter_count(CounterType::PlusOnePlusOne));
         }
     }

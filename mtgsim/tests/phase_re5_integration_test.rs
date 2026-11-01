@@ -39,7 +39,7 @@ use mtgsim::types::replacement::{
     Rounding,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -317,18 +317,18 @@ fn two_multipliers_ask_nothing_at_either_door() {
 /// reads the finished board, both apply and nothing is asked.
 #[test]
 fn a_multiplier_reading_power_is_asked_at_the_entry_door_only() {
-    let at_the_entry = |pick: usize| -> u32 {
+    let at_the_entry = |small_first: bool| -> u32 {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, fixture_doubler(), 0);
-        put_on_battlefield(&mut game, fixture_doubler_on_small_creatures(), 0);
+        let plain = put_on_battlefield(&mut game, fixture_doubler(), 0);
+        let small = put_on_battlefield(&mut game, fixture_doubler_on_small_creatures(), 0);
         put_on_battlefield(&mut game, your_creatures_enter_with_a_counter(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if small_first { small } else { plain })]);
         let bears = reanimate_with(&mut game, vanilla_creature(1, 1, &[]), 0, &dp);
         assert!(dp.is_empty(), "one prompt");
         count(&game, bears, CounterType::PlusOnePlusOne)
     };
-    let outcomes = [at_the_entry(0), at_the_entry(1)];
+    let outcomes = [at_the_entry(false), at_the_entry(true)];
     assert!(
         outcomes.contains(&2) && outcomes.contains(&4),
         "the plain doubler first takes the 1/1 to 3 power and the small doubler falls out; the small doubler first leaves both applied — got {:?}",
@@ -371,18 +371,38 @@ fn a_multiplier_is_offered_only_once_an_enters_with_gives_the_entry_counters() {
 /// §3.5, the feeds table's premise (d)).
 #[test]
 fn a_multiplier_beside_two_counter_writers_makes_their_order_observable() {
-    let run = |first: usize, second: usize| -> (u32, u32) {
+    #[derive(Clone, Copy)]
+    enum Applying {
+        Doubler,
+        Charger,
+        Loyalty,
+    }
+    let run = |first: Applying, second: Applying| -> (u32, u32) {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, fixture_doubler(), 0);
-        put_on_battlefield(&mut game, your_permanents_enter_with_a_charge_counter(), 0);
+        let doubler = put_on_battlefield(&mut game, fixture_doubler(), 0);
+        let charger = put_on_battlefield(&mut game, your_permanents_enter_with_a_charge_counter(), 0);
+        let walker = put_in_graveyard(&mut game, loyalty_three(), 0);
+        // CR 306.5b's loyalty is the walker's own effect.
+        let source = |applying| {
+            ChoiceOption::Object(match applying {
+                Applying::Doubler => doubler,
+                Applying::Charger => charger,
+                Applying::Loyalty => walker,
+            })
+        };
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![first]);
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![second]);
-        let walker = reanimate_with(&mut game, loyalty_three(), 0, &dp);
+        dp.expect_choice(PICK_REPLACEMENT, vec![source(first)]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![source(second)]);
+        game.change_zone(walker, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
         assert!(dp.is_empty(), "two prompts");
         (count(&game, walker, CounterType::Loyalty), count(&game, walker, CounterType::Charge))
     };
-    let mut outcomes = vec![run(0, 0), run(0, 1), run(1, 0), run(1, 1)];
+    let mut outcomes = vec![
+        run(Applying::Charger, Applying::Doubler),
+        run(Applying::Charger, Applying::Loyalty),
+        run(Applying::Loyalty, Applying::Doubler),
+        run(Applying::Loyalty, Applying::Charger),
+    ];
     outcomes.sort_unstable();
     outcomes.dedup();
     assert_eq!(outcomes, vec![(3, 2), (6, 1), (6, 2)], "charger, doubler, loyalty; loyalty, doubler, charger; and both before the doubler");
@@ -673,18 +693,18 @@ fn hardened_scales_adds_one_to_the_counters_a_creature_enters_with() {
 /// creature's controller chooses — 1 → 2 → 3 or 1 → 2 → 4.
 #[test]
 fn the_creatures_controller_orders_scales_beside_an_opponents_vigor() {
-    let run = |pick: usize| -> u32 {
+    let run = |scales_first: bool| -> u32 {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, hardened_scales(), 0);
-        put_on_battlefield(&mut game, primal_vigor(), 1);
+        let scales = put_on_battlefield(&mut game, hardened_scales(), 0);
+        let vigor = put_on_battlefield(&mut game, primal_vigor(), 1);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if scales_first { scales } else { vigor })]);
         resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
         assert!(dp.is_empty(), "one prompt");
         count(&game, bears, CounterType::PlusOnePlusOne)
     };
-    let outcomes = [run(0), run(1)];
+    let outcomes = [run(true), run(false)];
     assert!(
         outcomes.contains(&3) && outcomes.contains(&4),
         "Scales then Vigor is 4, Vigor then Scales is 3 — got {:?}",
@@ -758,18 +778,18 @@ fn vorinclex_reads_the_entering_controller_as_the_putter() {
 /// beside your Hardened Scales on your creature, both orders.
 #[test]
 fn you_order_vorinclex_beside_hardened_scales() {
-    let run = |pick: usize| -> u32 {
+    let run = |vorinclex_first: bool| -> u32 {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
-        put_on_battlefield(&mut game, hardened_scales(), 0);
+        let vorinclex = put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+        let scales = put_on_battlefield(&mut game, hardened_scales(), 0);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if vorinclex_first { vorinclex } else { scales })]);
         resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
         assert!(dp.is_empty(), "one prompt");
         count(&game, bears, CounterType::PlusOnePlusOne)
     };
-    let outcomes = [run(0), run(1)];
+    let outcomes = [run(true), run(false)];
     assert!(outcomes.contains(&3) && outcomes.contains(&4), "got {:?}", outcomes);
 }
 
@@ -1116,17 +1136,18 @@ fn a_plus_beside_an_enters_with_of_a_present_kind_asks_nothing() {
 /// is gathered last), and then the Constrictor before or after the three.
 #[test]
 fn a_plus_on_every_kind_beside_an_enters_with_of_a_new_kind_is_a_real_order() {
-    let run = |pick: usize| -> (u32, u32) {
+    let run = |constrictor_first: bool| -> (u32, u32) {
         let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, winding_constrictor(), 0);
+        let constrictor = put_on_battlefield(&mut game, winding_constrictor(), 0);
         put_on_battlefield(&mut game, your_permanents_enter_with_a_charge_counter(), 0);
+        let shimmerer = put_in_graveyard(&mut game, adaptive_shimmerer(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
-        let shimmerer = reanimate_with(&mut game, adaptive_shimmerer(), 0, &dp);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if constrictor_first { constrictor } else { shimmerer })]);
+        game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
         assert!(dp.is_empty(), "one prompt");
         (count(&game, shimmerer, CounterType::PlusOnePlusOne), count(&game, shimmerer, CounterType::Charge))
     };
-    let outcomes = [run(0), run(1)];
+    let outcomes = [run(true), run(false)];
     assert!(
         outcomes.contains(&(3, 2)) && outcomes.contains(&(4, 2)),
         "Constrictor first raises only the charge; the three first are raised too — got {:?}",

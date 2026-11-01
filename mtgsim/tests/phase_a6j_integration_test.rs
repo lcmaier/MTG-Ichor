@@ -20,13 +20,13 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 /// Grizzly Bears in hand and two Forests to pay for it exactly, in player
 /// 0's main phase, so player 0's list is `[Pass, Cast]` and player 1's is
-/// `Pass` alone.
-fn bears_and_two_forests() -> (GameState, ObjectId) {
+/// `Pass` alone. The Forests come back as their mana abilities' activations.
+fn bears_and_two_forests() -> (GameState, ObjectId, [ChoiceOption; 2]) {
     let mut game = setup_two_player_game();
     let bears = put_in_hand(&mut game, printings::grizzly_bears(), 0);
-    place_forest(&mut game, 0);
-    place_forest(&mut game, 0);
-    (game, bears)
+    let tap = |(forest, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(forest, ability));
+    let taps = [tap(place_forest(&mut game, 0)), tap(place_forest(&mut game, 0))];
+    (game, bears, taps)
 }
 
 /// The window for the Bears' {1}{G}; the script matches the kind alone.
@@ -38,13 +38,13 @@ fn window(bears: ObjectId) -> ChoiceKind {
 /// the cast it reversed; then the player passes, and the round ends.
 #[test]
 fn a_canceled_cast_is_offered_again_and_charged_to_nothing() {
-    let (mut game, bears) = bears_and_two_forests();
+    let (mut game, bears, _) = bears_and_two_forests();
     let script = ScriptedDecisionProvider::new();
     for _ in 0..7 {
-        script.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-        script.expect_pick_n(window(bears), vec![]);
+        script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bears))]);
+        script.expect_choice(window(bears), vec![]);
     }
-    script.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
     let seat = RejectionRecorder::new(script);
 
     assert_eq!(game.run_priority_round(&seat).unwrap(), PriorityResult::PhaseEnds);
@@ -60,13 +60,13 @@ fn a_canceled_cast_is_offered_again_and_charged_to_nothing() {
 /// second cast taps both Forests, which pay exactly, and goes on the stack.
 #[test]
 fn a_reversed_cast_is_named_on_the_re_ask_and_can_be_cast_again() {
-    let (mut game, bears) = bears_and_two_forests();
+    let (mut game, bears, [first_tap, second_tap]) = bears_and_two_forests();
     let script = ScriptedDecisionProvider::new();
-    script.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    script.expect_pick_n(window(bears), vec![]);
-    script.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    script.expect_pick_n(window(bears), vec![0]);
-    script.expect_pick_n(window(bears), vec![0]);
+    script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bears))]);
+    script.expect_choice(window(bears), vec![]);
+    script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bears))]);
+    script.expect_choice(window(bears), vec![first_tap]);
+    script.expect_choice(window(bears), vec![second_tap]);
     let seat = RejectionRecorder::new(ManaWindowStop::new(script));
 
     assert_eq!(game.run_priority_round(&seat).unwrap(), PriorityResult::ActionTaken);
@@ -104,7 +104,7 @@ impl DecisionProvider for Stubborn {
 /// reaches.
 #[test]
 fn a_seat_that_keeps_choosing_a_rejected_action_ends_the_game_with_an_error() {
-    let (mut game, _) = bears_and_two_forests();
+    let (mut game, _, _) = bears_and_two_forests();
 
     let error = game.run_priority_round(&Stubborn).unwrap_err();
     assert!(error.contains("rejected 1000 times"), "{error}");

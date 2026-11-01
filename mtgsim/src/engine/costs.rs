@@ -568,14 +568,13 @@ mod tests {
         let cost = ManaCost::build(&[ManaType::Green], 1);
         let dp = crate::ui::decision::ScriptedDecisionProvider::new();
         let source = crate::types::ids::new_object_id();
+        let mana = crate::ui::choice_types::ChoiceOption::ManaType;
         dp.expect_allocation(
             crate::ui::choice_types::ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: source,
                 mana_cost: cost.clone(),
             },
-            // Buckets are the pool's types sorted by discriminant — Red, then
-            // Green — so this spends the Red on the generic.
-            vec![1, 0],
+            vec![(mana(ManaType::Red), 1), (mana(ManaType::Green), 0)],
         );
         let ctx = crate::engine::actions::ActionContext::new(&dp);
         let costs = [Cost::Mana(cost)];
@@ -802,12 +801,12 @@ mod tests {
         let second = add_creature(&mut game, 0, "Second");
 
         let dp = crate::ui::decision::ScriptedDecisionProvider::new();
-        dp.expect_pick_n(
+        dp.expect_choice(
             crate::ui::choice_types::ChoiceKind::ChooseSacrificeForCost {
                 spell_or_ability_id: first,
                 count: 1,
             },
-            vec![1],
+            vec![crate::ui::choice_types::ChoiceOption::Object(second)],
         );
         let ctx = crate::engine::actions::ActionContext::new(&dp);
         let costs = [Cost::Sacrifice(creature_filter(), 1)];

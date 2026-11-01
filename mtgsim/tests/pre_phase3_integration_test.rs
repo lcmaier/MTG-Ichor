@@ -13,8 +13,8 @@ use mtgsim::state::game_state::{GameResult, GameState, PhaseType};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider, SeatMode};
 
 use mtgsim::test_support::{put_in_hand, put_land_on_battlefield};
 
@@ -58,7 +58,8 @@ fn test_game_lifecycle_two_turns() {
 
     // Turn 2: player 1 draws (hand=8), cleanup discards 1
     decisions.queue_main_phase_passes();
-    decisions.expect_pick_n(ChoiceKind::Discard { source: None }, vec![0]);
+    let first = game.state.players[1].hand[0];
+    decisions.expect_choice(ChoiceKind::Discard { source: None }, vec![ChoiceOption::Object(first)]);
     game.run_turn(&decisions).unwrap();
     assert_eq!(game.state.turn_number, 3);
     assert_eq!(game.state.active_player, 0);
@@ -83,7 +84,7 @@ fn test_game_over_bolt_to_zero() {
 
     // Manually reduce player 1's life to 3, then bolt them
     game.state.players[1].life_total = 3;
-    // Clear hand so CastSpell(bolt) is at index 1 (no PlayLand actions)
+    // Clear hand so the bolt is all player 0 can do (no PlayLand actions)
     game.state.players[0].hand.clear();
     let bolt_id = put_in_hand(&mut game.state, printings::lightning_bolt(), 0);
     game.state.players[0].mana_pool.add(ManaType::Red, 1);
@@ -95,19 +96,17 @@ fn test_game_over_bolt_to_zero() {
     // make is a prompt this script does not hold.
     let scripted = ScriptedDecisionProvider::new()
         .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
-    // CastSpell at index 1 in [Pass, CastSpell(bolt_id)]
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // Target Player(1) at index 1 in [Player(0), Player(1)] for SelectionFilter::Any
-    scripted.expect_pick_n(ChoiceKind::SelectRecipients {
+    scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    scripted.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
-    }, vec![1]);
+    }, vec![ChoiceOption::Player(1)]);
     // CastSpell returns ActionTaken immediately (no extra pass needed)
     // Both pass → resolve + SBA (player 1 at 0 life → loses). CR 104.1: the
     // game ends there, and nobody receives priority in a game that has ended
     // — the round after the loss is not granted.
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+    scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
 
     // Cast and resolve via priority loop
     game.state.run_priority_loop(&scripted).unwrap();
@@ -206,7 +205,8 @@ fn test_discard_to_hand_size() {
     // and one batch — RE-8 replaced the one-card-at-a-time loop, which put
     // each card in a batch of its own.
     decisions.queue_main_phase_passes();
-    decisions.expect_pick_n(ChoiceKind::Discard { source: None }, vec![0, 1, 2, 3]);
+    let hand = game.state.players[0].hand.clone();
+    decisions.expect_choice(ChoiceKind::Discard { source: None }, hand[..4].iter().map(|&card| ChoiceOption::Object(card)).collect());
     game.run_turn(&decisions).unwrap();
 
     // After turn completes, player 0 should have max_hand_size cards
@@ -268,11 +268,10 @@ fn test_cast_spell_rollback_on_insufficient_mana() {
     let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
 
     let decisions = ScriptedDecisionProvider::new();
-    // Target Player(1) at index 1 in [Player(0), Player(1)] for SelectionFilter::Any
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
+    decisions.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
-    }, vec![1]);
+    }, vec![ChoiceOption::Player(1)]);
 
     // Casting should fail
     let result = game.cast_spell(0, bolt_id, &decisions);
@@ -335,12 +334,12 @@ fn test_counterspell_cleans_up_stack_entries() {
 
     let decisions = ScriptedDecisionProvider::new();
     // The bolt's target is a real choice — either player — so it is scripted.
-    decisions.expect_pick_n(
+    decisions.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt_id,
         },
-        vec![1],
+        vec![ChoiceOption::Player(1)],
     );
     // The Counterspell's is not: the bolt is the only spell on the stack, so
     // it is forced and no prompt is made.
