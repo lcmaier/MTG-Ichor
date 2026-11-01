@@ -287,7 +287,7 @@ in its row, in A, B, the table after this one, or its architecture doc.
 |---|---|---|
 | 1. **`route-review`**, the route review | `route-review` | It set this order |
 | 2. **Readiness**, the item 6 audit's last two PRs | A6e | The ratchet's reading at item 6's close comes before anything moves the tree, and k, an AI observation's cost per decision, is read by steps 4 and 8; the second PR closes the audit |
-| 3. **`card-layer-cleanup`** | §C | Every card filed by its first printing and every deck a decklist (the owner, 2026-10-29), before the rows below register their cards |
+| 3. **`card-layer-cleanup`** | §C | ✅ 2026-11-01 (PRs #301–#305). Every card filed by its first printing and every deck a decklist (the owner, 2026-10-29), before the rows below register their cards |
 | 4. **`pausing-at-a-decision`**, the design | below | Every choice kind after it keeps its state on `GameState`; its build waits for the AI harness, after v0.5 |
 | 5. **`modes-plus-choice-kinds`**, with `divided-among-targets` built in it | below | The choices a card asks for, designed against one decision boundary before the decks write any |
 | 6. **`linked-abilities`** | below | Before every card that remembers a choice adds a field of its own |
@@ -379,7 +379,7 @@ cards before it — 287 of them, and the entry was an inventory line with no dat
 until 2026-09-09), **`card-layer-cleanup` below, which is the phase's first PR**, and **`rulings-for-every-card`**, the
 rulings backlog read and tested. Milestone: **core-rules-complete** (§6).
 
-**`card-layer-cleanup` — put the card layer in order first (1 PR, mechanical, added 2026-09-08).**
+**`card-layer-cleanup` — put the card layer in order first (1 PR, mechanical, added 2026-09-08). ✅ 2026-11-01, five PRs (#301–#305), recorded at "Before card breadth" item 10's archived entry.**
 Card definitions live in files named after the *engine phase* that first needed
 them, and the static-`AbilityDef` shape is written out 31 times because there is
 no shared helper a card file may use (`test_support` is a test-only crate

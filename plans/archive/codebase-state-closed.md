@@ -9566,3 +9566,264 @@ the move because the move needed a home for the helper it replaced.
      cleanup before Phase 8's breadth (the owner, 2026-10-01), with
      `roadmap-v2.md` §C's `card-layer-cleanup`, which moves the fixtures into
      `cards::fixtures`.
+
+### Item 209 — closed 2026-11-01 by PR #305 (`scripted-answers-by-identity`)
+
+The 347 answers by position counted at the intake (`expect_pick_n` 306 in
+66 files, `expect_allocation` 28 in 13, `expect_ordering` 13 in 6) were
+each read and named: a pick by `expect_choice`, a split by `expect_split`
+(each bucket with its amount, every bucket named, as the log's
+`Chosen::Allocation`), an order by `expect_order`, all compared by
+`reading_as`, the function `position_of` now stands on. Helpers that took a
+position take the identity, the cast helpers that received the spell's id
+and cast by an index among them, and the three position forms are gone. A
+name is refused where another offered option reads the same, since it
+would mean whichever the engine lists first: such options keep their place
+among themselves, as the log writes `(2 of 2)` (`expect_choice_among_alike`,
+`expect_order_among_alike`), which CR 616.1's and CR 603.3b's prompts need
+while they offer each effect as its source (item 360); and `expect_take`
+takes a take-or-leave question's one option where the call that asks
+creates it. Checked by a recorder in the provider, never committed, that
+logged the positions every test returned before and after: 437 tests
+identical, and the three that differ each on purpose (a validator test now
+calls `check_pick_n`, a new unit test, and a devour test that had answered
+with Containment Priest while asserting about the Bear).
+`RecordingDecisionProvider::picking(n)`, a policy rather than a script,
+was counted and left: item 361.
+
+*Original entry:*
+
+209. **Scripted test answers are positions in the option list.**
+     `ScriptedDecisionProvider` answers by index: 333 scripted answers in 70
+     files on 2026-10-22 (`expect_pick_n` 289, `expect_allocation` 28,
+     `expect_ordering` 16), beside 46 `expect_choice` answers in 17, each
+     pinned to the order the engine lists that prompt's options in. An engine
+     change that reorders a prompt's options breaks every test scripted at it,
+     and each is mended by renumbering. SU-4 gives the scripted provider an
+     answer by what was chosen, `expect_choice`, on the one matcher of
+     `setup-architecture.md` §7.2's decision 6, and new tests use it.
+
+     **Reachability (2026-10-22):** reachable — not wrong in any game: a
+     test's script, which fails loudly when it breaks.
+
+     **Sized:** ~330 sites, each read to name the option its position meant,
+     so not a sweep by script: `vec![1]` becomes the cast of a named card.
+     About 670 changed lines, a PR of its own. **Slotted:** beside `card-layer-cleanup`, the
+     test cleanup before Phase 8's breadth (`roadmap-v2.md` §C), as a PR of
+     its own (the owner, 2026-10-03, at #216's review).
+
+### 'Before card breadth' item 10 — closed 2026-11-01 by PR #305 (`card-layer-cleanup`'s last PR)
+
+`card-layer-cleanup` built both halves the item asked for in five PRs, by
+its design note's split (`plans/handoffs/card-layer-cleanup.md`, its last
+text at `eadd11ad`): the ability words and every `AbilityDef` literal
+rebuilt from them (#301); the instruction words, the registry rows' id and
+one static ability of several kinds (#302); every printing in its first
+printing's set file, the fixtures and the named token in modules of their
+own, filters as words and the five `tdc` decklists (#303); the creature
+types and the misnamed fixtures (#304, items 204 and 207); and the tests'
+scripted answers by identity (#305, item 209). Each mechanical PR read
+every gameplay row identical, and the fingerprints held every card equal
+through PRs 1 to 3 (item 358).
+
+*Original entry:*
+
+10. **Card files have no shared helper module, so every phase re-writes the
+    same `AbilityDef` literal — and the only alternative on offer is
+    `test_support` (raised in the RD-1 review, 2026-09-08).** The static-ability
+    shape (`id: new_ability_id(), ability_type: Static, costs: vec![], effect,
+    is_characteristic_defining: false, activation_restriction: None`) is written
+    out **31** times across `src/cards/`, plus two private named helpers that
+    wrap it — `phase_li_cards::static_ability` and
+    `phase_rd_cards::static_replacement`, which cannot see each other. A card
+    file must not depend on `test_support`, so the pull today is toward a third
+    private copy rather than toward sharing.
+
+    **Reachability (2026-09-08):** reachable and not wrong — it is duplication,
+    not a defect, and nothing it produces is incorrect. What makes it a
+    *deadline* rather than a nit is Phase 8: card breadth multiplies the
+    per-file copies, and the moment a real card list arrives, the helpers have
+    to be somewhere that is not a phase file and not the test crate, or they
+    get cordoned off with the fixtures.
+
+    **Sized:** ~150–250 lines, mechanical — a `cards::helpers` module beside
+    the registry holding the ability constructors (static, activated, triggered
+    when it exists) and the recipient shorthands, with the 31 sites rewritten
+    to call them. It must not become a second `CardDataBuilder`: the builder
+    owns the *card*, this owns the *ability*, and the line between them is that
+    a helper here returns an `AbilityDef` and nothing else. Best done as its own
+    mechanical PR before the first Phase 8 card file, not folded into one.
+
+    **The module exists and is named (2026-09-20, the TR-1 review, theme
+    B).** `src/cards/authoring/` — a directory rather than the single file
+    this entry imagined, because the vocabulary splits by subsystem, and
+    `authoring/triggers.rs` is the first tenant with CR 603's words. **The
+    31 static-ability sites and the two private wrappers are untouched**:
+    theme B was the trigger vocabulary, sized at ~120 lines. What is closed
+    is the question this entry framed as open — there is now a place that
+    is neither a phase file nor `test_support`, so the rest is a move into
+    it and no longer a design.
+
+    **Decided at CV-2a's review (the owner, 2026-09-28): both halves, in
+    `card-layer-cleanup`.** The constructors cover every kind (static, spell, activated and
+    mana, beside `authoring::triggered_ability`), with builder methods for the
+    two rare fields, and the migration takes every literal in the card files:
+    116 on 2026-09-28, against the 31 static ones counted above. And
+    `activation_restriction` moves into `AbilityType::Activated` (superseded
+    at `card-layer-cleanup`'s design: an `Activation`, its costs and its
+    restriction, on both activated kinds, since a mana ability prints
+    restrictions too), the one kind
+    it means anything for. Today 145 literals write
+    `ActivationRestriction::None`, 2 printed cards use anything else, and 19
+    reads compare `AbilityType::Activated`. Inside `card-layer-cleanup` the edits come before
+    the moves, as separate commits, so each moved file is a pure rename and
+    its history follows it.
+
+    **Widened at A6g's ability-names review (the owner, 2026-10-02): the
+    vocabulary names instructions too, not only abilities.** An ability's
+    text is its paragraph (CR 113.2c, `AbilityDef::rules_text`), so two
+    abilities that share an instruction share no string: Meditate's spell
+    and Chronosavant's activated ability both end by skipping your next
+    turn. Nor is a sentence an instruction (CR 608.2c's own example; one
+    sentence of Faithless Looting is two). Text is what a client shows and
+    what the static parser reads; the code carries an instruction's
+    identity. So each instruction template is one named constructor in
+    `cards/authoring/` (`draw_cards(4)`, `skip_your_next_turn()`), "which
+    cards skip a turn" is who calls it, and the parser's phrase table maps
+    phrases to the same constructors, its acceptance test parsing every
+    registered card against the hand-written tree. Today the card files
+    write out 168 `Effect::Atom` literals over 37 primitives (20
+    `DrawCards`, 20 `CreateReplacement`); the trigger words came to 194
+    lines, and the instruction words are judged ~200–400. **The migration is
+    checked, not judged:** a constructor builds exactly the literal's value,
+    so every registered card builds equal before and after (`CardData`
+    compares by value), and the close-out reads identical counters and no
+    instruction change. Nothing outside the card files moves; the dev GUI
+    reads text and characteristics, never how a tree was written. **Slotted
+    in `card-layer-cleanup`**, after the edits above and before the moves; sized with `card-layer-cleanup` when
+    it is designed, and `card-layer-cleanup`'s second PR if the two pass the band together.
+
+    **What the transition to a real card list looks like — asked on review
+    2026-09-08 and then measured, because both of us were arguing from
+    impressions.** The measurement changed one of the answers.
+
+    **Measured (Scryfall `/cards/collection`, 2026-09-08).** 98 registered
+    names, **97 of them real** — the single exception is `Loyalty Probe`, which
+    RD-1 added the day before. `Everywhere` looked like a second exception and
+    is not: it is a real printed *token* (`tdsk`), which is exactly what
+    `registry.rs` says it is. Separately, **29 card functions are defined and
+    registered nowhere** — the fixtures: `generic_reducer`, `flight_clause`,
+    `dual_land_ub`, the four `*_spell` stand-ins, and so on.
+
+    **So the criterion is not quietly rotten; it has exactly one exception and
+    it is deliberate.** But the framing was wrong, and this is the finding: the
+    registry is **not** "the official card list". It is *the set of things a
+    deck can be built from* — `fuzz_games` and `cli_play` can only play what is
+    registered. Loyalty Probe is in it because CR 704.5i needed a planeswalker
+    a random agent could reach, not because anyone thought it was a card. Three
+    sets, not two:
+
+    | | what it is | count today |
+    |---|---|---|
+    | **printings** | faithful to a real card or token | 97 |
+    | **fixtures** | invented, exist to make an engine path testable | 30 |
+    | **the playable pool** (`registry.rs`) | what a deck can contain — drawn from *both* | 98 |
+
+    The third is a membership question ("can the engine play this, and does the
+    harness need it"), which is why it will always be able to contain a fixture.
+
+    **File by first printing — and the two paragraphs that stood here arguing
+    for alphabetical shards were wrong, twice over (corrected on review,
+    2026-09-08).**
+
+    The wrong argument was: the pool measures 62 sets for 97 cards, most
+    holding one, so set files would average 1.5 cards each and that is worse
+    than what exists. **That optimizes a filing decision against a snapshot,
+    which is exactly backwards.** A filing scheme is amortized over the whole
+    life of the corpus and the cost that decides it is the **marginal cost of
+    adding the next card**, not the tidiness of the first hundred:
+
+    | | a new set arrives | two people add cards |
+    |---|---|---|
+    | **by first printing** | one new file, one `pub mod`, one block of `register` calls; **no existing file is touched** | different sets, different files — no conflict |
+    | **alphabetical shards** | every shard is edited; shards grow unboundedly and eventually need a rebalance, which renames files and breaks every import | same shard, constant conflicts |
+
+    **And the 62-sets figure was measured on the wrong key, which overstated
+    it.** Scryfall's collection endpoint answers a name lookup with a printing
+    of its own choosing, not the earliest; keyed on **first** printing the same
+    97 cards give **46 sets, 33 of them holding one — and `lea` alone holds
+    31**. What is left of the fragmentation is an artifact of how this pool was
+    assembled: one card at a time, for engine reasons, across thirty years of
+    Magic. It is close to the most set-fragmented sample the card base could
+    produce, and a real import goes set by set into files holding hundreds.
+
+    **The second error was inventing the constraint it optimized against.**
+    "Phase 8 takes it to a Commander-viable few hundred" appears in no document
+    — `roadmap-v2.md` says the opposite about the trajectory: after Phase 8
+    "the bottleneck moves to card-authoring speed, which is when the deferred
+    Scryfall import pipeline earns its slot". That pipeline emits **per set**,
+    because that is how Scryfall's bulk data is shaped, so filing by set is
+    also the scheme under which generated and hand-written cards land in the
+    same place. Picking a layout that a few hundred cards would suit, and
+    locking in against an import measured in tens of thousands, is the tail
+    wagging the dog.
+
+    **Findability was the other thing offered for alphabetical, and it is not
+    filing's job.** A caller reaches a card by name through the registry
+    (`registry.create("Furnace of Rath")`) or by function through the compiler;
+    neither reads a directory listing. Filing has to serve *change*, and change
+    arrives set-shaped.
+
+    **First printing is the key, and it is the one that never moves.**
+    `classify_cards.py --first-printings` resolves it — one request per card,
+    because no bulk endpoint answers it. The existing 97 get filed by it on day
+    one, small files and all; by type is already
+    visibly failing (`creatures.rs`, `keyword_creatures.rs`,
+    `utility_creatures.rs`) and one file per card stays available if a set file
+    ever becomes unwieldy.
+
+    **Fixtures move to `src/cards/fixtures/`, not to `tests/`** — and the
+    reason is structural rather than aesthetic. `tests/` is a separate crate
+    that `src/cards/registry.rs` cannot reference, and `test_support` is behind
+    a feature flag that release builds turn off; a registered fixture has to be
+    reachable from `src` either way. So it is a sibling module whose doc says
+    "nothing here is a printing", and the split is visible at every import.
+
+    **The plan, then:**
+
+    1. Classify — done, above, and re-runnable: the registered names against
+       Scryfall's collection endpoint, and defined-vs-registered off the tree.
+    2. Move the 97 printings into per-set files keyed on **first** printing.
+    3. Move the 30 fixtures into `cards::fixtures`. **The registered one stays
+       registered** — its reason is the harness, and moving a file does not
+       change it. **Tests need one changed `use` line each**: they call the
+       function (`phase_li_cards::flight_clause`), never a registry string, so
+       a rename stays a compile error.
+    4. Delete the empty `phase_*_cards.rs` files. Their names were always
+       archaeology — which engine phase first needed a card, not anything about
+       the card.
+
+    **Sized: ~1 PR, mechanical, and it must be its own** — nearly every line is
+    a move, so a diff that also changes behavior would be unreviewable.
+    Scheduled at Phase 8's gate (`roadmap-v2.md` §C), with the helper hoist
+    above as the same PR's other half: both are "put the card layer in order
+    before it triples", and neither is worth doing twice.
+    **Slotted:** `card-layer-cleanup`, which moves cards to per-set files and fixtures to
+    `cards::fixtures`, and rebuilds every ability and instruction literal from
+    `cards/authoring/`.
+    **The abilities landed in its first PR (2026-10-31):** every
+    `AbilityDef` outside `objects::card_data` is built by a word in
+    `cards/authoring/abilities.rs` or by `AbilityDef::new`, and the private
+    copies are gone. **The instructions landed in its second (2026-10-31):**
+    every card file's instruction is a verb in `cards/authoring/instructions.rs`
+    on a recipient in `recipients.rs`, a continuous change stating its
+    duration as a suffix, and four files' private recipient words are the
+    shared ones. **The move landed in its third PR (2026-11-01):** every
+    printing sits in its first printing's set file under `cards/sets/`,
+    every fixture in `cards::fixtures` by the architecture doc it tests,
+    the named token in `cards::tokens`, and a test names each through
+    `cards::printings`, `fixtures` or `tokens`, a creature token being
+    `TokenDef::creature` where it is made; filters are words, and the
+    helpers the move would have scattered are shared words. Items 204, 207
+    and 209 are the phase's last two PRs (`plans/handoffs/card-layer-cleanup.md`,
+    "The split").
