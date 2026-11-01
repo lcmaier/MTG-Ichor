@@ -6,12 +6,11 @@ use crate::cards::authoring::{
     artifact, becomes_types, create_tokens, creature, each, equip, gets, host, non, put_counters, spell_ability, static_ability, target_permanent,
     you,
 };
-use crate::cards::tokens::soldier_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AffectedSet, AmountExpr, CounterType, Effect, PlayerSet, TypeChange};
+use crate::types::effects::{AffectedSet, AmountExpr, CounterType, Effect, PlayerSet, TokenDef, TypeChange};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::EventPattern;
@@ -341,7 +340,7 @@ pub fn raise_the_alarm() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Create two 1/1 white Soldier creature tokens.")
         .ability(spell_ability("Create two 1/1 white Soldier creature tokens.",
-            create_tokens(you(), 2, soldier_token()),
+            create_tokens(you(), 2, TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier])),
         ))
         .build()
 }

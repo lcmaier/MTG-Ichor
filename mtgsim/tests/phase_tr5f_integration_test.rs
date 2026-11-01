@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{attacks, attacks_alone, is_attacked, player_attacks, triggered_ability, whenever, Whose};
 use mtgsim::cards::printings::{act_of_treason, divine_visitation, grizzly_bears, hellrider, march_of_the_machines, parallel_lives, sol_ring};
-use mtgsim::cards::{printings::{hanweir_garrison, relentless_assault}, tokens::attacking_human_token};
+use mtgsim::cards::printings::{hanweir_garrison, relentless_assault};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::engine::resolve::ResolutionContext;
@@ -26,7 +26,7 @@ use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, textless_static, test_ctx, set_active_player, set_attacking, set_blocked_by, set_blocking, setup_game,
     setup_two_player_game, test_dp, RecordingDecisionProvider,
 };
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, CreatureType};
 use mtgsim::types::history::ObjectFact;
 use mtgsim::types::colors::Color;
 use mtgsim::oracle::characteristics::get_effective_controller;
@@ -466,7 +466,7 @@ fn attack_of(game: &GameState, id: ObjectId) -> Option<AttackTarget> {
 
 /// A 1/1 created tapped and attacking as `entering` says.
 fn a_human(entering: EntersAttacking) -> TokenDef {
-    TokenDef { enters_attacking: Some(entering), ..attacking_human_token() }
+    TokenDef { enters_attacking: Some(entering), ..TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Human]).tapped_and_attacking() }
 }
 
 /// `n` of `def` created by `player`'s effect, its prompts answered by `dp`.

@@ -34,7 +34,7 @@ use mtgsim::cards::printings::{
     adaptive_shimmerer, archelos_lagoon_mystic, grizzly_bears, humility, idyllic_beachfront, master_biomancer, wall_of_stone,
 };
 use mtgsim::cards::fixtures::loyalty_probe;
-use mtgsim::cards::{printings::doubling_season, tokens::soldier_token};
+use mtgsim::cards::printings::doubling_season;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::layers::intrinsic::is_intrinsic_entry_ability;
@@ -51,6 +51,7 @@ use mtgsim::test_support::{
     setup_two_player_game, textless_static, test_ctx,
 };
 use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Subtypes, Supertype};
+use mtgsim::types::colors::Color;
 use mtgsim::types::history::CountIs;
 use mtgsim::types::effects::{
     AmountExpr, Antecedent, CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient,
@@ -555,7 +556,7 @@ fn archelos_does_not_apply_to_what_enters_beside_it() {
 fn archelos_overrides_an_instructions_tapped_and_taps_what_enters_while_tapped() {
     let mut game = setup_two_player_game();
     let archelos = put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
-    let tapped_token = TokenDef { enters_tapped: true, ..soldier_token() };
+    let tapped_token = TokenDef { enters_tapped: true, ..TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier]) };
     let dp = ScriptedReplacementChoices::new(&[]);
     game.execute_actions(vec![GameAction::CreateTokens { defs: vec![tapped_token], controller: 1, attacking: None }], &ActionContext::new(&dp))
         .expect("the creation performs");

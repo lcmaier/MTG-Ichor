@@ -1362,6 +1362,41 @@ pub enum EntersAttacking {
 }
 
 impl TokenDef {
+    /// "A 1/1 white Soldier creature token", in the order an effect prints
+    /// it: a creature token of `colors` and `creature_types` with nothing the
+    /// effect does not say (CR 111.3), named by CR 111.4's default.
+    pub fn creature(power: i32, toughness: i32, colors: &[Color], creature_types: &[crate::types::card_types::CreatureType]) -> TokenDef {
+        TokenDef {
+            name: None,
+            colors: colors.to_vec(),
+            types: vec![crate::types::card_types::CardType::Creature],
+            subtypes: creature_types.iter().map(|t| crate::types::card_types::Subtype::Creature(*t)).collect(),
+            supertypes: Vec::new(),
+            power: Some(power),
+            toughness: Some(toughness),
+            keyword_flags: Vec::new(),
+            abilities: Vec::new(),
+            rules_text: String::new(),
+            enchant_filter: None,
+            enters_tapped: false,
+            enters_attacking: None,
+        }
+    }
+
+    /// "… with flying and vigilance".
+    pub fn with_keywords(mut self, keywords: &[KeywordFlag]) -> TokenDef {
+        self.keyword_flags = keywords.to_vec();
+        self
+    }
+
+    /// "… tapped and attacking" (CR 508.4), its controller choosing what it
+    /// attacks.
+    pub fn tapped_and_attacking(mut self) -> TokenDef {
+        self.enters_tapped = true;
+        self.enters_attacking = Some(EntersAttacking::Chosen);
+        self
+    }
+
     /// CR 111.4's name: the given one, or "[subtypes] Token" when the
     /// effect gave none — "Dwarf Berserker Token" for the rule's own
     /// example, "Token" for a token with neither.

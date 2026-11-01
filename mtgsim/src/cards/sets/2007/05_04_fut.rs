@@ -6,12 +6,11 @@ use crate::cards::authoring::{
     activated_ability, create_tokens, creature, creatures_you_control, each, each_in, exile, functioning_in, has_base_power_and_toughness,
     loses_all_abilities, non, prevent_the_next_n_damage_this_turn, static_ability, this_object, token, triggered_ability, whenever, you,
 };
-use crate::cards::tokens::zombie_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, ObjectFilter, ObjectSet, PlayerRef};
+use crate::types::effects::{AmountExpr, ObjectFilter, ObjectSet, PlayerRef, TokenDef};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
@@ -94,7 +93,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
                 zombie,
                 whenever(
                     put_into_a_graveyard_from_the_battlefield(nontoken_creature, PlayerRef::You),
-                    create_tokens(you(), 1, zombie_token()),
+                    create_tokens(you(), 1, TokenDef::creature(2, 2, &[Color::Black], &[CreatureType::Zombie])),
                 ),
             ),
         ))

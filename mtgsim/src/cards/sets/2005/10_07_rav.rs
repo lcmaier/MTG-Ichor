@@ -6,11 +6,10 @@ use crate::cards::authoring::{
     becomes_attached, create_tokens, every_permanent_or_player, gets, spell_ability, static_replacement, target_creature, triggered_ability, whenever,
     with_subtype, you, you_control,
 };
-use crate::cards::tokens::saproling_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AffectedSet, ObjectSet, PlayerSet};
+use crate::types::effects::{AffectedSet, ObjectSet, PlayerSet, TokenDef};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding};
 use crate::types::triggers::TriggerSubject;
@@ -58,7 +57,7 @@ pub fn bramble_elemental() -> Arc<CardData> {
                     with_subtype(Subtype::Enchantment(EnchantmentType::Aura)),
                     TriggerSubject::ThisObject,
                 ),
-                create_tokens(you(), 2, saproling_token()),
+                create_tokens(you(), 2, TokenDef::creature(1, 1, &[Color::Green], &[CreatureType::Saproling])),
             ),
         ))
         .build()

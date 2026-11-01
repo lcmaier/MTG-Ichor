@@ -36,8 +36,7 @@ use mtgsim::test_support::{RecordingDecisionProvider,
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerRef, Primitive, TypeChange,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -494,7 +493,7 @@ fn test_containment_priest_ignores_tokens() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, containment_priest(), 1);
 
-    let create = GameAction::CreateTokens { defs: vec![mtgsim::cards::tokens::goblin_token()], controller: 0, attacking: None };
+    let create = GameAction::CreateTokens { defs: vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&test_dp())).unwrap();
 
     let tokens = game.battlefield_ids_ordered().into_iter().filter(|id| game.objects[id].is_token).count();

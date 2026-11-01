@@ -6,12 +6,11 @@ use crate::cards::authoring::{
     artifact, at_beginning_of, chosen_by, create_replacement, create_tokens, creature, draw_cards, each, every_permanent_or_player, land,
     loses_all_abilities, sacrifice, skip, spell_ability, static_ability, static_replacement, target_player, triggered_ability, whenever, you, Whose,
 };
-use crate::cards::tokens::saproling_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AffectedSet, Choice, ChoiceScope, ChoiceSide, Effect, ObjectSet, Pick, PlayerSet};
+use crate::types::effects::{AffectedSet, Choice, ChoiceScope, ChoiceSide, Effect, ObjectSet, Pick, PlayerSet, TokenDef};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 
@@ -306,7 +305,7 @@ pub fn verdant_force() -> Arc<CardData> {
         .rules_text("At the beginning of each upkeep, create a 1/1 green Saproling creature token.")
         .ability(triggered_ability("At the beginning of each upkeep, create a 1/1 green Saproling creature token.", whenever(
             at_beginning_of(StepType::Upkeep, Whose::Each),
-            create_tokens(you(), 1, saproling_token()),
+            create_tokens(you(), 1, TokenDef::creature(1, 1, &[Color::Green], &[CreatureType::Saproling])),
         )))
         .build()
 }

@@ -3,11 +3,10 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{an_opponent_controls, create_tokens, creature, non, static_replacement, token, you};
-use crate::cards::tokens::zombie_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
-use crate::types::effects::ObjectSet;
+use crate::types::effects::{ObjectSet, TokenDef};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
@@ -95,7 +94,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                 // `you` is CR 109.5's "you" for this ability.
                 you(),
                 1,
-                zombie_token(),
+                TokenDef::creature(2, 2, &[Color::Black], &[CreatureType::Zombie]),
             )),
         ))
         .build()

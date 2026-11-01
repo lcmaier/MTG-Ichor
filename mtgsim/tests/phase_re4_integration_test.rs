@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use mtgsim::cards::printings::{kalitas_traitor_of_ghet, master_biomancer, root_maze, thunder_thrash_elder};
-use mtgsim::cards::{printings::{alms_collector, bard_king_of_dale, divine_visitation, hallowed_moonlight, hordeling_outburst, parallel_lives, raise_the_alarm, thought_reflection}, tokens::{goblin_token, soldier_token}};
+use mtgsim::cards::printings::{alms_collector, bard_king_of_dale, divine_visitation, hallowed_moonlight, hordeling_outburst, parallel_lives, raise_the_alarm, thought_reflection};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{BatchId, GameEvent};
@@ -50,6 +50,16 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+
+/// A 1/1 red Goblin creature token.
+fn goblin_token() -> TokenDef {
+    TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])
+}
+
+/// A 1/1 white Soldier creature token.
+fn soldier_token() -> TokenDef {
+    TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier])
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

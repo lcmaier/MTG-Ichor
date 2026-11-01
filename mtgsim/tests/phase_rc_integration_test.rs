@@ -20,7 +20,8 @@ use mtgsim::test_support::{
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
-use mtgsim::types::effects::{ObjectSet, CounterType, Effect, ObjectFilter};
+use mtgsim::types::colors::Color;
+use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, TokenDef};
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
@@ -601,7 +602,7 @@ fn test_zone_change_is_announced_before_the_entry() {
 #[test]
 fn test_a_tokens_entry_gathers_its_own_ability() {
     let mut game = setup_two_player_game();
-    let mut definition = mtgsim::cards::tokens::goblin_token();
+    let mut definition = TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin]);
     definition.abilities = enters_with("Token-ish", 2, 2, EnterModsTemplate::tapped()).abilities.to_vec();
 
     let create = GameAction::CreateTokens { defs: vec![definition], controller: 0, attacking: None };

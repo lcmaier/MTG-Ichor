@@ -1,7 +1,7 @@
 //! Every printing by its own name, wherever its set files it:
 //! `cards::printings::lightning_bolt`. Beside it [`super::fixtures`] holds
-//! the invented cards and [`super::tokens`] the tokens printed cards make,
-//! so an import says which a test plays.
+//! the invented cards and [`super::tokens`] the named tokens, so an import
+//! says which a test plays.
 
 pub use super::sets::lea::*;
 pub use super::sets::leb::*;

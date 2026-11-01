@@ -3,11 +3,10 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{create_tokens, deal_damage, spell_ability, target_creature, you};
-use crate::cards::tokens::goblin_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect};
+use crate::types::effects::{AmountExpr, Effect, TokenDef};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 /// Goblin Negotiation — {X}{R}{R}
@@ -50,7 +49,7 @@ pub fn goblin_negotiation() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 deal_damage(target_creature(), AmountExpr::X),
-                create_tokens(you(), AmountExpr::ExcessDamageDealtThisWay, goblin_token()),
+                create_tokens(you(), AmountExpr::ExcessDamageDealtThisWay, TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])),
             ]),
         ))
         .build()

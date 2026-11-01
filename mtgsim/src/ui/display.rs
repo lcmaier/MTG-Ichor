@@ -1288,7 +1288,8 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase};
-    use crate::types::card_types::CardType;
+    use crate::types::card_types::{CardType, CreatureType};
+    use crate::types::effects::TokenDef;
     use crate::types::zones::Zone;
 
     #[test]
@@ -1790,7 +1791,7 @@ mod tests {
             GameEvent::ControlChanged { to: 1, lki: lki(game, controlled) },
             GameEvent::LeftTheGame { departed: DepartedObject::WithoutLki { object: reference(game, id()), owner: 1 }, from: Zone::Battlefield },
             GameEvent::SameZoneMove { zone: Zone::Battlefield, act: ZoneChangeAct::Destroyed, applied: None, lki: lki(game, kept) },
-            GameEvent::TokenCreated { token: reference(game, id()), owner: 0, zone: Zone::Battlefield, definition: Arc::new(crate::cards::tokens::goblin_token()) },
+            GameEvent::TokenCreated { token: reference(game, id()), owner: 0, zone: Zone::Battlefield, definition: Arc::new(TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])) },
             GameEvent::TokenCeasedToExist { token: reference(game, id()) },
             GameEvent::StateBasedActionPerformed,
         ]

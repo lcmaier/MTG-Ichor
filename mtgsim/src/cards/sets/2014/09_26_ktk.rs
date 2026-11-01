@@ -3,11 +3,10 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{create_tokens, creature, spell_ability, static_replacement, you, you_control};
-use crate::cards::tokens::goblin_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{CounterType, ObjectSet};
+use crate::types::effects::{CounterType, ObjectSet, TokenDef};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 
@@ -76,7 +75,7 @@ pub fn hordeling_outburst() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Create three 1/1 red Goblin creature tokens.")
         .ability(spell_ability("Create three 1/1 red Goblin creature tokens.",
-            create_tokens(you(), 3, goblin_token()),
+            create_tokens(you(), 3, TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])),
         ))
         .build()
 }

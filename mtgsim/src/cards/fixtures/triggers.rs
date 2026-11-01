@@ -8,11 +8,10 @@ use crate::cards::authoring::{
     leaves_the_battlefield, lose_the_game, non, spell_ability, static_ability, target_creature, token, triggered_ability, when_state, whenever,
     with_subtype, you, you_control, you_now,
 };
-use crate::cards::tokens::soldier_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Condition, DiscardChooser, Effect, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet};
+use crate::types::effects::{AmountExpr, Condition, DiscardChooser, Effect, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet, TokenDef};
 use crate::types::history::{HistoryCount, HistorySpan, ObjectFact, TurnFact};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject};
@@ -166,7 +165,7 @@ pub fn destroy_your_others_then_a_token() -> Arc<CardData> {
         "Destroy each non-Crocodile creature you control, then create a 1/1 white Soldier creature token.",
         Effect::Sequence(vec![
             destroy(each(your_non_crocodiles)),
-            create_tokens(you(), 1, soldier_token()),
+            create_tokens(you(), 1, TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier])),
         ]),
     )
 }

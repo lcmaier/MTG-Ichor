@@ -3,11 +3,11 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::static_replacement;
-use crate::cards::tokens::angel_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::PlayerSet;
+use crate::types::effects::{PlayerSet, TokenDef};
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount, TokenKind, TokenSubstitution};
 
@@ -61,7 +61,7 @@ pub fn divine_visitation() -> Arc<CardData> {
                 EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
                 PlayerSet::You,
                 Rewrite::Instead(GameActionTemplate::CreateTokens {
-                    def: angel_token(),
+                    def: TokenDef::creature(4, 4, &[Color::White], &[CreatureType::Angel]).with_keywords(&[KeywordFlag::Flying, KeywordFlag::Vigilance]),
                     count: TemplateAmount::ReplacedAmount,
                     mode: TokenSubstitution::Replace,
                 }),

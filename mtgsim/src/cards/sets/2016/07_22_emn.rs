@@ -3,11 +3,10 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{attacks, create_tokens, static_replacement, triggered_ability, whenever, you};
-use crate::cards::tokens::attacking_human_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{ObjectFilter, ObjectSet, PlayerRef};
+use crate::types::effects::{ObjectFilter, ObjectSet, PlayerRef, TokenDef};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use crate::types::restriction::SourceFilter;
@@ -44,7 +43,7 @@ use crate::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 pub fn hanweir_garrison() -> Arc<CardData> {
     let text = "Whenever this creature attacks, create two 1/1 red Human creature tokens that are tapped and attacking.";
     let two_humans =
-        create_tokens(you(), 2, attacking_human_token());
+        create_tokens(you(), 2, TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Human]).tapped_and_attacking());
     CardDataBuilder::new("Hanweir Garrison")
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)

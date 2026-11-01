@@ -33,7 +33,6 @@ use std::sync::Arc;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-use crate::cards::tokens::goblin_token;
 use crate::cards::random_deck::random_deck;
 use crate::cards::registry::CardRegistry;
 use crate::engine::actions::GameAction;
@@ -43,12 +42,9 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::objects::object::GameObject;
 use crate::state::battlefield::{AttackTarget, AttackingInfo, PermanentState, BlockingInfo};
 use crate::state::game_state::{GameState, Phase, PhaseType};
-use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, LandType, Subtype, Supertype};
+use crate::types::card_types::{ArtifactType, CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
-use crate::types::effects::{
-    AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
-    TargetCount,
-};
+use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TokenDef};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSpent, ManaType};
@@ -106,7 +102,7 @@ pub fn deal_commander_game(registry: &CardRegistry, game_seed: u64) -> (Game, u6
 /// `fuzz_games --tokens`' board.
 pub fn create_goblins_for_each_seat(game: &mut GameState, n: usize, dp: &dyn DecisionProvider) {
     for controller in 0..game.players.len() {
-        let create = GameAction::CreateTokens { defs: vec![goblin_token(); n], controller, attacking: None };
+        let create = GameAction::CreateTokens { defs: vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin]); n], controller, attacking: None };
         game.execute_action(create, &ActionContext::new(dp)).expect("creating the Goblins");
     }
 }

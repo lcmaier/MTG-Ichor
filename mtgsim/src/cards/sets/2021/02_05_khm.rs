@@ -5,12 +5,11 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     activated_ability, another, create_tokens, each, gets, static_replacement, triggered_ability, with_subtype, you, you_control,
 };
-use crate::cards::tokens::elf_warrior_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AffectedSet, ObjectFilter, ObjectSet, PlayerRef, PlayerSet};
+use crate::types::effects::{AffectedSet, ObjectFilter, ObjectSet, PlayerRef, PlayerSet, TokenDef};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding};
@@ -74,7 +73,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
             condition: TriggerCondition::Event(other_elves_you_control),
             intervening_if: None,
             limit: Some(TriggerLimit::TriggersOnlyOnceEachTurn),
-            effect: create_tokens(you(), 1, elf_warrior_token()),
+            effect: create_tokens(you(), 1, TokenDef::creature(1, 1, &[Color::Green], &[CreatureType::Elf, CreatureType::Warrior])),
         }))
         .ability(pump)
         .build()
