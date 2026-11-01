@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, static_ability};
+use crate::cards::authoring::{activated_ability, static_ability, static_replacement};
 use crate::cards::authoring::persist;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
@@ -71,13 +71,13 @@ pub fn grumgully_the_generous() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Shaman))
         .power_toughness(3, 3)
         .rules_text(text)
-        .ability(static_ability(
+        .ability(static_replacement(
             text,
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(non_human_creature_you_control),
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
-            ))),
+            ),
         ))
         .build()
 }

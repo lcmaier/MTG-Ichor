@@ -13,7 +13,7 @@ use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 
-use mtgsim::cards::authoring::{persist, static_ability};
+use mtgsim::cards::authoring::{persist, static_replacement};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_cm_cards::thalia_guardian_of_thraben;
 use mtgsim::cards::phase_cv_cards::clone;
@@ -85,16 +85,16 @@ fn human_clone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .power_toughness(0, 0)
         .rules_text(text)
-        .ability(static_ability(
+        .ability(static_replacement(
             text,
-            Effect::Replacement(Box::new(ReplacementDef {
+            ReplacementDef {
                 optional: true,
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
                     ObjectSet::SourceOnly,
                     Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(SelectionFilter::Creature), except: Vec::new() }),
                 )
-            })),
+            },
         ))
         .build()
 }

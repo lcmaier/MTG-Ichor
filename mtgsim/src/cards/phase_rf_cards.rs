@@ -26,7 +26,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{spell_ability, static_ability, static_replacement};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -172,14 +172,14 @@ pub fn timid_golem() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Golem))
         .power_toughness(2, 2)
         .rules_text("If this creature would be put into a graveyard, exile it instead.")
-        .ability(static_ability("If this creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_replacement("If this creature would be put into a graveyard, exile it instead.", ReplacementDef::new(
             EventPattern::ZoneChange {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::SourceOnly,
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-        )))))
+        )))
         .build()
 }
 
@@ -233,13 +233,13 @@ pub fn sealing_ward() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("If a creature would be put into a graveyard, exile it instead.")
-        .ability(static_ability("If a creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_replacement("If a creature would be put into a graveyard, exile it instead.", ReplacementDef::new(
             EventPattern::ZoneChange {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-        )))))
+        )))
         .build()
 }

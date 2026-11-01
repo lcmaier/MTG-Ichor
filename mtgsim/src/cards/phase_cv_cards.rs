@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{spell_ability, static_replacement};
 use crate::cards::authoring::{another, at_beginning_of, triggered_ability, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -309,9 +309,9 @@ pub fn clone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Shapeshifter))
         .power_toughness(0, 0)
         .rules_text("You may have this creature enter as a copy of any creature on the battlefield.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "You may have this creature enter as a copy of any creature on the battlefield.",
-            Effect::Replacement(Box::new(ReplacementDef {
+            ReplacementDef {
                 optional: true,
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
@@ -321,7 +321,7 @@ pub fn clone() -> Arc<CardData> {
                         except: Vec::new(),
                     }),
                 )
-            })),
+            },
         ))
         .build()
 }
@@ -376,9 +376,9 @@ pub fn spark_double() -> Arc<CardData> {
              except it enters with an additional +1/+1 counter on it if it's a creature, it enters \
              with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.",
         )
-        .ability(static_ability(
+        .ability(static_replacement(
             "You may have this creature enter as a copy of a creature or planeswalker you control, except it enters with an additional +1/+1 counter on it if it's a creature, it enters with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.",
-            Effect::Replacement(Box::new(ReplacementDef {
+            ReplacementDef {
                 optional: true,
                 ..ReplacementDef::new(
                     EventPattern::EnterBattlefield { cast: None },
@@ -401,7 +401,7 @@ pub fn spark_double() -> Arc<CardData> {
                         ],
                     }),
                 )
-            })),
+            },
         ))
         .build()
 }

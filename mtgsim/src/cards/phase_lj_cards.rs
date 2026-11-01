@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::{static_ability, static_replacement};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -106,17 +106,15 @@ pub fn scarwood_treefolk() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Treefolk))
         .power_toughness(3, 5)
         .rules_text("This creature enters tapped.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "This creature enters tapped.",
-            Effect::Replacement(Box::new(
-                crate::types::replacement::ReplacementDef::new(
-                    crate::types::replacement::EventPattern::EnterBattlefield { cast: None },
-                    crate::types::effects::ObjectSet::SourceOnly,
-                    crate::types::replacement::Rewrite::EnterWith(
-                        crate::types::replacement::EnterModsTemplate::tapped(),
-                    ),
+            crate::types::replacement::ReplacementDef::new(
+                crate::types::replacement::EventPattern::EnterBattlefield { cast: None },
+                crate::types::effects::ObjectSet::SourceOnly,
+                crate::types::replacement::Rewrite::EnterWith(
+                    crate::types::replacement::EnterModsTemplate::tapped(),
                 ),
-            )),
+            ),
         ))
         .build()
 }

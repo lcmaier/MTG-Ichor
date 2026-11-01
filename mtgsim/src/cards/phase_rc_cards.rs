@@ -62,7 +62,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, static_ability};
+use crate::cards::authoring::{activated_ability, static_ability, static_replacement};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
@@ -139,13 +139,13 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
         .subtype(Subtype::Land(LandType::Plains))
         .subtype(Subtype::Land(LandType::Island))
         .rules_text("This land enters tapped.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "This land enters tapped.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
-            ))),
+            ),
         ))
         // CR 305.6 — intrinsic to the land types, modeled as two explicit mana
         // abilities for `dual_lands.rs`'s documented reason.
@@ -200,13 +200,13 @@ pub fn chainbreaker() -> Arc<CardData> {
             "This creature enters with two -1/-1 counters on it.\n\
              {3}, {T}: Remove a -1/-1 counter from target creature.",
         )
-        .ability(static_ability(
+        .ability(static_replacement(
             "This creature enters with two -1/-1 counters on it.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::MinusOneMinusOne, 2)),
-            ))),
+            ),
         ))
         .ability(activated_ability(
             "{3}, {T}: Remove a -1/-1 counter from target creature.",
@@ -263,13 +263,13 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
         .power_toughness(0, 0)
         .keyword_flag(KeywordFlag::Flash)
         .rules_text("Flash\nThis creature enters with three +1/+1 counters on it.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "This creature enters with three +1/+1 counters on it.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 3)),
-            ))),
+            ),
         ))
         .build()
 }
@@ -346,16 +346,16 @@ pub fn root_maze() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("Artifacts and lands enter tapped.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "Artifacts and lands enter tapped.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
                         Box::new(ObjectFilter::ByType(CardType::Land)),
                     )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
-            ))),
+            ),
         ))
         .build()
 }
@@ -421,16 +421,16 @@ pub fn containment_priest() -> Arc<CardData> {
         .rules_text(
             "Flash\nIf a nontoken creature would enter and it wasn't cast, exile it instead.",
         )
-        .ability(static_ability(
+        .ability(static_replacement(
             "If a nontoken creature would enter and it wasn't cast, exile it instead.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
                 ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                     )),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-            ))),
+            ),
         ))
         .build()
 }
@@ -608,9 +608,9 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Warrior))
         .power_toughness(1, 1)
         .rules_text("Devour 3")
-        .ability(static_ability(
+        .ability(static_replacement(
             "Devour 3",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 // CR 614.12's first sentence — it affects only this permanent,
                 // so it is found on the entering object itself (gather source
@@ -635,7 +635,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                     up_to: None,
                     per_chosen: Some((CounterType::PlusOnePlusOne, PerChosen::Fixed(3))),
                 }),
-            ))),
+            ),
         ))
         .build()
 }
@@ -702,9 +702,9 @@ pub fn sutured_ghoul() -> Arc<CardData> {
              Sutured Ghoul's power is equal to the total power of the exiled cards and \
              its toughness is equal to their total toughness.",
         )
-        .ability(static_ability(
+        .ability(static_replacement(
             "As this creature enters, exile any number of creature cards from your graveyard.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterAfterMoving(AuxiliaryMove {
@@ -720,7 +720,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
                     // linked P/T ability is, and it is T20's.
                     per_chosen: None,
                 }),
-            ))),
+            ),
         ))
         .build()
 }
@@ -787,9 +787,9 @@ pub fn master_biomancer() -> Arc<CardData> {
              +1/+1 counters on it equal to this creature's power and as a Mutant in \
              addition to its other types.",
         )
-        .ability(static_ability(
+        .ability(static_replacement(
             "Each other creature you control enters with a number of additional +1/+1 counters on it equal to this creature's power and as a Mutant in addition to its other types.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -802,7 +802,7 @@ pub fn master_biomancer() -> Arc<CardData> {
                     })],
                     ..EnterModsTemplate::with_counter_amount(CounterType::PlusOnePlusOne, AmountExpr::SourcePower)
                 }),
-            ))),
+            ),
         ))
         .build()
 }

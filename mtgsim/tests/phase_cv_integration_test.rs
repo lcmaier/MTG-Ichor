@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 
-use mtgsim::cards::authoring::static_ability;
+use mtgsim::cards::authoring::static_restriction;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rc_cards::containment_priest;
@@ -46,7 +46,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
-use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
+use mtgsim::types::restriction::{Restriction, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -762,16 +762,16 @@ fn restriction_creature() -> Arc<CardData> {
         .color(Color::Green)
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)
-        .ability(static_ability(
+        .ability(static_restriction(
             "",
-            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+            Restriction::Event {
                 pattern: EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
                 affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
-            }))),
+            },
         ).with_id(new_ability_id()))
         .build()
 }

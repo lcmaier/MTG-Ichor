@@ -25,7 +25,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{mana_ability, static_ability};
+use mtgsim::cards::authoring::{mana_ability, static_replacement};
 use mtgsim::cards::phase5_pre_cards::dark_ritual;
 use mtgsim::cards::phase_cm_cards::krark_clan_ironworks;
 use mtgsim::cards::phase_re9_cards::{
@@ -157,9 +157,9 @@ fn plain_rock() -> Arc<CardData> {
 fn static_enchantment(name: &str, def: ReplacementDef) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(def)),
+            def,
         ).with_id(new_ability_id()))
         .build()
 }

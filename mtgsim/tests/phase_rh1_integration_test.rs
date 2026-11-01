@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{activated_ability, spell_ability, static_ability, triggered_ability, whenever};
+use mtgsim::cards::authoring::{
+    activated_ability, spell_ability, static_replacement, static_restriction, triggered_ability, whenever,
+};
 use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_re8_cards::mind_rot;
 use mtgsim::cards::phase_rs_cards::diabolic_edict;
@@ -29,7 +31,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
-use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
+use mtgsim::types::restriction::{Restriction, SourceFilter};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -68,21 +70,19 @@ fn watcher(shape: Shape, change: ZoneChangePattern) -> Arc<CardData> {
     let yours = ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::ALL);
     let pattern = EventPattern::ZoneChange { change, object: None };
     let ability = match shape {
-        Shape::Cant => static_ability(
+        Shape::Cant => static_restriction(
             "",
-            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+            Restriction::Event {
                 pattern,
                 affected: AffectedSet::objects(yours),
                 by: Some(by),
-            }))),
+            },
         )
         .with_id(new_ability_id()),
-        Shape::Replacement => static_ability(
+        Shape::Replacement => static_replacement(
             "",
-            Effect::Replacement(Box::new(
-                ReplacementDef::new(pattern, yours, Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }))
-                    .caused_by(by),
-            )),
+            ReplacementDef::new(pattern, yours, Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }))
+                .caused_by(by),
         )
         .with_id(new_ability_id()),
         Shape::Trigger => triggered_ability(

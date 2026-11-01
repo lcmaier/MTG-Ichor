@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::static_ability;
+use mtgsim::cards::authoring::static_restriction;
 use mtgsim::cards::phase_rd_cards::{
     angel_of_suffering, mending_hands, palisade_giant, pariah, pinpoint_avalanche,
     reflect_damage, reverse_damage,
@@ -193,22 +193,20 @@ fn leyline_fixture() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Players can't gain life.\nDamage can't be prevented.")
-        .ability(static_ability(
+        .ability(static_restriction(
             "",
-            Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
+            Restriction::Event {
                 pattern: EventPattern::GainLife,
                 affected: AffectedSet::players(PlayerSet::Everyone),
                 by: None,
-            }))),
+            },
         ).with_id(new_ability_id()))
-        .ability(static_ability(
+        .ability(static_restriction(
             "",
-            Effect::Restriction(Box::new(RestrictionDef::new(
-                Restriction::ApplyReplacement {
-                    kind: ReplacementKindFilter::Prevention,
-                    affected: AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
-                },
-            ))),
+            Restriction::ApplyReplacement {
+                kind: ReplacementKindFilter::Prevention,
+                affected: AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::All), players: PlayerSet::Everyone },
+            },
         ).with_id(new_ability_id()))
         .build()
 }

@@ -18,7 +18,9 @@ pub fn spell_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> Abil
 }
 
 /// A static ability (CR 113.3d): a statement, true while the ability
-/// functions.
+/// functions. One whose whole effect is a replacement effect or a "can't" is
+/// written `static_replacement` or `static_restriction`, which build the same
+/// value, so a card file writes each one way.
 pub fn static_ability(rules_text: impl Into<AbilityText>, effect: Effect) -> AbilityDef {
     AbilityDef::new(AbilityType::Static, rules_text, effect)
 }

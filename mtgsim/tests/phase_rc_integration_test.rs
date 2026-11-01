@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::static_ability;
+use mtgsim::cards::authoring::static_replacement;
 use mtgsim::cards::phase_rc_cards::{
     adaptive_shimmerer, chainbreaker, idyllic_beachfront, root_maze,
 };
@@ -68,13 +68,13 @@ fn enters_with(
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Bear))
         .power_toughness(power, toughness)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(mods),
-            ))),
+            ),
         ).with_id(new_ability_id()))
         .build()
 }
@@ -294,21 +294,21 @@ fn test_two_entry_replacements_accumulate() {
     let data = CardDataBuilder::new("Twice-Modified Bear")
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
-            ))),
+            ),
         ).with_id(new_ability_id()))
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::Charge, 2)),
-            ))),
+            ),
         ).with_id(new_ability_id()))
         .build();
 
@@ -366,13 +366,13 @@ fn orb_shaped() -> Arc<CardData> {
         .color(mtgsim::types::colors::Color::Green)
         .card_type(CardType::Artifact)
         .rules_text("Permanents enter tapped.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::All),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
-            ))),
+            ),
         ).with_id(new_ability_id()))
         .build()
 }
@@ -768,15 +768,15 @@ fn kismet_shaped() -> Arc<CardData> {
         .color(mtgsim::types::colors::Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("Permanents your opponents control enter tapped.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
                 ObjectSet::battlefield_filter(ObjectFilter::ByController(
                         mtgsim::types::effects::PlayerRef::Opponent,
                     )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
-            ))),
+            ),
         ).with_id(new_ability_id()))
         .build()
 }

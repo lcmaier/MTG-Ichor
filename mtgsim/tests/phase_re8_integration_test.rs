@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{spell_ability, static_ability};
+use mtgsim::cards::authoring::{spell_ability, static_replacement};
 use mtgsim::cards::phase_re8_cards::{
     eligeth_crossroads_augur, hymn_to_tourach, mind_rot, nephalia_academy, opt,
 };
@@ -677,15 +677,13 @@ fn test_a_scry_with_cards_to_spare_looked_at_all_of_them() {
 fn scry_plus_one() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Scry Doubler")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(
-                ReplacementDef::new(
-                    EventPattern::Scry,
-                    PlayerSet::You,
-                    Rewrite::Amount(AmountRewrite::Plus(1)),
-                ),
-            )),
+            ReplacementDef::new(
+                EventPattern::Scry,
+                PlayerSet::You,
+                Rewrite::Amount(AmountRewrite::Plus(1)),
+            ),
         ).with_id(new_ability_id()))
         .build()
 }

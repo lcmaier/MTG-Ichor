@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::static_ability;
+use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -95,31 +95,29 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
         .power_toughness(3, 4)
         .keyword_flag(KeywordFlag::Lifelink)
         .rules_text("Lifelink\nIf a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.\n{2}{B}, Sacrifice another Vampire or Zombie: Put two +1/+1 counters on Kalitas.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "If a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.",
-            Effect::Replacement(Box::new(
-                ReplacementDef::new(
-                    // CR 700.4's "dies", not CR 701.8's "destroyed".
-                    EventPattern::ZoneChange {
-                        change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
-                        object: None,
-                    },
-                    ObjectSet::battlefield_filter(ObjectFilter::And(
-                            Box::new(ObjectFilter::ByType(CardType::Creature)),
-                            Box::new(ObjectFilter::And(
-                                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-                                Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
-                            )),
+            ReplacementDef::new(
+                // CR 700.4's "dies", not CR 701.8's "destroyed".
+                EventPattern::ZoneChange {
+                    change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
+                    object: None,
+                },
+                ObjectSet::battlefield_filter(ObjectFilter::And(
+                        Box::new(ObjectFilter::ByType(CardType::Creature)),
+                        Box::new(ObjectFilter::And(
+                            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
+                            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
                         )),
-                    Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-                )
-                .with_then(Effect::Atom(
-                    Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)),
-                    // Kalitas's controller, not the dying creature's. The rider
-                    // resolves against a context whose source is Kalitas, so
-                    // `Controller` is CR 109.5's "you" for this ability.
-                    EffectRecipient::Controller,
-                )),
+                    )),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+            )
+            .with_then(Effect::Atom(
+                Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)),
+                // Kalitas's controller, not the dying creature's. The rider
+                // resolves against a context whose source is Kalitas, so
+                // `Controller` is CR 109.5's "you" for this ability.
+                EffectRecipient::Controller,
             )),
         ))
         .build()
@@ -193,9 +191,9 @@ pub fn rest_in_peace() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("When this enchantment enters, exile all graveyards.\nIf a card or token would be put into a graveyard from anywhere, exile it instead.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "If a card or token would be put into a graveyard from anywhere, exile it instead.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     object: None,
@@ -205,7 +203,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
                 // "from anywhere".
                 ObjectSet::filter_in(ObjectFilter::All, ZoneSet::ALL),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-            ))),
+            ),
         ))
         .build()
 }
@@ -262,9 +260,9 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("If this card is in your opening hand, you may begin the game with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.")
-        .ability(static_ability(
+        .ability(static_replacement(
             "If a card would be put into an opponent's graveyard from anywhere, exile it instead.",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                     object: None,
@@ -281,7 +279,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                     ZoneSet::ALL,
                 ),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-            ))),
+            ),
         ))
         .build()
 }

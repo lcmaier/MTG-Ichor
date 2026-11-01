@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{spell_ability, static_ability};
+use mtgsim::cards::authoring::{spell_ability, static_replacement};
 use mtgsim::cards::alpha::counterspell;
 use mtgsim::cards::phase_rb_cards::{leyline_of_the_void, rest_in_peace};
 use mtgsim::cards::phase_rc_cards::{containment_priest, dryad_arbor};
@@ -328,9 +328,9 @@ fn fixture_draw_exiler() -> Arc<CardData> {
     );
     CardDataBuilder::new("Fixture Draw Exiler")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(def)),
+            def,
         ).with_id(new_ability_id()))
         .build()
 }

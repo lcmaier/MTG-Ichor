@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::static_ability;
+use mtgsim::cards::authoring::static_replacement;
 use mtgsim::test_support::place_on_battlefield;
 use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
@@ -73,13 +73,13 @@ fn undying_probe(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::Destroy { source: None },
                 ObjectSet::SourceOnly,
                 Rewrite::Prevent,
-            ))),
+            ),
         ).with_id(new_ability_id()))
         .build()
 }
@@ -319,16 +319,16 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(ReplacementDef::new(
+            ReplacementDef::new(
                 EventPattern::ZoneChange {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                     object: None,
                 },
                 ObjectSet::SourceOnly,
                 Rewrite::Prevent,
-            ))),
+            ),
         ).with_id(new_ability_id()))
         .build()
 }
@@ -772,9 +772,9 @@ fn replacement_creature(name: &str, def: ReplacementDef) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(def)),
+            def,
         ).with_id(new_ability_id()))
         .build()
 }

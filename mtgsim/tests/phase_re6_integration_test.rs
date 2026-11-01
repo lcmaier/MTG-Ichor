@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{spell_ability, static_ability};
+use mtgsim::cards::authoring::{spell_ability, static_ability, static_replacement};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::phase_re_cards::{
     exquisite_archangel, laboratory_maniac, platinum_angel, rhox_faithmender,
@@ -460,18 +460,16 @@ fn exile_reaches_a_card_in_a_graveyard() {
 #[test]
 fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
     let mut game = setup_game(2);
-    let gain_instead = static_ability(
+    let gain_instead = static_replacement(
         "",
-        Effect::Replacement(Box::new(
-            mtgsim::types::replacement::ReplacementDef::new(
-                EventPattern::PlayerLoses,
-                PlayerSet::You,
-                mtgsim::types::replacement::Rewrite::Prevent,
-            )
-            .with_then(Effect::Atom(
-                Primitive::GainLife(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
-            )),
+        mtgsim::types::replacement::ReplacementDef::new(
+            EventPattern::PlayerLoses,
+            PlayerSet::You,
+            mtgsim::types::replacement::Rewrite::Prevent,
+        )
+        .with_then(Effect::Atom(
+            Primitive::GainLife(AmountExpr::Fixed(1)),
+            EffectRecipient::Controller,
         )),
     ).with_id(mtgsim::types::ids::new_ability_id());
     let mirror = CardDataBuilder::new("Fixture Mirror")

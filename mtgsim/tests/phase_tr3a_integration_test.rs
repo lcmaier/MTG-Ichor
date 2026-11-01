@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{activated_ability, spell_ability, static_ability};
+use mtgsim::cards::authoring::{activated_ability, spell_ability, static_replacement};
 use mtgsim::cards::authoring::{at_beginning_of, attacks, dies, enters, leaves_the_battlefield, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_re_cards::time_walk;
 use mtgsim::engine::actions::{ActionContext, GameAction};
@@ -747,9 +747,9 @@ fn archivist_whose_rider(rider: Effect) -> Arc<CardData> {
     .with_then(rider);
     CardDataBuilder::new("Grim Archivist")
         .card_type(CardType::Enchantment)
-        .ability(static_ability(
+        .ability(static_replacement(
             "",
-            Effect::Replacement(Box::new(replacement)),
+            replacement,
         ))
         .build()
 }

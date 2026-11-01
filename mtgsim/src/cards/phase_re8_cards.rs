@@ -45,7 +45,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{spell_ability, static_ability};
+use crate::cards::authoring::{spell_ability, static_replacement};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -174,27 +174,25 @@ pub fn nephalia_academy() -> Arc<CardData> {
         .rules_text(
             "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.\n{T}: Add {C}.",
         )
-        .ability(static_ability(
+        .ability(static_replacement(
             "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.",
-            Effect::Replacement(Box::new(
-                ReplacementDef::new(
-                    EventPattern::ZoneChange {
-                        // "instead of putting it **anywhere else**" — the
-                        // destination is not asked about, only the departure
-                        // and the act.
-                        change: ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) },
-                        object: None,
-                    },
-                    // "causes **you** to discard a card": the cards in this
-                    // permanent's controller's hand. Ownership rather than
-                    // control, because a card in a hand has no controller and
-                    // CR 400.3 sends a discard to its owner's graveyard.
-                    ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::HAND),
-                    Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
-                )
-                .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent))
-                .optional(),
-            )),
+            ReplacementDef::new(
+                EventPattern::ZoneChange {
+                    // "instead of putting it **anywhere else**" — the
+                    // destination is not asked about, only the departure
+                    // and the act.
+                    change: ZoneChangePattern { from: Some(Zone::Hand), to: None, act: Some(ZoneChangeAct::Discarded) },
+                    object: None,
+                },
+                // "causes **you** to discard a card": the cards in this
+                // permanent's controller's hand. Ownership rather than
+                // control, because a card in a hand has no controller and
+                // CR 400.3 sends a discard to its owner's graveyard.
+                ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::HAND),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
+            )
+            .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent))
+            .optional(),
         ))
         .mana_ability_single(ManaType::Colorless)
         .build()
@@ -290,21 +288,19 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
         .power_toughness(5, 6)
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying\nIf you would scry a number of cards, draw that many cards instead.\nPartner")
-        .ability(static_ability(
+        .ability(static_replacement(
             "If you would scry a number of cards, draw that many cards instead.",
-            Effect::Replacement(Box::new(
-                ReplacementDef::new(
-                    EventPattern::Scry,
-                    PlayerSet::You,
-                    Rewrite::Instead(GameActionTemplate::DrawCards {
-                        // "that many" — CR 615.5's amount, read off the scry.
-                        n: TemplateAmount::ReplacedAmount,
-                        // "draw" with no player named: the scrying player is
-                        // the one who draws.
-                        player: None,
-                    }),
-                ),
-            )),
+            ReplacementDef::new(
+                EventPattern::Scry,
+                PlayerSet::You,
+                Rewrite::Instead(GameActionTemplate::DrawCards {
+                    // "that many" — CR 615.5's amount, read off the scry.
+                    n: TemplateAmount::ReplacedAmount,
+                    // "draw" with no player named: the scrying player is
+                    // the one who draws.
+                    player: None,
+                }),
+            ),
         ))
         .build()
 }
