@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    artifact, at_beginning_of, chosen_by, create_replacement, create_tokens, creature, draw_cards, each, every_permanent_or_player, land,
+    artifact, at_beginning_of, chosen_by, create_replacement, create_tokens, creature, draw_cards, each, every_permanent_and_player, land,
     loses_all_abilities, sacrifice, skip, spell_ability, static_ability, static_replacement, target_player, triggered_ability, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -105,7 +105,7 @@ pub fn furnace_of_rath() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals double that damage to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                every_permanent_or_player(),
+                every_permanent_and_player(),
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ))

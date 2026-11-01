@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     activated_ability, add_mana, any_target, color, counter_spell, create_replacement, create_replacement_from_a_chosen_source, creature, deal_damage,
-    draw_cards, every_permanent_or_player, gain_life, gets, has_base_power_and_toughness, host, its_controller_adds, land, mana_ability, non,
+    draw_cards, every_permanent_and_player, gain_life, gets, has_base_power_and_toughness, host, its_controller_adds, land, mana_ability, non,
     prevent_the_next_n_damage_this_turn, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_creature,
     target_player, target_spell, the_next_damage_from_a_chosen_source, this_object, triggered_ability, whenever, with_subtype, you, you_control,
 };
@@ -266,7 +266,7 @@ pub fn fog() -> Arc<CardData> {
         .ability(spell_ability("Prevent all combat damage that would be dealt this turn.",
             create_replacement(ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: Some(true) },
-                every_permanent_or_player(),
+                every_permanent_and_player(),
                 Rewrite::Prevent,
             ))
             .until_end_of_turn(),

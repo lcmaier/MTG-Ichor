@@ -45,7 +45,7 @@ pub use recipients::{
     you_control,
 };
 pub use replacements::{
-    all_damage_to_you, draw_two_instead, every_permanent_or_player, shuffles_into_library_from_anywhere, skip, tapped_for_mana,
+    all_damage_to_you, draw_two_instead, every_permanent_and_player, shuffles_into_library_from_anywhere, skip, tapped_for_mana,
     the_next_damage_from_a_chosen_source,
 };
 pub use triggers::{

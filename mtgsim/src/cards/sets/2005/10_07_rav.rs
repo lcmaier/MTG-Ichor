@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    becomes_attached, create_tokens, every_permanent_or_player, gets, spell_ability, static_replacement, target_creature, triggered_ability, whenever,
-    with_subtype, you, you_control,
+    becomes_attached, create_tokens, every_permanent_and_player, gets, spell_ability, static_replacement, target_creature, triggered_ability,
+    whenever, with_subtype, you, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
@@ -191,7 +191,7 @@ pub fn ghosts_of_the_innocent() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to a permanent or player, it deals half that damage, rounded down, to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                every_permanent_or_player(),
+                every_permanent_and_player(),
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             ),
         ))

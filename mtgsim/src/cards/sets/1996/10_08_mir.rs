@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    at_beginning_of, create_delayed_trigger, create_replacement_from_a_chosen_source, every_permanent_or_player, lose_the_game, spell_ability,
+    at_beginning_of, create_delayed_trigger, create_replacement_from_a_chosen_source, every_permanent_and_player, lose_the_game, spell_ability,
     take_an_extra_turn_after_this_one, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -102,7 +102,7 @@ pub fn reflect_damage() -> Arc<CardData> {
             create_replacement_from_a_chosen_source(
                 ReplacementDef::new(
                     EventPattern::DealDamage { source: Some(SourcePattern::chosen()), combat: None },
-                    every_permanent_or_player(),
+                    every_permanent_and_player(),
                     Rewrite::Retarget(RetargetSpec::ToDamageSourceController),
                 )
                 .once(),
