@@ -49,8 +49,9 @@ pub fn whenever(event: impl Into<TriggerEvent>, effect: Effect) -> TriggerDef {
     }
 }
 
-/// "When [state], [effect]": a state trigger (CR 603.8). It has no
-/// intervening "if", since it checks its state as it triggers and never again.
+/// "When [state], [effect]": a state trigger (CR 603.8) with no intervening
+/// "if" (CR 603.4) and no limit. A card that prints either writes the
+/// [`TriggerDef`] out, as for [`whenever`].
 pub fn when_state(condition: Condition, effect: Effect) -> TriggerDef {
     TriggerDef { condition: TriggerCondition::State(condition), intervening_if: None, limit: None, effect }
 }

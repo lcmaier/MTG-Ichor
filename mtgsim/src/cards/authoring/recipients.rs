@@ -169,8 +169,10 @@ pub fn an_opponent_controls() -> ObjectFilter {
     ObjectFilter::ByController(PlayerRef::Opponent)
 }
 
-/// "Spells you cast" — CR 109.5's "you" is the source's current controller,
-/// and a spell's controller is its caster.
+/// "Spells you cast", for a cost effect (CR 601.2f), read while the spell is
+/// being cast, when its controller is its caster (CR 601.2a). Once control of
+/// a spell changes the two differ (CR 108.4), and a reader after casting asks
+/// who cast it, as `TriggerEvent::CastsSpell`'s `caster` does.
 pub fn you_cast(filter: ObjectFilter) -> ObjectFilter {
     filter.and(you_control())
 }

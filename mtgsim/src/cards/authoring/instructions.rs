@@ -443,8 +443,8 @@ pub fn create_replacement_from_a_chosen_source(def: ReplacementDef) -> Continuou
 /// `Uses::NextDamage(n)`, so the number is written once; the object set is the
 /// empty `Fixed` the resolution fills with its target — or, for Samite
 /// Censer-Bearer, with each creature its filter finds — and the duration is the
-/// card's "this turn", authored here because CR 608.2c will not let the engine
-/// infer it.
+/// card's "this turn", authored here because a duration the text did not state
+/// would last the game (CR 611.2a).
 pub fn prevent_the_next_n_damage_this_turn(recipient: EffectRecipient, n: u64) -> Effect {
     create_replacement_for(
         recipient,

@@ -74,8 +74,7 @@ pub fn all_damage_to_you(objects: ObjectSet, spec: RetargetSpec) -> ReplacementD
 /// a [`Rewrite::Prevent`].
 ///
 /// No new `Rewrite` arm, for that reason — "replaced with nothing" **is** 614.6,
-/// and a `Rewrite::Skip` would be a second spelling of one algebra element
-/// (`replacement-architecture.md` §9, RE decision 0).
+/// and a `Rewrite::Skip` would be a second spelling of one algebra element.
 ///
 /// The object set is empty on every one of these: CR 614.10's three units are
 /// about a *player*, so the scope is a [`PlayerSet`] and nothing else.
@@ -116,14 +115,15 @@ pub fn draw_two_instead(place: Option<DrawFilter>) -> ReplacementDef {
 /// - **"shuffle it into its owner's library instead"** is a substitute event
 ///   plus the rest of the instruction: `ZoneChangeTo { Library }` moves it,
 ///   and the shuffle is the `then`, resolved after the move (CR 615.5's
-///   shape, §4.1a). `Primitive::ShuffleLibrary` with an `Implicit` recipient
+///   shape). `Primitive::ShuffleLibrary` with an `Implicit` recipient
 ///   is "its owner's library" — the source's owner — and moves nothing, which
 ///   is CR 701.24c: a commander's CR 903.9b can send the card to the command
 ///   zone *instead* of the library, and its owner's library is shuffled all
 ///   the same while the card stays where 903.9b put it.
-/// - **"reveal"** is a disclosure, and the engine has no per-viewer
-///   visibility to disclose against (`backlog.md` §2.9) — the same no-op
-///   Nephalia Academy's reveal is. When §2.9 lands, both are its tests.
+/// - **"reveal"** is a disclosure to every player, which the information
+///   model owns (`information-model`); until a viewer can be told, it is the
+///   same no-op Nephalia Academy's reveal is, and both are that phase's
+///   tests.
 ///
 /// The affected set is the card itself, so on any board the family produces
 /// at most one candidate per event and CR 616.1 never asks; the ability is
