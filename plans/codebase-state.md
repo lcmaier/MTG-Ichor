@@ -5226,7 +5226,7 @@ Sol Ring is the interesting row: it makes each turn 4.3% more expensive and each
 
 **Accepted.** The extra work is layers 7b and 7d actually running, which is what the cards were registered to cause — March of the Machines was free before because it applied to nothing. If fuzz throughput ever binds on this, the knob is deck composition (Sol Ring is colorless, so it is in *every* deck) rather than the engine, and the thread-parallel harness on the audit's list would dwarf it either way.
 
-**Also recorded, from `cards/dual_lands.rs`:** CR 305.6 makes a land's mana abilities *intrinsic to its basic land types* — the parenthesised reminder text on a printed dual is not rules text. We model them as two explicit printed `AbilityType::Mana` abilities, because base characteristics are read straight from `CardData` and nothing derives abilities from printed subtypes. The two models agree everywhere currently observable (305.7 clears `chars.abilities` wholesale before granting the new intrinsic; Humility removes mana abilities from an animated land either way). Revisit if an effect ever needs to tell an intrinsic ability from a printed one.
+**Also recorded, from `cards/dual_lands.rs`:** CR 305.6 makes a land's mana abilities *intrinsic to its basic land types* — the parenthesised reminder text on a printed dual is not rules text. We model them as two explicit printed `AbilityType::Mana` abilities, because base characteristics are read straight from `CardData` and nothing derives abilities from printed subtypes. The two models agree everywhere currently observable (305.7 clears `chars.abilities` wholesale before granting the new intrinsic; Humility removes mana abilities from an animated land either way). Revisit if an effect ever needs to tell an intrinsic ability from a printed one: Layer 3's word swap is the first, and main item 195 owes the derivation.
 
 **~~`fuzz_games --seed N` does not reproduce a run, and the perf protocol assumed it did.~~ — ✅ fixed 2026-08-23 (`fuzz/deterministic-seeding`).** `--seed N` now replays a run exactly: three consecutive 200-game runs at seed 12345 produce byte-identical output, and game *k* of a batch reproduces standalone from the per-game seed the harness prints, which is what makes "reproduce the panic from the seed" work.
 
@@ -8019,6 +8019,17 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        that answers `writes_name` true, so the event record's names read it
        with no further change (#203). Spy Kit's "all names", and CR 201.2a's
        object with several names, need a name that can be a set;
+     - CR 305.6's mana abilities derived from a land's basic land types on
+       every frame, as Layer 4 already derives them for a type an effect
+       gives (`engine/layers/land_types.rs`). A land whose card prints a
+       basic land type writes its ability out instead (`mana_ability_single`:
+       the five basics, the ten duals, Everywhere, Five-Color Land Fixture and
+       the rest), which no board tells apart until a word swap changes a
+       printed land type: Magical Hack making an Underground Sea's "Swamp" a
+       "Mountain" must take its {B} and give it {R}, and the written-out
+       ability would stay {B}. Each such land then drops its written
+       abilities; ability ids become the synthesized ones, and a dual's
+       options follow `LandType` order, which moves both pools' streams;
      - the two gates' Layer 3 legs (`gather.rs`, `predicate.rs`, ~20 lines
        each), in "Two ETB-time scans read *printed* abilities" above;
      - the atoms waiting on it: `backlog.md`'s audit rows for CR 612 and
