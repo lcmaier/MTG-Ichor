@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create_tokens, static_replacement, you};
+use crate::cards::authoring::{an_opponent_controls, create_tokens, creature, non, static_replacement, token, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -103,13 +103,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: None },
                     object: None,
                 },
-                ObjectSet::battlefield_filter(ObjectFilter::And(
-                        Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::And(
-                            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-                            Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
-                        )),
-                    )),
+                ObjectSet::battlefield_filter(creature().and(non(token()).and(an_opponent_controls()))),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             )
             .with_then(create_tokens(
@@ -269,13 +263,10 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                     object: None,
                 },
                 ObjectSet::filter_in(
-                    ObjectFilter::And(
-                        // "a card" — CR 111.1, a token is not one.
-                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-                        // "an opponent's graveyard" — CR 400.3 sends it to the
-                        // owner's, so this is ownership and not control.
-                        Box::new(ObjectFilter::ByOwner(PlayerRef::Opponent)),
-                    ),
+                    // "a card" — CR 111.1, a token is not one; "an opponent's
+                    // graveyard" — CR 400.3 sends it to the owner's, so this is
+                    // ownership and not control.
+                    non(token()).and(ObjectFilter::ByOwner(PlayerRef::Opponent)),
                     // "from anywhere".
                     ZoneSet::ALL,
                 ),

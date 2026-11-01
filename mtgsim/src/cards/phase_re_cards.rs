@@ -313,8 +313,9 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, cant, create_tokens, create_replacement, create_replacement_for, deal_damage, draw_cards, exile, get_counters, lose_life,
-    set_life_total, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_player, this_object, you, you_and_that_player,
+    activated_ability, artifact, cant, create_replacement, create_replacement_for, create_tokens, creature, deal_damage, draw_cards, exile,
+    get_counters, lose_life, set_life_total, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, target_player,
+    this_object, you, you_and_that_player, you_control,
 };
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::state::game_state::{PhaseType, StepType};
@@ -1646,7 +1647,7 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
             "Until end of turn, if a creature would enter and it wasn't cast, exile it instead.",
             create_replacement(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
-                ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
+                ObjectSet::battlefield_filter(creature()),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ))
             .until_end_of_turn(),
@@ -1811,7 +1812,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
 fn doubles_counters_on_your_permanents() -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::AddCounters { counter: None, by: None },
-        ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
+        ObjectSet::battlefield_filter(you_control()),
         Rewrite::Amount(AmountRewrite::Multiplier(2)),
     )
 }
@@ -1927,10 +1928,7 @@ pub fn hardened_scales() -> Arc<CardData> {
         )
         .ability(static_replacement("If one or more +1/+1 counters would be put on a creature you control, that many plus one +1/+1 counters are put on it instead.", ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-            ObjectSet::battlefield_filter(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
+            ObjectSet::battlefield_filter(creature().and(you_control())),
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )))
         .build()
@@ -2081,13 +2079,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
         )
         .ability(static_replacement("If one or more counters would be put on an artifact or creature you control, that many plus one of each of those kinds of counters are put on that permanent instead.", ReplacementDef::new(
             EventPattern::AddCounters { counter: None, by: None },
-            ObjectSet::battlefield_filter(ObjectFilter::And(
-                    Box::new(ObjectFilter::Or(
-                        Box::new(ObjectFilter::ByType(CardType::Artifact)),
-                        Box::new(ObjectFilter::ByType(CardType::Creature)),
-                    )),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                )),
+            ObjectSet::battlefield_filter(artifact().or(creature()).and(you_control())),
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )))
         .ability(static_replacement("If you would get one or more counters, you get that many plus one of each of those kinds of counters instead.",
@@ -2195,7 +2187,7 @@ pub fn primal_vigor() -> Arc<CardData> {
         ))
         .ability(static_replacement("If one or more +1/+1 counters would be put on a creature, twice that many +1/+1 counters are put on that creature instead.", ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
+            ObjectSet::battlefield_filter(creature()),
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         )))
         .build()

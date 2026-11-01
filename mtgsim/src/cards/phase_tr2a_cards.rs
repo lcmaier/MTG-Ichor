@@ -13,7 +13,9 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, create_tokens, draw_cards, each, each_player, gain_life, gets, put_counters, this_object, you};
+use crate::cards::authoring::{
+    activated_ability, create_tokens, draw_cards, each, each_player, gain_life, gets, put_counters, this_object, with_subtype, you, you_control,
+};
 use crate::cards::authoring::{another, at_beginning_of, dies, triggered_ability, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -148,10 +150,7 @@ pub fn elf_warrior_token() -> TokenDef {
 }
 
 fn elves_you_control() -> ObjectFilter {
-    ObjectFilter::And(
-        Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf))),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    )
+    with_subtype(Subtype::Creature(CreatureType::Elf)).and(you_control())
 }
 
 /// Elvish Warmaster — {1}{G}
@@ -178,7 +177,7 @@ fn elves_you_control() -> ObjectFilter {
 ///   resolves..."* → `phase_tr2a_integration_test::warmasters_pump_is_fixed_as_it_resolves`.
 pub fn elvish_warmaster() -> Arc<CardData> {
     let other_elves_you_control = TriggerEvent::EntersBattlefield {
-        subject: TriggerSubject::Filter(another(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Elf)))),
+        subject: TriggerSubject::Filter(another(with_subtype(Subtype::Creature(CreatureType::Elf)))),
         controller: Some(PlayerRef::You),
         from: None,
         was_cast: None,

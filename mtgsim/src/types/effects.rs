@@ -302,6 +302,21 @@ pub enum ObjectFilter {
     Not(Box<ObjectFilter>),
 }
 
+impl ObjectFilter {
+    /// "Creature you control", "black nontoken": what both filters
+    /// describe. A chain nests to the left, `a.and(b).and(c)` being
+    /// `And(And(a, b), c)`.
+    pub fn and(self, other: ObjectFilter) -> ObjectFilter {
+        ObjectFilter::And(Box::new(self), Box::new(other))
+    }
+
+    /// "Artifact or creature", and Root Maze's "artifacts and lands": what
+    /// either filter describes.
+    pub fn or(self, other: ObjectFilter) -> ObjectFilter {
+        ObjectFilter::Or(Box::new(self), Box::new(other))
+    }
+}
+
 /// Selects which objects an effect applies to — read by the layer walk, the
 /// restriction sweep and the replacement pipeline, which is why the name is
 /// the set's contents rather than any one reader's verb.

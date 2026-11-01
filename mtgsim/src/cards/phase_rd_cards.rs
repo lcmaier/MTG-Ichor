@@ -142,16 +142,16 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, any_target, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, creatures_you_control,
-    deal_damage, deal_damage_unpreventable, each, gain_life, mill, spell_ability, static_replacement, target_creature, target_player,
+    activated_ability, an_opponent_controls, any_target, colored, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source,
+    creature, creatures_you_control, deal_damage, deal_damage_unpreventable, each, gain_life, mill, other_than_this, spell_ability,
+    static_replacement, target_creature, target_player, with_subtype, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter,
-    PlayerRef, PlayerSet, SelectionFilter,
+    AffectedSet, ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerSet, SelectionFilter,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -334,14 +334,14 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement("If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage to that player or permanent instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
+                AffectedSet { objects: ObjectSet::battlefield_filter(an_opponent_controls()), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             ),
         ))
         .ability(static_replacement("If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)), players: PlayerSet::You },
+                AffectedSet { objects: ObjectSet::battlefield_filter(you_control()), players: PlayerSet::You },
                 Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
             ),
         ))
@@ -634,13 +634,7 @@ fn the_next_damage_from_a_chosen_source(
 /// all three and a subtype does not carry its card type on an object outside
 /// the battlefield.
 fn clerics_you_control() -> ObjectFilter {
-    ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::And(
-            Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Cleric))),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
-        )),
-    )
+    creature().and(with_subtype(Subtype::Creature(CreatureType::Cleric)).and(you_control()))
 }
 
 /// Circle of Protection: Red — {1}{W}
@@ -679,7 +673,7 @@ pub fn circle_of_protection_red() -> Arc<CardData> {
         )
         .ability(activated_ability("{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
             vec![Cost::Mana(ManaCost::build(&[], 1))],
-            create_replacement_from_a_chosen_source(the_next_damage_from_a_chosen_source(Some(ObjectFilter::ByColor(Color::Red)), Rewrite::Prevent))
+            create_replacement_from_a_chosen_source(the_next_damage_from_a_chosen_source(Some(colored(Color::Red)), Rewrite::Prevent))
                 .until_end_of_turn(),
         ))
         .build()
@@ -815,9 +809,7 @@ pub fn guardian_seraph() -> Arc<CardData> {
         .ability(static_replacement("If a source an opponent controls would deal damage to you, prevent 1 of that damage.",
             ReplacementDef::new(
                 EventPattern::DealDamage {
-                    source: Some(SourcePattern::matching(ObjectFilter::ByController(
-                        PlayerRef::Opponent,
-                    ))),
+                    source: Some(SourcePattern::matching(an_opponent_controls())),
                     combat: None,
                 },
                 PlayerSet::You,
@@ -887,7 +879,7 @@ pub fn pyroclasm() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Pyroclasm deals 2 damage to each creature.")
         .ability(spell_ability("Pyroclasm deals 2 damage to each creature.",
-            deal_damage(each(ObjectFilter::ByType(CardType::Creature)), 2),
+            deal_damage(each(creature()), 2),
         ))
         .build()
 }
@@ -969,13 +961,10 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
         .ability(static_replacement("If a red source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 2 instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage {
-                    source: Some(SourcePattern::matching(ObjectFilter::And(
-                        Box::new(ObjectFilter::ByColor(Color::Red)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    ))),
+                    source: Some(SourcePattern::matching(colored(Color::Red).and(you_control()))),
                     combat: None,
                 },
-                AffectedSet { objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)), players: PlayerSet::Opponents },
+                AffectedSet { objects: ObjectSet::battlefield_filter(an_opponent_controls()), players: PlayerSet::Opponents },
                 Rewrite::Amount(AmountRewrite::Plus(2)),
             ),
         ))
@@ -1092,10 +1081,7 @@ pub fn palisade_giant() -> Arc<CardData> {
              to this creature instead.",
         )
         .ability(static_replacement("All damage that would be dealt to you and other permanents you control is dealt to this creature instead.", all_damage_to_you(
-            ObjectSet::battlefield_filter(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    Box::new(ObjectFilter::NotSource),
-                )),
+            ObjectSet::battlefield_filter(you_control().and(other_than_this())),
             RetargetSpec::ToEffectSource,
         )))
         .build()

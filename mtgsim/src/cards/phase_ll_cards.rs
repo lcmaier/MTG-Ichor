@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{becomes_types, creatures_you_control, each, each_in, functioning_in, gains_keyword, static_ability, this_object};
+use crate::cards::authoring::{
+    artifact, becomes_types, creature, creatures_you_control, each, each_in, functioning_in, gains_keyword, non, static_ability, this_object,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, PlaneswalkerType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -93,10 +95,7 @@ pub fn grist_insect_clause() -> Arc<CardData> {
 /// rows, one effect: CR 613.6 locks the noncreature artifacts at layer 4 and
 /// applies the strip and the P/T to the same set.
 pub fn titanias_song_clause() -> Arc<CardData> {
-    let noncreature_artifact = each(ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Artifact)),
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature)))),
-    ));
+    let noncreature_artifact = each(artifact().and(non(creature())));
     CardDataBuilder::new("Titania's Song's First Sentence")
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .color(Color::Green)
@@ -156,7 +155,7 @@ pub fn arcane_adaptation_elf_clause() -> Arc<CardData> {
             "Creature cards you own that aren't on the battlefield are Elves in addition to their other types.",
             becomes_types(
                 each_in(
-                    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByOwner(PlayerRef::You))),
+                    creature().and(ObjectFilter::ByOwner(PlayerRef::You)),
                     ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
                 ),
                 adding(vec![], vec![Subtype::Creature(CreatureType::Elf)]),
@@ -178,7 +177,7 @@ pub fn library_artificer() -> Arc<CardData> {
         .rules_text("Creature cards in libraries are artifacts in addition to their other types.")
         .ability(static_ability(
             "Creature cards in libraries are artifacts in addition to their other types.",
-            becomes_types(each_in(ObjectFilter::ByType(CardType::Creature), ZoneSet::LIBRARY), adding(vec![CardType::Artifact], vec![])),
+            becomes_types(each_in(creature(), ZoneSet::LIBRARY), adding(vec![CardType::Artifact], vec![])),
         ))
         .build()
 }
@@ -202,7 +201,7 @@ pub fn library_assassins() -> Arc<CardData> {
             "Artifact creature cards in libraries are Assassins in addition to their other types.",
             becomes_types(
                 each_in(
-                    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Artifact)), Box::new(ObjectFilter::ByType(CardType::Creature))),
+                    artifact().and(creature()),
                     ZoneSet::LIBRARY,
                 ),
                 adding(vec![], vec![Subtype::Creature(CreatureType::Assassin)]),

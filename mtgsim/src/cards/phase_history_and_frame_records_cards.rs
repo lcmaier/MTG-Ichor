@@ -14,7 +14,9 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{becomes_a_blocked_creature, each_in, gain_life, is_also_color, spell_ability, static_ability, target_creature, you};
+use crate::cards::authoring::{
+    becomes_a_blocked_creature, creature, each_in, gain_life, is_also_color, spell_ability, static_ability, target_creature, token, you,
+};
 use crate::cards::authoring::triggers::{leaves_the_battlefield, triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
@@ -55,7 +57,7 @@ pub fn fixture_curtain() -> Arc<CardData> {
 /// by their departures' rows once CR 704.5d has removed them.
 pub fn fixture_token_tally() -> Arc<CardData> {
     let text = "You gain 1 life for each token creature you controlled that died this turn.";
-    let died = HistoryCount { players: PlayerSet::You, fact: TurnFact::ControlledCreaturesDied, of: Some(Box::new(ObjectFilter::Token)) };
+    let died = HistoryCount { players: PlayerSet::You, fact: TurnFact::ControlledCreaturesDied, of: Some(Box::new(token())) };
     CardDataBuilder::new("Fixture Token Tally")
         .mana_cost(ManaCost::build(&[], 1))
         .card_type(CardType::Instant)
@@ -83,7 +85,7 @@ pub fn fixture_mourning_ink() -> Arc<CardData> {
 /// (CR 603.6c).
 pub fn fixture_mourners_tithe() -> Arc<CardData> {
     let text = "Whenever a creature leaves the battlefield, you gain life equal to its power.";
-    let creature = TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature));
+    let creature = TriggerSubject::Filter(creature());
     let gain = gain_life(you(), AmountExpr::TriggeringPower(EventRole::Object));
     CardDataBuilder::new("Fixture Mourner's Tithe")
         .mana_cost(ManaCost::build(&[], 2))
@@ -101,7 +103,7 @@ pub fn fixture_first_creature_tithe() -> Arc<CardData> {
     let first_creature = TriggerDef {
         condition: TriggerCondition::Event(TriggerEvent::CastsSpell {
             caster: Some(PlayerRef::You),
-            spell: Some(ObjectFilter::ByType(CardType::Creature)),
+            spell: Some(creature()),
         }),
         intervening_if: None,
         limit: Some(TriggerLimit::FirstTimeEachTurn),

@@ -31,7 +31,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    cant, deal_damage, destroy, gets, put_counters, spell_ability, target_creature, target_permanent, targets, that_target,
+    cant, colored, creature, deal_damage, destroy, gets, land, non, put_counters, spell_ability, target_creature, target_permanent, targets,
+    that_target,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
@@ -123,12 +124,9 @@ pub fn incremental_growth() -> Arc<CardData> {
     // "another target creature", "a third target creature": a creature, and not
     // one an earlier instance took.
     let other_than = |earlier_targets: &[usize]| {
-        let mut filter = ObjectFilter::ByType(CardType::Creature);
+        let mut filter = creature();
         for &ix in earlier_targets {
-            filter = ObjectFilter::And(
-                Box::new(filter),
-                Box::new(ObjectFilter::OtherThanInstance(ix)),
-            );
+            filter = filter.and(ObjectFilter::OtherThanInstance(ix));
         }
         target_permanent(filter)
     };
@@ -226,11 +224,8 @@ pub fn plague_spores() -> Arc<CardData> {
             // The shields are stripped before the destruction, or CR 701.19a's
             // replacement would have already applied by the time the
             // restriction existed.
-            cant_regenerate(target_permanent(ObjectFilter::And(
-                Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(Color::Black)))),
-            ))),
-            cant_regenerate(target_permanent(ObjectFilter::ByType(CardType::Land))),
+            cant_regenerate(target_permanent(creature().and(non(colored(Color::Black))))),
+            cant_regenerate(target_permanent(land())),
             destroy(that_target(0)),
             destroy(that_target(1)),
         ])))

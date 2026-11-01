@@ -10,13 +10,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{each, gains_keyword, put_counters, static_ability, triggering_object};
+use crate::cards::authoring::{creature, each, gains_keyword, put_counters, static_ability, triggering_object, you_control};
 use crate::cards::authoring::{triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    CounterType, ObjectFilter, PlayerRef,
+    CounterType, ObjectFilter,
 };
 use crate::types::history::CountIs;
 use crate::types::keywords::KeywordFlag;
@@ -47,14 +47,10 @@ pub fn sphere_grid() -> Arc<CardData> {
     let trigger_text =
         "Whenever a creature you control deals combat damage to a player, put a +1/+1 counter on that creature.";
     let unlock_text = "Unlock Ability — Creatures you control with +1/+1 counters on them have reach and trample.";
-    let creature_you_control = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    );
-    let with_a_counter = ObjectFilter::And(
-        Box::new(creature_you_control.clone()),
-        Box::new(ObjectFilter::WithCounters { kind: Some(CounterType::PlusOnePlusOne), count: CountIs::AtLeast(1) }),
-    );
+    let creature_you_control = creature().and(you_control());
+    let with_a_counter = creature_you_control
+        .clone()
+        .and(ObjectFilter::WithCounters { kind: Some(CounterType::PlusOnePlusOne), count: CountIs::AtLeast(1) });
     let deals_combat_damage_to_a_player = TriggerEvent::DamageDealt {
         source: TriggerSubject::Filter(creature_you_control),
         recipient: DamageRecipient::Player(None),

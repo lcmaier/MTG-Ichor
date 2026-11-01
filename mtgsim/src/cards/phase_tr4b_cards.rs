@@ -11,14 +11,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create_tokens, gets, host, sacrifice, static_ability, triggering_object, you};
+use crate::cards::authoring::{create_tokens, gets, host, sacrifice, static_ability, triggering_object, with_subtype, you};
 use crate::cards::authoring::{becomes_attached, becomes_unattached, triggered_ability, whenever};
 use crate::cards::authoring::equip;
 use crate::cards::phase_tr1_cards::saproling_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::ObjectFilter;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TriggerSubject};
 
@@ -123,7 +122,7 @@ pub fn bramble_elemental() -> Arc<CardData> {
             text,
             whenever(
                 becomes_attached(
-                    ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura)),
+                    with_subtype(Subtype::Enchantment(EnchantmentType::Aura)),
                     TriggerSubject::ThisObject,
                 ),
                 create_tokens(you(), 2, saproling_token()),

@@ -10,6 +10,7 @@
 //! Some(Discarded)`) already does, and reads correctly, because its fields
 //! are `Some`. → `triggers-architecture.md` §15 item 14.
 
+use super::recipients::{creature, other_than_this, planeswalker};
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType};
 use crate::state::game_state::StepType;
 use crate::types::effects::{
@@ -17,7 +18,6 @@ use crate::types::effects::{
 };
 use crate::types::history::CountIs;
 use crate::types::replacement::EntryCounters;
-use crate::types::card_types::CardType;
 use crate::types::triggers::{
     AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, DamageRecipient, TargetedBy, DefenderFilter, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity,
     ReflexiveForm, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
@@ -53,7 +53,7 @@ pub fn whenever(event: impl Into<TriggerEvent>, effect: Effect) -> TriggerDef {
 /// matcher reads as other than the ability's own source. In a targeting
 /// filter it is "another target creature", other than the same object.
 pub fn another(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
+    filter.and(other_than_this())
 }
 
 /// So a card writes `dies(a_creature())` where the arm wants a subject.
@@ -428,10 +428,7 @@ pub fn player_attacks_player(whose: Whose, attacked: Whose) -> TriggerEvent {
 /// "[A player] or a planeswalker [that player] controls", as what is
 /// attacked: "whenever a creature attacks you or a planeswalker you control".
 pub fn player_or_their_planeswalker(who: PlayerRef) -> DefenderFilter {
-    let their_planeswalker = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Planeswalker)),
-        Box::new(ObjectFilter::ByController(who.clone())),
-    );
+    let their_planeswalker = planeswalker().and(ObjectFilter::ByController(who.clone()));
     DefenderFilter::Or(Box::new(DefenderFilter::Player(Some(who))), Box::new(DefenderFilter::Permanent(their_planeswalker)))
 }
 
@@ -510,10 +507,7 @@ fn attack_event(attacker: TriggerSubject, defender: Option<DefenderFilter>, occu
 fn creature_controlled_by(whose: Whose) -> TriggerSubject {
     match whose.player_ref() {
         None => TriggerSubject::Any,
-        Some(player) => TriggerSubject::Filter(ObjectFilter::And(
-            Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(player)),
-        )),
+        Some(player) => TriggerSubject::Filter(creature().and(ObjectFilter::ByController(player))),
     }
 }
 

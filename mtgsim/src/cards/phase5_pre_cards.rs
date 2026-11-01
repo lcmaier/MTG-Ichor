@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    add_mana, creatures_you_control, destroy, draw_cards, each, gain_life, gets, has_base_power_and_toughness, lose_life, spell_ability,
-    static_ability, switch_power_and_toughness, target_creature, target_permanent, you,
+    add_mana, colored, creature, creatures_you_control, destroy, draw_cards, each, gain_life, gets, has_base_power_and_toughness, lose_life, non,
+    spell_ability, static_ability, switch_power_and_toughness, target_creature, target_permanent, you,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, Subtype, Supertype, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Effect, ManaOutput, ObjectFilter};
+use crate::types::effects::{AmountExpr, Effect, ManaOutput};
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Isamaru, Hound of Konda - {W}
@@ -54,10 +54,7 @@ pub fn doom_blade() -> Arc<CardData> {
         .rules_text("Destroy target nonblack creature.")
         .ability(spell_ability(
             "Destroy target nonblack creature.",
-            destroy(target_permanent(ObjectFilter::And(
-                Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(Color::Black)))),
-            ))),
+            destroy(target_permanent(creature().and(non(colored(Color::Black))))),
         ))
         .build()
 }

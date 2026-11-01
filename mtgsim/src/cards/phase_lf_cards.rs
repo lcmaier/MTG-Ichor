@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{add_mana, creatures_you_control, each, gains_ability, loses_all_abilities, mana_ability, static_ability};
+use crate::cards::authoring::{add_mana, creature, creatures_you_control, each, gains_ability, loses_all_abilities, mana_ability, static_ability};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, ManaOutput, ObjectFilter,
+    AmountExpr, ManaOutput,
 };
 use crate::types::costs::Cost;
 use crate::types::mana::{ManaCost, ManaType};
@@ -42,7 +42,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// including a Tarmogoyf, whose CDA dies in Layer 6 before Layer 7a can read
 /// it — is what the tests here exercise.
 pub fn humility() -> Arc<CardData> {
-    let creatures = each(ObjectFilter::ByType(CardType::Creature));
+    let creatures = each(creature());
 
     CardDataBuilder::new("Humility")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))

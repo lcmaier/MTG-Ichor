@@ -27,7 +27,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    each_in, loses_all_abilities, shuffle_library, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one, this_object, you,
+    creature, each_in, loses_all_abilities, shuffle_library, spell_ability, static_ability, static_replacement, take_an_extra_turn_after_this_one,
+    this_object, you,
 };
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -234,7 +235,7 @@ pub fn sealing_ward() -> Arc<CardData> {
                 change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },
                 object: None,
             },
-            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
+            ObjectSet::battlefield_filter(creature()),
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
         )))
         .build()

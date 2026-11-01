@@ -10,11 +10,11 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{attacked_by, attacks, deal_damage, triggered_ability, whenever};
+use crate::cards::authoring::{attacked_by, attacks, creature, deal_damage, triggered_ability, whenever, you_control};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Antecedent, ObjectFilter, PlayerRef};
+use crate::types::effects::Antecedent;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::EventRole;
@@ -42,10 +42,7 @@ use crate::types::triggers::EventRole;
 ///   path, so the test's creatures attack players.
 pub fn hellrider() -> Arc<CardData> {
     let text = "Whenever a creature you control attacks, this creature deals 1 damage to the player or planeswalker it's attacking.";
-    let creature_you_control = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    );
+    let creature_you_control = creature().and(you_control());
     let one_damage = deal_damage(attacked_by(Antecedent::Triggering(EventRole::Attacker)), 1);
     CardDataBuilder::new("Hellrider")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))

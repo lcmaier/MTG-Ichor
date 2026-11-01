@@ -17,7 +17,9 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{copy, spell_ability, static_replacement, target_creature, target_permanent};
+use crate::cards::authoring::{
+    copy, creature, land, non, planeswalker, spell_ability, static_replacement, target_creature, target_permanent, with_subtype, you_control,
+};
 use crate::cards::authoring::{another, at_beginning_of, triggered_ability, Whose};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -38,12 +40,7 @@ use crate::types::triggers::{TriggerCondition, TriggerDef};
 /// CR 704.5j the moment it exists, so the printed text keeps the effect from
 /// being a sacrifice.
 fn nonlegendary_creature() -> ObjectFilter {
-    ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySupertype(
-            Supertype::Legendary,
-        )))),
-    )
+    creature().and(non(ObjectFilter::BySupertype(Supertype::Legendary)))
 }
 
 /// Cytoshape — {1}{G}{U}
@@ -153,15 +150,12 @@ pub fn mirrorform() -> Arc<CardData> {
             copy(
                 // "target non-Aura permanent" — the donor, and the only place
                 // in CV-1 where a copy source is not required to be a creature.
-                target_permanent(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(Subtype::Enchantment(EnchantmentType::Aura))))),
+                target_permanent(non(with_subtype(Subtype::Enchantment(EnchantmentType::Aura)))),
                 CopyRoles::FilteredCopyRecipient {
                     // "Each nonland permanent you control" — and no
                     // "other", which is the whole reason this card is
                     // registered.
-                    filter: ObjectFilter::And(
-                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Land)))),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    ),
+                    filter: non(land()).and(you_control()),
                     exclude_donor: false,
                 },
                 Vec::new(),
@@ -235,7 +229,7 @@ pub fn mirrorweave() -> Arc<CardData> {
                 // "Each **other** creature" — `exclude_donor` is the word
                 // "other", and it is a field rather than structure because
                 // Mirrorform prints the same shape without it.
-                CopyRoles::FilteredCopyRecipient { filter: ObjectFilter::ByType(CardType::Creature), exclude_donor: true },
+                CopyRoles::FilteredCopyRecipient { filter: creature(), exclude_donor: true },
                 Vec::new(),
             )
             .until_end_of_turn(),
@@ -334,13 +328,7 @@ pub fn clone() -> Arc<CardData> {
 /// donor's (8), and nothing entering beside it (9).
 pub fn spark_double() -> Arc<CardData> {
     let additionally = |counter| CopyException::Additionally(EnterModsTemplate::with_counters(counter, 1));
-    let creature_or_planeswalker_you_control = ObjectFilter::And(
-        Box::new(ObjectFilter::Or(
-            Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByType(CardType::Planeswalker)),
-        )),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    );
+    let creature_or_planeswalker_you_control = creature().or(planeswalker()).and(you_control());
     CardDataBuilder::new("Spark Double")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 3))
         .color(Color::Blue)
@@ -363,11 +351,11 @@ pub fn spark_double() -> Arc<CardData> {
                         donor: CopyDonor::Chosen(SelectionFilter::Permanent(creature_or_planeswalker_you_control)),
                         except: vec![
                             CopyException::If(
-                                ObjectFilter::ByType(CardType::Creature),
+                                creature(),
                                 vec![additionally(CounterType::PlusOnePlusOne)],
                             ),
                             CopyException::If(
-                                ObjectFilter::ByType(CardType::Planeswalker),
+                                planeswalker(),
                                 vec![additionally(CounterType::Loyalty)],
                             ),
                             CopyException::Modifies(CharacteristicEdit::Types(TypeChange {
@@ -418,7 +406,7 @@ pub fn spark_double() -> Arc<CardData> {
 pub fn cryptoplasm() -> Arc<CardData> {
     let text = "At the beginning of your upkeep, you may have this creature become a copy of another target creature, except it has this ability.";
     let becomes_a_copy = copy(
-        target_permanent(another(ObjectFilter::ByType(CardType::Creature))),
+        target_permanent(another(creature())),
         CopyRoles::ThisObjectCopiesRecipient,
         vec![CopyException::Modifies(CharacteristicEdit::GainsThisAbility)],
     )

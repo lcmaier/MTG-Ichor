@@ -37,8 +37,9 @@ pub use instructions::{
     take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
 };
 pub use recipients::{
-    any_target, attacked_by, chosen_by, creatures_you_control, each, each_in, each_opponent, each_player, host, referred, target, target_creature,
-    target_permanent, target_player, target_spell, targets, that_target, this_object, triggering_object, you, you_and_that_player,
+    an_opponent_controls, any_target, artifact, attacked_by, basic, chosen_by, colored, creature, creatures_you_control, each, each_in, each_opponent,
+    each_player, host, land, non, other_than_this, planeswalker, referred, target, target_creature, target_permanent, target_player, target_spell,
+    targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_control,
 };
 pub use triggers::{
     activates_an_ability_of, an_opponent_gains_control_of, another, at_beginning_of, attacks, attacks_alone, attacks_and_isnt_blocked, attacks_defender, becomes_attached,

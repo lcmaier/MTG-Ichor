@@ -11,13 +11,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    any_target, chosen_by, create_delayed_trigger, deal_damage, enters, is_sacrificed, sacrifice, triggered_ability, when_you_do, whenever, you,
+    any_target, artifact, chosen_by, create_delayed_trigger, deal_damage, enters, is_sacrificed, sacrifice, triggered_ability, when_you_do, whenever,
+    you, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Choice, ChoiceScope, ChoiceSide, Effect, ObjectFilter, Pick, PlayerRef,
+    Choice, ChoiceScope, ChoiceSide, Effect, Pick, PlayerRef,
 };
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::TriggerSubject;
@@ -51,7 +52,7 @@ pub fn cornered_crook() -> Arc<CardData> {
     // Checked once, against the sacrifice the line before it made; it never
     // waits for another.
     let deals_3 = when_you_do(
-        is_sacrificed(ObjectFilter::ByController(PlayerRef::You)),
+        is_sacrificed(you_control()),
         deal_damage(any_target(), 3),
         "When you do, this creature deals 3 damage to any target.",
     );
@@ -73,7 +74,7 @@ pub fn cornered_crook() -> Arc<CardData> {
                         effect: Box::new(sacrifice(chosen_by(Choice {
                             chooser: you(),
                             among: ChoiceScope::ChoosersPermanents,
-                            picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Artifact))],
+                            picks: vec![Pick::exactly(1, artifact())],
                             acts_on: ChoiceSide::Chosen,
                         }))),
                     },

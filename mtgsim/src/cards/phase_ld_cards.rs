@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::cards::authoring::{becomes_types, each, gains_keyword, spell_ability, static_ability, target_creature, target_permanent};
+use crate::cards::authoring::{
+    artifact, basic, becomes_types, creature, each, gains_keyword, land, non, spell_ability, static_ability, target_creature, target_permanent,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
@@ -48,7 +50,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "Target artifact becomes an artifact creature with base power and toughness 5/5 until end of turn.",
-            becomes_types(target_permanent(ObjectFilter::ByType(CardType::Artifact)), TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE })
+            becomes_types(target_permanent(artifact()), TypeChange { add_types: vec![CardType::Creature], ..TypeChange::NONE })
                 .and_has_base_power_and_toughness(5, 5)
                 .until_end_of_turn(),
         ))
@@ -115,13 +117,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
 pub fn blood_moon() -> Arc<CardData> {
     let mountain_set = Subtypes::from([Subtype::Land(LandType::Mountain)]);
 
-    // Filter: Land AND NOT Basic
-    let nonbasic_land_filter = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Land)),
-        Box::new(ObjectFilter::Not(
-            Box::new(ObjectFilter::BySupertype(Supertype::Basic)),
-        )),
-    );
+    let nonbasic_land_filter = land().and(non(basic()));
 
     CardDataBuilder::new("Blood Moon")
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
@@ -157,7 +153,7 @@ pub fn urborg_effect() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(
             "Each land is a Swamp in addition to its other land types.",
-            becomes_types(each(ObjectFilter::ByType(CardType::Land)), TypeChange { add_subtypes: vec![Subtype::Land(LandType::Swamp)], ..TypeChange::NONE }),
+            becomes_types(each(land()), TypeChange { add_subtypes: vec![Subtype::Land(LandType::Swamp)], ..TypeChange::NONE }),
         ))
         .build()
 }
@@ -205,7 +201,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .rules_text("Lands have flying.")
         .ability(static_ability(
             "Lands have flying.",
-            gains_keyword(each(ObjectFilter::ByType(CardType::Land)), KeywordFlag::Flying),
+            gains_keyword(each(land()), KeywordFlag::Flying),
         ))
         .build()
 }
@@ -227,13 +223,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
 /// filter any more — which is exactly why 613.6 says the effect "will continue
 /// to be applied to the same set of objects in each other applicable layer".
 pub fn march_of_the_machines() -> Arc<CardData> {
-    // Artifact AND NOT Creature
-    let noncreature_artifact = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Artifact)),
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(
-            CardType::Creature,
-        )))),
-    );
+    let noncreature_artifact = artifact().and(non(creature()));
 
     CardDataBuilder::new("March of the Machines")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 4))
@@ -277,7 +267,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
         .rules_text("Creatures have flying.")
         .ability(static_ability(
             "Creatures have flying.",
-            gains_keyword(each(ObjectFilter::ByType(CardType::Creature)), KeywordFlag::Flying),
+            gains_keyword(each(creature()), KeywordFlag::Flying),
         ))
         .build()
 }
@@ -307,12 +297,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
 pub fn self_stripping_land() -> Arc<CardData> {
     let mountain_set = Subtypes::from([Subtype::Land(LandType::Mountain)]);
 
-    let nonbasic_land_filter = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Land)),
-        Box::new(ObjectFilter::Not(Box::new(
-            ObjectFilter::BySupertype(Supertype::Basic),
-        ))),
-    );
+    let nonbasic_land_filter = land().and(non(basic()));
 
     CardDataBuilder::new("Moonlit Steppe")
         .card_type(CardType::Land)

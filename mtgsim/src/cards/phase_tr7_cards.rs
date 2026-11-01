@@ -16,7 +16,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, as_long_as, gains_keyword, gains_ability, scry, static_ability, static_replacement, this_object, you, ContinuousChange,
+    activated_ability, as_long_as, colored, creature, gains_ability, gains_keyword, non, scry, static_ability, static_replacement, this_object,
+    with_subtype, you, you_control, ContinuousChange,
 };
 use crate::cards::authoring::persist;
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -24,7 +25,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Condition, CounterType, ObjectFilter, ObjectSet, PlayerFact, PlayerRef, PlayerSet,
+    Condition, CounterType, ObjectSet, PlayerFact, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -32,7 +33,7 @@ use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef,
 
 /// "You control a [color] creature."
 fn you_control_a_creature_of(color: Color) -> Condition {
-    let creature_of_color = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByColor(color)));
+    let creature_of_color = creature().and(colored(color));
     Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(creature_of_color) }
 }
 
@@ -59,10 +60,7 @@ fn you_control_a_creature_of(color: Color) -> Condition {
 ///   look-ahead, after CR 616.1c's copy step.
 pub fn grumgully_the_generous() -> Arc<CardData> {
     let text = "Each other non-Human creature you control enters with an additional +1/+1 counter on it.";
-    let non_human_creature_you_control = ObjectFilter::And(
-        Box::new(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))),
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Human))))),
-    );
+    let non_human_creature_you_control = creature().and(you_control()).and(non(with_subtype(Subtype::Creature(CreatureType::Human))));
     CardDataBuilder::new("Grumgully, the Generous")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Green], 1))
         .color(Color::Red)
@@ -168,7 +166,7 @@ pub fn viscera_seer() -> Arc<CardData> {
         .rules_text(text)
         .ability(activated_ability(
             text,
-            vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Creature), 1)],
+            vec![Cost::Sacrifice(creature(), 1)],
             scry(you(), 1),
         ))
         .build()

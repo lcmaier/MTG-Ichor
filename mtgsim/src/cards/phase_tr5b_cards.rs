@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, create_delayed_trigger, put_counters, remove_counters, target_permanent, this_object, win_the_game, you,
+    activated_ability, create_delayed_trigger, creature, put_counters, remove_counters, target_permanent, this_object, win_the_game, you, you_control,
 };
 use crate::cards::authoring::static_replacement;
 use crate::cards::authoring::{at_beginning_of, counters_put_on, counters_removed_from, triggered_ability, whenever, Whose};
@@ -22,7 +22,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Antecedent, AmountExpr, Condition, CounterType, ObjectFilter, ObjectSet, PlayerRef,
+    Antecedent, AmountExpr, Condition, CounterType, ObjectFilter, ObjectSet,
 };
 use crate::types::history::CountIs;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -30,7 +30,7 @@ use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef,
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerCondition, TriggerDef, TriggerSubject};
 
 fn a_creature_you_control() -> ObjectFilter {
-    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+    creature().and(you_control())
 }
 
 /// Simic Ascendancy — {G}{U}

@@ -20,13 +20,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    as_long_as, becomes_types, creatures_you_control, each, gains_keyword, gets, has_base_power_and_toughness, host, static_ability, this_object,
+    as_long_as, becomes_types, creature, creatures_you_control, each, gains_keyword, gets, has_base_power_and_toughness, host, land, non,
+    other_than_this, static_ability, this_object, token, with_subtype, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, ObjectFilter, PlayerFact, PlayerRef,
+    ObjectSet, AmountExpr, Condition, ObjectFilter, PlayerFact,
     PlayerSet, SelectionFilter, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
@@ -84,7 +85,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
         .rules_text("Each land is a Swamp in addition to its other land types.")
         .ability(static_ability(
             "Each land is a Swamp in addition to its other land types.",
-            becomes_types(each(ObjectFilter::ByType(CardType::Land)), adds(&[], &[Subtype::Land(LandType::Swamp)], &[])),
+            becomes_types(each(land()), adds(&[], &[Subtype::Land(LandType::Swamp)], &[])),
         ))
         .build()
 }
@@ -113,15 +114,11 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// animating every enchantment in a random game would move every
 /// behavioral row of §3's table for a reason that is not the engine's.
 pub fn opalescence() -> Arc<CardData> {
-    let other_non_aura_enchantments = each(ObjectFilter::And(
-        Box::new(ObjectFilter::And(
-            Box::new(ObjectFilter::ByType(CardType::Enchantment)),
-            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(
-                Subtype::Enchantment(EnchantmentType::Aura),
-            )))),
-        )),
-        Box::new(ObjectFilter::NotSource),
-    ));
+    let other_non_aura_enchantments = each(
+        ObjectFilter::ByType(CardType::Enchantment)
+            .and(non(with_subtype(Subtype::Enchantment(EnchantmentType::Aura))))
+            .and(other_than_this()),
+    );
 
     CardDataBuilder::new("Opalescence")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 2))
@@ -169,17 +166,8 @@ pub fn opalescence() -> Arc<CardData> {
 /// In `stress` only: the shape is Urborg's, measured there, and five mana
 /// is a rare cast in a random game.
 pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
-    let lands_you_control = AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Land)),
-        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-    )));
-    let nontoken_creatures_you_control = ObjectFilter::And(
-        Box::new(ObjectFilter::And(
-            Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
-        )),
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-    );
+    let lands_you_control = AmountExpr::CountOf(ObjectSet::battlefield_filter(land().and(you_control())));
+    let nontoken_creatures_you_control = creature().and(you_control()).and(non(token()));
 
     CardDataBuilder::new("Ashaya, Soul of the Wild")
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green], 3))
@@ -232,7 +220,7 @@ pub fn purifier_clause() -> Arc<CardData> {
         .ability(static_ability(
             "Lands you control are basic.",
             becomes_types(
-                each(ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Land)), Box::new(ObjectFilter::ByController(PlayerRef::You)))),
+                each(land().and(you_control())),
                 adds(&[], &[], &[Supertype::Basic]),
             ),
         ))
@@ -278,7 +266,7 @@ pub fn kird_ape() -> Arc<CardData> {
             as_long_as(
                 Condition::Player {
                     players: PlayerSet::You,
-                    fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+                    fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest))),
                 },
                 gets(this_object(), 1, 2),
             ),
@@ -327,7 +315,7 @@ pub fn flight_clause() -> Arc<CardData> {
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::All))
         .ability(static_ability(
             "As long as enchanted permanent is a creature, it has flying.",
-            as_long_as(Condition::HostMatches(ObjectFilter::ByType(CardType::Creature)), gains_keyword(host(), KeywordFlag::Flying)),
+            as_long_as(Condition::HostMatches(creature()), gains_keyword(host(), KeywordFlag::Flying)),
         ))
         .build()
 }
@@ -368,7 +356,7 @@ pub fn simian_clause() -> Arc<CardData> {
             as_long_as(
                 Condition::Player {
                     players: PlayerSet::You,
-                    fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+                    fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Forest))),
                 },
                 becomes_types(each(creatures_you_control()), adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[])),
             ),

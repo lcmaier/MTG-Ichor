@@ -63,15 +63,15 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, has_base_power_and_toughness, remove_counters, static_ability, static_replacement, target_permanent, this_object,
+    activated_ability, artifact, creature, has_base_power_and_toughness, land, non, remove_counters, static_ability, static_replacement,
+    target_permanent, this_object, token, with_subtype, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, CounterType,
-    ObjectFilter, PlayerRef, TypeChange,
+    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -213,7 +213,7 @@ pub fn chainbreaker() -> Arc<CardData> {
         .ability(activated_ability(
             "{3}, {T}: Remove a -1/-1 counter from target creature.",
             vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
-            remove_counters(target_permanent(ObjectFilter::ByType(CardType::Creature)), CounterType::MinusOneMinusOne, 1),
+            remove_counters(target_permanent(creature()), CounterType::MinusOneMinusOne, 1),
         ))
         .build()
 }
@@ -346,10 +346,7 @@ pub fn root_maze() -> Arc<CardData> {
             "Artifacts and lands enter tapped.",
             ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::battlefield_filter(ObjectFilter::Or(
-                        Box::new(ObjectFilter::ByType(CardType::Artifact)),
-                        Box::new(ObjectFilter::ByType(CardType::Land)),
-                    )),
+                ObjectSet::battlefield_filter(artifact().or(land())),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ),
         ))
@@ -421,10 +418,7 @@ pub fn containment_priest() -> Arc<CardData> {
             "If a nontoken creature would enter and it wasn't cast, exile it instead.",
             ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
-                ObjectSet::battlefield_filter(ObjectFilter::And(
-                        Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-                    )),
+                ObjectSet::battlefield_filter(creature().and(non(token()))),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ),
         ))
@@ -508,16 +502,9 @@ pub fn keldon_warlord() -> Arc<CardData> {
     // Built once and cloned into the second slot: `SetPowerToughness` takes
     // its two amounts by value, and this runs at registry construction, not
     // in a game.
-    let non_wall_creatures_you_control =
-        AmountExpr::CountOf(ObjectSet::battlefield_filter(ObjectFilter::And(
-            Box::new(ObjectFilter::And(
-                Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::ByController(PlayerRef::You)),
-            )),
-            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(
-                Subtype::Creature(CreatureType::Wall),
-            )))),
-        )));
+    let non_wall_creatures_you_control = AmountExpr::CountOf(ObjectSet::battlefield_filter(
+        creature().and(you_control()).and(non(with_subtype(Subtype::Creature(CreatureType::Wall)))),
+    ));
     CardDataBuilder::new("Keldon Warlord")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
         .color(Color::Red)
@@ -611,10 +598,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                     // says a sacrifice is its controller moving it, so nothing
                     // else could be chosen. On the battlefield that has to be a
                     // filter leaf, because control and ownership diverge there.
-                    filter: ObjectFilter::And(
-                        Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    ),
+                    filter: creature().and(you_control()),
                     to: Zone::Graveyard,
                     act: ZoneChangeAct::Sacrificed,
                     // "Any number", so the bound is the candidate list and the
@@ -701,7 +685,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
                     // `ByController` leaf — a player's graveyard is enumerated
                     // in its own order.
                     from: Zone::Graveyard,
-                    filter: ObjectFilter::ByType(CardType::Creature),
+                    filter: creature(),
                     to: Zone::Exile,
                     act: ZoneChangeAct::Put,
                     up_to: None,
@@ -780,10 +764,7 @@ pub fn master_biomancer() -> Arc<CardData> {
             "Each other creature you control enters with a number of additional +1/+1 counters on it equal to this creature's power and as a Mutant in addition to its other types.",
             ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::battlefield_filter(ObjectFilter::And(
-                        Box::new(ObjectFilter::ByType(CardType::Creature)),
-                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    )),
+                ObjectSet::battlefield_filter(creature().and(you_control())),
                 Rewrite::EnterWith(EnterModsTemplate {
                     edits: vec![CharacteristicEdit::Types(TypeChange {
                         add_subtypes: vec![Subtype::Creature(CreatureType::Mutant)],

@@ -13,15 +13,15 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    another, at_beginning_of, create_delayed_trigger, enters, exile, exile_until, leaves_the_battlefield, referred, return_to_the_battlefield,
-    target_permanent, triggered_ability, whenever, you, Whose,
+    an_opponent_controls, another, at_beginning_of, create_delayed_trigger, enters, exile, exile_until, land, leaves_the_battlefield, non, referred,
+    return_to_the_battlefield, target_permanent, triggered_ability, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Effect, ObjectFilter, PlayerRef, ReturnUnder,
+    Effect, ObjectFilter, ReturnUnder,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -128,10 +128,7 @@ pub fn flickerwisp() -> Arc<CardData> {
 ///   return to the battlefield."* (#4) → `a_token_banishing_light_exiles_does_not_return`.
 pub fn banishing_light() -> Arc<CardData> {
     let text = "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.";
-    let nonland_an_opponent_controls = ObjectFilter::And(
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Land)))),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
-    );
+    let nonland_an_opponent_controls = non(land()).and(an_opponent_controls());
     CardDataBuilder::new("Banishing Light")
         .mana_cost(ManaCost::build(&[ManaType::White], 2))
         .color(Color::White)

@@ -22,14 +22,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    another, at_beginning_of, create_tokens, dies, enters, gain_life, host, its_controller_adds, lose_life, target_player, triggered_ability, whenever,
-    win_the_game, you, Whose,
+    another, at_beginning_of, create_tokens, creature, dies, enters, gain_life, host, its_controller_adds, land, lose_life, target_player,
+    triggered_ability, whenever, win_the_game, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, ManaOutput, ObjectFilter, PlayerFact, PlayerSet, SelectionFilter, TokenDef,
+    AmountExpr, Condition, Effect, ManaOutput, PlayerFact, PlayerSet, SelectionFilter, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -60,7 +60,7 @@ pub fn soul_warden() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text("Whenever another creature enters, you gain 1 life.")
         .ability(triggered_ability("Whenever another creature enters, you gain 1 life.", whenever(
-            enters(another(ObjectFilter::ByType(CardType::Creature))),
+            enters(another(creature())),
             gain_life(you(), 1),
         )))
         .build()
@@ -91,7 +91,7 @@ pub fn blood_artist() -> Arc<CardData> {
         .power_toughness(0, 1)
         .rules_text("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.")
         .ability(triggered_ability("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.", whenever(
-            dies(ObjectFilter::ByType(CardType::Creature)),
+            dies(creature()),
             Effect::Sequence(vec![
                 lose_life(target_player(), 1),
                 gain_life(you(), 1),
@@ -176,7 +176,7 @@ pub fn wild_growth() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .rules_text("Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.")
-        .enchant_filter(SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)))
+        .enchant_filter(SelectionFilter::Permanent(land()))
         .ability(triggered_ability("Whenever enchanted land is tapped for mana, its controller adds an additional {G}.", whenever(
             TriggerEvent::ManaAdded { source: TriggerSubject::Host, tapped_for_mana: Some(true), mana: None },
             its_controller_adds(host(), ManaOutput { mana: vec![(ManaType::Green, AmountExpr::Fixed(1))], special: vec![] }),

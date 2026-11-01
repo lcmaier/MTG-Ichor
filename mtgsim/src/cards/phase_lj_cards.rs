@@ -15,7 +15,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    as_long_as, becomes_colorless, each_in, gains_keyword, gets, is_also_color, loses_all_abilities, static_ability, static_replacement, this_object,
+    as_long_as, becomes_colorless, colored, creature, each_in, gains_keyword, gets, is_also_color, loses_all_abilities, static_ability,
+    static_replacement, this_object,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -178,7 +179,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
         .ability(static_ability(
             "This creature gets +2/+2 as long as there's a red card in your graveyard.",
             as_long_as(
-                Condition::Player { players: PlayerSet::You, fact: PlayerFact::CardInGraveyard(ObjectFilter::ByColor(Color::Red)) },
+                Condition::Player { players: PlayerSet::You, fact: PlayerFact::CardInGraveyard(colored(Color::Red)) },
                 gets(this_object(), 2, 2),
             ),
         ))
@@ -214,7 +215,7 @@ pub fn teferi_flash_clause() -> Arc<CardData> {
             "Creature cards you own that aren't on the battlefield have flash.",
             gains_keyword(
                 each_in(
-                    ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByOwner(PlayerRef::You))),
+                    creature().and(ObjectFilter::ByOwner(PlayerRef::You)),
                     ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
                 ),
                 KeywordFlag::Flash,

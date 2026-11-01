@@ -11,9 +11,9 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::{artifact, creature, you_control};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
-use crate::types::effects::{ObjectFilter, PlayerRef};
 use crate::types::mana::ManaCost;
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerEvent, TriggerMultiplierDef, TriggerSubject};
 
@@ -52,10 +52,7 @@ use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerEvent, Trigg
 ///   yet expressible; CR 607's linked abilities are `backlog.md` §2.2's.
 pub fn panharmonicon() -> Arc<CardData> {
     let text = "If an artifact or creature entering causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.";
-    let artifact_or_creature = ObjectFilter::Or(
-        Box::new(ObjectFilter::ByType(CardType::Artifact)),
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-    );
+    let artifact_or_creature = artifact().or(creature());
     let multiplier = TriggerMultiplierDef {
         caused_by: Some(TriggerCondition::Event(TriggerEvent::EntersBattlefield {
             subject: TriggerSubject::Filter(artifact_or_creature),
@@ -64,7 +61,7 @@ pub fn panharmonicon() -> Arc<CardData> {
             was_cast: None,
             multiplicity: Multiplicity::PerOccurrence,
         })),
-        abilities_of: ObjectFilter::ByController(PlayerRef::You),
+        abilities_of: you_control(),
         additional: 1,
     };
     CardDataBuilder::new("Panharmonicon")

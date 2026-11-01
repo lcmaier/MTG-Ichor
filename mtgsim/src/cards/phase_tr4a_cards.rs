@@ -13,13 +13,13 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{draw_cards, gets, host, return_to_hand, static_ability, triggering_object, you};
+use crate::cards::authoring::{colored, draw_cards, gets, host, non, return_to_hand, static_ability, token, triggering_object, you};
 use crate::cards::authoring::{dies, triggered_ability, undying, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Effect, ObjectFilter, PlayerRef, SelectionFilter,
+    Effect, PlayerRef, SelectionFilter,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -127,10 +127,7 @@ pub fn demonic_vigor() -> Arc<CardData> {
 ///   battlefield."* (#1) → `compost_sees_a_black_card_reach_a_graveyard_from_every_zone`.
 pub fn compost() -> Arc<CardData> {
     let text = "Whenever a black card is put into an opponent's graveyard from anywhere, you may draw a card.";
-    let black_card = ObjectFilter::And(
-        Box::new(ObjectFilter::ByColor(Color::Black)),
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-    );
+    let black_card = colored(Color::Black).and(non(token()));
     let put_into_an_opponents_graveyard = TriggerEvent::ZoneChange {
         subject: TriggerSubject::Filter(black_card),
         change: ZoneChangePattern { from: None, to: Some(Zone::Graveyard), act: None },

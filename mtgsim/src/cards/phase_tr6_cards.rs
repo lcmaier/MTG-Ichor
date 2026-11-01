@@ -13,7 +13,10 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create_tokens, destroy, discard, draw_cards, each, lose_the_game, sacrifice, spell_ability, this_object, you};
+use crate::cards::authoring::{
+    create_tokens, creature, destroy, discard, draw_cards, each, lose_the_game, non, other_than_this, sacrifice, spell_ability, this_object,
+    with_subtype, you, you_control,
+};
 use crate::cards::authoring::triggered_ability;
 use crate::cards::phase_re_cards::soldier_token;
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -53,7 +56,7 @@ fn you_now(fact: PlayerFact) -> Condition {
 /// - *It checks only as it triggers, so a creature gained before it resolves
 ///   doesn't save it* (#2) → `emperor_crocodile_is_sacrificed_whatever_arrives_before_it_resolves`.
 pub fn emperor_crocodile() -> Arc<CardData> {
-    let other_creature = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::NotSource));
+    let other_creature = creature().and(other_than_this());
     CardDataBuilder::new("Emperor Crocodile")
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .color(Color::Green)
@@ -124,13 +127,7 @@ pub fn discard_your_hand_then_draw_that_many() -> Arc<CardData> {
 /// The ruling names Brago, King Eternal's flicker; a creature destroyed and a
 /// token made is the same moment.
 pub fn destroy_your_others_then_a_token() -> Arc<CardData> {
-    let your_non_crocodiles = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::And(
-            Box::new(ObjectFilter::ByController(PlayerRef::You)),
-            Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(Subtype::Creature(CreatureType::Crocodile))))),
-        )),
-    );
+    let your_non_crocodiles = creature().and(you_control().and(non(with_subtype(Subtype::Creature(CreatureType::Crocodile)))));
     spell(
         "Fixture: destroy your other creatures, then make a Soldier",
         "Destroy each non-Crocodile creature you control, then create a 1/1 white Soldier creature token.",

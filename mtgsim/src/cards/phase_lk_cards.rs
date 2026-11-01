@@ -15,12 +15,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{as_long_as, creatures_you_control, each, functioning_in, gains_keyword, gets, static_ability};
+use crate::cards::authoring::{as_long_as, creatures_you_control, each, functioning_in, gains_keyword, gets, static_ability, with_subtype};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Condition, ObjectFilter, PlayerFact, PlayerSet,
+    Condition, PlayerFact, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -83,7 +83,7 @@ pub fn wonder() -> Arc<CardData> {
                 as_long_as(
                     Condition::Player {
                         players: PlayerSet::You,
-                        fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
+                        fact: PlayerFact::ControlsPermanent(with_subtype(Subtype::Land(LandType::Island))),
                     },
                     gains_keyword(each(creatures_you_control()), KeywordFlag::Flying),
                 ),

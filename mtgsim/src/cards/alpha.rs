@@ -12,8 +12,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    any_target, counter_spell, deal_damage, destroy, draw_cards, gets, spell_ability, target_creature, target_permanent, target_player, target_spell,
-    untap,
+    any_target, counter_spell, deal_damage, destroy, draw_cards, gets, land, spell_ability, target_creature, target_permanent, target_player,
+    target_spell, untap,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
@@ -112,7 +112,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
         .rules_text("Destroy target land.")
         .ability(spell_ability(
             "Destroy target land.",
-            destroy(target_permanent(ObjectFilter::ByType(CardType::Land))),
+            destroy(target_permanent(land())),
         ))
         .build()
 }

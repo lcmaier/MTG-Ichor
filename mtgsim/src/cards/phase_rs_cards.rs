@@ -14,12 +14,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{chosen_by, sacrifice, spell_ability, static_restriction, target_player};
+use crate::cards::authoring::{chosen_by, creature, sacrifice, spell_ability, static_restriction, target_player, you_control};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, Choice, ChoiceScope, ChoiceSide, ObjectFilter, ObjectSet, Pick, PlayerRef,
+    AffectedSet, Choice, ChoiceScope, ChoiceSide, ObjectSet, Pick, PlayerRef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -105,7 +105,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                     change: ZoneChangePattern { from: Some(Zone::Battlefield), to: Some(Zone::Graveyard), act: Some(ZoneChangeAct::Sacrificed) },
                     object: None,
                 },
-                affected: AffectedSet::objects(ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You))),
+                affected: AffectedSet::objects(ObjectSet::battlefield_filter(you_control())),
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             },
         ))
@@ -151,7 +151,7 @@ pub fn diabolic_edict() -> Arc<CardData> {
             sacrifice(chosen_by(Choice {
                 chooser: target_player(),
                 among: ChoiceScope::ChoosersPermanents,
-                picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))],
+                picks: vec![Pick::exactly(1, creature())],
                 acts_on: ChoiceSide::Chosen,
             })),
         ))

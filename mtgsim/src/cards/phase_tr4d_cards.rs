@@ -13,15 +13,13 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    create_delayed_trigger, draw_cards, gain_control_of, gains_keyword, referred, spell_ability, spell_is_countered, tap, target_permanent, that_target,
-    triggered_ability, untap, whenever, you, you_lose_control_of, Whose,
+    an_opponent_controls, create_delayed_trigger, creature, draw_cards, gain_control_of, gains_keyword, referred, spell_ability, spell_is_countered,
+    tap, target_permanent, that_target, triggered_ability, untap, whenever, you, you_lose_control_of, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{
-    Effect, ObjectFilter, PlayerRef,
-};
+use crate::types::effects::Effect;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn, TriggerSubject};
@@ -85,10 +83,7 @@ pub fn multanis_presence() -> Arc<CardData> {
 ///   `ray_of_command_taps_the_creature_in_the_cleanup_step`.
 pub fn ray_of_command() -> Arc<CardData> {
     let text = "Untap target creature an opponent controls and gain control of it until end of turn. That creature gains haste until end of turn. When you lose control of the creature, tap it.";
-    let creature_an_opponent_controls = ObjectFilter::And(
-        Box::new(ObjectFilter::ByType(CardType::Creature)),
-        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
-    );
+    let creature_an_opponent_controls = creature().and(an_opponent_controls());
     let tap_it = DelayedTriggerTemplate {
         def: Arc::new(whenever(
             you_lose_control_of(TriggerSubject::Referred),

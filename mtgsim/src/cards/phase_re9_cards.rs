@@ -63,16 +63,16 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, add_mana, create_replacement, mana_ability, spell_ability};
+use crate::cards::authoring::{activated_ability, add_mana, basic, create_replacement, land, mana_ability, non, spell_ability, you_control};
 use crate::cards::authoring::static_replacement;
 use crate::objects::card_data::{
     CardData, CardDataBuilder,
 };
-use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
+use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, ManaOutput, ObjectFilter, PlayerRef, PlayerSet,
+    AmountExpr, ManaOutput, ObjectFilter, PlayerSet,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -227,10 +227,7 @@ pub fn deep_water() -> Arc<CardData> {
             "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
             vec![Cost::Mana(ManaCost::build(&[ManaType::Blue], 0))],
             create_replacement(ReplacementDef::new(
-                tapped_for_mana(Some(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Land)),
-                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ))),
+                tapped_for_mana(Some(land().and(you_control()))),
                 PlayerSet::You,
                 Rewrite::Instead(GameActionTemplate::ProduceMana { mana_type: ManaType::Blue, amount: TemplateAmount::ReplacedAmount }),
             ))
@@ -270,10 +267,7 @@ pub fn pale_moon() -> Arc<CardData> {
         .ability(spell_ability(
             "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
             create_replacement(ReplacementDef::new(
-                tapped_for_mana(Some(ObjectFilter::And(
-                    Box::new(ObjectFilter::ByType(CardType::Land)),
-                    Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySupertype(Supertype::Basic)))),
-                ))),
+                tapped_for_mana(Some(land().and(non(basic())))),
                 PlayerSet::Everyone,
                 Rewrite::Instead(GameActionTemplate::ProduceMana { mana_type: ManaType::Colorless, amount: TemplateAmount::ReplacedAmount }),
             ))

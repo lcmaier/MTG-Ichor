@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{add_phases, create_tokens, each, spell_ability, untap, you};
+use crate::cards::authoring::{add_phases, create_tokens, creature, each, spell_ability, untap, you};
 use crate::cards::authoring::{attacks, triggered_ability, whenever};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
@@ -112,7 +112,7 @@ pub fn hanweir_garrison() -> Arc<CardData> {
 pub fn relentless_assault() -> Arc<CardData> {
     let text = "Untap all creatures that attacked this turn. After this main phase, there is an additional combat phase followed by an additional main phase.";
     let attacked_this_turn =
-        ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ThisTurn(ObjectFact::Attacked)));
+        creature().and(ObjectFilter::ThisTurn(ObjectFact::Attacked));
     CardDataBuilder::new("Relentless Assault")
         .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
         .color(Color::Red)

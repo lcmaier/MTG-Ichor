@@ -33,14 +33,17 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{activated_ability, add_mana, destroy, draw_cards, mana_ability, spell_ability, target_permanent, you};
+use crate::cards::authoring::{
+    activated_ability, add_mana, artifact, colored, creature, destroy, draw_cards, mana_ability, non, spell_ability, target_permanent, you,
+    you_control,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::cost_modification::{CostChange, CostModificationDef};
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{
-    AmountExpr, Condition, ManaOutput, ObjectFilter, PlayerRef,
+    AmountExpr, Condition, ManaOutput, ObjectFilter,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -48,7 +51,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// "Spells you cast" — CR 109.5's "you" is the source's current controller,
 /// and a spell's controller is its caster.
 fn you_cast(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::ByController(PlayerRef::You)))
+    filter.and(you_control())
 }
 
 /// Thalia, Guardian of Thraben — {1}{W}
@@ -85,7 +88,7 @@ pub fn thalia_guardian_of_thraben() -> Arc<CardData> {
         .rules_text("First strike\nNoncreature spells cost {1} more to cast.")
         .ability(
             CostModificationDef::spells(
-                ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature))),
+                non(creature()),
                 CostChange::Increase(ManaCost::build(&[], 1)),
             )
             .into_ability("Noncreature spells cost {1} more to cast."),
@@ -117,10 +120,7 @@ pub fn goblin_electromancer() -> Arc<CardData> {
         .rules_text("Instant and sorcery spells you cast cost {1} less to cast.")
         .ability(
             CostModificationDef::spells(
-                you_cast(ObjectFilter::Or(
-                    Box::new(ObjectFilter::ByType(CardType::Instant)),
-                    Box::new(ObjectFilter::ByType(CardType::Sorcery)),
-                )),
+                you_cast(ObjectFilter::ByType(CardType::Instant).or(ObjectFilter::ByType(CardType::Sorcery))),
                 CostChange::Reduce(ManaCost::build(&[], 1)),
             )
             .into_ability("Instant and sorcery spells you cast cost {1} less to cast."),
@@ -199,7 +199,7 @@ pub fn myr_enforcer() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Myr))
         .power_toughness(4, 4)
         .rules_text("Affinity for artifacts")
-        .affinity_for("Affinity for artifacts", ObjectFilter::ByType(CardType::Artifact))
+        .affinity_for("Affinity for artifacts", artifact())
         .build()
 }
 
@@ -223,7 +223,7 @@ pub fn frogmite() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Frog))
         .power_toughness(2, 2)
         .rules_text("Affinity for artifacts")
-        .affinity_for("Affinity for artifacts", ObjectFilter::ByType(CardType::Artifact))
+        .affinity_for("Affinity for artifacts", artifact())
         .build()
 }
 
@@ -288,7 +288,7 @@ pub fn green_reducer() -> Arc<CardData> {
         "Green Reducer",
         Color::Green,
         ManaType::Green,
-        ObjectFilter::ByColor(Color::Green),
+        colored(Color::Green),
         ManaCost::build(&[ManaType::Green], 0),
         "Green spells you cast cost {G} less to cast.",
     )
@@ -302,7 +302,7 @@ pub fn red_reducer() -> Arc<CardData> {
         "Red Reducer",
         Color::Red,
         ManaType::Red,
-        ObjectFilter::ByColor(Color::Red),
+        colored(Color::Red),
         ManaCost::build(&[ManaType::Red], 0),
         "Red spells you cast cost {R} less to cast.",
     )
@@ -431,7 +431,7 @@ pub fn altars_reap() -> Arc<CardData> {
             "As an additional cost to cast this spell, sacrifice a creature.\nDraw two cards.",
         )
         .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(
-            ObjectFilter::ByType(CardType::Creature),
+            creature(),
             1,
         )]))
         .ability(spell_ability(
@@ -464,10 +464,7 @@ pub fn thunderscape_familiar() -> Arc<CardData> {
         .rules_text("First strike\nBlack spells and green spells you cast cost {1} less to cast.")
         .ability(
             CostModificationDef::spells(
-                you_cast(ObjectFilter::Or(
-                    Box::new(ObjectFilter::ByColor(Color::Black)),
-                    Box::new(ObjectFilter::ByColor(Color::Green)),
-                )),
+                you_cast(colored(Color::Black).or(colored(Color::Green))),
                 CostChange::Reduce(ManaCost::build(&[], 1)),
             )
             .into_ability("Black spells and green spells you cast cost {1} less to cast."),
@@ -499,7 +496,7 @@ pub fn krark_clan_ironworks() -> Arc<CardData> {
         .rules_text("Sacrifice an artifact: Add {C}{C}.")
         .ability(mana_ability(
             "Sacrifice an artifact: Add {C}{C}.",
-            vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1)],
+            vec![Cost::Sacrifice(artifact(), 1)],
             add_mana(ManaOutput { mana: vec![(ManaType::Colorless, AmountExpr::Fixed(2))], special: vec![] }),
         ))
         .build()
@@ -526,7 +523,7 @@ pub fn foundry_inspector() -> Arc<CardData> {
         .rules_text("Artifact spells you cast cost {1} less to cast.")
         .ability(
             CostModificationDef::spells(
-                you_cast(ObjectFilter::ByType(CardType::Artifact)),
+                you_cast(artifact()),
                 CostChange::Reduce(ManaCost::build(&[], 1)),
             )
             .into_ability("Artifact spells you cast cost {1} less to cast."),
@@ -606,12 +603,12 @@ pub fn bone_splinters() -> Arc<CardData> {
             "As an additional cost to cast this spell, sacrifice a creature.\nDestroy target creature.",
         )
         .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(
-            ObjectFilter::ByType(CardType::Creature),
+            creature(),
             1,
         )]))
         .ability(spell_ability(
             "Destroy target creature.",
-            destroy(target_permanent(ObjectFilter::ByType(CardType::Creature))),
+            destroy(target_permanent(creature())),
         ))
         .build()
 }
@@ -627,7 +624,7 @@ pub fn bone_splinters() -> Arc<CardData> {
 pub fn twin_offering() -> Arc<CardData> {
     lesson("Twin Offering", ManaCost::build(&[ManaType::Black], 2), Color::Black, CardType::Sorcery)
         .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(
-            ObjectFilter::ByType(CardType::Creature),
+            creature(),
             2,
         )]))
         .build()
@@ -652,7 +649,7 @@ pub fn self_eating_engine() -> Arc<CardData> {
         .ability(activated_ability(
             "Sacrifice an artifact, {T}: Draw a card.",
             vec![
-                Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1),
+                Cost::Sacrifice(artifact(), 1),
                 Cost::TapSelf,
             ],
             draw_cards(you(), 1),

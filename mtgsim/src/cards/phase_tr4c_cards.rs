@@ -15,7 +15,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    any_target, create_tokens, deal_damage, exile, gets, host, return_to_hand, spell_ability, static_ability, this_object, triggering_object, you,
+    any_target, create_tokens, creature, deal_damage, exile, gets, host, non, return_to_hand, spell_ability, static_ability, this_object, token,
+    triggering_object, you,
 };
 use crate::cards::authoring::{dies, functioning_in, triggered_ability, whenever};
 use crate::cards::phase_rb_cards::zombie_token;
@@ -228,7 +229,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
     let zombie = "Whenever a nontoken creature is put into your graveyard from the battlefield, if this card is in your graveyard, create a 2/2 black Zombie creature token.";
     let exile_text = "When a creature is put into an opponent's graveyard from the battlefield, if this card is in your graveyard, exile this card.";
     let nontoken_creature =
-        ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))));
+        creature().and(non(token()));
     CardDataBuilder::new("Bridge from Below")
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Black], 0))
         .color(Color::Black)
@@ -251,7 +252,7 @@ pub fn bridge_from_below() -> Arc<CardData> {
             triggered_ability(
                 exile_text,
                 whenever(
-                    put_into_a_graveyard_from_the_battlefield(ObjectFilter::ByType(CardType::Creature), PlayerRef::Opponent),
+                    put_into_a_graveyard_from_the_battlefield(creature(), PlayerRef::Opponent),
                     exile(this_object()),
                 ),
             ),
