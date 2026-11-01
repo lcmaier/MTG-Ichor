@@ -10272,6 +10272,17 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      scenario at a turn's beginning and playing the decisions to the point
      (the owner, #305's review): the scenario format's audit, which opens
      `pausing-at-a-decision`'s design, decides both.
+     **The matcher compares text, and goes typed with this item** (the
+     owner, #305's review). An answer finds its option by the words
+     `ChoiceOption::as_logged` writes, compared with each offered option's
+     words (`position_named`), so which option an answer means turns on how
+     options render: a change to an object's name in text (`backlog.md`
+     §2.36) is a change to matching, and two options that render alike are
+     one. A test's script even turns its typed `ChoiceOption` into words to
+     compare them. The log reader is to parse each answer's words back into
+     a typed identity once ("Grizzly Bears (#7)" is `Object(#7)`, the name
+     kept as a check that the id still names that card), and the script and
+     the replay compare typed values; the log's text is unchanged.
      **Reachability (2026-11-01):** reachable — not wrong in any game: the
      engine applies the effect at the place chosen, which is exact within a
      build; what is lost is a client's label and a replay across builds.
@@ -10280,6 +10291,9 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      ability on its object, a counter's kind, a registry row), written by
      `ChoiceOption::as_logged`, which changes the log's format, and found by
      the replay; ~80–150 lines, and the alike answers then named outright.
+     The typed matcher, ~150–250 more: a parser for each option shape the
+     log writes (the costs, "alternative Flashback {1}{R}", the hard ones),
+     and `ChoiceOption` comparable.
      **Slotted:** `pausing-at-a-decision`, whose design names every option
      by what it is (`roadmap-v2.md` §3a).
 
