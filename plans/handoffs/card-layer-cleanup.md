@@ -190,9 +190,15 @@ their first cards (289 and 43 printed), moved the Everywhere fixture to
 PR 4, and counted the move's commit zero. A `.git-blame-ignore-revs` entry
 for the move was dropped: the set files are new in that commit, so blame
 has no earlier version to fall back on, and `git blame -C -C` already
-finds each line's commit across the move. `you_now`'s name and reach are
-still open, beside a census of the "you" conditions printed cards ask
-(Menacing Ogre's "if you are one of those players" among them).
+finds each line's commit across the move. A fact about the controller is
+`you_have(fact)`, one word per who (an opponent's arrives with its first
+card), at all ten cards that ask one. A census of the "you" conditions
+printed cards ask found most missing ones to be new facts about a player,
+which go behind the same word as new `PlayerFact`s (counts, the monarch,
+whose turn it is), and the rest questions about the spell, the resolution
+or the game (how it was cast, "this way", Menacing Ogre's "if you are one
+of those players", day and night), each a condition and a word of its
+own with its first card.
 
 **Every PR carries a consumer**: PR 1's and PR 2's are the card files,
 PR 3's is the decklists, PR 4's are Elvish Warmaster and its fixtures,
