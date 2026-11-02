@@ -871,31 +871,35 @@ doc's contract ("adding a new variant here is the only change"), and each
 kind's `subject` and wording stay one match arm. B saves arms in matches that
 are exhaustive on purpose.
 
-### Decision 8 — when a selection that does not target is made (item 28, `backlog.md`'s "2.33 Choice versus target")
+### Decision 8 — a "choose" that does not target is asked as the effect applies (item 28, `backlog.md`'s "2.33 Choice versus target"): settled in review, a fix
 
-**The problem.** `EffectRecipient::Choose` is collected as an instance of
-"target" and announced at cast in `Target`'s arm (`engine/put_on_stack.rs:337`),
-though CR 608.2d makes a plain "choose" at resolution and only CR 601.2b's
-list is announced early. No registered card constructs a `Choose`. Item 28
-adds that a rider cannot name "each of them" and that `resolve_primitive`'s
-object-reaching arms read only `ctx.targets`. The census: of 36 cards saying
-"as you cast this spell", 33 are a mode count raised by a condition (decision
-2) and none chooses an object; so no printed card announces a non-targeting
-selection early.
+**What is wrong today.** A "choose a creature" in an effect is not a
+target: it is made as the effect applies (CR 608.2d), hexproof and shroud do
+not stop it (they stop targeting, 702.11b, 702.18a), and a spell with no
+creature to choose can still be cast. The engine has the three backwards.
+`EffectRecipient::Choose` is collected with the instances of "target"
+(`Effect::instances`), announced at cast in `Target`'s arm
+(`engine/put_on_stack.rs:336`), and must have a legal choice before the
+spell is offered (`oracle/mana_helpers.rs:443`). No registered card
+constructs one, so no game plays wrong today; the first card that writes one
+would. Item 28 adds that a rider cannot name "each of them" and that
+`resolve_primitive`'s object-reaching arms read only `ctx.targets`.
 
-- **A. `Choose` leaves the instance list and is asked at resolution**: one
-  `recipients_for(ctx, recipient)` resolves `Choose`, `FilteredPermanents`
-  (already, `affected_permanents`) and a set the event names, and the
-  object-reaching arms read through it. *Code*: ~150–250 lines, item 28's
-  sizing; the instance walk and CR 608.2b's re-check lose their `Choose` legs.
-- **B. `Choose` gains a timing**, `Choose { at: Announcement | Resolution }`,
-  and stays in the instance list for the first. *Upkeep*: a timing no printed
-  card asks, on 272 `EffectRecipient` uses.
+**The fix**, item 28's: `Choose` leaves the instance list and is asked at
+resolution. One `recipients_for(ctx, recipient)` resolves `Choose`,
+`FilteredPermanents` (already, `affected_permanents`) and a set the event
+names, and the object-reaching arms read through it. The instance walk, the
+castability check and CR 608.2b's re-check lose their `Choose` legs. *Code*:
+~150–250 lines, item 28's sizing. The Black Gate ("choose a player … target
+creature") is a `Choose` at resolution beside a target at cast, as written.
 
-**Recommendation: A.** The census finds no early non-targeting selection, and
-CR 601.2b's list, the only early one, is modes, costs and X, each of which has
-its own shape. The Black Gate ("choose a player … target creature") is a
-`Choose` at resolution beside a target at cast, which A expresses as written.
+**Why there is no second option.** The note offered a timing on `Choose`, for
+a selection announced at cast. The CR announces nothing at cast that is not a
+target except 601.2b's list (modes, costs, X), and the census found one more
+family: an additional cost that chooses (Close Encounter's and Monstrous
+Emergence's "choose a creature you control", Caller of the Hunt's creature
+type). That choice is part of a cost, paid at 601.2h and owned by the cost
+model (`remaining-costs`), never an effect's `Choose`.
 
 ## The build, sized
 
