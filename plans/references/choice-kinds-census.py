@@ -3,6 +3,7 @@
     python plans/references/choice-kinds-census.py                    # the counts
     python plans/references/choice-kinds-census.py --names FAMILY     # one family's cards and the clause that put them there
     python plans/references/choice-kinds-census.py --deck NAMES.txt   # a second column: how many of a deck list's cards
+    python plans/references/choice-kinds-census.py --names FAMILY --sample 7   # twelve of a family's cards, seeded
 
 Behind `modes-plus-choice-kinds`' design note
 (`plans/handoffs/modes-plus-choice-kinds.md`): the families each decision's
@@ -18,7 +19,12 @@ stripped first, a mode is a bulleted list behind a "choose" instruction (CR
 unless"). Where the clause sits (a spell, after an activation cost's colon,
 behind a trigger word) is read off the line, so the "where" rows are
 approximate; the family rows were read card by card for every family under 40
-and a seeded sample of each larger one.
+and twelve of each larger one (`--sample 7`).
+
+The corpus is paper. Alchemy's digital-only cards are in scope and were
+counted on Scryfall on 2026-11-01 (`game:arena -game:paper`): 84 bulleted,
+63 with "unless", 12 "divided as you choose", 61 "may pay", 16 choosing a
+value, and 65 drafting from a spellbook, a pick among card definitions.
 
 INPUT
 -----
@@ -26,10 +32,13 @@ INPUT
 Commander-legal paper card (`legal:commander -t:token game:paper -is:funny`).
 If it is missing, run `python plans/references/cast-census.py` first (about
 seven minutes). Its fetch date is printed with the counts. A deck list is one
-card name a line, as Scryfall's `e:tdc -t:basic` gives it.
+card name a line: `tdc-names.txt` beside this script is Scryfall's
+`e:tdc -t:basic` (unique cards, 373, fetched 2026-11-01), the five decks v0.5
+plays.
 """
 import json
 import os
+import random
 import re
 import sys
 from collections import OrderedDict
@@ -342,10 +351,7 @@ def _(c, t):
 
 @family("an amount chosen as the effect pays it: {X}, X life, any amount")
 def _(c, t):
-    stripped = t
-    if "{X}" in (c.get("mana") or ""):
-        return False
-    return PAY_X_RESOLUTION.search(stripped)
+    return "{X}" not in (c.get("mana") or "") and PAY_X_RESOLUTION.search(t)
 
 
 @family("divided: among targets (CR 601.2d)")
@@ -378,18 +384,28 @@ def _(c, t):
     return MASS_ENTRY.search(t)
 
 
+@family("order: a creature whose power or toughness reads the pool or the life total (CR 601.2h)")
+def _(c, t):
+    return "Creature" in c["type"] and re.search(
+        r"(?:power|toughness|gets \+1/\+1)[^.]*(?:equal to|for each)[^.]*(?:unspent|mana in your mana pool|your life total)",
+        t, re.I)
+
+
 for _value, _rx in VALUES.items():
     def _make(rx):
         def at_resolution(c, t):
-            entering = " ".join(m.group(1) for m in AS_ENTERS.finditer(t))
-            rest = AS_ENTERS.sub("", t)
-            return rx.search(rest)
+            return rx.search(AS_ENTERS.sub("", t))
         def as_entering(c, t):
             return any(rx.search(m.group(1)) for m in AS_ENTERS.finditer(t))
         return at_resolution, as_entering
     _res, _ent = _make(_rx)
     FAMILIES["value at resolution: " + _value] = _res
     FAMILIES["value as it enters: " + _value] = _ent
+
+
+@family("value at resolution: a card name narrowed by what the card is")
+def _(c, t):
+    return re.search(r"\bchooses? an? (?:nonland|creature|land|noncreature|artifact|instant or sorcery|nonbasic land)[\w -]*? card name\b", t, re.I)
 
 
 def load():
@@ -407,9 +423,11 @@ def main(argv):
     texts = [(c, REMINDER.sub("", c.get("text") or "")) for c in cards]
     if "--names" in argv:
         want = argv[argv.index("--names") + 1]
-        for c, t in texts:
-            if FAMILIES[want](c, t) and (deck is None or c["name"] in deck):
-                print(c["name"], "|", t.replace("\n", " / ")[:240])
+        hits = [(c, t) for c, t in texts if FAMILIES[want](c, t) and (deck is None or c["name"] in deck)]
+        if "--sample" in argv:
+            hits = random.Random(int(argv[argv.index("--sample") + 1])).sample(hits, min(12, len(hits)))
+        for c, t in hits:
+            print(c["name"], "|", t.replace("\n", " / ")[:240])
         return
     print(f"corpus fetched {fetched}, {len(cards)} cards")
     for name, f in FAMILIES.items():

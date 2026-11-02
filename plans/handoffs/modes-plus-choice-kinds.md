@@ -8,7 +8,12 @@ file. Every count below was read against `d00a2abd`; the printed counts are
 `plans/references/choice-kinds-census.py`'s, run 2026-11-01 over its cached
 corpus (every Commander-legal paper card, fetched 2026-10-05, 32,115 cards),
 with a second column for Tarkir: Dragonstorm Commander's 373 cards (`tdc`,
-Scryfall `e:tdc -t:basic`), the five decks v0.5 plays.
+Scryfall `e:tdc -t:basic`, committed as `plans/references/tdc-names.txt`), the
+five decks v0.5 plays. The corpus is paper; Alchemy's digital-only cards, in
+scope, were counted beside it on Scryfall (the census's docstring) and add no
+family the paper cards lack: 84 modal, 63 "unless", 12 divided, 61 "may pay",
+16 values, and 65 drafting from a spellbook, which is decision 7's card-name
+pick over a list the card names.
 
 **What changes in a game of Magic.** A modal spell or ability ("Choose one
 —", CR 700.2) can be cast, activated or put on the stack and resolves with the
@@ -60,20 +65,23 @@ elsewhere, and item 158 as slotted elsewhere with its modal axis here), and
 | 31 | `StackEntry.chosen_modes` has no writer and no reader (12 construction sites, re-counted) | **taken**, decision 3 |
 | 153 | the instance walk ("each instance of 'target'") would announce the targets of modes nobody chose | **taken**, decision 3 |
 | 81 | a keyworded additional cost can be mandatory: spree's per-mode costs | **taken** with CR 700.2h, decision 2; spree the keyword waits for its row (below) |
-| 154 | "another target" cannot exclude a player | **taken**, decision 3: the exclusion moves to the clause, which "each mode must target a different player" needs |
+| 154 | "another target" cannot exclude a player | **taken**, decision 3: the exclusion leaves the `ObjectFilter` leaf for any filter, and "each mode must target a different player" is a rule of the modal node |
 | 158 | "different from that one" has three axes | its modal axis is item 154's, taken; its copy axis stays `spell-copies`' |
 | 28 | `EffectRecipient::Choose` has no resolution path, and a rider cannot name "each of them" | **taken**, decision 8 |
 | 79 | CR 601.2h's payment order is the player's, and the engine takes it | **taken**, decision 6 |
 | "Before card breadth" 4 | CR 613.7m's order of simultaneous timestamps is the active player's | **taken**, decision 6 |
 | 240 | three type-changers' facilities; their upkeep halves wait on "sacrifice it unless you …" | the upkeep half is decision 4's (Contamination's "unless you sacrifice a creature"); the rest stays slotted where it is |
 | 336, 361 | #306's decision 4: options named by what they are, and the 33 tests that answer by place | **taken**, the first PR, as #306 designed them |
-| 92 | a CR 615.7 count spanning subjects with two choosers is refused | **closes as a record** (decision 5): every printed divided prevention gives each target its own share, so no count spans two choosers |
+| 92 | a CR 615.7 count spanning subjects with two choosers is refused | **closes as a record** (decision 5): CR 615.7 states a shield on one permanent or player, chosen for by that one's player or controller, and no count shared across subjects; every printed divided prevention gives each target its own share, and the refusal stays the answer to the shape the CR does not state |
 
 Re-counted against the tree: item 361's `picking(` uses are 176 in 36 files
-(175 when measured); `EffectRecipient::` occurs 272 times in `mtgsim/src`
-(item 154's sizing said 146 construction sites in September), which is why
-decision 3 moves item 154's exclusion to the clause without touching the
-enum's arms.
+(175 when measured), of which the 33 that depend on order move; `EffectRecipient::`
+occurs 272 times in `mtgsim/src` (item 154's sizing said 146 construction
+sites in September), which is why decision 3 moves item 154's exclusion into
+`SelectionFilter` and leaves `EffectRecipient`'s arms alone;
+`ObjectFilter::OtherThanInstance` has 25 uses to re-point. Item 154 counted 8
+cards printing "each mode must target a different player"; Scryfall and the
+census both read 7 today, Chaos Balor's text no longer saying it.
 
 ## Counted
 
@@ -158,9 +166,11 @@ family under 40 and a sample of each larger one was read card by card.
 | **An order a card hands a player**, a library's "in any order" | 171 | 1 | Ponder |
 | objects entering at once under one player (613.7m) | 66 | 1 | Living Death |
 | CR 601.2h's payment order: no phrase; a shape read off the cost (decision 6) | — | — | Omnath, Locus of Mana with Momentous Fall (ATOM-601.2h-003) |
+| …a creature whose power or toughness reads the pool or the life total, so a payment beside its sacrifice changes what it leaves | 6 | 0 | Omnath, Serra Avatar |
 | **A value chosen as the effect applies** (608.2d): a color | 43 | 0 | — |
 | …a creature type; a card type; a basic land type | 58; 7; 15 | 0 | — |
-| …a card name (201.4) | 46 | 0 | Cabal Therapy |
+| …a card name (201.4) | 46 | 0 | Brain Pry |
+| a card name narrowed by what the card is ("nonland", "creature", "artifact"; 201.4a), at resolution or as it enters | 24 | 0 | Cabal Therapy, Meddling Mage |
 | …a number (including "secretly") | 19 | **1** | Expel the Interlopers |
 | …a player, not targeted (including "at random") | 47 | **1** | Territorial Hellkite |
 | …a word with no rules meaning (607.2f) | 23 | 0 | Extinction Event's "odd or even" |
@@ -201,14 +211,15 @@ architecture row says a new subsystem extends the row, never adds a row.
   division, and cites `setup-architecture.md#7e-pausing-at-a-decision` for the
   boundary's rule and the log's format. *Upkeep*: one more doc for
   `engine-map.md` to route through, and one more on the row.
-- **B. `setup-architecture.md` gains a §7f.** The boundary's doc already owns
+- **B. `setup-architecture.md` gains a section 7f**, after "7e. Pausing at a
+  decision". The boundary's doc already owns
   the log, the matcher and decision 4. *Upkeep*: setup's doc becomes the
   rules home for modes and costs, which it is not otherwise: its subject is
   the scenario, the save and the boundary, and a reader of CR 700.2 would not
   look there.
 - **C. Split by subject**: modes and the division in `cost-architecture.md`
-  (beside 601.2f–h), the resolution's choices in `triggers-architecture.md`'s
-  §6 (beside "may"), the orders where each performer is. *Upkeep*: four docs
+  (beside 601.2f–h), the resolution's choices in `triggers-architecture.md#6-resolution`
+  (beside "may"), the orders where each performer is. *Upkeep*: four docs
   own one boundary's kinds, and a kind's shape is in one doc while its rule
   is in another.
 
@@ -272,37 +283,84 @@ question is what one option is.
 
 **Performance.** A and B ask one question for every printed "choose one",
 which is 77% of modal cards; C asks two. B allocates its options per modal
-announcement (a few small `Vec`s, ~30 at the worst printed card); nothing is
-on `GameState`.
+announcement: a few small `Vec`s for every fixed count, 31 at the worst
+printed range, and for a count of X the sets of that X only (2b below:
+C(X+2, 2) among three modes, 21 at X = 5, 66 at X = 10). Nothing is on
+`GameState`. **Castability never runs the enumerator**: whether a modal spell
+can be cast at all (700.2a) asks only whether the count rule can be met by the
+modes whose targets exist, the per-mode check the castability pass already
+makes for each instance of "target", once per card in hand per priority pass.
 
-**What the identity is.** A mode's printed place is its identity, not a
-position in the offered list: the card fixes it, and an illegal mode dropped
-from the list does not renumber the others. The log writes `modes 1, 3`; an
-answer naming `modes 1, 3` finds that set wherever a build lists it, by
-derived equality (`setup-architecture.md#7e-pausing-at-a-decision`, decision
-4b's typed matcher). A client draws each option as its modes' text, read off
-the ability as the layers give it.
+**What the identity is, and the kind.** A mode's printed place is its
+identity, not a position in the offered list: the card fixes it, and an
+illegal mode dropped from the list does not renumber the others. It is one
+type, `ModeIndex`, in every place a mode is named: `StackEntry.chosen_modes`
+(`Vec<usize>` today) and `Condition::ModeChosen` (`usize` today, 8 uses) both
+move to it. The question is `ChoiceKind::ChooseModes { source }`, one `pick_n`
+of exactly one over `ChoiceOption::Modes(Vec<ModeIndex>)`. The log writes
+`modes 1, 3`, `modes 2, 2` for a mode chosen twice, and `no modes` for the
+empty set; a script names `Modes(vec![1, 3])`, found wherever a build lists it
+by derived equality (`setup-architecture.md#7e-pausing-at-a-decision`,
+decision 4b's typed matcher). A client draws each option as its modes' text,
+read off the ability as the layers give it.
 
-**The count's shape**, which B's enumerator reads, from the table and not
-asked: `ModalCount` becomes the fewest and the most (the most a number, X or
-"all"), whether the empty set is the only short choice (Shadrix), a
-condition raising the most (the Will cycle), whether a mode may repeat, a
-pawprint weight per mode, and who chooses (the controller, another player,
-700.2e, or random). A mode's own cost (700.2h) is a `Mandatory` additional
-cost assembled from the chosen modes (item 81's resolution), in the total at
-601.2f. "Not chosen this turn" reads a history row naming the modes chosen
-for that object's ability, keyed on the object's existence (Parapet
-Thrasher's ruling: a new object chooses afresh), written as the modes are
-announced. The keywords built on the count, spree, escalate, entwine and
-tiered, are sibling keywords and wait for their own rows
-(`engineering-practices.md#gaps-a-phase-finds`); none is in `tdc`. Random
-modes draw from `GameState.rng` and ask nothing.
+**The modal node's shape**, which B's enumerator reads, from the table and
+not asked. `Effect::Modal` carries four things:
+- **the count**, one enum whose arms are the table's count rules:
+  `Exactly(n)`; `Range { fewest, most }` ("one or both" is 1 to 2, "one or
+  more" 1 to all, "any number" 0 to all, "up to N" 0 to N); `NoneOr(n)`
+  (Shadrix's zero or two); `X`; `Pawprints(budget)`; and `RaisedIf { usual,
+  raised, condition }` around any of them (the Will cycle; Prophetic Titan's
+  delirium), the condition read once as the modes are chosen (Will of the
+  Abzan's ruling);
+- **the chooser**: the controller, an opponent (700.2e: with more than one,
+  the controller first picks which, through decision 7's `ChoosePlayer`), or
+  at random from `GameState.rng`, which asks nothing;
+- **three rules of the node**, each a flag a plain "choose one" leaves off: a
+  mode may repeat (700.2d), each mode's targets are different players (item
+  154's eight-card shape, decision 3), and a mode chosen for this object's
+  ability earlier this turn cannot be chosen;
+- **the modes**, each a `Mode` holding its effect, its pawprint weight (1
+  unless printed), its own cost (700.2h; none unless printed) and its
+  instances of "target" (decision 3).
+
+A plain "choose one" is `Exactly(1)`, the controller, no flags, and modes of
+weight 1 and no cost. A mode's own cost is a `Mandatory` additional cost
+assembled from the chosen modes (item 81's resolution), in the total at
+601.2f. "Not chosen this turn" reads `GameHistory.modes_chosen_this_turn`, a
+sibling of `resolutions_this_turn` keyed the same way, by `AbilityIdentity`,
+which carries the object's existence (Parapet Thrasher's ruling: a new object
+chooses afresh), written as the modes are announced and cleared with the
+turn's other rows.
+
+**The keywords on the count wait for `breadth-features`** (after v0.5): spree,
+escalate, entwine and tiered are sibling keywords on CR 700.2
+(`engineering-practices.md#gaps-a-phase-finds`), none is in `tdc`, and each is
+the node above plus its keyword's cost rule. The second PR builds 700.2h's
+per-mode cost with a fixture card printing one.
+
+**2b. A count of X: which is announced first** (a rules question). CR 601.2b
+announces the modes before the value of X, but Doomsday Confluence ("Choose
+X. You may choose the same mode more than once", {X}{X}{B}) cannot list its
+sets until X is known, and its rulings say only that the modes are chosen as
+it is cast.
+- **(i) X moves up to the modes' place**: for a node whose count is X, the
+  value of X is asked first, from MA-2's legal values (the values of X the
+  payer can pay, `mana-architecture.md`), then the sets of that size. It is
+  601.2b's own move in reverse: there a variable defined by a later choice
+  is chosen early; here the choice of modes is defined by X. Two questions.
+- **(ii) The set announces X**: one question listing every set for every
+  payable X, X being the set's size. The literal order, and a list of 1 + 3
+  + 6 + … sets (56 for X up to 5).
+
+**Recommendation for 2b: (i)**, two short questions where (ii) asks one long
+one, and X keeps its one kind.
 
 **Recommendation: B.** It is the only option where every printed count rule
 is one question of one shape, and it makes 700.2a's "can't be chosen" a
-property of the list rather than a rejection. Its lists stay under ~30 for
-every printed card, and an AI harness reads a flat list of whole choices
-directly.
+property of the list rather than a rejection. Its lists are 31 at the widest
+printed range and grow with X only for the one card whose count is X, and an
+AI harness reads a flat list of whole choices directly.
 
 ### Decision 3 — where the chosen modes live, and how targets and resolution read them
 
@@ -317,10 +375,17 @@ copy keeps the original's modes (700.2g, `spell-copies`).
 - **A. The printed effect stays on the entry, and the chosen modes are its
   record.** `chosen_modes` holds the chosen modes in printed order (repeats
   adjacent, 700.2d); the resolution's `Modal` arm walks those modes and no
-  others. The build stores one instance list per mode beside the card's own
-  (`instances` for what precedes and follows the modal node, and each mode's
-  own), so the announcement concatenates the chosen modes' lists and still
-  never walks the tree. **A mode is its own instance scope**: a back-reference
+  others. **The per-mode instance lists live in the modal node**, one on each
+  `Mode`, filled by `CardDataBuilder::build` in the pass that fills
+  `AbilityDef::instances`. The tree holds instance lists in six places (the
+  card, `objects/card_data.rs:57` and `:182`; the delayed trigger's template,
+  `types/triggers.rs:1937`; the pending trigger, `:2190`; the dispatch,
+  `engine/triggers/dispatch.rs:604`; the trigger's state,
+  `engine/triggers/state.rs:44`), and each keeps its list as it is, stopping
+  at the modal node; each holds or reaches the effect, so the cast, the
+  activation and placement all read a chosen mode's list through the node and
+  none gains a field. The announcement concatenates the chosen modes' lists
+  after the node's own and never walks the tree. **A mode is its own instance scope**: a back-reference
   inside a mode (`EffectRecipient::SameInstanceAs`) counts from the mode's
   first instance, since no printed mode refers to another mode's target, and
   a repeated mode's second copy announces its own targets.
@@ -335,12 +400,21 @@ copy keeps the original's modes (700.2g, `spell-copies`).
   the log and a copy each read the record rather than the effect, and the
   instance indices still need A's per-mode scope.
 
-**Item 154 with it.** "Each mode must target a different player" is a
-constraint across modes' instances, so the exclusion moves from the
-`ObjectFilter` leaf (`OtherThanInstance`, asked only of a permanent filter) to
-the clause: an instance carries "not what instance k took", which a player
-or an "any target" filter can carry, and the two enumeration arms that skip
-`validate_selection` apply it. ~60 lines, as item 154 sized it.
+**Item 154 with it, in two halves.**
+- **"Another target" within one scope** (Arc Trail's "any target and …
+  another target", CR 115.4) cannot exclude a player today, because the
+  exclusion is an `ObjectFilter` leaf (`OtherThanInstance`) and a player or
+  "any target" filter carries none. The leaf is deleted and its 25 uses
+  re-pointed to one wrapper any filter takes, `SelectionFilter::OtherThan {
+  filter, instance }`; the two enumeration arms that push players without
+  asking `validate_selection` learn to ask it. One spelling of "another
+  target", ~60–90 lines.
+- **"Each mode must target a different player" across modes** (Shadrix
+  Silverquill and 6 more) is a rule of the modal node, the flag above: the
+  card writes it once on the node, never an instance number, since which
+  instances exist depends on the modes chosen. The announcement keeps a set
+  of the players the chosen modes' earlier instances took and offers each
+  later player-targeting instance the rest.
 
 **Recommendation: A.** It keeps the effect on the stack the card's text,
 which the log, a client and a copy all read, and it costs nothing a clone
@@ -356,27 +430,28 @@ shape must do:
 |---|---:|---:|---|
 | a payment by the ability's controller, optional, then a branch on it ("you may pay {1}. If you do") | 510 | 3 | `Effect::Optional`, but no payment: an atom acts, it does not pay |
 | …by another player ("unless its controller pays") | 232 | 1 | `Optional`'s chooser names another player; no payment |
-| …asked of every player in turn until one pays ("unless any player pays") | 19 | 0 | nothing; triggers-architecture §6.2 files it "with its first card" |
+| …asked of every player in turn until one pays ("unless any player pays") | 19 | 0 | nothing; `triggers-architecture.md#62-may-and-unless-cr-6035` files it "with its first card" |
 | a payment that is not mana (sacrifice, discard, return a land, life) | 138 | 1 | `Cost`'s arms exist for casting; `plan_payment` asks the choices |
-| an amount chosen as it is paid ({X}, X life, any amount) | 81 | 1 | MA-2's legal values of X, at cast only |
-| ward: a trigger on becoming a target whose effect is the payment, its X read at resolution | 184 + 42 granted | 1 | TR-5c's `BecomesTarget` event; no payment |
+| an amount chosen as it is paid ({X}, X life, any amount) | 81 | 1 | the legal values of X (`mana-architecture.md`'s MA-2), at cast only |
+| ward: a trigger on becoming a target whose effect is the payment, its X read at resolution | 184 + 42 granted | 1 | the "becomes the target" trigger event (built with targeting's records, TR-5c); no payment |
 
 **The problem.** CR 118.12a says "[do A] unless [P does B]" means "[P] may
 [do B]. If [P doesn't], [do A]", and B is a cost paid as the effect resolves.
 The resolution has `Effect::Optional { chooser, effect }` and its answer
-(`CostAnswer`: `Does`, `Doesnt`, `Cant`, triggers-architecture §6.2), and
+(`CostAnswer`: `Does`, `Doesnt`, `Cant`;
+`triggers-architecture.md#62-may-and-unless-cr-6035`), and
 casting has the payment (`plan_payment`, the 601.2g window, `pay_costs`). What
 is missing is a payment inside a resolution, and where "unless" is spelled.
 
 - **A. CR 118.12a's own reading: a `Pay` instruction inside `Optional`.** A
   new `Primitive::Pay { costs }` pays as the resolving instruction's player,
   through the casting path's `plan_payment` and `pay_costs`, with CR 605.3a's
-  mana window opened first (ATOM-605.3a-002). It answers `Does` when paid and
-  `Cant` when it cannot be paid. "Unless P pays C, do E" is written
+  mana window opened first (ATOM-605.3a-002), and answers `Does` when paid.
+  "Unless P pays C, do E" is written
   `Sequence[Optional { chooser: P, Pay(C) }, Conditional(Doesnt, E)]`, which
   is the CR's sentence. "Any player may" is `Optional`'s chooser reaching
   each player in APNAP order (CR 101.4) until one pays. An X is chosen as it
-  is paid (107.3f) from MA-2's legal values against what the payer can
+  is paid (107.3f) from the legal values of X against what the payer can
   produce. *Code*: the primitive, the window at resolution, the chooser walk
   and X, ~250–400 lines; a builder (`Effect::unless(payer, costs, effect)`)
   so a card reads as its text.
@@ -385,17 +460,32 @@ is missing is a payment inside a resolution, and where "unless" is spelled.
   `Optional` and `Conditional` already say, and "you may pay {1}. If you do,
   …" (510 cards) is still A's shape, so both exist.
 
-**What both settle.** Offered only when payable (CR 118.3), as a shockland's
-payment is: a payer who cannot pay is not asked and answers `Cant`. A window
-that ends with the cost unpaid is the payer declining: the mana stays in the
-pool until the step ends (CR 106.4, 500.5), as on paper, and nothing is
-reversed, since CR 732.1's reversal is a cast's or an activation's. The payment
-is CR 608.2c's, "in the order written", so it is not routed through
-`payment_order_rank`, whose doc already says why. Ward is a keyword on this
-base and builds whole with it: its trigger is TR-5c's, its effect "counter
-that spell or ability unless that player pays [cost]" (702.21a), its X read
-as it resolves (702.21b). Echo and cumulative upkeep are sibling keywords on
-the same payment and wait for their own rows.
+**What both settle.**
+- **An unpayable offer is "doesn't".** Offered only when payable (CR 118.3),
+  as a shockland's payment is. A payer who cannot pay is not asked, and the
+  `Optional` answers `Doesnt`: CR 118.12's clause checks whether the player
+  chose to pay an optional cost, and one who could not did not. So Mana Leak
+  counters a tapped-out player's spell. `Cant` stays what `CostAnswer`'s doc
+  says it is, a mandatory action that could not start.
+- **The kinds.** The offer is `ChoiceKind::PayAsItResolves { source, offer }`,
+  `offer` the costs as `AcceptAsObjectEnters`' `EntryOffer::Pay` carries one,
+  so a client can tell a payment from a gift; it is a take or leave
+  (`ask_take_or_leave`), logged and scripted as `ApplyOptionalEffect`'s is,
+  asked of the payer. An amount chosen as it is paid is `ChoiceKind::ChooseAmountToPay
+  { source, values }`, `ChooseXValue`'s shape (a `pick_number` over an
+  interval, or `Number` options when a rule cuts a gap) with the resolving
+  object as its subject, since `ChooseXValue`'s `spell_id` names a spell
+  being cast.
+- **A window that ends with the cost unpaid is the payer declining**: the
+  mana stays in the pool until the step ends (CR 106.4, 500.5), as on paper,
+  and nothing is reversed, since CR 732.1's reversal is a cast's or an
+  activation's. The payment is CR 608.2c's, "in the order written", so it is
+  not routed through `payment_order_rank`, whose doc already says why.
+- **Ward is a keyword on this base and builds whole with it**: its trigger is
+  the "becomes the target" event, its effect "counter that spell or ability
+  unless that player pays [cost]" (702.21a), its X read as it resolves
+  (702.21b). Echo and cumulative upkeep are sibling keywords on the same
+  payment, none in `tdc`, and wait for `breadth-features`.
 
 **Recommendation: A.** It is the CR's own sentence, it adds one primitive
 where B adds a combinator beside it, and every row of the table is it with a
@@ -414,29 +504,43 @@ dealt its share); 115.7f keeps it across a change of targets; 608.2d chooses
 an untargeted division as it applies. `backlog.md`'s "2.20 Several target
 clauses on one spell" sized the targeted half: a divided `TargetCount`, a
 parallel allocation, a per-target amount, ~500–700 lines with Arc Lightning.
+A change of targets (115.7f) keeps each share with the target that replaces
+its old one, so whatever holds the shares must move with the targets.
 
-- **A. On the instance**: `TargetInstance` gains `shares: Option<Box<[u64]>>`,
-  one per chosen target, asked by `allocate` over the instance's targets right
-  after it is announced (minimum 1 each, the total the clause's amount), and
-  the atom's amount reads its target's share. *Clone cost*: 16 bytes an
-  instance, no heap for an undivided one.
-- **B. On the entry**, a `divisions` list keyed by instance index. *Upkeep*:
-  a second list kept in step with `chosen_targets` through every rewrite
-  (a copy's new targets, 115.7f), where A's travels with its targets.
+- **A. Paired with the targets, in one list.** `TargetInstance.chosen` becomes
+  one enum, `Targets(Vec<ObjectOrPlayer>)` or `Divided(Vec<(ObjectOrPlayer,
+  u64)>)`, read through a `targets()` accessor by the ~16 readers of
+  `.chosen`; the atom's amount reads its target's share off the pair. A change
+  of targets rewrites the pair's target and keeps its share. *Clone cost*:
+  none for an undivided instance, the same `Vec` it holds today.
+- **B. A parallel list**, `shares` on the instance or `divisions` on the
+  entry keyed by instance. *Upkeep*: two lists matched by position, which
+  every rewrite of the targets (a copy's new targets, 115.7f) must keep in
+  step.
 - **C. In the amount**, an `AmountExpr` that names a share by target. *Upkeep*:
-  the amount reads an announcement it does not own, and an untargeted division
-  has no target to key it on.
+  the amount reads an announcement it does not own.
 
-**The prompt.** `ChoiceKind::DivideAmongTargets { source }` over `allocate`,
-its buckets the chosen targets (by what each is, #306's decision 4), each
-bucket's least 1. An untargeted division asks the same kind as the effect
-applies, once "any number of creatures" has chosen them, with the same rule.
+**An untargeted division lives in the resolution**: CR 608.2d chooses it as
+the effect applies, so it is chosen, applied and gone within the atom, held in
+the resolution's walk like any value chosen there, and never on the stack
+object. Feast of the Victorious Dead's counters are divided this way.
 
-**Item 92 closes.** Each of the 5 printed divided preventions announces each
-target's share, so each target gets a shield of its own share and no count
-spans two choosers; the refusal stays for a card no one has printed.
+**The prompt, for both.** `ChoiceKind::DivideAmong { source }` over
+`allocate`, its buckets the chosen objects and players (named by what each
+is, #306's decision 4), each bucket's least 1, its total the clause's amount.
+At announcement it follows the instance's targets (601.2d); at resolution it
+follows the "any number of" choice it divides among (608.2d). The log writes
+each bucket with its share, as an allocation does today.
 
-**Recommendation: A**, the shape `backlog.md` §2.20 sized.
+**Item 92 closes as a record.** CR 615.7 states a shield on one permanent or
+player, whose player or controller chooses which damage it prevents, and
+states no count shared across subjects. Each of the 5 printed divided
+preventions announces each target's share, so each target gets a shield of
+its own share. The refusal stays the answer to the shape the CR does not
+state, and the item says so in those words.
+
+**Recommendation: A**, the shape the backlog entry sized, with its two lists
+made one.
 
 ### Decision 6 — when the engine asks an order the CR hands a player
 
@@ -448,44 +552,66 @@ breadth" item 4 asked for one rule: ask only where the orders' outcomes
 differ, and here only among orders that complete.
 
 **The table.** No printed card names 601.2h's order; it is the rule's, on
-every cost of two or more parts. Where the order can change the game:
-- a part moves an object whose last-known information reads what another part
-  changes: Omnath's power reads the pool, so sacrificing it before paying the
-  mana draws more off Momentous Fall (ATOM-601.2h-003). Five printed
-  creatures have a power or toughness that reads the pool or the life total
-  (Omnath, Serra Avatar, Soul of Eternity, Roiling Horror, Enduring Angel), and
-  a counter a part removes is read by any creature whose power counts it;
-- a part moves an object into a zone another part takes from: a discard
-  beside an exile from the graveyard.
-613.7m's family is 66 cards that put several objects onto the battlefield at
-once (Living Death in `tdc`), and every creation of tokens that are not alike.
+every cost of two or more parts. Its shape is read off the cost, and the
+census counts the one family a payment's order is visible through: 6
+creatures whose power or toughness reads the pool or the life total (Omnath,
+whose sacrifice before or after paying the mana draws a different number off
+Momentous Fall, ATOM-601.2h-003; Serra Avatar). 613.7m's family is 66 cards
+that put several objects onto the battlefield at once (Living Death in
+`tdc`), and every creation of tokens that are not alike. A third order of the
+same kind is already asked: CR 601.2f's cost reductions, "the player may apply
+them in any order", asked whenever two apply (`OrderCostReductions`) though
+with today's symbols no order changes the total
+(`cost-architecture.md#34-in-any-order-they-choose--the-prompt-the-theorem-and-the-middleware`).
 
 - **A. Ask whenever there are two or more parts or objects.** The CR's literal
-  reading, `OrderCostReductions`' precedent. *Cost*: every "{1}, {T}:" and
+  reading, `OrderCostReductions`' policy. *Cost*: every "{1}, {T}:" and
   "{B}, Sacrifice a creature:" activation and every kicked or sacrificing cast
   gains a question whose answers give one game; a person is asked "tap first
   or pay first" at every such activation.
-- **B. Ask only where an order can change the game, by a structural test.**
-  601.2h: when the payment holds a part that moves an object and another part
-  that changes the pool, the payer's life or the moved object's counters, or
-  two parts where one's destination is the other's source; the options are
-  the orders that complete. 613.7m: when two or more of one player's entering
-  objects are not alike (another card, another token def, another status),
-  each player ordering their own in APNAP order. *Cost*: a structural check
-  per payment and per entry batch; a question only on the boards the table
-  names.
+- **B. Ask only where an order can change the game, by a property of each
+  part.** Each `Cost` arm states, in one exhaustive match, what paying it
+  reads and what it changes: a quantity (the pool, the payer's life, an
+  object's counters) or a move (from a zone to a zone); and each `AmountExpr`
+  arm states which quantity it reads, which says what a moved object's
+  characteristics read. The order is asked when one part changes what another
+  part reads: a part that moves an object whose effective characteristics
+  read a quantity another part changes (Omnath), or a part that moves into the
+  zone another takes from (a discard beside an exile from the graveyard). A
+  new `Cost` or `AmountExpr` arm states its reads and writes as it is added,
+  so the test grows with the types rather than with a list. The options are
+  the orders that complete. 613.7m is asked when two or more of one
+  player's entering objects are not alike (another card, another token def,
+  another status), each player ordering their own in APNAP order.
+  *Cost*: a match per part per payment, and per entry batch; a question only
+  on such boards.
 - **C. As today.** *Cost*: a choice the CR gives a player is the engine's,
   which the CR-first rule does not allow once a printed board reaches it, and
   Omnath's does.
 
+**The kinds.** `ChoiceKind::OrderCostPayments { spell_or_ability_id }` over
+`choose_ordering`, each item a part named as decision 4b names a cost (its
+kind and its whole cost); two parts alike in every word are one cost twice,
+either order the same game, and the matcher takes them in turn.
+`ChoiceKind::OrderSimultaneousEntries { player }` over `choose_ordering`, its
+items the entering objects by what each is; alike objects never reach it.
 A card's own "in any order" (Ponder, 171 cards) is a library order and already
 has a kind, `ScryOrder`, built for CR 701.22a's; it is widened to
 `OrderLibraryCards { source, bottom }`, a log word the first PR's format change
 carries.
 
-**Recommendation: B**, the trigger order's precedent (asked only where an
-order can change the game, `triggers-architecture.md`'s §5.2 elision): it
-asks every question the CR's choice can turn on and none that gives one game.
+**6b. `OrderCostReductions` under the same rule.** Under B, one rule for
+every order the CR hands a player means it is asked only where the order
+changes the total, which today is never: the prompt drops out of every game
+that meets two reductions, a fixture migration (9 lines in 8 test files name
+it) and a moved random stream, in the first PR, beside its format change.
+Kept as it is, the engine has two policies for one concept.
+
+**Recommendation: B, and 6b folded into it**, the trigger order's precedent
+(asked only where an order can change the game,
+`triggers-architecture.md#52-apnap-over-the-seat-list-two-tiers-the-ordering-prompt-and-its-elision`):
+it asks every question the CR's choice can turn on and none that gives one
+game, and states that once for the three orders.
 
 ### Decision 7 — a value chosen as an effect applies (CR 608.2d)
 
@@ -501,22 +627,34 @@ is the one such kind (Akroan Horse's opponent), and `ChoiceOption` has `Color`,
 different set of answers; a client, the AI harness and the log each need to
 know what is being chosen and among what.
 
-- **A. A kind per value**, `ChooseColor`, `ChooseCreatureType`,
-  `ChooseCardType`, `ChooseBasicLandType`, `ChooseCardName`, `ChooseNumber`,
-  `ChooseWord`, `SeparateIntoPiles`, `Vote`, beside `ChooseOpponent`, each
-  with its `source` as subject and its options a typed arm
-  (`ChoiceOption::CreatureType(Subtype)`, `CardType`, `CardName`, `Word`). *Upkeep*:
-  `ChoiceKind`'s exhaustive matches gain ten arms; a client words each.
+- **A. A kind per value**: nine new kinds, `ChooseColor`,
+  `ChooseCreatureType`, `ChooseCardType`, `ChooseBasicLandType`,
+  `ChooseCardName { source, filter }`, `ChooseNumber`, `ChooseWord`,
+  `SeparateIntoPiles` and `Vote`, and `ChooseOpponent` widened to
+  `ChoosePlayer { source }` for "choose a player" (47 cards, Territorial
+  Hellkite's at random in `tdc`; its options say whether only opponents are
+  offered, and it is 700.2e's "which opponent chooses the mode" too). Each has
+  its `source` as subject and its options a typed arm:
+  `ChoiceOption::CreatureType(CreatureType)`, `LandType(LandType)`,
+  `CardType(CardType)` (the three enums `types/card_types.rs` already has),
+  `CardName`, `Word`. *Upkeep*: `ChoiceKind`'s exhaustive matches gain nine
+  arms and rename one; a client words each.
 - **B. One kind, `ChooseValue { source, value: ValueKind }`**, with the same
   option arms. *Upkeep*: one arm in each exhaustive match, and a heuristic
   that keys on the kind matches the inner enum too.
 
 **What both settle.**
-- **A card name's options are the card registry's names**, never the names in
-  this game: the game's list would show a player which cards sit in hidden
-  zones (`information-model-design`'s concern), and every card a game can hold
-  is registered. CR 201.4's "not a token's name unless also a card's" holds
-  by construction.
+- **A card name's options are the card registry's names that pass the
+  card's filter**, never the names in this game: the game's list would show a
+  player which cards sit in hidden zones (`information-model-design`'s
+  concern), and every card a game can hold is registered. 24 of the cards
+  narrow the name by what the card is ("a nonland card name", 17; "a creature
+  card name", "an artifact card name"): CR 201.4a reads that against the
+  named card's Oracle characteristics, so the filter is over each registered
+  definition as printed (`// AS PRINTED:`, the invariant's tag for exactly
+  this read). CR 201.4's "not a token's name unless also a card's" holds by
+  construction. An Alchemy spellbook's draft is the same pick over the list
+  the card names.
 - **A vote** (701.38) is asked of each player in turn order from the player
   the text names, which `backlog.md`'s "2.4 Voting, and the `DecisionProvider`
   choice shapes" found the per-player walk lacks: the walk gains its starting
@@ -535,7 +673,7 @@ doc's contract ("adding a new variant here is the only change"), and each
 kind's `subject` and wording stay one match arm. B saves arms in matches that
 are exhaustive on purpose.
 
-### Decision 8 — when a selection that does not target is made (item 28, `backlog.md` §2.33)
+### Decision 8 — when a selection that does not target is made (item 28, `backlog.md`'s "2.33 Choice versus target")
 
 **The problem.** `EffectRecipient::Choose` is collected as an instance of
 "target" and announced at cast in `Target`'s arm (`engine/put_on_stack.rs:337`),
@@ -568,23 +706,27 @@ estimates from the item sizings and from #306's for decision 4.
 
 | PR | What it builds | Consumer | Code | Tests |
 |---|---|---|---:|---:|
-| **`options-named-plus-division`** | #306's decision 4 (the trigger and replacement arms, the typed matcher with its cost parser, the 33 `picking(n)` uses in its first commit); decision 5's division at cast, activation and placement; decision 6's two orders; `ScryOrder` widened | the log's replay of Bridge from Below's two triggers, both orders; Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~670–1,040 | ~580–1,000 |
-| **`modal-spells-and-abilities`** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the count's shapes, the per-mode instance lists, item 154's clause exclusion, a mode's own cost (item 81), the "chosen this turn" row | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill; fixtures for repeats, pawprints, 700.2e | ~660–1,000 | ~500–800 |
+| **`options-named-plus-division`** | #306's decision 4 (the trigger and replacement arms, the typed matcher with its cost parser, and in its first commit the 33 order-dependent `picking(n)` uses of the 176); decision 5's division at cast, activation and placement; decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | the log's replay of Bridge from Below's two triggers, both orders; Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~680–1,050 | ~610–1,060 |
+| **`modal-spells-and-abilities`** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the "chosen this turn" row | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail; fixtures for repeats, pawprints, 700.2e, and a mode with its own cost (700.2h) | ~720–1,090 | ~560–860 |
 | **`costs-and-choices-at-resolution`** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
-| **`values-chosen-at-resolution`** | decision 7's kinds and option arms with their log words and matcher arms, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~540–850 | ~450–700 |
+| **`values-chosen-at-resolution`** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
-Each reads ~1,000–2,050 lines: the first and third inside the band
-(1,500–2,500, `engineering-practices.md#sizing-a-phase`) at their upper
-estimates, the second and fourth near its floor. The fourth could fold into
-the third if the third lands low; that is the build's call at its sizing, in
-the doc.
+The first three read ~1,150–2,110 lines each: inside the band (1,500–2,500,
+`engineering-practices.md#sizing-a-phase`) at their upper estimates and under
+it at their lower. The fourth reads ~1,010–1,570, at the band's floor at best;
+it could fold into the third if the third lands low, which is the build's
+call at its sizing, written in the doc.
 
-**Fuzz A/B, predicted per PR.** The first changes no option's count or order,
-so the random agent's picks and the gameplay rows are `IDENTICAL`; decision 6's
-questions are asked only on boards no registered card reaches, which the build
-checks by running the structural test over every registered cost first. Each
-later PR registers cards, so its stream moves with them, measured as
-`fuzz_ab --require` does (every arm runs the new cards).
+**Fuzz A/B, predicted per PR.** The first changes no option's count or order
+for decision 4, but it moves the stream twice on purpose: 6b drops a prompt
+from every game that meets two cost reductions, and the division's card is
+registered. So it runs three arms (`main`; the branch with the division's
+card unregistered, which isolates 6b and should differ from `main` only in
+games that met two reductions; the branch), through `fuzz_ab --require`,
+which runs every arm on the new cards. Decision 6's new questions should be
+asked by no registered card, which the build checks first by running the
+test over every registered cost and every registered entry batch. Each later
+PR registers cards, and its stream moves with them, measured the same way.
 
 ## Found while designing
 
@@ -601,3 +743,10 @@ later PR registers cards, so its stream moves with them, measured as
    `information-model-design` at the build.
 4. **The roadmap's 915 modal cards and 16 in `tdc`** are the Forge census's;
    by clause it is 738 and 15 (the census notes above).
+5. **The setup verb leaves mana a hand-written board does not have today.**
+   Under #306's decision 1, `planeswalker.scenario`'s tapped Plains becomes
+   `then: player 0 taps Plains for {W}`, so player 0 has {W} in the pool at
+   the declare attackers step's first priority, until that step ends (CR
+   500.5). Today's board has the Plains tapped and nothing in the pool. For
+   the owner: whether that board should keep the floating {W}, or say what
+   it means some other way.
