@@ -530,13 +530,46 @@ engine, between `ui::ask` and the provider.
 
 ### Decision 3 — what a pending decision holds on `GameState`, and the rule every later choice kind follows
 
-**The problem.** The roadmap row says the pending decision is held on
-`GameState`. That came from item 40's framing, under which the engine would
-resume from `GameState` alone. Under decision 2's B the question and the
-in-flight state are held by the paused game's own stack, and a fork re-derives
-them by replaying from an anchor. What is left for `GameState` is what makes
-a priority prompt an anchor. The candidates are item 40's two violators, item
-233's three sites and item 140's round:
+**What the decision is about, from the start** (rewritten at #306's second
+review round, which asked for it). `GameState` is the game as data: the
+zones, the permanents, life totals, the stack. Copying it is how a game is
+forked. But while the engine is in the middle of something, part of what it
+knows is not in `GameState`: it is in the local variables of the functions
+running at that moment. That part is the **in-flight state**.
+
+A cast shows it. You cast Lightning Bolt. The engine moves Bolt to the stack
+(CR 601.2a), asks whether you pay an alternative cost (601.2b), and then asks
+for a target (601.2c). While it waits for the target, `GameState` shows Bolt
+on the stack with no stack entry yet; the costs you announced are local
+variables in `cast_spell`, and so is the fact that a cast is under way at
+all. Copy `GameState` at that question and the copy holds a Bolt on the stack
+that nothing describes and nothing will finish casting. A copy taken there is
+not a game anyone can go on with.
+
+Four places in the engine hold in-flight state across a question (the table
+below): a cast's announcements (item 40's second "violator", item 40 being
+the rule that a decision site holds nothing outcome-bearing off `GameState`),
+CR 616.1's record of which replacement effects have already applied (its
+first), three prompts in the trigger code (item 233), and the priority
+round's count of how many players have passed in a row (item 140).
+
+**Why this was going to be a migration, and why B changes it.** The plan
+until now, your rule of 2026-10-08, was to move each of these into
+`GameState`, so that a copy taken at any question could go on by itself.
+Decision 2's B makes that unnecessary. A paused game keeps its own call
+stack, locals and all, so pausing and answering never need the in-flight
+state in `GameState`. A fork does not copy at the question either: it copies
+at the last **anchor**, a priority prompt asked for the first time in its
+window, where nothing is in flight (a cast has finished or not begun, the
+batch has performed), and replays the answers since, which rebuilds the
+in-flight state exactly as play built it.
+
+So the question left is narrow: **which questions count as anchors**, the
+places a copy can go on from directly. Today only the first priority prompt
+of a round does (`Game::resume_turn_at_priority` starts a round at the
+active player). A priority prompt later in the same round, after the active
+player passed and the next player is asked, does not, because the pass count
+is a local. The candidates, with what each would cost on `GameState`:
 
 | In-flight state | Where it lives | What keeping it on `GameState` would cost |
 |---|---|---|
@@ -545,27 +578,34 @@ a priority prompt an anchor. The candidates are item 40's two violators, item
 | CR 603.3d's targets, 603.7b's cause, 303.4f's host (item 233) | `place_one`, `queue_delayed`, `return_until` | ~100–150 lines; a `PendingTrigger`, 240 bytes, at a placement prompt |
 | the round's pass count and current player (item 140) | `run_priority_round`'s locals, `engine/priority.rs:57` | ~60 lines; nothing, since both derive from `priority_player` and the turn order |
 
-**(a) All of it**, item 40's sizing with items 233 and 140: ~450–650 lines.
-*What it buys*: a copy at one of those prompts resumes by itself, but only
-where every frame above it is re-enterable. That holds before a round's first
-priority (placement, the state-based checks' batches), and not inside a cast
-or a resolution, whose progress through its sequence is a local. So it pays
-only under decision 2's D. *Clone cost*: in the table, at the prompts that
-hold it; 8 bytes a field elsewhere.
+**(a) All of it**, item 40's plan with items 233 and 140: ~450–650 lines.
+*What it buys*: a copy at one of those questions could go on by itself, but
+only where every function above it could be re-entered from `GameState` too.
+That holds before a round's first priority (trigger placement, the
+state-based checks), and not inside a cast or a resolution: moving Bolt's
+announced costs into `GameState` still leaves "which step of the cast is
+next" in `cast_spell`'s place in the call stack. Making that re-enterable is
+decision 2's D. So (a) pays only under D. *Clone cost*: in the table, at the
+questions that hold it; 8 bytes a field elsewhere.
 
-**(b) The round only.** Item 140's entry point, a round started at any seat
-with its passes derived, so every priority prompt asked for the first time in
-its window is an anchor. A re-ask after a reversed action (CR 732.1) is not
-one: its question carries the rejection, so a fork there replays from the
-window's first ask, which reproduces it. ~60 lines, and item 41's test gains
-the mid-round forks and CR 514.3a's cleanup re-loop. *Clone cost*: nothing.
+**(b) The round's place only.** A priority round that can start at any seat,
+its pass count worked out from who holds priority rather than counted in a
+local (item 140, ~60 lines). Then every priority prompt asked for the first
+time in its window is an anchor, and a fork there is a 1.1–1.7 µs copy. A
+re-ask after a reversed action (CR 732.1: you chose a spell you could not pay
+for, and are asked again) is not one, since its question carries what was
+rejected; a fork there replays from the window's first ask, which rebuilds
+it. Item 41's test (forks at round starts replay the original) gains the
+mid-round forks and CR 514.3a's cleanup re-loop. *Clone cost*: nothing.
 Items 40 and 233 close as superseded: the paused game keeps that state on its
-stack, and a fork re-derives it.
+stack, and a fork rebuilds it by replay.
 
-**(c) Nothing.** Anchors stay at round starts; a fork mid-round replays the
-passes since. *Clone cost*: nothing. By §4, the agents' stack meets 0–2
-mid-round prompts a game, but a seat that stops at every priority point
-(a person, and an AI that acts at instant speed) meets mostly those.
+**(c) Nothing.** Anchors stay at round starts; a fork at a later priority
+prompt in the round replays the passes since its start. *Clone cost*:
+nothing. By §4, the agents' stack meets 0–2 such prompts a game, since the
+engine passes for a seat whose only option is to pass; but a seat that stops
+at every priority point (a person, and an AI that acts at instant speed)
+meets mostly those, and each of its forks would replay.
 
 **Under decision 2's D there is no choice here.** Every row of the table goes
 on `GameState`, and with it everything above each prompt: the resolution's
@@ -591,7 +631,9 @@ start and every answer, replayed (a Commander game in ~22 ms in release,
 which re-derives the question as a fork does.
 
 **The rule every later choice kind follows**, which replaces that rule under
-(b) or (c):
+(b) or (c). It is what keeps "copy at the anchor, replay the answers" exact
+for every question the route adds (modes, a choice at resolution, an order
+the CR hands a player):
 1. Every question goes through `ui::ask`, so the paused game hands every
    question out at one place. (Kinds share functions there: 29 for 31 kinds.)
 2. Its options are named by what they are (decision 4), and its `ChoiceKind`
@@ -599,7 +641,10 @@ which re-derives the question as a fork does.
 3. What it offers is a function of `GameState` and the answers since the last
    anchor: never of a provider's state or a hash order, which the determinism
    invariant already says, and nothing it holds outlives the next priority
-   prompt.
+   prompt. A question may keep its in-flight state in locals, as `cast_spell`
+   does; what it may not do is keep state off `GameState` past the next
+   priority prompt (a delayed trigger waits on `GameState`, as it does
+   today), since a copy at that prompt would not have it.
 
 The gate is the build's fork test (§6), which forks at every decision of
 seeded games at two seats and four and requires each branch to replay the
