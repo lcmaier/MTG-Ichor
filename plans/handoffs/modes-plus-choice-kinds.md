@@ -502,6 +502,53 @@ which the log, a client and a copy all read, and it costs nothing a clone
 carries. B buys a simpler resolution arm for a deep copy at every modal
 cast and a second source of truth.
 
+**A cast under A, step by step** (asked in review). Prismari Command
+({1}{U}{R}, "Choose two —": 2 damage to any target; target player draws two,
+then discards two; target player creates a Treasure; destroy target
+artifact), with no artifact on the board:
+1. At priority, castability asks the enumerator for a first legal pair:
+   mode 4 is dropped, since no artifact can be targeted, and modes 1 and 2
+   are a pair, so the card is offered.
+2. CR 601.2a: the card moves to the stack, its effect the printed `Modal`
+   node with all four modes.
+3. 601.2b: `ChooseModes` lists `modes 1, 2`, `modes 1, 3` and `modes 2, 3`.
+   The player answers `modes 1, 3`, and `chosen_modes` is `[1, 3]`.
+4. 601.2c: the announcement reads the node's own instances (none), then mode
+   1's list (any target), then mode 3's (target player), and asks them in
+   that order. The entry holds two `TargetInstance`s, mode 1's first.
+5. 601.2f–i: the cost is the printed one, paid through the window, and the
+   spell becomes cast.
+6. Resolution: CR 608.2b re-checks both instances. The `Modal` arm walks
+   `[1, 3]` in printed order, giving each mode the instances that follow the
+   previous mode's: which instances are whose is computed from
+   `chosen_modes` and the node, never stored. If the creature has gained
+   hexproof, mode 1 does nothing and mode 3 still makes the Treasure (its
+   ruling: it does "as much as it can").
+7. A copy copies `chosen_modes` and the instances (707.10); Redirect changes
+   targets within the instances and never the modes (700.2f).
+
+Doomsday Confluence ({X}{X}{B}, "Choose X. You may choose the same mode more
+than once": each player sacrifices a nonartifact creature; create a 3/3 Dalek
+with menace; each opponent discards a card):
+1. Castability asks at the least X, as for any X spell
+   (`oracle/mana_helpers.rs:110`): at X = 0 the choice is empty, which no
+   mode's target can make illegal, so the card is offered when {B} is
+   payable.
+2. 601.2a: to the stack.
+3. 601.2b: X first (2b), `ChooseXValue` over the values the player can pay;
+   say 3. Then `ChooseModes` over the ten multisets of three among three
+   modes; the answer `modes 1, 2, 2` makes `chosen_modes` `[1, 2, 2]`, a
+   mode's copies adjacent in printed order.
+4. 601.2c: no mode targets, so nothing is announced.
+5. 601.2f: the total is {3}{3}{B}; paid.
+6. Resolution: the arm walks `[1, 2, 2]` as though the modes were printed in
+   that sequence (700.2d): each player sacrifices, then two Daleks.
+
+With targets, a repeat announces one instance list per copy: Moment of
+Reckoning's `modes 1, 1, 2` asks mode 1's target twice, the same permanent
+allowed both times (700.2d), and the order the two were announced is their
+order at resolution (its ruling).
+
 ### Decision 4 — a cost paid as an effect resolves: "unless", "you may pay", ward
 
 **The table**: the census's "unless" and payment rows. Grouped by what the
@@ -619,6 +666,22 @@ states no count shared across subjects. Each of the 5 printed divided
 preventions announces each target's share, so each target gets a shield of
 its own share. The refusal stays the answer to the shape the CR does not
 state, and the item says so in those words.
+
+**The three options on one cast** (asked in review). Arc Lightning's 3
+damage divided as Grizzly Bears 2 and the opponent 1:
+
+| | A, paired | B, a parallel list | C, in the amount |
+|---|---|---|---|
+| The entry holds | `Divided[(Bears, 2), (opponent, 1)]` | `chosen: [Bears, opponent]`, `shares: [2, 1]` | `chosen: [Bears, opponent]`, and beside it `{Bears: 2, opponent: 1}` for an amount that reads a share by target |
+| It resolves | each pair's target takes its share | `chosen[i]` takes `shares[i]` | each target looks up its share |
+| Bears has gained hexproof (608.2b) | the re-check drops the pair, and the opponent takes 1 (its ruling: the division stands) | the re-check's survivors (`ChosenTargets`, `engine/targeting.rs:83`) drop Bears, so `shares` must drop its first entry in step, or the opponent takes 2 | the map is keyed by target, so dropping Bears is safe |
+| Redirect moves Bears' 2 to Llanowar Elves (115.7f) | the pair's target is rewritten and its share stays: (Elves, 2) | `chosen[0]` is rewritten in place and `shares[0]` stays, right while no rewrite reorders the list | the map still names Bears: every rewrite of a target must also re-key it, or the Elves have no share |
+| Reverberate copies it with new targets (707.10c) | the pairs are copied, then rewritten as above | both lists copied, then as above | the map copied, then re-keyed as above |
+
+Under A every writer of the targets keeps the shares right without knowing
+they exist, since the share travels in the target's slot, and the re-check's
+survivors keep the pairs whole. B adds a rule every writer must keep by
+position, and C one every writer must keep by identity.
 
 **Recommendation: A**, the shape the backlog entry sized, with its two lists
 made one.
