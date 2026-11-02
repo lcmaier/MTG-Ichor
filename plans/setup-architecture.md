@@ -2669,10 +2669,27 @@ board is the state before the untap step. CR 514.2's cleanup has ended every
 "this turn" effect and removed all damage, the stack is empty and combat is
 over, so nothing about the turn exists to be written. What happened since is
 played: by the window's seats, a test's script, or, in a board saved from a
-game, the decision log's answer lines. `step` stays, meaning every seat
-passes, declaring nothing, until that step's first priority, where the setup
-lines play, so a main-phase board reads as it does today with its draw step
-drawn. `attacking`, `blocking`, `blocked`, `damage N`, `dealt first-strike
+game, the decision log's answer lines. `step` stays, as the step the setup
+lines play in: the turn is played from its beginning to that step's first
+priority, so a main-phase board reads as it does today with its draw step
+drawn. Three things the rules do on the way, each settled here:
+- **The untap step untaps** (CR 502.3): the active player's permanents are
+  untapped when the setup lines play, whatever the board wrote. A board that
+  needs one tapped taps it with a setup line, as play would. 7 of the 14
+  files write a tapped permanent of the active player.
+- **Combat is declared, not written.** CR 508.8 skips the declare blockers
+  step when no creature attacks, so a board at declare attackers or later
+  needs its attack declared. Setup lines gain the two declarations, `then:
+  player p attacks with <card> | attacking player q` and `then: player p
+  blocks <card> with <card>`, answering CR 508.1's and 509.1's questions as
+  a cast line answers its targets. 7 of the 14 files sit at declare
+  attackers or declare blockers.
+- **What is asked before the setup lines' step** (an upkeep trigger, its
+  order, its targets) goes to the seats' own providers, the window or a
+  test's script, as it would after the last line; the setup driver answers
+  only its lines' own questions, as today.
+
+`attacking`, `blocking`, `blocked`, `damage N`, `dealt first-strike
 damage`, `arrived this turn`, the `this turn:` lines and the "this turn"
 counts go, and with them the loader's refusals of states no play reaches (an
 attacker in a main phase, a blocker of a creature not attacking, `setup-architecture.md#41-how-a-bad-board-fails`).
@@ -2696,8 +2713,10 @@ field `command-zone-casting` counts. ~200–330 lines in the engine with tests,
 scenario files (`attacking` 7, `this turn:` 7, `blocking` 4, `damage` 3,
 `arrived this turn` 2), in the inline boards of four integration-test files
 (SU-1's loader tests hold most of them, then SU-7's, A6r's and TR-5h's), and
-in the board editor's mid-turn controls. ~400–700 lines changed, more deleted
-than added: an estimate from those counts, not a measurement. *Upkeep*: the
+in the board editor's mid-turn controls; the 7 files with an active
+player's tapped permanent and the 7 at a combat step besides, and the two
+declaration lines, ~60–100 lines with their tests. ~500–850 lines changed,
+more deleted than added: an estimate from those counts, not a measurement. *Upkeep*: the
 writer's report shrinks to what outlives a turn (delayed triggers, returns, a
 resolution's long rows), and the grammar holds only the state a turn's
 beginning holds.
@@ -3288,13 +3307,13 @@ from Below's two triggers, both orders.
 | | the fork: a copy at each anchor, the answers since, the replay; its consumer, the fork test at every decision of seeded games at two seats and four, each branch replaying the original's event log and end state | ~120–200 | ~150–250 |
 | | item 140's round started at any seat, and CR 514.3a's re-loop; item 41's test gains the mid-round forks | ~60 | ~60–80 |
 | | the paused game's copy at each turn's start, the writer's turn-start save, and decision 1's three words for the spans before a turn (closing item 287) | ~140–230 | ~60–100 |
-| | decision 1's B: `step` re-read as the step to pass to, the mid-turn words and their refusals out of the grammar and the loader, the engine's six scenario files and four test files' inline boards migrated | ~50–100 added, more deleted | ~100–200 changed |
+| | decision 1's B: the turn played to `step`, the setup lines' `attacks` and `blocks`, the mid-turn words and their refusals out of the grammar and the loader, the engine's six scenario files and four test files' inline boards migrated | ~90–160 added, more deleted | ~130–240 changed |
 | | items 40 and 233 closed as superseded | docs | |
-| | **the engine PR** | **~620–990** | **~570–930** |
+| | **the engine PR** | **~660–1,050** | **~600–970** |
 | **dev GUI** | the bridge drives a paused game (`spawn_game`'s thread, `GuiSeat`, `HandOver` go); "Save board as scenario" writes the turn's beginning and its save; the editor's mid-turn controls go and its eight test scenarios migrate | ~250–450 | ~100–200 |
 | with the harness | the coroutine, chosen by item 140's spike against the thread, with the binding floor item 140 proposes | sized there | |
 
-The engine PR reads ~1,190–1,920: inside the band (1,500–2,500,
+The engine PR reads ~1,260–2,020: inside the band (1,500–2,500,
 `engineering-practices.md#sizing-a-phase`) at its upper estimate, under it at
 its lower, so it is one PR. The paused game and the fork are one consumer's
 two halves. Fuzz A/B: `IDENTICAL` predicted. Every fuzz game runs
