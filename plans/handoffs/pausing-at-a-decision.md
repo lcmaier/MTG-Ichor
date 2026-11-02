@@ -675,6 +675,23 @@ to how an option prints is a change to which option an answer means. The
 owner chose the typed matcher at #305; what is open is how an effect is named,
 and how the two cost shapes are named.
 
+**What this decision asks, in one line** (added at #306's fourth review
+round, which found the four parts below hard to tell apart). Every option the
+engine offers should say what it is, so a person, a log and a replay can tell
+any two apart. That is one question, and two of the four parts below are the
+choices inside it; the other two are the work and its slot, stated so the
+answer can be built:
+
+| Part | What it covers | A choice? |
+|---|---|---|
+| 4a | how a replacement effect or a trigger is named, where today two from one card look identical (item 336) | **yes**: three options, C recommended |
+| 4b | how a cost (flashback, kicker, escape) is named, the one kind the typed matcher you chose at #305 cannot read back as written today | **yes**: three options, (ii) recommended |
+| 4c | the 33 tests that answer "take option n" and break when an engine change reorders a list (item 361) | no: they move to answers by name, as every other test already does |
+| 4d | when it is built | a slot: `modes-plus-choice-kinds`' first PR, recommended |
+
+So the answer is one line: take 4a's C and 4b's (ii), with 4c and 4d as
+written, or change any of the four.
+
 **4a. How an effect is named.**
 
 **The worked example.** Bridge from Below is in your graveyard. A nontoken
@@ -826,14 +843,14 @@ has escape, and `casting-from-other-zones` builds both.
 **Recommendation: (ii).** The matcher with its parsers and the cost's whole
 label, ~170–290 lines and the tests.
 
-**4c. `picking(n)`** (item 361). It is a test's policy, not a script, and the
+**4c. `picking(n)`** (item 361; the work, not a choice). It is a test's policy, not a script, and the
 33 uses that depend on order break whenever an engine change reorders a list.
 `modes-plus-choice-kinds` reorders and lengthens lists (a mode is an option,
 and a choice kind gains options). So the 33 move to scripted answers named by
 identity in that PR's first commit, at item 361's ~150–250 lines, and
 `picking(n)` stays for the 142 uses no order reaches.
 
-**4d. When it is built.** Decision 4 is independent of pausing, and
+**4d. When it is built** (the slot, not a design choice). Decision 4 is independent of pausing, and
 `modes-plus-choice-kinds` (step 5) already names modes by identity in place of
 `StackEntry.chosen_modes`' positions. One log-format change and one fixture
 migration is cheaper than two. **Recommendation**: 4a, 4b and 4c are built
