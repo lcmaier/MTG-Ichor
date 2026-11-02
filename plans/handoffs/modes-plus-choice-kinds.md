@@ -2,9 +2,10 @@
 
 **Opened 2026-11-01**, on `choices/modes-plus-choice-kinds` off `d00a2abd`
 (#306's merge), as `roadmap-v2.md` step 5 of "From triggers to v0.5". This
-file is the design note, reviewed before any code; the design moves into the
-doc decision 1 picks once the owner has decided, and the landing deletes this
-file. Every count below was read against `d00a2abd`; the printed counts are
+file is the design note, reviewed before any code; the design moves into
+`choices-architecture.md` (decision 1) once the owner has decided the rest,
+and the landing deletes this file. Every count below was read against
+`d00a2abd`; the printed counts are
 `plans/references/choice-kinds-census.py`'s, run 2026-11-01 over its cached
 corpus (every Commander-legal paper card, fetched 2026-10-05, 32,115 cards),
 with a second column for Tarkir: Dragonstorm Commander's 373 cards (`tdc`,
@@ -237,7 +238,7 @@ architecture row says a new subsystem extends the row, never adds a row.
   own one boundary's kinds, and a kind's shape is in one doc while its rule
   is in another.
 
-**Recommendation: A.** The phase is a subsystem by the row's own test: it
+**Decided in review: A.** The phase is a subsystem by the row's own test: it
 owns CR sections no doc owns (700.2, 118.12a's payment, 608.2d's values,
 701.38, 201.4), and every later choice kind (`linked-abilities`' stored
 values, `resolution-recipients-and-amounts`' recipients, `permission-design`'s
@@ -615,7 +616,7 @@ is missing is a payment inside a resolution, and where "unless" is spelled.
   (702.21b). Echo and cumulative upkeep are sibling keywords on the same
   payment, none in `tdc`, and wait for `breadth-features`.
 
-**Recommendation: A.** It is the CR's own sentence, it adds one primitive
+**Decided in review: A.** It is the CR's own sentence, it adds one primitive
 where B adds a combinator beside it, and every row of the table is it with a
 different chooser or cost. Item 240's upkeep halves (Contamination, Infernal
 Darkness: "sacrifice this unless you sacrifice a creature") become writable.
@@ -866,7 +867,7 @@ know what is being chosen and among what.
 - **At random** (a player, a mode) draws from `GameState.rng` and asks
   nothing.
 
-**Recommendation: A.** It is `ChooseOpponent`'s precedent, `ChoiceKind`'s
+**Decided in review: A.** It is `ChooseOpponent`'s precedent, `ChoiceKind`'s
 doc's contract ("adding a new variant here is the only change"), and each
 kind's `subject` and wording stay one match arm. B saves arms in matches that
 are exhaustive on purpose.
