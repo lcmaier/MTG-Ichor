@@ -515,10 +515,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
         ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
             let which = match ability {
-                TriggeredAbility::Of { ability, granted_by } => {
-                    let granted = granted_by.map_or(String::new(), |by| format!(", granted by {}", n(&by)));
-                    format!("{}{granted}", ability_text_of(game, source.id, *ability))
-                }
+                TriggeredAbility::Of { ability, granted_by, .. } => ability_words(game, source.id, *ability, *granted_by),
                 TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
                 TriggeredAbility::Delayed { refers_to } => format!("its delayed ability about {}", listed(game, refers_to)),
             };
@@ -530,8 +527,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         }
         ChoiceOption::Replacement(ReplacementOption::Made { source, made_by: None }) => format!("{} · its effect", n(source)),
         ChoiceOption::Replacement(ReplacementOption::Ability { object, ability, granted_by, .. }) => {
-            let granted = granted_by.map_or(String::new(), |by| format!(", granted by {}", n(&by)));
-            format!("{} · {}{granted}", n(&object.id), ability_text_of(game, object.id, *ability))
+            format!("{} · {}", n(&object.id), ability_words(game, object.id, *ability, *granted_by))
         }
         ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, .. }) => {
             format!("{} · its {} counter", n(&object.id), counter.name())
@@ -540,13 +536,21 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
     }
 }
 
-/// The text of `id`'s ability whose definition is `ability`'s, whichever
-/// instance of it the object has.
-fn ability_text_of(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static str {
-    get_effective_abilities(game, id)
+/// `id`'s ability whose definition is `ability`'s, whichever instance of it
+/// the object has: its text, and its granter's name when an effect gave it.
+/// An entering object shows a grant only in its CR 614.12 frame, which no
+/// label has, so one that does not show it yet is named by its granter.
+fn ability_words(game: &GameState, id: ObjectId, ability: AbilityId, granted_by: Option<ObjectId>) -> String {
+    let text = get_effective_abilities(game, id)
         .iter()
         .find(|def| def.id.definition() == ability.definition())
-        .map_or("an ability it no longer has", |def| def.rules_text.words)
+        .map(|def| def.rules_text.words);
+    match (text, granted_by) {
+        (Some(text), None) => text.to_string(),
+        (Some(text), Some(by)) => format!("{text}, granted by {}", named(game, by)),
+        (None, Some(by)) => format!("the ability {} grants", named(game, by)),
+        (None, None) => "an ability it no longer has".to_string(),
+    }
 }
 
 /// `ids`, each by its name, as a list a label reads.

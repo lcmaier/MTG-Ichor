@@ -587,7 +587,7 @@ pub(crate) fn apply_replacements(
             if let Some(chooser) = chooser {
                 game.note_unasked(chooser, Unasked::OneGame(Elision::ReplacementOrder), || {
                     let kind = ChoiceKind::ChooseReplacementEffect { affected_object: subject_object(subject) };
-                    (kind, UnaskedAnswer::Picks(vec![ChoiceOption::Replacement(game.replacement_option(&first.instance))]))
+                    (kind, UnaskedAnswer::Picks(vec![ChoiceOption::Replacement(game.replacement_option(&first.instance, &frame))]))
                 });
             }
             (first, Decided::OrderInvariant)
@@ -603,7 +603,7 @@ pub(crate) fn apply_replacements(
                     subject
                 ));
             };
-            let effects = choosable.iter().map(|c| game.replacement_option(&c.instance)).collect();
+            let effects = choosable.iter().map(|c| game.replacement_option(&c.instance, &frame)).collect();
             let index = ask_choose_replacement(ctx.dp, game, chooser, subject_object(subject), effects);
             (choosable.into_iter().nth(index).expect("index validated by ask_*"), Decided::Asked)
         };

@@ -358,6 +358,7 @@ pub fn replacement_ability_of(game: &GameState, object: ObjectId, place: usize) 
         ability: ability.definition(),
         granted_by: game.granted_by(ability),
         member: 0,
+        place: u8::try_from(place).ok(),
     })
 }
 
