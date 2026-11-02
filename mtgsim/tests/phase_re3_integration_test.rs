@@ -28,7 +28,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, ReplacementOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -124,6 +124,17 @@ fn resolve_from(
 fn activate_words(game: &mut GameState, words: ObjectId, player: PlayerId, dp: &dyn DecisionProvider) {
     let effect = words_of_worship().abilities[0].effect.clone();
     resolve_from(game, words, player, &effect, Vec::new(), dp);
+}
+
+/// Activate `words`'s ability through the stack, paying {1} from the pool,
+/// and resolve it. Returns the ability's own object (CR 608.2n), which names
+/// the row its resolution makes.
+fn activate_words_on_the_stack(game: &mut GameState, words: ObjectId, player: PlayerId) -> ObjectId {
+    game.players[player].mana_pool.add(mtgsim::types::mana::ManaType::Colorless, 1);
+    game.activate_ability(player, words, 0, &mtgsim::ui::mana_window_stop::ManaWindowStop::new(test_dp())).unwrap();
+    let ability = game.stack.iter().last().copied().expect("the ability is on the stack");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    ability
 }
 
 /// Resolve Skullcrack, targeting `victim`. Its two restriction rows land before
@@ -501,13 +512,15 @@ fn two_words_rows_are_a_choice_and_each_draw_uses_one_up() {
     let words = put_on_battlefield(&mut game, words_of_worship(), 0);
     let before = life(&game, 0);
 
-    activate_words(&mut game, words, 0, &test_dp());
-    activate_words(&mut game, words, 0, &test_dp());
+    activate_words_on_the_stack(&mut game, words, 0);
+    let second = activate_words_on_the_stack(&mut game, words, 0);
 
-    // Both rows are offered as the Words, so the answer names one by its
-    // place; either does here.
+    // Each row is named by the activation that made it; either does here.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice_among_alike(PICK_REPLACEMENT, vec![(ChoiceOption::Object(words), 2)]);
+    dp.expect_choice(
+        PICK_REPLACEMENT,
+        vec![ChoiceOption::Replacement(ReplacementOption::Made { source: words, made_by: Some(second) })],
+    );
     draw_one(&mut game, 0, &dp);
     assert!(dp.is_empty(), "two rows, so CR 616.1 asks which one applies");
     assert_eq!(life(&game, 0), before + 5, "one row applied, not both");

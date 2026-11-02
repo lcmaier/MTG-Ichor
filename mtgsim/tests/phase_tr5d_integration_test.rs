@@ -835,6 +835,7 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: shield,
+        made_by: None,
         controller: 1,
         generated_by: GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

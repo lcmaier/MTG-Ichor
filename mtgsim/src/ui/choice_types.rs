@@ -557,13 +557,13 @@ pub enum TriggeredAbility {
 }
 
 /// A replacement or prevention effect as an option names it: CR 614.5's key,
-/// with a registry row named by its source rather than by its counter.
+/// with a registry row named by its source and the resolution that made it
+/// rather than by its counter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplacementOption {
-    /// A row a resolution made (CR 614.3, 615.7), by its source. Two rows of
-    /// one source read alike: a resolution has no id of its own to name them
-    /// apart by, the open question in `choices-architecture.md`'s build.
-    Made { source: ObjectId },
+    /// A row a resolution made (CR 614.3, 615.7): its source, and the stack
+    /// object whose resolution made it.
+    Made { source: ObjectId, made_by: Option<ObjectId> },
     /// A static ability of an object (CR 614.1a), by its definition, and
     /// which of the replacement effects its body makes, counted from 0.
     Ability { object: ObjectRef, ability: AbilityId, granted_by: Option<ObjectId>, member: u8 },
@@ -630,7 +630,10 @@ impl ChoiceOption {
                 };
                 format!("{}, {which}{about}", existence(source))
             }
-            ChoiceOption::Replacement(ReplacementOption::Made { source }) => format!("{}, its effect", object(source)),
+            ChoiceOption::Replacement(ReplacementOption::Made { source, made_by: Some(by) }) => {
+                format!("{}, made as {by} resolved", object(source))
+            }
+            ChoiceOption::Replacement(ReplacementOption::Made { source, made_by: None }) => format!("{}, its effect", object(source)),
             ChoiceOption::Replacement(ReplacementOption::Ability { object: of, ability, granted_by, member }) => {
                 let member = if *member == 0 { String::new() } else { format!(", its effect {}", member + 1) };
                 format!("{}, {}{}{member}", existence(of), place(&of.id, ability), granted(granted_by))
@@ -681,7 +684,10 @@ impl GameState {
     pub(crate) fn replacement_option(&self, instance: &crate::engine::replacement::ReplacementInstance) -> ReplacementOption {
         use crate::engine::replacement::ReplacementInstanceId;
         match instance.id {
-            ReplacementInstanceId::Registered(_) => ReplacementOption::Made { source: instance.source },
+            ReplacementInstanceId::Registered(row) => ReplacementOption::Made {
+                source: instance.source,
+                made_by: self.replacement_effects.iter().find(|registered| registered.id == row).and_then(|registered| registered.made_by),
+            },
             ReplacementInstanceId::StaticAbility { object, ability, member } => ReplacementOption::Ability {
                 object,
                 ability: ability.definition(),
@@ -868,7 +874,11 @@ mod tests {
             format!("Soul Warden ({warden}), its delayed ability about Grizzly Bears ({bears})")
         );
         assert_eq!(
-            logged(ChoiceOption::Replacement(ReplacementOption::Made { source: wall })),
+            logged(ChoiceOption::Replacement(ReplacementOption::Made { source: wall, made_by: Some(bolt) })),
+            format!("Wall of Stone ({wall}), made as {bolt} resolved")
+        );
+        assert_eq!(
+            logged(ChoiceOption::Replacement(ReplacementOption::Made { source: wall, made_by: None })),
             format!("Wall of Stone ({wall}), its effect")
         );
         assert_eq!(

@@ -158,6 +158,7 @@ fn replacement_row(game: &mut GameState, def: ReplacementDef) {
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: mtgsim::types::ids::new_object_id(),
+        made_by: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

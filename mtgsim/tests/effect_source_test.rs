@@ -371,6 +371,7 @@ fn shield_around(game: &mut GameState, player: PlayerId, mut def: ReplacementDef
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: anchor,
+        made_by: None,
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

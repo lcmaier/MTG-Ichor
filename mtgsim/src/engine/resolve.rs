@@ -1277,6 +1277,7 @@ impl GameState {
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: ReplacementEffectId::UNASSIGNED,
                         source: ctx.effect_source(),
+                        made_by: Some(ctx.source),
                         controller,
                         generated_by: ctx.generated_by,
                         duration: Duration::UntilEndOfTurn,
@@ -1428,6 +1429,7 @@ impl GameState {
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: ReplacementEffectId::UNASSIGNED,
                         source,
+                        made_by: Some(ctx.source),
                         controller: ctx.controller,
                         generated_by: ctx.generated_by,
                         duration: *duration,
