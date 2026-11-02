@@ -790,24 +790,44 @@ offered (Kicker, Buyback, Entwine, Casualty, Bargain, Strive, `Custom`; a
   of "Keywords are abilities", under "Before Layers" item 10) would name the
   keyword variants again but not `Custom`, so the variant is the one spelling
   that covers all fourteen. For
-  a variant carrying `Cost`s, the identity adds the mana among them,
-  which the log writes even where the label shows the keyword alone; Casualty
-  its N; Bargain and Strive nothing more; `Custom` its text. The rest of the
-  words are kept as a check, as a name is. ~40 lines beyond the matcher: the
-  variant's word and a mana parser for `{1}{R}`.
+  a variant carrying `Cost`s, the identity adds **the whole cost**: its mana,
+  and each other part by its kind and its amount (exile 5 from your
+  graveyard, pay 3 life, sacrifice 1, discard 1), which is the `Cost` list
+  without its filters; the filters are engine ASTs, so their words ("other
+  cards") are kept as a check, as a name is. Casualty adds its N; Bargain and
+  Strive nothing more; `Custom` its text. The log writes the whole cost even
+  where today's label shows the keyword alone. ~60–100 lines beyond the
+  matcher: the variant's word, a mana parser for `{1}{R}`, and a reader for
+  each `Cost` part's words, which `ui::display::entry_offer_words` already
+  writes.
 - **(iii) Compare the cost shapes by words**, the one textual corner left.
 
-**Two offered costs alike under (ii).** No cost is granted today, so a spell
-offers only its printed costs, and none prints two of one variant with one
-mana (two kickers differ by mana). Granted costs arrive with
-`casting-from-other-zones`. Checked on Scryfall (2026-11-01): Underworld
-Breach grants escape "equal to the card's mana cost plus exile three other
-cards", so beside Uro, Titan of Nature's Wrath's printed escape it offers
-{1}{G}{U} against {G}{G}{U}{U}, and beside Underworld Rage-Hound's {1}{R}
-against {3}{R}: both pairs differ by mana. A pair alike in variant, mana and
-every other word is one cost twice, and either pick is the same game, which
-is decision 1's one exception. `permission-design`, which gives an offered
-cost its source, can add the source to the identity then.
+**Why the whole cost, not kind and mana: the census** (revised at #306's
+fourth review round, which asked whether kind and mana cover everything; they
+do not). No cost is granted today, so a spell offers only its printed costs;
+granted costs arrive with `casting-from-other-zones`. Scryfall, `game:paper
+-is:funny`, 2026-11-01: every escape card (`kw:escape`, 32), every flashback
+card (`kw:flashback`, 216), every card with two kickers (`o:/kicker[^\n]*and\/or/`,
+18), and every card granting a cost keyword (`o:/(has|have|gains?|gain)
+(escape|flashback|kicker|…)/`, 5 escape, 19 flashback, 16 others), each
+printed cost split into its mana and the rest and compared with each grant:
+
+| Two costs one spell can be offered | Kind and mana | The whole cost |
+|---|---|---|
+| Escape granted at "mana cost + exile three" (Underworld Breach, The Master of Keys, Confession Dial, Welcome to . . . // Jurassic Park) beside one granted at "mana cost + exile two" (Desdemona, Freedom's Edge), on a card both reach | **alike**: different costs read as one | apart |
+| a printed escape whose mana is the card's mana cost, beside a granted one: From the Catacombs (exile five), Skyway Robber (five), Sentinel's Eyes (two), Lunar Hatchling (a land you control and five) | **alike** | apart |
+| Flash of Defiance's printed flashback ({1}{R}, pay 3 life) beside a granted flashback at its mana cost ({1}{R}; Snapcaster Mage and 15 more) | **alike** | apart |
+| Uro or Underworld Rage-Hound beside Underworld Breach | apart by mana | apart |
+| the 18 cards with two kickers | apart by mana | apart |
+| printed casualty beside a granted one (Anhelo, Silverquill, Ashad) | apart by N, or one cost twice | the same |
+| Bloodbraid Challenger's printed escape ({3}{R}{G}, exile three) beside Breach's; the 16 cards whose flashback is their mana cost beside a granted one | one cost twice | one cost twice |
+
+**One cost twice** is the only pair left alike, and either pick is the same
+game: the same kind and the same whole cost. Where the CR lets both be paid
+(two instances of casualty, CR 702.153b: "each is paid separately"), the
+matcher already takes two alike options as two. That is decision 1's one
+exception. `permission-design`, which gives an offered cost its source, can
+add the source to the identity then.
 
 **Uro beside Underworld Breach, worked through** (asked at #306's third
 review round). Uro, Titan of Nature's Wrath is in your graveyard with
@@ -827,10 +847,11 @@ its mana cost, {1}{G}{U}, plus exile three other cards). What the rules say:
   any permission other than an escape ability".
 
 What the shape does with it. Under (ii) the two options are both the
-`Escape` variant and differ by their mana, so the question offers two
-options, the log writes `alternative Escape {1}{G}{U}` and `alternative
-Escape {G}{G}{U}{U}`, and a client draws each with its whole cost, the exile
-counts included. Today's label prints a cost with a non-mana part as its
+`Escape` variant and differ by their whole cost, so the question offers two
+options, the log writes `alternative Escape {1}{G}{U}, exile 3 from your
+graveyard` and `alternative Escape {G}{G}{U}{U}, exile 5 from your
+graveyard`, and a client draws each with its whole cost, the exile counts
+included. Today's label prints a cost with a non-mana part as its
 keyword alone ("Escape"); the build prints that part through the words
 `ui::display::entry_offer_words` already has for each `Cost` ("exile 5 from
 your graveyard"), ~20–40 lines in decision 4's PR.
@@ -840,8 +861,9 @@ the "escaped" check reads `Escape` there, and both options pass it. Nothing
 in the tree casts from a graveyard or reads "escaped" yet: no registered card
 has escape, and `casting-from-other-zones` builds both.
 
-**Recommendation: (ii).** The matcher with its parsers and the cost's whole
-label, ~170–290 lines and the tests.
+**Recommendation: (ii), its identity the kind and the whole cost.** The
+matcher with its parsers and the cost's whole label, ~190–330 lines and the
+tests.
 
 **4c. `picking(n)`** (item 361; the work, not a choice). It is a test's policy, not a script, and the
 33 uses that depend on order break whenever an engine change reorders a list.
@@ -863,7 +885,7 @@ and 361 are re-slotted there.
 
 **Before the decks, in `modes-plus-choice-kinds`' first PR** (decision 4):
 the two effect arms, the typed matcher with its cost parser, and the 33
-`picking(n)` uses, ~420–720 lines with tests. The PR's own sizing places it in
+`picking(n)` uses, ~440–760 lines with tests. The PR's own sizing places it in
 the band. Its consumer is the decision log: a replay of a game with Bridge
 from Below's two triggers, both orders.
 
