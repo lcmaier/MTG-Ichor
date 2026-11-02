@@ -20,7 +20,10 @@ rewritten from the start; decision 4a keeps what the engine compares, what
 the log writes and what a person sees apart, so no option is shown or logged
 as an id number. **At the third round** the owner took decisions 2 (B), 2b
 (by identity) and 3 ((b)), and asked how decision 4 treats Uro beside
-Underworld Breach, which 4b now works through.
+Underworld Breach, which 4b now works through. **At the fourth** the owner
+took 4a (C) and 4d (`modes-plus-choice-kinds`), and asked whether kind and
+mana cover every cost; a census found seven pairs they do not, so 4b's
+identity is widened to the kind and the whole cost.
 
 **What changes in a game: nothing a player sees.** A game becomes something
 that can stop at any question, be copied there, and go on from an answer.
@@ -684,10 +687,10 @@ answer can be built:
 
 | Part | What it covers | A choice? |
 |---|---|---|
-| 4a | how a replacement effect or a trigger is named, where today two from one card look identical (item 336) | **yes**: three options, C recommended |
-| 4b | how a cost (flashback, kicker, escape) is named, the one kind the typed matcher you chose at #305 cannot read back as written today | **yes**: three options, (ii) recommended |
+| 4a | how a replacement effect or a trigger is named, where today two from one card look identical (item 336) | **yes**: taken, C |
+| 4b | how a cost (flashback, kicker, escape) is named, the one kind the typed matcher you chose at #305 cannot read back as written today | **yes**: three options, (ii) recommended, its identity widened to the whole cost at the fourth round |
 | 4c | the 33 tests that answer "take option n" and break when an engine change reorders a list (item 361) | no: they move to answers by name, as every other test already does |
-| 4d | when it is built | a slot: `modes-plus-choice-kinds`' first PR, recommended |
+| 4d | when it is built | a slot: taken, `modes-plus-choice-kinds`' first PR |
 
 So the answer is one line: take 4a's C and 4b's (ii), with 4c and 4d as
 written, or change any of the four.
@@ -759,7 +762,8 @@ says which ability is which.
   `expect_order_among_alike` and the log's `(n of m)` go. ~100–180 lines and
   the tests.
 
-**Recommendation: C.** Only C names every family §3.3 counts. The log could
+**Taken: C** (the owner, 2026-11-01, at #306's fourth review round). Only C
+names every family §3.3 counts. The log could
 write the ability's text as well as its place; it would make a line as long
 as the card's paragraph, and a fixed typo in a card's text would then stop
 every older record's replay, so the text stays the client's.
@@ -875,9 +879,9 @@ identity in that PR's first commit, at item 361's ~150–250 lines, and
 **4d. When it is built** (the slot, not a design choice). Decision 4 is independent of pausing, and
 `modes-plus-choice-kinds` (step 5) already names modes by identity in place of
 `StackEntry.chosen_modes`' positions. One log-format change and one fixture
-migration is cheaper than two. **Recommendation**: 4a, 4b and 4c are built
-in `modes-plus-choice-kinds`' first PR, ~420–720 lines in all, and items 336
-and 361 are re-slotted there.
+migration is cheaper than two. **Taken** (the owner, 2026-11-01, at #306's
+fourth review round): 4a, 4b and 4c are built in `modes-plus-choice-kinds`'
+first PR, ~440–760 lines in all, and items 336 and 361 are re-slotted there.
 
 ---
 
