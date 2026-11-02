@@ -765,11 +765,15 @@ has a kind, `ScryOrder`, built for CR 701.22a's; it is widened to
 carries.
 
 **How B is kept right** (asked in review). Skipping a question is right only
-if every order the player could choose gives the same game. The two errors
-are not alike: asking when no order matters costs a prompt, and skipping
-when one does takes a choice from the player with nothing to show it. So B
-is built to fail toward asking, and checked by running it with the shortcut
-off:
+if every order the player could choose gives the same game. Skipping every
+such question is the goal: a question whose answers all give one game wastes
+a person's time and an agent's decision. But when the engine cannot show
+that the orders agree, the two ways to be wrong are not alike: an extra
+question is waste, which a measurement finds and a later elision removes,
+while a skipped question that mattered takes a choice the CR gives the
+player, and nothing would show it. So B skips wherever it can show the
+orders agree, asks where it cannot, and is checked by running it with the
+shortcut off:
 - **Every arm states what it reads and changes in an exhaustive match**, with
   no wildcard, so a new `Cost` or `AmountExpr` arm does not compile until it
   says; an arm that cannot say states "everything", which meets every other
@@ -980,4 +984,14 @@ PR registers cards, and its stream moves with them, measured the same way.
    battlefield), is the copy effect "the effect that created" the abilities
    it copies? If so, 613.7m's property is complete; if not, it asks whenever
    two of one player's entering objects are not alike. For the owner, and
-   read against `copy-effects-architecture.md` at the build.
+   read against `copy-effects-architecture.md` at the build. The case: an
+   opponent's Kudo, King Among Bears ("Other creatures have base power and
+   toughness 2/2") is out; your Living Death returns Godhead of Awe ("Other
+   creatures have base power and toughness 1/1") and Grizzly Bears together.
+   Only Godhead generates an effect, so the property does not ask, and
+   Godhead's later timestamp beats Kudo: your Savannah Lions is 1/1. Later,
+   Polymorphous Rush makes the Bears a copy of Kudo. If the copied ability
+   takes Rush's timestamp, it is the latest and the Lions is 2/2 whatever
+   Living Death's order was. If it keeps the Bears' own, the Lions is 2/2
+   only if the Bears were put after Godhead, and 1/1 if before: a choice the
+   engine never asked decides it.
