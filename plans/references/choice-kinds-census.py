@@ -263,9 +263,24 @@ def _(c, t):
     return re.search(r"each mode must target a different", t, re.I)
 
 
-@family("a mode not chosen before (\"that hasn't been chosen\")")
+@family("a mode not chosen for this ability this turn")
 def _(c, t):
-    return re.search(r"(?:that|which) (?:hasn't|haven't|has not) been chosen", t, re.I)
+    return re.search(r"\bchoose one that hasn't been chosen this turn\b", t, re.I)
+
+
+@family("a mode not chosen for this ability while its object exists (Demonic Pact)")
+def _(c, t):
+    return re.search(r"\bchoose one that hasn't been chosen\b(?! this turn)", t, re.I)
+
+
+@family("a value not chosen for this ability while its object exists (Garth One-Eye)")
+def _(c, t):
+    return re.search(r"\bchoose (?!one\b)[^.]*? that hasn't been chosen\b(?! this)", t, re.I)
+
+
+@family("a value another player chose in this resolution, excluded (Fortunate Few)")
+def _(c, t):
+    return re.search(r"\bchooses [^.]*? that hasn't been chosen\b", t, re.I)
 
 
 @family("CR 700.2h: spree, a cost per mode")
@@ -391,16 +406,28 @@ def _(c, t):
         t, re.I)
 
 
+AS_CAST_COST = re.compile(r"As an additional cost to cast this spell, ([^.]*)\.", re.I)
+
 for _value, _rx in VALUES.items():
     def _make(rx):
         def at_resolution(c, t):
-            return rx.search(AS_ENTERS.sub("", t))
+            return rx.search(AS_CAST_COST.sub("", AS_ENTERS.sub("", t)))
         def as_entering(c, t):
             return any(rx.search(m.group(1)) for m in AS_ENTERS.finditer(t))
-        return at_resolution, as_entering
-    _res, _ent = _make(_rx)
+        def as_cost(c, t):
+            return any(rx.search(m.group(1)) for m in AS_CAST_COST.finditer(t))
+        return at_resolution, as_entering, as_cost
+    _res, _ent, _cost = _make(_rx)
     FAMILIES["value at resolution: " + _value] = _res
     FAMILIES["value as it enters: " + _value] = _ent
+    FAMILIES["value as an additional cost to cast it: " + _value] = _cost
+
+
+@family("an object chosen as an additional cost to cast it, not targeted")
+def _(c, t):
+    return any(re.search(r"\bchoose (?:a|an|another) [\w ,-]*?(?:creature|permanent|artifact|card)s? (?:you control|you own|in your)",
+                         m.group(1), re.I)
+               for m in AS_CAST_COST.finditer(t))
 
 
 @family("value at resolution: a card name narrowed by what the card is")

@@ -141,42 +141,47 @@ family under 40 and a sample of each larger one was read card by card.
 | "Choose X" | 1 | 0 | Doomsday Confluence |
 | a count raised by a condition ("if you control a commander as you cast this spell, you may choose both instead") | 19 | **5** | the Will of the [clan] cycle |
 | zero or exactly N ("you may choose two") | 1 | **1** | Shadrix Silverquill (ruling: "exactly zero modes or two modes") |
-| the same mode more than once (700.2d) | 22 | 0 | Season of the Burrow |
+| the same mode more than once (700.2d) | 22 | 0 | Season of the Burrow; Moment of Reckoning (up to four, of two modes) |
 | pawprints (700.2i) | 5 | 0 | Season of the Burrow |
 | a mode chosen at random | 5 | 0 | Summon: Magus Sisters |
 | another player chooses the mode (700.2e) | 3 | 0 | Fatal Lore |
 | a mode with its own target (700.2c, f) | 570 | 12 | Abrade |
 | "each mode must target a different player" (item 154) | 7 | **1** | Shadrix Silverquill |
-| "choose one that hasn't been chosen this turn" | 26 | **2** | Parapet Thrasher, Teval's Judgment |
-| a cost per mode: spree (700.2h), tiered | 21, 7 | 0 | — |
-| entwine, escalate | 32, 9 | 0 | — |
+| "choose one that hasn't been chosen this turn" | 11 | **2** | Parapet Thrasher, Teval's Judgment |
+| "choose one that hasn't been chosen", for as long as the object exists | 11 | 0 | Demonic Pact |
+| a value not chosen before by this object's ability | 2 | 0 | Garth One-Eye's card name, The Toymaker's Trap's number |
+| a value another player chose earlier in this resolution, excluded | 2 | 0 | Fortunate Few, Rejoin the Fight |
+| a cost per mode: spree (700.2h), tiered | 21, 7 | 0 | Final Showdown; Fire Magic |
+| entwine, escalate | 32, 9 | 0 | Barbed Lightning; Collective Defiance |
 | **"Unless [a player] [acts]"** (118.12a) | 428 | 1 | Compulsive Research |
 | …pays | 292 | 0 | Mana Leak |
 | …another action (sacrifices, discards, returns, …) | 138 | 1 | Contamination, Compulsive Research |
 | …the payer is not the ability's controller | 232 | 1 | Mana Leak |
 | …"unless any player pays", "any player may" (asked of each, 101.4) | 19 | 0 | Rhystic Study |
 | ward, printed; its cost not mana; granted | 184; 52; 42 | 1; 0; 0 | Canopy Gargantuan |
-| echo, cumulative upkeep (the same payment as keywords) | 130 | 0 | — |
+| echo, cumulative upkeep (the same payment as keywords) | 130 | 0 | Albino Troll; Arctic Wolves |
 | **a cost paid at resolution**, "may pay …. If/When you do" | 510 | 3 | Gix, Yawgmoth Praetor; Spit Flame |
 | …its amount chosen as it is paid ({X}, X life, any amount; 107.3f) | 81 | 1 | Leyline Tyrant |
 | *not this phase*: a "can't" with a price ("can't attack you unless their controller pays") | 40 | 1 | Ghostly Prison: a cost to attack, CR 508.1h, `combat-requirements`' |
 | **Divided among targets** (601.2d) | 114 | **3** | Dragonlord Atarka (a trigger), Magma Opus, Skarrgan Hellkite (an activation) |
 | …among objects not targeted (608.2d) | 10 | 0 | Feast of the Victorious Dead |
-| …prevention divided as you choose (item 92) | 5 | 0 | — |
+| …prevention divided as you choose (item 92) | 5 | 0 | Remedy |
 | **An order a card hands a player**, a library's "in any order" | 171 | 1 | Ponder |
 | objects entering at once under one player (613.7m) | 66 | 1 | Living Death |
 | CR 601.2h's payment order: no phrase; a shape read off the cost (decision 6) | — | — | Omnath, Locus of Mana with Momentous Fall (ATOM-601.2h-003) |
 | …a creature whose power or toughness reads the pool or the life total, so a payment beside its sacrifice changes what it leaves | 6 | 0 | Omnath, Serra Avatar |
-| **A value chosen as the effect applies** (608.2d): a color | 43 | 0 | — |
-| …a creature type; a card type; a basic land type | 58; 7; 15 | 0 | — |
+| **A value chosen as the effect applies** (608.2d): a color | 43 | 0 | Brave the Elements |
+| …a creature type; a card type; a basic land type | 56; 7; 15 | 0 | Bloodline Bidding; Blood Oath; Elsewhere Flask |
 | …a card name (201.4) | 46 | 0 | Brain Pry |
 | a card name narrowed by what the card is ("nonland", "creature", "artifact"; 201.4a), at resolution or as it enters | 24 | 0 | Cabal Therapy, Meddling Mage |
-| …a number (including "secretly") | 19 | **1** | Expel the Interlopers |
+| …a number (including "secretly") | 18 | **1** | Expel the Interlopers |
 | …a player, not targeted (including "at random") | 47 | **1** | Territorial Hellkite |
 | …a word with no rules meaning (607.2f) | 23 | 0 | Extinction Event's "odd or even" |
 | …a pile (700.3) | 21 | 0 | Fact or Fiction |
 | …a vote (701.38) | 35 | **1** | Selvala's Stampede |
 | the same values chosen **as the permanent enters** (stored for a linked ability, CR 607.2d) | 194 | 3 | Temple of the Dragon Queen, Reflections of Littjara, Frontier Siege |
+| the same values chosen **as an additional cost to cast it** (601.2b, paid at 601.2h): a creature type; a number | 2; 1 | 0 | Caller of the Hunt; Liquid Fire |
+| an object chosen as an additional cost to cast it, not targeted | 2 | 0 | Close Encounter, Monstrous Emergence |
 
 Notes on the table:
 - **738 modal cards, not the roadmap's 915.** The roadmap's number is the
@@ -191,6 +196,15 @@ Notes on the table:
   the permanent for "the chosen color" by that step's design.
 - Ponder's "put them back in any order" is the row's one `tdc` card; 135 of
   the 171 are "on the bottom of your library in any order".
+- **"Hasn't been chosen" has two scopes, read in review.** The first count
+  put all 26 under "this turn"; 11 are, 11 remember for as long as the object
+  exists (Demonic Pact's ruling: "refers only to that specific Demonic Pact",
+  whoever controls it), and 4 choose a value rather than a mode. Decision 2
+  keeps both scopes in one record.
+- **A value or an object can be chosen while casting**, as an additional cost
+  (5 cards). The value is decision 7's kind asked at 601.2b; the object is a
+  cost paid at 601.2h, the cost model's (`remaining-costs`), not decision 8's
+  `Choose`.
 
 ## The decisions
 
@@ -615,11 +629,16 @@ game, and states that once for the three orders.
 
 ### Decision 7 — a value chosen as an effect applies (CR 608.2d)
 
-**The table** is the census's value rows: a color 43, a creature type 58, a
-card type 7, a basic land type 15, a card name 46, a number 19 (one in
+**The table** is the census's value rows: a color 43, a creature type 56, a
+card type 7, a basic land type 15, a card name 46, a number 18 (one in
 `tdc`), a player not targeted 47 (one in `tdc`, chosen at random), a word 23,
-a pile 21, a vote 35 (one in `tdc`); and 194 more choosing a value as a
-permanent enters, for a linked ability (step 6). Today `ChoiceKind::ChooseOpponent`
+a pile 21, a vote 35 (one in `tdc`); 194 more choosing a value as a
+permanent enters, for a linked ability (step 6); and 3 as an additional cost
+to cast the spell (Caller of the Hunt's creature type, Liquid Fire's number).
+The kinds carry no timing: the same `ChooseCreatureType` is asked at 601.2b,
+as a permanent enters, or as an effect applies. Two remember what they chose
+before (Garth One-Eye's card name, The Toymaker's Trap's number), through
+decision 2's record of what an ability has chosen. Today `ChoiceKind::ChooseOpponent`
 is the one such kind (Akroan Horse's opponent), and `ChoiceOption` has `Color`,
 `Player`, `Number` and `CounterType`.
 
