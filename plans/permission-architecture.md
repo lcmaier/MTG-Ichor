@@ -214,7 +214,19 @@ Named here so the design session starts from them; none is answered.
    permission a cast used. Where is that recorded, and does a copy of the
    spell keep it (CR 707.10)?
 4. **Two permissions for one card.** Flashback and Snapcaster Mage's grant
-   are an example: does the player choose (601.2b), and when?
+   are an example: does the player choose (601.2b), and when? The rulings
+   already say yes, for Uro, Titan of Nature's Wrath beside Underworld
+   Breach: "If a card has multiple abilities giving you permission to cast
+   it, such as two escape abilities…, you choose which one to apply". Two
+   things are fixed by `pausing-at-a-decision`'s design
+   (`setup-architecture.md#7e-pausing-at-a-decision`, decision 4b). An offered
+   cost is named by its kind and its whole cost, so the two escapes are two
+   options. And CR 702.138b's "escaped" holds for any escape ability, so its
+   check reads the cost kind a cast chose (`StackEntry.cost_choices`),
+   never the cost's source, and either escape dodges Uro's sacrifice. Open
+   here: whether an offered cost carries its source, which the option's
+   identity would then gain; two costs alike in kind and whole cost are one
+   cost twice until it does.
 5. **A limit's state.** Per ability instance (602.5c), per permanent (606.3),
    kept across a change of control (602.5b), held on `GameState`
    (`CLAUDE.md`: no decision-site state off it).
