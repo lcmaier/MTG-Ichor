@@ -738,7 +738,7 @@ fn parallel_lives_doubles_the_attacking_tokens() {
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
     declare(&mut game, &[(garrison, 1)]);
 
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Player(1)]);
     resolve_all(&mut game, &dp);
     let humans = tokens(&game);
     assert_eq!(humans.len(), 4);

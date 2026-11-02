@@ -423,16 +423,14 @@ fn two_furnaces_under_different_controllers_still_ask_nothing() {
 // correct and different, and that each effect applies once — is proved.
 #[test]
 fn ghosts_beside_furnace_does_not_commute_and_the_damaged_player_chooses() {
-    // `battlefield_ids_ordered` is CR 613.7 timestamp order, so the Ghosts
-    // entering first is candidate 0 and the Furnace candidate 1.
-    let outcomes: Vec<i64> = [0usize, 1]
+    let outcomes: Vec<i64> = [true, false]
         .into_iter()
-        .map(|pick| {
+        .map(|ghosts_first| {
             let mut game = setup_two_player_game();
-            put_on_battlefield(&mut game, ghosts_of_the_innocent(), 0);
-            put_on_battlefield(&mut game, furnace_of_rath(), 0);
+            let ghosts = put_on_battlefield(&mut game, ghosts_of_the_innocent(), 0);
+            let furnace = put_on_battlefield(&mut game, furnace_of_rath(), 0);
             let source = source_for(&mut game, 0);
-            let dp = RecordingDecisionProvider::picking(pick);
+            let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(if ghosts_first { ghosts } else { furnace })]);
             bolt_player_with(&mut game, &dp, source, 1, 3);
             assert_eq!(dp.prompts(), 1, "two candidates, then one");
             20 - life(&game, 1)
@@ -456,14 +454,14 @@ fn ghosts_beside_furnace_does_not_commute_and_the_damaged_player_chooses() {
 /// effects."
 #[test]
 fn giselas_prevention_beside_an_opponents_furnace_does_not_commute() {
-    let outcomes: Vec<i64> = [0usize, 1]
+    let outcomes: Vec<i64> = [true, false]
         .into_iter()
-        .map(|pick| {
+        .map(|gisela_first| {
             let mut game = setup_two_player_game();
-            put_on_battlefield(&mut game, gisela_blade_of_goldnight(), 0);
-            put_on_battlefield(&mut game, furnace_of_rath(), 1);
+            let gisela = put_on_battlefield(&mut game, gisela_blade_of_goldnight(), 0);
+            let furnace = put_on_battlefield(&mut game, furnace_of_rath(), 1);
             let source = source_for(&mut game, 1);
-            let dp = RecordingDecisionProvider::picking(pick);
+            let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(if gisela_first { gisela } else { furnace })]);
             bolt_player_with(&mut game, &dp, source, 0, 5);
             20 - life(&game, 0)
         })
@@ -1205,15 +1203,20 @@ mod the_damage_cards {
         permanent
     }
 
-    /// Take the **first** option at every prompt.
-    ///
-    /// Every board below that reaches CR 609.7a's prompt puts the source it
-    /// means at the oldest timestamp, so index 0 is that source — and every
-    /// board that reaches a CR 616.1 prompt is one the ruling says either
+    /// Take the **first** option at every prompt, for a board whose answer
+    /// cannot change what it asserts: a CR 616.1 prompt the ruling says either
     /// order answers the same way, which each test asserts rather than
     /// assumes.
     fn first() -> mtgsim::test_support::RecordingDecisionProvider {
         mtgsim::test_support::RecordingDecisionProvider::picking(0)
+    }
+
+    /// Name `options` at every prompt of two or more: CR 609.7a's chosen
+    /// source, wherever the candidates list it.
+    fn naming(options: impl IntoIterator<Item = mtgsim::types::ids::ObjectId>) -> mtgsim::test_support::RecordingDecisionProvider {
+        mtgsim::test_support::RecordingDecisionProvider::choosing(
+            options.into_iter().map(mtgsim::ui::choice_types::ChoiceOption::Object),
+        )
     }
 
     /// The chosen source on the one row in the registry.
@@ -1236,10 +1239,9 @@ mod the_damage_cards {
     #[test]
     fn circle_of_protection_red_prevents_the_whole_next_instance_however_big() {
         let mut game = setup_two_player_game();
-        // A red 1/1 for the opponent, and nothing else that could be chosen
-        // but the Circle itself — so the choice is forced and unasked.
+        // A red 1/1 for the opponent beside the Circle: the choice names it.
         let red_source = put_on_battlefield(&mut game, lightning_bolt_creature(), 1);
-        activate(&mut game, circle_of_protection_red(), 0, &first());
+        activate(&mut game, circle_of_protection_red(), 0, &naming([red_source]));
         assert_eq!(chosen_source(&game), Some(red_source), "CR 609.7a, at creation");
 
         bolt(&mut game, red_source, ObjectOrPlayerId::Player(0), 7);
@@ -1263,7 +1265,7 @@ mod the_damage_cards {
     fn circle_of_protection_red_does_not_apply_and_is_not_spent_once_the_source_turns_blue() {
         let mut game = setup_two_player_game();
         let source = put_on_battlefield(&mut game, lightning_bolt_creature(), 1);
-        activate(&mut game, circle_of_protection_red(), 0, &first());
+        activate(&mut game, circle_of_protection_red(), 0, &naming([source]));
         assert_eq!(chosen_source(&game), Some(source));
 
         let ts = game.allocate_timestamp();
@@ -1323,13 +1325,13 @@ mod the_damage_cards {
     fn two_dark_spheres_take_five_to_three_to_two() {
         let mut game = setup_two_player_game();
         let source = put_on_battlefield(&mut game, lightning_bolt_creature(), 1);
-        activate(&mut game, dark_sphere(), 0, &first());
-        activate(&mut game, dark_sphere(), 0, &first());
+        let sphere = activate(&mut game, dark_sphere(), 0, &naming([source]));
+        activate(&mut game, dark_sphere(), 0, &naming([source]));
         assert_eq!(rows(&game).len(), 2);
 
         // Two candidates, so CR 616.1 asks — and either answer is this one,
         // because both rows halve the same way.
-        let dp = first();
+        let dp = naming([sphere]);
         game.execute_action(
             GameAction::DealDamage {
                 source,

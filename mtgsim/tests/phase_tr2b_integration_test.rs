@@ -395,7 +395,7 @@ fn each_opponent_chooses_in_turn_and_sacrifices_at_once() {
         first.push(put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat));
         put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat);
     }
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::choosing(first.iter().copied().map(ChoiceOption::Object));
     let each_opponent = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents));
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_opponent, 1), &ctx, &dp).unwrap();
@@ -421,7 +421,7 @@ fn each_player_chooses_in_apnap_order_and_the_caster_waits_their_turn() {
         first.push(put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat));
         put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat);
     }
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::choosing(first.iter().copied().map(ChoiceOption::Object));
     let each_player = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone));
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_player, 1), &ctx, &dp).unwrap();

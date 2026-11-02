@@ -339,6 +339,11 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 pub struct RecordingDecisionProvider {
     pick: usize,
     all: bool,
+    /// The options a test named: what a prompt of two or more options picks.
+    named: Vec<crate::ui::choice_types::ChoiceOption>,
+    /// Each bucket a test named with its amount: what an allocation of two or
+    /// more buckets gives.
+    amounts: Vec<(crate::ui::choice_types::ChoiceOption, u64)>,
     seen: std::cell::RefCell<Vec<String>>,
     mode: SeatMode,
 }
@@ -349,9 +354,27 @@ impl RecordingDecisionProvider {
         RecordingDecisionProvider {
             pick: index,
             all: false,
+            named: Vec::new(),
+            amounts: Vec::new(),
             seen: std::cell::RefCell::new(Vec::new()),
             mode: SeatMode::default(),
         }
+    }
+
+    /// Answer a `pick_n` of two or more options with the ones `named` names
+    /// that it offers, first named first, wherever the engine lists them, and
+    /// refuse one that offers too few; a lone option is taken, as
+    /// [`Self::picking`] takes it. For a test whose outcome turns on which
+    /// option it took, so that a change to the list's order cannot change
+    /// what it chose.
+    pub fn choosing(named: impl IntoIterator<Item = crate::ui::choice_types::ChoiceOption>) -> Self {
+        RecordingDecisionProvider { named: named.into_iter().collect(), ..Self::picking(0) }
+    }
+
+    /// Answer an allocation of two or more buckets with each named bucket's
+    /// amount, and every other bucket none.
+    pub fn allocating(amounts: impl IntoIterator<Item = (crate::ui::choice_types::ChoiceOption, u64)>) -> Self {
+        RecordingDecisionProvider { amounts: amounts.into_iter().collect(), ..Self::picking(0) }
     }
 
     /// Answer every `pick_n` by taking **everything offered**, up to the bound.
@@ -362,12 +385,7 @@ impl RecordingDecisionProvider {
     /// index 0 only notices when the wrongly-offered option happens to be first
     /// (`phase_rc5_integration_test`'s CR 614.13a tests are the case).
     pub fn picking_all() -> Self {
-        RecordingDecisionProvider {
-            pick: 0,
-            all: true,
-            seen: std::cell::RefCell::new(Vec::new()),
-            mode: SeatMode::default(),
-        }
+        RecordingDecisionProvider { all: true, ..Self::picking(0) }
     }
 
     /// Be asked at every priority point, `Pass` alone included, so the
@@ -392,15 +410,33 @@ impl RecordingDecisionProvider {
 impl DecisionProvider for RecordingDecisionProvider {
     fn pick_n(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         ctx: &crate::ui::choice_types::ChoiceContext,
         options: &[crate::ui::choice_types::ChoiceOption],
-        _bounds: (usize, usize),
+        bounds: (usize, usize),
     ) -> Vec<usize> {
         self.seen.borrow_mut().push(ctx.kind.as_str().to_string());
         if self.all {
-            return (0..options.len().min(_bounds.1)).collect();
+            return (0..options.len().min(bounds.1)).collect();
+        }
+        if !self.named.is_empty() && options.len() > 1 {
+            let picks: Vec<usize> = self
+                .named
+                .iter()
+                .filter_map(|wanted| {
+                    let words = wanted.as_logged(game);
+                    (0..options.len()).find(|&i| options[i].as_logged(game) == words)
+                })
+                .take(bounds.1)
+                .collect();
+            assert!(
+                picks.len() >= bounds.0,
+                "RecordingDecisionProvider::choosing: {} offers {:?} and names too few of them",
+                ctx.kind.as_str(),
+                options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>(),
+            );
+            return picks;
         }
         vec![self.pick.min(options.len().saturating_sub(1))]
     }
@@ -428,6 +464,15 @@ impl DecisionProvider for RecordingDecisionProvider {
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.seen.borrow_mut().push("allocate".to_string());
+        if !self.amounts.is_empty() && buckets.len() > 1 {
+            return buckets
+                .iter()
+                .map(|bucket| {
+                    let words = bucket.as_logged(_game);
+                    self.amounts.iter().find(|(named, _)| named.as_logged(_game) == words).map_or(0, |&(_, amount)| amount)
+                })
+                .collect();
+        }
         // Greedy in bucket order, respecting each maximum. Dumping the whole
         // total into bucket 0 was legal only while every test's pool had one
         // type in it; a two-color pool has a bucket whose maximum is zero

@@ -29,6 +29,7 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer}
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power};
 use mtgsim::state::game_state::{GameState, StepType};
+use mtgsim::ui::choice_types::ChoiceOption;
 use mtgsim::test_support::{
     card_of_type, put_in_hand, put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
@@ -84,6 +85,11 @@ fn activate_and_resolve_with(game: &mut GameState, player: PlayerId, source: Obj
 /// first option at any prompt on the way.
 fn place_and_resolve(game: &mut GameState) {
     resolve_all(game, &RecordingDecisionProvider::picking(0));
+}
+
+/// [`place_and_resolve`], naming `chosen` at every prompt of two or more.
+fn place_and_resolve_choosing(game: &mut GameState, chosen: ObjectId) {
+    resolve_all(game, &RecordingDecisionProvider::choosing([ChoiceOption::Object(chosen)]));
 }
 
 /// [`place_and_resolve`], answering every prompt with `dp`.
@@ -447,7 +453,7 @@ fn a_delayed_trigger_refers_to_the_player_its_creator_named() {
         ),
         0,
     );
-    activate_and_resolve_with(&mut game, 0, totem, &RecordingDecisionProvider::picking(1));
+    activate_and_resolve_with(&mut game, 0, totem, &RecordingDecisionProvider::choosing([ChoiceOption::Player(1)]));
     assert_eq!((life(&game, 0), life(&game, 1)), (20, 21), "player 1 was targeted");
 
     advance_to(&mut game, 0, StepType::End);
@@ -610,7 +616,7 @@ fn flickerwisps_card_returns_as_a_new_object() {
     game.add_counters(bears, CounterType::PlusOnePlusOne, 1);
     let before = game.object_ref(bears).unwrap();
 
-    flicker(&mut game, 0, &RecordingDecisionProvider::picking(0));
+    flicker(&mut game, 0, &RecordingDecisionProvider::choosing([ChoiceOption::Object(bears)]));
     assert_eq!(zone(&game, bears), Zone::Exile);
     assert_eq!(zone(&game, strength), Zone::Graveyard, "the Aura went to its owner's graveyard (CR 704.5m)");
     assert_eq!(zone(&game, wings), Zone::Battlefield);
@@ -674,7 +680,7 @@ fn an_aura_with_nothing_to_enchant_stays_in_exile() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let strength = put_on_battlefield(&mut game, holy_strength(), 0);
     game.attach(strength, bears);
-    let wisp = flicker(&mut game, 0, &RecordingDecisionProvider::picking(1));
+    let wisp = flicker(&mut game, 0, &RecordingDecisionProvider::choosing([ChoiceOption::Object(strength)]));
     assert_eq!(zone(&game, strength), Zone::Exile);
     sacrifice(&mut game, bears);
     sacrifice(&mut game, wisp);
@@ -842,7 +848,7 @@ fn an_until_return_is_under_its_owners_control() {
     game.settle_announced_controllers();
     assert_eq!(get_effective_controller(&game, stolen), Some(0));
     let priest = put_on_battlefield(&mut game, banisher(ReturnUnder::Owner), 0);
-    place_and_resolve(&mut game);
+    place_and_resolve_choosing(&mut game, stolen);
     assert_eq!(zone(&game, stolen), Zone::Exile);
 
     sacrifice(&mut game, priest);
@@ -857,7 +863,7 @@ fn an_until_return_that_says_your_control_is_under_yours() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let priest = put_on_battlefield(&mut game, banisher(ReturnUnder::You), 0);
-    place_and_resolve(&mut game);
+    place_and_resolve_choosing(&mut game, bears);
     assert_eq!(zone(&game, bears), Zone::Exile);
 
     sacrifice(&mut game, priest);
@@ -898,10 +904,10 @@ fn banishing_lights_aura_returns_enchanting_what_its_owner_chooses() {
     let strength = put_on_battlefield(&mut game, holy_strength(), 1);
     game.attach(strength, bears);
     let warded = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Hexproof]), 0);
-    let light = banish(&mut game, 0, &RecordingDecisionProvider::picking(1));
-    assert_eq!(zone(&game, strength), Zone::Exile, "the second option, the Aura");
+    let light = banish(&mut game, 0, &RecordingDecisionProvider::choosing([ChoiceOption::Object(strength)]));
+    assert_eq!(zone(&game, strength), Zone::Exile, "the Aura");
 
-    let dp = RecordingDecisionProvider::picking(1);
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(warded)]);
     game.execute_actions(
         vec![GameAction::Destroy { object: light }],
         &ActionContext::new(&dp),
@@ -919,7 +925,7 @@ fn banishing_lights_aura_with_nothing_to_enchant_stays_in_exile() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let strength = put_on_battlefield(&mut game, holy_strength(), 1);
     game.attach(strength, bears);
-    let light = banish(&mut game, 0, &RecordingDecisionProvider::picking(1));
+    let light = banish(&mut game, 0, &RecordingDecisionProvider::choosing([ChoiceOption::Object(strength)]));
     sacrifice(&mut game, bears);
 
     sacrifice(&mut game, light);
@@ -942,7 +948,7 @@ fn banishing_lights_card_returns_as_a_new_object() {
     game.attach(wings, bears);
     game.add_counters(bears, CounterType::PlusOnePlusOne, 1);
     let before = game.object_ref(bears).unwrap();
-    let light = banish(&mut game, 0, &RecordingDecisionProvider::picking(0));
+    let light = banish(&mut game, 0, &RecordingDecisionProvider::choosing([ChoiceOption::Object(bears)]));
     assert_eq!(zone(&game, bears), Zone::Exile);
     assert_eq!(zone(&game, strength), Zone::Graveyard);
     assert_eq!(game.battlefield[&wings].attached_to, None);

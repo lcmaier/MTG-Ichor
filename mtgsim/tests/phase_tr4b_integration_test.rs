@@ -30,6 +30,7 @@ use mtgsim::events::event::{GameEvent, UnattachRoute};
 use mtgsim::objects::card_data::{AbilityType, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_controller};
 use mtgsim::state::game_state::GameState;
+use mtgsim::ui::choice_types::ChoiceOption;
 use mtgsim::test_support::{
     aura_enchanting_your_creature, card_of_type, effect_ctx, equipment, put_in_graveyard, put_on_battlefield,
     put_spell_on_stack, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp, RecordingDecisionProvider,
@@ -538,13 +539,13 @@ fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
     }
 }
 
-/// Activate `equipment`'s equip at the `pick`th creature and resolve it.
-fn equip_to(game: &mut GameState, equipment: ObjectId, pick: usize) {
+/// Activate `equipment`'s equip at `creature` and resolve it.
+fn equip_to(game: &mut GameState, equipment: ObjectId, creature: ObjectId) {
     let index = get_effective_abilities(game, equipment)
         .iter()
         .position(|a| matches!(a.ability_type, AbilityType::Activated(_)))
         .expect("an equip ability");
-    let dp = RecordingDecisionProvider::picking(pick);
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(creature)]);
     game.activate_ability(0, equipment, index, &dp).unwrap();
     game.resolve_top_of_stack(&dp).unwrap();
 }
@@ -559,7 +560,7 @@ fn watched_on_bears(game: &mut GameState) -> (ObjectId, ObjectId, ObjectId) {
     let first = put_on_battlefield(game, grizzly_bears(), 0);
     let second = put_on_battlefield(game, grizzly_bears(), 0);
     let gear = put_on_battlefield(game, watching_equipment(), 0);
-    equip_to(game, gear, 0);
+    equip_to(game, gear, first);
     resolve_all(game, &test_dp());
     assert_eq!(host(game, gear), Some(first));
     (gear, first, second)
@@ -572,7 +573,7 @@ fn equipping_the_creature_it_is_already_attached_to_triggers_nothing() {
     let (gear, first, _) = watched_on_bears(&mut game);
     let before = life(&game);
 
-    equip_to(&mut game, gear, 0);
+    equip_to(&mut game, gear, first);
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(host(&game, gear), Some(first));
@@ -585,10 +586,10 @@ fn equipping_the_creature_it_is_already_attached_to_triggers_nothing() {
 #[test]
 fn moving_an_equipment_to_another_creature_triggers_its_unattach_from_the_first() {
     let mut game = setup_two_player_game();
-    let (gear, first, _) = watched_on_bears(&mut game);
+    let (gear, first, second) = watched_on_bears(&mut game);
     let first_ref = existence(&game, first);
 
-    equip_to(&mut game, gear, 1);
+    equip_to(&mut game, gear, second);
 
     let unattached: Vec<_> = game
         .pending_triggers
@@ -608,7 +609,7 @@ fn moving_an_equipment_to_another_creature_triggers_both_ways() {
     let (gear, _, second) = watched_on_bears(&mut game);
     let before = life(&game);
 
-    equip_to(&mut game, gear, 1);
+    equip_to(&mut game, gear, second);
     resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
 
     assert_eq!(host(&game, gear), Some(second));
@@ -631,7 +632,7 @@ fn an_equipment_whose_creature_is_destroyed_triggers_looking_back() {
         0,
     );
     let gear = put_on_battlefield(&mut game, watching_equipment(), 0);
-    equip_to(&mut game, gear, 1);
+    equip_to(&mut game, gear, construct);
     resolve_all(&mut game, &test_dp());
     assert_eq!(host(&game, gear), Some(construct), "the animated Clue, the second creature");
     let before = life(&game);
@@ -757,14 +758,14 @@ fn granting_equipment() -> Arc<CardData> {
 #[test]
 fn a_creature_whose_equipment_granted_its_unattach_trigger_triggers_as_the_equipment_moves() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, grizzly_bears(), 0);
-    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let gear = put_on_battlefield(&mut game, granting_equipment(), 0);
-    equip_to(&mut game, gear, 0);
+    equip_to(&mut game, gear, first);
     resolve_all(&mut game, &test_dp());
     let before = life(&game);
 
-    equip_to(&mut game, gear, 1);
+    equip_to(&mut game, gear, second);
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(life(&game), before + 5, "the first creature's, as it was; the second's is about itself");
@@ -779,7 +780,7 @@ fn wargear_on_bears(game: &mut GameState) -> (ObjectId, ObjectId, ObjectId) {
     let first = put_on_battlefield(game, grizzly_bears(), 0);
     let second = put_on_battlefield(game, grizzly_bears(), 0);
     let wargear = put_on_battlefield(game, grafted_wargear(), 0);
-    equip_to(game, wargear, 0);
+    equip_to(game, wargear, first);
     resolve_all(game, &test_dp());
     assert_eq!(host(game, wargear), Some(first));
     (wargear, first, second)
@@ -796,7 +797,7 @@ fn grafted_wargear_moved_to_another_creature_sacrifices_the_first() {
     let (wargear, first, second) = wargear_on_bears(&mut game);
     game.record_events();
 
-    equip_to(&mut game, wargear, 1);
+    equip_to(&mut game, wargear, second);
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(host(&game, wargear), Some(second));
@@ -832,7 +833,7 @@ fn grafted_wargear_on_a_creature_that_stops_being_one_sacrifices_it() {
         0,
     );
     let wargear = put_on_battlefield(&mut game, grafted_wargear(), 0);
-    equip_to(&mut game, wargear, 1);
+    equip_to(&mut game, wargear, construct);
     resolve_all(&mut game, &test_dp());
     assert_eq!(host(&game, wargear), Some(construct));
 
@@ -936,7 +937,7 @@ fn an_unattach_trigger_does_not_find_the_card_its_creature_became() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let gear = put_on_battlefield(&mut game, bouncing_equipment(), 0);
-    equip_to(&mut game, gear, 0);
+    equip_to(&mut game, gear, bears);
     resolve_all(&mut game, &test_dp());
 
     destroy_all(&mut game, &[bears]);
@@ -952,10 +953,10 @@ fn grafted_wargear_equipped_again_to_its_creature_sacrifices_nothing() {
     let mut game = setup_two_player_game();
     let wargear = put_on_battlefield(&mut game, grafted_wargear(), 0);
     let only = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    equip_to(&mut game, wargear, 0);
+    equip_to(&mut game, wargear, only);
     resolve_all(&mut game, &test_dp());
 
-    equip_to(&mut game, wargear, 0);
+    equip_to(&mut game, wargear, only);
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(host(&game, wargear), Some(only));
@@ -973,7 +974,7 @@ fn grafted_wargear_does_not_sacrifice_an_opponents_creature() {
     attach(&mut game, wargear, theirs);
     resolve_all(&mut game, &test_dp());
 
-    equip_to(&mut game, wargear, 0);
+    equip_to(&mut game, wargear, mine);
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(host(&game, wargear), Some(mine));

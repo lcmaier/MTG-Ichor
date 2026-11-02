@@ -25,6 +25,7 @@ use mtgsim::objects::card_data::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::state::restrictions::RegisteredRestriction;
+use mtgsim::ui::choice_types::ChoiceOption;
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -713,14 +714,14 @@ fn a_cant_be_prevented_row_leaves_a_count_intact() {
 #[test]
 fn under_a_cant_be_prevented_row_the_angel_still_mills_and_reverse_damage_gains_nothing() {
     let mut game = setup_two_player_game();
-    // First on the battlefield, so it is the first candidate CR 609.7a offers.
     let bolt_source = probe(&mut game, 1);
     let angel = put_on_battlefield(&mut game, angel_of_suffering(), 0);
     fill_library(&mut game, 0, 20);
     cant_be_prevented_this_turn(&mut game, angel, 1);
 
-    // Reverse Damage names its source at resolution — RD-3's chosen source.
-    let dp = RecordingDecisionProvider::picking(0);
+    // Reverse Damage names its source at resolution — RD-3's chosen source —
+    // and the Angel's mill applies first.
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(bolt_source), ChoiceOption::Object(angel)]);
     let ctx = ActionContext::new(&dp);
     resolve_spell_with(
         &mut game,

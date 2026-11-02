@@ -438,9 +438,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
     let circle = put_on_battlefield(&mut game, circle_of_protection_red(), 0);
     let spell = put_spell_on_stack(&mut game, red_creature(6, &[]), 1);
 
-    // CR 609.7a's candidates are the battlefield in timestamp order and then
-    // the stack's spells — [circle, spell] — so index 1 is the spell.
-    let dp = RecordingDecisionProvider::picking(1);
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(spell)]);
     let ctx = ResolutionContext {
         ability_source: game.object_ref(circle),
         ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell)

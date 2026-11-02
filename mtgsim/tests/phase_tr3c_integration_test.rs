@@ -229,8 +229,8 @@ fn a_shield_prevents_the_damage_its_chosen_source_deals_after_it_died() {
     circle_chooses(&mut game, circle, now(myr));
 
     destroy(&mut game, myr);
-    // The Myr's controller, P1, targets P0: players are offered first.
-    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+    // The Myr's controller, P1, targets P0.
+    resolve_all(&mut game, &RecordingDecisionProvider::choosing([ChoiceOption::Player(0)]));
 
     assert_eq!(life(&game, 0), 20, "the Myr that died is the source the Circle chose");
     assert!(game.replacement_effects.is_empty(), "and the shield is spent (CR 615.8)");
