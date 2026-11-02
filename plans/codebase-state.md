@@ -2061,8 +2061,17 @@ section never asked.
     trigger code and not in the table: CR 603.3d's targets at placement, CR
     603.7b's choice of cause, and CR 303.4f's host for a returning Aura. Item
     233.
-    **Slotted:** Phase 10, whose fork-based harness needs `PendingReplacement`
-    and `PendingCast` on `GameState`, with item 233's three trigger sites.
+    **`pausing-at-a-decision`'s design (#306, 2026-11-01) supersedes the
+    migration.** A paused game keeps its own call stack, so neither violator
+    needs to move: a fork copies the game at the last priority prompt asked for
+    the first time in its window and replays the answers since, which rebuilds
+    the CR 614.5 sets and the CR 601.2 announcement as play built them
+    (`setup-architecture.md#7e-pausing-at-a-decision`, decision 3, (b), taken).
+    The invariant narrows to: no decision site holds state off `GameState`
+    past the next priority prompt. The build closes this item, with its fork
+    test at every decision.
+    **Slotted:** `pausing-at-a-decision`, whose build after v0.5, with the AI
+    harness, closes it as superseded.
 
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
@@ -6256,9 +6265,15 @@ Commander-scale board closes item 69.
      number is the owner's to set. The mechanism is chosen by a spike before
      Phase 10's design: real games through a channel-backed provider, against
      a coroutine prototype.
-     **Slotted:** Phase 10, the parallel-play harness, whose first fork-based
-     search needs a priority round resumed at a seat other than the active
-     player.
+     **`pausing-at-a-decision`'s design (#306, 2026-11-01) builds it**: a
+     round started at any seat with its passes derived is decision 3's (b),
+     taken, so every priority prompt asked for the first time in its window is
+     a place a fork resumes from (`setup-architecture.md#7e-pausing-at-a-decision`).
+     The design's probe found the agents' default stack asks 0–2 mid-round
+     priority prompts a game, since the engine passes for a seat that can only
+     pass; a person's seat, or an instant-speed agent's, asks mostly those.
+     **Slotted:** `pausing-at-a-decision`, whose build after v0.5, with the AI
+     harness, builds the round's entry point and CR 514.3a's re-loop.
 
 141. **The `DecisionProvider` boundary, serialized: which fields, which
      crate, what it costs — and the `&GameState` parameter stays.** The wire
@@ -8484,10 +8499,13 @@ source live is corrected in place.
      603.3c's modes at placement, CR 603.5's "may"), and a prompt that keeps
      what it has decided on `GameState`, the drain's shape, needs no
      migration later.
-     **Slotted:** Phase 10's first fork-based harness, item 140's slot, with
-     item 40's violators. The rule for new prompts is `triggers-architecture.md`
-     §5.6 (the owner, 2026-10-08, at A6k's review), so TR-4–TR-7 build none of
-     this shape.
+     **`pausing-at-a-decision`'s design (#306, 2026-11-01) supersedes it**, as
+     it does item 40's violators: a paused game keeps these three sites' state
+     on its stack, and a fork rebuilds it by replay from the last priority
+     prompt. The rule for new prompts the owner set on 2026-10-08 is withdrawn
+     for decision 3's (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **Slotted:** `pausing-at-a-decision`, whose build after v0.5, with the AI
+     harness, closes it as superseded.
 
 234. **~~CR 610.3's waiting returns carry no id and announce nothing.~~ — ✅
      CLOSED 2026-10-09 (PR #238).** — archived.
@@ -9145,12 +9163,15 @@ scan of the history log, and the place in a turn that reads a tally since
      a count of draws, deaths, attacks or damage.
      **Sized:** a word per fact naming its objects, as `cast <card>` does,
      each ~40 lines with its test.
-     **Slotted:** `pausing-at-a-decision` (`route-review`, 2026-10-29), whose
-     design opens with one audit of the scenario format and
-     the dev GUI together against what the engine now records, since a paused
-     game is saved in that format: a word per narrowed fact, Caller of the
-     Claw's deaths the first (the owner, at #293's review, 2026-10-25: a filed
-     gap with printed customers takes a route row).
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 1, B, taken:** no word per narrowed fact. A scenario starts at a
+     turn's beginning and the turn is played; a board written from a game is
+     that beginning plus the turn's answers, so this turn's rows are played,
+     never written. Three words cover the spans before a turn (`attacked last
+     turn`, a player's attack last turn, an object's damage over the game), and
+     the mid-turn words leave the grammar (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **Slotted:** `pausing-at-a-decision`, whose build after v0.5 writes a
+     game's board as its turn's beginning and closes this item.
 
 ### Found by TR-5d (2026-10-19)
 
@@ -9849,8 +9870,15 @@ keyed by its event.
      ~150–250 more: a parser for each option shape the log writes (the
      costs, "alternative Flashback {1}{R}", the hard ones), and
      `ChoiceOption` comparable.
-     **Slotted:** `pausing-at-a-decision`, whose design names every option
-     by what it is (`roadmap-v2.md` §3a).
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 4, taken:** two option kinds, `Replacement` and `Trigger`, each
+     compared by what it is (a trigger by its source, its ability's place and
+     what triggered it), logged by names and places with no internal id, and
+     drawn by a client with the ability's text; the typed matcher reads every
+     shape, a cost by its kind and its whole cost
+     (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **Slotted:** `modes-plus-choice-kinds`, whose first PR builds decision 4
+     (the owner, #306's fourth review round).
 
 337. **An entry choice's cost is paid only in life.** `EnterModsTemplate`'s
      `unless_paid` carries any `Cost`, and `pays_as_object_enters` refuses every
@@ -10304,5 +10332,8 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      it answers.
      **Sized:** the 33 uses named outright or moved to the scripted
      provider, each read as item 209's were; ~150–250 lines.
-     **Slotted:** `pausing-at-a-decision`, whose design sets the
-     `DecisionProvider`'s shape with every option named by what it is.
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 4:** the 33 uses move to answers named by what they chose, since
+     `modes-plus-choice-kinds` reorders and lengthens the lists they answer;
+     `picking(n)` stays for the 142 uses no order reaches.
+     **Slotted:** `modes-plus-choice-kinds`, whose first PR builds decision 4.

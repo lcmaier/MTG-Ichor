@@ -301,7 +301,11 @@ What each gate assumes, and what checks it: `elisions.md` §4.
 
 ### 2.6 The decision sites `codebase-state.md` main item 40 tracks
 
-The invariant: no decision site holds outcome-bearing state off `GameState`.
+The invariant, as `pausing-at-a-decision`'s design narrowed it (#306,
+`setup-architecture.md#7e-pausing-at-a-decision`, decision 3): no decision
+site holds state off `GameState` past the next priority prompt. A paused game
+keeps the rest on its own stack, and a fork rebuilds it by replaying from the
+last priority prompt, so the two violators below close at that design's build.
 Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
 `decision` record.
 The prompts the engine answers itself, and why: `elisions.md` §2, §3.
