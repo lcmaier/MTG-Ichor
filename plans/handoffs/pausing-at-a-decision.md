@@ -18,7 +18,9 @@ second round** the owner took decision 1 (B), leaned to B for decision 2 and
 asked for B against D in full, which decision 2 now carries; decision 3 is
 rewritten from the start; decision 4a keeps what the engine compares, what
 the log writes and what a person sees apart, so no option is shown or logged
-as an id number.
+as an id number. **At the third round** the owner took decisions 2 (B), 2b
+(by identity) and 3 ((b)), and asked how decision 4 treats Uro beside
+Underworld Breach, which 4b now works through.
 
 **What changes in a game: nothing a player sees.** A game becomes something
 that can stop at any question, be copied there, and go on from an answer.
@@ -468,7 +470,9 @@ under CR 722.5 will read who controls that player, a fact `GameState` gains
 with Mindslaver's family (§8); under CR 722.8 one seat then answers for two
 players. The question carries no answering seat of its own.
 
-**Recommendation: B, on a thread first.** It is the only option that serves
+**Taken: B, on a thread first** (the owner, 2026-11-01, at #306's third
+review round, after B against D below). The recommendation: it is the only
+option that serves
 all three customers with no rewrite, it keeps the trait and every
 implementation, and its one cost that grows, a fork off an anchor, is paid by
 the search that asked for it. D buys a fork up to 79 µs cheaper, about half
@@ -524,7 +528,7 @@ engine which one.
   among the question's options. A client that answers late, against a
   question re-derived after a server restarted, names what it meant.
 
-**Recommendation: by identity**: answers are named by what they chose
+**Taken: by identity** (the owner, the same round): answers are named by what they chose
 everywhere a client or a file writes one, and the place stays inside the
 engine, between `ui::ask` and the provider.
 
@@ -651,7 +655,8 @@ seeded games at two seats and four and requires each branch to replay the
 original. It is item 41's test with "every round start" widened to "every
 decision". A choice kind that broke rule 3 would fail it.
 
-**Recommendation: (b), withdrawing the 2026-10-08 rule.** It is item 140's
+**Taken: (b), withdrawing the 2026-10-08 rule** (the owner, the same round).
+It is item 140's
 60 lines, it makes rule 3 exactly true at every first ask, and it closes items
 40 and 233 without the 450–650 lines whose only use is decision 2's D.
 Placement's drain shape (the waiting queue loses an entry only as it is
