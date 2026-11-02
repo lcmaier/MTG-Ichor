@@ -792,8 +792,39 @@ every other word is one cost twice, and either pick is the same game, which
 is decision 1's one exception. `permission-design`, which gives an offered
 cost its source, can add the source to the identity then.
 
-**Recommendation: (ii).** The matcher with its parsers, ~150–250 lines and
-the tests.
+**Uro beside Underworld Breach, worked through** (asked at #306's third
+review round). Uro, Titan of Nature's Wrath is in your graveyard with
+Underworld Breach on the battlefield, so it has two escape abilities: its own
+(Escape {G}{G}{U}{U}, exile five other cards) and Breach's (escape equal to
+its mana cost, {1}{G}{U}, plus exile three other cards). What the rules say:
+- **The player chooses which one.** Both cards' rulings (2020-01-24): "If a
+  card has multiple abilities giving you permission to cast it, such as two
+  escape abilities or an escape ability and a flashback ability, you choose
+  which one to apply. The others have no effect." So CR 601.2b's alternative
+  cost question offers both, and they must be two options a player, a log
+  and a replay can tell apart.
+- **Either one dodges Uro's sacrifice.** Uro's "When Uro enters, sacrifice it
+  unless it escaped" reads CR 702.138b: a spell "escaped" if it "was cast
+  from a graveyard with an escape ability", any escape ability. Uro's ruling
+  says the same from the other side: it is sacrificed "if it was cast using
+  any permission other than an escape ability".
+
+What the shape does with it. Under (ii) the two options are both the
+`Escape` variant and differ by their mana, so the question offers two
+options, the log writes `alternative Escape {1}{G}{U}` and `alternative
+Escape {G}{G}{U}{U}`, and a client draws each with its whole cost, the exile
+counts included. Today's label prints a cost with a non-mana part as its
+keyword alone ("Escape"); the build prints that part through the words
+`ui::display::entry_offer_words` already has for each `Cost` ("exile 5 from
+your graveyard"), ~20–40 lines in decision 4's PR.
+And "escaped" is a fact about the variant chosen, never its source: a cast
+records its alternative cost (`StackEntry.cost_choices`), so whoever writes
+the "escaped" check reads `Escape` there, and both options pass it. Nothing
+in the tree casts from a graveyard or reads "escaped" yet: no registered card
+has escape, and `casting-from-other-zones` builds both.
+
+**Recommendation: (ii).** The matcher with its parsers and the cost's whole
+label, ~170–290 lines and the tests.
 
 **4c. `picking(n)`** (item 361). It is a test's policy, not a script, and the
 33 uses that depend on order break whenever an engine change reorders a list.
@@ -806,7 +837,7 @@ identity in that PR's first commit, at item 361's ~150–250 lines, and
 `modes-plus-choice-kinds` (step 5) already names modes by identity in place of
 `StackEntry.chosen_modes`' positions. One log-format change and one fixture
 migration is cheaper than two. **Recommendation**: 4a, 4b and 4c are built
-in `modes-plus-choice-kinds`' first PR, ~400–680 lines in all, and items 336
+in `modes-plus-choice-kinds`' first PR, ~420–720 lines in all, and items 336
 and 361 are re-slotted there.
 
 ---
@@ -815,7 +846,7 @@ and 361 are re-slotted there.
 
 **Before the decks, in `modes-plus-choice-kinds`' first PR** (decision 4):
 the two effect arms, the typed matcher with its cost parser, and the 33
-`picking(n)` uses, ~400–680 lines with tests. The PR's own sizing places it in
+`picking(n)` uses, ~420–720 lines with tests. The PR's own sizing places it in
 the band. Its consumer is the decision log: a replay of a game with Bridge
 from Below's two triggers, both orders.
 
@@ -864,8 +895,11 @@ paused game is a path no fuzz game takes: `fuzz_games` keeps calling
   points at decision 3's rule.
 - `roadmap-v2.md`'s `pausing-at-a-decision` row says what the build is, and
   the `modes-plus-choice-kinds` row gains decision 4.
-- `permission-architecture.md` gains the line about an offered cost's source
-  (decision 4b).
+- `permission-architecture.md` gains, among its open questions, an offered
+  cost's source for its identity, and Uro beside Underworld Breach: two
+  escape permissions on one card, the player choosing which (both rulings),
+  and "escaped" (CR 702.138b) read off the variant chosen, so either escape
+  passes it (decision 4b).
 
 ---
 
