@@ -826,12 +826,13 @@ more of one player's objects entering at once generate continuous effects
 from static abilities, or are Roles on one object, and the audit compares
 every object's characteristics after the entry. An ability an object gains
 after it enters takes the granting effect's later timestamp (613.7a,
-"whichever is later"), so it never reads the order of entry. One step is
-open: whether a static ability that a later copy effect gives an object takes
-the copy effect's timestamp, as a grant's does. If it does, the list above is
-complete. If not, an object that becomes a copy later reads its entry order,
-and 613.7m falls back to asking whenever two of one player's entering objects
-are not alike. That is the owner's question, below.
+"whichever is later"), so it never reads the order of entry. The same holds
+for an ability a later copy effect gives it: the copy effect is "the effect
+that created the ability" (a judge's reading the owner brought to review),
+which the engine already applies (`state/game_state.rs:2283-2287`), so the
+list above is complete. Without that reading, an object that became a copy
+later would read its entry order (the board in "Found while designing",
+item 6).
 
 The property this replaces asked whenever two entering objects were not
 alike. Since 613.7m covers objects entering any zone together, that would
@@ -1014,22 +1015,26 @@ PR registers cards, and its stream moves with them, measured the same way.
    500.5). Today's board has the Plains tapped and nothing in the pool. For
    the owner: whether that board should keep the floating {W}, or say what
    it means some other way.
-6. **A copied static ability's timestamp** (decision 6, raised in review).
-   CR 613.7a gives a continuous effect from a static ability "the same
-   timestamp as the object the static ability is on, or the timestamp of the
-   effect that created the ability, whichever is later". For an object that
-   becomes a copy after it entered (Cytoshape on a creature already on the
-   battlefield), is the copy effect "the effect that created" the abilities
-   it copies? If so, 613.7m's property is complete; if not, it asks whenever
-   two of one player's entering objects are not alike. For the owner, and
-   read against `copy-effects-architecture.md` at the build. The case: an
+6. **A copied static ability's timestamp** (decision 6, raised in review,
+   settled in the next round). CR 613.7a gives a continuous effect from a
+   static ability "the same timestamp as the object the static ability is
+   on, or the timestamp of the effect that created the ability, whichever is
+   later". For an object that becomes a copy after it entered (Cytoshape on a
+   creature already on the battlefield), the copy effect is "the effect that
+   created" the abilities it copies: a judge's reading the owner brought to
+   review ("Cytoshape is certainly creating (a copy of) an ability", in
+   layer 1), and what the engine already does
+   (`state/game_state.rs:2283-2287`). CR 707.2a's "derived from its rules
+   text" reads otherwise; it is muddled as written, and its own list leaves
+   out color, which CR 111.3 supplies for a token. So 613.7m's property is
+   complete. The board the question turned on: an
    opponent's Kudo, King Among Bears ("Other creatures have base power and
    toughness 2/2") is out; your Living Death returns Godhead of Awe ("Other
    creatures have base power and toughness 1/1") and Grizzly Bears together.
    Only Godhead generates an effect, so the property does not ask, and
    Godhead's later timestamp beats Kudo: your Savannah Lions is 1/1. Later,
-   Polymorphous Rush makes the Bears a copy of Kudo. If the copied ability
-   takes Rush's timestamp, it is the latest and the Lions is 2/2 whatever
-   Living Death's order was. If it keeps the Bears' own, the Lions is 2/2
-   only if the Bears were put after Godhead, and 1/1 if before: a choice the
-   engine never asked decides it.
+   Polymorphous Rush makes the Bears a copy of Kudo. The copied ability takes
+   Rush's timestamp, the latest, so the Lions is 2/2 whatever Living Death's
+   order was. Had it kept the Bears' own, the Lions would be 2/2 only if the
+   Bears were put after Godhead, and a choice the engine never asked would
+   decide it.
