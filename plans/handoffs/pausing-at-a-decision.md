@@ -475,21 +475,57 @@ the search that asked for it. D buys a fork up to 79 µs cheaper, about half
 a percent of a rollout, for a rewrite of the engine's control flow and a cost
 on every later choice kind. C fails floor 1 by measurement.
 
-**2b. How a client's answer names what it chose.** The `Answer` B hands back
-in is the engine's, so it picks one way.
+**B against D, in full** (asked for at #306's second review round). The
+client-facing shape is the same for both: start a game, read the question,
+answer it, fork it. What differs is how the engine keeps its place while it
+waits.
+
+| | B: the paused game keeps its stack | D: an explicit state machine |
+|---|---|---|
+| **The engine's code** | unchanged; ~370–600 new lines and ~350–550 of tests beside it | 150 functions in 29 files rewritten as resumable steps, their recursion as a frame stack; five to ten band-sized PRs, uncalibrated |
+| **Reading the rules code** | stays CR-shaped: `cast_spell` reads 601.2a to 601.2i | each sequence a `match` over its step, saving and restoring its locals; the CR's order is in the transitions |
+| **Every later choice kind** | one `ask_*` call where the rule asks | its states and transitions, and the frame of every function it is reached through |
+| **Risk of the change itself** | new code beside the engine; the engine's paths are the same | the code every card resolves through, rewritten; regressions there are the expensive kind, and the fixture tables are the net |
+| **Determinism** | the engine's code is unchanged, so its invariant is; a fork's replay rests on it, and the fork test checks it | rebuilt with the rewrite, and the same fork test checks it |
+| **Per question, in play** | a thread switch: 1.1–1.7 µs on Windows, 12–13 µs on a Linux VM (item 140), against ~65 µs of engine a decision; a coroutine's, tens of nanoseconds, once item 140's spike picks one | a return from the step and a call back in, not measured; but every resumable call keeps its locals in a frame on the heap rather than the machine stack, on every path, asked or not, which is not measured either |
+| **A fork** | at a priority prompt, one copy (1.1–1.7 µs); elsewhere, the copy and a replay of the answers since (35 µs at two seats, 58 at four, 79 at Commander scale) | anywhere, one copy, whose frames add to floor 2's allocations |
+| **What a fork costs a search** | a rollout from mid-game is ~240 decisions, ~15 ms at Commander scale: the replay is about half a percent of one. A search that expands a tree over the inner questions themselves, with no rollouts, pays about one more decision of engine a node | nothing beyond the copy |
+| **A paused game's memory** | a thread's stack (reserved, committed as used) or a coroutine's (sized by the engine's deepest nesting, to be measured); fine for hundreds of games a server, coroutines past that | a `GameState` and its frames, kilobytes |
+| **Many games on one thread** | needs the coroutine: a small dependency or a little platform code with `unsafe` at the switch | native |
+| **A seat over a network** | the game waits in the server's memory; a lost process replays its saves | the same; a `GameState` could be written to disk instead, once `serde` covers every type it holds, a large job of its own (item 141: `serde` appears nowhere in the tree) |
+| **An AI research API** (OpenSpiel's `clone` and `apply_action` at any decision) | served: `clone` at a non-priority question is the copy and the replay | served natively |
+| **Debugging** | a panic's backtrace runs through the rules code that raised it | a backtrace shows the step dispatcher; where the engine was is in the frames' data |
+| **What exists that it fits** | the typed `Stop` unwind, `Replay`, the decision log, `resume_turn_at_priority`, the fork test | the same pieces, each re-checked against the rewrite |
+| **Nesting the CR asks for** | a subgame (CR 728) or a cast inside a resolution (Panglacial Wurm) runs on the stack as any call does | a subgame is a `GameState` held in its parent's frame; each such case is a frame design |
+| **Time to v0.5** | nothing before v0.5; one engine PR and one dev GUI PR after it | the rewrite before or beside the route's next steps, or every choice kind the route adds until then written twice |
+| **Changing course later** | B to D stays possible behind the same client-facing shape, but each choice kind added meanwhile is one more to convert | D to B would discard the rewrite |
+
+What would make B the wrong call is a search whose work is mostly forks at
+inner questions rather than rollouts: there each node costs about two
+decisions of engine where D's costs one. What would make D the wrong call is
+everything else in the table, which every later phase pays. As far as I know,
+open-source engines for complex card games keep the engine-calls-player shape
+and give each game a thread, and explicit state machines are the norm in
+research frameworks whose games are small enough to write that way; that is
+background, not a measurement of either.
+
+**2b. How a client program's answer names what it chose.** This is the
+answer a client *program* sends back to the paused game, never what a person
+sees: a person sees each option drawn with its name and, for an ability, its
+text (decision 4a's three layers), and clicks one. The program then tells the
+engine which one.
 - **By place in the question it answers**: the trait's shape and the dev
-  GUI's `Answer` today, `Picks(vec![2])`. The client holds the question, so a
-  place in it is unambiguous at that instant. The paused game turns each into
-  its typed option for the fork and the log.
-- **By identity**: `Picks(vec![ChoiceOption::Object(#7)])`, found by decision
-  4's matcher, the way a script, a setup line and a replay name an option.
-  The paused game turns it into a place for the trait's call, a lookup among
-  the question's options. One spelling of an answer everywhere outside the
-  trait; a client that answers late, against a question re-derived after a
-  server restarted, names what it meant.
+  GUI's `Answer` today, "the third option", `Picks(vec![2])`. The client holds
+  the question, so a place in it is unambiguous at that instant. The paused
+  game turns each into its typed option for the fork and the log.
+- **By identity**: the option itself sent back, as decision 4 types it, found
+  by decision 4's matcher, the way a script, a setup line and a replay name an
+  option. The paused game turns it into a place for the trait's call, a lookup
+  among the question's options. A client that answers late, against a
+  question re-derived after a server restarted, names what it meant.
 
 **Recommendation: by identity**: answers are named by what they chose
-everywhere a person or a client writes one, and the place stays inside the
+everywhere a client or a file writes one, and the place stays inside the
 engine, between `ui::ask` and the provider.
 
 ### Decision 3 — what a pending decision holds on `GameState`, and the rule every later choice kind follows
