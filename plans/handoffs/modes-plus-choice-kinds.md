@@ -437,12 +437,20 @@ harness gets a flat list under B, can split it into per-mode steps itself
 (an option's modes are its content), and searches each set once, where under
 C one set is reached by every order of its picks.
 
-**Recommendation: B.** It is the only option where every printed count rule
+**Decided in review: B.** It is the only option where every printed count rule
 is one question of one shape, and it makes 700.2a's "can't be chosen" a
 property of the list rather than a rejection. Its lists are 126 at the widest
 printed (Unite the Coalition) and grow with X only for the one card whose
 count is X. A client can still draw it as C's one-at-a-time picks, and an AI
 harness reads a flat list of whole choices directly.
+
+**For the GUIs** (the owner, in review): a person should pick modes the way C
+asks, one at a time, so the dev GUI draws `ChooseModes` as the
+checkbox-or-count picker above, its logic plain Rust over the offered list
+under tests, in the dev GUI PR that follows `modal-spells-and-abilities`. The
+GUI built for players (Phase 10, `backlog.md`'s "2.38" entry) starts from
+that logic. It is the feel to emulate, not a layout: the player's GUI decides
+how it looks.
 
 ### Decision 3 — where the chosen modes live, and how targets and resolution read them
 
@@ -549,6 +557,17 @@ With targets, a repeat announces one instance list per copy: Moment of
 Reckoning's `modes 1, 1, 2` asks mode 1's target twice, the same permanent
 allowed both times (700.2d), and the order the two were announced is their
 order at resolution (its ruling).
+
+**Once its modes are chosen, a modal spell resolves as the spell printed
+with only those modes**, in printed order and a repeated mode as many times
+as chosen (700.2d's "as if that mode appeared that many times in sequence"),
+which is the `Modal` arm walking `chosen_modes` as a sequence. Everything
+else is any spell's: CR 608.2b's re-check, and its rule that a spell whose
+every target is illegal does not resolve, which takes a chosen mode with no
+target down with it, as it takes the "draw a card" of "Destroy target
+creature. Draw a card." Under A the unchosen modes stay on the stack object
+only as text, for the log, a client and a copy; nothing at resolution reads
+them.
 
 ### Decision 4 — a cost paid as an effect resolves: "unless", "you may pay", ward
 
@@ -684,7 +703,7 @@ they exist, since the share travels in the target's slot, and the re-check's
 survivors keep the pairs whole. B adds a rule every writer must keep by
 position, and C one every writer must keep by identity.
 
-**Recommendation: A**, the shape the backlog entry sized, with its two lists
+**Decided in review: A**, the shape the backlog entry sized, with its two lists
 made one.
 
 ### Decision 6 — when the engine asks an order the CR hands a player
