@@ -2681,9 +2681,12 @@ drawn. Three things the rules do on the way, each settled here:
 - **The untap step untaps** (CR 502.3): the active player's permanents are
   untapped when the setup lines play, whatever the board wrote. A board that
   needs one tapped taps it with a setup line, as play would: a creature by
-  attacking or by its tap ability. A land cannot, since its abilities are
-  mana abilities and `| ability N` never names one (the grammar's table,
-  `setup-architecture.md#51-v1-as-built`), so setup lines
+  attacking, and any permanent by an activated ability with {T} in its cost
+  (`| ability N`), a land's included where it has one that is not a mana
+  ability (Temple of Civilization, Ojer Taq's back face, transforms by one).
+  A permanent whose only tap is a mana ability, as `planeswalker.scenario`'s
+  Plains, has none to name, since `| ability N` never names a mana ability
+  (the grammar's table, `setup-architecture.md#51-v1-as-built`), so setup lines
   gain a third verb, `then: player p taps <card> for {W}`: the permanent's
   mana ability that adds that mana, activated as a player may at priority
   (CR 605.3a), and the mana left in p's pool until the step ends and the
