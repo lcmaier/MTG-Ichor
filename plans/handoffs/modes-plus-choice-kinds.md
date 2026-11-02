@@ -256,10 +256,11 @@ what the shape must do:
 | zero or exactly N, never between | 1 | 1 | nothing |
 | a count raised by a condition read as the modes are chosen | 19 | 5 | nothing |
 | a count that is X | 1 | 0 | nothing |
-| a mode more than once, its repeats ordered by their targets (Season's ruling) | 22 | 0 | nothing |
+| a mode more than once (700.2d), as often as the count allows, past the number of modes (Moment of Reckoning: up to four, of two); a mode's copies ordered by their targets (Moment of Reckoning's ruling) | 22 | 0 | nothing |
 | a budget the modes spend (pawprints) | 5 | 0 | nothing |
 | a mode's own cost (spree, tiered) and one cost per extra mode (escalate), all modes for a cost (entwine) | 69 | 0 | nothing (item 81) |
-| a mode not chosen for this object's ability earlier this turn | 26 | 2 | nothing |
+| a mode this object's ability chose earlier this turn is not offered | 11 | 2 | nothing |
+| a mode this object's ability chose at any time is not offered (Demonic Pact) | 11 | 0 | nothing |
 | another player chooses; the game chooses at random | 3; 5 | 0 | nothing |
 
 **The problem.** A mode is chosen once per cast (or activation, or
@@ -283,27 +284,59 @@ question is what one option is.
   for every row. Zero-or-two lists the empty set and the pairs; a raised count
   lists the pairs only when the condition holds as the modes are chosen (Will
   of the Abzan's ruling); pawprints list the multisets within the budget; a
-  mode chosen this turn is not listed. *Size of a list*: "choose one of three"
-  is three options; the largest printed list is Casualties of War's and
-  Sublime Epiphany's 31 (one or more of five), then Doomsday Confluence's
-  multisets of X among three (21 at X = 5); a Season's 15. *Code*: one
+  mode already chosen is not listed. *Size of a list*: "choose one of three"
+  is three options. The largest printed lists all allow repeats: Unite the
+  Coalition's 126 (five of five modes), Planewide Celebration's 35 (four of
+  four); then Casualties of War's and Sublime Epiphany's 31 (one or more of
+  five), Rootcast Apprenticeship's 20, a Season's 16 and Moment of
+  Reckoning's 15 (none to four, of two), each counting the empty choice where
+  the count allows it. Doomsday Confluence's grow with X (the sets of that X
+  only, C(X+2, 2) among three modes: 21 at X = 5, 66 at X = 10). *Code*: one
   enumerator over the count rule, ~120–180 lines, one prompt shape. *Upkeep*:
   a new count rule is a new arm of the enumerator, never a new prompt.
-- **C. One pick per mode, in a loop**: "add a mode or stop", re-offering what
-  still fits, the way the mana window asks. Covers every row with `pick_n`
-  of zero or one. *Upkeep*: a modal cast asks as many questions as it chose
-  modes plus one, and the order of the picks, which the rules do not have, is
-  in the log.
+- **C. One pick per mode, in a loop**: "add a mode", re-offering only the
+  modes that still lead to a legal whole choice, and "stop" beside them once
+  the modes so far are one. The loop ends without asking when the count's
+  most is reached, so "choose one" is one question and "choose two" two.
+  *Code*: the same enumerator, run again at every pick to find what still
+  leads somewhere, and a kind that carries the picks so far. *Upkeep*: the
+  order of the picks, which the rules do not have, is in the log, and one
+  set is reached by several orders (6 for three distinct modes, 126 sets by
+  up to 120 orders each on Unite the Coalition).
 
-**Performance.** A and B ask one question for every printed "choose one",
-which is 77% of modal cards; C asks two. B allocates its options per modal
-announcement: a few small `Vec`s for every fixed count, 31 at the worst
-printed range, and for a count of X the sets of that X only (2b below:
-C(X+2, 2) among three modes, 21 at X = 5, 66 at X = 10). Nothing is on
-`GameState`. **Castability never runs the enumerator**: whether a modal spell
-can be cast at all (700.2a) asks only whether the count rule can be met by the
-modes whose targets exist, the per-mode check the castability pass already
-makes for each instance of "target", once per card in hand per priority pass.
+**Performance.** A, B and C ask one question for every printed "choose one",
+which is 77% of modal cards; for "choose two" or more, B asks one and C one
+per mode. B allocates its options per modal announcement: a few small `Vec`s
+for every fixed count, 126 at the widest printed list, and for a count of X
+the sets of that X only. Nothing is on `GameState`.
+
+**Castability runs the same enumerator, stopping at the first legal choice.**
+Whether a modal spell can be cast (700.2a, 601.2c), a modal ability activated
+(602.2b), or a modal trigger kept on the stack (603.3c) is one question:
+does any choice the offer would list exist, at a cost the payer can pay.
+Asking that with a shortcut is where an offer and a cast disagree, which
+`cost-architecture.md#36-enumeration-must-agree-with-enforcement` rules out
+for costs. The per-mode check
+alone covers most of it, but not all:
+- **Per mode**: a mode whose instances of "target" cannot all be chosen is
+  dropped first, by the check `can_cast` already makes for each instance
+  (`oracle/mana_helpers.rs:415`), run over the mode's own list;
+- **The count over what is left**: a fixed count needs that many modes left,
+  or any one left when it may repeat (a repeated mode may take the same target
+  each time, 700.2d); a count that reaches zero (Rankle, Moment of Reckoning,
+  a Season, Shadrix's "you may choose two") always has the empty choice;
+- **What no per-mode check sees**: Shadrix's and its six siblings' "each mode
+  must target a different player" (in a two-player game, two modes that each
+  target an opponent cannot both be chosen), and a mode's own cost (spree,
+  tiered, escalate: the base cost may be payable when no legal set's total is).
+The enumerator holds all three, so castability asks it for its first legal
+set and, where modes carry costs, checks each legal set's total until one is
+payable. *Cost*: for a node with no per-mode cost, one pass to the first
+legal set, which for "choose one" is the first mode with its targets; the
+worst case, no legal set, walks every candidate the dropped modes leave, at
+most the list's length. Once per modal card in hand per priority pass; the
+fuzz's reversal count (`Actions reversed`) measures any over-offer that
+remains.
 
 **What the identity is, and the kind.** A mode's printed place is its
 identity, not a position in the offered list: the card fixes it, and an
@@ -322,7 +355,10 @@ read off the ability as the layers give it.
 not asked. `Effect::Modal` carries four things:
 - **the count**, one enum whose arms are the table's count rules:
   `Exactly(n)`; `Range { fewest, most }` ("one or both" is 1 to 2, "one or
-  more" 1 to all, "any number" 0 to all, "up to N" 0 to N); `NoneOr(n)`
+  more" 1 to all, "any number" 0 to all, "up to N" 0 to N; where modes may
+  repeat, `most` is the printed number even past the number of modes, as
+  Moment of Reckoning's none to four of two, and where they may not, a count
+  past the number of modes is capped at it); `NoneOr(n)`
   (Shadrix's zero or two); `X`; `Pawprints(budget)`; and `RaisedIf { usual,
   raised, condition }` around any of them (the Will cycle; Prophetic Titan's
   delirium), the condition read once as the modes are chosen (Will of the
@@ -332,8 +368,9 @@ not asked. `Effect::Modal` carries four things:
   at random from `GameState.rng`, which asks nothing;
 - **three rules of the node**, each a flag a plain "choose one" leaves off: a
   mode may repeat (700.2d), each mode's targets are different players (item
-  154's eight-card shape, decision 3), and a mode chosen for this object's
-  ability earlier this turn cannot be chosen;
+  154's eight-card shape, decision 3), and a mode this object's ability chose
+  before is not offered, either this turn or for as long as the object exists
+  (the record below);
 - **the modes**, each a `Mode` holding its effect, its pawprint weight (1
   unless printed), its own cost (700.2h; none unless printed) and its
   instances of "target" (decision 3).
@@ -341,11 +378,36 @@ not asked. `Effect::Modal` carries four things:
 A plain "choose one" is `Exactly(1)`, the controller, no flags, and modes of
 weight 1 and no cost. A mode's own cost is a `Mandatory` additional cost
 assembled from the chosen modes (item 81's resolution), in the total at
-601.2f. "Not chosen this turn" reads `GameHistory.modes_chosen_this_turn`, a
-sibling of `resolutions_this_turn` keyed the same way, by `AbilityIdentity`,
-which carries the object's existence (Parapet Thrasher's ruling: a new object
-chooses afresh), written as the modes are announced and cleared with the
-turn's other rows.
+601.2f.
+
+**What an ability has chosen before**, the record both "hasn't been chosen"
+scopes read (22 cards) and decision 7's two values that remember (Garth
+One-Eye's card name, The Toymaker's Trap's number). One map on
+`GameHistory`, `chosen_by_ability: IdMap<AbilityIdentity, ChosenBefore>`,
+keyed as `resolutions_this_turn` is: `AbilityIdentity` carries which
+existence of its object the ability is on (CR 400.7) and which grant, so a
+second Demonic Pact, a copy, or the same card back from a zone starts empty,
+and a control change keeps the record (Demonic Pact's rulings: "refers only
+to that specific Demonic Pact", and a new controller "can choose only the
+third or fourth mode"). An entry holds the turn it was last written and what
+was chosen: the modes, or the value as its `ChoiceOption`. The node's flag
+says which scope it reads. "This turn" reads the entry only if its turn is
+now, and a write on a later turn starts it over; "hasn't been chosen" reads
+it whole. It is written as the modes are announced, since a countered
+ability's mode still counts as chosen (Demonic Pact's ruling), and it is
+never swept: an entry whose object no longer exists is never asked for
+again. *Cost*: one map lookup per announcement of such an ability, never a
+walk of the history log; the map is empty in a game without one of these
+cards, and an empty map clones without a heap allocation.
+
+The record is not one of the turn's rows, which a turn's start clears, since
+the longer scope must outlive the turn. Two other homes were weighed: two
+maps (a turn's map cleared with the others, and a map for the object's
+lifetime) give each scope its own map, at the price of two writers for one
+fact; a field on the object ends with the object by itself, but
+grows every object's clone for a fact 24 printed cards use, and an object
+with two such abilities (a copy, a grant) still needs the map's key inside
+it.
 
 **The keywords on the count wait for `breadth-features`** (after v0.5): spree,
 escalate, entwine and tiered are sibling keywords on CR 700.2
@@ -353,28 +415,33 @@ escalate, entwine and tiered are sibling keywords on CR 700.2
 the node above plus its keyword's cost rule. The second PR builds 700.2h's
 per-mode cost with a fixture card printing one.
 
-**2b. A count of X: which is announced first** (a rules question). CR 601.2b
-announces the modes before the value of X, but Doomsday Confluence ("Choose
-X. You may choose the same mode more than once", {X}{X}{B}) cannot list its
-sets until X is known, and its rulings say only that the modes are chosen as
-it is cast.
-- **(i) X moves up to the modes' place**: for a node whose count is X, the
-  value of X is asked first, from MA-2's legal values (the values of X the
-  payer can pay, `mana-architecture.md`), then the sets of that size. It is
-  601.2b's own move in reverse: there a variable defined by a later choice
-  is chosen early; here the choice of modes is defined by X. Two questions.
-- **(ii) The set announces X**: one question listing every set for every
-  payable X, X being the set's size. The literal order, and a list of 1 + 3
-  + 6 + … sets (56 for X up to 5).
+**2b, settled in review: for a count of X, X is asked first.** CR 601.2b
+announces the modes and the value of X in one step, so the engine may ask
+either first, and Doomsday Confluence's sets cannot be listed before X is
+known. X is asked from MA-2's legal values (the values the payer can pay,
+`mana-architecture.md`), then the sets of that size. The note had read
+601.2b's sentence order as a sequence; it is one announcement, so this is
+the engine's order of two questions, not a rules question.
 
-**Recommendation for 2b: (i)**, two short questions where (ii) asks one long
-one, and X keeps its one kind.
+**B against C, read again in review.** C is how a person picks modes, one at
+a time; B is what the rules ask for, one whole choice. The two come apart at
+the boundary. B's list holds everything C's picks could reach, so a client
+draws B as C: a checkbox per mode, or a count per mode where modes repeat,
+each enabled only while some listed set still holds the picks so far, and
+Confirm enabled when the picks are themselves a listed set. That logic is
+plain Rust over the offered list, under tests, and asks the engine nothing
+more (`engineering-practices.md#the-dev-gui`). C's offer at one pick cannot
+be turned back into B's list without replaying the engine's loop. An AI
+harness gets a flat list under B, can split it into per-mode steps itself
+(an option's modes are its content), and searches each set once, where under
+C one set is reached by every order of its picks.
 
 **Recommendation: B.** It is the only option where every printed count rule
 is one question of one shape, and it makes 700.2a's "can't be chosen" a
-property of the list rather than a rejection. Its lists are 31 at the widest
-printed range and grow with X only for the one card whose count is X, and an
-AI harness reads a flat list of whole choices directly.
+property of the list rather than a rejection. Its lists are 126 at the widest
+printed (Unite the Coalition) and grow with X only for the one card whose
+count is X. A client can still draw it as C's one-at-a-time picks, and an AI
+harness reads a flat list of whole choices directly.
 
 ### Decision 3 — where the chosen modes live, and how targets and resolution read them
 
@@ -726,7 +793,7 @@ estimates from the item sizings and from #306's for decision 4.
 | PR | What it builds | Consumer | Code | Tests |
 |---|---|---|---:|---:|
 | **`options-named-plus-division`** | #306's decision 4 (the trigger and replacement arms, the typed matcher with its cost parser, and in its first commit the 33 order-dependent `picking(n)` uses of the 176); decision 5's division at cast, activation and placement; decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | the log's replay of Bridge from Below's two triggers, both orders; Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~680–1,050 | ~610–1,060 |
-| **`modal-spells-and-abilities`** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the "chosen this turn" row | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail; fixtures for repeats, pawprints, 700.2e, and a mode with its own cost (700.2h) | ~720–1,090 | ~560–860 |
+| **`modal-spells-and-abilities`** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the record of what an ability chose before, castability through the enumerator | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost (700.2h) | ~760–1,150 | ~600–920 |
 | **`costs-and-choices-at-resolution`** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
 | **`values-chosen-at-resolution`** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
