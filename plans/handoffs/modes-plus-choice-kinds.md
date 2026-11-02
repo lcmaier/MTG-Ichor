@@ -1012,9 +1012,13 @@ PR registers cards, and its stream moves with them, measured the same way.
    Under #306's decision 1, `planeswalker.scenario`'s tapped Plains becomes
    `then: player 0 taps Plains for {W}`, so player 0 has {W} in the pool at
    the declare attackers step's first priority, until that step ends (CR
-   500.5). Today's board has the Plains tapped and nothing in the pool. For
-   the owner: whether that board should keep the floating {W}, or say what
-   it means some other way.
+   500.5). Today's board has the Plains tapped and nothing in the pool.
+   Settled in review: the board writes its Plains untapped, since its test
+   reads only the attack. The owner's further point, that a user's board
+   would meet the same floating mana, was a defect in the verb, fixed in
+   `setup-architecture.md#7e-pausing-at-a-decision`'s decision 1: a setup
+   line may name an earlier step of the turn, so a land tapped in the main
+   phase has an empty pool by combat, as play leaves it.
 6. **A copied static ability's timestamp** (decision 6, raised in review,
    settled in the next round). CR 613.7a gives a continuous effect from a
    static ability "the same timestamp as the object the static ability is
