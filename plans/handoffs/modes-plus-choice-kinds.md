@@ -724,9 +724,9 @@ with today's symbols no order changes the total
   zone another takes from (a discard beside an exile from the graveyard). A
   new `Cost` or `AmountExpr` arm states its reads and writes as it is added,
   so the test grows with the types rather than with a list. The options are
-  the orders that complete. 613.7m is asked when two or more of one
-  player's entering objects are not alike (another card, another token def,
-  another status), each player ordering their own in APNAP order.
+  the orders that complete. 613.7m is asked when two or more of one player's
+  objects receiving a timestamp at once each carry something a timestamp is
+  read for (below), each player ordering their own in APNAP order.
   *Cost*: a match per part per payment, and per entry batch; a question only
   on such boards.
 - **C. As today.** *Cost*: a choice the CR gives a player is the engine's,
@@ -744,14 +744,63 @@ has a kind, `ScryOrder`, built for CR 701.22a's; it is widened to
 `OrderLibraryCards { source, bottom }`, a log word the first PR's format change
 carries.
 
+**How B is kept right** (asked in review). Skipping a question is right only
+if every order the player could choose gives the same game. The two errors
+are not alike: asking when no order matters costs a prompt, and skipping
+when one does takes a choice from the player with nothing to show it. So B
+is built to fail toward asking, and checked by running it with the shortcut
+off:
+- **Every arm states what it reads and changes in an exhaustive match**, with
+  no wildcard, so a new `Cost` or `AmountExpr` arm does not compile until it
+  says; an arm that cannot say states "everything", which meets every other
+  part and is always asked.
+- **The argument**: two parts commute when neither reads what the other
+  changes and they do not both add to one ordered thing: a library, a
+  graveyard (CR 404.2 keeps its order), or the history log's rows of one
+  kind, since "the first … each turn" reads which came first.
+- **The audit** (`fuzz_games --audit`, beside its trigger-dispatch audit, and
+  a test over every registered cost): wherever the property says a payment's
+  parts commute, the payment is made in every order on a clone of the board,
+  and the boards are compared whole, zones, their order and the history log
+  included. A difference fails the audit with its seed.
+
+**The two orders differ in what the audit can see.** CR 601.2h's is closed:
+everything a payment changes exists when 601.2h ends, so comparing the boards
+then is a complete check for every board the audit meets. CR 613.7m's is not:
+a timestamp is read for as long as the object stays in its zone. There the
+argument rests on the CR's list of what reads a timestamp, which is short:
+the layer order of the continuous effects an object's static abilities
+generate (613.7a), the Role rule's "most recent" (303.7a), and stickers'
+order (123.5a, which the engine does not have). So 613.7m is asked when two or
+more of one player's objects entering at once generate continuous effects
+from static abilities, or are Roles on one object, and the audit compares
+every object's characteristics after the entry. An ability an object gains
+after it enters takes the granting effect's later timestamp (613.7a,
+"whichever is later"), so it never reads the order of entry. One step is
+open: whether a static ability that a later copy effect gives an object takes
+the copy effect's timestamp, as a grant's does. If it does, the list above is
+complete. If not, an object that becomes a copy later reads its entry order,
+and 613.7m falls back to asking whenever two of one player's entering objects
+are not alike. That is the owner's question, below.
+
+The property this replaces asked whenever two entering objects were not
+alike. Since 613.7m covers objects entering any zone together, that would
+have asked at every board wipe for the graveyard's timestamps.
+
 **6b. `OrderCostReductions` under the same rule.** Under B, one rule for
 every order the CR hands a player means it is asked only where the order
-changes the total, which today is never: the prompt drops out of every game
-that meets two reductions, a fixture migration (9 lines in 8 test files name
-it) and a moved random stream, in the first PR, beside its format change.
-Kept as it is, the engine has two policies for one concept.
+changes the total. For reductions the argument already exists, as a proof:
+`cost-architecture.md#34-in-any-order-they-choose--the-prompt-the-theorem-and-the-middleware`'s
+theorem shows every order gives one total, and names its two expiry
+conditions (a reduction whose amount is a hybrid symbol, CR 118.7e, and a
+floored "not below" reduction). So the order is asked when two reductions
+apply and one of them meets a condition, which no registered card does: the
+prompt drops out of every game that meets two reductions, a fixture migration
+(9 lines in 8 test files name it) and a moved random stream, in the first PR,
+beside its format change. Kept as it is, the engine has two policies for one
+concept.
 
-**Recommendation: B, and 6b folded into it**, the trigger order's precedent
+**Decided in review: B, and 6b folded into it**, the trigger order's precedent
 (asked only where an order can change the game,
 `triggers-architecture.md#52-apnap-over-the-seat-list-two-tiers-the-ordering-prompt-and-its-elision`):
 it asks every question the CR's choice can turn on and none that gives one
@@ -899,3 +948,12 @@ PR registers cards, and its stream moves with them, measured the same way.
    500.5). Today's board has the Plains tapped and nothing in the pool. For
    the owner: whether that board should keep the floating {W}, or say what
    it means some other way.
+6. **A copied static ability's timestamp** (decision 6, raised in review).
+   CR 613.7a gives a continuous effect from a static ability "the same
+   timestamp as the object the static ability is on, or the timestamp of the
+   effect that created the ability, whichever is later". For an object that
+   becomes a copy after it entered (Cytoshape on a creature already on the
+   battlefield), is the copy effect "the effect that created" the abilities
+   it copies? If so, 613.7m's property is complete; if not, it asks whenever
+   two of one player's entering objects are not alike. For the owner, and
+   read against `copy-effects-architecture.md` at the build.
