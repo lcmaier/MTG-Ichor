@@ -125,7 +125,8 @@ code shape, cost and upkeep.
     scenario starts at a turn's beginning and the turn is played, so a board
     written from a game is that beginning plus its answers; `GameState` keeps
     only the priority round's place, and a decision site holds nothing off it
-    past the next priority prompt; every option is named by what it is, in
+    past the next anchor (a priority prompt's first ask); every option is
+    named by what it is, in
     three layers (what the engine compares, what the log writes, what a
     person sees), a cost by its kind and its whole cost.
 
@@ -2505,7 +2506,10 @@ implementations.
   for a round's start, and item 140 says the same of the rest of a round. So
   it is where a copy of the game can resume from: a round's start today, any
   first ask once item 140's entry point lands. This section calls it an
-  **anchor**.
+  **anchor**, and the other docs use the word with this definition. Only the
+  outermost game's priority prompts are anchors: a CR 728 subgame is played
+  inside a resolution of the main game (7e.6), which is still in flight at
+  every prompt the subgame asks.
 - **CR 601.2a–i and 732.1**: casting is a sequence of announcements, and an
   action that cannot be completed is reversed. The reversal is why the
   announcement lives on the stack today: nothing is committed until 601.2i.
@@ -2776,18 +2780,20 @@ many games on one thread is out.
 
 **B. The engine ships the paused game: the client drives it, and the engine
 drives its providers inside.** A `PausedGame` runs the game on a stack of its
-own and hands the client where it stopped: `start(game, seats) -> Paused`,
-`answer(Answer) -> Paused`, where `Paused` is `Asking(Question)`,
-`Ended(GameResult)` or `Halted(Halt)`. The third is the engine's existing
+own and hands the client where it stopped: `start(game, seats) -> Progress`,
+`answer(Answer) -> Progress`, where `Progress` is `Asking(Question)`,
+`Ended(GameResult)` or `Halted(Halt)`, since a game that has ended or halted
+is not paused. The third is the engine's existing
 `Halt` (`state/game.rs:414`): the run's own error, or a `Stop` a provider
 raised (a replay that diverged or ran out, a setup line refused, a replay
 superseded), which a fork's replay and a scenario's setup lines can both
 raise inside a paused game. A halted paused game refuses `answer`, as every
 run entry refuses a stopped game today (`setup-architecture.md#72-the-decisions`,
 decision 1). The question is the four primitives' arguments, owned: the
-player whose decision it is, the `ChoiceKind`, the last rejection, and the
-options with their bounds, the number's range, the buckets with their
-limits, or the items. **No dev GUI code moves into the engine.** The
+player whose decision it is, the `ChoiceContext` (the `ChoiceKind` and the
+last rejection, as every provider receives them today), and the options with
+their bounds, the number's range, the buckets with their limits, or the
+items. **No dev GUI code moves into the engine.** The
 question and answer types are written new in the engine, at its standards
 and under its review; they say what `devgui/src/prompt.rs`'s `Primitive`
 (which method asked, with its bounds) and `Answer` (picks, a number, an
@@ -3055,11 +3061,10 @@ the CR hands a player):
    names its subject (`ChoiceKind::subject`, exhaustive).
 3. What it offers is a function of `GameState` and the answers since the last
    anchor: never of a provider's state or a hash order, which the determinism
-   invariant already says, and nothing it holds outlives the next priority
-   prompt. A question may keep its in-flight state in locals, as `cast_spell`
-   does; what it may not do is keep state off `GameState` past the next
-   priority prompt (a delayed trigger waits on `GameState`, as it does
-   today), since a copy at that prompt would not have it.
+   invariant already says. A question may keep its in-flight state in
+   locals, as `cast_spell` does; what it may not do is keep state off
+   `GameState` past the next anchor (a delayed trigger waits on `GameState`,
+   as it does today), since a copy at that anchor would not have it.
 
 The gate is the build's fork test (7e.5), which forks at every decision of
 seeded games at two seats and four and requires each branch to replay the
@@ -3124,21 +3129,24 @@ says which ability is which.
   ability), a counter's effect (no ability) or one ability triggering twice.
 - **C. Each effect named by what it is.** Two new option kinds,
   `ChoiceOption::Replacement` and `ChoiceOption::Trigger`, in three layers
-  that are kept apart (revised at #306's second review round, which asked
-  that no option be shown as an id number):
-  - **What the engine holds and compares.** A replacement is CR 614.5's key,
-    `ReplacementInstanceId`, which the pipeline already gathers, applies and
-    records by: an effect of an ability on an object, a counter kind's
-    effect, a game rule's, or a row a resolution made. A trigger is a waiting
-    trigger's `TriggerId`, which is how the engine finds it. Both are exact
-    within a build. Two of them are counters (a row's id and a `TriggerId`,
-    minted in order), so across builds an option is compared by what it is,
-    never by a counter: a trigger by its source, its ability's place on that
-    source, and the objects that triggered it (CR 603.2c's occurrences); a
-    row by its source and the resolution that made it. Every part is an id
-    or a small enum, within item 141's payload rule (a prompt names things by
-    id and CR vocabulary, never an engine AST); a `ReplacementInstanceId` is
-    40 bytes, under `ChoiceOption`'s 56.
+  that are kept apart, so that no option is shown or logged as an id
+  number:
+  - **What the arm carries and the matcher compares.** What the effect is,
+    and no counter, so `ChoiceOption`'s derived equality is the comparison
+    across builds too. A trigger's arm carries its source, its ability
+    (`AbilityId`, derived from the card's name and the ability's place, not
+    minted) and the objects that triggered it (CR 603.2c's occurrences). A
+    replacement's carries CR 614.5's key, `ReplacementInstanceId` (an effect
+    of an ability on an object, a counter kind's effect, a game rule's), with
+    its one counter, a registry row's id, replaced by the row's source and the
+    stack object whose resolution made it. The engine never reads a counter
+    back out of an answer: `ask_choose_replacement` and `ask_order_triggers`
+    keep the instances beside the options they offer, place for place, and
+    take the instance at the place the answer picked, as every `ask_*` does
+    with its options today. Every part is an id or a small enum, within item
+    141's payload rule (a prompt names things by id and CR vocabulary, never
+    an engine AST); the trigger's objects are a short list, the arm's one
+    heap part.
   - **What the log writes.** Objects as the log writes them today, a name
     with its id as the check (`Grizzly Bears (#7)`), and an ability by its
     place on its object, never by an internal id: `Bridge from Below (#31),
