@@ -129,60 +129,68 @@ family under 40 and a sample of each larger one was read card by card.
 
 | Family | Cards | `tdc` | Example |
 |---|---:|---:|---|
-| **Modal**, any | 738 | 15 | Abrade |
-| …a spell's modes | 474 | 9 | Prismari Command |
+| **Modal**, any | 745 | 15 | Abrade |
+| …a spell's modes (spree, pawprints and tiered included) | 507 | 9 | Prismari Command |
 | …a triggered ability's modes (603.3c) | 209 | 6 | Junji, the Midnight Sky |
 | …an activated ability's modes | 29 | 0 | Bow of Nylea |
-| "Choose one" | 568 | 11 | Atsushi, the Blazing Sky |
-| "Choose two", "three" | 51 | 2 | Prismari Command |
+| "Choose one" (tiered included, CR 702.183a) | 575 | 11 | Atsushi, the Blazing Sky |
+| "Choose two", "three" | 50 | 1 | Prismari Command |
 | "Choose one or both" | 57 | 0 | Artful Takedown |
-| "Choose one or more" | 21 | 2 | Casualties of War, Sublime Epiphany |
+| "Choose one or more" (spree included, CR 702.172a) | 42 | 2 | Casualties of War, Sublime Epiphany |
 | "Choose any number" (zero included, Rankle's ruling) | 2 | 0 | Rankle, Master of Pranks |
 | "Choose up to N" | 12 | 0 | Hullbreaker Horror |
-| "Choose X" | 1 | 0 | Doomsday Confluence |
-| a count raised by a condition ("if you control a commander as you cast this spell, you may choose both instead") | 19 | **5** | the Will of the [clan] cycle |
+| a count that is X ("choose X", "choose up to X, where X is …") | 4 | 0 | Doomsday Confluence, Riku of Many Paths |
+| a count the player may raise on a condition ("if you control a commander as you cast this spell, you may choose both instead") | 19 | **5** | the Will of the [clan] cycle |
+| a count a condition raises (teamwork, kicked, delirium: "choose both instead") | 13 | 0 | Prophetic Titan, Inscription of Abundance |
 | zero or exactly N ("you may choose two") | 1 | **1** | Shadrix Silverquill (ruling: "exactly zero modes or two modes") |
 | the same mode more than once (700.2d) | 22 | 0 | Season of the Burrow; Moment of Reckoning (up to four, of two modes) |
 | pawprints (700.2i) | 5 | 0 | Season of the Burrow |
 | a mode chosen at random | 5 | 0 | Summon: Magus Sisters |
 | another player chooses the mode (700.2e) | 3 | 0 | Fatal Lore |
-| a mode with its own target (700.2c, f) | 570 | 12 | Abrade |
+| a mode with its own target (700.2c, f) | 591 | 12 | Abrade |
 | "each mode must target a different player" (item 154) | 7 | **1** | Shadrix Silverquill |
 | "choose one that hasn't been chosen this turn" | 11 | **2** | Parapet Thrasher, Teval's Judgment |
 | "choose one that hasn't been chosen", for as long as the object exists | 11 | 0 | Demonic Pact |
 | a value not chosen before by this object's ability | 2 | 0 | Garth One-Eye's card name, The Toymaker's Trap's number |
-| a value another player chose earlier in this resolution, excluded | 2 | 0 | Fortunate Few, Rejoin the Fight |
+| an object chosen earlier in this resolution, excluded | 2 | 0 | Fortunate Few, Rejoin the Fight |
 | a cost per mode: spree (700.2h), tiered | 21, 7 | 0 | Final Showdown; Fire Magic |
 | entwine, escalate | 32, 9 | 0 | Barbed Lightning; Collective Defiance |
-| **"Unless [a player] [acts]"** (118.12a) | 428 | 1 | Compulsive Research |
+| **"Unless [a player] [acts]"** (118.12a) | 427 | 1 | Compulsive Research |
 | …pays | 292 | 0 | Mana Leak |
-| …another action (sacrifices, discards, returns, …) | 138 | 1 | Contamination, Compulsive Research |
-| …the payer is not the ability's controller | 232 | 1 | Mana Leak |
-| …"unless any player pays", "any player may" (asked of each, 101.4) | 19 | 0 | Rhystic Study |
-| ward, printed; its cost not mana; granted | 184; 52; 42 | 1; 0; 0 | Canopy Gargantuan |
+| …another action (sacrifices, discards, returns, …) | 137 | 1 | Contamination, Compulsive Research |
+| …the payer named by the text ("its controller", "target player", "they"), not "you" | 232 | 1 | Mana Leak; Compulsive Research's target player |
+| …"unless any player pays", "any player may" (asked of each, 101.4) | 18 | 0 | Rhystic Study |
+| ward, printed; its cost not mana alone; granted | 190; 52; 45 | 1; 0; 0 | Canopy Gargantuan |
 | echo, cumulative upkeep (the same payment as keywords) | 130 | 0 | Albino Troll; Arctic Wolves |
-| **a cost paid at resolution**, "may pay …. If/When you do" | 510 | 3 | Gix, Yawgmoth Praetor; Spit Flame |
-| …its amount chosen as it is paid ({X}, X life, any amount; 107.3f) | 81 | 1 | Leyline Tyrant |
-| *not this phase*: a "can't" with a price ("can't attack you unless their controller pays") | 40 | 1 | Ghostly Prison: a cost to attack, CR 508.1h, `combat-requirements`' |
-| **Divided among targets** (601.2d) | 114 | **3** | Dragonlord Atarka (a trigger), Magma Opus, Skarrgan Hellkite (an activation) |
-| …among objects not targeted (608.2d) | 10 | 0 | Feast of the Victorious Dead |
+| **a cost paid at resolution**, "you may pay …. If/When you do" | 460 | 2 | Spit Flame, Leyline Tyrant |
+| …by a player the text names ("its controller may pay") | 21 | 1 | Gix, Yawgmoth Praetor |
+| …its amount chosen as it is paid ({X}, X life, any amount; 107.3f), never fixed by the text | 46 | 1 | Leyline Tyrant |
+| *not at resolution*: a payment as a permanent enters ("As this land enters, you may pay 2 life"), a replacement (614.12) | 29 | 0 | Hallowed Fountain |
+| *not this phase*: a "can't" with a price ("can't attack you unless their controller pays") | 35 | 1 | Ghostly Prison: a cost to attack, CR 508.1h, `combat-requirements`' |
+| **Divided among targets** (601.2d) | 113 | **3** | Dragonlord Atarka (a trigger), Magma Opus, Skarrgan Hellkite (an activation) |
+| …among objects not targeted (608.2d) | 8 | 0 | Feast of the Victorious Dead, Invoke Justice |
 | …prevention divided as you choose (item 92) | 5 | 0 | Remedy |
 | **An order a card hands a player**, a library's "in any order" | 171 | 1 | Ponder |
-| objects entering at once under one player (613.7m) | 66 | 1 | Living Death |
+| objects entering at once (613.7m) | 64 | 1 | Living Death |
+| …of several players at once, each ordering their own in APNAP order (101.4) | 10 | 1 | Living Death |
 | CR 601.2h's payment order: no phrase; a shape read off the cost (decision 6) | — | — | Omnath, Locus of Mana with Momentous Fall (ATOM-601.2h-003) |
-| …a creature whose power or toughness reads the pool or the life total, so a payment beside its sacrifice changes what it leaves | 6 | 0 | Omnath, Serra Avatar |
-| **A value chosen as the effect applies** (608.2d): a color | 43 | 0 | Brave the Elements |
-| …a creature type; a card type; a basic land type | 56; 7; 15 | 0 | Bloodline Bidding; Blood Oath; Elsewhere Flask |
+| …a creature whose power or toughness reads the pool or the life total, so a payment beside its sacrifice changes what it leaves | 8 | 0 | Omnath, Serra Avatar, Death's Shadow |
+| **A value chosen as the effect applies** (608.2d): a color | 26 | 0 | Brave the Elements |
+| …a creature type; a card type; a basic land type | 54; 7; 15 | 0 | Bloodline Bidding; Blood Oath; Elsewhere Flask |
 | …a card name (201.4) | 46 | 0 | Brain Pry |
-| a card name narrowed by what the card is ("nonland", "creature", "artifact"; 201.4a), at resolution or as it enters | 24 | 0 | Cabal Therapy, Meddling Mage |
-| …a number (including "secretly") | 18 | **1** | Expel the Interlopers |
-| …a player, not targeted (including "at random") | 47 | **1** | Territorial Hellkite |
-| …a word with no rules meaning (607.2f) | 23 | 0 | Extinction Event's "odd or even" |
+| a card name narrowed by what the card is ("nonland", "creature", "other than a basic land"; 201.4a), at resolution or as it enters | 27 | 0 | Cabal Therapy, Meddling Mage |
+| …a number (including "secretly") | 12 | **1** | Expel the Interlopers |
+| …a player, not targeted (including "at random") | 38 | **1** | Territorial Hellkite |
+| …a word with no rules meaning (607.2f) | 17 | 0 | Extinction Event's "odd or even" |
+| …a type, keyword or color out of the few the card prints ("land or nonland", "hexproof or indestructible") | 9 | 0 | Winding Way, Linvala, Shield of Sea Gate |
 | …a pile (700.3) | 21 | 0 | Fact or Fiction |
-| …a vote (701.38) | 35 | **1** | Selvala's Stampede |
-| the same values chosen **as the permanent enters** (stored for a linked ability, CR 607.2d) | 194 | 3 | Temple of the Dragon Queen, Reflections of Littjara, Frontier Siege |
+| …a vote (701.38) | 33 | **1** | Selvala's Stampede |
+| the same values chosen **as the permanent enters** (stored for a linked ability, CR 607.2d), "enters under the control of an opponent of your choice" included | 202 | 3 | Temple of the Dragon Queen, Reflections of Littjara, Frontier Siege |
 | the same values chosen **as an additional cost to cast it** (601.2b, paid at 601.2h): a creature type; a number | 2; 1 | 0 | Caller of the Hunt; Liquid Fire |
+| the same values chosen **while casting, because the targets read them** (601.2c: "target creature cards of the creature type of your choice") | 2 | 0 | Aphetto Dredging (its ruling: "choose the creature type before choosing the targets") |
 | an object chosen as an additional cost to cast it, not targeted | 2 | 0 | Close Encounter, Monstrous Emergence |
+| *not this phase*: a value chosen in a mana ability ("{T}: Choose a color. Add …", 605.3b), the mana model's | 12 | 0 | Nykthos, Shrine to Nyx |
+| *other times*: before the game, while drafting, as it attaches or transforms, during an untap step, or as a replacement or prevention applies | 14 | 0 | Paliano, the High City; Sanctuary Blade; Pulse of Llanowar |
 
 Notes on the table:
 - **738 modal cards, not the roadmap's 915.** The roadmap's number is the
@@ -195,13 +203,25 @@ Notes on the table:
 - The "as it enters" row is this phase's option shape and `linked-abilities`'
   record (step 6): the value is chosen through the same kind, and stored on
   the permanent for "the chosen color" by that step's design.
-- Ponder's "put them back in any order" is the row's one `tdc` card; 135 of
-  the 171 are "on the bottom of your library in any order".
+- Ponder's "put them back in any order" is the row's one `tdc` card; of the
+  171, 111 put cards on the bottom of a library in any order, 24 on top
+  (Brainstorm), and 36 back in any order.
 - **"Hasn't been chosen" has two scopes, read in review.** The first count
   put all 26 under "this turn"; 11 are, 11 remember for as long as the object
   exists (Demonic Pact's ruling: "refers only to that specific Demonic Pact",
-  whoever controls it), and 4 choose a value rather than a mode. Decision 2
-  keeps both scopes in one record.
+  whoever controls it), 2 choose a value rather than a mode, and 2 exclude
+  an object chosen earlier in the same resolution. Decision 2 keeps both
+  scopes in one record.
+- **Every row was read again in review**, against what its words claim:
+  every hit of every family under 40, two seeded samples of each larger one
+  (`--sample 7` and `--sample 8`), and each hit's matching clause read in
+  full across the whole family. The census's predicates were fixed where a
+  row held what its words do not: a value chosen in a mana ability, before
+  the game or as a permanent attaches (no resolution), a payment as a land
+  enters (a replacement), an X the text fixes, a condition read as an
+  "unless" ("unless you've cast"), the seven tiered cards and spree's and
+  pawprints' heads, which no modal row held, and 13 count raises with no
+  "you may". The corrected counts are the table's.
 - **A value or an object can be chosen while casting**, as an additional cost
   (5 cards). The value is decision 7's kind asked at 601.2b; the object is a
   cost paid at 601.2h, the cost model's (`remaining-costs`), not decision 8's
@@ -252,11 +272,12 @@ what the shape must do:
 
 | The shape must express | Cards | `tdc` | What holds it today |
 |---|---:|---:|---|
-| a fixed number of distinct modes | 619 | 13 | `ModalCount::Exactly` |
-| a range ("one or both", "one or more", "up to N", "any number", zero included) | 92 | 2 | `UpTo`, `Any` (no lower bound) |
+| a fixed number of distinct modes, and nothing else on this table | 546 | 7 | `ModalCount::Exactly` |
+| a range ("one or both", "one or more" and spree, "up to N", "any number", zero included) | 113 | 2 | `UpTo`, `Any` (no lower bound) |
 | zero or exactly N, never between | 1 | 1 | nothing |
-| a count raised by a condition read as the modes are chosen | 19 | 5 | nothing |
-| a count that is X | 1 | 0 | nothing |
+| a count the player may raise on a condition read as the modes are chosen ("you may choose both instead") | 19 | 5 | nothing |
+| a count a condition raises ("choose both instead": teamwork, kicked, delirium) | 13 | 0 | nothing |
+| a count that is X ("choose X", "choose up to X") | 4 | 0 | nothing |
 | a mode more than once (700.2d), as often as the count allows, past the number of modes (Moment of Reckoning: up to four, of two); a mode's copies ordered by their targets (Moment of Reckoning's ruling) | 22 | 0 | nothing |
 | a budget the modes spend (pawprints) | 5 | 0 | nothing |
 | a mode's own cost (spree, tiered) and one cost per extra mode (escalate), all modes for a cost (entwine) | 69 | 0 | nothing (item 81) |
@@ -363,7 +384,9 @@ not asked. `Effect::Modal` carries four things:
   (Shadrix's zero or two); `X`; `Pawprints(budget)`; and `RaisedIf { usual,
   raised, condition }` around any of them (the Will cycle; Prophetic Titan's
   delirium), the condition read once as the modes are chosen (Will of the
-  Abzan's ruling);
+  Abzan's ruling). Its two printed forms are its raised count: "you may
+  choose both instead" raises `Exactly(1)` to `Range { 1, 2 }`, and "choose
+  both instead" to `Exactly(2)`;
 - **the chooser**: the controller, an opponent (700.2e: with more than one,
   the controller first picks which, through decision 7's `ChoosePlayer`), or
   at random from `GameState.rng`, which asks nothing;
@@ -576,12 +599,13 @@ shape must do:
 
 | The shape must express | Cards | `tdc` | Held today |
 |---|---:|---:|---|
-| a payment by the ability's controller, optional, then a branch on it ("you may pay {1}. If you do") | 510 | 3 | `Effect::Optional`, but no payment: an atom acts, it does not pay |
-| …by another player ("unless its controller pays") | 232 | 1 | `Optional`'s chooser names another player; no payment |
-| …asked of every player in turn until one pays ("unless any player pays") | 19 | 0 | nothing; `triggers-architecture.md#62-may-and-unless-cr-6035` files it "with its first card" |
-| a payment that is not mana (sacrifice, discard, return a land, life) | 138 | 1 | `Cost`'s arms exist for casting; `plan_payment` asks the choices |
-| an amount chosen as it is paid ({X}, X life, any amount) | 81 | 1 | the legal values of X (`mana-architecture.md`'s MA-2), at cast only |
-| ward: a trigger on becoming a target whose effect is the payment, its X read at resolution | 184 + 42 granted | 1 | the "becomes the target" trigger event (built with targeting's records, TR-5c); no payment |
+| a payment by the ability's controller, optional, then a branch on it ("you may pay {1}. If you do") | 460 | 2 | `Effect::Optional`, but no payment: an atom acts, it does not pay |
+| …by a player the text names ("unless its controller pays", "its controller may pay") | 232 + 21 | 1 + 1 | `Optional`'s chooser names another player; no payment |
+| …asked of every player in turn until one pays ("unless any player pays") | 18 | 0 | nothing; `triggers-architecture.md#62-may-and-unless-cr-6035` files it "with its first card" |
+| a payment that is not mana (sacrifice, discard, return a land, life) | 137 | 1 | `Cost`'s arms exist for casting; `plan_payment` asks the choices |
+| an amount chosen as it is paid ({X}, X life, any amount), the text not fixing it | 46 | 1 | the legal values of X (`mana-architecture.md`'s MA-2), at cast only |
+| ward: a trigger on becoming a target whose effect is the payment, its X read at resolution | 190 + 45 granted | 1 | the "becomes the target" trigger event (built with targeting's records, TR-5c); no payment |
+| *not this decision's*: a payment as a permanent enters ("As this land enters, you may pay 2 life"), a replacement (CR 614.12) | 29 | 0 | `EntryOffer::Pay`, `AcceptAsObjectEnters`' offer |
 
 **The problem.** CR 118.12a says "[do A] unless [P does B]" means "[P] may
 [do B]. If [P doesn't], [do A]", and B is a cost paid as the effect resolves.
@@ -717,12 +741,14 @@ differ, and here only among orders that complete.
 
 **The table.** No printed card names 601.2h's order; it is the rule's, on
 every cost of two or more parts. Its shape is read off the cost, and the
-census counts the one family a payment's order is visible through: 6
+census counts the one family a payment's order is visible through: 8
 creatures whose power or toughness reads the pool or the life total (Omnath,
 whose sacrifice before or after paying the mana draws a different number off
-Momentous Fall, ATOM-601.2h-003; Serra Avatar). 613.7m's family is 66 cards
-that put several objects onto the battlefield at once (Living Death in
-`tdc`), and every creation of tokens that are not alike. A third order of the
+Momentous Fall, ATOM-601.2h-003; Serra Avatar; Death's Shadow). 613.7m's
+family is 64 cards that put several objects onto the battlefield at once, 10
+of them several players' objects at once, each player ordering their own in
+APNAP order (Living Death in `tdc`), and every creation of tokens that are
+not alike. A third order of the
 same kind is already asked: CR 601.2f's cost reductions, "the player may apply
 them in any order", asked whenever two apply (`OrderCostReductions`) though
 with today's symbols no order changes the total
@@ -832,14 +858,23 @@ game, and states that once for the three orders.
 
 ### Decision 7 — a value chosen as an effect applies (CR 608.2d)
 
-**The table** is the census's value rows: a color 43, a creature type 56, a
-card type 7, a basic land type 15, a card name 46, a number 18 (one in
-`tdc`), a player not targeted 47 (one in `tdc`, chosen at random), a word 23,
-a pile 21, a vote 35 (one in `tdc`); 194 more choosing a value as a
-permanent enters, for a linked ability (step 6); and 3 as an additional cost
-to cast the spell (Caller of the Hunt's creature type, Liquid Fire's number).
-The kinds carry no timing: the same `ChooseCreatureType` is asked at 601.2b,
-as a permanent enters, or as an effect applies. Two remember what they chose
+**The table** is the census's value rows: a color 26, a creature type 54, a
+card type 7, a basic land type 15, a card name 46, a number 12 (one in
+`tdc`), a player not targeted 38 (one in `tdc`, chosen at random), a word 17,
+a pile 21, a vote 33 (one in `tdc`), and a type, keyword or color out of the
+few the card prints 9; 202 more choosing a value as a permanent enters, for a
+linked ability (step 6); 3 as an additional cost to cast the spell (Caller of
+the Hunt's creature type, Liquid Fire's number); and 2 while casting, because
+the targets read the value (Aphetto Dredging's "target creature cards of the
+creature type of your choice", 601.2c). The kinds carry no timing: the same
+`ChooseCreatureType` is asked at 601.2b, as a permanent enters, or as an
+effect applies. A card that prints its few options (Winding Way's "creature
+or land", Roots of Life's "Island or Swamp") asks the same kind over those
+options only. Two values are no one's here: a color chosen in a mana ability
+(12, "{T}: Choose a color. Add …", CR 605.3b) is the mana model's
+(`chosen-color-plus-could-produce`), and 14 are chosen before the game,
+while drafting, as a permanent attaches or transforms, or as a replacement
+applies, each its own mechanic's. Two remember what they chose
 before (Garth One-Eye's card name, The Toymaker's Trap's number), through
 decision 2's record of what an ability has chosen. Today `ChoiceKind::ChooseOpponent`
 is the one such kind (Akroan Horse's opponent), and `ChoiceOption` has `Color`,
@@ -849,18 +884,21 @@ is the one such kind (Akroan Horse's opponent), and `ChoiceOption` has `Color`,
 different set of answers; a client, the AI harness and the log each need to
 know what is being chosen and among what.
 
-- **A. A kind per value**: nine new kinds, `ChooseColor`,
+- **A. A kind per value**: ten new kinds, `ChooseColor`,
   `ChooseCreatureType`, `ChooseCardType`, `ChooseBasicLandType`,
   `ChooseCardName { source, filter }`, `ChooseNumber`, `ChooseWord`,
-  `SeparateIntoPiles` and `Vote`, and `ChooseOpponent` widened to
-  `ChoosePlayer { source }` for "choose a player" (47 cards, Territorial
+  `ChooseKeyword` (Linvala, Shield of Sea Gate's "hexproof or
+  indestructible", Blitzwing's at random; found in review), `SeparateIntoPiles`
+  and `Vote`, and `ChooseOpponent` widened to
+  `ChoosePlayer { source }` for "choose a player" (38 cards, Territorial
   Hellkite's at random in `tdc`; its options say whether only opponents are
   offered, and it is 700.2e's "which opponent chooses the mode" too). Each has
   its `source` as subject and its options a typed arm:
   `ChoiceOption::CreatureType(CreatureType)`, `LandType(LandType)`,
   `CardType(CardType)` (the three enums `types/card_types.rs` already has),
-  `CardName`, `Word`. *Upkeep*: `ChoiceKind`'s exhaustive matches gain nine
-  arms and rename one; a client words each.
+  `Keyword(KeywordFlag)` (`types/keywords.rs`), `CardName`, `Word`.
+  *Upkeep*: `ChoiceKind`'s exhaustive matches gain ten arms and rename one; a
+  client words each.
 - **B. One kind, `ChooseValue { source, value: ValueKind }`**, with the same
   option arms. *Upkeep*: one arm in each exhaustive match, and a heuristic
   that keys on the kind matches the inner enum too.
