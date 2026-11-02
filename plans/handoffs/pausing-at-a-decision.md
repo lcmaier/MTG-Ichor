@@ -13,7 +13,12 @@ round (2026-11-01)**, where the owner asked questions and took no decision
 yet: decision 1 recommends B, and its clone cost, which the first draft set
 against C alone, is B's too; decision 2 measures D's surface and lists its
 costs beyond the rewrite, and says no dev GUI code moves; decision 3 says
-what it is under D; decision 4a walks through Bridge from Below.
+what it is under D; decision 4a walks through Bridge from Below. **At the
+second round** the owner took decision 1 (B), leaned to B for decision 2 and
+asked for B against D in full, which decision 2 now carries; decision 3 is
+rewritten from the start; decision 4a keeps what the engine compares, what
+the log writes and what a person sees apart, so no option is shown or logged
+as an id number.
 
 **What changes in a game: nothing a player sees.** A game becomes something
 that can stop at any question, be copied there, and go on from an answer.
@@ -332,8 +337,8 @@ board no longer reaches, naming it (`setup-architecture.md#72-the-decisions`,
 decision 6). The pair is exact for the turn in progress less what that report
 names.
 
-**Recommendation: B** (revised at the owner's first review round, which
-asked what C buys over B). C buys only the hand-written mid-turn door, and
+**Taken: B** (the owner, 2026-11-01, at #306's second review round). The
+recommendation, revised at the first round, which asked what C buys over B: C buys only the hand-written mid-turn door, and
 the dev GUI's use says a situation is reached by playing it, not by writing it
 mid-turn. B closes item 287 with three words for the spans before a turn,
 where A needs those and eight more, it shrinks the grammar and the loader,
