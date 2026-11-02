@@ -2599,7 +2599,8 @@ choice kinds and every one added later, counted above.
 A throwaway probe outside the tree (a crate in the session's scratchpad,
 depending on `mtgsim` by path; release, `MTGSIM_HASH_SEED=1`): `fuzz_games`'
 own deals (`random_deck`, `RandomStreams`), its default stack
-(`ManaWindowStop` over the random agent), 20 games a board from seed 12345.
+(`ManaWindowStop` over the random agent), each seat's deck drawn by
+`random_deck` from the performance pool, 20 games a board from seed 12345.
 It times the engine between prompts and asks two questions of every game.
 
 **What re-running from the last anchor would cost** if a game, instead of
@@ -2609,9 +2610,9 @@ answer since, at every prompt that is not an anchor (decision 2's option C).
 
 | Board | Prompts a game (priority) | Engine a game | Re-running from the anchor | A copy at each anchor |
 |---|---|---:|---:|---:|
-| 2 seats, 60 cards, `performance` | 185 (66) | 5.6 ms | **+70.8%** of the game, 2.8 answers re-played a prompt | 1.13 µs, +1.3% |
-| 4 seats, 60 cards | 326 (115) | 15.1 ms | **+79.1%**, 2.8 | 1.63 µs, +1.2% |
-| Commander scale: 4 seats, 100 cards, 40 life | 477 (166) | 31.1 ms | **+77.4%**, 2.9 | 1.70 µs, +0.9% |
+| `performance`, 2 seats, 60 cards | 185 (66) | 5.6 ms | **+70.8%** of the game, 2.8 answers re-played a prompt | 1.13 µs, +1.3% |
+| `performance`, 4 seats, 60 cards | 326 (115) | 15.1 ms | **+79.1%**, 2.8 | 1.63 µs, +1.2% |
+| `performance`, Commander scale: 4 seats, 100 cards, 40 life | 477 (166) | 31.1 ms | **+77.4%**, 2.9 | 1.70 µs, +0.9% |
 
 Anchors at round starts only, what the tree resumes from today, read the same
 within 5 points (+71.4%, +82.4%, +82.9%), since with this stack the engine
@@ -2732,8 +2733,7 @@ boards the writer no longer produces.
 
 **Clone cost**: none for A. For B and C the same: one copy a turn, kept by
 the paused game, at the probe's 1.1–1.7 µs, a few microseconds in a game of
-tens of milliseconds, and only in a game that saves boards. (The first draft
-set this against C alone; B's writer needs the same copy.)
+tens of milliseconds, and only in a game that saves boards.
 
 **Setup lines and alike options.** Under B or C, setup lines stay what they are
 (an action, its targets, its X, its ability's place), since what happens
@@ -2754,8 +2754,8 @@ board no longer reaches, naming it (`setup-architecture.md#72-the-decisions`,
 decision 6). The pair is exact for the turn in progress less what that report
 names.
 
-**Taken: B** (the owner, 2026-11-01, at #306's second review round). The
-recommendation, revised at the first round, which asked what C buys over B: C buys only the hand-written mid-turn door, and
+**Taken: B** (the owner, 2026-11-01, at #306's review). C buys only the
+hand-written mid-turn door, and
 the dev GUI's use says a situation is reached by playing it, not by writing it
 mid-turn. B closes item 287 with three words for the spans before a turn,
 where A needs those and eight more, it shrinks the grammar and the loader,
@@ -2887,16 +2887,15 @@ under CR 722.5 will read who controls that player, a fact `GameState` gains
 with Mindslaver's family (7e.6); under CR 722.8 one seat then answers for two
 players. The question carries no answering seat of its own.
 
-**Taken: B, on a thread first** (the owner, 2026-11-01, at #306's third
-review round, after B against D below). The recommendation: it is the only
-option that serves
+**Taken: B, on a thread first** (the owner, 2026-11-01, at #306's review,
+after B against D below). It is the only option that serves
 all three customers with no rewrite, it keeps the trait and every
 implementation, and its one cost that grows, a fork off an anchor, is paid by
 the search that asked for it. D buys a fork up to 79 µs cheaper, about half
 a percent of a rollout, for a rewrite of the engine's control flow and a cost
 on every later choice kind. C fails floor 1 by measurement.
 
-**B against D, in full** (asked for at #306's second review round). The
+**B against D, in full.** The
 client-facing shape is the same for both: start a game, read the question,
 answer it, fork it. What differs is how the engine keeps its place while it
 waits.
@@ -2924,11 +2923,11 @@ waits.
 What would make B the wrong call is a search whose work is mostly forks at
 inner questions rather than rollouts: there each node costs about two
 decisions of engine where D's costs one. What would make D the wrong call is
-everything else in the table, which every later phase pays. As far as I know,
-open-source engines for complex card games keep the engine-calls-player shape
+everything else in the table, which every later phase pays. Background, not
+measured or checked against any engine's current code: open-source engines
+for complex card games are understood to keep the engine-calls-player shape
 and give each game a thread, and explicit state machines are the norm in
-research frameworks whose games are small enough to write that way; that is
-background, not a measurement of either.
+research frameworks whose games are small enough to write that way.
 
 **2b. How a client program's answer names what it chose.** This is the
 answer a client *program* sends back to the paused game, never what a person
@@ -2951,8 +2950,7 @@ engine, between `ui::ask` and the provider.
 
 #### Decision 3 — what a pending decision holds on `GameState`, and the rule every later choice kind follows
 
-**What the decision is about, from the start** (rewritten at #306's second
-review round, which asked for it). `GameState` is the game as data: the
+**What the decision is about, from the start.** `GameState` is the game as data: the
 zones, the permanents, life totals, the stack. Copying it is how a game is
 forked. But while the engine is in the middle of something, part of what it
 knows is not in `GameState`: it is in the local variables of the functions
@@ -2975,7 +2973,7 @@ first), three prompts in the trigger code (item 233), and the priority
 round's count of how many players have passed in a row (item 140).
 
 **Why this was going to be a migration, and why B changes it.** The plan
-until now, your rule of 2026-10-08, was to move each of these into
+until now, the owner's rule of 2026-10-08, was to move each of these into
 `GameState`, so that a copy taken at any question could go on by itself.
 Decision 2's B makes that unnecessary. A paused game keeps its own call
 stack, locals and all, so pausing and answering never need the in-flight
@@ -3035,7 +3033,7 @@ cast's remaining steps, the dispatch in progress. That is (a) and the rest of
 the rewrite. The 2026-10-08 rule stands and widens from the trigger code's
 prompts to every prompt, and the gate is the same fork test.
 
-**(b) and (c) withdraw a ruling of yours.** The rule that a prompt keeps
+**(b) and (c) withdraw an owner's ruling.** The rule that a prompt keeps
 what it has decided on `GameState` is the owner's (2026-10-08, at A6k's
 review, a triggers-phase PR:
 `triggers-architecture.md#56-a-prompt-keeps-what-it-has-decided-on-gamestate`),
@@ -3091,22 +3089,18 @@ to how an option prints is a change to which option an answer means. The
 owner chose the typed matcher at #305; what is open is how an effect is named,
 and how the two cost shapes are named.
 
-**What this decision asks, in one line** (added at #306's fourth review
-round, which found the four parts below hard to tell apart). Every option the
+**What this decision asks, in one line.** Every option the
 engine offers should say what it is, so a person, a log and a replay can tell
 any two apart. That is one question, and two of the four parts below are the
-choices inside it; the other two are the work and its slot, stated so the
-answer can be built:
+choices inside it; the other two are the work and its slot:
 
 | Part | What it covers | A choice? |
 |---|---|---|
 | 4a | how a replacement effect or a trigger is named, where today two from one card look identical (item 336) | **yes**: taken, C |
-| 4b | how a cost (flashback, kicker, escape) is named, the one kind the typed matcher you chose at #305 cannot read back as written today | **yes**: taken, (ii), its identity widened to the whole cost at the fourth round |
+| 4b | how a cost (flashback, kicker, escape) is named, the one kind the typed matcher the owner chose at #305 cannot read back as written today | **yes**: taken, (ii), its identity the kind and the whole cost |
 | 4c | the 33 tests that answer "take option n" and break when an engine change reorders a list (item 361) | no: they move to answers by name, as every other test already does |
 | 4d | when it is built | a slot: taken, `modes-plus-choice-kinds`' first PR |
 
-So the answer is one line: take 4a's C and 4b's (ii), with 4c and 4d as
-written, or change any of the four.
 
 **4a. How an effect is named.**
 
@@ -3222,9 +3216,8 @@ offered (Kicker, Buyback, Entwine, Casualty, Bargain, Strive, `Custom`; a
   writes.
 - **(iii) Compare the cost shapes by words**, the one textual corner left.
 
-**Why the whole cost, not kind and mana: the census** (revised at #306's
-fourth review round, which asked whether kind and mana cover everything; they
-do not). No cost is granted today, so a spell offers only its printed costs;
+**Why the whole cost, not kind and mana: the census.** Kind and mana do not
+cover every pair. No cost is granted today, so a spell offers only its printed costs;
 granted costs arrive with `casting-from-other-zones`. Scryfall, `game:paper
 -is:funny`, 2026-11-01: every escape card (`kw:escape`, 32), every flashback
 card (`kw:flashback`, 216), every card with two kickers (`o:/kicker[^\n]*and\/or/`,
@@ -3249,8 +3242,7 @@ matcher already takes two alike options as two. That is decision 1's one
 exception. `permission-design`, which gives an offered cost its source, can
 add the source to the identity then.
 
-**Uro beside Underworld Breach, worked through** (asked at #306's third
-review round). Uro, Titan of Nature's Wrath is in your graveyard with
+**Uro beside Underworld Breach, worked through.** Uro, Titan of Nature's Wrath is in your graveyard with
 Underworld Breach on the battlefield, so it has two escape abilities: its own
 (Escape {G}{G}{U}{U}, exile five other cards) and Breach's (escape equal to
 its mana cost, {1}{G}{U}, plus exile three other cards). What the rules say:
@@ -3363,8 +3355,7 @@ paused game is a path no fuzz game takes: `fuzz_games` keeps calling
    "diagnostics only — a log names an ability by index"
    (`types/ids.rs:296`). Decision 4a's build writes the ability's place on
    its object, as the scenario's `ability N` names it, and its typed matcher
-   reads that. Found at #306's second review round, which asked that no
-   option be shown as an id number.
+   reads that.
 
 ---
 
