@@ -467,8 +467,9 @@ first measured slice. An AI API over the same four-method
 is serde-serializable by design). The parallel-play harness: `fuzz_games`'
 worker pool already scales to ~6.7× on eight cores, and what is open is in
 `codebase-state.md` — the allocator question, the event-log window (main item
-42), and search, which needs the decision-site invariant (main item 40) and
-the priority-boundary fork test (main item 41) before any refactor is priced.
+42), and search, whose forks `pausing-at-a-decision`'s build provides: a
+copy at the last anchor and a replay of the answers since, priced in
+`setup-architecture.md#7e-pausing-at-a-decision`.
 Which of its games it keeps records of, and where, starts from
 `setup-architecture.md` §7.2's decision 6.
 Profile-driven performance: the 7a residual (`layers-architecture.md` §12),

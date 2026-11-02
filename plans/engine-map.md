@@ -303,9 +303,10 @@ What each gate assumes, and what checks it: `elisions.md` §4.
 
 The invariant, as `pausing-at-a-decision`'s design narrowed it (#306,
 `setup-architecture.md#7e-pausing-at-a-decision`, decision 3): no decision
-site holds state off `GameState` past the next priority prompt. A paused game
-keeps the rest on its own stack, and a fork rebuilds it by replaying from the
-last priority prompt, so the two violators below close at that design's build.
+site holds state off `GameState` past the next anchor, a priority prompt
+asked for the first time in its window. A paused game keeps the rest on its
+own stack, and a fork rebuilds it by replaying from the last anchor, so the
+two violators below close at that design's build.
 Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
 `decision` record.
 The prompts the engine answers itself, and why: `elisions.md` §2, §3.
@@ -333,7 +334,7 @@ The prompts the engine answers itself, and why: `elisions.md` §2, §3.
 | An observable order goes through the timestamp order | `battlefield_ordered` `state/game_state.rs:1375`, `battlefield_ids_ordered` `state/game_state.rs:1385`, keyed on `PermanentState::timestamp` `state/battlefield.rs:63` | `plans/id-hasher.md` §6; the gate, `engineering-practices.md#invariant-gates` |
 | One performer, one emitter | `move_object` `engine/zones.rs:50`, `announce_zone_change` `engine/actions.rs:2133` | `replacement-architecture.md` §11, item 20 |
 | A simultaneous rule needs a batch | `execute_actions` `engine/actions.rs:821`; `decide_just_before_entry` in `engine/actions.rs` | `replacement-architecture.md` §4.2 |
-| No outcome-bearing decision state off `GameState` | §2.6 | `codebase-state.md` item 40 |
+| No decision state off `GameState` past the next anchor | §2.6 | `setup-architecture.md#7e-pausing-at-a-decision`, decision 3 |
 | Never prompt with fewer than two candidates | `Decided::Single` `engine/replacement/pipeline.rs:523` | `replacement-architecture.md` §4.1 |
 | A "can't" is not a replacement effect | `prohibition` `engine/replacement/pipeline.rs:456`, ahead of the gather | `cant-effects-architecture.md` §4.1 |
 | A static replacement ability is found off the effective list | `gather` `engine/replacement/gather.rs:202`; the legs, §2.3 | `replacement-architecture.md` §3.3 |

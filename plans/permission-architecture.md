@@ -229,7 +229,8 @@ Named here so the design session starts from them; none is answered.
    cost twice until it does.
 5. **A limit's state.** Per ability instance (602.5c), per permanent (606.3),
    kept across a change of control (602.5b), held on `GameState`
-   (`CLAUDE.md`: no decision-site state off it).
+   (`CLAUDE.md`: a limit outlives the next anchor, so it lives on
+   `GameState`).
 6. **What a cast or a play keeps across CR 400.7.** Since CV-1b,
    `move_object` ends every reference to an object that moves
    (`break_references_to`), sparing only 400.7a and 400.7c's rows for a

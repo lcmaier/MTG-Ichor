@@ -2063,12 +2063,13 @@ section never asked.
     233.
     **`pausing-at-a-decision`'s design (#306, 2026-11-01) supersedes the
     migration.** A paused game keeps its own call stack, so neither violator
-    needs to move: a fork copies the game at the last priority prompt asked for
-    the first time in its window and replays the answers since, which rebuilds
+    needs to move: a fork copies the game at the last anchor (a priority
+    prompt asked for the first time in its window) and replays the answers
+    since, which rebuilds
     the CR 614.5 sets and the CR 601.2 announcement as play built them
     (`setup-architecture.md#7e-pausing-at-a-decision`, decision 3, (b), taken).
     The invariant narrows to: no decision site holds state off `GameState`
-    past the next priority prompt. The build closes this item, with its fork
+    past the next anchor. The build closes this item, with its fork
     test at every decision.
     **Slotted:** `pausing-at-a-decision`, whose build after v0.5, with the AI
     harness, closes it as superseded.
@@ -6268,7 +6269,7 @@ Commander-scale board closes item 69.
      **`pausing-at-a-decision`'s design (#306, 2026-11-01) builds it**: a
      round started at any seat with its passes derived is decision 3's (b),
      taken, so every priority prompt asked for the first time in its window is
-     a place a fork resumes from (`setup-architecture.md#7e-pausing-at-a-decision`).
+     an anchor, a place a fork resumes from (`setup-architecture.md#7e-pausing-at-a-decision`).
      The design's probe found the agents' default stack asks 0–2 mid-round
      priority prompts a game, since the engine passes for a seat that can only
      pass; a person's seat, or an instant-speed agent's, asks mostly those.
@@ -9842,11 +9843,11 @@ keyed by its event.
      (`expect_choice_among_alike`, `expect_order_among_alike`) in RB, RC-5,
      RE-3, TR-1, TR-4c and TR-5e, and CV-2b's own provider by `then_index`.
      A scenario's setup line that names such an option without its place
-     takes the first, where a script is refused. Whether a setup line refuses
-     too waits on whether setup lines stay that granular, against starting a
-     scenario at a turn's beginning and playing the decisions to the point
-     (the owner, #305's review): the scenario format's audit, which opens
-     `pausing-at-a-decision`'s design, decides both.
+     takes the first, where a script is refused. Decided by
+     `pausing-at-a-decision`'s decisions 1 and 4: setup lines stay as
+     granular as they are, a scenario starts at a turn's beginning, and once
+     every option is named by what it is one rule holds for a script, a setup
+     line and a replay (`setup-architecture.md#7e-pausing-at-a-decision`).
      **The matcher compares text, and goes typed with this item** (the
      owner, #305's review). An answer finds its option by the words
      `ChoiceOption::as_logged` writes, compared with each offered option's
@@ -9857,19 +9858,16 @@ keyed by its event.
      compare them. The log reader is to parse each answer's words back into
      a typed identity once ("Grizzly Bears (#7)" is `Object(#7)`, the name
      kept as a check that the id still names that card), and the script and
-     the replay compare typed values; the log's text is unchanged.
+     the replay compare typed values; the log's text changes only by the
+     new options' words and a cost's whole cost (decision 4).
      **Reachability (2026-11-01):** reachable — not wrong in any game: the
      engine applies the effect at the place chosen, which is exact within a
      build; what is lost is a client's label and a replay across builds.
      Bridge from Below is registered.
-     **Sized:** an option that names the effect, not only its source (the
-     ability on its object, a counter's kind, a registry row), read by the
-     prompt, the dev GUI's option list and the replay, and written by
-     `ChoiceOption::as_logged`, which changes the log's format; ~80–150
-     lines, and the alike answers then named outright. The typed matcher,
-     ~150–250 more: a parser for each option shape the log writes (the
-     costs, "alternative Flashback {1}{R}", the hard ones), and
-     `ChoiceOption` comparable.
+     **Sized:** by decision 4: the two option kinds with their words and
+     labels, an activation's ability logged by its place, and the alike
+     answers named outright, ~100–180 lines; the typed matcher with a cost's
+     whole cost and its label, ~190–330 more.
      **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
      decision 4, taken:** two option kinds, `Replacement` and `Trigger`, each
      compared by what it is (a trigger by its source, its ability's place and

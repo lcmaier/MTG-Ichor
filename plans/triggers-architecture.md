@@ -2709,11 +2709,11 @@ in `place_one`, CR 603.7b's choice of cause in `queue_delayed`, and CR
 
 **Withdrawn (the owner, 2026-11-01, at #306's review).** `pausing-at-a-decision`'s
 design keeps a paused game's call stack, so a clone at a prompt is never
-resumed by itself: a fork copies the game at the last priority prompt and
-replays the answers since. The rule every prompt now follows is that design's
+resumed by itself: a fork copies the game at the last anchor (a priority
+prompt asked for the first time in its window) and replays the answers since. The rule every prompt now follows is that design's
 decision 3 (`setup-architecture.md#7e-pausing-at-a-decision`): it asks through
 `ui::ask`, names its options by what they are, and holds nothing off
-`GameState` past the next priority prompt. The drain stays as built, and item
+`GameState` past the next anchor. The drain stays as built, and item
 233 closes as superseded at that design's build.
 
 ---
