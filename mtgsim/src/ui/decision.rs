@@ -5,7 +5,7 @@ use std::mem::discriminant;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_named, reading_as};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, named_by_script};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
@@ -284,7 +284,8 @@ fn found_indices<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl In
     let mut found = Vec::new();
     for (option, place) in chosen {
         let words = option.as_logged(game);
-        match (place, reading_as(options, game, &words).len()) {
+        let named = named_by_script(options, game, option);
+        match (place, named.len()) {
             (None, alike) if alike > 1 => panic!(
                 "ScriptedDecisionProvider: {alike} options offered read {words}, and its words alone cannot say which: {:?}",
                 offered()
@@ -292,7 +293,11 @@ fn found_indices<'a>(options: &[ChoiceOption], game: &GameState, chosen: impl In
             (Some(_), 1) => panic!("ScriptedDecisionProvider: no other option offered reads {words}, so name it without a place"),
             _ => {}
         }
-        match position_named(options, game, &words, *place, &found) {
+        let at = match place {
+            Some(place) => place.checked_sub(1).and_then(|place| named.get(place)).copied().filter(|i| !found.contains(i)),
+            None => named.into_iter().find(|i| !found.contains(i)),
+        };
+        match at {
             Some(at) => found.push(at),
             None => panic!("ScriptedDecisionProvider: {words} is not offered: {:?}", offered()),
         }

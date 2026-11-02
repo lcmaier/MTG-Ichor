@@ -30,7 +30,9 @@ use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPl
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection};
+use crate::ui::choice_types::{
+    ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
+};
 use crate::ui::decision::PriorityAction;
 
 /// The name the object has now, through the layers (`get_effective_name`): a
@@ -511,7 +513,42 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::Color(color) => color_name(*color).to_string(),
         ChoiceOption::CounterType(counter) => counter.name().to_string(),
         ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
+        ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
+            let which = match ability {
+                TriggeredAbility::Of { ability, granted_by } => {
+                    let granted = granted_by.map_or(String::new(), |by| format!(", granted by {}", n(&by)));
+                    format!("{}{granted}", ability_text_of(game, source.id, *ability))
+                }
+                TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
+                TriggeredAbility::Delayed { refers_to } => format!("its delayed ability about {}", listed(game, refers_to)),
+            };
+            let about = if triggered_by.is_empty() { String::new() } else { format!(" (for {})", listed(game, triggered_by)) };
+            format!("{} · {which}{about}", n(&source.id))
+        }
+        ChoiceOption::Replacement(ReplacementOption::Made { source }) => format!("{} · its effect", n(source)),
+        ChoiceOption::Replacement(ReplacementOption::Ability { object, ability, granted_by, .. }) => {
+            let granted = granted_by.map_or(String::new(), |by| format!(", granted by {}", n(&by)));
+            format!("{} · {}{granted}", n(&object.id), ability_text_of(game, object.id, *ability))
+        }
+        ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, .. }) => {
+            format!("{} · its {} counter", n(&object.id), counter.name())
+        }
+        ChoiceOption::Replacement(ReplacementOption::Rule { object, .. }) => format!("{} · the commander rule", n(&object.id)),
     }
+}
+
+/// The text of `id`'s ability whose definition is `ability`'s, whichever
+/// instance of it the object has.
+fn ability_text_of(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static str {
+    get_effective_abilities(game, id)
+        .iter()
+        .find(|def| def.id.definition() == ability.definition())
+        .map_or("an ability it no longer has", |def| def.rules_text.words)
+}
+
+/// `ids`, each by its name, as a list a label reads.
+fn listed(game: &GameState, ids: &[ObjectId]) -> String {
+    ids.iter().map(|id| named(game, *id)).collect::<Vec<_>>().join(" and ")
 }
 
 /// Why a seat is being asked again: the answer the engine rejected, and the

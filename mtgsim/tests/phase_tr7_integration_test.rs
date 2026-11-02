@@ -611,8 +611,8 @@ impl DecisionProvider for &LoopPlayer {
                 let sources = items
                     .iter()
                     .map(|o| match o {
-                        ChoiceOption::Object(id) => *id,
-                        other => panic!("a trigger's source, not {other:?}"),
+                        ChoiceOption::Trigger(trigger) => trigger.source.id,
+                        other => panic!("a trigger, not {other:?}"),
                     })
                     .collect();
                 self.orders_asked.borrow_mut().push(sources);

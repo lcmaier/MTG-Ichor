@@ -315,6 +315,74 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 }
 
 // ---------------------------------------------------------------------------
+// Effects named by what they are, as a question offers them (decision 4a)
+// ---------------------------------------------------------------------------
+
+/// The pending trigger of `source` that `pick` picks, as CR 603.3b's order
+/// offers it. Exactly one must be picked.
+fn pending_trigger(
+    game: &GameState,
+    source: ObjectId,
+    pick: impl Fn(&crate::ui::choice_types::TriggerOption) -> bool,
+) -> crate::ui::choice_types::ChoiceOption {
+    let picked: Vec<_> = game
+        .pending_triggers
+        .iter()
+        .map(|trigger| game.trigger_option(trigger))
+        .filter(|trigger| trigger.source.id == source && pick(trigger))
+        .collect();
+    let [trigger] = &picked[..] else { panic!("{} pending triggers of {source} picked: {picked:?}", picked.len()) };
+    crate::ui::choice_types::ChoiceOption::Trigger(trigger.clone())
+}
+
+/// `source`'s pending trigger that `object` triggered (CR 603.2c).
+pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId) -> crate::ui::choice_types::ChoiceOption {
+    pending_trigger(game, source, |trigger| trigger.triggered_by.contains(&object))
+}
+
+/// `source`'s pending trigger of its ability at `place`, 1 for the first, as
+/// the layers give its abilities.
+pub fn pending_trigger_of(game: &GameState, source: ObjectId, place: usize) -> crate::ui::choice_types::ChoiceOption {
+    let ability = ability_at(game, source, place);
+    pending_trigger(game, source, |trigger| {
+        matches!(trigger.ability, crate::ui::choice_types::TriggeredAbility::Of { ability: of, .. } if of == ability.definition())
+    })
+}
+
+/// `object`'s replacement ability at `place`, its first effect, as CR 616.1
+/// offers it.
+pub fn replacement_ability_of(game: &GameState, object: ObjectId, place: usize) -> crate::ui::choice_types::ChoiceOption {
+    let ability = ability_at(game, object, place);
+    crate::ui::choice_types::ChoiceOption::Replacement(crate::ui::choice_types::ReplacementOption::Ability {
+        object: game.object_ref(object).expect("an object in the store"),
+        ability: ability.definition(),
+        granted_by: game.granted_by(ability),
+        member: 0,
+    })
+}
+
+/// The replacement effect `counter` counters make on `object` (CR 122.1c/d/h).
+pub fn counter_effect_of(
+    game: &GameState,
+    object: ObjectId,
+    counter: crate::types::effects::CounterType,
+) -> crate::ui::choice_types::ChoiceOption {
+    crate::ui::choice_types::ChoiceOption::Replacement(crate::ui::choice_types::ReplacementOption::Counter {
+        object: game.object_ref(object).expect("an object in the store"),
+        counter,
+        effect: crate::engine::replacement::CounterEffectKind::Replacement,
+    })
+}
+
+
+fn ability_at(game: &GameState, id: ObjectId, place: usize) -> crate::types::ids::AbilityId {
+    crate::oracle::characteristics::get_effective_abilities(game, id)
+        .get(place.checked_sub(1).expect("places count from 1"))
+        .unwrap_or_else(|| panic!("{id} has no ability {place}"))
+        .id
+}
+
+// ---------------------------------------------------------------------------
 // Placement
 // ---------------------------------------------------------------------------
 
@@ -424,10 +492,7 @@ impl DecisionProvider for RecordingDecisionProvider {
             let picks: Vec<usize> = self
                 .named
                 .iter()
-                .filter_map(|wanted| {
-                    let words = wanted.as_logged(game);
-                    (0..options.len()).find(|&i| options[i].as_logged(game) == words)
-                })
+                .filter_map(|wanted| crate::ui::choice_types::named_by_script(options, game, wanted).first().copied())
                 .take(bounds.1)
                 .collect();
             assert!(

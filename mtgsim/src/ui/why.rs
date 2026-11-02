@@ -37,7 +37,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryRole, Rejection};
+use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryRole, Rejection, ReplacementOption};
 use crate::ui::decision::PriorityAction;
 use crate::ui::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
@@ -231,6 +231,11 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
             vec![*attacker, *id]
         }
         ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
+        ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id).chain(trigger.triggered_by.iter().copied()).collect(),
+        ChoiceOption::Replacement(
+            ReplacementOption::Ability { object, .. } | ReplacementOption::Counter { object, .. } | ReplacementOption::Rule { object, .. },
+        ) => vec![object.id],
+        ChoiceOption::Replacement(ReplacementOption::Made { source, .. }) => vec![*source],
         // No object on the board: the existence has left.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::Action(PriorityAction::Pass)
