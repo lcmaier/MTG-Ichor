@@ -2680,8 +2680,18 @@ priority, so a main-phase board reads as it does today with its draw step
 drawn. Three things the rules do on the way, each settled here:
 - **The untap step untaps** (CR 502.3): the active player's permanents are
   untapped when the setup lines play, whatever the board wrote. A board that
-  needs one tapped taps it with a setup line, as play would. 7 of the 14
-  files write a tapped permanent of the active player.
+  needs one tapped taps it with a setup line, as play would: a creature by
+  attacking or by its tap ability. A land cannot, since its abilities are
+  mana abilities and `| ability N` never names one (§5.1), so setup lines
+  gain a third verb, `then: player p taps <card> for {W}`: the permanent's
+  mana ability that adds that mana, activated as a player may at priority
+  (CR 605.3a), and the mana left in p's pool until the step ends and the
+  pool empties (CR 106.4, 500.5), as play would leave it. The mana named is
+  the line's answer to any choice the ability asks (a color, for City of
+  Brass), so the line names its answer by what it is. 7 of the 14 files
+  write a tapped permanent of the active player: six attackers, which the
+  declaration below taps (CR 508.1f), and `planeswalker.scenario`'s Plains,
+  the one land.
 - **Combat is declared, not written.** CR 508.8 skips the declare blockers
   step when no creature attacks, so a board at declare attackers or later
   needs its attack declared. Setup lines gain the two declarations, `then:
@@ -2719,8 +2729,9 @@ scenario files (`attacking` 7, `this turn:` 7, `blocking` 4, `damage` 3,
 `arrived this turn` 2), in the inline boards of four integration-test files
 (SU-1's loader tests hold most of them, then SU-7's, A6r's and TR-5h's), and
 in the board editor's mid-turn controls; the 7 files with an active
-player's tapped permanent and the 7 at a combat step besides, and the two
-declaration lines, ~60–100 lines with their tests. ~500–850 lines changed,
+player's tapped permanent and the 7 at a combat step besides, the two
+declaration lines, ~60–100 lines with their tests, and the `taps … for`
+line, ~30–50 more. ~530–900 lines changed,
 more deleted than added: an estimate from those counts, not a measurement. *Upkeep*: the
 writer's report shrinks to what outlives a turn (delayed triggers, returns, a
 resolution's long rows), and the grammar holds only the state a turn's
@@ -3307,13 +3318,13 @@ from Below's two triggers, both orders.
 | | the fork: a copy at each anchor, the answers since, the replay; its consumer, the fork test at every decision of seeded games at two seats and four, each branch replaying the original's event log and end state | ~120–200 | ~150–250 |
 | | item 140's round started at any seat, and CR 514.3a's re-loop; item 41's test gains the mid-round forks | ~60 | ~60–80 |
 | | the paused game's copy at each turn's start, the writer's turn-start save, and decision 1's three words for the spans before a turn (closing item 287) | ~140–230 | ~60–100 |
-| | decision 1's B: the turn played to `step`, the setup lines' `attacks` and `blocks`, the mid-turn words and their refusals out of the grammar and the loader, the engine's six scenario files and four test files' inline boards migrated | ~90–160 added, more deleted | ~130–240 changed |
+| | decision 1's B: the turn played to `step`, the setup lines' `attacks`, `blocks` and `taps … for`, the mid-turn words and their refusals out of the grammar and the loader, the engine's six scenario files and four test files' inline boards migrated | ~110–190 added, more deleted | ~140–260 changed |
 | | items 40 and 233 closed as superseded | docs | |
-| | **the engine PR** | **~660–1,050** | **~600–970** |
+| | **the engine PR** | **~680–1,080** | **~610–990** |
 | **dev GUI** | the bridge drives a paused game (`spawn_game`'s thread, `GuiSeat`, `HandOver` go); "Save board as scenario" writes the turn's beginning and its save; the editor's mid-turn controls go and its eight test scenarios migrate | ~250–450 | ~100–200 |
 | with the harness | the coroutine, chosen by item 140's spike against the thread, with the binding floor item 140 proposes | sized there | |
 
-The engine PR reads ~1,260–2,020: inside the band (1,500–2,500,
+The engine PR reads ~1,290–2,070: inside the band (1,500–2,500,
 `engineering-practices.md#sizing-a-phase`) at its upper estimate, under it at
 its lower, so it is one PR. The paused game and the fork are one consumer's
 two halves. Fuzz A/B: `IDENTICAL` predicted. Every fuzz game runs
