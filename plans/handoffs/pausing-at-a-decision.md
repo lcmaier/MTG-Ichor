@@ -689,40 +689,58 @@ says which ability is which.
   Bridge from Below's two triggers and the Elder's printed devour from the
   granted one. It does not split Words of Worship's two rows (one source, one
   ability), a counter's effect (no ability) or one ability triggering twice.
-- **C. The effect's own identity.** `ChoiceOption::Replacement(ReplacementInstanceId)`
-  is CR 614.5's key, which the pipeline already gathers, applies and records
-  by: a registry row, an effect of an ability on an object with its place
-  among the ability's effects, a counter kind's effect, a game rule's.
-  `ChoiceOption::Trigger(TriggerId)` is a waiting trigger's id, minted per
-  game in trigger order. **A minted id is exact within a build and says
-  nothing across two**: a registry row's id and a `TriggerId` are counters,
-  so another build that mints in another order would swap two of them
-  silently, the failure A has. So the words carry what makes the instance
-  this one, kept as a check the way a card's name is kept beside `#7`: a
-  trigger's words name the objects its binding names (what triggered it,
-  CR 603.2c's occurrences), and a registry row's name the stack object whose
-  resolution made it. Bridge's two become `trigger 14: Bridge from Below
-  (#31) ability 1, for Grizzly Bears (#7)` and `trigger 15: Bridge from Below
-  (#31) ability 2, for Hill Giant (#9)`; the others read
-  `Thunder-Thrash Elder (#12) ability 7 effect 1`,
-  `Words of Worship (#9) row 3, made by #41`, `Grizzly Bears (#7) finality
-  counter`.
-  A build that mints in another order then fails the check and diverges
-  loudly. What is left is two instances alike in every word: the same source,
-  ability and triggering objects, which is as far as the log's convention
-  goes for two cards of one name. Every arm is an id or a small enum, within
-  item 141's payload rule (a prompt names things by id and CR vocabulary,
-  never an engine AST); a `ReplacementInstanceId` is 40 bytes, under
-  `ChoiceOption`'s 56. *Code*: the two arms with their words and labels in
-  both clients; `ask_choose_replacement` and `ask_order_triggers` pass the
-  instances; the unasked notes (an elided order) name them; the thirteen
-  alike answers named outright, and CV-2b's test provider's `then_index`
+- **C. Each effect named by what it is.** Two new option kinds,
+  `ChoiceOption::Replacement` and `ChoiceOption::Trigger`, in three layers
+  that are kept apart (revised at #306's second review round, which asked
+  that no option be shown as an id number):
+  - **What the engine holds and compares.** A replacement is CR 614.5's key,
+    `ReplacementInstanceId`, which the pipeline already gathers, applies and
+    records by: an effect of an ability on an object, a counter kind's
+    effect, a game rule's, or a row a resolution made. A trigger is a waiting
+    trigger's `TriggerId`, which is how the engine finds it. Both are exact
+    within a build. Two of them are counters (a row's id and a `TriggerId`,
+    minted in order), so across builds an option is compared by what it is,
+    never by a counter: a trigger by its source, its ability's place on that
+    source, and the objects that triggered it (CR 603.2c's occurrences); a
+    row by its source and the resolution that made it. Every part is an id
+    or a small enum, within item 141's payload rule (a prompt names things by
+    id and CR vocabulary, never an engine AST); a `ReplacementInstanceId` is
+    40 bytes, under `ChoiceOption`'s 56.
+  - **What the log writes.** Objects as the log writes them today, a name
+    with its id as the check (`Grizzly Bears (#7)`), and an ability by its
+    place on its object, never by an internal id: `Bridge from Below (#31),
+    ability 1, for Grizzly Bears (#7)` and `Bridge from Below (#31), ability
+    2, for Hill Giant (#9)`; `Thunder-Thrash Elder (#12), ability 2, granted
+    by Jund (#3)`; `Words of Worship (#9), its shield from the ability that
+    resolved as #41`; `Grizzly Bears (#7), finality counter`. A build that
+    lists or numbers them otherwise still finds each, and one whose words no
+    longer match stops and says so. What is left is two instances alike in
+    every word, the same source, ability and triggering objects, as far as
+    the log's convention goes for two cards of one name.
+  - **What a person sees.** A client draws each option from its typed value
+    through `ui::display`, with the source's name and the ability's text,
+    read off the object's abilities as the layers give them (`ability_text`,
+    `ui/display.rs:729`), the way the dev GUI already draws an activation
+    ("Forest · {T}: Add {G}."): "Bridge from Below · Whenever a nontoken
+    creature is put into your graveyard from the battlefield, if this card is
+    in your graveyard, create a 2/2 black Zombie creature token. (for Grizzly
+    Bears)". A granted ability adds its granter, a counter its kind and what
+    it does, a row the text of the ability that made it.
+
+  *Code*: the two arms with their words and their labels in both clients;
+  `ask_choose_replacement` and `ask_order_triggers` pass the instances; the
+  unasked notes (an elided order) name them; an activation's ability logged
+  by its place too (§8); the thirteen alike answers named outright, and
+  CV-2b's test provider's `then_index`
   (`tests/phase_cv2b_integration_test.rs:103`, its one use at `:1133` on
   `ChooseReplacementEffect`); `expect_choice_among_alike`,
-  `expect_order_among_alike` and the log's `(n of m)` go. ~80–150 lines and
+  `expect_order_among_alike` and the log's `(n of m)` go. ~100–180 lines and
   the tests.
 
-**Recommendation: C.** Only C names every family §3.3 counts.
+**Recommendation: C.** Only C names every family §3.3 counts. The log could
+write the ability's text as well as its place; it would make a line as long
+as the card's paragraph, and a fixed typo in a card's text would then stop
+every older record's replay, so the text stays the client's.
 
 **4b. The typed matcher, and the two cost shapes.** As the owner chose at
 #305: `ChoiceOption` derives `PartialEq`; the log reader parses each answer's
@@ -783,7 +801,7 @@ identity in that PR's first commit, at item 361's ~150–250 lines, and
 `modes-plus-choice-kinds` (step 5) already names modes by identity in place of
 `StackEntry.chosen_modes`' positions. One log-format change and one fixture
 migration is cheaper than two. **Recommendation**: 4a, 4b and 4c are built
-in `modes-plus-choice-kinds`' first PR, ~380–650 lines in all, and items 336
+in `modes-plus-choice-kinds`' first PR, ~400–680 lines in all, and items 336
 and 361 are re-slotted there.
 
 ---
@@ -792,7 +810,7 @@ and 361 are re-slotted there.
 
 **Before the decks, in `modes-plus-choice-kinds`' first PR** (decision 4):
 the two effect arms, the typed matcher with its cost parser, and the 33
-`picking(n)` uses, ~380–650 lines with tests. The PR's own sizing places it in
+`picking(n)` uses, ~400–680 lines with tests. The PR's own sizing places it in
 the band. Its consumer is the decision log: a replay of a game with Bridge
 from Below's two triggers, both orders.
 
@@ -870,3 +888,12 @@ paused game is a path no fuzz game takes: `fuzz_games` keeps calling
    the resolving game's stack, its questions handed out by the same paused
    game, so the process model holds it. Not a reason to take the card in; a
    note for whoever reopens the tail.
+5. **The log writes an activated ability as its internal id.**
+   `ChoiceOption::as_logged` (`ui/choice_types.rs:544`) writes an
+   activation as `activate Forest (#13) ability 0x…`, `AbilityId`'s
+   hexadecimal derivation, though `AbilityId`'s own `Display` says it is
+   "diagnostics only — a log names an ability by index"
+   (`types/ids.rs:296`). Decision 4a's build writes the ability's place on
+   its object, as the scenario's `ability N` names it, and its typed matcher
+   reads that. Found at #306's second review round, which asked that no
+   option be shown as an id number.
