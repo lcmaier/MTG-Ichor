@@ -288,7 +288,7 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 1. **`route-review`**, the route review | `route-review` | It set this order |
 | 2. **Readiness**, the item 6 audit's last two PRs | A6e | The ratchet's reading at item 6's close comes before anything moves the tree, and k, an AI observation's cost per decision, is read by steps 4 and 8; the second PR closes the audit |
 | 3. **`card-layer-cleanup`** | §C | Every card filed by its first printing and every deck a decklist (the owner, 2026-10-29), before the rows below register their cards |
-| 4. **`pausing-at-a-decision`**, the design | below | Every choice kind after it keeps its state on `GameState`; its build waits for the AI harness, after v0.5 |
+| 4. **`pausing-at-a-decision`**, the design | below | Every choice kind after it is built to one rule at the decision boundary, its options named by what they are; its build waits for the AI harness, after v0.5 |
 | 5. **`modes-plus-choice-kinds`**, with `divided-among-targets` built in it | below | The choices a card asks for, designed against one decision boundary before the decks write any |
 | 6. **`linked-abilities`** | below | Before every card that remembers a choice adds a field of its own |
 | 7. **`resolution-recipients-and-amounts`** | below | On #295's settled design, after steps 5 and 6, whose types it writes |
@@ -326,8 +326,8 @@ mechanisms, so its items go into the card plan with their cards.
 
 | # | Do this | Why here | PRs |
 |---|---|---|---:|
-| `pausing-at-a-decision` | **Pausing a game at a decision**: the pending decision held on `GameState`, the `DecisionProvider`'s shape, every option named by what it is. Its design opens with one audit of the scenario format and the dev GUI together against what the engine now records, since each trigger phase widened the records one at a time and a paused game is saved in that format (`codebase-state.md` item 287). Designed in `setup-architecture.md`, which owns the save and the decision log's replay | Nothing in v0.5 needs it: the dev GUI's game waits on a thread of its own, and a save reloads by replaying its log. A search that forks at any decision, a seat over a network and many games per thread do (`codebase-state.md` item 40). The design first keeps every choice kind after it holding its state on `GameState`, so the build, with the AI harness after v0.5, converts call sites, not state | design; build after v0.5 |
-| `modes-plus-choice-kinds` | **Modes plus the other choice kinds**: modes (CR 700.2, `backlog.md` §2.7), "unless [a player] pays" (CR 118.12a) and ward, X paid as it resolves, a division among targets (CR 601.2d, `divided-among-targets`), an order the CR hands a player (601.2h, 613.7m) and a choice at resolution (608.2d) | A choice kind is what a client, the harness and the decision log all see, and changing one is a fixture migration; modes also reshape the stack object (CR 601.2b, 707.10), and `StackEntry.chosen_modes`'s pick by position goes for modes named by identity. 915 modal cards by the census, 16 in `tdc` | design, then sized there |
+| `pausing-at-a-decision` | **Pausing a game at a decision**: a paused game the client drives, a fork as a copy at the last priority prompt and a replay, a game's board written as its turn's beginning (`codebase-state.md` item 287), and every option named by what it is, which `modes-plus-choice-kinds` builds. Designed in `setup-architecture.md#7e-pausing-at-a-decision`, which owns the save and the decision log's replay | Nothing in v0.5 needs it: the dev GUI's game waits on a thread of its own, and a save reloads by replaying its log. A search that forks at any decision, a seat over a network and many games per thread do. The design comes first so every choice kind after it is built to its rule | design (#306); build after v0.5, an engine PR and a dev GUI PR |
+| `modes-plus-choice-kinds` | **Modes plus the other choice kinds**, its first PR every option named by what it is (`pausing-at-a-decision`'s decision 4, `setup-architecture.md#7e-pausing-at-a-decision`; `codebase-state.md` items 336 and 361): modes (CR 700.2, `backlog.md` §2.7), "unless [a player] pays" (CR 118.12a) and ward, X paid as it resolves, a division among targets (CR 601.2d, `divided-among-targets`), an order the CR hands a player (601.2h, 613.7m) and a choice at resolution (608.2d) | A choice kind is what a client, the harness and the decision log all see, and changing one is a fixture migration; modes also reshape the stack object (CR 601.2b, 707.10), and `StackEntry.chosen_modes`'s pick by position goes for modes named by identity. 915 modal cards by the census, 16 in `tdc` | design, then sized there |
 | `linked-abilities` | **What one ability remembers for another** (CR 607), graduating `backlog.md` §2.2 to a doc of its own | `AbilityDef` carries no link, and `CostChoices`, `x_value` and `CastFacts` each stand in for one pair; whether each folds into one record is its first decision. Kicker, exert, bargain and champion cite CR 607 | design, then sized there |
 | `card-and-object-model` | **The card and object model**: faces and characteristic sets as two independent choices, several components for meld and mutate, and an attachment to a player, extending `copy-effects-architecture.md` and `permission-architecture.md`'s characteristic sets. Foretell (CR 702.143, a card exiled face down and cast later) is designed here beside face-down | `CardData` holds one set of characteristics and `PermanentState` one object; designed beside `permission-design`, the decks' cards are written in the shape that stays. It builds the Aura on a player itself (Curse of Opulence); the copy track's rows build the rest | design + 1 |
 | `resolution-recipients-and-amounts` | **Recipients, targets and amounts at resolution**: the item 6 audit's cleanup row 6, on its design note `plans/handoffs/resolution-recipients-and-amounts.md` (#295, its decisions taken) | Left the audit at `route-review` (2026-10-29); after `modes-plus-choice-kinds` and `linked-abilities`, whose types it writes | 2, by its note's split |
@@ -467,8 +467,9 @@ first measured slice. An AI API over the same four-method
 is serde-serializable by design). The parallel-play harness: `fuzz_games`'
 worker pool already scales to ~6.7× on eight cores, and what is open is in
 `codebase-state.md` — the allocator question, the event-log window (main item
-42), and search, which needs the decision-site invariant (main item 40) and
-the priority-boundary fork test (main item 41) before any refactor is priced.
+42), and search, whose forks `pausing-at-a-decision`'s build provides: a
+copy at the last anchor and a replay of the answers since, priced in
+`setup-architecture.md#7e-pausing-at-a-decision`.
 Which of its games it keeps records of, and where, starts from
 `setup-architecture.md` §7.2's decision 6.
 Profile-driven performance: the 7a residual (`layers-architecture.md` §12),
@@ -652,7 +653,11 @@ Cards that break the **process model** rather than lacking a surface:
 
 - **Reentrant casting** — Panglacial Wurm: cast mid-search, inside another
   action's resolution.
-- **Subgames** — Shahrazad.
+- **Subgames** — Shahrazad. Under `pausing-at-a-decision`'s paused game a
+  subgame is a game played on the resolving game's stack, its questions
+  handed out by the same paused game (`setup-architecture.md#7e-pausing-at-a-decision`,
+  "Found while designing"), so the process model need not exclude it; a
+  note for whoever reopens this tail.
 - **Dexterity and physical arrangement** — Chaos Orb, Falling Star,
   Camouflage, Raging River.
 - **Genuinely ill-defined text** — Season of the Witch's "could have

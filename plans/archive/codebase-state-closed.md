@@ -9827,3 +9827,57 @@ through PRs 1 to 3 (item 358).
     helpers the move would have scattered are shared words. Items 204, 207
     and 209 are the phase's last two PRs (`plans/handoffs/card-layer-cleanup.md`,
     "The split").
+
+### Item 360 — closed 2026-11-01 by `pausing-at-a-decision`'s design, merged into item 336
+
+One gap, filed twice: item 336 (#294's pre-review) found CR 616.1's prompt
+offering each replacement as its source, and `scripted-answers-by-identity`
+(#305) found CR 603.3b's trigger order doing the same and filed both again.
+Item 336 now carries this entry's triggers, its thirteen alike answers, the
+setup line's open question and the typed matcher, under one **Sized:** line.
+
+*Original entry:*
+
+360. **CR 616.1's and CR 603.3b's prompts offer each effect as its
+     source.** `ask_choose_replacement` offers each applicable replacement
+     as its source object, and the trigger order each pending trigger as
+     its source, so two effects from one source are one option twice: a
+     printed replacement beside a finality counter on one creature,
+     Thunder-Thrash Elder's printed devour beside a granted one, two rows
+     of one Words of Worship, Bridge from Below's two triggers. Only their
+     place tells them apart, so the decision log writes `(1 of 2)`, a
+     client shows the same words twice, and a replay across builds that
+     lists them in another order applies the other effect without
+     diverging. Thirteen scripted answers name them by place
+     (`expect_choice_among_alike`, `expect_order_among_alike`) in RB, RC-5,
+     RE-3, TR-1, TR-4c and TR-5e, and CV-2b's own provider by `then_index`.
+     A scenario's setup line that names such an option without its place
+     takes the first, where a script is refused. Whether a setup line refuses
+     too waits on whether setup lines stay that granular, against starting a
+     scenario at a turn's beginning and playing the decisions to the point
+     (the owner, #305's review): the scenario format's audit, which opens
+     `pausing-at-a-decision`'s design, decides both.
+     **The matcher compares text, and goes typed with this item** (the
+     owner, #305's review). An answer finds its option by the words
+     `ChoiceOption::as_logged` writes, compared with each offered option's
+     words (`position_named`), so which option an answer means turns on how
+     options render: a change to an object's name in text (`backlog.md`
+     §2.36) is a change to matching, and two options that render alike are
+     one. A test's script even turns its typed `ChoiceOption` into words to
+     compare them. The log reader is to parse each answer's words back into
+     a typed identity once ("Grizzly Bears (#7)" is `Object(#7)`, the name
+     kept as a check that the id still names that card), and the script and
+     the replay compare typed values; the log's text is unchanged.
+     **Reachability (2026-11-01):** reachable — not wrong in any game: the
+     engine applies the effect at the place chosen, which is exact within a
+     build; what is lost is a client's label and a replay across builds.
+     Bridge from Below is registered.
+     **Sized:** an option that names the effect, not only its source (the
+     ability on its object, a counter's kind, a registry row), written by
+     `ChoiceOption::as_logged`, which changes the log's format, and found by
+     the replay; ~80–150 lines, and the alike answers then named outright.
+     The typed matcher, ~150–250 more: a parser for each option shape the
+     log writes (the costs, "alternative Flashback {1}{R}", the hard ones),
+     and `ChoiceOption` comparable.
+     **Slotted:** `pausing-at-a-decision`, whose design names every option
+     by what it is (`roadmap-v2.md` §3a).

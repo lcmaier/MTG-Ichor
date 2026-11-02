@@ -86,7 +86,7 @@ the event. Propose with `execute_action` / `change_zone`; `check_invariants.py` 
   collapse and 615.7's shield allocation are unreachable from a loop; a *nested* call joins the
   enclosing batch unless the CR makes its events no *result of* the outer one (`// AUXILIARY-MOVE:`,
   CR 614.13). Two permanent write tags: `// CAST-ROLLBACK:` (CR 601.2a's move, silent both ways, loud at 601.2i) and `// NOT REPLACEABLE:` (a write no replacement effect can watch for, CR 614.1). → `replacement-architecture.md` §2.
-- **A decision site may not hold outcome-bearing state off `GameState`.** → `codebase-state.md` item 40.
+- **A decision site may hold nothing off `GameState` past the next anchor** (a priority prompt's first ask, where a fork resumes). → `setup-architecture.md#7e-pausing-at-a-decision`.
 
 ## The replacement pipeline (CR 614–616)
 

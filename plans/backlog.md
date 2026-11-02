@@ -3018,6 +3018,21 @@ to a target creature until end of turn.
 | **Atoms** | ATOM-400.7a-001, whose board is a "-lace" spell on a creature spell |
 | **Owner** | `cant-be-targeted` (`cant-effects-architecture.md`), which rewrites the same two functions for CR 115's target legality; the four cards that also change text follow `text-changing-effects` (the owner's review of #304, 2026-11-01) |
 
+### 2.51 Controlling another player — whose decision it is, and who makes it
+
+**Found by `pausing-at-a-decision`'s design (2026-11-01)**, whose question
+names the player whose decision it is and leaves the answering seat to the
+routing.
+
+| Field | |
+|---|---|
+| **Rules** | CR 722.1–722.9: a player controlled during their next turn, or for a limited time (722.2); only control of the player changes, and they stay the active player (722.3); the controller sees what the controlled player sees (722.4) and makes every choice the rules or objects call for, with that player's resources (722.5, 722.5a), and none that nothing calls for (722.5b); the controlled player alone may concede (722.6); the controlling effect may restrict the controlled player's actions or require some (722.7, Opposition Agent and Word of Command); the controller goes on making their own decisions (722.8); a player given control of themself decides as normal (722.9) |
+| **Verdict** | Two halves. A duration and a fact: no `GameState` field says who controls a player, and nothing schedules "during that player's next turn" (CR 722.1b's skipped turn included). The routing: `DispatchDecisionProvider` sends each question to the seat of the player it names, where CR 722.5 sends it to that player's controller, so one seat answers for two players at once (722.8), and the per-viewer query of `information-model` gives the controller the controlled player's view (722.4). An effect's restriction or requirement (722.7) is a "can't" or a requirement on the controlled player's actions, read where `cant-cast-play-or-activate` reads the others |
+| **Size** | ~1 PR with its first card: the control fact and its duration, the dispatcher reading it, and Mindslaver's test (a cast, an attack and a resolution's choice all made by the controller) |
+| **Blocks** | 12 cards (Scryfall, 2026-11-01, `(o:/(gain )?control (of )?(target\|that\|each\|an\|the other) (player\|opponent)/ or o:/controls the other during/) -o:"control of target creature"`): Mindslaver, Sorin Markov, Emrakul, the Promised End, Opposition Agent among them; Emrakul's "after that turn" also waits here (`cr-coverage-audit.md`) |
+| **Atoms** | none filed |
+| **Owner** | after v0.5, wider card work: the routing is the decision boundary's, designed in `setup-architecture.md`'s "Pausing at a decision" (its decision on the provider's shape), and the view is `information-model`'s |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

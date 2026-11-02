@@ -2061,8 +2061,18 @@ section never asked.
     trigger code and not in the table: CR 603.3d's targets at placement, CR
     603.7b's choice of cause, and CR 303.4f's host for a returning Aura. Item
     233.
-    **Slotted:** Phase 10, whose fork-based harness needs `PendingReplacement`
-    and `PendingCast` on `GameState`, with item 233's three trigger sites.
+    **`pausing-at-a-decision`'s design (#306, 2026-11-01) supersedes the
+    migration.** A paused game keeps its own call stack, so neither violator
+    needs to move: a fork copies the game at the last anchor (a priority
+    prompt asked for the first time in its window) and replays the answers
+    since, which rebuilds
+    the CR 614.5 sets and the CR 601.2 announcement as play built them
+    (`setup-architecture.md#7e-pausing-at-a-decision`, decision 3, (b), taken).
+    The invariant narrows to: no decision site holds state off `GameState`
+    past the next anchor. The build closes this item, with its fork
+    test at every decision.
+    **Slotted:** `pausing-at-a-decision`, whose build after v0.5, with the AI
+    harness, closes it as superseded.
 
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
@@ -6256,9 +6266,15 @@ Commander-scale board closes item 69.
      number is the owner's to set. The mechanism is chosen by a spike before
      Phase 10's design: real games through a channel-backed provider, against
      a coroutine prototype.
-     **Slotted:** Phase 10, the parallel-play harness, whose first fork-based
-     search needs a priority round resumed at a seat other than the active
-     player.
+     **`pausing-at-a-decision`'s design (#306, 2026-11-01) builds it**: a
+     round started at any seat with its passes derived is decision 3's (b),
+     taken, so every priority prompt asked for the first time in its window is
+     an anchor, a place a fork resumes from (`setup-architecture.md#7e-pausing-at-a-decision`).
+     The design's probe found the agents' default stack asks 0–2 mid-round
+     priority prompts a game, since the engine passes for a seat that can only
+     pass; a person's seat, or an instant-speed agent's, asks mostly those.
+     **Slotted:** `pausing-at-a-decision`, whose build after v0.5, with the AI
+     harness, builds the round's entry point and CR 514.3a's re-loop.
 
 141. **The `DecisionProvider` boundary, serialized: which fields, which
      crate, what it costs — and the `&GameState` parameter stays.** The wire
@@ -8484,10 +8500,13 @@ source live is corrected in place.
      603.3c's modes at placement, CR 603.5's "may"), and a prompt that keeps
      what it has decided on `GameState`, the drain's shape, needs no
      migration later.
-     **Slotted:** Phase 10's first fork-based harness, item 140's slot, with
-     item 40's violators. The rule for new prompts is `triggers-architecture.md`
-     §5.6 (the owner, 2026-10-08, at A6k's review), so TR-4–TR-7 build none of
-     this shape.
+     **`pausing-at-a-decision`'s design (#306, 2026-11-01) supersedes it**, as
+     it does item 40's violators: a paused game keeps these three sites' state
+     on its stack, and a fork rebuilds it by replay from the last priority
+     prompt. The rule for new prompts the owner set on 2026-10-08 is withdrawn
+     for decision 3's (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **Slotted:** `pausing-at-a-decision`, whose build after v0.5, with the AI
+     harness, closes it as superseded.
 
 234. **~~CR 610.3's waiting returns carry no id and announce nothing.~~ — ✅
      CLOSED 2026-10-09 (PR #238).** — archived.
@@ -9145,12 +9164,15 @@ scan of the history log, and the place in a turn that reads a tally since
      a count of draws, deaths, attacks or damage.
      **Sized:** a word per fact naming its objects, as `cast <card>` does,
      each ~40 lines with its test.
-     **Slotted:** `pausing-at-a-decision` (`route-review`, 2026-10-29), whose
-     design opens with one audit of the scenario format and
-     the dev GUI together against what the engine now records, since a paused
-     game is saved in that format: a word per narrowed fact, Caller of the
-     Claw's deaths the first (the owner, at #293's review, 2026-10-25: a filed
-     gap with printed customers takes a route row).
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 1, B, taken:** no word per narrowed fact. A scenario starts at a
+     turn's beginning and the turn is played; a board written from a game is
+     that beginning plus the turn's answers, so this turn's rows are played,
+     never written. Three words cover the spans before a turn (`attacked last
+     turn`, a player's attack last turn, an object's damage over the game), and
+     the mid-turn words leave the grammar (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **Slotted:** `pausing-at-a-decision`, whose build after v0.5 writes a
+     game's board as its turn's beginning and closes this item.
 
 ### Found by TR-5d (2026-10-19)
 
@@ -9802,24 +9824,59 @@ keyed by its event.
      **Slotted:** `linked-abilities`, beside CR 607's links (`route-review`,
      2026-10-29); the card parser it was also beside is declined for v0.5.
 
-336. **CR 616.1's ordering prompt names an effect by its source, so two
-     effects of one object are one option twice.** `ask_choose_replacement`
-     offers `ChoiceOption::Object(source)` per candidate. Thunder-Thrash Elder
-     granted devour 5 (CR 614.13b's own example, Jund's grant) has its printed
-     devour 3 and the grant as two options that are both the Elder, told
-     apart only by their place: a client, the AI harness and the decision
-     log, which writes an option by identity and never by position, cannot
-     tell which was chosen. Found at #294's pre-review.
-     **Reachability (2026-10-26):** unreachable — the registered cards with
-     two replacement effects (Doubling Season, Primal Vigor, Winding
-     Constrictor, Protean Hydra, Leyline of the Void, Bard King of Dale) watch
-     different events with them; reachable with a grant or a copied second
-     effect on one object.
-     **Sized:** an option naming the effect (its source and its ability, or
-     its instance id), read by the prompt, the log and the dev GUI's option
-     list: ~40–80 lines and the fixture the Elder already is.
-     **Slotted:** `pausing-at-a-decision`, whose design decides how an option
-     names what it is (`route-review`, 2026-10-29).
+336. **CR 616.1's and CR 603.3b's prompts offer each effect as its source,
+     so two effects of one source are one option twice.**
+     `ask_choose_replacement` offers each applicable replacement as
+     `ChoiceOption::Object(source)`, and the trigger order each pending
+     trigger as its source. Thunder-Thrash Elder granted devour 5 (CR
+     614.13b's own example, Jund's grant) has its printed devour 3 and the
+     grant as two options that are both the Elder; so are a printed
+     replacement beside a finality counter on one creature, two rows of one
+     Words of Worship, and Bridge from Below's two triggers. Only their place
+     tells them apart, so the decision log writes `(1 of 2)`, a client shows
+     the same words twice, and a replay across builds that lists them in
+     another order applies the other effect without diverging. Found at
+     #294's pre-review, for the replacement prompt; `scripted-answers-by-identity`
+     (#305) found the trigger order and filed both as item 360, merged here
+     (2026-11-01).
+     Thirteen scripted answers name them by place
+     (`expect_choice_among_alike`, `expect_order_among_alike`) in RB, RC-5,
+     RE-3, TR-1, TR-4c and TR-5e, and CV-2b's own provider by `then_index`.
+     A scenario's setup line that names such an option without its place
+     takes the first, where a script is refused. Decided by
+     `pausing-at-a-decision`'s decisions 1 and 4: setup lines stay as
+     granular as they are, a scenario starts at a turn's beginning, and once
+     every option is named by what it is one rule holds for a script, a setup
+     line and a replay (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **The matcher compares text, and goes typed with this item** (the
+     owner, #305's review). An answer finds its option by the words
+     `ChoiceOption::as_logged` writes, compared with each offered option's
+     words (`position_named`), so which option an answer means turns on how
+     options render: a change to an object's name in text (`backlog.md`
+     §2.36) is a change to matching, and two options that render alike are
+     one. A test's script even turns its typed `ChoiceOption` into words to
+     compare them. The log reader is to parse each answer's words back into
+     a typed identity once ("Grizzly Bears (#7)" is `Object(#7)`, the name
+     kept as a check that the id still names that card), and the script and
+     the replay compare typed values; the log's text changes only by the
+     new options' words and a cost's whole cost (decision 4).
+     **Reachability (2026-11-01):** reachable — not wrong in any game: the
+     engine applies the effect at the place chosen, which is exact within a
+     build; what is lost is a client's label and a replay across builds.
+     Bridge from Below is registered.
+     **Sized:** by decision 4: the two option kinds with their words and
+     labels, an activation's ability logged by its place, and the alike
+     answers named outright, ~100–180 lines; the typed matcher with a cost's
+     whole cost and its label, ~190–330 more.
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 4, taken:** two option kinds, `Replacement` and `Trigger`, each
+     compared by what it is (a trigger by its source, its ability's place and
+     what triggered it), logged by names and places with no internal id, and
+     drawn by a client with the ability's text; the typed matcher reads every
+     shape, a cost by its kind and its whole cost
+     (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **Slotted:** `modes-plus-choice-kinds`, whose first PR builds decision 4
+     (the owner, #306's fourth review round).
 
 337. **An entry choice's cost is paid only in life.** `EnterModsTemplate`'s
      `unless_paid` carries any `Cost`, and `pays_as_object_enters` refuses every
@@ -10253,49 +10310,12 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
 
 ### Found by `scripted-answers-by-identity` (2026-11-01)
 
-360. **CR 616.1's and CR 603.3b's prompts offer each effect as its
-     source.** `ask_choose_replacement` offers each applicable replacement
-     as its source object, and the trigger order each pending trigger as
-     its source, so two effects from one source are one option twice: a
-     printed replacement beside a finality counter on one creature,
-     Thunder-Thrash Elder's printed devour beside a granted one, two rows
-     of one Words of Worship, Bridge from Below's two triggers. Only their
-     place tells them apart, so the decision log writes `(1 of 2)`, a
-     client shows the same words twice, and a replay across builds that
-     lists them in another order applies the other effect without
-     diverging. Thirteen scripted answers name them by place
-     (`expect_choice_among_alike`, `expect_order_among_alike`) in RB, RC-5,
-     RE-3, TR-1, TR-4c and TR-5e, and CV-2b's own provider by `then_index`.
-     A scenario's setup line that names such an option without its place
-     takes the first, where a script is refused. Whether a setup line refuses
-     too waits on whether setup lines stay that granular, against starting a
-     scenario at a turn's beginning and playing the decisions to the point
-     (the owner, #305's review): the scenario format's audit, which opens
-     `pausing-at-a-decision`'s design, decides both.
-     **The matcher compares text, and goes typed with this item** (the
-     owner, #305's review). An answer finds its option by the words
-     `ChoiceOption::as_logged` writes, compared with each offered option's
-     words (`position_named`), so which option an answer means turns on how
-     options render: a change to an object's name in text (`backlog.md`
-     §2.36) is a change to matching, and two options that render alike are
-     one. A test's script even turns its typed `ChoiceOption` into words to
-     compare them. The log reader is to parse each answer's words back into
-     a typed identity once ("Grizzly Bears (#7)" is `Object(#7)`, the name
-     kept as a check that the id still names that card), and the script and
-     the replay compare typed values; the log's text is unchanged.
-     **Reachability (2026-11-01):** reachable — not wrong in any game: the
-     engine applies the effect at the place chosen, which is exact within a
-     build; what is lost is a client's label and a replay across builds.
-     Bridge from Below is registered.
-     **Sized:** an option that names the effect, not only its source (the
-     ability on its object, a counter's kind, a registry row), written by
-     `ChoiceOption::as_logged`, which changes the log's format, and found by
-     the replay; ~80–150 lines, and the alike answers then named outright.
-     The typed matcher, ~150–250 more: a parser for each option shape the
-     log writes (the costs, "alternative Flashback {1}{R}", the hard ones),
-     and `ChoiceOption` comparable.
-     **Slotted:** `pausing-at-a-decision`, whose design names every option
-     by what it is (`roadmap-v2.md` §3a).
+360. **~~CR 616.1's and CR 603.3b's prompts offer each effect as its
+     source.~~ — ✅ CLOSED 2026-11-01 (`pausing-at-a-decision`'s design).**
+     — archived.
+     Merged into main item 336, the same gap filed first, which keeps its triggers, its alike answers and its typed matcher.
+     **Reachability (2026-11-01):** closed — merged into item 336.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 360".
 
 361. **`RecordingDecisionProvider::picking(n)` answers by position, and 33
      of its uses depend on the order.** A policy, not a script: it takes
@@ -10310,5 +10330,8 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      it answers.
      **Sized:** the 33 uses named outright or moved to the scripted
      provider, each read as item 209's were; ~150–250 lines.
-     **Slotted:** `pausing-at-a-decision`, whose design sets the
-     `DecisionProvider`'s shape with every option named by what it is.
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 4:** the 33 uses move to answers named by what they chose, since
+     `modes-plus-choice-kinds` reorders and lengthens the lists they answer;
+     `picking(n)` stays for the 142 uses no order reaches.
+     **Slotted:** `modes-plus-choice-kinds`, whose first PR builds decision 4.

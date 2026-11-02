@@ -96,6 +96,32 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Measured 2026-11-01 for `pausing-at-a-decision`'s design**
+(`setup/pausing-at-a-decision-design`, PR #306, docs only; the design is
+`setup-architecture.md#7e-pausing-at-a-decision`). No engine code changed, so
+no table is re-recorded and no sitting ran. A throwaway probe outside the
+tree, on `91b182a2`: a crate in the session's scratchpad depending on `mtgsim`
+by path, release, `MTGSIM_HASH_SEED=1`, `fuzz_games`' own deals
+(`random_deck`, `RandomStreams`) and default stack (`ManaWindowStop` over the
+random agent), each seat's deck drawn by `random_deck` from the performance
+pool, 20 games a board from seed 12345. It timed the engine between
+prompts and asked two questions of each game: what re-running a game from its
+last priority prompt through the answers since would cost at every other
+prompt, and what a copy of the game at each priority prompt costs.
+
+| Board | Prompts a game (priority) | Engine a game | Re-running from the last priority prompt | A copy at each priority prompt |
+|---|---|---:|---:|---:|
+| `performance`, 2 seats, 60 cards | 185 (66) | 5.6 ms | +70.8% of the game, 2.8 answers re-played a prompt | 1.13 µs, +1.3% |
+| `performance`, 4 seats, 60 cards | 326 (115) | 15.1 ms | +79.1%, 2.8 | 1.63 µs, +1.2% |
+| `performance`, Commander scale: 4 seats, 100 cards, 40 life | 477 (166) | 31.1 ms | +77.4%, 2.9 | 1.70 µs, +0.9% |
+
+With anchors at round starts only, the re-running column reads +71.4%,
++82.4% and +82.9%: the stack asks 0, 1 and 2 mid-round priority prompts a
+game. A fork at a prompt off a priority prompt costs its prefix once, 35, 58
+and 79 µs. Sizes on the same tree: `GameState` 2,752 bytes, `StackEntry` 392,
+`PendingTrigger` 240, `ChoiceContext` 152, `GameAction` 136, `ChoiceKind` 104,
+`ChoiceOption` 56, `ReplacementInstanceId` 40.
+
 **Measured 2026-11-01 for `card-layer-cleanup`'s fifth PR, the scripted answers by identity**
 (`cards/scripted-answers-by-identity`, PR #305: every scripted test answer
 names what it chose, the position forms gone, and the backlog's owners). No
