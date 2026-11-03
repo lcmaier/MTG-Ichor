@@ -61,7 +61,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_named};
+use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceContext, ChoiceOption, ReplacementOption, position_named};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -70,11 +70,11 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 // ---------------------------------------------------------------------------
 
 /// What a scripted prompt answers: the objects to pick, found by id, or one
-/// option by its place, for a CR 616.1 prompt between two effects of one
+/// option named outright, for a CR 616.1 prompt between two effects of one
 /// source.
 enum Pick {
     Ids(Vec<ObjectId>),
-    Index(usize),
+    Option(ChoiceOption),
 }
 
 /// Answers each prompt from a script, in order: who must be asked, the kind's
@@ -97,12 +97,9 @@ impl Scripted {
         self
     }
 
-    /// Expect `player` to be asked a `kind` prompt next, and pick option
-    /// `index`: for a test that tries every place in turn, so which option a
-    /// place holds does not matter, as with a copy's two entry effects, which
-    /// the call the prompt answers makes.
-    fn then_index(self, player: PlayerId, kind: &'static str, index: usize) -> Self {
-        self.script.borrow_mut().push_back((player, kind, Pick::Index(index)));
+    /// Expect `player` to be asked a `kind` prompt next, and pick `option`.
+    fn then_option(self, player: PlayerId, kind: &'static str, option: ChoiceOption) -> Self {
+        self.script.borrow_mut().push_back((player, kind, Pick::Option(option)));
         self
     }
 
@@ -144,7 +141,10 @@ impl DecisionProvider for Scripted {
             .unwrap_or_else(|| panic!("unscripted prompt: {:?} to player {player}", ctx.kind));
         assert_eq!((who, expected), (player, kind), "the wrong prompt, or the wrong player asked");
         match pick {
-            Pick::Index(index) => vec![index],
+            Pick::Option(option) => {
+                let found = position_named(options, game, &option, &[]);
+                vec![found.unwrap_or_else(|| panic!("{} not offered", option.as_logged(game)))]
+            }
             Pick::Ids(ids) => {
                 let mut picked = Vec::new();
                 for id in ids {
@@ -1119,24 +1119,31 @@ fn an_untapped_addition_is_overridden_by_the_copied_enters_tapped() {
 
 /// Read as CR 707.9a's gained ability, "it has 'This creature enters
 /// untapped'" joins the 616.1e bucket beside the copied "enters tapped", and
-/// its controller orders the two, as with Spelunking: both statuses are
-/// reachable, the last applied winning.
+/// its controller orders the two, as with Spelunking: the last applied wins,
+/// so each order reaches its own status.
 #[test]
 fn an_untapped_grant_is_ordered_against_the_copied_enters_tapped() {
-    let mut reached = Vec::new();
-    for pick in [0, 1] {
+    for untapped_first in [true, false] {
         let mut game = setup_two_player_game();
         let sentinel = put_on_battlefield(&mut game, rusted_sentinel(), 1);
-        let except =
-            vec![CopyException::Modifies(CharacteristicEdit::GainsAbility(enters_with(EnterModsTemplate::untapped())))];
+        let copied = get_effective_abilities(&game, sentinel)[0].id;
+        let grant = enters_with(EnterModsTemplate::untapped());
+        let gained = grant.id;
+        let except = vec![CopyException::Modifies(CharacteristicEdit::GainsAbility(grant))];
+        let entering = put_in_graveyard(&mut game, copier("Untapped Grant copier", Color::Blue, except), 0);
+        let first = ChoiceOption::Replacement(ReplacementOption::Ability {
+            object: game.object_ref(entering).expect("in the store"),
+            ability: if untapped_first { gained } else { copied }.definition(),
+            granted_by: None,
+            member: 0,
+            read_as: AbilityAsRead(None),
+        });
         let dp = Scripted::new()
             .then(0, "ChooseCopySource", &[sentinel])
-            .then_index(0, "ChooseReplacementEffect", pick);
-        let copy = enter(&mut game, copier("Untapped Grant copier", Color::Blue, except), 0, &dp);
-        reached.push(game.battlefield[&copy].tapped);
+            .then_option(0, "ChooseReplacementEffect", first);
+        try_enter(&mut game, entering, &dp).expect("the entry is proposed");
+        assert_eq!(game.battlefield[&entering].tapped, untapped_first, "the effect applied last decides");
     }
-    reached.sort();
-    assert_eq!(reached, vec![false, true], "each order reaches its own status");
 }
 
 /// CR 707.9e takes back a status as it takes back counters. An instruction
