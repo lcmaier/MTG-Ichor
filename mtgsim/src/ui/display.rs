@@ -515,7 +515,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
         ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
             let which = match ability {
-                TriggeredAbility::Of { ability, granted_by, .. } => ability_words(game, source.id, *ability, *granted_by),
+                TriggeredAbility::OfItsSource { ability, granted_by, .. } => ability_words(game, source.id, *ability, *granted_by),
                 TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
                 TriggeredAbility::Delayed { refers_to } => format!("its delayed ability about {}", listed(game, refers_to)),
             };

@@ -1072,7 +1072,7 @@ fn order_scry_group(
 /// reaches the pipeline, and the one-candidate short circuit is what keeps that
 /// at zero new prompts.
 ///
-/// The options are the candidates, each by what it is (decision 4a), so two
+/// The options are the candidates, each named by where it comes from, so two
 /// effects of one permanent are two options a log and a client tell apart.
 pub fn ask_choose_replacement(
     dp: &dyn DecisionProvider,

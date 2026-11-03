@@ -72,8 +72,7 @@ pub struct RegisteredReplacementEffect {
     pub source: ObjectId,
     /// The stack object whose resolution made this row: the spell, or the
     /// ability's own object (CR 608.2n), which tells two rows of one source
-    /// apart in a question (decision 4a). `None` for a row no resolution
-    /// made.
+    /// apart in CR 616.1's question. `None` for a row no resolution made.
     pub made_by: Option<ObjectId>,
     /// The player who controlled that spell or ability. Resolves `PlayerRef::You`
     /// in the def's filters, and is CR 611.2c's locked-at-resolution value.

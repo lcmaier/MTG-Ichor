@@ -315,7 +315,7 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 }
 
 // ---------------------------------------------------------------------------
-// Effects named by what they are, as a question offers them (decision 4a)
+// Effects named by what they are, as a question offers them
 // ---------------------------------------------------------------------------
 
 /// The pending trigger of `source` that `pick` picks, as CR 603.3b's order
@@ -355,7 +355,7 @@ pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId)
 pub fn pending_trigger_of(game: &GameState, source: ObjectId, place: usize) -> crate::ui::choice_types::ChoiceOption {
     let ability = ability_at(game, source, place);
     pending_trigger(game, source, |trigger| {
-        matches!(trigger.ability, crate::ui::choice_types::TriggeredAbility::Of { ability: of, .. } if of == ability.definition())
+        matches!(trigger.ability, crate::ui::choice_types::TriggeredAbility::OfItsSource { ability: of, .. } if of == ability.definition())
     })
 }
 

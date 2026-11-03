@@ -523,17 +523,20 @@ pub enum ChoiceOption {
     CounterType(CounterType),
     /// A mana type (for generic allocation)
     ManaType(ManaType),
-    /// A triggered ability waiting to be put on the stack (CR 603.3b), by
-    /// what it is, so two of one source are two options a log and a client
-    /// tell apart (`setup-architecture.md#7e-pausing-at-a-decision`,
-    /// decision 4a).
+    /// A triggered ability waiting to be put on the stack (CR 603.3b), named
+    /// by its source, its ability and what triggered it, so two triggers of
+    /// one card are two options a log and a client tell apart
+    /// (`setup-architecture.md#7e-pausing-at-a-decision`).
     Trigger(TriggerOption),
-    /// A replacement or prevention effect CR 616.1 offers, by what it is.
+    /// A replacement or prevention effect CR 616.1 offers, named by where it
+    /// comes from.
     Replacement(ReplacementOption),
 }
 
-/// A triggered ability as an option names it: what it is and no counter, so
-/// two builds that list or number them otherwise name it alike.
+/// One of the triggers CR 603.3b's question asks a player to order, named by
+/// what it is in the game: its source, its ability and what triggered it.
+/// Never by a number the engine keeps for itself, such as a registry id or a
+/// place in a queue, so a replay on another build finds the same trigger.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TriggerOption {
     /// Its source, and which existence of it (CR 400.7).
@@ -545,36 +548,50 @@ pub struct TriggerOption {
     pub triggered_by: Vec<ObjectId>,
 }
 
-/// Which triggered ability of a source.
+/// Which triggered ability a trigger is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TriggeredAbility {
-    /// One the source has, by its definition (`AbilityId::definition`): its
-    /// own, or one an effect of `granted_by`'s granted or copied onto it.
-    /// `place` is where it sat among the source's abilities as the trigger
-    /// was offered, 1 for the first; `None` for one it no longer has.
-    Of { ability: AbilityId, granted_by: Option<ObjectId>, place: Option<u8> },
-    /// A delayed triggered ability (CR 603.7), by the objects it refers to
-    /// (CR 603.7c): it is no ability of its source.
+    /// An ability its source has: printed on it, or granted or copied onto it
+    /// by an effect of `granted_by`'s. Named by its definition
+    /// (`AbilityId::definition`, the same whichever grant made the instance),
+    /// and `place` is where it sat among the source's abilities when the
+    /// trigger was offered, 1 for the first; `None` for one it no longer has.
+    OfItsSource { ability: AbilityId, granted_by: Option<ObjectId>, place: Option<u8> },
+    /// A delayed triggered ability (CR 603.7), which an effect created and
+    /// which is no ability of its source, named by the objects it refers to
+    /// (CR 603.7c): Flickerwisp's "return the exiled card".
     Delayed { refers_to: Vec<ObjectId> },
 }
 
-/// A replacement or prevention effect as an option names it: CR 614.5's key,
-/// with a registry row named by its source and the resolution that made it
-/// rather than by its counter.
+/// One of the effects CR 616.1's question asks a player to choose among,
+/// named by where it comes from in the game, never by a number the engine
+/// keeps for itself. A replacement or prevention effect comes from one of
+/// four places, one arm each.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReplacementOption {
-    /// A row a resolution made (CR 614.3, 615.7): its source, and the stack
-    /// object whose resolution made it.
+    /// One a resolving spell or ability created (CR 614.3, 615.7): Words of
+    /// Worship's "the next time you would draw a card this turn, you gain 5
+    /// life instead", a "prevent the next 3 damage" shield. Named by the card
+    /// it came from and `made_by`, the stack object whose resolution created
+    /// it, which tells two activations apart; `None` for one no resolution
+    /// created.
     Made { source: ObjectId, made_by: Option<ObjectId> },
-    /// A static ability of an object (CR 614.1a), by its definition, and
-    /// which of the replacement effects its body makes, counted from 0.
-    /// `place` is where it sits among the object's abilities in the frame
-    /// the effect was gathered in (CR 614.12's for an entering object), 1 for
-    /// the first.
+    /// A static ability of a permanent that is itself a replacement effect
+    /// (CR 614.1a): Rest in Peace's "exile it instead", devour as its creature
+    /// enters. Named by the object, the ability by its definition (with
+    /// `granted_by` when an effect gave it), and `member`, which of its
+    /// effects when one ability makes several, counted from 0. `place` is
+    /// where the ability sits among the object's abilities on the board the
+    /// engine checked it against (for an entering object, the board as it
+    /// will enter, CR 614.12), 1 for the first.
     Ability { object: ObjectRef, ability: AbilityId, granted_by: Option<ObjectId>, member: u8, place: Option<u8> },
-    /// The effect counters of a kind make on a permanent (CR 122.1c/d/h).
+    /// Game counters of one kind on a permanent, which make a replacement or
+    /// prevention effect (CR 122.1c/d/h): a finality counter's "exile it
+    /// instead", and a shield counter's two effects, which `effect` tells
+    /// apart.
     Counter { object: ObjectRef, counter: CounterType, effect: CounterEffectKind },
-    /// A rule's (CR 903.9b).
+    /// A rule that acts as a replacement effect (CR 903.9b): a commander put
+    /// into the command zone instead.
     Rule { object: ObjectRef, rule: GameRuleReplacement },
 }
 
@@ -629,7 +646,7 @@ impl ChoiceOption {
             ChoiceOption::ManaType(mana) => format!("mana {}", ManaSymbol::Colored(*mana)),
             ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
                 let which = match ability {
-                    TriggeredAbility::Of { granted_by, place, .. } => format!("{}{}", at(place), granted(granted_by)),
+                    TriggeredAbility::OfItsSource { granted_by, place, .. } => format!("{}{}", at(place), granted(granted_by)),
                     TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
                     TriggeredAbility::Delayed { refers_to } => format!("its delayed ability about {}", objects(refers_to)),
                 };
@@ -662,14 +679,14 @@ impl ChoiceOption {
 }
 
 impl GameState {
-    /// A pending trigger as CR 603.3b's order names it (decision 4a): its
-    /// source as the existence that triggered, its ability, and what the
-    /// events that triggered it are about.
+    /// A pending trigger as CR 603.3b's question names it: its source as the
+    /// existence that triggered, its ability, and what the events that
+    /// triggered it are about.
     pub(crate) fn trigger_option(&self, trigger: &crate::types::triggers::PendingTrigger) -> TriggerOption {
         use crate::types::triggers::TriggerOrigin;
         let identity = trigger.origin.identity();
         let ability = match trigger.origin {
-            TriggerOrigin::Object(_) => TriggeredAbility::Of {
+            TriggerOrigin::Object(_) => TriggeredAbility::OfItsSource {
                 ability: identity.ability.definition(),
                 granted_by: self.granted_by(identity.ability),
                 place: ability_place(self, identity.source.id, identity.ability),
@@ -688,10 +705,10 @@ impl GameState {
         TriggerOption { source: identity.source, ability, triggered_by }
     }
 
-    /// A replacement CR 616.1 offers, as its question names it (decision 4a):
-    /// CR 614.5's key, a registry row by its source and the resolution that
-    /// made it. `frame` is the entry's CR 614.12 frame the effect was gathered
-    /// in, which an entering object's abilities are read through.
+    /// A replacement effect CR 616.1 offers, as its question names it: by
+    /// where it comes from, a resolution's by its source and the resolution
+    /// that made it. `frame` is the board the effect was checked against,
+    /// which an entering object's abilities are read off (CR 614.12).
     pub(crate) fn replacement_option(
         &self,
         instance: &crate::engine::replacement::ReplacementInstance,
@@ -793,7 +810,7 @@ pub fn reading_as(options: &[ChoiceOption], game: &GameState, words: &str) -> Ve
 /// names: the options whose words are its words, or, for an object no option
 /// reads, each trigger and replacement of that object offered. A script may
 /// name an effect by its source while the source has no other among the
-/// options; two of one source need the effect named (decision 4a).
+/// options; two of one source need the effect named.
 pub fn named_by_script(options: &[ChoiceOption], game: &GameState, named: &ChoiceOption) -> Vec<usize> {
     let reading = reading_as(options, game, &named.as_logged(game));
     match named {
@@ -877,11 +894,11 @@ mod tests {
         assert_eq!(logged(ChoiceOption::ManaType(ManaType::Green)), "mana {G}");
         let triggered = |ability| TriggerOption { source: existence(warden), ability, triggered_by: vec![bears] };
         assert_eq!(
-            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::Of { ability: gains, granted_by: None, place: Some(1) }))),
+            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: None, place: Some(1) }))),
             format!("Soul Warden ({warden}), ability 1, for Grizzly Bears ({bears})")
         );
         assert_eq!(
-            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::Of { ability: gains, granted_by: Some(wall), place: Some(1) }))),
+            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: Some(wall), place: Some(1) }))),
             format!("Soul Warden ({warden}), ability 1, granted by Wall of Stone ({wall}), for Grizzly Bears ({bears})")
         );
         assert_eq!(
