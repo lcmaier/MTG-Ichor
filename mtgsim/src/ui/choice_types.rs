@@ -753,7 +753,7 @@ fn ability_place(game: &GameState, id: ObjectId, ability: AbilityId) -> Option<u
 
 /// `ability`'s place in `abilities`, 1 for the first.
 fn place_in(abilities: &[crate::objects::card_data::AbilityDef], ability: AbilityId) -> Option<u8> {
-    abilities.iter().position(|def| def.id.definition() == ability.definition()).and_then(|index| u8::try_from(index + 1).ok())
+    crate::objects::card_data::printed_place(abilities, ability).and_then(|index| u8::try_from(index + 1).ok())
 }
 
 /// Where the option a replayed answer writes as `chosen` sits in `options`:
