@@ -1000,7 +1000,7 @@ orders are the next.
 
 | PR | What it builds | Consumer | Code | Tests |
 |---|---|---|---:|---:|
-| **`options-named-by-what-they-are` — every option named by what it is** | #306's decision 4: the trigger and replacement arms, the typed matcher with its cost names, and in its first commit item 361's order-dependent `picking(n)` uses | the log's replay of Bridge from Below's two triggers, both orders; the order-dependent tests, each passing with every list reversed | measured at its handover | |
+| **`options-named-by-what-they-are` — every option named by what it is** | #306's decision 4: the trigger and replacement arms, the typed matcher with its cost names, and in its first commit item 361's order-dependent `picking(n)` uses | the log's replay of Bridge from Below's two triggers, both orders; the order-dependent tests, each passing with every list reversed | 878 measured | 570 measured |
 | **`division-and-orders` — a division among targets, and the orders the CR hands a player** | decision 5's division at cast, activation and placement; decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~450–700 by the item sizings | ~400–650 |
 | **`modal-spells-and-abilities` — CR 700.2 whole** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the record of what an ability chose before, castability through the enumerator | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost (700.2h) | ~760–1,150 | ~600–920 |
 | **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
@@ -1030,6 +1030,44 @@ questions should be asked by no registered card, which the build checks
 first by running the test over every registered cost and every registered
 entry batch. Each later PR registers cards, and its stream moves with them,
 measured the same way.
+
+### `options-named-by-what-they-are` — every option named by what it is — ✅ landed 2026-11-02
+
+PR #307, on the design's branch. 1,448 lines of code and tests against an
+estimate of 440–760 (the ratio the later rows are re-sized by).
+- **The order-dependent tests** (item 361): all 44 tests that failed with
+  every list `picking(n)` answers reversed name what they chose
+  (`RecordingDecisionProvider::choosing`, `allocating`, `ordering`) and pass
+  reversed.
+- **A trigger and a replacement effect named by what each is** (item 336):
+  `ChoiceOption::Trigger` (its source as the existence that triggered, its
+  ability by definition, granter and place, what triggered it; a delayed
+  one by what it refers to) and `ChoiceOption::Replacement` (a registry row
+  by its source and the stack object whose resolution made it, a static
+  ability, counters, or CR 903.9b's rule). The place is captured where the
+  engine read the ability, through CR 614.12's frame for an entering
+  object, and is how the log writes the ability, not which ability it is:
+  an `AbilityPlace` compares equal whatever it holds, so a script names an
+  ability without knowing where it sits. A registry row keeps the
+  `ResolutionStamp` of the resolution that made it. What triggered a trigger
+  is named by id, since a dies trigger's event is about the card's new object
+  in the graveyard, which no script written before the event can name. An
+  activation logs its ability's place, not an internal id.
+- **The typed matcher**: `ChoiceOption` derives `PartialEq`; scripts, the
+  recording provider and setup lines find what they name through one
+  matcher, `position_named`, a source naming its one offered effect: two
+  equal options are taken in turn, and a name that fits two different ones
+  is refused. `(n of m)` and the place-based answers are gone. The consumer
+  test replays its log through a provider that reverses every list.
+- **A cost names its whole cost**: "Escape {3}{B}{B}, exile 5 from your
+  graveyard".
+
+Two places it differs from #306's decision 4, each put to the owner at #307:
+the replay still finds a logged answer by its words (every option's whole
+words), since three arms carry what the log does not write (an existence's
+epoch, a cost's filters, an ability's internal id); and CV-2b's `then_index`
+stays, since its copy is made inside the call it answers and the test tries
+both places.
 
 ## 6. Found while designing
 

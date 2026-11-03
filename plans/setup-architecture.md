@@ -3320,6 +3320,8 @@ first PR, ~440–760 lines in all, and items 336 and 361 are re-slotted there.
 
 ### 7e.5 The build, sized
 
+**Built in `modes-plus-choice-kinds`' first PR** (decision 4), #307's
+`options-named-by-what-they-are`, as-built in `choices-architecture.md`.
 **Before the decks, in `modes-plus-choice-kinds`' first PR** (decision 4):
 the two effect arms, the typed matcher with its cost parser, and the 33
 `picking(n)` uses, ~440–760 lines with tests. The PR's own sizing places it in

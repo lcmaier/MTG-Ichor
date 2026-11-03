@@ -16,21 +16,14 @@ order. The first, `options-named-by-what-they-are`, is built on this branch
 after the design; each later one on its own branch once the one before
 merges.
 
-**Where the first PR stands** (2026-11-02):
-- Done: #306's 4c (`cf99bc70`, `af61f71b`: all 44 of item 361's
-  order-dependent tests name what they chose, and pass with every list
-  reversed) and 4a (`6a127ff3`, `58df2e7f`, `6b179335`: `ChoiceOption::Trigger`
-  and `::Replacement`, a row named by the stack object whose resolution made
-  it, an ability's place captured where the engine read it, the entry frame
-  for an entering object). The owner's rule from this round: name by ids of
-  game things (objects, the resolving stack object), never by positions or
-  the engine's own bookkeeping numbers.
-- Left in 4a for 4b: `expect_*_among_alike` and the log's `(n of m)`, used
-  now only by the matcher's own test. CV-2b's `then_index` stays (its copy
-  is made inside the call it answers; the test tries both places).
-- Next: 4b (the typed matcher and costs named whole), then this PR's
-  handover. Decisions 5 and 6 are `division-and-orders`, the next PR, on its
-  own branch (the split, 2026-11-02).
+**Where it stands** (2026-11-02):
+- The first PR, `options-named-by-what-they-are`, is handed over on #307:
+  its as-built is in `choices-architecture.md`, items 336 and 361 closed.
+  The owner's rule from its review: name by ids of game things (objects,
+  the resolving stack object), never by positions or the engine's own
+  bookkeeping numbers.
+- Next: `division-and-orders` (decisions 5 and 6), on its own branch once
+  #307 merges.
 
 **Traps, for `division-and-orders`:**
 - 6b drops `OrderCostReductions`' prompt: a fixture migration (9 lines in 8

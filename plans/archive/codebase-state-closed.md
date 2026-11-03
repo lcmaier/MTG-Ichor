@@ -9881,3 +9881,102 @@ setup line's open question and the typed matcher, under one **Sized:** line.
      and `ChoiceOption` comparable.
      **Slotted:** `pausing-at-a-decision`, whose design names every option
      by what it is (`roadmap-v2.md` §3a).
+
+### Item 336 — closed 2026-11-02 by PR #307 (`options-named-by-what-they-are`)
+
+`ChoiceOption::Trigger` names a trigger by its source as the existence that
+triggered, its ability (by definition and granter, and its place as the engine
+read it, through CR 614.12's frame for an entering object) and the objects that
+triggered it; `ChoiceOption::Replacement` names an effect by where it comes from:
+a row by its source and the stack object whose resolution made it, a static
+ability, counters, or CR 903.9b's rule. The log writes them ("Thunder-Thrash
+Elder (#3), ability 2, granted by Jund (#1)"), both clients label them, the
+place-based answers and the log's `(n of m)` are gone, `ChoiceOption` derives
+`PartialEq` and scripts and setup lines compare typed options, and a cost names
+its whole cost. The replay finds a logged answer by its words, every option's
+whole words; a typed reading of the log is the owner's question at #307.
+
+The item as it stood:
+
+336. **CR 616.1's and CR 603.3b's prompts offer each effect as its source,
+     so two effects of one source are one option twice.**
+     `ask_choose_replacement` offers each applicable replacement as
+     `ChoiceOption::Object(source)`, and the trigger order each pending
+     trigger as its source. Thunder-Thrash Elder granted devour 5 (CR
+     614.13b's own example, Jund's grant) has its printed devour 3 and the
+     grant as two options that are both the Elder; so are a printed
+     replacement beside a finality counter on one creature, two rows of one
+     Words of Worship, and Bridge from Below's two triggers. Only their place
+     tells them apart, so the decision log writes `(1 of 2)`, a client shows
+     the same words twice, and a replay across builds that lists them in
+     another order applies the other effect without diverging. Found at
+     #294's pre-review, for the replacement prompt; `scripted-answers-by-identity`
+     (#305) found the trigger order and filed both as item 360, merged here
+     (2026-11-01).
+     Thirteen scripted answers name them by place
+     (`expect_choice_among_alike`, `expect_order_among_alike`) in RB, RC-5,
+     RE-3, TR-1, TR-4c and TR-5e, and CV-2b's own provider by `then_index`.
+     A scenario's setup line that names such an option without its place
+     takes the first, where a script is refused. Decided by
+     `pausing-at-a-decision`'s decisions 1 and 4: setup lines stay as
+     granular as they are, a scenario starts at a turn's beginning, and once
+     every option is named by what it is one rule holds for a script, a setup
+     line and a replay (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **The matcher compares text, and goes typed with this item** (the
+     owner, #305's review). An answer finds its option by the words
+     `ChoiceOption::as_logged` writes, compared with each offered option's
+     words (`position_named`), so which option an answer means turns on how
+     options render: a change to an object's name in text (`backlog.md`
+     §2.36) is a change to matching, and two options that render alike are
+     one. A test's script even turns its typed `ChoiceOption` into words to
+     compare them. The log reader is to parse each answer's words back into
+     a typed identity once ("Grizzly Bears (#7)" is `Object(#7)`, the name
+     kept as a check that the id still names that card), and the script and
+     the replay compare typed values; the log's text changes only by the
+     new options' words and a cost's whole cost (decision 4).
+     **Reachability (2026-11-01):** reachable — not wrong in any game: the
+     engine applies the effect at the place chosen, which is exact within a
+     build; what is lost is a client's label and a replay across builds.
+     Bridge from Below is registered.
+     **Sized:** by decision 4: the two option kinds with their words and
+     labels, an activation's ability logged by its place, and the alike
+     answers named outright, ~100–180 lines; the typed matcher with a cost's
+     whole cost and its label, ~190–330 more.
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 4, taken:** two option kinds, `Replacement` and `Trigger`, each
+     compared by what it is (a trigger by its source, its ability's place and
+     what triggered it), logged by names and places with no internal id, and
+     drawn by a client with the ability's text; the typed matcher reads every
+     shape, a cost by its kind and its whole cost
+     (`setup-architecture.md#7e-pausing-at-a-decision`).
+     **Slotted:** `modes-plus-choice-kinds`, whose first PR builds decision 4
+     (the owner, #306's fourth review round).
+
+### Item 361 — closed 2026-11-02 by PR #307 (`options-named-by-what-they-are`)
+
+Re-measured with the item's instrument (every list `picking` answers reversed):
+the same 44 tests in 15 files. Each names what it chose through
+`RecordingDecisionProvider::choosing`, `allocating` or `ordering`, and all 44
+pass with every list reversed. The trample test's split now gives the departed
+player 3, so it exercises CR 800.4e's drop.
+
+The item as it stood:
+
+361. **`RecordingDecisionProvider::picking(n)` answers by position, and 33
+     of its uses depend on the order.** A policy, not a script: it takes
+     option n of every pick, splits greedily in bucket order and orders as
+     offered, so `scripted-answers-by-identity` left it. Measured
+     2026-11-01 with a throwaway instrument: of the 175 `picking(` uses, 87
+     answer any prompt, 72 answer one with two or more options, and 33 are
+     in tests that fail when every list they answer is reversed (44 tests
+     in 15 files; TR-3b's eight uses and CV-1b's six the most).
+     **Reachability (2026-11-01):** reachable — not wrong (a harness): a
+     test's policy, which fails loudly when an engine change reorders what
+     it answers.
+     **Sized:** the 33 uses named outright or moved to the scripted
+     provider, each read as item 209's were; ~150–250 lines.
+     **Decided by `pausing-at-a-decision`'s design (#306, 2026-11-01), its
+     decision 4:** the 33 uses move to answers named by what they chose, since
+     `modes-plus-choice-kinds` reorders and lengthens the lists they answer;
+     `picking(n)` stays for the 142 uses no order reaches.
+     **Slotted:** `modes-plus-choice-kinds`, whose first PR builds decision 4.
