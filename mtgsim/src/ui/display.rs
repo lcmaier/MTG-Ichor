@@ -522,10 +522,9 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
             let about = if triggered_by.is_empty() { String::new() } else { format!(" (for {})", listed(game, triggered_by)) };
             format!("{} · {which}{about}", n(&source.id))
         }
-        ChoiceOption::Replacement(ReplacementOption::Made { source, made_by: Some(by) }) => {
-            format!("{} · the effect made as {by} resolved", n(source))
+        ChoiceOption::Replacement(ReplacementOption::FromResolution { source, resolution }) => {
+            format!("{} · the effect made as {resolution} resolved", n(source))
         }
-        ChoiceOption::Replacement(ReplacementOption::Made { source, made_by: None }) => format!("{} · its effect", n(source)),
         ChoiceOption::Replacement(ReplacementOption::Ability { object, ability, granted_by, .. }) => {
             format!("{} · {}", n(&object.id), ability_words(game, object.id, *ability, *granted_by))
         }

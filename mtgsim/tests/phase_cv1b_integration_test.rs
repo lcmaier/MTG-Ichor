@@ -155,10 +155,11 @@ fn resolution_row(game: &mut GameState, layer: Layer, affected: ObjectSet, modif
 
 fn replacement_row(game: &mut GameState, def: ReplacementDef) {
     let turn = game.turn_number;
+    let source = mtgsim::types::ids::new_object_id();
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
-        source: mtgsim::types::ids::new_object_id(),
-        made_by: None,
+        source,
+        resolution: mtgsim::events::event::ResolutionStamp { source, controller: 0 },
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

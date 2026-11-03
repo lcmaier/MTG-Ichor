@@ -519,7 +519,7 @@ fn two_words_rows_are_a_choice_and_each_draw_uses_one_up() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
         PICK_REPLACEMENT,
-        vec![ChoiceOption::Replacement(ReplacementOption::Made { source: words, made_by: Some(second) })],
+        vec![ChoiceOption::Replacement(ReplacementOption::FromResolution { source: words, resolution: second })],
     );
     draw_one(&mut game, 0, &dp);
     assert!(dp.is_empty(), "two rows, so CR 616.1 asks which one applies");

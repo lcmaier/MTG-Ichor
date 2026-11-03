@@ -53,6 +53,7 @@
 
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::events::cause::GeneratedBy;
+use crate::events::event::ResolutionStamp;
 use crate::state::duration_registry::{DurationRegistry, DurationRow};
 use crate::types::ids::RowId;
 use crate::types::effects::Duration;
@@ -70,10 +71,10 @@ pub struct RegisteredReplacementEffect {
     pub id: ReplacementEffectId,
     /// The object whose spell or ability created this.
     pub source: ObjectId,
-    /// The stack object whose resolution made this row: the spell, or the
-    /// ability's own object (CR 608.2n), which tells two rows of one source
-    /// apart in CR 616.1's question. `None` for a row no resolution made.
-    pub made_by: Option<ObjectId>,
+    /// The resolution that made this row. Its stack object, the spell or the
+    /// ability's own object (CR 608.2n), tells two rows of one source apart
+    /// in CR 616.1's question.
+    pub resolution: ResolutionStamp,
     /// The player who controlled that spell or ability. Resolves `PlayerRef::You`
     /// in the def's filters, and is CR 611.2c's locked-at-resolution value.
     pub controller: PlayerId,
@@ -331,7 +332,7 @@ mod tests {
         RegisteredReplacementEffect {
             id: ReplacementEffectId::UNASSIGNED,
             source,
-            made_by: None,
+            resolution: ResolutionStamp { source, controller: 0 },
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             duration,
@@ -350,7 +351,7 @@ mod tests {
         RegisteredReplacementEffect {
             id: ReplacementEffectId::UNASSIGNED,
             source,
-            made_by: None,
+            resolution: ResolutionStamp { source, controller: 0 },
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             duration: Duration::UntilEndOfTurn,

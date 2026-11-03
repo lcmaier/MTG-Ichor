@@ -142,7 +142,7 @@ fn fixture_row(game: &mut GameState, source: ObjectId, controller: PlayerId, def
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source,
-        made_by: None,
+        resolution: mtgsim::events::event::ResolutionStamp { source, controller },
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

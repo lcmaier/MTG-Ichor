@@ -235,7 +235,7 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
         ChoiceOption::Replacement(
             ReplacementOption::Ability { object, .. } | ReplacementOption::Counter { object, .. } | ReplacementOption::Rule { object, .. },
         ) => vec![object.id],
-        ChoiceOption::Replacement(ReplacementOption::Made { source, .. }) => vec![*source],
+        ChoiceOption::Replacement(ReplacementOption::FromResolution { source, .. }) => vec![*source],
         // No object on the board: the existence has left.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::Action(PriorityAction::Pass)

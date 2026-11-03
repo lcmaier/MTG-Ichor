@@ -2026,7 +2026,7 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: victim,
-        made_by: None,
+        resolution: mtgsim::events::event::ResolutionStamp { source: victim, controller: 0 },
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
@@ -2068,7 +2068,7 @@ fn exempt_row(
     RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: victim,
-        made_by: None,
+        resolution: mtgsim::events::event::ResolutionStamp { source: victim, controller: 0 },
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

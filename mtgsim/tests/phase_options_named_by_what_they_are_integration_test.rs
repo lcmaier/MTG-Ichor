@@ -17,7 +17,7 @@ use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, TriggerOption, TriggeredAbility};
+use mtgsim::ui::choice_types::{AbilityPlace, ChoiceKind, ChoiceOption, TriggerOption, TriggeredAbility};
 use mtgsim::ui::decision::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -67,11 +67,11 @@ fn named(game: &GameState, name: &str, controller: Option<usize>) -> ObjectId {
 }
 
 /// Bridge from Below's trigger of its ability at `place`, for `died`.
-fn bridge_trigger(game: &GameState, bridge: ObjectId, place: u8, died: ObjectId) -> ChoiceOption {
-    let ability = game.objects[&bridge].card_data.abilities[usize::from(place) - 1].id;
+fn bridge_trigger(game: &GameState, bridge: ObjectId, place: usize, died: ObjectId) -> ChoiceOption {
+    let ability = game.objects[&bridge].card_data.abilities[place - 1].id;
     ChoiceOption::Trigger(TriggerOption {
         source: game.object_ref(bridge).expect("in the store"),
-        ability: TriggeredAbility::OfItsSource { ability: ability.definition(), granted_by: None, place: Some(place) },
+        ability: TriggeredAbility::OfItsSource { ability: ability.definition(), granted_by: None, place: AbilityPlace(Some(place)) },
         triggered_by: vec![died],
     })
 }

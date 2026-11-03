@@ -180,7 +180,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         ChoiceOption::Replacement(
             ReplacementOption::Ability { object, .. } | ReplacementOption::Counter { object, .. } | ReplacementOption::Rule { object, .. },
         ) => vec![BoardRef::Object(object.id)],
-        ChoiceOption::Replacement(ReplacementOption::Made { source, .. }) => vec![BoardRef::Object(*source)],
+        ChoiceOption::Replacement(ReplacementOption::FromResolution { source, .. }) => vec![BoardRef::Object(*source)],
         // An existence that has left is no board thing.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::NormalCost

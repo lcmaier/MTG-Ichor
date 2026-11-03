@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::engine::combat::validation::CombatError;
 use crate::engine::replacement::{CounterEffectKind, GameRuleReplacement};
 use crate::oracle::x_values::LegalXValues;
@@ -544,7 +546,9 @@ pub struct TriggerOption {
     /// Which of the source's triggered abilities.
     pub ability: TriggeredAbility,
     /// The objects its triggering events are about (CR 603.2c), in event
-    /// order.
+    /// order. By id: a dies trigger's event is about the card's new object in
+    /// the graveyard (CR 603.6c), which no script written before the event
+    /// can name.
     pub triggered_by: Vec<ObjectId>,
 }
 
@@ -554,13 +558,37 @@ pub enum TriggeredAbility {
     /// An ability its source has: printed on it, or granted or copied onto it
     /// by an effect of `granted_by`'s. Named by its definition
     /// (`AbilityId::definition`, the same whichever grant made the instance),
-    /// and `place` is where it sat among the source's abilities when the
-    /// trigger was offered, 1 for the first; `None` for one it no longer has.
-    OfItsSource { ability: AbilityId, granted_by: Option<ObjectId>, place: Option<u8> },
+    /// with `place` for the log.
+    OfItsSource { ability: AbilityId, granted_by: Option<ObjectId>, place: AbilityPlace },
     /// A delayed triggered ability (CR 603.7), which an effect created and
     /// which is no ability of its source, named by the objects it refers to
     /// (CR 603.7c): Flickerwisp's "return the exiled card".
     Delayed { refers_to: Vec<ObjectId> },
+}
+
+/// Where an ability sat among its object's abilities on the board the engine
+/// read it from, 1 for the first, as a scenario's `ability N` names it;
+/// `None` for one the object no longer has. It is how the log writes the
+/// ability, not which ability it is, so every place compares equal: a script
+/// names an ability by its definition without knowing where it sits.
+#[derive(Debug, Clone, Copy)]
+pub struct AbilityPlace(pub Option<usize>);
+
+impl PartialEq for AbilityPlace {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for AbilityPlace {}
+
+impl fmt::Display for AbilityPlace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(place) => write!(f, "ability {place}"),
+            None => write!(f, "an ability it no longer has"),
+        }
+    }
 }
 
 /// One of the effects CR 616.1's question asks a player to choose among,
@@ -572,19 +600,17 @@ pub enum ReplacementOption {
     /// One a resolving spell or ability created (CR 614.3, 615.7): Words of
     /// Worship's "the next time you would draw a card this turn, you gain 5
     /// life instead", a "prevent the next 3 damage" shield. Named by the card
-    /// it came from and `made_by`, the stack object whose resolution created
-    /// it, which tells two activations apart; `None` for one no resolution
-    /// created.
-    Made { source: ObjectId, made_by: Option<ObjectId> },
+    /// it came from and `resolution`, the stack object that was resolving
+    /// (`ResolutionStamp::source`), which tells two activations apart.
+    FromResolution { source: ObjectId, resolution: ObjectId },
     /// A static ability of a permanent that is itself a replacement effect
     /// (CR 614.1a): Rest in Peace's "exile it instead", devour as its creature
     /// enters. Named by the object, the ability by its definition (with
     /// `granted_by` when an effect gave it), and `member`, which of its
     /// effects when one ability makes several, counted from 0. `place` is
-    /// where the ability sits among the object's abilities on the board the
-    /// engine checked it against (for an entering object, the board as it
-    /// will enter, CR 614.12), 1 for the first.
-    Ability { object: ObjectRef, ability: AbilityId, granted_by: Option<ObjectId>, member: u8, place: Option<u8> },
+    /// read off the board the engine checked the ability against: for an
+    /// entering object, the board as it will enter (CR 614.12).
+    Ability { object: ObjectRef, ability: AbilityId, granted_by: Option<ObjectId>, member: u8, place: AbilityPlace },
     /// Game counters of one kind on a permanent, which make a replacement or
     /// prevention effect (CR 122.1c/d/h): a finality counter's "exile it
     /// instead", and a shield counter's two effects, which `effect` tells
@@ -610,15 +636,7 @@ impl ChoiceOption {
             true => object(&source.id),
             false => format!("{} as it last existed", object(&source.id)),
         };
-        let place = |id: &ObjectId, ability: &AbilityId| match ability_place(game, *id, *ability) {
-            Some(place) => format!("ability {place}"),
-            None => "an ability it no longer has".to_string(),
-        };
-        // `place` reads the board, for an activation, offered at priority;
-        // a trigger's and a replacement's options carry the place their
-        // builder read (`at`).
         let granted = |granted_by: &Option<ObjectId>| granted_by.map_or(String::new(), |by| format!(", granted by {}", object(&by)));
-        let at = |place: &Option<u8>| place.map_or("an ability it no longer has".to_string(), |place| format!("ability {place}"));
         match self {
             ChoiceOption::Object(id) => object(id),
             ChoiceOption::LastKnown(existence) => format!("{} as it last existed", object(&existence.id)),
@@ -626,8 +644,11 @@ impl ChoiceOption {
             ChoiceOption::Action(PriorityAction::Pass) => "pass".to_string(),
             ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("cast {}", object(id)),
             ChoiceOption::Action(PriorityAction::PlayLand(id)) => format!("play {}", object(id)),
+            // Offered at priority, so the board it is logged on is the one it
+            // was offered on; a trigger's and a replacement's options carry
+            // the place their builder read.
             ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability)) => {
-                format!("activate {} {}", object(id), place(id, ability))
+                format!("activate {} {}", object(id), ability_place(game, *id, *ability))
             }
             ChoiceOption::AttackerTarget(attacker, target) => {
                 let attacked = match target {
@@ -646,7 +667,7 @@ impl ChoiceOption {
             ChoiceOption::ManaType(mana) => format!("mana {}", ManaSymbol::Colored(*mana)),
             ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
                 let which = match ability {
-                    TriggeredAbility::OfItsSource { granted_by, place, .. } => format!("{}{}", at(place), granted(granted_by)),
+                    TriggeredAbility::OfItsSource { granted_by, place, .. } => format!("{place}{}", granted(granted_by)),
                     TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
                     TriggeredAbility::Delayed { refers_to } => format!("its delayed ability about {}", objects(refers_to)),
                 };
@@ -656,13 +677,12 @@ impl ChoiceOption {
                 };
                 format!("{}, {which}{about}", existence(source))
             }
-            ChoiceOption::Replacement(ReplacementOption::Made { source, made_by: Some(by) }) => {
-                format!("{}, made as {by} resolved", object(source))
+            ChoiceOption::Replacement(ReplacementOption::FromResolution { source, resolution }) => {
+                format!("{}, made as {resolution} resolved", object(source))
             }
-            ChoiceOption::Replacement(ReplacementOption::Made { source, made_by: None }) => format!("{}, its effect", object(source)),
             ChoiceOption::Replacement(ReplacementOption::Ability { object: of, granted_by, member, place, .. }) => {
                 let member = if *member == 0 { String::new() } else { format!(", its effect {}", member + 1) };
-                format!("{}, {}{}{member}", existence(of), at(place), granted(granted_by))
+                format!("{}, {place}{}{member}", existence(of), granted(granted_by))
             }
             ChoiceOption::Replacement(ReplacementOption::Counter { object: on, counter, effect }) => {
                 let which = match effect {
@@ -716,9 +736,14 @@ impl GameState {
     ) -> ReplacementOption {
         use crate::engine::replacement::ReplacementInstanceId;
         match instance.id {
-            ReplacementInstanceId::Registered(row) => ReplacementOption::Made {
+            // An instance is gathered off a live row, so the row is there.
+            ReplacementInstanceId::Registered(row) => ReplacementOption::FromResolution {
                 source: instance.source,
-                made_by: self.replacement_effects.iter().find(|registered| registered.id == row).and_then(|registered| registered.made_by),
+                resolution: self
+                    .replacement_effects
+                    .iter()
+                    .find(|registered| registered.id == row)
+                    .map_or(instance.source, |registered| registered.resolution.source),
             },
             ReplacementInstanceId::StaticAbility { object, ability, member } => ReplacementOption::Ability {
                 object,
@@ -744,16 +769,15 @@ impl GameState {
     }
 }
 
-/// `ability`'s place among `id`'s abilities as the layers give them, 1 for the
-/// first, as a scenario's `ability N` names it; `None` for one it no longer
-/// has. Read as an observer, so a game logged and one not count alike.
-fn ability_place(game: &GameState, id: ObjectId, ability: AbilityId) -> Option<u8> {
+/// `ability`'s place among `id`'s abilities as the layers give them. Read as
+/// an observer, so a game logged and one not count alike.
+fn ability_place(game: &GameState, id: ObjectId, ability: AbilityId) -> AbilityPlace {
     game.unobserved(|| place_in(&crate::oracle::characteristics::get_effective_abilities(game, id), ability))
 }
 
-/// `ability`'s place in `abilities`, 1 for the first.
-fn place_in(abilities: &[crate::objects::card_data::AbilityDef], ability: AbilityId) -> Option<u8> {
-    crate::objects::card_data::printed_place(abilities, ability).and_then(|index| u8::try_from(index + 1).ok())
+/// `ability`'s place in `abilities`.
+fn place_in(abilities: &[crate::objects::card_data::AbilityDef], ability: AbilityId) -> AbilityPlace {
+    AbilityPlace(crate::objects::card_data::printed_place(abilities, ability).map(|index| index + 1))
 }
 
 /// Where the option a replayed answer writes as `chosen` sits in `options`:
@@ -785,7 +809,7 @@ impl ChoiceOption {
     pub fn effect_of(&self) -> Option<ObjectId> {
         match self {
             ChoiceOption::Trigger(trigger) => Some(trigger.source.id),
-            ChoiceOption::Replacement(ReplacementOption::Made { source, .. }) => Some(*source),
+            ChoiceOption::Replacement(ReplacementOption::FromResolution { source, .. }) => Some(*source),
             ChoiceOption::Replacement(
                 ReplacementOption::Ability { object, .. }
                 | ReplacementOption::Counter { object, .. }
@@ -852,11 +876,11 @@ mod tests {
         assert_eq!(logged(ChoiceOption::ManaType(ManaType::Green)), "mana {G}");
         let triggered = |ability| TriggerOption { source: existence(warden), ability, triggered_by: vec![bears] };
         assert_eq!(
-            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: None, place: Some(1) }))),
+            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: None, place: AbilityPlace(Some(1)) }))),
             format!("Soul Warden ({warden}), ability 1, for Grizzly Bears ({bears})")
         );
         assert_eq!(
-            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: Some(wall), place: Some(1) }))),
+            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: Some(wall), place: AbilityPlace(Some(1)) }))),
             format!("Soul Warden ({warden}), ability 1, granted by Wall of Stone ({wall}), for Grizzly Bears ({bears})")
         );
         assert_eq!(
@@ -868,12 +892,8 @@ mod tests {
             format!("Soul Warden ({warden}), its delayed ability about Grizzly Bears ({bears})")
         );
         assert_eq!(
-            logged(ChoiceOption::Replacement(ReplacementOption::Made { source: wall, made_by: Some(bolt) })),
+            logged(ChoiceOption::Replacement(ReplacementOption::FromResolution { source: wall, resolution: bolt })),
             format!("Wall of Stone ({wall}), made as {bolt} resolved")
-        );
-        assert_eq!(
-            logged(ChoiceOption::Replacement(ReplacementOption::Made { source: wall, made_by: None })),
-            format!("Wall of Stone ({wall}), its effect")
         );
         assert_eq!(
             logged(ChoiceOption::Replacement(ReplacementOption::Ability {
@@ -881,7 +901,7 @@ mod tests {
                 ability: gains,
                 granted_by: None,
                 member: 1,
-                place: Some(1),
+                place: AbilityPlace(Some(1)),
             })),
             format!("Soul Warden ({warden}), ability 1, its effect 2")
         );
@@ -998,7 +1018,7 @@ mod tests {
         let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
         let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 0);
         let source = game.object_ref(bears).unwrap();
-        let ability = TriggeredAbility::OfItsSource { ability: AbilityId::UNASSIGNED, granted_by: None, place: Some(1) };
+        let ability = TriggeredAbility::OfItsSource { ability: AbilityId::UNASSIGNED, granted_by: None, place: AbilityPlace(Some(1)) };
         let triggered = |by| ChoiceOption::Trigger(TriggerOption { source, ability: ability.clone(), triggered_by: vec![by] });
         let seats = ScriptedDecisionProvider::new();
         let order = ChoiceKind::OrderTriggers { player: 0, tier: crate::types::triggers::TriggerTier::First };

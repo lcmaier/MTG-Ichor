@@ -41,21 +41,8 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, ReplacementOption};
+use mtgsim::ui::choice_types::{AbilityPlace, ChoiceKind, ChoiceOption, ReplacementOption};
 
-/// `elder`'s devour as CR 616.1 offers it while the Elder enters: the
-/// definition `shown_on`'s first ability is (the Elder's own for its printed
-/// devour, a permanent the grant already reaches for a granted one), at
-/// `place` in the Elder's entry frame.
-fn entering_devour(game: &GameState, elder: ObjectId, shown_on: ObjectId, granted_by: Option<ObjectId>, place: u8) -> ChoiceOption {
-    ChoiceOption::Replacement(ReplacementOption::Ability {
-        object: game.object_ref(elder).expect("in the store"),
-        ability: mtgsim::oracle::characteristics::get_effective_abilities(game, shown_on)[0].id.definition(),
-        granted_by,
-        member: 0,
-        place: Some(place),
-    })
-}
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -67,6 +54,20 @@ fn counters(game: &GameState, id: ObjectId, kind: CounterType) -> u32 {
         .get(&id)
         .map(|e| e.counter_count(kind))
         .unwrap_or(0)
+}
+
+/// `elder`'s devour as CR 616.1 offers it while the Elder enters: the
+/// definition `shown_on`'s first ability is (the Elder's own for its printed
+/// devour, a permanent the grant already reaches for a granted one). Its
+/// place is left unread, since a place never tells two options apart.
+fn entering_devour(game: &GameState, elder: ObjectId, shown_on: ObjectId, granted_by: Option<ObjectId>) -> ChoiceOption {
+    ChoiceOption::Replacement(ReplacementOption::Ability {
+        object: game.object_ref(elder).expect("in the store"),
+        ability: mtgsim::oracle::characteristics::get_effective_abilities(game, shown_on)[0].id.definition(),
+        granted_by,
+        member: 0,
+        place: AbilityPlace(None),
+    })
 }
 
 /// Every `ZoneChange` since `start`, as `(object, from, to, cause)`.
@@ -379,7 +380,7 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
     put_on_battlefield(&mut game, grants_devour("Jund", 5), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
-    let printed_devour = entering_devour(&game, elder, elder, None, 1);
+    let printed_devour = entering_devour(&game, elder, elder, None);
 
     let dp = test_dp();
     // CR 616.1: two applicable effects on one entry, and the choice is real —
@@ -431,7 +432,7 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
     // Jund's devour 5, which `mine` shows already and the Elder as it enters.
     dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![entering_devour(&game, elder, mine, Some(jund), 2)],
+        vec![entering_devour(&game, elder, mine, Some(jund))],
     );
     dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
