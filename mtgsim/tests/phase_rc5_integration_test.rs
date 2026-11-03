@@ -41,7 +41,21 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, ReplacementOption};
+
+/// `elder`'s devour as CR 616.1 offers it while the Elder enters: the
+/// definition `shown_on`'s first ability is (the Elder's own for its printed
+/// devour, a permanent the grant already reaches for a granted one), at
+/// `place` in the Elder's entry frame.
+fn entering_devour(game: &GameState, elder: ObjectId, shown_on: ObjectId, granted_by: Option<ObjectId>, place: u8) -> ChoiceOption {
+    ChoiceOption::Replacement(ReplacementOption::Ability {
+        object: game.object_ref(elder).expect("in the store"),
+        ability: mtgsim::oracle::characteristics::get_effective_abilities(game, shown_on)[0].id.definition(),
+        granted_by,
+        member: 0,
+        place: Some(place),
+    })
+}
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -365,14 +379,13 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
     put_on_battlefield(&mut game, grants_devour("Jund", 5), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
+    let printed_devour = entering_devour(&game, elder, elder, None, 1);
 
     let dp = test_dp();
     // CR 616.1: two applicable effects on one entry, and the choice is real —
     // neither is an `EnterWith`, so nothing suppresses the prompt. Both are
-    // the Elder's own, one printed and one granted, so they share a source
-    // and only their place tells them apart: the first is the printed devour
-    // 3, ahead of the grant in the Elder's effective ability list.
-    dp.expect_choice_among_alike(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![(ChoiceOption::Object(elder), 1)]);
+    // the Elder's own: the printed devour 3, and Jund's devour 5 as it enters.
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![printed_devour]);
     dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: bear, source: bear, to: Zone::Graveyard },
         vec![ChoiceOption::Object(bear)],
@@ -407,7 +420,7 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
 #[test]
 fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() {
     let mut game = setup_game(4);
-    put_on_battlefield(&mut game, grants_devour("Jund", 5), 2);
+    let jund = put_on_battlefield(&mut game, grants_devour("Jund", 5), 2);
     let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 2);
     // An opponent's creature is not a candidate: CR 701.21a's "its controller
     // moves it" is the `ByController(You)` leaf on the filter.
@@ -415,9 +428,11 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
 
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 2);
     let dp = ScriptedDecisionProvider::new();
-    // Both devours are offered as the Elder, and the granted devour 5 is the
-    // second — see the order note above.
-    dp.expect_choice_among_alike(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![(ChoiceOption::Object(elder), 2)]);
+    // Jund's devour 5, which `mine` shows already and the Elder as it enters.
+    dp.expect_choice(
+        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        vec![entering_devour(&game, elder, mine, Some(jund), 2)],
+    );
     dp.expect_choice(
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
         vec![ChoiceOption::Object(mine)],

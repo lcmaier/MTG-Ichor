@@ -25,6 +25,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
+use mtgsim::test_support::pending_triggers_of;
 use mtgsim::test_support::{fill_library, put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
@@ -100,10 +101,9 @@ fn a_counter_on_the_attackers() -> Effect {
 /// A provider that answers one ordering prompt, `player`'s two triggers of
 /// `source`, which differ in the attackers they read. Both are offered as
 /// `source`, so they are taken by place, in the order they triggered.
-fn ordered_by(player: PlayerId, source: ObjectId) -> ScriptedDecisionProvider {
+fn ordered_by(game: &GameState, player: PlayerId, source: ObjectId) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
-    let triggers = [1, 2].map(|place| (ChoiceOption::Object(source), place)).to_vec();
-    dp.expect_order_among_alike(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, triggers);
+    dp.expect_order(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, pending_triggers_of(game, source));
     dp
 }
 
@@ -179,7 +179,8 @@ fn a_creature_attacks_triggers_for_each_attacker() {
     declare(&mut game, &[(first, 1), (second, 3)]);
 
     assert_eq!(attackers_per_trigger(&game), vec![1, 1]);
-    resolve_all(&mut game, &ordered_by(2, horn));
+    let ordered = ordered_by(&game, 2, horn);
+    resolve_all(&mut game, &ordered);
     assert_eq!((plus_ones(&game, first), plus_ones(&game, second)), (1, 1));
 }
 
@@ -213,7 +214,8 @@ fn a_player_is_attacked_triggers_for_each_player_with_its_attackers() {
     declare(&mut game, &[(first, 1), (second, 3), (third, 1)]);
 
     assert_eq!(attackers_per_trigger(&game), vec![2, 1], "player 1's two attackers, then player 3's one");
-    resolve_all(&mut game, &ordered_by(2, watchtower));
+    let ordered = ordered_by(&game, 2, watchtower);
+    resolve_all(&mut game, &ordered);
     assert_eq!([first, second, third].map(|id| plus_ones(&game, id)), [1, 1, 1]);
 }
 
@@ -358,10 +360,9 @@ fn hellrider_deals_each_attackers_damage_to_what_it_attacks() {
     assert_eq!(game.pending_triggers.len(), 3, "one for each creature its controller attacks with");
 
     let dp = ScriptedDecisionProvider::new();
-    // All three are offered as Hellrider, so they are taken by place, in the
-    // order they triggered.
-    let triggers = [1, 2, 3].map(|place| (ChoiceOption::Object(rider), place)).to_vec();
-    dp.expect_order_among_alike(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, triggers);
+    // Hellrider's three triggers, one for each attacker, in the order they
+    // triggered.
+    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, pending_triggers_of(&game, rider));
     resolve_all(&mut game, &dp);
     assert_eq!([1, 2, 3].map(|p| before[p - 1] - life(&game, p)), [1, 1, 1]);
 }
@@ -457,7 +458,7 @@ fn warcaller_and_bears_attack(creature: Antecedent, ordered: bool) -> [i64; 3] {
     let before = [1, 2, 3].map(|p| life(&game, p));
     declare(&mut game, &[(warcaller, 1), (bears, 3)]);
     assert_eq!(game.pending_triggers.len(), 2);
-    let dp = if ordered { ordered_by(0, warcaller) } else { test_dp() };
+    let dp = if ordered { ordered_by(&game, 0, warcaller) } else { test_dp() };
     resolve_all(&mut game, &dp);
     [1, 2, 3].map(|p| before[p - 1] - life(&game, p))
 }

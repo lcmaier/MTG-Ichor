@@ -335,6 +335,16 @@ fn pending_trigger(
     crate::ui::choice_types::ChoiceOption::Trigger(trigger.clone())
 }
 
+/// `source`'s pending triggers, each by what it is, in the order they
+/// triggered.
+pub fn pending_triggers_of(game: &GameState, source: ObjectId) -> Vec<crate::ui::choice_types::ChoiceOption> {
+    game.pending_triggers
+        .iter()
+        .filter(|trigger| trigger.origin.source() == source)
+        .map(|trigger| crate::ui::choice_types::ChoiceOption::Trigger(game.trigger_option(trigger)))
+        .collect()
+}
+
 /// `source`'s pending trigger that `object` triggered (CR 603.2c).
 pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId) -> crate::ui::choice_types::ChoiceOption {
     pending_trigger(game, source, |trigger| trigger.triggered_by.contains(&object))
@@ -413,6 +423,9 @@ pub struct RecordingDecisionProvider {
     /// Each bucket a test named with its amount: what an allocation of two or
     /// more buckets gives.
     amounts: Vec<(crate::ui::choice_types::ChoiceOption, u64)>,
+    /// The items a test named, first first: what an order of two or more
+    /// gives.
+    order: Vec<crate::ui::choice_types::ChoiceOption>,
     seen: std::cell::RefCell<Vec<String>>,
     mode: SeatMode,
 }
@@ -425,6 +438,7 @@ impl RecordingDecisionProvider {
             all: false,
             named: Vec::new(),
             amounts: Vec::new(),
+            order: Vec::new(),
             seen: std::cell::RefCell::new(Vec::new()),
             mode: SeatMode::default(),
         }
@@ -444,6 +458,13 @@ impl RecordingDecisionProvider {
     /// amount, and every other bucket none.
     pub fn allocating(amounts: impl IntoIterator<Item = (crate::ui::choice_types::ChoiceOption, u64)>) -> Self {
         RecordingDecisionProvider { amounts: amounts.into_iter().collect(), ..Self::picking(0) }
+    }
+
+    /// Answer an order of two or more items with `order`, first first,
+    /// wherever the engine lists them; every item offered must be named.
+    pub fn ordering(mut self, order: impl IntoIterator<Item = crate::ui::choice_types::ChoiceOption>) -> Self {
+        self.order = order.into_iter().collect();
+        self
     }
 
     /// Answer every `pick_n` by taking **everything offered**, up to the bound.
@@ -564,6 +585,23 @@ impl DecisionProvider for RecordingDecisionProvider {
         // The kind, as `pick_n` records it: an ordering prompt is a decision
         // site too, and "one prompt, of the right kind" is the assertion.
         self.seen.borrow_mut().push(_ctx.kind.as_str().to_string());
+        if !self.order.is_empty() && items.len() > 1 {
+            let mut placed: Vec<usize> = Vec::new();
+            for wanted in &self.order {
+                if let Some(at) = crate::ui::choice_types::named_by_script(items, _game, wanted).into_iter().find(|i| !placed.contains(i)) {
+                    placed.push(at);
+                }
+            }
+            assert_eq!(
+                placed.len(),
+                items.len(),
+                "RecordingDecisionProvider::ordering: {} offers {:?} and the order names {:?}",
+                _ctx.kind.as_str(),
+                items.iter().map(|o| o.as_logged(_game)).collect::<Vec<_>>(),
+                self.order.iter().map(|o| o.as_logged(_game)).collect::<Vec<_>>(),
+            );
+            return placed;
+        }
         (0..items.len()).collect()
     }
 
