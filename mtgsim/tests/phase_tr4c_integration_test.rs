@@ -37,7 +37,7 @@ use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::pending_trigger_of;
+use mtgsim::test_support::pending_trigger_at_place;
 use mtgsim::test_support::{
     effect_ctx, put_in_exile, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_on_battlefield_under,
     put_spell_on_stack, setup_game, setup_two_player_game, textless_static, test_ctx, test_dp, RecordingDecisionProvider,
@@ -283,7 +283,7 @@ fn bridge_from_below_can_make_its_token_before_it_exiles_itself() {
         // stack resolves first.
         let dp = ScriptedDecisionProvider::new();
         let order = if token_first { [2, 1] } else { [1, 2] };
-        let bridges = order.map(|place| pending_trigger_of(&game, bridge, place)).to_vec();
+        let bridges = order.map(|place| pending_trigger_at_place(&game, bridge, place)).to_vec();
         dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, bridges);
         resolve_all(&mut game, &dp);
         assert_eq!(tokens_of(&game, 0), usize::from(token_first), "token_first: {token_first}");

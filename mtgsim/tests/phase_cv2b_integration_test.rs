@@ -98,8 +98,9 @@ impl Scripted {
     }
 
     /// Expect `player` to be asked a `kind` prompt next, and pick option
-    /// `index`: for options only their place tells apart, as CR 616.1's
-    /// prompt offers a copy's two entry effects, both the copy's own.
+    /// `index`: for a test that tries every place in turn, so which option a
+    /// place holds does not matter, as with a copy's two entry effects, which
+    /// the call the prompt answers makes.
     fn then_index(self, player: PlayerId, kind: &'static str, index: usize) -> Self {
         self.script.borrow_mut().push_back((player, kind, Pick::Index(index)));
         self

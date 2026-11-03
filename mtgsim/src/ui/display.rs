@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use crate::engine::combat::validation::CombatError;
+use crate::engine::replacement::{CounterEffectKind, GameRuleReplacement};
 use crate::engine::costs::CannotPay;
 use crate::engine::put_on_stack::SorceryTiming;
 use crate::engine::layers::compute_characteristics;
@@ -44,6 +45,10 @@ pub fn card_name(game: &GameState, id: ObjectId) -> String {
     }
     get_effective_name(game, id)
 }
+
+/// What an ability an object no longer has is called, in a label and in
+/// the log.
+pub(crate) const ABILITY_IT_NO_LONGER_HAS: &str = "an ability it no longer has";
 
 /// The name printed on the card, for a record an observer writes. A read
 /// through the layers counts a walk and fills the memo, which the trace sink
@@ -528,10 +533,16 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::Replacement(ReplacementOption::Ability { object, ability, granted_by, .. }) => {
             format!("{} · {}", n(&object.id), ability_words(game, object.id, *ability, *granted_by))
         }
-        ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, .. }) => {
-            format!("{} · its {} counter", n(&object.id), counter.name())
+        ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, effect }) => {
+            let which = match effect {
+                CounterEffectKind::Replacement => "",
+                CounterEffectKind::Prevention => "'s prevention",
+            };
+            format!("{} · its {} counter{which}", n(&object.id), counter.name())
         }
-        ChoiceOption::Replacement(ReplacementOption::Rule { object, .. }) => format!("{} · the commander rule", n(&object.id)),
+        ChoiceOption::Replacement(ReplacementOption::Rule { object, rule: GameRuleReplacement::CommanderZone }) => {
+            format!("{} · the commander rule", n(&object.id))
+        }
     }
 }
 
@@ -548,7 +559,7 @@ fn ability_words(game: &GameState, id: ObjectId, ability: AbilityId, granted_by:
         (Some(text), None) => text.to_string(),
         (Some(text), Some(by)) => format!("{text}, granted by {}", named(game, by)),
         (None, Some(by)) => format!("the ability {} grants", named(game, by)),
-        (None, None) => "an ability it no longer has".to_string(),
+        (None, None) => ABILITY_IT_NO_LONGER_HAS.to_string(),
     }
 }
 
@@ -771,7 +782,7 @@ pub fn cannot_pay(game: &GameState, player: PlayerId, source: ObjectId, reason: 
 /// is where the activation's options came from.
 fn ability_text(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static str {
     crate::oracle::characteristics::effective_ability(game, id, ability)
-        .map_or("an ability it no longer has", |def| def.rules_text.words)
+        .map_or(ABILITY_IT_NO_LONGER_HAS, |def| def.rules_text.words)
 }
 
 pub(crate) fn alternative_cost_label(cost: &AlternativeCost) -> String {
@@ -821,10 +832,6 @@ pub(crate) fn entry_offer_words(offer: &EntryOffer) -> String {
     }
 }
 
-/// "Kicker {2}": a cost keyword as it prints, "[keyword] [cost]" (CR 702.33a
-/// and its neighbors), while every part of the cost is mana. A part that
-/// isn't, such as escape's exile, prints the keyword alone: nothing carries
-/// that part's printed words.
 /// A keyworded cost as its option names it: the keyword and the whole cost,
 /// its mana and then each other part by its kind and its amount ("Escape
 /// {G}{G}{U}{U}, exile 5 from your graveyard"), so two costs of one keyword
@@ -1663,9 +1670,9 @@ mod tests {
         assert_eq!(format_permanent(&game, arbor), "Dryad Arbor 1/1\n{T}: Add {G}.\n{T}: Add {G}.");
     }
 
-    /// A cost keyword's option prints as the card does, "[keyword] [cost]",
-    /// while the cost is mana, and the keyword alone once a part is not; a
-    /// custom cost prints its own sentence.
+    /// A cost keyword's option prints its keyword and its whole cost, its
+    /// mana and then each other part, so two escapes that exile different
+    /// amounts read apart; a custom cost prints its own sentence.
     #[test]
     fn a_cost_option_prints_its_keyword_and_its_whole_cost() {
         use crate::test_support::setup_two_player_game;
@@ -1690,6 +1697,23 @@ mod tests {
         assert_ne!(label(ChoiceOption::AlternativeCost(narrower)), label(ChoiceOption::AlternativeCost(escape)), "apart past their mana");
         let sacrificing = AdditionalCost::Kicker(vec![Cost::Sacrifice(ObjectFilter::All, 1)]);
         assert_eq!(label(ChoiceOption::AdditionalCost(sacrificing)), "Kicker sacrifice 1");
+    }
+
+    /// A shield counter makes two effects (CR 122.1c), and a client reads its
+    /// two options apart.
+    #[test]
+    fn a_shield_counters_two_effects_read_apart() {
+        use crate::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};
+        use crate::types::effects::CounterType;
+
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let shield = |effect| {
+            let object = game.object_ref(bears).unwrap();
+            option_label(&game, &ChoiceOption::Replacement(ReplacementOption::Counter { object, counter: CounterType::Shield, effect }))
+        };
+        assert_eq!(shield(CounterEffectKind::Replacement), format!("Test Creature ({bears}) · its shield counter"));
+        assert_eq!(shield(CounterEffectKind::Prevention), format!("Test Creature ({bears}) · its shield counter's prevention"));
     }
 
     /// A question names its object as it is now: a Clone copying Grizzly Bears

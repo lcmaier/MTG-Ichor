@@ -7,7 +7,7 @@ use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, ReplacementOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
 use mtgsim::ui::display::{option_label, question, rejection};
 use mtgsim::ui::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
@@ -177,10 +177,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
             .chain(trigger.triggered_by.iter().copied())
             .map(BoardRef::Object)
             .collect(),
-        ChoiceOption::Replacement(
-            ReplacementOption::Ability { object, .. } | ReplacementOption::Counter { object, .. } | ReplacementOption::Rule { object, .. },
-        ) => vec![BoardRef::Object(object.id)],
-        ChoiceOption::Replacement(ReplacementOption::FromResolution { source, .. }) => vec![BoardRef::Object(*source)],
+        ChoiceOption::Replacement(_) => option.effect_source().into_iter().map(BoardRef::Object).collect(),
         // An existence that has left is no board thing.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::NormalCost

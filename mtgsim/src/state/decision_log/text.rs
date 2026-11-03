@@ -20,7 +20,6 @@ use crate::state::game_state::GameState;
 use crate::state::trace::COMMIT;
 use crate::types::ids::PlayerId;
 
-
 use super::hook::{LoggedAnswer, LoggedDecision};
 use super::start::GameStart;
 
@@ -90,7 +89,7 @@ pub struct AnswerLine {
     pub chosen: Chosen,
 }
 
-/// What an answer chose, each option as `logged_choice` names it.
+/// What an answer chose, each option as `ChoiceOption::as_logged` writes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Chosen {
     Picks(Vec<String>),

@@ -99,8 +99,8 @@ fn a_counter_on_the_attackers() -> Effect {
 }
 
 /// A provider that answers one ordering prompt, `player`'s two triggers of
-/// `source`, which differ in the attackers they read. Both are offered as
-/// `source`, so they are taken by place, in the order they triggered.
+/// `source`, which differ in the attackers they read: each named by what it
+/// is, in the order they triggered.
 fn ordered_by(game: &GameState, player: PlayerId, source: ObjectId) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_order(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, pending_triggers_of(game, source));

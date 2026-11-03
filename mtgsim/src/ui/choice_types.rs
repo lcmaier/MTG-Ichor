@@ -13,7 +13,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
 use super::decision::PriorityAction;
-use super::display::{additional_cost_label, alternative_cost_label, color_name, printed_name};
+use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -586,7 +586,7 @@ impl fmt::Display for AbilityPlace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             Some(place) => write!(f, "ability {place}"),
-            None => write!(f, "an ability it no longer has"),
+            None => f.write_str(ABILITY_IT_NO_LONGER_HAS),
         }
     }
 }
@@ -814,16 +814,16 @@ fn named_by_script(options: &[ChoiceOption], named: &ChoiceOption) -> Vec<usize>
     let equal: Vec<usize> = (0..options.len()).filter(|&i| options[i] == *named).collect();
     match named {
         ChoiceOption::Object(id) if equal.is_empty() => {
-            (0..options.len()).filter(|&i| options[i].effect_of() == Some(*id)).collect()
+            (0..options.len()).filter(|&i| options[i].effect_source() == Some(*id)).collect()
         }
         _ => equal,
     }
 }
 
 impl ChoiceOption {
-    /// The object an effect's option is of: a trigger's source, a replacement
-    /// ability's or counter's object, a row's source.
-    pub fn effect_of(&self) -> Option<ObjectId> {
+    /// The object an effect's option comes from: a trigger's source, a
+    /// replacement ability's or counter's object, a row's source.
+    pub fn effect_source(&self) -> Option<ObjectId> {
         match self {
             ChoiceOption::Trigger(trigger) => Some(trigger.source.id),
             ChoiceOption::Replacement(ReplacementOption::FromResolution { source, .. }) => Some(*source),

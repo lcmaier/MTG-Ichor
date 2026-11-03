@@ -352,7 +352,7 @@ pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId)
 
 /// `source`'s pending trigger of its ability at `place`, 1 for the first, as
 /// the layers give its abilities.
-pub fn pending_trigger_of(game: &GameState, source: ObjectId, place: usize) -> crate::ui::choice_types::ChoiceOption {
+pub fn pending_trigger_at_place(game: &GameState, source: ObjectId, place: usize) -> crate::ui::choice_types::ChoiceOption {
     let ability = ability_at(game, source, place);
     pending_trigger(game, source, |trigger| {
         matches!(trigger.ability, crate::ui::choice_types::TriggeredAbility::OfItsSource { ability: of, .. } if of == ability.definition())
@@ -385,7 +385,8 @@ pub fn counter_effect_of(
     })
 }
 
-
+/// `id`'s ability at `place` as the layers give its abilities, 1 for the
+/// first, as a scenario's `ability N` names it.
 fn ability_at(game: &GameState, id: ObjectId, place: usize) -> crate::types::ids::AbilityId {
     crate::oracle::characteristics::get_effective_abilities(game, id)
         .get(place.checked_sub(1).expect("places count from 1"))

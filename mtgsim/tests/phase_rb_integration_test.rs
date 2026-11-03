@@ -633,9 +633,8 @@ fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
     let probe = put_on_battlefield(&mut game, graveyard_probe("Graveyard Probe"), 0);
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
-    // Both effects are offered as the Probe, so only their place tells them
-    // apart: `gather` reads a permanent's abilities before its counters, and
-    // the printed `Prevent` is the first.
+    // The two are offered as what they are, the printed `Prevent` and the
+    // finality counters' exile, and the script names the printed one.
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![replacement_ability_of(&game, probe, 1)]);
     let ctx = ActionContext::new(&dp);
@@ -2205,8 +2204,8 @@ fn test_choosing_exile_leaves_the_shuffle_inapplicable() {
     let mut game = setup_two_player_game();
     let probe = dying_creature_with_two_replacements(&mut game);
 
-    // The finality counter is the second of the Probe's two effects: a
-    // permanent's own abilities are offered before its counters.
+    // The script names the finality counters' exile over the Probe's own
+    // shuffle.
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
