@@ -32,7 +32,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
 use crate::ui::choice_types::{
-    ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
+    AbilityAsRead, ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
 use crate::ui::decision::PriorityAction;
 
@@ -520,7 +520,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
         ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
             let which = match ability {
-                TriggeredAbility::OfItsSource { ability, granted_by, .. } => ability_words(game, source.id, *ability, *granted_by),
+                TriggeredAbility::OfItsSource { granted_by, read_as, .. } => ability_words(game, *read_as, *granted_by),
                 TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
                 TriggeredAbility::Delayed { refers_to } => format!("its delayed ability about {}", listed(game, refers_to)),
             };
@@ -530,8 +530,8 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::Replacement(ReplacementOption::FromResolution { source, resolution }) => {
             format!("{} · the effect made as {resolution} resolved", n(source))
         }
-        ChoiceOption::Replacement(ReplacementOption::Ability { object, ability, granted_by, .. }) => {
-            format!("{} · {}", n(&object.id), ability_words(game, object.id, *ability, *granted_by))
+        ChoiceOption::Replacement(ReplacementOption::Ability { object, granted_by, read_as, .. }) => {
+            format!("{} · {}", n(&object.id), ability_words(game, *read_as, *granted_by))
         }
         ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, effect }) => {
             let which = match effect {
@@ -546,21 +546,11 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
     }
 }
 
-/// `id`'s ability whose definition is `ability`'s, whichever instance of it
-/// the object has: its text, and its granter's name when an effect gave it.
-/// An entering object shows a grant only in its CR 614.12 frame, which no
-/// label has, so one that does not show it yet is named by its granter.
-fn ability_words(game: &GameState, id: ObjectId, ability: AbilityId, granted_by: Option<ObjectId>) -> String {
-    let text = get_effective_abilities(game, id)
-        .iter()
-        .find(|def| def.id.definition() == ability.definition())
-        .map(|def| def.rules_text.words);
-    match (text, granted_by) {
-        (Some(text), None) => text.to_string(),
-        (Some(text), Some(by)) => format!("{text}, granted by {}", named(game, by)),
-        (None, Some(by)) => format!("the ability {} grants", named(game, by)),
-        (None, None) => ABILITY_IT_NO_LONGER_HAS.to_string(),
-    }
+/// An option's ability as a person reads it: its text as the engine read it,
+/// and its granter's name when an effect gave it.
+fn ability_words(game: &GameState, read_as: AbilityAsRead, granted_by: Option<ObjectId>) -> String {
+    let text = read_as.text().unwrap_or(ABILITY_IT_NO_LONGER_HAS);
+    granted_by.map_or(text.to_string(), |by| format!("{text}, granted by {}", named(game, by)))
 }
 
 /// `ids`, each by its name, as a list a label reads.

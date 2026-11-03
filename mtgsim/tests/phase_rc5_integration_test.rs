@@ -41,7 +41,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{AbilityPlace, ChoiceKind, ChoiceOption, ReplacementOption};
+use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceKind, ChoiceOption, ReplacementOption};
 
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -58,15 +58,15 @@ fn counters(game: &GameState, id: ObjectId, kind: CounterType) -> u32 {
 
 /// `elder`'s devour as CR 616.1 offers it while the Elder enters: the
 /// definition `shown_on`'s first ability is (the Elder's own for its printed
-/// devour, a permanent the grant already reaches for a granted one). Its
-/// place is left unread, since a place never tells two options apart.
+/// devour, a permanent the grant already reaches for a granted one). How it
+/// reads is left out, since that never tells two options apart.
 fn entering_devour(game: &GameState, elder: ObjectId, shown_on: ObjectId, granted_by: Option<ObjectId>) -> ChoiceOption {
     ChoiceOption::Replacement(ReplacementOption::Ability {
         object: game.object_ref(elder).expect("in the store"),
         ability: mtgsim::oracle::characteristics::get_effective_abilities(game, shown_on)[0].id.definition(),
         granted_by,
         member: 0,
-        place: AbilityPlace(None),
+        read_as: AbilityAsRead(None),
     })
 }
 

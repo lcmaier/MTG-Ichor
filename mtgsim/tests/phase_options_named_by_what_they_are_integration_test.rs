@@ -8,6 +8,7 @@
 //! graveyard" again as it resolves, so the order decides whether a Zombie is
 //! made.
 
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::registry::CardRegistry;
@@ -17,9 +18,9 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{AbilityPlace, ChoiceContext, ChoiceKind, ChoiceOption, TriggerOption, TriggeredAbility};
+use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceContext, ChoiceKind, ChoiceOption, TriggerOption, TriggeredAbility};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
-use mtgsim::ui::display::format_event_log;
+use mtgsim::ui::display::{format_event_log, option_label};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::replay::Replay;
 
@@ -32,6 +33,18 @@ battlefield: Grizzly Bears | controller 0
 battlefield: Grizzly Bears [theirs] | controller 1
 library 0: Mountain | x5
 library 1: Mountain | x5
+";
+
+const CLONE_OF_THE_ELDER: &str = "\
+hand 0: Clone
+battlefield: Island | controller 0
+battlefield: Island [second] | controller 0
+battlefield: Island [third] | controller 0
+battlefield: Island [fourth] | controller 0
+battlefield: Thunder-Thrash Elder | controller 0, arrived this turn
+battlefield: Grumgully, the Generous | controller 0, arrived this turn
+library 0: Island | x5
+library 1: Island | x5
 ";
 
 /// The board built, recording its events and writing its log into the
@@ -71,7 +84,7 @@ fn bridge_trigger(game: &GameState, bridge: ObjectId, place: usize, died: Object
     let ability = game.objects[&bridge].card_data.abilities[place - 1].id;
     ChoiceOption::Trigger(TriggerOption {
         source: game.object_ref(bridge).expect("in the store"),
-        ability: TriggeredAbility::OfItsSource { ability: ability.definition(), granted_by: None, place: AbilityPlace(Some(place)) },
+        ability: TriggeredAbility::OfItsSource { ability: ability.definition(), granted_by: None, read_as: AbilityAsRead(None) },
         triggered_by: vec![died],
     })
 }
@@ -194,4 +207,78 @@ fn bridge_from_below_replays_its_trigger_order_both_ways() {
         assert_eq!(format_event_log(&replayed.game().state), format_event_log(&original.game().state));
         assert_eq!(zombies(&replayed), zombies(&original));
     }
+}
+
+/// A provider that answers from `inner` and keeps what a client draws for
+/// each option of CR 616.1's prompt.
+struct DrawsReplacements<'a> {
+    inner: &'a dyn DecisionProvider,
+    drawn: RefCell<Vec<String>>,
+}
+
+impl DecisionProvider for DrawsReplacements<'_> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        if matches!(ctx.kind, ChoiceKind::ChooseReplacementEffect { .. }) {
+            self.drawn.borrow_mut().extend(options.iter().map(|option| option_label(game, option)));
+        }
+        self.inner.pick_n(game, player, ctx, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.inner.pick_number(game, player, ctx, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        ctx: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.inner.allocate(game, player, ctx, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.inner.choose_ordering(game, player, ctx, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
+    }
+}
+
+/// A Clone copying Thunder-Thrash Elder has devour only in the frame it enters
+/// with (CR 614.12), which no label can read off the board, so the option
+/// carries the ability's text as the engine read it. Cast from hand with exact
+/// mana, beside Grumgully's counter, so CR 616.1 asks.
+#[test]
+fn a_copied_ability_reads_as_its_text_while_the_copy_enters() {
+    let start = GameStart::Scenario { path: "clone".to_string(), seed: 0, text: CLONE_OF_THE_ELDER.to_string() };
+    let mut built = start.build(&CardRegistry::default_registry()).expect("the board builds");
+    let state = &built.game().state;
+    let clone = named(state, "Clone", None);
+    let elder = named(state, "Thunder-Thrash Elder", Some(0));
+    let grumgully = named(state, "Grumgully, the Generous", Some(0));
+    // ORDER-FREE: the four Islands are alike; any pays.
+    let islands: Vec<ObjectId> = state.objects.values().filter(|o| o.card_data.name == "Island" && state.battlefield.contains_key(&o.id)).map(|o| o.id).collect();
+    let tap = |id: ObjectId| ChoiceOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
+
+    let caster = ScriptedDecisionProvider::new();
+    caster.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(clone))]);
+    let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: clone, remaining_cost: ManaCost::build(&[], 0) };
+    for island in islands {
+        caster.expect_choice(window.clone(), vec![tap(island)]);
+    }
+    caster.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(elder)]);
+    caster.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(grumgully)]);
+    caster.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: clone, source: clone, to: Zone::Graveyard }, Vec::new());
+    let seats = DispatchDecisionProvider::new(vec![Box::new(ManaWindowStop::new(caster)), Box::new(ScriptedDecisionProvider::new())]);
+    let drawing = DrawsReplacements { inner: &seats, drawn: RefCell::new(Vec::new()) };
+    built.game_mut().until_stopped(|game| game.resume_turn_at_priority(&drawing)).expect("the turn plays");
+
+    let drawn = drawing.drawn.into_inner();
+    assert!(drawn.contains(&format!("Clone ({clone}) · Devour 3")), "the copied devour reads as itself: {drawn:?}");
 }
