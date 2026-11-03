@@ -826,26 +826,28 @@ pub(crate) fn entry_offer_words(offer: &EntryOffer) -> String {
 /// and its neighbors), while every part of the cost is mana. A part that
 /// isn't, such as escape's exile, prints the keyword alone: nothing carries
 /// that part's printed words.
+/// A keyworded cost as its option names it: the keyword and the whole cost,
+/// its mana and then each other part by its kind and its amount ("Escape
+/// {G}{G}{U}{U}, exile 5 from your graveyard"), so two costs of one keyword
+/// that differ only past their mana read apart.
 fn keyword_and_cost(keyword: &str, costs: &[Cost]) -> String {
-    let mana: Option<Vec<String>> = costs
+    let mana: String = costs
         .iter()
-        .map(|cost| match cost {
+        .filter_map(|cost| match cost {
             Cost::Mana(mana) if mana.symbols.is_empty() => Some("{0}".to_string()),
             Cost::Mana(mana) => Some(mana.to_string()),
-            Cost::TapSelf
-            | Cost::UntapSelf
-            | Cost::PayLife(_)
-            | Cost::SacrificeSelf
-            | Cost::Sacrifice(..)
-            | Cost::Discard(..)
-            | Cost::ExileFromGraveyard(..)
-            | Cost::RemoveCounters(..)
-            | Cost::AddCounters(..) => None,
+            _ => None,
         })
         .collect();
-    match mana {
-        Some(symbols) if !symbols.is_empty() => format!("{keyword} {}", symbols.concat()),
-        _ => keyword.to_string(),
+    let parts: Vec<String> = costs
+        .iter()
+        .filter(|cost| !matches!(cost, Cost::Mana(_)))
+        .map(|cost| entry_offer_words(&EntryOffer::Pay(cost.clone())))
+        .collect();
+    let whole: Vec<String> = std::iter::once(mana).filter(|mana| !mana.is_empty()).chain(parts).collect();
+    match whole.as_slice() {
+        [] => keyword.to_string(),
+        parts => format!("{keyword} {}", parts.join(", ")),
     }
 }
 
@@ -1666,7 +1668,7 @@ mod tests {
     /// while the cost is mana, and the keyword alone once a part is not; a
     /// custom cost prints its own sentence.
     #[test]
-    fn a_cost_option_prints_its_keyword_and_its_mana() {
+    fn a_cost_option_prints_its_keyword_and_its_whole_cost() {
         use crate::test_support::setup_two_player_game;
         use crate::types::effects::ObjectFilter;
         use crate::types::mana::{ManaCost, ManaType};
@@ -1681,7 +1683,14 @@ mod tests {
             Cost::Mana(ManaCost::build(&[ManaType::Black, ManaType::Black], 3)),
             Cost::ExileFromGraveyard(ObjectFilter::All, 5),
         ]);
-        assert_eq!(label(ChoiceOption::AlternativeCost(escape)), "Escape");
+        assert_eq!(label(ChoiceOption::AlternativeCost(escape.clone())), "Escape {3}{B}{B}, exile 5 from your graveyard");
+        let narrower = AlternativeCost::Escape(vec![
+            Cost::Mana(ManaCost::build(&[ManaType::Black, ManaType::Black], 3)),
+            Cost::ExileFromGraveyard(ObjectFilter::All, 3),
+        ]);
+        assert_ne!(label(ChoiceOption::AlternativeCost(narrower)), label(ChoiceOption::AlternativeCost(escape)), "apart past their mana");
+        let sacrificing = AdditionalCost::Kicker(vec![Cost::Sacrifice(ObjectFilter::All, 1)]);
+        assert_eq!(label(ChoiceOption::AdditionalCost(sacrificing)), "Kicker sacrifice 1");
     }
 
     /// A question names its object as it is now: a Clone copying Grizzly Bears
