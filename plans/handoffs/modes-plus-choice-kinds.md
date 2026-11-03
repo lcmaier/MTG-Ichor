@@ -17,31 +17,19 @@ after the design; each later one on its own branch once the one before
 merges.
 
 **Where the first PR stands** (2026-11-02):
-- `cf99bc70`: 43 of item 361's 44 order-dependent tests name what they
-  chose (`RecordingDecisionProvider::choosing`, `allocating`). The 44th,
-  `what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone`
-  (tr3c), orders two alike Flickerwisp triggers and names them once 4a's
-  options are complete.
-- `6a127ff3`: 4a's two arms, `ChoiceOption::Trigger` and `::Replacement`,
-  their log words and labels, and a script's shorthand naming an effect by
-  its source. Open in it:
-  1. **An entering object's ability is read in the zone it leaves**: the
-     place is computed off the object's current abilities, so Thunder-Thrash
-     Elder's devour granted by Jund logs as "an ability it no longer has"
-     (`phase_rc5_integration_test`'s devour tests). The place has to come
-     from the frame the pipeline gathered the effect in, captured into the
-     option where it is built.
-  2. **Two registry rows of one source read alike** (Words of Worship's two
-     shields): #306's design names a row by "the stack object whose
-     resolution made it", but a resolution has no id of its own here
-     (`ResolutionContext::source` and the stamp are the permanent's). Put to
-     the owner: give a resolution a number of its own, or name a row by what
-     it does.
-  3. Then: the 13 place-based answers named outright, `expect_*_among_alike`,
-     CV-2b's `then_index` and the log's `(n of m)` removed (or kept for rows
-     alike in every word, per item 2's answer), and the 44th test.
-- Next after 4a: 4b (the typed matcher and costs named whole), decision 5
-  (the division, Arc Lightning), decision 6 (the two orders, 6b, the audit).
+- Done: #306's 4c (`cf99bc70`, `af61f71b`: all 44 of item 361's
+  order-dependent tests name what they chose, and pass with every list
+  reversed) and 4a (`6a127ff3`, `58df2e7f`, `6b179335`: `ChoiceOption::Trigger`
+  and `::Replacement`, a row named by the stack object whose resolution made
+  it, an ability's place captured where the engine read it, the entry frame
+  for an entering object). The owner's rule from this round: name by ids of
+  game things (objects, the resolving stack object), never by positions or
+  the engine's own bookkeeping numbers.
+- Left in 4a for 4b: `expect_*_among_alike` and the log's `(n of m)`, used
+  now only by the matcher's own test. CV-2b's `then_index` stays (its copy
+  is made inside the call it answers; the test tries both places).
+- Next: 4b (the typed matcher and costs named whole), decision 5 (the
+  division, Arc Lightning), decision 6 (the two orders, 6b, the audit).
 
 **Traps, for the first PR:**
 - The 33 tests that answer by place (`codebase-state.md` item 361) move to
