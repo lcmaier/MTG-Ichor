@@ -492,7 +492,7 @@ pub enum Rejection {
 }
 
 /// A single selectable option presented to the DP.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChoiceOption {
     /// A game object (creature, card in hand, permanent, etc.)
     Object(ObjectId),
@@ -756,68 +756,26 @@ fn place_in(abilities: &[crate::objects::card_data::AbilityDef], ability: Abilit
     abilities.iter().position(|def| def.id.definition() == ability.definition()).and_then(|index| u8::try_from(index + 1).ok())
 }
 
-/// How an answer names one option among others whose words are the same:
-/// `(2 of 3)` after them, counted in the list's order. Two such options are
-/// one choice to a reader of the log, and only a position tells them apart.
-const OF_EQUALS: &str = " of ";
-
-/// `options[index]` as an answer names it: [`ChoiceOption::as_logged`], with
-/// its place among the options whose words are the same when there are any.
-pub fn logged_choice(options: &[ChoiceOption], game: &GameState, index: usize) -> String {
-    let logged = options[index].as_logged(game);
-    let equals = reading_as(options, game, &logged);
-    match equals.iter().position(|&i| i == index) {
-        Some(place) if equals.len() > 1 => format!("{logged} ({}{OF_EQUALS}{})", place + 1, equals.len()),
-        _ => logged,
-    }
-}
-
-/// Where the option an answer writes as `chosen`, a [`logged_choice`], sits in
-/// `options`: [`position_named`] once the words and the place are read apart.
+/// Where the option a replayed answer writes as `chosen` sits in `options`:
+/// the first not in `taken` whose words are those. Every option writes what
+/// it is, so two whose words are the same are one choice twice, and an
+/// answer naming those words twice takes both.
 pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, taken: &[usize]) -> Option<usize> {
-    let (words, place) = match chosen.rsplit_once(" (").and_then(|(words, rest)| Some((words, rest.strip_suffix(')')?))) {
-        Some((words, rest)) => match rest.split_once(OF_EQUALS).and_then(|(place, _)| place.parse::<usize>().ok()) {
-            Some(place) => (words, Some(place)),
-            None => (chosen, None),
-        },
-        None => (chosen, None),
-    };
-    position_named(options, game, words, place, taken)
+    (0..options.len()).find(|&i| !taken.contains(&i) && options[i].as_logged(game) == chosen)
 }
 
-/// Where the option an answer names sits in `options`, by its words and,
-/// among options whose words are the same, its place counted from 1: the one
-/// matcher a replayed answer, a scenario's setup line and a test's script
-/// find an option by (`setup-architecture.md` §7.2, decision 6), by what it
-/// is and never by where it sat. Words alone take the first such option not
-/// in `taken`, so an answer naming two options with the same words takes two
-/// of them.
-pub fn position_named(options: &[ChoiceOption], game: &GameState, words: &str, place: Option<usize>, taken: &[usize]) -> Option<usize> {
-    let equals = reading_as(options, game, words);
-    match place {
-        Some(place) => equals.get(place.checked_sub(1)?).copied().filter(|i| !taken.contains(i)),
-        None => equals.into_iter().find(|i| !taken.contains(i)),
-    }
-}
-
-/// Every place in `options` whose words are `words`, in the list's order: the
-/// options an answer naming those words could mean.
-pub fn reading_as(options: &[ChoiceOption], game: &GameState, words: &str) -> Vec<usize> {
-    (0..options.len()).filter(|&i| options[i].as_logged(game) == words).collect()
-}
-
-/// The places in `options`, in the list's order, of what a script's `named`
-/// names: the options whose words are its words, or, for an object no option
-/// reads, each trigger and replacement of that object offered. A script may
-/// name an effect by its source while the source has no other among the
-/// options; two of one source need the effect named.
-pub fn named_by_script(options: &[ChoiceOption], game: &GameState, named: &ChoiceOption) -> Vec<usize> {
-    let reading = reading_as(options, game, &named.as_logged(game));
+/// The places in `options`, in the list's order, of what a script's or a
+/// setup line's `named` names: the options equal to it, or, for an object
+/// no option equals, each trigger and replacement of that object offered. A
+/// script may name an effect by its source while the source has no other
+/// among the options; two of one source need the effect named.
+pub fn named_by_script(options: &[ChoiceOption], named: &ChoiceOption) -> Vec<usize> {
+    let equal: Vec<usize> = (0..options.len()).filter(|&i| options[i] == *named).collect();
     match named {
-        ChoiceOption::Object(id) if reading.is_empty() => {
+        ChoiceOption::Object(id) if equal.is_empty() => {
             (0..options.len()).filter(|&i| options[i].effect_of() == Some(*id)).collect()
         }
-        _ => reading,
+        _ => equal,
     }
 }
 
@@ -958,16 +916,16 @@ mod tests {
             ChoiceOption::Action(PriorityAction::CastSpell(bolt)),
             ChoiceOption::Action(PriorityAction::PlayLand(forest)),
         );
-        let written = [pass.clone(), cast.clone()];
-        let chosen = logged_choice(&written, &game, 1);
+        let chosen = cast.as_logged(&game);
         let reordered = [play, cast, pass];
         assert_eq!(position_of(&reordered, &game, &chosen, &[]), Some(1));
         assert_eq!(position_of(&reordered, &game, &chosen, &[1]), None, "a taken option is passed over");
         assert_eq!(position_of(&reordered[..1], &game, &chosen, &[]), None, "not offered");
 
+        // Two options whose words are the same are one choice twice: an
+        // answer naming them twice takes both, whichever first.
         let twins = [ChoiceOption::Number(2), ChoiceOption::Number(2)];
-        assert_eq!(logged_choice(&twins, &game, 1), "number 2 (2 of 2)");
-        assert_eq!(position_of(&twins, &game, &logged_choice(&twins, &game, 1), &[]), Some(1));
+        assert_eq!(position_of(&twins, &game, "number 2", &[]), Some(0));
         assert_eq!(position_of(&twins, &game, "number 2", &[0]), Some(1));
     }
 
@@ -1015,36 +973,37 @@ mod tests {
         seats.allocate(&game, 0, &ChoiceContext::new(damage), 3, &listed, &[0, 0], None);
     }
 
-    /// Two options that read the same, as one object's two replacements do,
-    /// are told apart by their place among themselves, as the log writes
-    /// `(2 of 2)`, in a pick and in an order.
+    /// Two equal options are one choice twice, as two alike costs are: a
+    /// script naming the option twice takes both, in a pick and in an order.
     #[test]
-    fn a_script_names_options_that_read_alike_by_their_place() {
-        let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
-        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
+    fn a_script_takes_two_equal_options_in_turn() {
+        let game = setup_two_player_game();
+        let twins = [ChoiceOption::Number(2), ChoiceOption::Number(2)];
         let seats = ScriptedDecisionProvider::new();
         let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-        seats.expect_choice_among_alike(which.clone(), vec![(ChoiceOption::Object(bears), 2)]);
+        seats.expect_choice(which.clone(), vec![ChoiceOption::Number(2), ChoiceOption::Number(2)]);
         let order = ChoiceKind::ScryOrder { source: None, bottom: false };
-        seats.expect_order_among_alike(order.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(bears), 1)]);
+        seats.expect_order(order.clone(), vec![ChoiceOption::Number(2), ChoiceOption::Number(2)]);
 
-        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1)), vec![1]);
-        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![1, 0]);
+        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (2, 2)), vec![0, 1]);
+        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![0, 1]);
     }
 
-    /// A name alone would mean whichever of two alike options the engine
-    /// lists first, so it is refused there.
+    /// A source names its one effect offered; naming a source that has two
+    /// would mean whichever the engine lists first, so it is refused.
     #[test]
-    #[should_panic(expected = "its words alone cannot say which")]
-    fn a_name_that_reads_like_another_option_needs_its_place() {
+    #[should_panic(expected = "different options offered")]
+    fn a_source_with_two_effects_offered_needs_the_effect_named() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 0);
+        let source = game.object_ref(bears).unwrap();
+        let ability = TriggeredAbility::OfItsSource { ability: AbilityId::UNASSIGNED, granted_by: None, place: Some(1) };
+        let triggered = |by| ChoiceOption::Trigger(TriggerOption { source, ability: ability.clone(), triggered_by: vec![by] });
         let seats = ScriptedDecisionProvider::new();
-        let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-        seats.expect_choice(which.clone(), vec![ChoiceOption::Object(bears)]);
-        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
-        seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1));
+        let order = ChoiceKind::OrderTriggers { player: 0, tier: crate::types::triggers::TriggerTier::First };
+        seats.expect_order(order.clone(), vec![ChoiceOption::Object(bears), ChoiceOption::Object(bears)]);
+        seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &[triggered(bears), triggered(wall)]);
     }
 
     /// A take answers a take-or-leave question's one option, and nothing

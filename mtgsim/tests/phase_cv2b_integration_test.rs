@@ -121,7 +121,7 @@ impl Drop for Scripted {
 impl DecisionProvider for Scripted {
     fn pick_n(
         &self,
-        game: &GameState,
+        _game: &GameState,
         player: PlayerId,
         ctx: &ChoiceContext,
         options: &[ChoiceOption],
@@ -147,7 +147,7 @@ impl DecisionProvider for Scripted {
             Pick::Ids(ids) => {
                 let mut picked = Vec::new();
                 for id in ids {
-                    let found = named_by_script(options, game, &ChoiceOption::Object(id)).into_iter().find(|i| !picked.contains(i));
+                    let found = named_by_script(options, &ChoiceOption::Object(id)).into_iter().find(|i| !picked.contains(i));
                     picked.push(found.unwrap_or_else(|| panic!("{id} not offered: {offered:?}")));
                 }
                 picked

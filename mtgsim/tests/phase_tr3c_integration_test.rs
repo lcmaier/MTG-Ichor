@@ -147,8 +147,7 @@ impl DecisionProvider for ChoosingSource {
             return self.rest.pick_n(game, player, ctx, options, bounds);
         }
         let logged: Vec<String> = options.iter().map(|o| o.as_logged(game)).collect();
-        let wanted = self.wanted.as_logged(game);
-        let at = logged.iter().position(|o| *o == wanted).unwrap_or_else(|| panic!("{wanted} not offered: {logged:?}"));
+        let at = options.iter().position(|o| *o == self.wanted).unwrap_or_else(|| panic!("{:?} not offered: {logged:?}", self.wanted));
         *self.offered.borrow_mut() = logged;
         vec![at]
     }

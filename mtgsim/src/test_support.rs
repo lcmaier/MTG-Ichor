@@ -514,7 +514,7 @@ impl DecisionProvider for RecordingDecisionProvider {
             let picks: Vec<usize> = self
                 .named
                 .iter()
-                .filter_map(|wanted| crate::ui::choice_types::named_by_script(options, game, wanted).first().copied())
+                .filter_map(|wanted| crate::ui::choice_types::named_by_script(options, wanted).first().copied())
                 .take(bounds.1)
                 .collect();
             assert!(
@@ -554,10 +554,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         if !self.amounts.is_empty() && buckets.len() > 1 {
             return buckets
                 .iter()
-                .map(|bucket| {
-                    let words = bucket.as_logged(_game);
-                    self.amounts.iter().find(|(named, _)| named.as_logged(_game) == words).map_or(0, |&(_, amount)| amount)
-                })
+                .map(|bucket| self.amounts.iter().find(|(named, _)| named == bucket).map_or(0, |&(_, amount)| amount))
                 .collect();
         }
         // Greedy in bucket order, respecting each maximum. Dumping the whole
@@ -588,7 +585,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         if !self.order.is_empty() && items.len() > 1 {
             let mut placed: Vec<usize> = Vec::new();
             for wanted in &self.order {
-                if let Some(at) = crate::ui::choice_types::named_by_script(items, _game, wanted).into_iter().find(|i| !placed.contains(i)) {
+                if let Some(at) = crate::ui::choice_types::named_by_script(items, wanted).into_iter().find(|i| !placed.contains(i)) {
                     placed.push(at);
                 }
             }
