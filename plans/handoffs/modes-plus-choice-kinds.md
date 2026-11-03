@@ -11,8 +11,8 @@ the landing of the fourth PR deletes it.
 amendments to `setup-architecture.md#7e-pausing-at-a-decision`'s decision 1:
 a land tapped for mana, and a setup line naming an earlier step of the turn.
 
-**Next:** the four PRs of `choices-architecture.md`'s "The build, sized", in
-order. The first, `options-named-plus-division`, is built on this branch
+**Next:** the five PRs of `choices-architecture.md`'s "The build, sized", in
+order. The first, `options-named-by-what-they-are`, is built on this branch
 after the design; each later one on its own branch once the one before
 merges.
 
@@ -28,13 +28,11 @@ merges.
 - Left in 4a for 4b: `expect_*_among_alike` and the log's `(n of m)`, used
   now only by the matcher's own test. CV-2b's `then_index` stays (its copy
   is made inside the call it answers; the test tries both places).
-- Next: 4b (the typed matcher and costs named whole), decision 5 (the
-  division, Arc Lightning), decision 6 (the two orders, 6b, the audit).
+- Next: 4b (the typed matcher and costs named whole), then this PR's
+  handover. Decisions 5 and 6 are `division-and-orders`, the next PR, on its
+  own branch (the split, 2026-11-02).
 
-**Traps, for the first PR:**
-- The 33 tests that answer by place (`codebase-state.md` item 361) move to
-  answers named by identity in its first commit, before any option's wording
-  changes; the other 143 `picking(` uses stay.
+**Traps, for `division-and-orders`:**
 - 6b drops `OrderCostReductions`' prompt: a fixture migration (9 lines in 8
   test files) and a moved random stream, so the A/B runs three arms
   (`choices-architecture.md`'s "Fuzz A/B, predicted per PR").

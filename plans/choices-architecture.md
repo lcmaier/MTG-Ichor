@@ -3,7 +3,7 @@
 > **Status:** designed, no code. `modes-plus-choice-kinds` (`roadmap-v2.md`
 > step 5 of "From triggers to v0.5") wrote it as a design note, reviewed at
 > its design stop on #307 over three rounds; every decision below is the
-> owner's (2026-11-01 to 2026-11-02). It is built as the four PRs under "The
+> owner's (2026-11-01 to 2026-11-02). It is built as the five PRs under "The
 > build, sized", the first on the design's branch.
 > **Authority:** CR 700.2 and 603.3c (modes); 118.12–118.12a, 107.3f and
 > 702.21 (a cost paid as an effect resolves, and ward); 601.2d and 608.2d's
@@ -991,32 +991,45 @@ model (`remaining-costs`), never an effect's `Choose`.
 
 ## 5. The build, sized
 
-Four PRs, each with its consumer, in this order. Code and tests apart,
-estimates from the item sizings and from #306's for decision 4.
+Five PRs, each with its consumer, in this order. Code and tests apart,
+estimates from the item sizings and from #306's for decision 4. The first
+was split in two at its build (the owner, 2026-11-02): #306's decision 4
+alone measured ~925 lines before its last part, against its estimate of
+440–760 for all of it, so it is a PR of its own, and the division and the
+orders are the next.
 
 | PR | What it builds | Consumer | Code | Tests |
 |---|---|---|---:|---:|
-| **`options-named-plus-division` — options named, the division and the orders** | #306's decision 4 (the trigger and replacement arms, the typed matcher with its cost parser, and in its first commit the 33 order-dependent `picking(n)` uses of the 176); decision 5's division at cast, activation and placement; decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | the log's replay of Bridge from Below's two triggers, both orders; Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~680–1,050 | ~610–1,060 |
+| **`options-named-by-what-they-are` — every option named by what it is** | #306's decision 4: the trigger and replacement arms, the typed matcher with its cost names, and in its first commit item 361's order-dependent `picking(n)` uses | the log's replay of Bridge from Below's two triggers, both orders; the order-dependent tests, each passing with every list reversed | measured at its handover | |
+| **`division-and-orders` — a division among targets, and the orders the CR hands a player** | decision 5's division at cast, activation and placement; decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~450–700 by the item sizings | ~400–650 |
 | **`modal-spells-and-abilities` — CR 700.2 whole** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the record of what an ability chose before, castability through the enumerator | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost (700.2h) | ~760–1,150 | ~600–920 |
 | **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
 | **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
-The first three read ~1,150–2,110 lines each: inside the band (1,500–2,500,
-`engineering-practices.md#sizing-a-phase`) at their upper estimates and under
-it at their lower. The fourth reads ~1,010–1,570, at the band's floor at best;
-it could fold into the third if the third lands low, which is the build's
-call at its sizing, written in the doc.
+**The estimates run low, so read them against the first PR's.** #306's
+decision 4 was sized at 440–760 lines and came to about twice that: the
+estimate had no line for a script naming an effect by its source, the test
+helpers that name an effect, or an ability's place read where the engine
+read it. `division-and-orders` reads ~850–1,350 by its item sizings, which
+at that ratio is inside the band (1,500–2,500,
+`engineering-practices.md#sizing-a-phase`); `modal-spells-and-abilities` and
+`costs-and-choices-at-resolution` read ~1,150–2,070 and may land past its
+top, and `values-chosen-at-resolution` ~1,010–1,570. Each is re-sized
+against the measured ratio at its brief, and a split goes in this table.
 
-**Fuzz A/B, predicted per PR.** The first changes no option's count or order
-for decision 4, but it moves the stream twice on purpose: 6b drops a prompt
-from every game that meets two cost reductions, and the division's card is
-registered. So it runs three arms (`main`; the branch with the division's
-card unregistered, which isolates 6b and should differ from `main` only in
-games that met two reductions; the branch), through `fuzz_ab --require`,
-which runs every arm on the new cards. Decision 6's new questions should be
-asked by no registered card, which the build checks first by running the
-test over every registered cost and every registered entry batch. Each later
-PR registers cards, and its stream moves with them, measured the same way.
+**Fuzz A/B, predicted per PR.** `options-named-by-what-they-are` changes no
+option's count or order and asks no new question: its gameplay rows are
+predicted `IDENTICAL` to `main`, its change being what the log and a client
+read. `division-and-orders` moves the stream twice on purpose: 6b drops a
+prompt from every game that meets two cost reductions, and the division's
+card is registered. So it runs three arms (`main`; the branch with the
+division's card unregistered, which isolates 6b and should differ from
+`main` only in games that met two reductions; the branch), through
+`fuzz_ab --require`, which runs every arm on the new cards. Decision 6's new
+questions should be asked by no registered card, which the build checks
+first by running the test over every registered cost and every registered
+entry batch. Each later PR registers cards, and its stream moves with them,
+measured the same way.
 
 ## 6. Found while designing
 

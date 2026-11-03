@@ -147,7 +147,8 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| Options named, the division and the orders | `options-named-plus-division` | `choices-architecture.md` |
+| Every option named by what it is | `options-named-by-what-they-are` | `choices-architecture.md` |
+| A division among targets, and the orders the CR hands a player | `division-and-orders` | `choices-architecture.md` |
 | CR 700.2 whole | `modal-spells-and-abilities` | `choices-architecture.md` |
 | A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
 | A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
