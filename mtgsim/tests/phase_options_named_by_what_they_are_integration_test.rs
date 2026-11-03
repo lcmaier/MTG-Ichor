@@ -13,12 +13,12 @@ use std::sync::{Arc, Mutex};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, Chosen, GameStart};
 use mtgsim::state::game_state::GameState;
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{AbilityPlace, ChoiceKind, ChoiceOption, TriggerOption, TriggeredAbility};
-use mtgsim::ui::decision::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
+use mtgsim::ui::choice_types::{AbilityPlace, ChoiceContext, ChoiceKind, ChoiceOption, TriggerOption, TriggeredAbility};
+use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::replay::Replay;
@@ -106,14 +106,63 @@ fn played(token_first: bool) -> (BuiltStart, decision_log::Log) {
     (built, log)
 }
 
+/// A provider that hands `0` every list reversed and maps its answer back, as
+/// a build listing the options in another order would.
+struct Reversed<'a>(&'a dyn DecisionProvider);
+
+impl Reversed<'_> {
+    fn back(listed: usize, answer: Vec<usize>) -> Vec<usize> {
+        answer.into_iter().map(|at| listed - 1 - at).collect()
+    }
+}
+
+impl DecisionProvider for Reversed<'_> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        let reversed: Vec<ChoiceOption> = options.iter().rev().cloned().collect();
+        Self::back(options.len(), self.0.pick_n(game, player, ctx, &reversed, bounds))
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.0.pick_number(game, player, ctx, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        ctx: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        let reversed: Vec<ChoiceOption> = buckets.iter().rev().cloned().collect();
+        let mins: Vec<u64> = per_bucket_mins.iter().rev().copied().collect();
+        let maxs: Option<Vec<u64>> = per_bucket_maxs.map(|maxs| maxs.iter().rev().copied().collect());
+        let mut given = self.0.allocate(game, player, ctx, total, &reversed, &mins, maxs.as_deref());
+        given.reverse();
+        given
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        let reversed: Vec<ChoiceOption> = items.iter().rev().cloned().collect();
+        Self::back(items.len(), self.0.choose_ordering(game, player, ctx, &reversed))
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.0.seat_mode(player)
+    }
+}
+
 fn zombies(built: &BuiltStart) -> usize {
     // ORDER-FREE: a count.
     built.game().state.battlefield.keys().filter(|id| built.game().state.objects[id].card_data.name.starts_with("Zombie")).count()
 }
 
 /// The log names each of the Bridge's two triggers by its ability and the
-/// creature it is for, and a replay of each order plays it again: a Zombie
-/// when its trigger resolved first, none when the exile did.
+/// creature it is for, and a replay of each order plays it again, offered
+/// every list reversed: a Zombie when its trigger resolved first, none when
+/// the exile did.
 #[test]
 fn bridge_from_below_replays_its_trigger_order_both_ways() {
     for token_first in [true, false] {
@@ -140,7 +189,7 @@ fn bridge_from_below_replays_its_trigger_order_both_ways() {
         let mut replayed = log.start.build(&CardRegistry::default_registry()).expect("the log's start builds");
         replayed.game_mut().state.record_events();
         let replay = Replay::of(log);
-        replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&replay)).expect("the replay plays");
+        replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&Reversed(&replay))).expect("the replay plays");
         assert_eq!(replay.remaining(), 0, "every answer the log holds was asked for");
         assert_eq!(format_event_log(&replayed.game().state), format_event_log(&original.game().state));
         assert_eq!(zombies(&replayed), zombies(&original));

@@ -788,12 +788,29 @@ pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, tak
     (0..options.len()).find(|&i| !taken.contains(&i) && options[i].as_logged(game) == chosen)
 }
 
+/// Where in `options` the option a script names sits, past the positions
+/// `taken`, wherever the engine lists it; `None` when it is not offered. Two
+/// equal options offered are one choice twice, taken in turn. A name that
+/// fits two different options is refused, since it would mean whichever the
+/// engine lists first: a source with two effects offered needs the effect
+/// named.
+pub fn position_named(options: &[ChoiceOption], game: &GameState, named: &ChoiceOption, taken: &[usize]) -> Option<usize> {
+    let fits = named_by_script(options, named);
+    if fits.iter().any(|&i| options[i] != options[fits[0]]) {
+        panic!(
+            "{} names {} different options offered, so name the one meant: {:?}",
+            named.as_logged(game),
+            fits.len(),
+            options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>(),
+        );
+    }
+    fits.into_iter().find(|i| !taken.contains(i))
+}
+
 /// The places in `options`, in the list's order, of what a script's or a
 /// setup line's `named` names: the options equal to it, or, for an object
-/// no option equals, each trigger and replacement of that object offered. A
-/// script may name an effect by its source while the source has no other
-/// among the options; two of one source need the effect named.
-pub fn named_by_script(options: &[ChoiceOption], named: &ChoiceOption) -> Vec<usize> {
+/// no option equals, each trigger and replacement of that object offered.
+fn named_by_script(options: &[ChoiceOption], named: &ChoiceOption) -> Vec<usize> {
     let equal: Vec<usize> = (0..options.len()).filter(|&i| options[i] == *named).collect();
     match named {
         ChoiceOption::Object(id) if equal.is_empty() => {
@@ -1005,8 +1022,14 @@ mod tests {
         let order = ChoiceKind::ScryOrder { source: None, bottom: false };
         seats.expect_order(order.clone(), vec![ChoiceOption::Number(2), ChoiceOption::Number(2)]);
 
-        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (2, 2)), vec![0, 1]);
-        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![0, 1]);
+        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which.clone()), &twins, (2, 2)), vec![0, 1]);
+        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order.clone()), &twins), vec![0, 1]);
+
+        // A test's recording provider finds what it names the same way.
+        let twice = || [ChoiceOption::Number(2), ChoiceOption::Number(2)];
+        let recording = crate::test_support::RecordingDecisionProvider::choosing(twice()).ordering(twice());
+        assert_eq!(recording.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (2, 2)), vec![0, 1]);
+        assert_eq!(recording.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![0, 1]);
     }
 
     /// A source names its one effect offered; naming a source that has two

@@ -5,7 +5,7 @@ use std::mem::discriminant;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, named_by_script};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_named};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
@@ -269,26 +269,17 @@ pub enum ScriptedResponse {
 }
 
 /// The positions in `options` of the options `chosen` names, each found by
-/// what it is (`named_by_script`) wherever the engine lists it. Two equal
-/// options offered are one choice twice, taken in turn; a source that names
-/// two different effects of its own is refused, since it would mean
-/// whichever the engine lists first.
+/// [`position_named`] past those already found; every one must be offered.
 fn found_indices(options: &[ChoiceOption], game: &GameState, chosen: &[ChoiceOption]) -> Vec<usize> {
-    let offered = || options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>();
     let mut found = Vec::new();
     for option in chosen {
-        let named = named_by_script(options, option);
-        if named.iter().any(|&i| options[i] != options[named[0]]) {
-            panic!(
-                "ScriptedDecisionProvider: {} names {} different options offered, so name the one meant: {:?}",
-                option.as_logged(game),
-                named.len(),
-                offered()
-            );
-        }
-        match named.into_iter().find(|i| !found.contains(i)) {
+        match position_named(options, game, option, &found) {
             Some(at) => found.push(at),
-            None => panic!("ScriptedDecisionProvider: {} is not offered: {:?}", option.as_logged(game), offered()),
+            None => panic!(
+                "ScriptedDecisionProvider: {} is not offered: {:?}",
+                option.as_logged(game),
+                options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>()
+            ),
         }
     }
     found

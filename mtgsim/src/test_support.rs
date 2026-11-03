@@ -511,12 +511,15 @@ impl DecisionProvider for RecordingDecisionProvider {
             return (0..options.len().min(bounds.1)).collect();
         }
         if !self.named.is_empty() && options.len() > 1 {
-            let picks: Vec<usize> = self
-                .named
-                .iter()
-                .filter_map(|wanted| crate::ui::choice_types::named_by_script(options, wanted).first().copied())
-                .take(bounds.1)
-                .collect();
+            let mut picks: Vec<usize> = Vec::new();
+            for wanted in &self.named {
+                if picks.len() == bounds.1 {
+                    break;
+                }
+                if let Some(at) = crate::ui::choice_types::position_named(options, game, wanted, &picks) {
+                    picks.push(at);
+                }
+            }
             assert!(
                 picks.len() >= bounds.0,
                 "RecordingDecisionProvider::choosing: {} offers {:?} and names too few of them",
@@ -542,7 +545,7 @@ impl DecisionProvider for RecordingDecisionProvider {
 
     fn allocate(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         _ctx: &crate::ui::choice_types::ChoiceContext,
         total: u64,
@@ -552,10 +555,15 @@ impl DecisionProvider for RecordingDecisionProvider {
     ) -> Vec<u64> {
         self.seen.borrow_mut().push("allocate".to_string());
         if !self.amounts.is_empty() && buckets.len() > 1 {
-            return buckets
-                .iter()
-                .map(|bucket| self.amounts.iter().find(|(named, _)| named == bucket).map_or(0, |&(_, amount)| amount))
-                .collect();
+            let mut given = vec![0; buckets.len()];
+            let mut taken: Vec<usize> = Vec::new();
+            for (wanted, amount) in &self.amounts {
+                if let Some(at) = crate::ui::choice_types::position_named(buckets, game, wanted, &taken) {
+                    given[at] = *amount;
+                    taken.push(at);
+                }
+            }
+            return given;
         }
         // Greedy in bucket order, respecting each maximum. Dumping the whole
         // total into bucket 0 was legal only while every test's pool had one
@@ -574,18 +582,18 @@ impl DecisionProvider for RecordingDecisionProvider {
 
     fn choose_ordering(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
-        _ctx: &crate::ui::choice_types::ChoiceContext,
+        ctx: &crate::ui::choice_types::ChoiceContext,
         items: &[crate::ui::choice_types::ChoiceOption],
     ) -> Vec<usize> {
         // The kind, as `pick_n` records it: an ordering prompt is a decision
         // site too, and "one prompt, of the right kind" is the assertion.
-        self.seen.borrow_mut().push(_ctx.kind.as_str().to_string());
+        self.seen.borrow_mut().push(ctx.kind.as_str().to_string());
         if !self.order.is_empty() && items.len() > 1 {
             let mut placed: Vec<usize> = Vec::new();
             for wanted in &self.order {
-                if let Some(at) = crate::ui::choice_types::named_by_script(items, wanted).into_iter().find(|i| !placed.contains(i)) {
+                if let Some(at) = crate::ui::choice_types::position_named(items, game, wanted, &placed) {
                     placed.push(at);
                 }
             }
@@ -593,9 +601,9 @@ impl DecisionProvider for RecordingDecisionProvider {
                 placed.len(),
                 items.len(),
                 "RecordingDecisionProvider::ordering: {} offers {:?} and the order names {:?}",
-                _ctx.kind.as_str(),
-                items.iter().map(|o| o.as_logged(_game)).collect::<Vec<_>>(),
-                self.order.iter().map(|o| o.as_logged(_game)).collect::<Vec<_>>(),
+                ctx.kind.as_str(),
+                items.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>(),
+                self.order.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>(),
             );
             return placed;
         }
