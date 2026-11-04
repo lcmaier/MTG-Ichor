@@ -21,14 +21,23 @@ use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 pub struct TargetInstance {
     /// What CR 601.2c announced this instance against.
     pub recipient: EffectRecipient,
-    /// The objects and players chosen for it, in the order they were offered,
-    /// each object as the existence it was chosen in.
-    pub chosen: Vec<ObjectOrPlayer>,
+    chosen: AnnouncedTargets,
+}
+
+/// What an instance of "target" announced: its targets, in the order they were
+/// offered, each object as the existence it was chosen in.
+#[derive(Debug, Clone, PartialEq)]
+enum AnnouncedTargets {
+    Targets(Vec<ObjectOrPlayer>),
+    /// CR 601.2d's division, each target with its share. The share sits in
+    /// the target's slot, so whatever rewrites a target keeps its share
+    /// without knowing it exists (CR 115.7f).
+    Divided(Vec<(ObjectOrPlayer, u64)>),
 }
 
 impl TargetInstance {
     pub fn new(recipient: EffectRecipient, chosen: Vec<ObjectOrPlayer>) -> Self {
-        TargetInstance { recipient, chosen }
+        TargetInstance { recipient, chosen: AnnouncedTargets::Targets(chosen) }
     }
 
     /// Record `chosen` as CR 601.2c announced it, each object at the epoch
@@ -39,12 +48,35 @@ impl TargetInstance {
             .iter()
             .map(|&target| game.target_ref(target).ok_or_else(|| format!("{target:?} was announced but is not an object")))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(TargetInstance { recipient, chosen })
+        Ok(TargetInstance::new(recipient, chosen))
+    }
+
+    /// What was chosen for this instance, each as the existence it was chosen in.
+    pub fn targets(&self) -> impl Iterator<Item = ObjectOrPlayer> + '_ {
+        let (undivided, divided): (&[ObjectOrPlayer], &[(ObjectOrPlayer, u64)]) = match &self.chosen {
+            AnnouncedTargets::Targets(targets) => (targets, &[]),
+            AnnouncedTargets::Divided(shares) => (&[], shares),
+        };
+        undivided.iter().copied().chain(divided.iter().map(|(target, _)| *target))
     }
 
     /// What was chosen for this instance, as it is now.
     pub fn as_resolved_targets(&self) -> impl Iterator<Item = ObjectOrPlayerId> + '_ {
-        self.chosen.iter().map(|chosen| chosen.id())
+        self.targets().map(|chosen| chosen.id())
+    }
+
+    /// CR 601.2d's announcement: `shares`, one a target in [`Self::targets`]'
+    /// order, each kept beside its target.
+    pub(crate) fn divide(&mut self, shares: &[u64]) {
+        self.chosen = AnnouncedTargets::Divided(self.targets().zip(shares.iter().copied()).collect());
+    }
+
+    /// Each target with its share, for an instance CR 601.2d divided.
+    pub fn division(&self) -> Option<&[(ObjectOrPlayer, u64)]> {
+        match &self.chosen {
+            AnnouncedTargets::Targets(_) => None,
+            AnnouncedTargets::Divided(shares) => Some(shares),
+        }
     }
 
     /// Whether this instance *targets* — CR 115.1's word, as opposed to a
@@ -274,6 +306,15 @@ impl<'a> DeclaredInstances<'a> {
         match self {
             DeclaredInstances::Announced(announced) => announced.get(ix).map(|inst| &inst.recipient),
             DeclaredInstances::Effect(effect) => effect.instance(ix),
+        }
+    }
+
+    /// What CR 601.2d announced for instance `ix`: nothing for a bare effect,
+    /// which announced nothing.
+    pub(crate) fn division(self, ix: usize) -> &'a [(ObjectOrPlayer, u64)] {
+        match self {
+            DeclaredInstances::Announced(announced) => announced.get(ix).and_then(TargetInstance::division).unwrap_or(&[]),
+            DeclaredInstances::Effect(_) => &[],
         }
     }
 }
@@ -731,14 +772,14 @@ impl GameState {
         let mut survived = false;
         let mut survivors = ChosenTargets::NONE;
         for inst in instances {
-            let existing = inst.chosen.iter().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
+            let existing = inst.targets().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked against its
                 // clause, so all of it that still exists is carried through.
                 survivors.push(existing);
                 continue;
             }
-            announced |= !inst.chosen.is_empty();
+            announced |= inst.targets().next().is_some();
             let before = survivors.all().len();
             survivors.push(existing.filter(|t| self.is_single_target_legal(&inst.recipient, t, you, announced_targets)));
             survived |= survivors.all().len() > before;

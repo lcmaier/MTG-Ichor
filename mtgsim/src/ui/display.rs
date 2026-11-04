@@ -437,6 +437,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             format!("Choose for {}", n(spell_id))
         }
         ChoiceKind::SelectRecipients { spell_id, .. } => format!("Choose targets for {}", n(spell_id)),
+        ChoiceKind::DivideAmong { source } => format!("Divide {} among its targets, at least one each", n(source)),
         ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
             format!("Split the generic part of {mana_cost} for {}", n(spell_or_ability_id))
         }
@@ -573,16 +574,24 @@ pub fn what_the_option_does(option: &ChoiceOption) -> Option<&'static str> {
 /// aimed at two creatures differ by nothing else. The row is on the board: CR
 /// 616.1 offered it.
 fn resolution_words(game: &GameState, source: ObjectId, resolution: ObjectId) -> String {
-    let row = game.replacement_effects.iter().find(|row| row.source == source && row.resolution.source == resolution);
+    let rows = || game.replacement_effects.iter().filter(|row| row.source == source && row.resolution.source == resolution);
     let spell = (source == resolution).then(|| game.objects.get(&source)).flatten().map(|spell| spell.card_data.rules_text.as_str());
-    let made_by = match (spell.filter(|text| !text.is_empty()), row.and_then(|row| row.made_by_text)) {
+    let made_by = match (spell.filter(|text| !text.is_empty()), rows().next().and_then(|row| row.made_by_text)) {
         (Some(text), _) => text.to_string(),
         (None, Some(text)) => format!("{text} ({resolution})"),
         (None, None) => format!("the effect made as {resolution} resolved"),
     };
-    match row.filter(|row| !row.targets.is_empty()) {
-        Some(row) => format!("{made_by}, targeting {}", targets_listed(game, &row.targets)),
-        None => made_by,
+    // A division's shields hold a target each, and the option names their
+    // resolution: its targets are every row's.
+    let mut targets: Vec<ObjectOrPlayer> = Vec::new();
+    for target in rows().flat_map(|row| &row.targets) {
+        if !targets.contains(target) {
+            targets.push(*target);
+        }
+    }
+    match targets.is_empty() {
+        true => made_by,
+        false => format!("{made_by}, targeting {}", targets_listed(game, &targets)),
     }
 }
 

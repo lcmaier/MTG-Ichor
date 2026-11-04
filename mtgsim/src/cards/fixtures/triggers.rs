@@ -19,12 +19,19 @@ use crate::types::zones::ZoneSet;
 
 /// Every castable fixture, by name, as `CardRegistry::fixture_pool` registers
 /// them.
-pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 5] = [
+pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 12] = [
     ("Fixture Curtain", fixture_curtain),
     ("Fixture Token Tally", fixture_token_tally),
     ("Fixture Mourning Ink", fixture_mourning_ink),
     ("Fixture Mourner's Tithe", fixture_mourners_tithe),
     ("Fixture First Creature's Tithe", fixture_first_creature_tithe),
+    ("Mogg Mob Fixture", super::mogg_mob_fixture),
+    ("Dragonlord Atarka Fixture", super::dragonlord_atarka_fixture),
+    ("Magma Opus Fixture", super::magma_opus_fixture),
+    ("Elven Rite Fixture", super::elven_rite_fixture),
+    ("Remedy Fixture", super::remedy_fixture),
+    ("Rolling Thunder Fixture", super::rolling_thunder_fixture),
+    ("Meteor Swarm Fixture", super::meteor_swarm_fixture),
 ];
 
 /// Fixture Curtain — {W}, instant: "Target creature becomes blocked." CR

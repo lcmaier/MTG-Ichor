@@ -158,6 +158,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         // it. A board that needs one adds the word.
         ChoiceKind::ChooseAlternativeCost { .. }
         | ChoiceKind::ChooseAdditionalCosts { .. }
+        | ChoiceKind::DivideAmong { .. }
         | ChoiceKind::ChooseSacrificeForCost { .. }
         | ChoiceKind::OrderTriggers { .. }
         | ChoiceKind::ChooseDelayedTriggerEvent { .. }

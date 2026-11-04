@@ -232,6 +232,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ScryOrder { source: None, bottom: true },
         ChoiceKind::LegendRule { legend_name: "Grizzly Bears".to_string() },
         ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
+        ChoiceKind::DivideAmong { source: object },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -265,9 +266,10 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ScryOrder { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
         ChoiceKind::AcceptAsObjectEnters { .. } => 30,
+        ChoiceKind::DivideAmong { .. } => 31,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..31).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..32).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

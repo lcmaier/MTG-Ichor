@@ -745,13 +745,7 @@ pub fn ask_select_recipients(
     if legal_selections.is_empty() || (min_selections == 0 && max_selections == 0) {
         return Vec::new();
     }
-    let options: Vec<ChoiceOption> = legal_selections
-        .iter()
-        .map(|t| match t {
-            ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
-            ObjectOrPlayerId::Player(id) => ChoiceOption::Player(*id),
-        })
-        .collect();
+    let options = recipient_options(legal_selections);
     let ctx = ChoiceContext::new(ChoiceKind::SelectRecipients {
         recipient: recipient.clone(),
         spell_id,
@@ -761,6 +755,32 @@ pub fn ask_select_recipients(
     // for "target creature" is the common shape of it.
     let indices = pick_unless_forced(dp, game, player, ctx, &options, (min_selections, max_selections), "select_recipients");
     indices.iter().map(|&i| legal_selections[i]).collect()
+}
+
+/// CR 601.2d — divide `total` among `targets`, each receiving at least one.
+/// One target, or as many targets as `total`, is one split and not asked.
+/// Returns each target's share, in `targets`' order.
+pub fn ask_divide_among(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    source: ObjectId,
+    targets: &[ObjectOrPlayerId],
+    total: u64,
+) -> Vec<u64> {
+    let ctx = ChoiceContext::new(ChoiceKind::DivideAmong { source });
+    allocate_unless_forced(dp, game, player, ctx, total, &recipient_options(targets), &vec![1; targets.len()], None, "divide_among")
+}
+
+/// Each object or player as an option names it.
+fn recipient_options(recipients: &[ObjectOrPlayerId]) -> Vec<ChoiceOption> {
+    recipients
+        .iter()
+        .map(|recipient| match recipient {
+            ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
+            ObjectOrPlayerId::Player(id) => ChoiceOption::Player(*id),
+        })
+        .collect()
 }
 
 /// Prompt the casting/activating player for a mana ability to activate

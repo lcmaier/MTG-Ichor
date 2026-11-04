@@ -108,6 +108,8 @@ pub struct RegisteredReplacementEffect {
     /// target chose: Safe Passage's, a regeneration's from an untargeted
     /// resolution.
     ///
+    /// A division's shield keeps its own target alone (CR 601.2d).
+    ///
     /// Its one reader is the row's label: two activations aimed at two
     /// creatures differ by nothing else. The `EffectRecipient` leaf that would
     /// say "the thing this effect targeted at resolution" arrives with the

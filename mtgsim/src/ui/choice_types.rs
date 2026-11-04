@@ -68,6 +68,11 @@ pub enum ChoiceKind {
     /// Select recipients for an effect (covers both MTG "target" and non-targeting
     /// "choose" — the `EffectRecipient` field distinguishes them).
     SelectRecipients { recipient: EffectRecipient, spell_id: ObjectId },
+    /// CR 601.2d — how `source`, the spell or ability on the stack, divides
+    /// an effect among its targets. The buckets are the targets, each
+    /// receiving at least one, and the total is what the text divides; asked
+    /// after every target is chosen, and not at all when one split is left.
+    DivideAmong { source: ObjectId },
     /// CR 601.2h — how the generic part of `mana_cost` is split across the
     /// types in the payer's pool, each pip's own type reserved first. The
     /// buckets are the pool's types; asked only when the split is not forced
@@ -386,6 +391,7 @@ impl ChoiceKind {
             ChoiceKind::ChooseAlternativeCost { spell_id } => Some(*spell_id),
             ChoiceKind::ChooseAdditionalCosts { spell_id } => Some(*spell_id),
             ChoiceKind::SelectRecipients { spell_id, .. } => Some(*spell_id),
+            ChoiceKind::DivideAmong { source } => Some(*source),
             ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } => {
                 Some(*spell_or_ability_id)
             }
@@ -431,6 +437,7 @@ impl ChoiceKind {
             ChoiceKind::ChooseAlternativeCost { .. } => "ChooseAlternativeCost",
             ChoiceKind::ChooseAdditionalCosts { .. } => "ChooseAdditionalCosts",
             ChoiceKind::SelectRecipients { .. } => "SelectRecipients",
+            ChoiceKind::DivideAmong { .. } => "DivideAmong",
             ChoiceKind::GenericManaAllocation { .. } => "GenericManaAllocation",
             ChoiceKind::OrderCostReductions { .. } => "OrderCostReductions",
             ChoiceKind::ManaAbilityWindow { .. } => "ManaAbilityWindow",

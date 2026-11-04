@@ -266,6 +266,13 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
                 amount_reads(amount)
             }
             crate::types::effects::TargetCount::Exactly(_) | crate::types::effects::TargetCount::UpTo(_) => TriggerBindingReads::NONE,
+            crate::types::effects::TargetCount::Divided(divided) => {
+                let among = match &divided.among {
+                    crate::types::effects::DividedAmong::ExactlyAmount(amount) => amount_reads(amount),
+                    crate::types::effects::DividedAmong::Between { .. } | crate::types::effects::DividedAmong::AnyNumber => TriggerBindingReads::NONE,
+                };
+                among | amount_reads(&divided.total)
+            }
         },
         EffectRecipient::ThisObject | EffectRecipient::Host => TriggerBindingReads::SOURCE,
         EffectRecipient::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*p),

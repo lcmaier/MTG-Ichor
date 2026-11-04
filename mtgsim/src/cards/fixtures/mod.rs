@@ -7,6 +7,7 @@
 //! when it is an instant standing in for a permanent's effect; an invented
 //! one takes a name no card prints.
 
+mod choices;
 mod layers;
 mod replacement;
 mod cost;
@@ -14,6 +15,7 @@ mod mana;
 mod triggers;
 mod state_based_actions;
 
+pub use choices::*;
 pub use layers::*;
 pub use replacement::*;
 pub use cost::*;

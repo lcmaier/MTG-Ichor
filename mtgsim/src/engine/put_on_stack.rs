@@ -21,8 +21,8 @@ use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::TargetInstance;
-use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, PlayerId};
+use crate::types::effects::{EffectRecipient, TargetCount};
+use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
@@ -36,7 +36,7 @@ use crate::oracle::x_values::legal_x_values;
 use crate::ui::ask::{
     ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs,
-    ask_choose_x_value, ask_select_recipients,
+    ask_choose_x_value, ask_divide_among, ask_select_recipients,
 };
 use crate::ui::decision::DecisionProvider;
 
@@ -201,7 +201,7 @@ impl GameState {
             }
         };
 
-        // --- 601.2d: division among targets is not asked — `backlog.md` §2.20 ---
+        // --- 601.2d: the division, announced with the targets above ---
 
         let entry = StackEntry {
             object_id: card_id,
@@ -299,12 +299,14 @@ impl GameState {
         Ok(())
     }
 
-    /// CR 601.2c — announce a choice for each instance of the word "target".
+    /// CR 601.2c and 601.2d — announce a choice for each instance of the word
+    /// "target", then each division among them.
     ///
-    /// One [`ask_select_recipients`] per instance, in printed order, and
-    /// nothing else: §2.20's sizing said "no new `DecisionProvider` shape" and
-    /// this is what that means. A spell with one instance asks exactly the one
-    /// question it asked before the loop existed.
+    /// One [`ask_select_recipients`] per instance, in printed order. A spell
+    /// with one instance asks exactly the one question it asked before the
+    /// loop existed. A division is announced after every target (Magma Opus
+    /// names its second instance before it divides its first), so a second
+    /// walk asks it.
     ///
     /// **Printed order is load-bearing.** Each instance is enumerated against
     /// the ones already announced, which is what `ObjectFilter::OtherThanInstance`
@@ -352,7 +354,7 @@ impl GameState {
             let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
             // CR 601.2c: "the number of targets will be defined by the
             // spell's text", and once determined it does not change.
-            let bounds = count.bounds(|amount| self.announced_target_count(amount, player_id, this_object, named_objects, x_value))?;
+            let bounds = count.bounds(|amount| self.amount_as_announced(amount, player_id, this_object, named_objects, x_value))?;
             let chosen = ask_select_recipients(
                 decisions, self, player_id, recipient, source_id,
                 &legal, bounds.fewest, bounds.most,
@@ -361,13 +363,23 @@ impl GameState {
             announced.push(TargetInstance::from_announcement(self, recipient.clone(), &chosen)?);
             earlier_targets.push(chosen);
         }
+        for instance in &mut announced {
+            let EffectRecipient::Target(_, TargetCount::Divided(divided)) = &instance.recipient else { continue };
+            let targets: Vec<ObjectOrPlayerId> = instance.as_resolved_targets().collect();
+            // CR 115.6: "any number" may be none, which divides nothing.
+            if !targets.is_empty() {
+                let total = self.amount_as_announced(&divided.total, player_id, this_object, named_objects, x_value)?;
+                instance.divide(&ask_divide_among(decisions, self, player_id, source_id, &targets, total));
+            }
+        }
         Ok(announced)
     }
 
-    /// A count of targets the text defines, read as the announcement starts:
-    /// "where X is" off the trigger's binding, or the X announced for the
-    /// spell or ability (CR 601.2b), or what the board says now.
-    fn announced_target_count(
+    /// An amount the text defines, read as the announcement starts: a count
+    /// of targets, or what a clause divides. "Where X is" off the trigger's
+    /// binding, or the X announced for the spell or ability (CR 601.2b), or
+    /// what the board says now.
+    fn amount_as_announced(
         &self,
         amount: &crate::types::effects::AmountExpr,
         controller: PlayerId,
@@ -390,10 +402,10 @@ impl GameState {
     pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause, dp: &dyn DecisionProvider) -> Result<(), String> {
         let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
         let mut targeted: Vec<(ObjectOrPlayer, u32)> = Vec::new();
-        for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(|instance| &instance.chosen) {
-            match targeted.iter_mut().find(|(seen, _)| seen == target) {
+        for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(TargetInstance::targets) {
+            match targeted.iter_mut().find(|(seen, _)| *seen == target) {
                 Some((_, instances)) => *instances += 1,
-                None => targeted.push((*target, 1)),
+                None => targeted.push((target, 1)),
             }
         }
         let ability_source = entry.ability_identity.map(|identity| identity.source);
