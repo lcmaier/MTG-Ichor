@@ -549,17 +549,30 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
 /// What made a row, as a person reads it. A spell is its own source, so the
 /// name beside this already shows its id and its text is its card's (CR 405.4).
 /// An ability's text is the row's, with the stack object that tells two
-/// activations apart. The row is on the board: CR 616.1 offered it.
+/// activations apart. Either way its targets follow, since two activations
+/// aimed at two creatures differ by nothing else. The row is on the board: CR
+/// 616.1 offered it.
 fn resolution_words(game: &GameState, source: ObjectId, resolution: ObjectId) -> String {
-    let spell = (source == resolution).then(|| game.objects.get(&source)).flatten().map(|spell| spell.card_data.rules_text.as_str());
-    if let Some(text) = spell.filter(|text| !text.is_empty()) {
-        return text.to_string();
-    }
     let row = game.replacement_effects.iter().find(|row| row.source == source && row.resolution.source == resolution);
-    match row.and_then(|row| row.made_by_text) {
-        Some(text) => format!("{text} ({resolution})"),
-        None => format!("the effect made as {resolution} resolved"),
+    let spell = (source == resolution).then(|| game.objects.get(&source)).flatten().map(|spell| spell.card_data.rules_text.as_str());
+    let made_by = match (spell.filter(|text| !text.is_empty()), row.and_then(|row| row.made_by_text)) {
+        (Some(text), _) => text.to_string(),
+        (None, Some(text)) => format!("{text} ({resolution})"),
+        (None, None) => format!("the effect made as {resolution} resolved"),
+    };
+    match row.filter(|row| !row.targets.is_empty()) {
+        Some(row) => format!("{made_by}, targeting {}", targets_listed(game, &row.targets)),
+        None => made_by,
     }
+}
+
+/// `targets`, each as the board names it, as a list a label reads.
+fn targets_listed(game: &GameState, targets: &[ObjectOrPlayer]) -> String {
+    let target_name = |target: &ObjectOrPlayer| match target.id() {
+        ObjectOrPlayerId::Object(id) => named(game, id),
+        ObjectOrPlayerId::Player(player) => player_name(player),
+    };
+    targets.iter().map(target_name).collect::<Vec<_>>().join(" and ")
 }
 
 /// An option's ability as a person reads it: its text as the engine read it,

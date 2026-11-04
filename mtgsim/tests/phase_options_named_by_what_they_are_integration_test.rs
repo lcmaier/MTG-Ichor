@@ -11,7 +11,7 @@
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
-use mtgsim::cards::printings::{grizzly_bears, lightning_bolt, mending_hands, words_of_worship};
+use mtgsim::cards::printings::{grizzly_bears, lightning_bolt, mending_hands, samite_healer, words_of_worship};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
@@ -344,6 +344,33 @@ fn a_row_a_spell_made_reads_as_its_cards_text() {
     let drawn = drawing.drawn.into_inner();
     let text = "Prevent the next 4 damage that would be dealt to any target this turn.";
     for hands in [one, other] {
-        assert!(drawn.contains(&format!("Mending Hands ({hands}) · {text}")), "{drawn:?}");
+        assert!(drawn.contains(&format!("Mending Hands ({hands}) · {text}, targeting Grizzly Bears ({bears})")), "{drawn:?}");
     }
+}
+
+/// Two activations of one ability aimed at two targets: where a row redirects
+/// damage, as Nomads en-Kor's does, the row picked decides who takes it, and
+/// its targets are all that tells the two apart.
+#[test]
+fn a_row_says_which_target_it_was_made_for() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let card = samite_healer();
+    let healer = put_on_battlefield(&mut game, Arc::clone(&card), 0);
+    let mut label_of_a_shield_on = |target: ObjectOrPlayerId| {
+        let ability = game.add_object(GameObject::new(Arc::clone(&card), 0, Zone::Stack));
+        let ctx = ResolutionContext {
+            ability_source: game.object_ref(healer),
+            targets: ChosenTargets::one(vec![target]),
+            ..ResolutionContext::untargeted(ability, 0, GeneratedBy::ActivatedAbility)
+        };
+        game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("the ability resolves");
+        option_label(&game, &ChoiceOption::Replacement(ReplacementOption::FromResolution { source: healer, resolution: ability }))
+    };
+
+    let at_the_bears = label_of_a_shield_on(ObjectOrPlayerId::Object(bears));
+    let at_the_opponent = label_of_a_shield_on(ObjectOrPlayerId::Player(1));
+
+    assert!(at_the_bears.ends_with(&format!(", targeting Grizzly Bears ({bears})")), "{at_the_bears}");
+    assert!(at_the_opponent.ends_with(", targeting Player 1"), "{at_the_opponent}");
 }

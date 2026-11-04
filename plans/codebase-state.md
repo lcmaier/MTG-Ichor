@@ -3228,8 +3228,8 @@ Censer-Bearer. Items 25, 40, 47 and 65 are updated above; `replacement-
 architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
 `plans/traces/rd-2-a-decision-is-per-subject.html`.
 
-90. **A resolution-created row keeps its targets, and nothing reads them
-    yet.** `RegisteredReplacementEffect.targets` is written by
+90. **A resolution-created row keeps its targets, and only its label reads
+    them.** `RegisteredReplacementEffect.targets` is written by
     `Primitive::CreateReplacement` because the targets are unrecoverable a
     moment later and Divine Deflection's rider — "deals that much damage to
     any target", chosen at cast — needs them beside the event's subject
