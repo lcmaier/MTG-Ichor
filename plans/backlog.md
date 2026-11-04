@@ -2566,6 +2566,23 @@ chooses how much of it to show. Arena shows a finality counter's words only on
 a hover or a close look at the card. So a label stays short, and what a thing
 does is data beside it; `information-model` decides what each seat's copy holds.
 
+**Designed in `information-model-design`** (the owner, 2026-11-04, at #308):
+what a client is handed and what it answers with, since a seat's copy and the
+structure it arrives in inform each other, and the CLI's AI games need it as
+much as Phase 10 does. The vocabulary is unified and the forms are not: one
+table per `ChoiceKind` of its name, its log word, its scenario word and its
+fields, which v1's documentation can be generated from, while a `then:` line
+stays a macro over several questions, written before any id exists. Three
+things wait on it:
+- **A setup line's word for a division**, and every word like it: `targeting
+  Grizzly Bears for 2` keeps a share with its target.
+- **`ability N`**, a scenario word that names a position.
+- **What an answer names.** `pick_n`, `allocate` and `choose_ordering` return
+  positions into the list they were handed, so `allocate`'s `Vec<u64>` is a list
+  kept parallel to `buckets`: the shape decision 5 refused for a division, at
+  the boundary. An answer that names its options takes the position out of the
+  trait. About 100 providers change, and no game, log or record moves.
+
 **Open question 1: where the engine runs.** `roadmap-v2.md` §E and §6 named
 Wasm; they point here now and leave it open. In a browser tab the blocking
 provider needs one of four things:

@@ -1067,8 +1067,8 @@ estimate of 440–760 (the ratio the later rows are re-sized by).
 - **The typed matcher**: `ChoiceOption` derives `PartialEq`; scripts, the
   recording provider and setup lines find a name through `position_named`:
   two equal options are taken in turn, a name fitting two different ones is
-  refused. `(n of m)` is gone, and the consumer test replays through a
-  provider that reverses every list.
+  refused. `(n of m)` is gone, and `Replay`'s tests offer each list in another
+  order than the log wrote it.
 - **A cost names its whole cost**: "Escape {3}{B}{B}, exile 5 from your
   graveyard".
 
@@ -1087,8 +1087,7 @@ resolved; a spell's text stays on its card, whose name shows the id.
 
 ### `divided-among-targets` — an effect divided among its targets — ✅ landed 2026-11-03
 
-PR #308. 1,476 lines of code and tests against ~1,200–1,650, added and removed,
-a moved test provider not counted.
+PR #308. 1,578 lines of code and tests against ~1,200–1,650, added and removed.
 - **The labels** (#307's review): a row's label lists its resolution's targets,
   and `ui::display::what_the_option_does` holds a counter's CR 122.1 words
   beside a label that stays short.
