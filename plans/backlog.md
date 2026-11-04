@@ -1375,7 +1375,7 @@ mechanic rather than a migration, which is why it is here and not in
   UI enough info to display the gamestate properly." That prompt turned out to
   be fine; the absence of anything that would have told us is the entry.
 
-### 2.20 Several target clauses on one spell — **shipped 2026-09-17 (A4i), except CR 601.2d**
+### 2.20 Several target clauses on one spell — **shipped 2026-09-17 (A4i), CR 601.2d 2026-11-03**
 
 - **What shipped.** CR 115.3's instance is the unit: `StackEntry.chosen_targets`
   is a `Vec<TargetInstance>`, `Effect::instances` walks an effect's
@@ -1396,16 +1396,9 @@ mechanic rather than a migration, which is why it is here and not in
   the consumers are Seeds of Strength (pooled), Incremental Growth, Jagged
   Lightning, Plague Spores and Seat of the Synod. The A/B was `IDENTICAL` on
   `performance` and found a live bug on `stress` (`codebase-state.md` item 152).
-- **What is left: CR 601.2d, and it is scheduled.** ATOM-601.2d-001 and -002 —
-  "deal 3 damage divided as you choose among one, two, or three targets". It is
-  a second mechanism rather than a second clause: `TargetCount` gains a divided
-  form, `TargetInstance` its shares paired with its targets in one list,
-  `DealDamage` a per-target amount, and the `DecisionProvider` a prompt that
-  returns numbers rather than indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
-  written around its numbers) and Forked Bolt as the cheap pooled option at one
-  mana. `roadmap-v2.md` row **`divided-among-targets`**, built inside
-  `modes-plus-choice-kinds` since `route-review` (2026-10-29), before the
-  decks, three of whose cards divide.
+- **CR 601.2d shipped as `divided-among-targets`**: its as-built is
+  `choices-architecture.md`'s, and what is left of a division is the untargeted
+  half (CR 608.2d), `costs-and-choices-at-resolution`'s.
 - **The rest of this entry is the record of the design as it was sized**, kept
   because the atoms and the card counts are still what A4j is sized against.
 

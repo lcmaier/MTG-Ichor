@@ -135,6 +135,7 @@ is derived.
 | 2026-10-21 | State triggers, the draw, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
 | 2026-10-22 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
 | 2026-11-02 | Every option named by what it is | `options-named-by-what-they-are` | `choices-architecture.md` |
+| 2026-11-03 | An effect divided among its targets | `divided-among-targets` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -148,7 +149,6 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| An effect divided among its targets | `divided-among-targets` | `choices-architecture.md` |
 | The orders the CR hands a player | `orders-the-cr-hands-a-player` | `choices-architecture.md` |
 | CR 700.2 whole | `modal-spells-and-abilities` | `choices-architecture.md` |
 | A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
@@ -176,7 +176,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 218 |
 | …of them in `PERFORMANCE_POOL` | 125 |
-| `#[test]` functions | 2921 |
+| `#[test]` functions | 2922 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 

@@ -1,6 +1,6 @@
 # Choices — the modes, payments, divisions, orders and values a card or rule asks a player for
 
-> **Status:** designed, no code. `modes-plus-choice-kinds` (`roadmap-v2.md`
+> **Status:** designed, and building. `modes-plus-choice-kinds` (`roadmap-v2.md`
 > step 5 of "From triggers to v0.5") wrote it as a design note, reviewed at
 > its design stop on #307 over three rounds; every decision below is the
 > owner's (2026-11-01 to 2026-11-02). It is built as the six PRs under "The
@@ -1076,6 +1076,45 @@ A row's label shows what made it (the owner, at #307, after playing the
 boards): an ability's text, which the row keeps as it is made (CR 405.4), with
 the stack object's id, the order the two went on the stack, not the order they
 resolved; a spell's text stays on its card, whose name shows the id.
+
+### `divided-among-targets` — an effect divided among its targets — ✅ landed 2026-11-03
+
+1,324 lines of code and tests against ~1,200–1,650.
+- **The labels** (#307's review): a row's label lists its resolution's targets,
+  and `ui::display::what_the_option_does` holds a counter's CR 122.1 words
+  beside a label that stays short.
+- **The shape** (decision 5's A): `TargetInstance.chosen` is private and an
+  enum, read through `targets()`. `TargetCount::Divided` holds `among`
+  (`Between`, `AnyNumber`, `ExactlyAmount`) and `total`. The total caps the
+  targets on every shape, and a floor past it refuses the announcement.
+- **The announcement**: a second walk in `announce_targets`, after every
+  instance's targets, so all three paths ask `ChoiceKind::DivideAmong`. One
+  split is not asked. Reading the total there fixes it (CR 608.2d's last
+  sentence).
+- **Resolution** (`resolve_divided`): only the atom that declared the division
+  reads shares; a later atom naming its instance reads targets alone. Damage
+  and counters each stay one batch, a shield is a row per target at its share,
+  and any other verb is refused.
+
+Three places it differs from decision 5's words:
+- **The survivors stay ids.** `ChosenTargets` gains nothing: the walk finds each
+  survivor's share in the announcement by identity, since one instance never
+  holds a target twice (CR 601.2c). No second list is kept in step.
+- **The total is written twice and authored once.** `Effect::instances` hands
+  the announcement recipients and no atom, so the clause carries the total while
+  the atom prints it. `deal_damage_divided`, `distribute_counters` and
+  `prevent_the_next_damage_divided` write both from one argument.
+- **Counters and shields ship here**, though the row names damage: CR 601.2d
+  says "damage or counters", 39 printed cards distribute, and each arm is under
+  twenty lines.
+
+**CR 115.7f has no test**, since the engine rewrites no target today. The first
+writer is `spell-copies`' CR 707.10c, and the share is in the slot it rewrites.
+
+**Five printed cards divide a total the clause cannot state yet**: Fight with
+Fire, Avacyn's Judgment and Pollen Remedy change the total on a kicker or a
+madness cost, Shatterskull Smashing on its X, and Sundering Stroke stops
+dividing on the mana spent. Each needs a total read off how it was cast.
 
 ## 6. Found while designing
 
