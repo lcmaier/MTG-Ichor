@@ -1399,9 +1399,9 @@ mechanic rather than a migration, which is why it is here and not in
 - **What is left: CR 601.2d, and it is scheduled.** ATOM-601.2d-001 and -002 —
   "deal 3 damage divided as you choose among one, two, or three targets". It is
   a second mechanism rather than a second clause: `TargetCount` gains a divided
-  form, `TargetInstance` a parallel allocation, `DealDamage` a per-target
-  amount, and the `DecisionProvider` a prompt that returns numbers rather than
-  indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
+  form, `TargetInstance` its shares paired with its targets in one list,
+  `DealDamage` a per-target amount, and the `DecisionProvider` a prompt that
+  returns numbers rather than indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
   written around its numbers) and Forked Bolt as the cheap pooled option at one
   mana. `roadmap-v2.md` row **`divided-among-targets`**, built inside
   `modes-plus-choice-kinds` since `route-review` (2026-10-29), before the
