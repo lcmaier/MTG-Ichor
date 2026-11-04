@@ -11,14 +11,22 @@
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
+use mtgsim::cards::printings::{grizzly_bears, lightning_bolt, mending_hands, words_of_worship};
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::events::cause::GeneratedBy;
+use mtgsim::objects::card_data::CardData;
+use mtgsim::objects::object::GameObject;
 use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, Chosen, GameStart};
 use mtgsim::state::game_state::GameState;
-use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::mana::ManaCost;
+use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, test_dp};
+use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceContext, ChoiceKind, ChoiceOption, TriggerOption, TriggeredAbility};
+use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceContext, ChoiceKind, ChoiceOption, ReplacementOption, TriggerOption, TriggeredAbility};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::display::{format_event_log, option_label};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -281,4 +289,61 @@ fn a_copied_ability_reads_as_its_text_while_the_copy_enters() {
 
     let drawn = drawing.drawn.into_inner();
     assert!(drawn.contains(&format!("Clone ({clone}) · Devour 3")), "the copied devour reads as itself: {drawn:?}");
+}
+
+/// Two activations of Words of Worship leave two rows that read alike: a
+/// person sees the ability's text, and the stack object tells them apart.
+#[test]
+fn a_row_an_ability_made_reads_as_its_text_and_its_stack_object() {
+    let mut game = setup_game(2);
+    fill_library(&mut game, 0, 2);
+    let words = put_on_battlefield(&mut game, words_of_worship(), 0);
+    let mut activate = || {
+        game.players[0].mana_pool.add(ManaType::Colorless, 1);
+        game.activate_ability(0, words, 0, &ManaWindowStop::new(test_dp())).expect("{1} is in the pool");
+        let ability = *game.stack.last().expect("the ability is on the stack");
+        game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
+        ability
+    };
+    let (first, second) = (activate(), activate());
+
+    let answers = ScriptedDecisionProvider::new();
+    let either = ChoiceOption::Replacement(ReplacementOption::FromResolution { source: words, resolution: second });
+    answers.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![either]);
+    let drawing = DrawsReplacements { inner: &answers, drawn: RefCell::new(Vec::new()) };
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    game.resolve_effect(&draw, &ResolutionContext::untargeted(words, 0, GeneratedBy::ActivatedAbility), &drawing).expect("the draw resolves");
+
+    let drawn = drawing.drawn.into_inner();
+    let text = "{1}: The next time you would draw a card this turn, you gain 5 life instead.";
+    for made_by in [first, second] {
+        assert!(drawn.contains(&format!("Words of Worship ({words}) · {text} ({made_by})")), "{drawn:?}");
+    }
+}
+
+/// A spell is the object that made its row, so the card's id already tells two
+/// apart and the label does not print it twice.
+#[test]
+fn a_row_a_spell_made_reads_as_its_cards_text() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let at_the_bears = || ChosenTargets::one(vec![ObjectOrPlayerId::Object(bears)]);
+    let mut resolved = |card: Arc<CardData>, dp: &dyn DecisionProvider| {
+        let id = game.add_object(GameObject::new(Arc::clone(&card), 0, Zone::Stack));
+        let ctx = ResolutionContext { targets: at_the_bears(), ..ResolutionContext::untargeted(id, 0, GeneratedBy::Spell) };
+        game.resolve_effect(&card.abilities[0].effect, &ctx, dp).expect("the spell resolves");
+        id
+    };
+    let (one, other) = (resolved(mending_hands(), &test_dp()), resolved(mending_hands(), &test_dp()));
+
+    let answers = ScriptedDecisionProvider::new();
+    answers.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(one)]);
+    let drawing = DrawsReplacements { inner: &answers, drawn: RefCell::new(Vec::new()) };
+    resolved(lightning_bolt(), &drawing);
+
+    let drawn = drawing.drawn.into_inner();
+    let text = "Prevent the next 4 damage that would be dealt to any target this turn.";
+    for hands in [one, other] {
+        assert!(drawn.contains(&format!("Mending Hands ({hands}) · {text}")), "{drawn:?}");
+    }
 }

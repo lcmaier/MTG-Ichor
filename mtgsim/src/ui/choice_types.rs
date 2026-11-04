@@ -777,7 +777,7 @@ impl GameState {
 
 /// `ability` among `id`'s abilities as the layers give them. Read as an
 /// observer, so a game logged and one not count alike.
-fn ability_as_read(game: &GameState, id: ObjectId, ability: AbilityId) -> AbilityAsRead {
+pub(crate) fn ability_as_read(game: &GameState, id: ObjectId, ability: AbilityId) -> AbilityAsRead {
     game.unobserved(|| read_in(&crate::oracle::characteristics::get_effective_abilities(game, id), ability))
 }
 

@@ -528,7 +528,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
             format!("{} · {which}{about}", n(&source.id))
         }
         ChoiceOption::Replacement(ReplacementOption::FromResolution { source, resolution }) => {
-            format!("{} · the effect made as {resolution} resolved", n(source))
+            format!("{} · {}", n(source), resolution_words(game, *source, *resolution))
         }
         ChoiceOption::Replacement(ReplacementOption::Ability { object, granted_by, read_as, .. }) => {
             format!("{} · {}", n(&object.id), ability_words(game, *read_as, *granted_by))
@@ -543,6 +543,22 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::Replacement(ReplacementOption::Rule { object, rule: GameRuleReplacement::CommanderZone }) => {
             format!("{} · the commander rule", n(&object.id))
         }
+    }
+}
+
+/// What made a row, as a person reads it. A spell is its own source, so the
+/// name beside this already shows its id and its text is its card's (CR 405.4).
+/// An ability's text is the row's, with the stack object that tells two
+/// activations apart. The row is on the board: CR 616.1 offered it.
+fn resolution_words(game: &GameState, source: ObjectId, resolution: ObjectId) -> String {
+    let spell = (source == resolution).then(|| game.objects.get(&source)).flatten().map(|spell| spell.card_data.rules_text.as_str());
+    if let Some(text) = spell.filter(|text| !text.is_empty()) {
+        return text.to_string();
+    }
+    let row = game.replacement_effects.iter().find(|row| row.source == source && row.resolution.source == resolution);
+    match row.and_then(|row| row.made_by_text) {
+        Some(text) => format!("{text} ({resolution})"),
+        None => format!("the effect made as {resolution} resolved"),
     }
 }
 

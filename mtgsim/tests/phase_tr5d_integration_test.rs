@@ -836,6 +836,7 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
         id: ReplacementEffectId::UNASSIGNED,
         source: shield,
         resolution: mtgsim::events::event::ResolutionStamp { source: shield, controller: 1 },
+        made_by_text: None,
         controller: 1,
         generated_by: GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

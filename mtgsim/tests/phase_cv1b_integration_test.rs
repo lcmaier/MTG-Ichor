@@ -160,6 +160,7 @@ fn replacement_row(game: &mut GameState, def: ReplacementDef) {
         id: ReplacementEffectId::UNASSIGNED,
         source,
         resolution: mtgsim::events::event::ResolutionStamp { source, controller: 0 },
+        made_by_text: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

@@ -75,6 +75,11 @@ pub struct RegisteredReplacementEffect {
     /// ability's own object (CR 608.2n), tells two rows of one source apart
     /// in CR 616.1's question.
     pub resolution: ResolutionStamp,
+    /// The text of the ability that made it, which its stack object had (CR
+    /// 405.4) and which goes with that object (CR 608.2n), for a client to
+    /// show in that question. `None` for a spell's, whose text stays on its
+    /// card, and for an ability its source no longer has.
+    pub made_by_text: Option<&'static str>,
     /// The player who controlled that spell or ability. Resolves `PlayerRef::You`
     /// in the def's filters, and is CR 611.2c's locked-at-resolution value.
     pub controller: PlayerId,
@@ -333,6 +338,7 @@ mod tests {
             id: ReplacementEffectId::UNASSIGNED,
             source,
             resolution: ResolutionStamp { source, controller: 0 },
+            made_by_text: None,
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             duration,
@@ -352,6 +358,7 @@ mod tests {
             id: ReplacementEffectId::UNASSIGNED,
             source,
             resolution: ResolutionStamp { source, controller: 0 },
+            made_by_text: None,
             controller: 0,
             generated_by: crate::events::cause::GeneratedBy::Spell,
             duration: Duration::UntilEndOfTurn,
