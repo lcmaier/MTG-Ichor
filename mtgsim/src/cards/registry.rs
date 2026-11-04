@@ -1564,30 +1564,11 @@ mod instance_references {
     fn every_instance_back_reference_names_a_declared_clause() {
         fn check(what: &str, effect: &Effect) {
             let declared = effect.instances().len();
-            let mut stack = vec![effect];
-            while let Some(e) = stack.pop() {
-                match e {
-                    Effect::Atom(_, EffectRecipient::SameInstanceAs(ix)) => assert!(
-                        *ix < declared,
-                        "{what} refers to instance {ix} of \"target\" but declares {declared}"
-                    ),
-                    Effect::Atom(..) => {}
-                    Effect::Sequence(subs) | Effect::Modal { modes: subs, .. } => {
-                        stack.extend(subs.iter())
-                    }
-                    Effect::Conditional(_, inner)
-                    | Effect::FunctionsIn(_, inner)
-                    | Effect::Optional { effect: inner, .. }
-                    | Effect::Remember(inner)
-                    | Effect::ForEach(_, inner)
-                    | Effect::Repeat(_, inner) => stack.push(inner),
-                    Effect::Triggered(def) => stack.push(&def.effect),
-                    Effect::Replacement(_)
-                    | Effect::Restriction(_)
-                    | Effect::CostModification(_)
-                    | Effect::TriggerMultiplier(_) => {}
+            for_each_atom(effect, &mut |_, recipient| {
+                if let EffectRecipient::SameInstanceAs(ix) = recipient {
+                    assert!(*ix < declared, "{what} refers to instance {ix} of \"target\" but declares {declared}");
                 }
-            }
+            });
         }
 
         let registry = CardRegistry::default_registry();
@@ -1606,6 +1587,54 @@ mod instance_references {
                 check(&format!("{name} as a spell"), &effect);
             }
         }
+    }
+
+    /// Every instruction of `effect`, with its recipient.
+    fn for_each_atom<'a>(effect: &'a Effect, f: &mut impl FnMut(&'a crate::types::effects::Primitive, &'a EffectRecipient)) {
+        let mut stack = vec![effect];
+        while let Some(e) = stack.pop() {
+            match e {
+                Effect::Atom(primitive, recipient) => f(primitive, recipient),
+                Effect::Sequence(subs) | Effect::Modal { modes: subs, .. } => stack.extend(subs.iter()),
+                Effect::Conditional(_, inner)
+                | Effect::FunctionsIn(_, inner)
+                | Effect::Optional { effect: inner, .. }
+                | Effect::Remember(inner)
+                | Effect::ForEach(_, inner)
+                | Effect::Repeat(_, inner) => stack.push(inner),
+                Effect::Triggered(def) => stack.push(&def.effect),
+                Effect::Replacement(_) | Effect::Restriction(_) | Effect::CostModification(_) | Effect::TriggerMultiplier(_) => {}
+            }
+        }
+    }
+
+    /// CR 601.2d's total has two homes: the clause carries it to the
+    /// announcement and the atom prints it. Nothing reads the atom's copy, so
+    /// this is what keeps them one number, on every card and castable fixture.
+    /// A shield prints none, each row's count being its target's share.
+    #[test]
+    fn every_divided_atom_prints_what_its_clause_divides() {
+        use crate::types::effects::{Primitive, TargetCount};
+        let pool = CardRegistry::fixture_pool();
+        let mut names: Vec<String> = pool.cards.keys().cloned().collect();
+        names.sort();
+        let mut divided = 0;
+        for name in names {
+            for ability in (pool.cards[name.as_str()])().abilities.iter() {
+                for_each_atom(&ability.effect, &mut |primitive, recipient| {
+                    let EffectRecipient::Target(_, TargetCount::Divided(clause)) = recipient else { return };
+                    divided += 1;
+                    match primitive {
+                        Primitive::DealDamage { amount, .. } | Primitive::AddCounters { amount, .. } => {
+                            assert_eq!(amount, &clause.total, "{name} prints one amount and divides another");
+                        }
+                        Primitive::CreateReplacement(..) => {}
+                        other => panic!("{name} divides {other:?}, which reads no share"),
+                    }
+                });
+            }
+        }
+        assert!(divided >= 8, "the walk found {divided} divided atoms, and Arc Lightning and seven fixtures print one each");
     }
 
     /// A second change in one sentence ("gets +1/+0 and gains first strike

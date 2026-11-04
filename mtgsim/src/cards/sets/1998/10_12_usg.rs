@@ -10,7 +10,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, DividedAmong, ManaOutput, ObjectSet, SelectionFilter};
+use crate::types::effects::{AmountExpr, ManaOutput, ObjectSet, SelectionFilter, TargetCount};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::RetargetSpec;
 
@@ -37,7 +37,7 @@ pub fn arc_lightning() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, deal_damage_divided(SelectionFilter::Any, DividedAmong::one_to(3), 3)))
+        .ability(spell_ability(text, deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 3), 3)))
         .build()
 }
 

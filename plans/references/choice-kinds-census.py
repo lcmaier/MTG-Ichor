@@ -570,6 +570,51 @@ def _(c, t):
     return re.search(r"prevent the next [^.]* divided as you choose", t, re.I)
 
 
+def among_targets(t):
+    """What each division among targets is among, its first clause's words."""
+    return [m.group(1).lower() for targeted, m in divisions(t) if targeted]
+
+
+@family("divided, its count: one, two, or three")
+def _(c, t):
+    return any(re.match(r"(?:one|two)(?:,| or)", among) for among in among_targets(t))
+
+
+@family("divided, its count: up to N")
+def _(c, t):
+    return any(re.match(r"up to (?:one|two|three|four|five|six)\b", among) for among in among_targets(t))
+
+
+@family("divided, its count: any number")
+def _(c, t):
+    return any(among.startswith("any number") for among in among_targets(t))
+
+
+@family("divided, its count: X or up to X")
+def _(c, t):
+    return any(re.match(r"(?:up to )?x\b", among) for among in among_targets(t))
+
+
+@family("divided, its verb: damage")
+def _(c, t):
+    return any(targeted and m.group(0).lower().startswith("divided") for targeted, m in divisions(t))
+
+
+@family("divided, its verb: counters")
+def _(c, t):
+    return any(targeted and m.group(0).lower().startswith("distribute") for targeted, m in divisions(t))
+
+
+@family("divided evenly, no player's split (not CR 601.2d)")
+def _(c, t):
+    return re.search(r"\bdivided evenly\b", t, re.I)
+
+
+@family("divided: a later clause reads a target's share")
+def _(c, t):
+    return bool(divisions(t)) and re.search(r"\bfor each [^.]*counter you put on [^.]*this way\b", t, re.I)
+
+
 @family("order: a library order, \"in any order\"")
 def _(c, t):
     return ANY_ORDER_LIBRARY.search(t)

@@ -12,7 +12,7 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, CounterType, DividedAmong, Effect, ObjectFilter, SelectionFilter};
+use crate::types::effects::{AmountExpr, CounterType, Effect, ObjectFilter, SelectionFilter, TargetCount};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::triggers::TriggerSubject;
 
@@ -32,7 +32,7 @@ pub fn mogg_mob_fixture() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Goblin))
         .power_toughness(3, 3)
         .rules_text(text)
-        .ability(activated_ability(text, vec![Cost::SacrificeSelf], deal_damage_divided(SelectionFilter::Any, DividedAmong::one_to(3), 3)))
+        .ability(activated_ability(text, vec![Cost::SacrificeSelf], deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 3), 3)))
         .build()
 }
 
@@ -54,7 +54,7 @@ pub fn dragonlord_atarka_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(triggered_ability(
             text,
-            whenever(enters(TriggerSubject::ThisObject), deal_damage_divided(theirs, DividedAmong::AnyNumber, 5)),
+            whenever(enters(TriggerSubject::ThisObject), deal_damage_divided(theirs, TargetCount::AnyNumber, 5)),
         ))
         .build()
 }
@@ -73,7 +73,7 @@ pub fn magma_opus_fixture() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(vec![
-                deal_damage_divided(SelectionFilter::Any, DividedAmong::AnyNumber, 4),
+                deal_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, 4),
                 tap(targets(2, SelectionFilter::Permanent(ObjectFilter::All))),
             ]),
         ))
@@ -92,7 +92,7 @@ pub fn elven_rite_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            distribute_counters(SelectionFilter::Creature, DividedAmong::one_to(2), CounterType::PlusOnePlusOne, 2),
+            distribute_counters(SelectionFilter::Creature, TargetCount::Between(1, 2), CounterType::PlusOnePlusOne, 2),
         ))
         .build()
 }
@@ -107,7 +107,7 @@ pub fn remedy_fixture() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell_ability(text, prevent_the_next_damage_divided(SelectionFilter::Any, DividedAmong::AnyNumber, 5)))
+        .ability(spell_ability(text, prevent_the_next_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, 5)))
         .build()
 }
 
@@ -121,7 +121,7 @@ pub fn rolling_thunder_fixture() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, deal_damage_divided(SelectionFilter::Any, DividedAmong::AnyNumber, AmountExpr::X)))
+        .ability(spell_ability(text, deal_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, AmountExpr::X)))
         .build()
 }
 
@@ -138,7 +138,7 @@ pub fn meteor_swarm_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            deal_damage_divided(SelectionFilter::Creature, DividedAmong::ExactlyAmount(AmountExpr::X), 8),
+            deal_damage_divided(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X), 8),
         ))
         .build()
 }

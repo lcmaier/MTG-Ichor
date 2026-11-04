@@ -1217,6 +1217,10 @@ pub enum TargetCount {
     /// amount, read the same way. Every printed one is the X announced
     /// before its targets (CR 601.2b).
     ExactlyAmount(AmountExpr),
+    /// "One, two, or three targets": at least the first, at most the second.
+    Between(u32, u32),
+    /// "Any number of targets".
+    AnyNumber,
     /// "Divided as you choose among one, two, or three targets" (CR 601.2d).
     /// Boxed, since every recipient carries a count and few divide.
     Divided(Box<DividedCount>),
@@ -1233,55 +1237,11 @@ impl EffectRecipient {
 /// divides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DividedCount {
-    pub among: DividedAmong,
+    pub among: TargetCount,
     /// The amount divided, read as the targets are announced, which fixes it
     /// (CR 608.2d's last sentence). The announcement is its reader: the atom
     /// that prints the amount acts by each target's share.
     pub total: AmountExpr,
-}
-
-/// How many targets a clause may divide among (CR 601.2d).
-#[derive(Debug, Clone, PartialEq)]
-pub enum DividedAmong {
-    /// "One, two, or three targets"; "up to two target creatures" is a
-    /// `fewest` of 0.
-    Between { fewest: u32, most: u32 },
-    /// "Any number of targets".
-    AnyNumber,
-    /// "X target creatures": exactly as many as the amount (Meteor Swarm).
-    ExactlyAmount(AmountExpr),
-}
-
-impl DividedAmong {
-    /// "One, two, or three targets", `most` being the last word.
-    pub fn one_to(most: u32) -> Self {
-        DividedAmong::Between { fewest: 1, most }
-    }
-
-    /// "Up to two target creatures".
-    pub fn up_to(most: u32) -> Self {
-        DividedAmong::Between { fewest: 0, most }
-    }
-}
-
-impl DividedCount {
-    /// Every target receives at least one (CR 601.2d), so the total caps the
-    /// targets, and a count the total cannot reach cannot be announced.
-    fn bounds(&self, amount: impl Fn(&AmountExpr) -> Result<u64, String>) -> Result<TargetBounds, String> {
-        let total = amount(&self.total)? as usize;
-        let (fewest, most) = match &self.among {
-            DividedAmong::Between { fewest, most } => (*fewest as usize, *most as usize),
-            DividedAmong::AnyNumber => (0, total),
-            DividedAmong::ExactlyAmount(x) => {
-                let n = amount(x)? as usize;
-                (n, n)
-            }
-        };
-        if fewest > total {
-            return Err(format!("{fewest} targets can't each receive at least one of {total} (CR 601.2d)"));
-        }
-        Ok(TargetBounds { fewest, most: most.min(total) })
-    }
 }
 
 /// The fewest and most targets an instance of "target" may have, once its
@@ -1295,7 +1255,10 @@ pub struct TargetBounds {
 impl TargetCount {
     /// The bounds the instance announces, `amount` reading a count the text
     /// defines as the announcement starts.
-    pub fn bounds(&self, amount: impl Fn(&AmountExpr) -> Result<u64, String>) -> Result<TargetBounds, String> {
+    ///
+    /// A division's targets each receive at least one (CR 601.2d), so its
+    /// total caps them, and a count the total cannot reach cannot be announced.
+    pub fn bounds(&self, amount: &dyn Fn(&AmountExpr) -> Result<u64, String>) -> Result<TargetBounds, String> {
         let (fewest, most) = match self {
             TargetCount::Exactly(n) => (*n as usize, *n as usize),
             TargetCount::UpTo(n) => (0, *n as usize),
@@ -1304,7 +1267,16 @@ impl TargetCount {
                 let n = amount(x)? as usize;
                 (n, n)
             }
-            TargetCount::Divided(divided) => return divided.bounds(amount),
+            TargetCount::Between(fewest, most) => (*fewest as usize, *most as usize),
+            TargetCount::AnyNumber => (0, usize::MAX),
+            TargetCount::Divided(divided) => {
+                let total = amount(&divided.total)? as usize;
+                let among = divided.among.bounds(amount)?;
+                if among.fewest > total {
+                    return Err(format!("{} targets can't each receive at least one of {total} (CR 601.2d)", among.fewest));
+                }
+                (among.fewest, among.most.min(total))
+            }
         };
         Ok(TargetBounds { fewest, most })
     }
@@ -1314,12 +1286,9 @@ impl TargetCount {
     /// announcement that cannot meet it rewinds (CR 601.2c, 732.1).
     pub fn fewest(&self) -> usize {
         match self {
-            TargetCount::Exactly(n) => *n as usize,
-            TargetCount::Divided(divided) => match divided.among {
-                DividedAmong::Between { fewest, .. } => fewest as usize,
-                DividedAmong::AnyNumber | DividedAmong::ExactlyAmount(_) => 0,
-            },
-            TargetCount::UpTo(_) | TargetCount::UpToAmount(_) | TargetCount::ExactlyAmount(_) => 0,
+            TargetCount::Exactly(n) | TargetCount::Between(n, _) => *n as usize,
+            TargetCount::Divided(divided) => divided.among.fewest(),
+            TargetCount::UpTo(_) | TargetCount::UpToAmount(_) | TargetCount::ExactlyAmount(_) | TargetCount::AnyNumber => 0,
         }
     }
 }
@@ -3021,20 +2990,20 @@ mod static_members {
     fn a_division_counts_no_more_targets_than_its_total() {
         let count = |among, total: u64| TargetCount::Divided(Box::new(DividedCount { among, total: AmountExpr::Fixed(total) }));
         let read = |count: TargetCount, x: u64| {
-            count.bounds(|amount| match amount {
+            count.bounds(&|amount| match amount {
                 AmountExpr::Fixed(n) => Ok(*n),
                 _ => Ok(x),
             })
         };
         let between = |fewest, most| TargetBounds { fewest, most };
 
-        assert_eq!(read(count(DividedAmong::one_to(3), 3), 0), Ok(between(1, 3)));
-        assert_eq!(read(count(DividedAmong::one_to(3), 7), 0), Ok(between(1, 3)), "Sundering Stroke's seven among three");
-        assert_eq!(read(count(DividedAmong::one_to(3), 2), 0), Ok(between(1, 2)), "two can't reach a third target");
-        assert_eq!(read(count(DividedAmong::up_to(2), 0), 0), Ok(between(0, 0)), "zero is no target at all, and legal");
-        assert_eq!(read(count(DividedAmong::AnyNumber, 4), 0), Ok(between(0, 4)));
-        assert_eq!(read(count(DividedAmong::ExactlyAmount(AmountExpr::X), 8), 2), Ok(between(2, 2)));
-        assert!(read(count(DividedAmong::ExactlyAmount(AmountExpr::X), 8), 9).is_err(), "nine can't each receive one of eight");
-        assert!(read(count(DividedAmong::one_to(2), 0), 0).is_err(), "one or two can't each receive one of none");
+        assert_eq!(read(count(TargetCount::Between(1, 3), 3), 0), Ok(between(1, 3)));
+        assert_eq!(read(count(TargetCount::Between(1, 3), 7), 0), Ok(between(1, 3)), "Sundering Stroke's seven among three");
+        assert_eq!(read(count(TargetCount::Between(1, 3), 2), 0), Ok(between(1, 2)), "two can't reach a third target");
+        assert_eq!(read(count(TargetCount::UpTo(2), 0), 0), Ok(between(0, 0)), "zero is no target at all, and legal");
+        assert_eq!(read(count(TargetCount::AnyNumber, 4), 0), Ok(between(0, 4)));
+        assert_eq!(read(count(TargetCount::ExactlyAmount(AmountExpr::X), 8), 2), Ok(between(2, 2)));
+        assert!(read(count(TargetCount::ExactlyAmount(AmountExpr::X), 8), 9).is_err(), "nine can't each receive one of eight");
+        assert!(read(count(TargetCount::Between(1, 2), 0), 0).is_err(), "one or two can't each receive one of none");
     }
 }

@@ -7,7 +7,7 @@
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, DividedAmong, DividedCount, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
+    AmountExpr, Antecedent, Choice, DividedCount, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
     SelectionFilter, TargetCount,
 };
 use crate::types::triggers::EventRole;
@@ -52,7 +52,7 @@ pub fn targets(count: u32, filter: SelectionFilter) -> EffectRecipient {
 
 /// `total` "divided as you choose among" `among` targets matching `what`: one
 /// instance of "target" (CR 115.3) whose announcement also divides (CR 601.2d).
-pub fn divided_among(what: SelectionFilter, among: DividedAmong, total: AmountExpr) -> EffectRecipient {
+pub fn divided_among(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
     EffectRecipient::Target(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
 }
 

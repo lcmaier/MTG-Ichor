@@ -3,9 +3,13 @@
 //! acted on by each target's share
 //! (`choices-architecture.md#decision-5--where-a-division-lives`).
 
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
-use mtgsim::cards::authoring::{deal_damage, deal_damage_divided, destroy, divided_among, spell_ability, that_target};
+use mtgsim::cards::authoring::{
+    at_beginning_of, create_delayed_trigger, deal_damage, deal_damage_divided, destroy, distribute_counters, divided_among, draw_cards,
+    prevent_the_next_damage_divided, referred, spell_ability, that_target, whenever, you, Whose,
+};
 use mtgsim::cards::fixtures::{
     dragonlord_atarka_fixture, elven_rite_fixture, magma_opus_fixture, meteor_swarm_fixture, mogg_mob_fixture, remedy_fixture, rolling_thunder_fixture,
 };
@@ -14,28 +18,29 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, Chosen, GameStart};
-use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, test_dp, Reversed};
+use mtgsim::state::game_state::{GameState, StepType};
+use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, test_dp, AtEachPrompt, Reversed};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{AmountExpr, CounterType, DividedAmong, Effect, EffectRecipient, SelectionFilter};
+use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, ReplacementOption};
 use mtgsim::ui::decision::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::display::format_event_log;
+use mtgsim::ui::display::{format_event_log, option_label};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::replay::Replay;
 
 /// The script's next answer: `chosen` for the announcement of an instance of
 /// "target". The queue matches a kind by its variant alone.
-fn names_targets(answers: &ScriptedDecisionProvider, of: ObjectId, chosen: Vec<ChoiceOption>) {
-    answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: of }, chosen);
+fn names_targets(answers: &ScriptedDecisionProvider, chosen: Vec<ChoiceOption>) {
+    answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, chosen);
 }
 
 /// The script's next answer: `shares` for CR 601.2d's division.
-fn divides(answers: &ScriptedDecisionProvider, of: ObjectId, shares: Vec<(ChoiceOption, u64)>) {
-    answers.expect_allocation(ChoiceKind::DivideAmong { source: of }, shares);
+fn divides(answers: &ScriptedDecisionProvider, shares: Vec<(ChoiceOption, u64)>) {
+    answers.expect_allocation(ChoiceKind::DivideAmong { source: ObjectId::UNASSIGNED }, shares);
 }
 
 /// What `on_stack`'s first instance announced, each target with its share.
@@ -61,14 +66,20 @@ fn an_activation_divides_ahead_of_its_cost() {
     let mob = put_on_battlefield(&mut game, mogg_mob_fixture(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, mob, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-    divides(&answers, mob, vec![(ChoiceOption::Player(1), 2), (ChoiceOption::Object(bears), 1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&answers, vec![(ChoiceOption::Player(1), 2), (ChoiceOption::Object(bears), 1)]);
+    let asked = RefCell::new(None);
+    let seat = AtEachPrompt::new(answers, |game: &GameState, context: &ChoiceContext| {
+        if let ChoiceKind::DivideAmong { source } = context.kind {
+            *asked.borrow_mut() = Some((source, game.objects[&mob].zone));
+        }
+    });
 
-    game.activate_ability(0, mob, 0, &answers).expect("sacrificing it pays");
+    game.activate_ability(0, mob, 0, &seat).expect("sacrificing it pays");
 
     let ability = *game.stack.last().expect("the ability is on the stack");
+    assert_eq!(asked.into_inner(), Some((ability, Zone::Battlefield)), "asked of the ability on the stack, before the sacrifice");
     assert_eq!(division(&game, ability), vec![(ObjectOrPlayerId::Object(bears), 1), (ObjectOrPlayerId::Player(1), 2)]);
-    assert_eq!(the_asked(&answers), ["SelectRecipients", "DivideAmong"]);
     assert_eq!(game.objects[&mob].zone, Zone::Graveyard, "the cost is paid");
 
     game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
@@ -90,11 +101,13 @@ fn a_trigger_divides_as_it_goes_on_the_stack() {
     game.resolve_top_of_stack(&test_dp()).expect("the creature enters");
 
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, atarka, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
-    divides(&answers, atarka, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Object(lions), 4)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
+    divides(&answers, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Object(lions), 4)]);
     game.place_pending_triggers(&answers).expect("the trigger is placed");
 
     let trigger = *game.stack.last().expect("the trigger is on the stack");
+    let asked_of = |kind: &ChoiceKind| matches!(kind, ChoiceKind::DivideAmong { source } if *source == trigger);
+    assert!(answers.asked().iter().any(asked_of), "asked of the trigger on the stack");
     assert_eq!(division(&game, trigger), vec![(ObjectOrPlayerId::Object(bears), 1), (ObjectOrPlayerId::Object(lions), 4)]);
     game.resolve_top_of_stack(&test_dp()).expect("the trigger resolves");
     assert_eq!(damage_on(&game, bears), 1);
@@ -132,9 +145,9 @@ fn the_division_follows_every_instances_targets() {
     let (one, other) = (put_on_battlefield(&mut game, forest(), 1), put_on_battlefield(&mut game, forest(), 1));
     game.players[0].mana_pool.add(ManaType::Red, 5);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, opus, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-    names_targets(&answers, opus, vec![ChoiceOption::Object(one), ChoiceOption::Object(other)]);
-    divides(&answers, opus, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 3)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(one), ChoiceOption::Object(other)]);
+    divides(&answers, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 3)]);
 
     let seat = ManaWindowStop::new(answers);
     game.cast_spell(0, opus, &seat).expect("castable from exactly its cost");
@@ -156,7 +169,7 @@ fn counters_are_distributed_by_each_targets_share() {
     let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 2);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, rite, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
 
     let seat = ManaWindowStop::new(answers);
     game.cast_spell(0, rite, &seat).expect("castable from exactly its cost");
@@ -170,7 +183,7 @@ fn counters_are_distributed_by_each_targets_share() {
     let again = put_in_hand(&mut game, elven_rite_fixture(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 2);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, again, vec![ChoiceOption::Object(bears)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears)]);
     game.cast_spell(0, again, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
     game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
     assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 3);
@@ -185,16 +198,20 @@ fn a_divided_prevention_gives_each_target_its_own_shield() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     game.players[0].mana_pool.add(ManaType::White, 2);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, remedy, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-    divides(&answers, remedy, vec![(ChoiceOption::Object(bears), 3), (ChoiceOption::Player(1), 2)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&answers, vec![(ChoiceOption::Object(bears), 3), (ChoiceOption::Player(1), 2)]);
     game.cast_spell(0, remedy, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
     game.resolve_top_of_stack(&test_dp()).expect("the shields are made");
+
+    let either = ChoiceOption::Replacement(ReplacementOption::FromResolution { source: remedy, resolution: remedy });
+    let label = option_label(&game, &either);
+    assert!(label.ends_with(&format!("divided as you choose, targeting Grizzly Bears ({bears}) and Player 1")), "{label}");
 
     for target in [ChoiceOption::Object(bears), ChoiceOption::Player(1)] {
         let bolt = put_in_hand(&mut game, lightning_bolt(), 0);
         game.players[0].mana_pool.add(ManaType::Red, 1);
         let answers = ScriptedDecisionProvider::new();
-        names_targets(&answers, bolt, vec![target]);
+        names_targets(&answers, vec![target]);
         game.cast_spell(0, bolt, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
         game.resolve_top_of_stack(&test_dp()).expect("the Bolt resolves");
     }
@@ -213,8 +230,8 @@ fn a_total_of_x_is_divided_as_the_targets_are_announced() {
     game.players[0].mana_pool.add(ManaType::Red, 4);
     let answers = ScriptedDecisionProvider::new();
     answers.expect_number(ChoiceKind::ChooseXValue { spell_id: thunder, values: Box::new(LegalXValues::zero_through(3)) }, 3);
-    names_targets(&answers, thunder, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-    divides(&answers, thunder, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 2)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&answers, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 2)]);
 
     game.cast_spell(0, thunder, &ManaWindowStop::new(answers)).expect("{X}{R} with X = 3");
     game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
@@ -267,15 +284,15 @@ fn a_later_atom_naming_the_instance_reads_no_share() {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            Effect::Sequence(vec![deal_damage_divided(SelectionFilter::Any, DividedAmong::one_to(2), 3), deal_damage(that_target(0), 1)]),
+            Effect::Sequence(vec![deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 2), 3), deal_damage(that_target(0), 1)]),
         ))
         .build();
     let spell = put_in_hand(&mut game, card, 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, spell, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-    divides(&answers, spell, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 2)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&answers, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 2)]);
 
     game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
     game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
@@ -284,13 +301,67 @@ fn a_later_atom_naming_the_instance_reads_no_share() {
     assert_eq!(game.players[1].life_total, 17, "its share of 2, then 1");
 }
 
+/// `Effect::Remember` around a divided shield remembers each target once: each
+/// shield's row is made by the instruction undivided, which notes its own.
+#[test]
+fn a_divided_shield_is_remembered_once_a_target() {
+    let mut game = setup_game(2);
+    let text = "Prevent the next 2 damage that would be dealt this turn to any number of targets, divided as you choose. Draw a card at the next end step for each.";
+    let later = DelayedTriggerTemplate {
+        def: Arc::new(whenever(at_beginning_of(StepType::End, Whose::Each), draw_cards(referred(), 1))),
+        duration: DelayedDuration::Once,
+        turn: DelayedTurn::NoneNamed,
+        rules_text: "Draw a card.".into(),
+    };
+    let shield = prevent_the_next_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, 2);
+    let card: Arc<CardData> = CardDataBuilder::new("Remembered Shields")
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(text, Effect::Sequence(vec![Effect::Remember(Box::new(shield)), create_delayed_trigger(you(), later)])))
+        .build();
+    let spell = put_in_hand(&mut game, card, 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, vec![ChoiceOption::Player(0), ChoiceOption::Player(1)]);
+
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
+
+    assert_eq!(game.delayed_triggers[0].referred.players, vec![0, 1]);
+}
+
+/// A share of counters on a player has no event to go to, and is refused
+/// rather than lost.
+#[test]
+fn a_share_of_counters_on_a_player_is_refused() {
+    let mut game = setup_game(2);
+    let text = "Distribute two +1/+1 counters among one or two targets.";
+    let card: Arc<CardData> = CardDataBuilder::new("Counters At Anyone")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, distribute_counters(SelectionFilter::Any, TargetCount::Between(1, 2), CounterType::PlusOnePlusOne, 2)))
+        .build();
+    let spell = put_in_hand(&mut game, card, 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+    let refused = game.resolve_top_of_stack(&test_dp()).expect_err("a player takes no `AddCounters`");
+
+    assert!(refused.contains("onto a player"), "{refused}");
+}
+
 /// A verb no text divides is refused at resolution, loudly, rather than acting
 /// on each target as if it had the whole.
 #[test]
 fn a_verb_that_cannot_divide_is_refused() {
     let mut game = setup_game(2);
     let text = "Destroy one or two target creatures, divided as you choose.";
-    let clause = divided_among(SelectionFilter::Creature, DividedAmong::one_to(2), AmountExpr::Fixed(2));
+    let clause = divided_among(SelectionFilter::Creature, TargetCount::Between(1, 2), AmountExpr::Fixed(2));
     let card: Arc<CardData> = CardDataBuilder::new("Undividable")
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .card_type(CardType::Sorcery)
@@ -301,7 +372,7 @@ fn a_verb_that_cannot_divide_is_refused() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, spell, vec![ChoiceOption::Object(bears)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears)]);
 
     game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
     let refused = game.resolve_top_of_stack(&test_dp()).expect_err("destruction has no share to read");
@@ -321,7 +392,7 @@ fn bolted(game: &mut GameState, creature: ObjectId) {
     let bolt = put_in_hand(game, lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, bolt, vec![ChoiceOption::Object(creature)]);
+    names_targets(&answers, vec![ChoiceOption::Object(creature)]);
     game.cast_spell(0, bolt, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
     game.resolve_top_of_stack(&test_dp()).expect("the Bolt resolves");
     game.check_state_based_actions(&test_dp()).expect("checking state-based actions");
@@ -338,8 +409,8 @@ fn arc_lightning_keeps_the_division_it_was_cast_with() {
     let lions = put_on_battlefield(&mut game, savannah_lions(), 1);
     let arc = arc_lightning_in_hand(&mut game);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, arc, vec![ChoiceOption::Object(giant), ChoiceOption::Object(bears)]);
-    divides(&answers, arc, vec![(ChoiceOption::Object(giant), 2), (ChoiceOption::Object(bears), 1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(giant), ChoiceOption::Object(bears)]);
+    divides(&answers, vec![(ChoiceOption::Object(giant), 2), (ChoiceOption::Object(bears), 1)]);
 
     game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
 
@@ -362,8 +433,8 @@ fn arc_lightning_refuses_a_target_with_no_share() {
     put_on_battlefield(&mut game, savannah_lions(), 1);
     let arc = arc_lightning_in_hand(&mut game);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, arc, vec![ChoiceOption::Object(giant), ChoiceOption::Object(bears)]);
-    divides(&answers, arc, vec![(ChoiceOption::Object(giant), 3), (ChoiceOption::Object(bears), 0)]);
+    names_targets(&answers, vec![ChoiceOption::Object(giant), ChoiceOption::Object(bears)]);
+    divides(&answers, vec![(ChoiceOption::Object(giant), 3), (ChoiceOption::Object(bears), 0)]);
 
     let _ = game.cast_spell(0, arc, &ManaWindowStop::new(answers));
 }
@@ -377,7 +448,7 @@ fn arc_lightning_asks_nothing_of_one_split() {
     let lions = put_on_battlefield(&mut game, savannah_lions(), 1);
     let arc = arc_lightning_in_hand(&mut game);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions), ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions), ChoiceOption::Player(1)]);
     let seat = ManaWindowStop::new(answers);
     game.cast_spell(0, arc, &seat).expect("castable from exactly its cost");
     assert_eq!(the_asked(seat.inner()), ["SelectRecipients"]);
@@ -386,7 +457,7 @@ fn arc_lightning_asks_nothing_of_one_split() {
 
     let again = arc_lightning_in_hand(&mut game);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, again, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
     let seat = ManaWindowStop::new(answers);
     game.cast_spell(0, again, &seat).expect("castable from exactly its cost");
     assert_eq!(the_asked(seat.inner()), ["SelectRecipients"]);
@@ -402,8 +473,8 @@ fn an_illegal_target_takes_no_share_and_the_rest_stand() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let arc = arc_lightning_in_hand(&mut game);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-    divides(&answers, arc, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Player(1), 1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&answers, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Player(1), 1)]);
     game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
 
     bolted(&mut game, bears);
@@ -422,8 +493,8 @@ fn arc_lightning_with_every_target_illegal_does_not_resolve() {
     let lions = put_on_battlefield(&mut game, savannah_lions(), 1);
     let arc = arc_lightning_in_hand(&mut game);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
-    divides(&answers, arc, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(lions), 1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
+    divides(&answers, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(lions), 1)]);
     game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
 
     bolted(&mut game, bears);
@@ -441,8 +512,8 @@ fn a_seat_that_left_takes_no_share() {
     let mut game = setup_game(4);
     let arc = arc_lightning_in_hand(&mut game);
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, arc, vec![ChoiceOption::Player(2), ChoiceOption::Player(3)]);
-    divides(&answers, arc, vec![(ChoiceOption::Player(2), 1), (ChoiceOption::Player(3), 2)]);
+    names_targets(&answers, vec![ChoiceOption::Player(2), ChoiceOption::Player(3)]);
+    divides(&answers, vec![(ChoiceOption::Player(2), 1), (ChoiceOption::Player(3), 2)]);
     game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
 
     game.players[3].has_drawn_from_empty_library = true;
@@ -495,8 +566,8 @@ fn played() -> (BuiltStart, decision_log::Log) {
 
     let caster = ScriptedDecisionProvider::new();
     caster.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(arc))]);
-    names_targets(&caster, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-    divides(&caster, arc, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 2)]);
+    names_targets(&caster, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&caster, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 2)]);
     let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: arc, remaining_cost: ManaCost::build(&[], 0) };
     for mountain in mountains {
         caster.expect_choice(window.clone(), vec![tap(mountain)]);

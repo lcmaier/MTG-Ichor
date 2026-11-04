@@ -302,11 +302,9 @@ impl GameState {
     /// CR 601.2c and 601.2d — announce a choice for each instance of the word
     /// "target", then each division among them.
     ///
-    /// One [`ask_select_recipients`] per instance, in printed order. A spell
-    /// with one instance asks exactly the one question it asked before the
-    /// loop existed. A division is announced after every target (Magma Opus
-    /// names its second instance before it divides its first), so a second
-    /// walk asks it.
+    /// One [`ask_select_recipients`] per instance, in printed order. A division
+    /// is announced after every target (Magma Opus names its second instance
+    /// before it divides its first), so a second walk asks it.
     ///
     /// **Printed order is load-bearing.** Each instance is enumerated against
     /// the ones already announced, which is what `ObjectFilter::OtherThanInstance`
@@ -354,7 +352,7 @@ impl GameState {
             let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
             // CR 601.2c: "the number of targets will be defined by the
             // spell's text", and once determined it does not change.
-            let bounds = count.bounds(|amount| self.amount_as_announced(amount, player_id, this_object, named_objects, x_value))?;
+            let bounds = count.bounds(&|amount| self.amount_as_announced(amount, player_id, this_object, named_objects, x_value))?;
             let chosen = ask_select_recipients(
                 decisions, self, player_id, recipient, source_id,
                 &legal, bounds.fewest, bounds.most,
@@ -364,7 +362,13 @@ impl GameState {
             earlier_targets.push(chosen);
         }
         for instance in &mut announced {
-            let EffectRecipient::Target(_, TargetCount::Divided(divided)) = &instance.recipient else { continue };
+            let divided = match &instance.recipient {
+                EffectRecipient::Target(_, TargetCount::Divided(divided)) => divided,
+                EffectRecipient::Choose(_, TargetCount::Divided(_)) => {
+                    return Err("CR 601.2d divides among targets; a choice divides as the effect applies (CR 608.2d)".to_string());
+                }
+                _ => continue,
+            };
             let targets: Vec<ObjectOrPlayerId> = instance.as_resolved_targets().collect();
             // CR 115.6: "any number" may be none, which divides nothing.
             if !targets.is_empty() {
