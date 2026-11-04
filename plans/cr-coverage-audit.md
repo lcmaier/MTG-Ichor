@@ -895,13 +895,13 @@ named `damage_marked`; type `bool` named `damaged_by_deathtouch`
 
 #### Targets
 CR 115.1, 601.2c. **Key:** a spell or ability on the stack and its instance
-of "target". **Query:** type `TargetInstance`; type `ObjectOrPlayer` named
-`target`; type `ObjectOrPlayer` named `targets`; type `ObjectOrPlayer` named
-`chosen`. An object or a player by reference is one type for every role
-(item 291), so the field's name says which; a damage record's is
-`recipient`.
+of "target". **Query:** type `TargetInstance`; type `AnnouncedTargets`; type
+`ObjectOrPlayer` named `target`; type `ObjectOrPlayer` named `targets`. An
+object or a player by reference is one type for every role (item 291), so the
+field's name says which; a damage record's is `recipient`.
 - `StackEntry` — owner.
-- `TargetInstance` — owner: the targets one instance chose.
+- `TargetInstance` — owner: the targets one instance chose, each with its share
+  when CR 601.2d divided it.
 - `RegisteredReplacementEffect` — hand-over: the targets of the resolution
   that made the row, which its rider reads once the stack object is gone.
 - `GameEvent` — moment: the record's.
