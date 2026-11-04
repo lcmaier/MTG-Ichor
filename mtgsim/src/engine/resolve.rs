@@ -186,6 +186,13 @@ impl ResolutionWalk {
             last_action: None,
         }
     }
+
+    /// What an atom acts on, for an `Effect::Remember` around it.
+    fn note_acted_on(&mut self, targets: &[ObjectOrPlayerId]) {
+        if let Some(acted_on) = self.remembering.as_mut() {
+            acted_on.extend_from_slice(targets);
+        }
+    }
 }
 
 impl GameState {
@@ -558,22 +565,22 @@ impl GameState {
             return Ok(());
         }
         let targets: Vec<ObjectOrPlayerId> = shares.iter().map(|&(target, _)| target).collect();
-        if let Some(acted_on) = walk.remembering.as_mut() {
-            acted_on.extend_from_slice(&targets);
-        }
         match primitive {
             Primitive::DealDamage { unpreventable, .. } => {
+                walk.note_acted_on(&targets);
                 self.deal_resolution_damage(shares.iter().copied(), *unpreventable, ctx, dp)
             }
             // One batch, as `AddCounters` undivided is (CR 608.2f).
             Primitive::AddCounters { counter, by, .. } => {
+                walk.note_acted_on(&targets);
                 let by = PlayerRef::Player(self.player_the_instruction_names(by, &targets, ctx, dp)?);
                 let mut batch = Vec::new();
                 for &(target, share) in shares {
-                    if let ObjectOrPlayerId::Object(id) = target {
-                        let put = Primitive::AddCounters { counter: *counter, amount: AmountExpr::Fixed(share), by: by.clone() };
-                        batch.extend(self.event_for(&put, id, &targets, ctx)?);
-                    }
+                    let ObjectOrPlayerId::Object(id) = target else {
+                        return Err(format!("{:?} divides counters onto a player, and `AddCounters` puts them on permanents", ctx.source));
+                    };
+                    let put = Primitive::AddCounters { counter: *counter, amount: AmountExpr::Fixed(share), by: by.clone() };
+                    batch.extend(self.event_for(&put, id, &targets, ctx)?);
                 }
                 self.execute_actions(batch, &ActionContext::resolving(dp, ctx))?;
                 Ok(())
@@ -638,9 +645,7 @@ impl GameState {
         // Every mutation a primitive proposes belongs to *this* resolution
         // (CR 614.15 / the resolution stamp on each emitted event).
         let actx = ActionContext::resolving(dp, ctx);
-        if let Some(acted_on) = walk.remembering.as_mut() {
-            acted_on.extend_from_slice(targets);
-        }
+        walk.note_acted_on(targets);
         match primitive {
             // === One-shot primitives ===
 
