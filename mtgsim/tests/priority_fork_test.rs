@@ -90,10 +90,10 @@ const COMMANDER_SEED: u64 = 6;
 /// The seeds `fork_sweep_over_many_seeds` found forking with what the three
 /// above never hold at a fork: a delayed trigger waiting, at four seats on
 /// `stress` (6 of the game's forks), and an "until" exile's return, at two on
-/// `performance` (13). Re-picked from the sweep whenever a pool change stops
+/// `performance` (14). Re-picked from the sweep whenever a pool change stops
 /// one.
-const DELAYED_TRIGGER_SEED: u64 = 23;
-const RETURN_SEED: u64 = 52;
+const DELAYED_TRIGGER_SEED: u64 = 1;
+const RETURN_SEED: u64 = 5;
 
 // ---------------------------------------------------------------------------
 // The fork recorder
@@ -594,8 +594,9 @@ fn a_branch_that_reseeds_its_provider_is_not_a_replay() {
 /// over 69 of the games; item 139's fix alone 38 over 22; item 150's alone 92
 /// over 54; **both, 0 of 13,530 branches**. Read again 2026-10-30 at item 6's
 /// close, the end states compared too: 0 of 13,174, with 42 forked while a
-/// delayed trigger waited and 13 while a return did; and 2026-11-01, with
-/// two cards joining `stress`, 0 of 13,184, the same 42 and 13.
+/// delayed trigger waited and 13 while a return did; 2026-11-01, with two
+/// cards joining `stress`, 0 of 13,184, the same 42 and 13; and 2026-11-03,
+/// with Arc Lightning's division in both pools, 0 of 13,103, with 28 and 24.
 #[test]
 #[ignore = "a sweep, not a gate — the board tests are the gate"]
 fn fork_sweep_over_many_seeds() {
