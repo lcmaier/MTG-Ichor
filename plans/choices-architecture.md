@@ -1000,7 +1000,7 @@ orders are the next.
 
 | PR | What it builds | Consumer | Code | Tests |
 |---|---|---|---:|---:|
-| **`options-named-by-what-they-are` — every option named by what it is** | #306's decision 4: the trigger and replacement arms, the typed matcher with its cost names, and in its first commit item 361's order-dependent `picking(n)` uses | the log's replay of Bridge from Below's two triggers, both orders; the order-dependent tests, each passing with every list reversed | 875 measured | 698 measured |
+| **`options-named-by-what-they-are` — every option named by what it is** | #306's decision 4: the trigger and replacement arms, the typed matcher with its cost names, and in its first commit item 361's order-dependent `picking(n)` uses | the log's replay of Bridge from Below's two triggers, both orders; the order-dependent tests, each passing with every list reversed | 907 measured | 772 measured |
 | **`division-and-orders` — a division among targets, and the orders the CR hands a player** | decision 5's division at cast, activation and placement; decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~450–700 by the item sizings | ~400–650 |
 | **`modal-spells-and-abilities` — CR 700.2 whole** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the record of what an ability chose before, castability through the enumerator | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost (700.2h) | ~760–1,150 | ~600–920 |
 | **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
@@ -1033,7 +1033,7 @@ measured the same way.
 
 ### `options-named-by-what-they-are` — every option named by what it is — ✅ landed 2026-11-02
 
-PR #307, on the design's branch. 1,573 lines of code and tests against an
+PR #307, on the design's branch. 1,679 lines of code and tests against an
 estimate of 440–760 (the ratio the later rows are re-sized by).
 - **The order-dependent tests** (item 361): all 44 tests that failed with
   every list `picking(n)` answers reversed name what they chose
@@ -1063,12 +1063,22 @@ estimate of 440–760 (the ratio the later rows are re-sized by).
 - **A cost names its whole cost**: "Escape {3}{B}{B}, exile 5 from your
   graveyard".
 
-One place it differs from #306's decision 4, put to the owner at #307: the
-replay still finds a logged answer by its words (every option's whole words),
-since three arms carry what the log does not write (an existence's epoch, a
-cost's filters, an ability's internal id). A label for a registry row shows
-the stack object's id, not the text of the ability that made it, which the
-row does not keep; that is the owner's to take at #307 too.
+One place it differs from #306's decision 4, the owner's call at #307: the
+replay finds a logged answer by its words (every option's whole words), not by
+parsing them, since three arms carry what the log does not write (an
+existence's epoch, a cost's filters, an ability's internal id), so a parse
+yields only part of an option. **Retrofit, if a later need asks for the parse:**
+`Replay::found` and a parser per `ChoiceOption` arm, about 200–300 lines, and
+about one arm more for each arm added. It changes no engine code and no log's
+words, so no game, record or fixture moves.
+
+A label for a registry row shows what made it (the owner, at #307, after
+playing the boards): "Words of Worship (#1) · {1}: The next time you would
+draw a card this turn, you gain 5 life instead. (#15)". The row keeps an
+ability's text as it is made, since that text goes with the stack object (CR
+405.4, 608.2n); a spell's stays on its card, and the name already shows its id.
+The id is the order the two went on the stack, which tells them apart; it is
+not the order they resolved.
 
 ## 6. Found while designing
 

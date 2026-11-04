@@ -2973,7 +2973,11 @@ engine which one.
 
 **Taken: by identity** (the owner, the same round): answers are named by what they chose
 everywhere a client or a file writes one, and the place stays inside the
-engine, between `ui::ask` and the provider.
+engine, between `ui::ask` and the provider. A provider in process holds the
+question and still answers by place. The paused game's lookup is its own, plain
+equality and a refusal, since a client's answer arrives at run time:
+`position_named` is a script's, which panics on a name that fits two options
+and lets a bare object stand for its one effect.
 
 #### Decision 3 — what a pending decision holds on `GameState`, and the rule every later choice kind follows
 
@@ -3205,7 +3209,10 @@ write the ability's text as well as its place; it would make a line as long
 as the card's paragraph, and a fixed typo in a card's text would then stop
 every older record's replay, so the text stays the client's.
 
-**4b. The typed matcher, and the two cost shapes.** As the owner chose at
+**4b. The typed matcher, and the two cost shapes.** As built, the replay finds
+an answer by its words, the owner's call at #307, for the reason and the
+retrofit cost in `choices-architecture.md`'s as-built; scripts and setup lines
+compare typed values as below. As the owner chose at
 #305: `ChoiceOption` derives `PartialEq`; the log reader parses each answer's
 words into a typed option once (`Grizzly Bears (#7)` is `Object(#7)`, the
 name kept as a check that the id still names that card); scripts, setup lines
