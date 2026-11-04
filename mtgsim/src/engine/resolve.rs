@@ -382,7 +382,7 @@ impl GameState {
                     // a later one naming its instance ("each of those
                     // creatures") reads the targets alone, as `clause` does.
                     Some((ix, clause)) if recipient.is_divided() => {
-                        let shares = surviving_shares(declared.division(ix), ctx.targets.instance(ix), ctx)?;
+                        let shares = shares_of_surviving_targets(declared.division(ix), ctx.targets.instance(ix), ctx)?;
                         self.resolve_divided(primitive, clause, &shares, ctx, dp, walk)
                     }
                     Some((ix, clause)) => {
@@ -3223,7 +3223,7 @@ fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> Strin
 /// found by identity, since one instance never holds a target twice (CR
 /// 601.2c). A survivor with no share is a divided clause that resolved with
 /// nothing announced, which is a wiring error rather than a card's.
-fn surviving_shares(
+fn shares_of_surviving_targets(
     division: &[(ObjectOrPlayer, u64)],
     survivors: &[ObjectOrPlayerId],
     ctx: &ResolutionContext,
