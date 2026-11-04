@@ -104,7 +104,8 @@ fn the_bolts_damage_reads_back_its_batch() {
     let text = include_str!("../scenarios/bolt-into-giant-growth.scenario");
     let BuiltScenario { mut game, setup } =
         Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}"));
-    let seats = RecordingDecisionProvider::picking(0).stopping_at_every_priority_point();
+    let seats = RecordingDecisionProvider::choosing([ChoiceOption::Action(mtgsim::ui::decision::PriorityAction::Pass)])
+        .stopping_at_every_priority_point();
     let driver = SetupDriver::new(setup, &seats);
     for _ in 0..3 {
         assert_eq!(game.state.run_priority_round(&driver), Ok(PriorityResult::ActionTaken), "a setup line");

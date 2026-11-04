@@ -173,6 +173,11 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         ChoiceOption::BlockerAttacker(blocker, attacker) => {
             vec![BoardRef::Object(*blocker), BoardRef::Object(*attacker)]
         }
+        ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id)
+            .chain(trigger.triggered_by.iter().copied())
+            .map(BoardRef::Object)
+            .collect(),
+        ChoiceOption::Replacement(_) => option.effect_source().into_iter().map(BoardRef::Object).collect(),
         // An existence that has left is no board thing.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::NormalCost

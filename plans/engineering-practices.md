@@ -431,9 +431,9 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 <!-- floors: end -->
 
 - **Floor 1 is read under a named stack** (`backlog.md` §2.22's default:
-  `ManaWindowStop` on, the tap-solver decorator off), as it is read on a named
-  board. A reading under another stack is another operating point, never a
-  regression, and is not compared across a stack change.
+  `ManaWindowStop` on, the tap-solver decorator off), on a named board; under
+  another stack, or after a prompt is dropped, it is another operating point,
+  never a regression. A dropped prompt is judged by games per loaded core-second.
 - **A reading is replaced in place when it is taken again**; every reading's
   dated record stays in `fuzz-record.md`.
 

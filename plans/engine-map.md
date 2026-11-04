@@ -308,7 +308,8 @@ asked for the first time in its window. A paused game keeps the rest on its
 own stack, and a fork rebuilds it by replaying from the last anchor, so the
 two violators below close at that design's build.
 Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
-`decision` record.
+`decision` record. The kinds it asks, and what each names its options by:
+`choices-architecture.md`.
 The prompts the engine answers itself, and why: `elisions.md` §2, §3.
 
 | Site | Where | Held off `GameState` | Status |

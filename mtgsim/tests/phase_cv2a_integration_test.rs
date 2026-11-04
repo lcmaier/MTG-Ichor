@@ -59,7 +59,7 @@ use mtgsim::types::replacement::{
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_of};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption, position_named};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -128,7 +128,7 @@ impl DecisionProvider for ById {
         assert_eq!((who, expected), (player, kind), "the wrong prompt, or the wrong player asked");
         let mut picked = Vec::new();
         for id in ids {
-            let found = position_of(options, game, &ChoiceOption::Object(id).as_logged(game), &picked);
+            let found = position_named(options, game, &ChoiceOption::Object(id), &picked);
             picked.push(found.unwrap_or_else(|| panic!("{id} not offered: {offered:?}")));
         }
         picked

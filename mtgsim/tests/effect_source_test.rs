@@ -27,6 +27,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
+use mtgsim::ui::choice_types::ChoiceOption;
 use mtgsim::test_support::{
     creature_with_ability, fill_library, put_on_battlefield, put_on_battlefield_under, registered, setup_two_player_game,
     test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -169,12 +170,11 @@ fn an_activated_abilitys_source_destroyed_in_response_still_deals_the_damage() {
 #[test]
 fn circle_of_protection_red_prevents_an_abilitys_damage_from_the_chosen_permanent() {
     let mut game = setup_two_player_game();
-    // Oldest, so the CR 609.7a prompt lists it first.
     let pinger = put_on_battlefield(&mut game, pinger(), 1);
     let circle_card = circle_of_protection_red();
     let circle = put_on_battlefield(&mut game, circle_card.clone(), 0);
     let ctx = ResolutionContext { ability_source: game.object_ref(circle), ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell) };
-    game.resolve_effect(&circle_card.abilities[0].effect, &ctx, &RecordingDecisionProvider::picking(0)).unwrap();
+    game.resolve_effect(&circle_card.abilities[0].effect, &ctx, &RecordingDecisionProvider::choosing([ChoiceOption::Object(pinger)])).unwrap();
     let chosen = game.replacement_effects.iter().find_map(|row| match &row.def.pattern {
         EventPattern::DealDamage { source: Some(pattern), .. } => pattern.object,
         _ => None,
@@ -371,6 +371,8 @@ fn shield_around(game: &mut GameState, player: PlayerId, mut def: ReplacementDef
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: anchor,
+        resolution: mtgsim::events::event::ResolutionStamp { source: anchor, controller: player },
+        made_by_text: None,
         controller: player,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

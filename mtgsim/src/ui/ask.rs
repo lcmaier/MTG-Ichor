@@ -831,19 +831,19 @@ pub fn ask_order_cost_reductions(
 /// CR 603.3b — the order a player puts their simultaneously triggered
 /// abilities of one tier onto the stack.
 ///
-/// `sources` are the entries' sources in trigger order, so the permutation
-/// returned means the same thing in every process; the first index goes on
-/// the stack lowest. Two or more only, and the elision that keeps a
-/// same-outcome pair from reaching here is the placement's.
+/// `triggers` are the entries, each by what it is, in trigger order, so the
+/// permutation returned means the same thing in every process; the first
+/// index goes on the stack lowest. Two or more only, and the elision that
+/// keeps a same-outcome pair from reaching here is the placement's.
 pub fn ask_order_triggers(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     tier: crate::types::triggers::TriggerTier,
-    sources: &[ObjectId],
+    triggers: Vec<crate::ui::choice_types::TriggerOption>,
 ) -> Vec<usize> {
-    debug_assert!(sources.len() >= 2, "CR 603.3b: one trigger has no order to choose");
-    let options: Vec<ChoiceOption> = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    debug_assert!(triggers.len() >= 2, "CR 603.3b: one trigger has no order to choose");
+    let options: Vec<ChoiceOption> = triggers.into_iter().map(ChoiceOption::Trigger).collect();
     let ctx = ChoiceContext::new(ChoiceKind::OrderTriggers { player, tier });
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "order_triggers", game, player, &ctx);
@@ -1072,26 +1072,23 @@ fn order_scry_group(
 /// reaches the pipeline, and the one-candidate short circuit is what keeps that
 /// at zero new prompts.
 ///
-/// The options are the candidates' **source objects**, which is lossy when one
-/// permanent has two applicable replacement abilities — the index is what
-/// selects, and the source is what a UI has to render. A richer option would
-/// need `ChoiceOption` to carry rules text, and no card in the pool needs it
-/// yet.
+/// The options are the candidates, each named by where it comes from, so two
+/// effects of one permanent are two options a log and a client tell apart.
 pub fn ask_choose_replacement(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
     affected_object: Option<ObjectId>,
-    sources: &[ObjectId],
+    effects: Vec<crate::ui::choice_types::ReplacementOption>,
 ) -> usize {
     game.diagnostics.record_replacement_prompt();
     assert!(
-        sources.len() >= 2,
+        effects.len() >= 2,
         "ask_choose_replacement: CR 616.1 makes a choice only among two or more \
          applicable effects; called with {}",
-        sources.len(),
+        effects.len(),
     );
-    let options: Vec<ChoiceOption> = sources.iter().map(|s| ChoiceOption::Object(*s)).collect();
+    let options: Vec<ChoiceOption> = effects.into_iter().map(ChoiceOption::Replacement).collect();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseReplacementEffect { affected_object });
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_replacement", game, chooser, &ctx);

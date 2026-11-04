@@ -1,16 +1,19 @@
+use std::fmt;
+
 use crate::engine::combat::validation::CombatError;
+use crate::engine::replacement::{CounterEffectKind, GameRuleReplacement};
 use crate::oracle::x_values::LegalXValues;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{CounterType, EffectRecipient};
-use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::state::game_state::GameState;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
 use super::decision::PriorityAction;
-use super::display::{additional_cost_label, alternative_cost_label, color_name, printed_name};
+use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -491,7 +494,7 @@ pub enum Rejection {
 }
 
 /// A single selectable option presented to the DP.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChoiceOption {
     /// A game object (creature, card in hand, permanent, etc.)
     Object(ObjectId),
@@ -522,6 +525,106 @@ pub enum ChoiceOption {
     CounterType(CounterType),
     /// A mana type (for generic allocation)
     ManaType(ManaType),
+    /// A triggered ability waiting to be put on the stack (CR 603.3b), named
+    /// by its source, its ability and what triggered it, so two triggers of
+    /// one card are two options a log and a client tell apart
+    /// (`setup-architecture.md#7e-pausing-at-a-decision`).
+    Trigger(TriggerOption),
+    /// A replacement or prevention effect CR 616.1 offers, named by where it
+    /// comes from.
+    Replacement(ReplacementOption),
+}
+
+/// One of the triggers CR 603.3b's question asks a player to order, named by
+/// what it is in the game: its source, its ability and what triggered it.
+/// Never by a number the engine keeps for itself, such as a registry id or a
+/// place in a queue, so a replay on another build finds the same trigger.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TriggerOption {
+    /// Its source, and which existence of it (CR 400.7).
+    pub source: ObjectRef,
+    /// Which of the source's triggered abilities.
+    pub ability: TriggeredAbility,
+    /// The objects its triggering events are about (CR 603.2c), in event
+    /// order. By id: a dies trigger's event is about the card's new object in
+    /// the graveyard (CR 603.6c), which no script written before the event
+    /// can name.
+    pub triggered_by: Vec<ObjectId>,
+}
+
+/// Which triggered ability a trigger is.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TriggeredAbility {
+    /// An ability its source has: printed on it, or granted or copied onto it
+    /// by an effect of `granted_by`'s. Named by its definition
+    /// (`AbilityId::definition`, the same whichever grant made the instance).
+    OfItsSource { ability: AbilityId, granted_by: Option<ObjectId>, read_as: AbilityAsRead },
+    /// A delayed triggered ability (CR 603.7), which an effect created and
+    /// which is no ability of its source, named by the objects it refers to
+    /// (CR 603.7c): Flickerwisp's "return the exiled card".
+    Delayed { refers_to: Vec<ObjectId> },
+}
+
+/// An ability as the engine read it, on the board it checked the ability
+/// against: its place among its object's abilities, 1 for the first, as a
+/// scenario's `ability N` names it, and its rules text; `None` for one the
+/// object no longer has. An entering object has its abilities only on that
+/// board (CR 614.12), so the option carries what the log and a client write
+/// rather than either reading the live one. It is how the ability reads, not
+/// which ability it is, so every reading compares equal: a script names an
+/// ability by its definition and leaves this `None`.
+#[derive(Debug, Clone, Copy)]
+pub struct AbilityAsRead(pub Option<(usize, &'static str)>);
+
+impl AbilityAsRead {
+    /// The ability's rules text, which a client draws.
+    pub fn text(self) -> Option<&'static str> {
+        self.0.map(|(_, text)| text)
+    }
+}
+
+impl PartialEq for AbilityAsRead {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+/// The log's words for the ability.
+impl fmt::Display for AbilityAsRead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some((place, _)) => write!(f, "ability {place}"),
+            None => f.write_str(ABILITY_IT_NO_LONGER_HAS),
+        }
+    }
+}
+
+/// One of the effects CR 616.1's question asks a player to choose among,
+/// named by where it comes from in the game, never by a number the engine
+/// keeps for itself. A replacement or prevention effect comes from one of
+/// four places, one arm each.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReplacementOption {
+    /// One a resolving spell or ability created (CR 614.3, 615.7): Words of
+    /// Worship's "the next time you would draw a card this turn, you gain 5
+    /// life instead", a "prevent the next 3 damage" shield. Named by the card
+    /// it came from and `resolution`, the stack object that was resolving
+    /// (`ResolutionStamp::source`), which tells two activations apart.
+    FromResolution { source: ObjectId, resolution: ObjectId },
+    /// A static ability of a permanent that is itself a replacement effect
+    /// (CR 614.1a): Rest in Peace's "exile it instead", devour as its creature
+    /// enters. Named by the object, the ability by its definition (with
+    /// `granted_by` when an effect gave it), and `member`, which of its
+    /// effects when one ability makes several, counted from 0.
+    Ability { object: ObjectRef, ability: AbilityId, granted_by: Option<ObjectId>, member: u8, read_as: AbilityAsRead },
+    /// Game counters of one kind on a permanent, which make a replacement or
+    /// prevention effect (CR 122.1c/d/h): a finality counter's "exile it
+    /// instead", and a shield counter's two effects, which `effect` tells
+    /// apart.
+    Counter { object: ObjectRef, counter: CounterType, effect: CounterEffectKind },
+    /// A rule that acts as a replacement effect (CR 903.9b): a commander put
+    /// into the command zone instead.
+    Rule { object: ObjectRef, rule: GameRuleReplacement },
 }
 
 impl ChoiceOption {
@@ -534,6 +637,12 @@ impl ChoiceOption {
     /// is a change to the log's format.
     pub fn as_logged(&self, game: &GameState) -> String {
         let object = |id: &ObjectId| format!("{} ({id})", printed_name(game, *id));
+        let objects = |ids: &[ObjectId]| ids.iter().map(object).collect::<Vec<_>>().join(" and ");
+        let existence = |source: &ObjectRef| match game.object_ref(source.id) == Some(*source) {
+            true => object(&source.id),
+            false => format!("{} as it last existed", object(&source.id)),
+        };
+        let granted = |granted_by: &Option<ObjectId>| granted_by.map_or(String::new(), |by| format!(", granted by {}", object(&by)));
         match self {
             ChoiceOption::Object(id) => object(id),
             ChoiceOption::LastKnown(existence) => format!("{} as it last existed", object(&existence.id)),
@@ -541,8 +650,11 @@ impl ChoiceOption {
             ChoiceOption::Action(PriorityAction::Pass) => "pass".to_string(),
             ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("cast {}", object(id)),
             ChoiceOption::Action(PriorityAction::PlayLand(id)) => format!("play {}", object(id)),
+            // Offered at priority, so the board it is logged on is the one it
+            // was offered on; a trigger's and a replacement's options carry
+            // the reading their builder made.
             ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability)) => {
-                format!("activate {} ability {ability}", object(id))
+                format!("activate {} {}", object(id), ability_as_read(game, *id, *ability))
             }
             ChoiceOption::AttackerTarget(attacker, target) => {
                 let attacked = match target {
@@ -559,58 +671,177 @@ impl ChoiceOption {
             ChoiceOption::Color(color) => format!("color {}", color_name(*color).to_lowercase()),
             ChoiceOption::CounterType(counter) => format!("counter {}", counter.name()),
             ChoiceOption::ManaType(mana) => format!("mana {}", ManaSymbol::Colored(*mana)),
+            ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
+                let which = match ability {
+                    TriggeredAbility::OfItsSource { granted_by, read_as, .. } => format!("{read_as}{}", granted(granted_by)),
+                    TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
+                    TriggeredAbility::Delayed { refers_to } => format!("its delayed ability about {}", objects(refers_to)),
+                };
+                let about = match triggered_by.as_slice() {
+                    [] => String::new(),
+                    some => format!(", for {}", objects(some)),
+                };
+                format!("{}, {which}{about}", existence(source))
+            }
+            ChoiceOption::Replacement(ReplacementOption::FromResolution { source, resolution }) => {
+                format!("{}, made as {resolution} resolved", object(source))
+            }
+            ChoiceOption::Replacement(ReplacementOption::Ability { object: of, granted_by, member, read_as, .. }) => {
+                let member = if *member == 0 { String::new() } else { format!(", its effect {}", member + 1) };
+                format!("{}, {read_as}{}{member}", existence(of), granted(granted_by))
+            }
+            ChoiceOption::Replacement(ReplacementOption::Counter { object: on, counter, effect }) => {
+                let which = match effect {
+                    CounterEffectKind::Replacement => "",
+                    CounterEffectKind::Prevention => ", its prevention",
+                };
+                format!("{}, {} counter{which}", existence(on), counter.name())
+            }
+            ChoiceOption::Replacement(ReplacementOption::Rule { object: about, rule: GameRuleReplacement::CommanderZone }) => {
+                format!("{}, the commander rule", existence(about))
+            }
         }
     }
 }
 
-/// How an answer names one option among others whose words are the same:
-/// `(2 of 3)` after them, counted in the list's order. Two such options are
-/// one choice to a reader of the log, and only a position tells them apart.
-const OF_EQUALS: &str = " of ";
+impl GameState {
+    /// A pending trigger as CR 603.3b's question names it: its source as the
+    /// existence that triggered, its ability, and what the events that
+    /// triggered it are about.
+    pub(crate) fn trigger_option(&self, trigger: &crate::types::triggers::PendingTrigger) -> TriggerOption {
+        use crate::types::triggers::TriggerOrigin;
+        let identity = trigger.origin.identity();
+        let ability = match trigger.origin {
+            TriggerOrigin::Object(_) => TriggeredAbility::OfItsSource {
+                ability: identity.ability.definition(),
+                granted_by: self.granted_by(identity.ability),
+                read_as: ability_as_read(self, identity.source.id, identity.ability),
+            },
+            TriggerOrigin::Delayed(_) => TriggeredAbility::Delayed {
+                refers_to: trigger.binding.referred.objects.iter().map(|remembered| remembered.object.id).collect(),
+            },
+            TriggerOrigin::Rule(inherent) => match inherent {},
+        };
+        let mut triggered_by: Vec<ObjectId> = Vec::new();
+        for (_, object) in trigger.binding.triggering_events.iter().flat_map(|event| event.objects.objects()) {
+            if !triggered_by.contains(&object.id) {
+                triggered_by.push(object.id);
+            }
+        }
+        TriggerOption { source: identity.source, ability, triggered_by }
+    }
 
-/// `options[index]` as an answer names it: [`ChoiceOption::as_logged`], with
-/// its place among the options whose words are the same when there are any.
-pub fn logged_choice(options: &[ChoiceOption], game: &GameState, index: usize) -> String {
-    let logged = options[index].as_logged(game);
-    let equals = reading_as(options, game, &logged);
-    match equals.iter().position(|&i| i == index) {
-        Some(place) if equals.len() > 1 => format!("{logged} ({}{OF_EQUALS}{})", place + 1, equals.len()),
-        _ => logged,
+    /// A replacement effect CR 616.1 offers, as its question names it: by
+    /// where it comes from, a resolution's by its source and the resolution
+    /// that made it. `frame` is the board the effect was checked against,
+    /// which an entering object's abilities are read off (CR 614.12).
+    pub(crate) fn replacement_option(
+        &self,
+        instance: &crate::engine::replacement::ReplacementInstance,
+        frame: &crate::engine::replacement::EntryFrame<'_>,
+    ) -> ReplacementOption {
+        use crate::engine::replacement::ReplacementInstanceId;
+        match instance.id {
+            // An instance is gathered off a live row, so the row is there.
+            ReplacementInstanceId::Registered(row) => ReplacementOption::FromResolution {
+                source: instance.source,
+                resolution: self
+                    .replacement_effects
+                    .iter()
+                    .find(|registered| registered.id == row)
+                    .map_or(instance.source, |registered| registered.resolution.source),
+            },
+            ReplacementInstanceId::StaticAbility { object, ability, member } => ReplacementOption::Ability {
+                object,
+                ability: ability.definition(),
+                granted_by: self.granted_by(ability),
+                member,
+                read_as: match frame.frame_of(object.id) {
+                    Some(entering) => read_in(&entering.abilities, ability),
+                    None => ability_as_read(self, object.id, ability),
+                },
+            },
+            ReplacementInstanceId::Counter(object, counter, effect) => ReplacementOption::Counter { object, counter, effect },
+            ReplacementInstanceId::GameRule(object, rule) => ReplacementOption::Rule { object, rule },
+        }
+    }
+
+    /// The object whose effect granted or copied `ability` onto the object
+    /// that has it: the source of the row its instance names, while the row
+    /// lasts.
+    pub(crate) fn granted_by(&self, ability: AbilityId) -> Option<ObjectId> {
+        let row = ability.granting_row()?;
+        self.continuous_effects.iter().find(|effect| effect.id == row).map(|effect| effect.source)
     }
 }
 
-/// Where the option an answer writes as `chosen`, a [`logged_choice`], sits in
-/// `options`: [`position_named`] once the words and the place are read apart.
+/// `ability` among `id`'s abilities as the layers give them. Read as an
+/// observer, so a game logged and one not count alike.
+pub(crate) fn ability_as_read(game: &GameState, id: ObjectId, ability: AbilityId) -> AbilityAsRead {
+    game.unobserved(|| read_in(&crate::oracle::characteristics::get_effective_abilities(game, id), ability))
+}
+
+/// `ability` as `abilities` has it.
+fn read_in(abilities: &[crate::objects::card_data::AbilityDef], ability: AbilityId) -> AbilityAsRead {
+    let at = crate::objects::card_data::printed_place(abilities, ability);
+    AbilityAsRead(at.map(|index| (index + 1, abilities[index].rules_text.words)))
+}
+
+/// Where the option a replayed answer writes as `chosen` sits in `options`:
+/// the first not in `taken` whose words are those. Every option writes what
+/// it is, so two whose words are the same are one choice twice, and an
+/// answer naming those words twice takes both.
 pub fn position_of(options: &[ChoiceOption], game: &GameState, chosen: &str, taken: &[usize]) -> Option<usize> {
-    let (words, place) = match chosen.rsplit_once(" (").and_then(|(words, rest)| Some((words, rest.strip_suffix(')')?))) {
-        Some((words, rest)) => match rest.split_once(OF_EQUALS).and_then(|(place, _)| place.parse::<usize>().ok()) {
-            Some(place) => (words, Some(place)),
-            None => (chosen, None),
-        },
-        None => (chosen, None),
-    };
-    position_named(options, game, words, place, taken)
+    (0..options.len()).find(|&i| !taken.contains(&i) && options[i].as_logged(game) == chosen)
 }
 
-/// Where the option an answer names sits in `options`, by its words and,
-/// among options whose words are the same, its place counted from 1: the one
-/// matcher a replayed answer, a scenario's setup line and a test's script
-/// find an option by (`setup-architecture.md` §7.2, decision 6), by what it
-/// is and never by where it sat. Words alone take the first such option not
-/// in `taken`, so an answer naming two options with the same words takes two
-/// of them.
-pub fn position_named(options: &[ChoiceOption], game: &GameState, words: &str, place: Option<usize>, taken: &[usize]) -> Option<usize> {
-    let equals = reading_as(options, game, words);
-    match place {
-        Some(place) => equals.get(place.checked_sub(1)?).copied().filter(|i| !taken.contains(i)),
-        None => equals.into_iter().find(|i| !taken.contains(i)),
+/// Where in `options` the option a script names sits, past the positions
+/// `taken`, wherever the engine lists it; `None` when it is not offered. Two
+/// equal options offered are one choice twice, taken in turn. A name that
+/// fits two different options is refused, since it would mean whichever the
+/// engine lists first: a source with two effects offered needs the effect
+/// named.
+pub fn position_named(options: &[ChoiceOption], game: &GameState, named: &ChoiceOption, taken: &[usize]) -> Option<usize> {
+    let fits = named_by_script(options, named);
+    if fits.iter().any(|&i| options[i] != options[fits[0]]) {
+        panic!(
+            "{} names {} different options offered, so name the one meant: {:?}",
+            named.as_logged(game),
+            fits.len(),
+            options.iter().map(|o| o.as_logged(game)).collect::<Vec<_>>(),
+        );
+    }
+    fits.into_iter().find(|i| !taken.contains(i))
+}
+
+/// The places in `options`, in the list's order, of what a script's or a
+/// setup line's `named` names: the options equal to it, or, for an object
+/// no option equals, each trigger and replacement of that object offered.
+fn named_by_script(options: &[ChoiceOption], named: &ChoiceOption) -> Vec<usize> {
+    let equal: Vec<usize> = (0..options.len()).filter(|&i| options[i] == *named).collect();
+    match named {
+        ChoiceOption::Object(id) if equal.is_empty() => {
+            (0..options.len()).filter(|&i| options[i].effect_source() == Some(*id)).collect()
+        }
+        _ => equal,
     }
 }
 
-/// Every place in `options` whose words are `words`, in the list's order: the
-/// options an answer naming those words could mean.
-pub fn reading_as(options: &[ChoiceOption], game: &GameState, words: &str) -> Vec<usize> {
-    (0..options.len()).filter(|&i| options[i].as_logged(game) == words).collect()
+impl ChoiceOption {
+    /// The object an effect's option comes from: a trigger's source, a
+    /// replacement ability's or counter's object, a row's source.
+    pub fn effect_source(&self) -> Option<ObjectId> {
+        match self {
+            ChoiceOption::Trigger(trigger) => Some(trigger.source.id),
+            ChoiceOption::Replacement(ReplacementOption::FromResolution { source, .. }) => Some(*source),
+            ChoiceOption::Replacement(
+                ReplacementOption::Ability { object, .. }
+                | ReplacementOption::Counter { object, .. }
+                | ReplacementOption::Rule { object, .. },
+            ) => Some(object.id),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -636,8 +867,11 @@ mod tests {
         let land = put_on_battlefield(&mut game, card("Forest"), 0);
         let bolt = put_in_hand(&mut game, card("Lightning Bolt"), 0);
         let forest = put_in_hand(&mut game, card("Forest"), 0);
+        let warden = put_on_battlefield(&mut game, card("Soul Warden"), 0);
         let mana = game.objects[&land].card_data.abilities[0].id;
+        let gains = game.objects[&warden].card_data.abilities[0].id;
         let red = vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 1))];
+        let existence = |id: ObjectId| game.object_ref(id).unwrap();
         let logged = |option: ChoiceOption| option.as_logged(&game);
 
         assert_eq!(logged(ChoiceOption::Object(bears)), format!("Grizzly Bears ({bears})"));
@@ -647,7 +881,7 @@ mod tests {
         assert_eq!(logged(ChoiceOption::Action(PriorityAction::PlayLand(forest))), format!("play Forest ({forest})"));
         assert_eq!(
             logged(ChoiceOption::Action(PriorityAction::ActivateAbility(land, mana))),
-            format!("activate Forest ({land}) ability {mana}")
+            format!("activate Forest ({land}) ability 1")
         );
         assert_eq!(
             logged(ChoiceOption::AttackerTarget(bears, AttackTarget::Player(1))),
@@ -664,6 +898,53 @@ mod tests {
         assert_eq!(logged(ChoiceOption::Color(Color::Red)), "color red");
         assert_eq!(logged(ChoiceOption::CounterType(CounterType::PlusOnePlusOne)), "counter +1/+1");
         assert_eq!(logged(ChoiceOption::ManaType(ManaType::Green)), "mana {G}");
+        let triggered = |ability| TriggerOption { source: existence(warden), ability, triggered_by: vec![bears] };
+        assert_eq!(
+            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: None, read_as: AbilityAsRead(Some((1, ""))) }))),
+            format!("Soul Warden ({warden}), ability 1, for Grizzly Bears ({bears})")
+        );
+        assert_eq!(
+            logged(ChoiceOption::Trigger(triggered(TriggeredAbility::OfItsSource { ability: gains, granted_by: Some(wall), read_as: AbilityAsRead(Some((1, ""))) }))),
+            format!("Soul Warden ({warden}), ability 1, granted by Wall of Stone ({wall}), for Grizzly Bears ({bears})")
+        );
+        assert_eq!(
+            logged(ChoiceOption::Trigger(TriggerOption {
+                source: existence(warden),
+                ability: TriggeredAbility::Delayed { refers_to: vec![bears] },
+                triggered_by: Vec::new(),
+            })),
+            format!("Soul Warden ({warden}), its delayed ability about Grizzly Bears ({bears})")
+        );
+        assert_eq!(
+            logged(ChoiceOption::Replacement(ReplacementOption::FromResolution { source: wall, resolution: bolt })),
+            format!("Wall of Stone ({wall}), made as {bolt} resolved")
+        );
+        assert_eq!(
+            logged(ChoiceOption::Replacement(ReplacementOption::Ability {
+                object: existence(warden),
+                ability: gains,
+                granted_by: None,
+                member: 1,
+                read_as: AbilityAsRead(Some((1, ""))),
+            })),
+            format!("Soul Warden ({warden}), ability 1, its effect 2")
+        );
+        assert_eq!(
+            logged(ChoiceOption::Replacement(ReplacementOption::Counter {
+                object: existence(bears),
+                counter: CounterType::Finality,
+                effect: CounterEffectKind::Replacement,
+            })),
+            format!("Grizzly Bears ({bears}), finality counter")
+        );
+        assert_eq!(
+            logged(ChoiceOption::Replacement(ReplacementOption::Counter {
+                object: existence(bears),
+                counter: CounterType::Shield,
+                effect: CounterEffectKind::Prevention,
+            })),
+            format!("Grizzly Bears ({bears}), shield counter, its prevention")
+        );
     }
 
     /// An answer names what it chose, so a list in another order, or a
@@ -679,16 +960,16 @@ mod tests {
             ChoiceOption::Action(PriorityAction::CastSpell(bolt)),
             ChoiceOption::Action(PriorityAction::PlayLand(forest)),
         );
-        let written = [pass.clone(), cast.clone()];
-        let chosen = logged_choice(&written, &game, 1);
+        let chosen = cast.as_logged(&game);
         let reordered = [play, cast, pass];
         assert_eq!(position_of(&reordered, &game, &chosen, &[]), Some(1));
         assert_eq!(position_of(&reordered, &game, &chosen, &[1]), None, "a taken option is passed over");
         assert_eq!(position_of(&reordered[..1], &game, &chosen, &[]), None, "not offered");
 
+        // Two options whose words are the same are one choice twice: an
+        // answer naming them twice takes both, whichever first.
         let twins = [ChoiceOption::Number(2), ChoiceOption::Number(2)];
-        assert_eq!(logged_choice(&twins, &game, 1), "number 2 (2 of 2)");
-        assert_eq!(position_of(&twins, &game, &logged_choice(&twins, &game, 1), &[]), Some(1));
+        assert_eq!(position_of(&twins, &game, "number 2", &[]), Some(0));
         assert_eq!(position_of(&twins, &game, "number 2", &[0]), Some(1));
     }
 
@@ -736,36 +1017,43 @@ mod tests {
         seats.allocate(&game, 0, &ChoiceContext::new(damage), 3, &listed, &[0, 0], None);
     }
 
-    /// Two options that read the same, as one object's two replacements do,
-    /// are told apart by their place among themselves, as the log writes
-    /// `(2 of 2)`, in a pick and in an order.
+    /// Two equal options are one choice twice, as two alike costs are: a
+    /// script naming the option twice takes both, in a pick and in an order.
     #[test]
-    fn a_script_names_options_that_read_alike_by_their_place() {
-        let mut game = setup_two_player_game();
-        let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
-        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
+    fn a_script_takes_two_equal_options_in_turn() {
+        let game = setup_two_player_game();
+        let twins = [ChoiceOption::Number(2), ChoiceOption::Number(2)];
         let seats = ScriptedDecisionProvider::new();
         let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-        seats.expect_choice_among_alike(which.clone(), vec![(ChoiceOption::Object(bears), 2)]);
+        seats.expect_choice(which.clone(), vec![ChoiceOption::Number(2), ChoiceOption::Number(2)]);
         let order = ChoiceKind::ScryOrder { source: None, bottom: false };
-        seats.expect_order_among_alike(order.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(bears), 1)]);
+        seats.expect_order(order.clone(), vec![ChoiceOption::Number(2), ChoiceOption::Number(2)]);
 
-        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1)), vec![1]);
-        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![1, 0]);
+        assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which.clone()), &twins, (2, 2)), vec![0, 1]);
+        assert_eq!(seats.choose_ordering(&game, 0, &ChoiceContext::new(order.clone()), &twins), vec![0, 1]);
+
+        // A test's recording provider finds what it names the same way.
+        let twice = || [ChoiceOption::Number(2), ChoiceOption::Number(2)];
+        let recording = crate::test_support::RecordingDecisionProvider::choosing(twice()).ordering(twice());
+        assert_eq!(recording.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (2, 2)), vec![0, 1]);
+        assert_eq!(recording.choose_ordering(&game, 0, &ChoiceContext::new(order), &twins), vec![0, 1]);
     }
 
-    /// A name alone would mean whichever of two alike options the engine
-    /// lists first, so it is refused there.
+    /// A source names its one effect offered; naming a source that has two
+    /// would mean whichever the engine lists first, so it is refused.
     #[test]
-    #[should_panic(expected = "its words alone cannot say which")]
-    fn a_name_that_reads_like_another_option_needs_its_place() {
+    #[should_panic(expected = "different options offered")]
+    fn a_source_with_two_effects_offered_needs_the_effect_named() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, card("Grizzly Bears"), 0);
+        let wall = put_on_battlefield(&mut game, card("Wall of Stone"), 0);
+        let source = game.object_ref(bears).unwrap();
+        let ability = TriggeredAbility::OfItsSource { ability: AbilityId::UNASSIGNED, granted_by: None, read_as: AbilityAsRead(Some((1, ""))) };
+        let triggered = |by| ChoiceOption::Trigger(TriggerOption { source, ability: ability.clone(), triggered_by: vec![by] });
         let seats = ScriptedDecisionProvider::new();
-        let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-        seats.expect_choice(which.clone(), vec![ChoiceOption::Object(bears)]);
-        let twins = [ChoiceOption::Object(bears), ChoiceOption::Object(bears)];
-        seats.pick_n(&game, 0, &ChoiceContext::new(which), &twins, (1, 1));
+        let order = ChoiceKind::OrderTriggers { player: 0, tier: crate::types::triggers::TriggerTier::First };
+        seats.expect_order(order.clone(), vec![ChoiceOption::Object(bears), ChoiceOption::Object(bears)]);
+        seats.choose_ordering(&game, 0, &ChoiceContext::new(order), &[triggered(bears), triggered(wall)]);
     }
 
     /// A take answers a take-or-leave question's one option, and nothing

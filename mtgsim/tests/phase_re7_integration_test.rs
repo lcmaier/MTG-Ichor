@@ -24,6 +24,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
+use mtgsim::ui::choice_types::ChoiceOption;
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield,
     put_on_battlefield_under, set_attacking, set_blocked_by, set_blocking, setup_game, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -703,8 +704,9 @@ fn a_tramplers_blocker_still_takes_damage_when_the_defending_player_has_left() {
 
     // The attacker's controller is still asked how to divide — CR 702.19b's
     // "at least lethal to each blocker" is their choice and does not stop
-    // being one because the spill has nowhere to go.
-    let dp = RecordingDecisionProvider::picking(0);
+    // being one because the spill has nowhere to go. Lethal to the blocker,
+    // and the rest to the player, whose share CR 800.4e drops.
+    let dp = RecordingDecisionProvider::allocating([(ChoiceOption::Object(blocker), 2), (ChoiceOption::Player(1), 3)]);
     let assignments =
         mtgsim::engine::combat::resolution::assign_combat_damage(&game, &dp, 0, false);
 

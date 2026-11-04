@@ -2680,8 +2680,34 @@ priority, so a main-phase board reads as it does today with its draw step
 drawn. Three things the rules do on the way, each settled here:
 - **The untap step untaps** (CR 502.3): the active player's permanents are
   untapped when the setup lines play, whatever the board wrote. A board that
-  needs one tapped taps it with a setup line, as play would. 7 of the 14
-  files write a tapped permanent of the active player.
+  needs one tapped taps it with a setup line, as play would: a creature by
+  attacking, and any permanent by an activated ability with {T} in its cost
+  (`| ability N`), a land's included where it has one that is not a mana
+  ability (Temple of Civilization, Ojer Taq's back face, transforms by one).
+  A permanent whose only tap is a mana ability, as `planeswalker.scenario`'s
+  Plains, has none to name, since `| ability N` never names a mana ability
+  (the grammar's table, `setup-architecture.md#51-v1-as-built`), so setup lines
+  gain a third verb, `then: player p taps <card> for {W}`: the permanent's
+  mana ability that adds that mana, activated as a player may at priority
+  (CR 605.3a), and the mana left in p's pool until the step ends and the
+  pool empties (CR 106.4, 500.5), as play would leave it. The mana named is
+  the line's answer to any choice the ability asks (a color, for City of
+  Brass), so the line names its answer by what it is.
+- **A line may name an earlier step of the turn**, `then in <step>: …`, and
+  plays at that step's first priority rather than the board's. A tapped land
+  whose mana went unspent is a board play reaches that way: `then in
+  precombat main: player 0 taps Plains for {W}` leaves the Plains tapped and,
+  at a combat step, the pool empty, since the mana emptied as the main phase
+  ended (CR 500.5). Without it, every tapped land's mana floats into the
+  board's own step, where its player could spend it, which a board's author
+  may not mean (raised in `modes-plus-choice-kinds`' review). A step with no
+  priority (untap, CR 502.4; cleanup, 514.3) or after the board's is refused,
+  and a line plays by the legality its step has, so a sorcery-speed line
+  names a main phase. 7 of the 14 files write a tapped permanent of the
+  active player: six attackers, which the declaration below taps (CR
+  508.1f), and `planeswalker.scenario`'s Plains, the one land, which is
+  written untapped (the owner, 2026-11-02): its test reads only the attack.
+  A loader test is the verb's and the step word's consumer.
 - **Combat is declared, not written.** CR 508.8 skips the declare blockers
   step when no creature attacks, so a board at declare attackers or later
   needs its attack declared. Setup lines gain the two declarations, `then:
@@ -2719,8 +2745,9 @@ scenario files (`attacking` 7, `this turn:` 7, `blocking` 4, `damage` 3,
 `arrived this turn` 2), in the inline boards of four integration-test files
 (SU-1's loader tests hold most of them, then SU-7's, A6r's and TR-5h's), and
 in the board editor's mid-turn controls; the 7 files with an active
-player's tapped permanent and the 7 at a combat step besides, and the two
-declaration lines, ~60–100 lines with their tests. ~500–850 lines changed,
+player's tapped permanent and the 7 at a combat step besides, the two
+declaration lines, ~60–100 lines with their tests, and the `taps … for`
+verb with the step word and their refusals, ~80–140 more. ~580–990 lines changed,
 more deleted than added: an estimate from those counts, not a measurement. *Upkeep*: the
 writer's report shrinks to what outlives a turn (delayed triggers, returns, a
 resolution's long rows), and the grammar holds only the state a turn's
@@ -2946,7 +2973,11 @@ engine which one.
 
 **Taken: by identity** (the owner, the same round): answers are named by what they chose
 everywhere a client or a file writes one, and the place stays inside the
-engine, between `ui::ask` and the provider.
+engine, between `ui::ask` and the provider. A provider in process holds the
+question and still answers by place. The paused game's lookup is its own, plain
+equality and a refusal, since a client's answer arrives at run time:
+`position_named` is a script's, which panics on a name that fits two options
+and lets a bare object stand for its one effect.
 
 #### Decision 3 — what a pending decision holds on `GameState`, and the rule every later choice kind follows
 
@@ -3178,7 +3209,10 @@ write the ability's text as well as its place; it would make a line as long
 as the card's paragraph, and a fixed typo in a card's text would then stop
 every older record's replay, so the text stays the client's.
 
-**4b. The typed matcher, and the two cost shapes.** As the owner chose at
+**4b. The typed matcher, and the two cost shapes.** As built, the replay finds
+an answer by its words, the owner's call at #307, for the reason and the
+retrofit cost in `choices-architecture.md`'s as-built; scripts and setup lines
+compare typed values as below. As the owner chose at
 #305: `ChoiceOption` derives `PartialEq`; the log reader parses each answer's
 words into a typed option once (`Grizzly Bears (#7)` is `Object(#7)`, the
 name kept as a check that the id still names that card); scripts, setup lines
@@ -3293,6 +3327,8 @@ first PR, ~440–760 lines in all, and items 336 and 361 are re-slotted there.
 
 ### 7e.5 The build, sized
 
+**Built in `modes-plus-choice-kinds`' first PR** (decision 4), #307's
+`options-named-by-what-they-are`, as-built in `choices-architecture.md`.
 **Before the decks, in `modes-plus-choice-kinds`' first PR** (decision 4):
 the two effect arms, the typed matcher with its cost parser, and the 33
 `picking(n)` uses, ~440–760 lines with tests. The PR's own sizing places it in
@@ -3307,13 +3343,13 @@ from Below's two triggers, both orders.
 | | the fork: a copy at each anchor, the answers since, the replay; its consumer, the fork test at every decision of seeded games at two seats and four, each branch replaying the original's event log and end state | ~120–200 | ~150–250 |
 | | item 140's round started at any seat, and CR 514.3a's re-loop; item 41's test gains the mid-round forks | ~60 | ~60–80 |
 | | the paused game's copy at each turn's start, the writer's turn-start save, and decision 1's three words for the spans before a turn (closing item 287) | ~140–230 | ~60–100 |
-| | decision 1's B: the turn played to `step`, the setup lines' `attacks` and `blocks`, the mid-turn words and their refusals out of the grammar and the loader, the engine's six scenario files and four test files' inline boards migrated | ~90–160 added, more deleted | ~130–240 changed |
+| | decision 1's B: the turn played to `step`, the setup lines' `attacks`, `blocks` and `taps … for`, a line's `in <step>`, the mid-turn words and their refusals out of the grammar and the loader, the engine's six scenario files and four test files' inline boards migrated | ~150–260 added, more deleted | ~180–330 changed |
 | | items 40 and 233 closed as superseded | docs | |
-| | **the engine PR** | **~660–1,050** | **~600–970** |
+| | **the engine PR** | **~720–1,150** | **~650–1,060** |
 | **dev GUI** | the bridge drives a paused game (`spawn_game`'s thread, `GuiSeat`, `HandOver` go); "Save board as scenario" writes the turn's beginning and its save; the editor's mid-turn controls go and its eight test scenarios migrate | ~250–450 | ~100–200 |
 | with the harness | the coroutine, chosen by item 140's spike against the thread, with the binding floor item 140 proposes | sized there | |
 
-The engine PR reads ~1,260–2,020: inside the band (1,500–2,500,
+The engine PR reads ~1,370–2,210: inside the band (1,500–2,500,
 `engineering-practices.md#sizing-a-phase`) at its upper estimate, under it at
 its lower, so it is one PR. The paused game and the fork are one consumer's
 two halves. Fuzz A/B: `IDENTICAL` predicted. Every fuzz game runs

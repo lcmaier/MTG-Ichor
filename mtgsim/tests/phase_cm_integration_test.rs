@@ -1426,9 +1426,10 @@ fn test_activating_an_ability_opens_the_same_window_a_cast_does() {
     // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
     let draw = 1;
 
-    let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(
-        RecordingDecisionProvider::picking(0),
-    );
+    let forest_mana = game.objects[&forest].card_data.abilities[0].id;
+    let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(RecordingDecisionProvider::choosing([
+        ChoiceOption::Action(PriorityAction::ActivateAbility(forest, forest_mana)),
+    ]));
     game.activate_ability(0, stone, draw, &dp).expect("{1} paid from inside the window");
 
     assert_eq!(windows_opened(dp.inner()), 1, "602.2b runs 601.2g for an ability too");

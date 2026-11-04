@@ -155,9 +155,12 @@ fn resolution_row(game: &mut GameState, layer: Layer, affected: ObjectSet, modif
 
 fn replacement_row(game: &mut GameState, def: ReplacementDef) {
     let turn = game.turn_number;
+    let source = mtgsim::types::ids::new_object_id();
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
-        source: mtgsim::types::ids::new_object_id(),
+        source,
+        resolution: mtgsim::events::event::ResolutionStamp { source, controller: 0 },
+        made_by_text: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
@@ -403,9 +406,9 @@ fn a_move_no_row_names_leaves_every_registry_alone() {
 fn a_spell_whose_target_left_and_came_back_does_not_resolve() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::picking(2));
+    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::choosing([ChoiceOption::Object(bears)]));
     let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
-    assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)], "players first, then the Bears");
+    assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)]);
 
     leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -425,7 +428,7 @@ fn two_references_to_one_creature_both_end_at_one_move() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     resolve_spell(&mut game, giant_growth(), 1, &[bears]);
-    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::picking(2));
+    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::choosing([ChoiceOption::Object(bears)]));
 
     leave_and_return(&mut game, bears, Zone::Exile, ZoneChangeAct::Put);
     assert_eq!(pt(&game, bears), (Some(2), Some(2)));
@@ -593,8 +596,7 @@ fn copying_one_donor_twice_applies_its_static_ability_once() {
     let copier = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     for _ in 0..2 {
-        // The candidates are the battlefield in timestamp order: the donor first.
-        resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::picking(0));
+        resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::choosing([ChoiceOption::Object(donor)]));
     }
     assert_eq!(get_effective_name(&game, copier), "Anthem Bearer");
     assert_eq!(pt(&game, bears), (Some(3), Some(3)), "one anthem, not two");
@@ -677,15 +679,14 @@ fn a_lasting_copy_retires_the_earlier_copies_it_hides() {
 fn a_lasting_copy_of_one_object_leaves_the_earlier_copys_other_object_alone() {
     let mut game = setup_two_player_game();
     let bearer = put_on_battlefield(&mut game, anthem_bearer(), 1);
-    let _plain = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let plain = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
     resolve_spell(&mut game, mirrorform(), 0, &[bearer]);
     let mirrorform_row = copy_rows_on(&game, first);
     assert_eq!(copy_rows_on(&game, second), mirrorform_row);
 
-    // The donor's candidates in timestamp order: [bearer, plain, first, second].
-    resolve_spell_with(&mut game, lasting_shape(), 0, &[first], &RecordingDecisionProvider::picking(1));
+    resolve_spell_with(&mut game, lasting_shape(), 0, &[first], &RecordingDecisionProvider::choosing([ChoiceOption::Object(plain)]));
     assert_eq!(get_effective_name(&game, first), "Grizzly Bears");
     assert_eq!(get_effective_name(&game, second), "Anthem Bearer");
     assert_eq!(copy_rows_on(&game, second), mirrorform_row, "the earlier row keeps the other creature");
@@ -822,7 +823,7 @@ fn mirrorform_of_a_copy_copies_what_it_copied_and_keeps_it() {
     let angel = put_on_battlefield(&mut game, serra_angel(), 1);
     let donor = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    resolve_spell_with(&mut game, cytoshape(), 1, &[donor], &RecordingDecisionProvider::picking(0));
+    resolve_spell_with(&mut game, cytoshape(), 1, &[donor], &RecordingDecisionProvider::choosing([ChoiceOption::Object(angel)]));
     assert_eq!(get_effective_name(&game, donor), "Serra Angel");
 
     resolve_spell(&mut game, mirrorform(), 0, &[donor]);
@@ -868,8 +869,7 @@ fn an_indefinite_copy_shows_again_with_its_statics_when_a_later_copy_ends() {
     let other = put_on_battlefield(&mut game, grizzly_bears(), 0);
     assert_eq!(pt(&game, other), (Some(3), Some(3)), "the copied anthem");
 
-    // Cytoshape's candidates: [bearer, copier, other]; the last is a plain Bear.
-    resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::picking(2));
+    resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::choosing([ChoiceOption::Object(other)]));
     assert_eq!(get_effective_name(&game, copier), "Grizzly Bears");
     assert_eq!(pt(&game, other), (Some(2), Some(2)), "hidden for the turn");
 

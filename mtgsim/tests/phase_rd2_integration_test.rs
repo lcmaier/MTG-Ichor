@@ -154,6 +154,8 @@ fn fixture_row(
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source,
+        resolution: mtgsim::events::event::ResolutionStamp { source, controller },
+        made_by_text: None,
         controller,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,

@@ -19,7 +19,6 @@ use crate::scenario::position_word;
 use crate::state::game_state::GameState;
 use crate::state::trace::COMMIT;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::logged_choice;
 
 use super::hook::{LoggedAnswer, LoggedDecision};
 use super::start::GameStart;
@@ -90,7 +89,7 @@ pub struct AnswerLine {
     pub chosen: Chosen,
 }
 
-/// What an answer chose, each option as `logged_choice` names it.
+/// What an answer chose, each option as `ChoiceOption::as_logged` writes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Chosen {
     Picks(Vec<String>),
@@ -106,7 +105,7 @@ impl AnswerLine {
     /// game is at as it asks.
     pub fn of(game: &GameState, number: usize, decision: &LoggedDecision) -> AnswerLine {
         let LoggedDecision { player, kind, options, answer, forced } = *decision;
-        let named = |index: usize| logged_choice(options, game, index);
+        let named = |index: usize| options[index].as_logged(game);
         let chosen = match answer {
             LoggedAnswer::Picks(picks) => Chosen::Picks(picks.iter().map(|&i| named(i)).collect()),
             LoggedAnswer::Number(number) => Chosen::Number(number),

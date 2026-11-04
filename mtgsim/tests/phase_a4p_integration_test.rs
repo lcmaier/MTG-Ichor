@@ -20,6 +20,7 @@
 
 use mtgsim::cards::printings::{ancestral_recall, lightning_bolt};
 use mtgsim::state::game_state::GameState;
+use mtgsim::ui::choice_types::ChoiceOption;
 use mtgsim::test_support::{
     put_in_hand, setup_game, stock_libraries, test_dp, RecordingDecisionProvider,
 };
@@ -67,9 +68,7 @@ fn any_target_damage_does_not_resolve_against_a_seat_that_left_the_game() {
     let bolt = put_in_hand(&mut game, lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    // The battlefield is empty, so "any target" offers exactly the four seats
-    // and index 3 is player 3.
-    let dp = RecordingDecisionProvider::picking(3);
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Player(3)]);
     game.cast_spell(0, bolt, &dp).expect("{R} is in the pool and the seats are legal");
     assert_eq!(
         game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
@@ -99,10 +98,9 @@ fn any_target_damage_does_not_resolve_against_a_seat_that_left_the_game() {
 
 #[test]
 fn a_seat_that_left_the_game_is_not_among_the_players_a_cast_offers() {
-    // `RecordingDecisionProvider::picking(3)` asks for the *fourth* option and
-    // clamps to the last one offered, so what this test reads off the chosen
-    // target is how many seats CR 601.2c put in front of the provider. Before
-    // the fix the fourth option was player 3, and `validate_targets` then
+    // The provider names player 3 first and player 2 second, so what this
+    // test reads off the chosen target is whether CR 601.2c offered player 3.
+    // Before the fix it was offered and taken, and `validate_targets` then
     // refused it under CR 800.4a — a cast the oracle had offered, rewound at
     // the end of the announcement (`codebase-state.md` item 139's class).
     let mut game = setup_game(4);
@@ -113,7 +111,7 @@ fn a_seat_that_left_the_game_is_not_among_the_players_a_cast_offers() {
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     let before = hand_size(&game, 2);
 
-    let dp = RecordingDecisionProvider::picking(3);
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Player(3), ChoiceOption::Player(2)]);
     game.cast_spell(0, recall, &dp)
         .expect("three seats are in the game, so CR 601.2c has a legal target");
     assert_eq!(

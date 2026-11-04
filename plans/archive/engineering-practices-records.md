@@ -884,9 +884,13 @@ and the dated record of every reading stays in `fuzz-record.md`. The
 denominator is what reaches the agent, and which prompts reach the agent is
 the seat's middleware, not the engine: `backlog.md` §2.22's default bot stack
 is the reference, `ManaWindowStop` on and the tap-solver decorator off. The
-census's two kinds move the reading in opposite directions. An engine elision
-(its rule 1) can only raise it, since the prompt was never a choice and the
-engine stops building it. A decorator (rule 2) lowers it with no engine
+census's two kinds move the reading. An engine elision (its rule 1) takes one
+decision off the count and that prompt's work off the time, so it raises the
+rate only if the prompt cost more than the average decision; one that cost
+less lowers it in games that got faster (corrected at #307). Eliding a prompt
+that was never a choice is the goal, so a drop is judged by games per loaded
+core-second, games ÷ the 16-thread wall ÷ physical cores, on the same board. A
+decorator (rule 2) lowers it with no engine
 slower: the engine still asks, the decorator answers, and the agent's
 decisions per game fall. That is the floor measuring what it should. It is a
 balance check, engine CPU per GPU pass, and a stack that hands the agent fewer

@@ -440,11 +440,11 @@ fn the_putter_is_the_effects_controller_and_the_entering_controller() {
 #[test]
 fn a_count_halved_to_zero_meets_the_performers_guard_not_never_happens() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, fixture_halver(), 0);
+    let halver = put_on_battlefield(&mut game, fixture_halver(), 0);
     put_on_battlefield(&mut game, fixture_doubler_by(PlayerSet::Opponents), 0);
     let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let start = game.recorded_events().records().len();
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(halver)]);
 
     let performed = game
         .execute_actions(

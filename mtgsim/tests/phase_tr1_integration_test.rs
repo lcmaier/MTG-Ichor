@@ -36,6 +36,7 @@ use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{
     AbilityIdentity, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
 };
+use mtgsim::test_support::pending_trigger_for;
 use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
     put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature, StackWatcher,
@@ -631,10 +632,10 @@ fn identical_triggers_that_read_different_bindings_are_asked_their_order() {
     destroy_all(&mut game, &[a, b], source);
     assert_eq!(pending(&game), 2);
     let dp = ScriptedDecisionProvider::new();
-    // Both triggers are offered as the Mourner, so only their place tells
-    // them apart.
-    let mourns = |place| (ChoiceOption::Object(mourner), place);
-    dp.expect_order_among_alike(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![mourns(2), mourns(1)]);
+    // One ability of the Mourner's, each trigger named by the creature that
+    // died: `b`'s goes on the stack first, so `a`'s resolves first.
+    let order = vec![pending_trigger_for(&game, mourner, b), pending_trigger_for(&game, mourner, a)];
+    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
     place(&mut game, &dp);
     assert_eq!(game.stack.len(), 2);
 }

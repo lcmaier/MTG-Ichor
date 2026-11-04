@@ -2567,6 +2567,12 @@ through `oracle/characteristics.rs`; and a measured board to lay out, about 30
 permanents at a priority prompt on a Commander board and up to about 80
 (`roadmap-v2.md` §E, the post-RE audit's pass 3).
 
+**What a client is handed** (the owner, 2026-11-03, at #307): a structure, JSON
+or like it, with everything needed to render what is happening, and the client
+chooses how much of it to show. Arena shows a finality counter's words only on
+a hover or a close look at the card. So a label stays short, and what a thing
+does is data beside it; `information-model` decides what each seat's copy holds.
+
 **Open question 1: where the engine runs.** `roadmap-v2.md` §E and §6 named
 Wasm; they point here now and leave it open. In a browser tab the blocking
 provider needs one of four things:

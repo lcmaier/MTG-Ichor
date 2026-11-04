@@ -54,4 +54,6 @@ chat handover with the same list.
 The same list of changes by concept as the PR body: for each, what was wrong
 with a concrete card or board, what changed, and why, with item numbers only
 in brackets at the end. Then the size, the gates, what the pre-review caught,
-and the PR URL. Merging is the owner's call; do not offer to watch CI.
+and the PR URL. Every question left for the owner goes here in full, in
+`/review-round`'s format, its retrofit cost first. Merging is the owner's call;
+do not offer to watch CI.

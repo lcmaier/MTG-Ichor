@@ -1277,6 +1277,8 @@ impl GameState {
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: ReplacementEffectId::UNASSIGNED,
                         source: ctx.effect_source(),
+                        resolution: ctx.stamp(),
+                        made_by_text: self.text_of_the_ability_resolving(ctx),
                         controller,
                         generated_by: ctx.generated_by,
                         duration: Duration::UntilEndOfTurn,
@@ -1428,6 +1430,8 @@ impl GameState {
                     self.replacement_effects.add(RegisteredReplacementEffect {
                         id: ReplacementEffectId::UNASSIGNED,
                         source,
+                        resolution: ctx.stamp(),
+                        made_by_text: self.text_of_the_ability_resolving(ctx),
                         controller: ctx.controller,
                         generated_by: ctx.generated_by,
                         duration: *duration,
@@ -2492,6 +2496,13 @@ impl GameState {
     /// it moved, which CR 400.7j lets the rest of the effect find.
     fn target_refs(&self, targets: &[ObjectOrPlayerId]) -> Vec<crate::types::ids::ObjectOrPlayer> {
         targets.iter().filter_map(|&target| self.target_ref(target)).collect()
+    }
+
+    /// The text of the ability `ctx` is resolving, while its source has it:
+    /// what a row it makes keeps. `None` for a spell.
+    fn text_of_the_ability_resolving(&self, ctx: &ResolutionContext) -> Option<&'static str> {
+        let identity = self.resolving.as_ref().filter(|resolving| resolving.id == ctx.source)?.identity?;
+        crate::ui::choice_types::ability_as_read(self, identity.source.id, identity.ability).text()
     }
 
     /// The resolved targets that are on the battlefield now.

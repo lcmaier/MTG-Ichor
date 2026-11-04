@@ -432,7 +432,7 @@ impl DecisionProvider for ScriptedReplacementChoices {
         let (who, source) = self.script.borrow_mut().pop_front().unwrap_or_else(|| panic!("unscripted order for {player}"));
         assert_eq!(who, player, "CR 616.1's chooser is the entering permanent's controller");
         let words = ChoiceOption::Object(source).as_logged(game);
-        vec![position_named(options, game, &words, None, &[]).unwrap_or_else(|| panic!("{words} is not offered: {options:?}"))]
+        vec![position_named(options, game, &ChoiceOption::Object(source), &[]).unwrap_or_else(|| panic!("{words} is not offered: {options:?}"))]
     }
 
     fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: u64) -> u64 {

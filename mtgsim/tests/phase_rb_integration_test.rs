@@ -18,6 +18,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer};
 use mtgsim::oracle::characteristics::get_effective_controller;
+use mtgsim::test_support::{counter_effect_of, replacement_ability_of};
 use mtgsim::test_support::{
     pass_turn, place_bare, put_in_hand, put_on_battlefield, registered, set_active_player,
     set_attacking, set_blocked_by,
@@ -632,14 +633,10 @@ fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
     let probe = put_on_battlefield(&mut game, graveyard_probe("Graveyard Probe"), 0);
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
-    // Both effects are offered as the Probe, so only their place tells them
-    // apart: `gather` reads a permanent's abilities before its counters, and
-    // the printed `Prevent` is the first.
+    // The two are offered as what they are, the printed `Prevent` and the
+    // finality counters' exile, and the script names the printed one.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice_among_alike(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![(ChoiceOption::Object(probe), 1)],
-    );
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![replacement_ability_of(&game, probe, 1)]);
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
@@ -660,9 +657,9 @@ fn test_choosing_the_other_replacement_takes_the_other_branch() {
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice_among_alike(
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![(ChoiceOption::Object(probe), 2)],
+        vec![counter_effect_of(&game, probe, CounterType::Finality)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
@@ -857,9 +854,9 @@ fn test_the_chooser_is_the_affected_objects_controller_not_the_active_player() {
     add_counters(&mut game, probe, CounterType::Finality, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice_among_alike(
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![(ChoiceOption::Object(probe), 2)],
+        vec![counter_effect_of(&game, probe, CounterType::Finality)],
     );
     let asked = std::cell::RefCell::new(Vec::new());
     let recording = RecordingProvider { inner: &dp, asked: &asked };
@@ -896,9 +893,9 @@ fn test_simultaneous_choices_are_offered_in_apnap_order() {
     // prompts come in APNAP order: players 1, 2 and 3.
     let dp = ScriptedDecisionProvider::new();
     for probe in [probes[1], probes[2], probes[0]] {
-        dp.expect_choice_among_alike(
+        dp.expect_choice(
             ChoiceKind::ChooseReplacementEffect { affected_object: None },
-            vec![(ChoiceOption::Object(probe), 2)],
+            vec![counter_effect_of(&game, probe, CounterType::Finality)],
         );
     }
     let asked = std::cell::RefCell::new(Vec::new());
@@ -2028,6 +2025,8 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
     game.replacement_effects.add(RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: victim,
+        resolution: mtgsim::events::event::ResolutionStamp { source: victim, controller: 0 },
+        made_by_text: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
@@ -2069,6 +2068,8 @@ fn exempt_row(
     RegisteredReplacementEffect {
         id: ReplacementEffectId::UNASSIGNED,
         source: victim,
+        resolution: mtgsim::events::event::ResolutionStamp { source: victim, controller: 0 },
+        made_by_text: None,
         controller: 0,
         generated_by: mtgsim::events::cause::GeneratedBy::Spell,
         duration: Duration::UntilEndOfTurn,
@@ -2205,12 +2206,12 @@ fn test_choosing_exile_leaves_the_shuffle_inapplicable() {
     let mut game = setup_two_player_game();
     let probe = dying_creature_with_two_replacements(&mut game);
 
-    // The finality counter is the second of the Probe's two effects: a
-    // permanent's own abilities are offered before its counters.
+    // The script names the finality counters' exile over the Probe's own
+    // shuffle.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice_among_alike(
+    dp.expect_choice(
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![(ChoiceOption::Object(probe), 2)],
+        vec![counter_effect_of(&game, probe, CounterType::Finality)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
@@ -2235,10 +2236,7 @@ fn test_choosing_the_shuffle_leaves_the_exile_inapplicable() {
     let probe = dying_creature_with_two_replacements(&mut game);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice_among_alike(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![(ChoiceOption::Object(probe), 1)],
-    );
+    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![replacement_ability_of(&game, probe, 1)]);
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();

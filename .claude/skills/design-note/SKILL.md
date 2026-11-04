@@ -44,8 +44,9 @@ card reaches, says so in one line, with why.
 
 ## 3. The decisions
 
-- Each in `/review-round`'s format: the problem the options share, each
-  option's code shape, performance and upkeep, then the recommendation.
+- Each in `/review-round`'s format: its retrofit cost, the problem the options
+  share, each option's code shape, performance and upkeep, then the
+  recommendation.
   Number them from 1, ask only genuine choices, and fix a defect you found
   instead of asking about it.
 - Lead with where the work sits on the event path. Gloss every item number,

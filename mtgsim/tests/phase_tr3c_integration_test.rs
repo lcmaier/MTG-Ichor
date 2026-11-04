@@ -147,8 +147,7 @@ impl DecisionProvider for ChoosingSource {
             return self.rest.pick_n(game, player, ctx, options, bounds);
         }
         let logged: Vec<String> = options.iter().map(|o| o.as_logged(game)).collect();
-        let wanted = self.wanted.as_logged(game);
-        let at = logged.iter().position(|o| *o == wanted).unwrap_or_else(|| panic!("{wanted} not offered: {logged:?}"));
+        let at = options.iter().position(|o| *o == self.wanted).unwrap_or_else(|| panic!("{:?} not offered: {logged:?}", self.wanted));
         *self.offered.borrow_mut() = logged;
         vec![at]
     }
@@ -229,8 +228,8 @@ fn a_shield_prevents_the_damage_its_chosen_source_deals_after_it_died() {
     circle_chooses(&mut game, circle, now(myr));
 
     destroy(&mut game, myr);
-    // The Myr's controller, P1, targets P0: players are offered first.
-    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+    // The Myr's controller, P1, targets P0.
+    resolve_all(&mut game, &RecordingDecisionProvider::choosing([ChoiceOption::Player(0)]));
 
     assert_eq!(life(&game, 0), 20, "the Myr that died is the source the Circle chose");
     assert!(game.replacement_effects.is_empty(), "and the shield is spent (CR 615.8)");
@@ -329,7 +328,10 @@ fn what_a_waiting_delayed_trigger_names_is_a_source_wherever_it_has_gone() {
     game.change_zone(wisp, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
     game.change_zone(wisp, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
     let wisp_was = game.object_ref(wisp).unwrap();
-    resolve_all(&mut game, &RecordingDecisionProvider::picking(0));
+    // Flickerwisp's trigger from the existence that left first, then the
+    // returned one's.
+    let triggers = mtgsim::test_support::pending_triggers_of(&game, wisp);
+    resolve_all(&mut game, &RecordingDecisionProvider::picking(0).ordering(triggers));
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Exile);
     assert_eq!(game.delayed_triggers.len(), 1);
     let exiled = game.object_ref(bears).unwrap();

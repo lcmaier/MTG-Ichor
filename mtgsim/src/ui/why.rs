@@ -231,6 +231,8 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
             vec![*attacker, *id]
         }
         ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
+        ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id).chain(trigger.triggered_by.iter().copied()).collect(),
+        ChoiceOption::Replacement(_) => option.effect_source().into_iter().collect(),
         // No object on the board: the existence has left.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::Action(PriorityAction::Pass)
