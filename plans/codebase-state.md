@@ -3290,22 +3290,18 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     615.7 prevention shields, and the loop's unit (2026-09-09)" item 91.
 
 92. **A CR 615.7 count spanning subjects with two choosers is refused, not
-    answered.** `next_damage_shares` asserts one chooser across every bucket
-    and errors otherwise, because every printed multi-subject count is scoped
-    to one player and that player's permanents (Divine Deflection, Harm's
-    Way). A hypothetical "prevent the next 3 damage that would be dealt to any
-    number of target creatures" across two controllers would need CR 616.1's
-    last sentence applied to *shares* — an APNAP round of allocations — which
-    the rules do not describe for 615.7 and no card asks for.
+    answered: a record.** `next_damage_shares` asserts one chooser across every
+    bucket and errors otherwise. CR 615.7 states a shield on one permanent or
+    player, whose player or controller chooses which damage it prevents, and
+    states no count shared across subjects. Each of the 5 printed divided
+    preventions announces each target's share, so `divided-among-targets`
+    gives each target a shield of its own share, which has one chooser (the
+    fixture is Remedy's shape). The refusal stays the answer to the shape the
+    CR does not state.
 
-    **Reachability (2026-09-09):** unreachable — every registered count's
-    buckets share a chooser, and the error names the def.
-
-    **Sized:** unknown until a card asks; the error is the right answer until
-    then.
-    **Slotted:** `divided-among-targets`, CR 601.2d's effect divided among its targets: the six
-    printed "prevent the next N … divided as you choose" cards; until then the
-    refusal is the answer.
+    **Reachability (2026-11-03):** nothing owed — a record: every printed count
+    across subjects shares a chooser, and the error names the def.
+    **Slotted:** none — a record of why the refusal stands.
 
 93. **~~A later group's doubling moves the member, not the allocation.~~ — ✅
     CLOSED 2026-10-09 (PR #238).** — archived.
