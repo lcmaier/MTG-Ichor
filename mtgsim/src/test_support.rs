@@ -126,8 +126,9 @@ impl<D, F: Fn(&GameState, &ChoiceContext)> AtEachPrompt<D, F> {
     }
 }
 
-/// A provider that hands `0` every list reversed and maps its answer back, as
-/// a build listing the options in another order would.
+/// Asks the provider it wraps with every list reversed and maps the answer
+/// back, as a build listing the options in another order would. A replay gets
+/// through it only if its answers name what they chose, not where it sat.
 pub struct Reversed<'a>(pub &'a dyn DecisionProvider);
 
 impl Reversed<'_> {
