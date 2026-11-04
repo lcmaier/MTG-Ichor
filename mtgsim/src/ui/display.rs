@@ -27,6 +27,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
+use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
@@ -543,6 +544,25 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::Replacement(ReplacementOption::Rule { object, rule: GameRuleReplacement::CommanderZone }) => {
             format!("{} · the commander rule", n(&object.id))
         }
+    }
+}
+
+/// What `option` does, in the rule's own words, for a client that shows them
+/// beside the short [`option_label`], as Arena does on a hover
+/// (`backlog.md`'s "What a client is handed"). `None` where the label says it
+/// all. CR 122.1c, d and h state each counter's effect.
+pub fn what_the_option_does(option: &ChoiceOption) -> Option<&'static str> {
+    let ChoiceOption::Replacement(ReplacementOption::Counter { counter, effect, .. }) = option else { return None };
+    match (counter, effect) {
+        (CounterType::Shield, CounterEffectKind::Replacement) => {
+            Some("If this permanent would be destroyed as the result of an effect, instead remove a shield counter from it.")
+        }
+        (CounterType::Shield, CounterEffectKind::Prevention) => {
+            Some("If damage would be dealt to this permanent, prevent that damage and remove a shield counter from it.")
+        }
+        (CounterType::Stun, _) => Some("If a permanent with a stun counter on it would become untapped, instead remove a stun counter from it."),
+        (CounterType::Finality, _) => Some("If this permanent would be put into a graveyard from the battlefield, exile it instead."),
+        _ => None,
     }
 }
 
@@ -1364,6 +1384,24 @@ mod tests {
     use crate::types::zones::Zone;
 
     #[test]
+    fn a_counters_words_sit_beside_its_short_label() {
+        let mut game = GameState::new(2, 20);
+        let bears = game.add_object(GameObject::new(printings::grizzly_bears(), 0, Zone::Battlefield));
+        let object = game.object_ref(bears).expect("the Bears are in the store");
+        let counter = |counter, effect| ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, effect });
+
+        let finality = counter(CounterType::Finality, CounterEffectKind::Replacement);
+        assert_eq!(option_label(&game, &finality), format!("Grizzly Bears ({bears}) · its finality counter"));
+        assert_eq!(what_the_option_does(&finality), Some("If this permanent would be put into a graveyard from the battlefield, exile it instead."));
+
+        let shield = what_the_option_does(&counter(CounterType::Shield, CounterEffectKind::Replacement));
+        let its_prevention = what_the_option_does(&counter(CounterType::Shield, CounterEffectKind::Prevention));
+        assert_ne!(shield, its_prevention, "CR 122.1c's two effects are worded apart");
+        assert!(what_the_option_does(&counter(CounterType::Stun, CounterEffectKind::Replacement)).is_some());
+        assert_eq!(what_the_option_does(&ChoiceOption::Object(bears)), None, "an object's label says it all");
+    }
+
+    #[test]
     fn test_card_name() {
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Forest").card_type(CardType::Land).build();
@@ -1723,7 +1761,6 @@ mod tests {
     #[test]
     fn a_shield_counters_two_effects_read_apart() {
         use crate::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};
-        use crate::types::effects::CounterType;
 
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
