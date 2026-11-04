@@ -3,25 +3,29 @@
 //! acted on by each target's share
 //! (`choices-architecture.md#decision-5--where-a-division-lives`).
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::authoring::{deal_damage, deal_damage_divided, destroy, divided_among, spell_ability, that_target};
 use mtgsim::cards::fixtures::{
     dragonlord_atarka_fixture, elven_rite_fixture, magma_opus_fixture, meteor_swarm_fixture, mogg_mob_fixture, remedy_fixture, rolling_thunder_fixture,
 };
-use mtgsim::cards::printings::{forest, grizzly_bears, lightning_bolt, savannah_lions};
+use mtgsim::cards::printings::{arc_lightning, forest, grizzly_bears, hill_giant, lightning_bolt, savannah_lions};
+use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::x_values::LegalXValues;
+use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, Chosen, GameStart};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, test_dp};
+use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, test_dp, Reversed};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{AmountExpr, CounterType, DividedAmong, Effect, EffectRecipient, SelectionFilter};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::decision::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
+use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::ui::replay::Replay;
 
 /// The script's next answer: `chosen` for the announcement of an instance of
 /// "target". The queue matches a kind by its variant alone.
@@ -304,4 +308,232 @@ fn a_verb_that_cannot_divide_is_refused() {
 
     assert!(refused.contains("601.2d"), "{refused}");
     assert!(game.battlefield.contains_key(&bears));
+}
+
+/// Arc Lightning in player 0's hand with exactly its cost in the pool.
+fn arc_lightning_in_hand(game: &mut GameState) -> ObjectId {
+    game.players[0].mana_pool.add(ManaType::Red, 3);
+    put_in_hand(game, arc_lightning(), 0)
+}
+
+/// A Lightning Bolt from player 0 at `creature`, resolved, and CR 704's check.
+fn bolted(game: &mut GameState, creature: ObjectId) {
+    let bolt = put_in_hand(game, lightning_bolt(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, bolt, vec![ChoiceOption::Object(creature)]);
+    game.cast_spell(0, bolt, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).expect("the Bolt resolves");
+    game.check_state_based_actions(&test_dp()).expect("checking state-based actions");
+}
+
+// RULING: Arc Lightning #1 - "You choose how many targets Arc Lightning has and
+//   how the damage is divided as you cast the spell."
+// COVERS: ATOM-601.2d-001
+#[test]
+fn arc_lightning_keeps_the_division_it_was_cast_with() {
+    let mut game = setup_game(2);
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 1);
+    let arc = arc_lightning_in_hand(&mut game);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, arc, vec![ChoiceOption::Object(giant), ChoiceOption::Object(bears)]);
+    divides(&answers, arc, vec![(ChoiceOption::Object(giant), 2), (ChoiceOption::Object(bears), 1)]);
+
+    game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+
+    assert_eq!(division(&game, arc), vec![(ObjectOrPlayerId::Object(giant), 2), (ObjectOrPlayerId::Object(bears), 1)]);
+    game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
+    assert_eq!([damage_on(&game, giant), damage_on(&game, bears), damage_on(&game, lions)], [2, 1, 0]);
+}
+
+/// Three on the board, two chosen, and nothing left for the second. All three
+/// chosen leaves one split, which [`arc_lightning_asks_nothing_of_one_split`]
+/// shows is never asked, so an answer of 3, 0, 0 has no prompt to reach.
+// RULING: Arc Lightning #1 - "Each target must receive at least 1 damage."
+// COVERS: ATOM-601.2d-002
+#[test]
+#[should_panic(expected = "allocated 0 to bucket 1 but minimum is 1")]
+fn arc_lightning_refuses_a_target_with_no_share() {
+    let mut game = setup_game(2);
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    put_on_battlefield(&mut game, savannah_lions(), 1);
+    let arc = arc_lightning_in_hand(&mut game);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, arc, vec![ChoiceOption::Object(giant), ChoiceOption::Object(bears)]);
+    divides(&answers, arc, vec![(ChoiceOption::Object(giant), 3), (ChoiceOption::Object(bears), 0)]);
+
+    let _ = game.cast_spell(0, arc, &ManaWindowStop::new(answers));
+}
+
+/// One target takes the whole, and three take one each: a split with one
+/// answer is not asked.
+#[test]
+fn arc_lightning_asks_nothing_of_one_split() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 1);
+    let arc = arc_lightning_in_hand(&mut game);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions), ChoiceOption::Player(1)]);
+    let seat = ManaWindowStop::new(answers);
+    game.cast_spell(0, arc, &seat).expect("castable from exactly its cost");
+    assert_eq!(the_asked(seat.inner()), ["SelectRecipients"]);
+    assert_eq!(division(&game, arc).iter().map(|(_, share)| *share).collect::<Vec<_>>(), [1, 1, 1]);
+    game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
+
+    let again = arc_lightning_in_hand(&mut game);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, again, vec![ChoiceOption::Player(1)]);
+    let seat = ManaWindowStop::new(answers);
+    game.cast_spell(0, again, &seat).expect("castable from exactly its cost");
+    assert_eq!(the_asked(seat.inner()), ["SelectRecipients"]);
+    assert_eq!(division(&game, again), vec![(ObjectOrPlayerId::Player(1), 3)]);
+}
+
+// RULING: Arc Lightning #2 - "If some of the creatures are illegal targets as
+//   Arc Lightning tries to resolve, the original division of damage still
+//   applies but no damage is dealt to the illegal targets."
+#[test]
+fn an_illegal_target_takes_no_share_and_the_rest_stand() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let arc = arc_lightning_in_hand(&mut game);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&answers, arc, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Player(1), 1)]);
+    game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+
+    bolted(&mut game, bears);
+    assert_eq!(game.objects[&bears].zone, Zone::Graveyard, "a target no longer in its zone is illegal");
+    game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
+
+    assert_eq!(game.players[1].life_total, 19, "the player's 1, and nothing of the Bears' 2");
+}
+
+// RULING: Arc Lightning #2 - "If all targets are illegal, Arc Lightning doesn't
+//   resolve."
+#[test]
+fn arc_lightning_with_every_target_illegal_does_not_resolve() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 1);
+    let arc = arc_lightning_in_hand(&mut game);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
+    divides(&answers, arc, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(lions), 1)]);
+    game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+
+    bolted(&mut game, bears);
+    bolted(&mut game, lions);
+    game.resolve_top_of_stack(&test_dp()).expect("the rule removes it");
+
+    assert_eq!(game.objects[&arc].zone, Zone::Graveyard);
+    assert!(game.stack.is_empty());
+}
+
+/// CR 800.4a at four seats: a player who left is CR 608.2b's illegal target,
+/// and the seat still in the game takes the share announced for it.
+#[test]
+fn a_seat_that_left_takes_no_share() {
+    let mut game = setup_game(4);
+    let arc = arc_lightning_in_hand(&mut game);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, arc, vec![ChoiceOption::Player(2), ChoiceOption::Player(3)]);
+    divides(&answers, arc, vec![(ChoiceOption::Player(2), 1), (ChoiceOption::Player(3), 2)]);
+    game.cast_spell(0, arc, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+
+    game.players[3].has_drawn_from_empty_library = true;
+    game.check_state_based_actions(&test_dp()).expect("checking state-based actions");
+    assert!(!game.in_game(3), "CR 704.5b, then CR 800.4a");
+    game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
+
+    assert_eq!(game.players[2].life_total, 19);
+    assert_eq!(game.players[3].life_total, 20);
+}
+
+const ARC_LIGHTNING_AT_THE_BEARS: &str = "\
+hand 0: Arc Lightning
+battlefield: Mountain | controller 0
+battlefield: Mountain [second] | controller 0
+battlefield: Mountain [third] | controller 0
+battlefield: Grizzly Bears | controller 1
+library 0: Mountain | x5
+library 1: Mountain | x5
+";
+
+/// The one card named `name` on this board.
+fn the_one(game: &GameState, name: &str) -> ObjectId {
+    // ORDER-FREE: one card of this name on this board.
+    let found: Vec<ObjectId> = game.objects.values().filter(|object| object.card_data.name == name).map(|object| object.id).collect();
+    let [id] = found[..] else { panic!("{} cards named {name}", found.len()) };
+    id
+}
+
+/// Arc Lightning cast from hand through a game's own priority, 1 at the Bears
+/// and 2 at the opponent, writing its log as a client attaches the writer.
+fn played() -> (BuiltStart, decision_log::Log) {
+    let start = GameStart::Scenario { path: "arc".to_string(), seed: 0, text: ARC_LIGHTNING_AT_THE_BEARS.to_string() };
+    let mut built = start.build(&CardRegistry::default_registry()).expect("the board builds");
+    let record = Arc::new(Mutex::new(decision_log::opening(&start).iter().map(|line| format!("{line}\n")).collect::<String>()));
+    let (writer, answered) = (Arc::clone(&record), Arc::new(Mutex::new(0)));
+    let game = built.game_mut();
+    game.state.record_events();
+    game.state.log_decisions(move |game, decision| {
+        let mut number = answered.lock().unwrap();
+        *number += 1;
+        writer.lock().unwrap().push_str(&format!("{}\n", AnswerLine::of(game, *number, decision)));
+    });
+
+    let state = &built.game().state;
+    let (arc, bears) = (the_one(state, "Arc Lightning"), the_one(state, "Grizzly Bears"));
+    // ORDER-FREE: the three Mountains are alike; any pays.
+    let mountains: Vec<ObjectId> = state.battlefield.keys().filter(|id| state.objects[id].card_data.name == "Mountain").collect();
+    let tap = |id: ObjectId| ChoiceOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
+
+    let caster = ScriptedDecisionProvider::new();
+    caster.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(arc))]);
+    names_targets(&caster, arc, vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+    divides(&caster, arc, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 2)]);
+    let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: arc, remaining_cost: ManaCost::build(&[], 0) };
+    for mountain in mountains {
+        caster.expect_choice(window.clone(), vec![tap(mountain)]);
+    }
+    let seats = DispatchDecisionProvider::new(vec![Box::new(ManaWindowStop::new(caster)), Box::new(ScriptedDecisionProvider::new())]);
+    built.game_mut().until_stopped(|game| game.resume_turn_at_priority(&seats)).expect("the turn plays");
+
+    let log = decision_log::read(&record.lock().unwrap()).expect("the log reads");
+    (built, log)
+}
+
+/// The log writes each target with its share, and a replay offered every list
+/// reversed gives each share to the same target: the answer names who gets
+/// what, never where they sat.
+#[test]
+fn a_logged_division_replays_to_the_same_game() {
+    let (original, log) = played();
+    let state = &original.game().state;
+    let bears = the_one(state, "Grizzly Bears");
+    assert_eq!(state.players[1].life_total, 18, "the opponent's share");
+
+    let shares = log
+        .answers
+        .iter()
+        .find_map(|line| match &line.chosen {
+            Chosen::Allocation(amounts) if line.kind == "DivideAmong" => Some(amounts.clone()),
+            _ => None,
+        })
+        .expect("the division is a line of the log");
+    assert_eq!(shares, vec![(1, format!("Grizzly Bears ({bears})")), (2, "player 1".to_string())]);
+
+    let mut replayed = log.start.build(&CardRegistry::default_registry()).expect("the log's start builds");
+    replayed.game_mut().state.record_events();
+    let replay = Replay::of(log);
+    replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&Reversed(&replay))).expect("the replay plays");
+
+    assert_eq!(replay.remaining(), 0, "every answer the log holds was asked for");
+    assert_eq!(format_event_log(&replayed.game().state), format_event_log(&original.game().state));
+    assert_eq!(replayed.game().state.players[1].life_total, 18);
 }

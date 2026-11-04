@@ -20,7 +20,7 @@ use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, Chosen, GameStart};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, test_dp};
+use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, test_dp, Reversed};
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -125,54 +125,6 @@ fn played(token_first: bool) -> (BuiltStart, decision_log::Log) {
 
     let log = decision_log::read(&record.lock().unwrap()).expect("the log reads");
     (built, log)
-}
-
-/// A provider that hands `0` every list reversed and maps its answer back, as
-/// a build listing the options in another order would.
-struct Reversed<'a>(&'a dyn DecisionProvider);
-
-impl Reversed<'_> {
-    fn back(listed: usize, answer: Vec<usize>) -> Vec<usize> {
-        answer.into_iter().map(|at| listed - 1 - at).collect()
-    }
-}
-
-impl DecisionProvider for Reversed<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        let reversed: Vec<ChoiceOption> = options.iter().rev().cloned().collect();
-        Self::back(options.len(), self.0.pick_n(game, player, ctx, &reversed, bounds))
-    }
-
-    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.0.pick_number(game, player, ctx, min, max)
-    }
-
-    fn allocate(
-        &self,
-        game: &GameState,
-        player: PlayerId,
-        ctx: &ChoiceContext,
-        total: u64,
-        buckets: &[ChoiceOption],
-        per_bucket_mins: &[u64],
-        per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        let reversed: Vec<ChoiceOption> = buckets.iter().rev().cloned().collect();
-        let mins: Vec<u64> = per_bucket_mins.iter().rev().copied().collect();
-        let maxs: Option<Vec<u64>> = per_bucket_maxs.map(|maxs| maxs.iter().rev().copied().collect());
-        let mut given = self.0.allocate(game, player, ctx, total, &reversed, &mins, maxs.as_deref());
-        given.reverse();
-        given
-    }
-
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        let reversed: Vec<ChoiceOption> = items.iter().rev().cloned().collect();
-        Self::back(items.len(), self.0.choose_ordering(game, player, ctx, &reversed))
-    }
-
-    fn seat_mode(&self, player: PlayerId) -> SeatMode {
-        self.0.seat_mode(player)
-    }
 }
 
 fn zombies(built: &BuiltStart) -> usize {

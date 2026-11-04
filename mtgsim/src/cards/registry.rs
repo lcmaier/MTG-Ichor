@@ -27,7 +27,7 @@ use super::sets::{
 /// seed-deterministic rows — turns, spells cast, creatures died — are what an
 /// addition invalidates and what still has to be re-measured. Registering a
 /// card is still not the same act as adding one here.
-const PERFORMANCE_POOL: [&str; 124] = [
+const PERFORMANCE_POOL: [&str; 125] = [
     "Plains",
     "Island",
     "Swamp",
@@ -546,6 +546,11 @@ const PERFORMANCE_POOL: [&str; 124] = [
     // TR-7's entry counter over "not a Human", Master Biomancer's path at a
     // fixed amount. No agent choice.
     "Grumgully, the Generous",
+    // CR 601.2d's division on a cast: a second target asks the first
+    // `allocate` a spell's announcement reaches, and each share is a batch
+    // member of its own size. Sorcery speed and three mana, so it comes up
+    // on most boards without crowding out a turn.
+    "Arc Lightning",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -668,6 +673,7 @@ impl CardRegistry {
         registry.register("Angel's Mercy", m10::angels_mercy);
         registry.register("Dark Ritual", lea::dark_ritual);
         registry.register("Glorious Anthem", usg::glorious_anthem);
+        registry.register("Arc Lightning", usg::arc_lightning);
 
         // Layer-system cards.
         //
