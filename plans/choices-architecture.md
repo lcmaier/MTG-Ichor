@@ -1087,8 +1087,8 @@ resolved; a spell's text stays on its card, whose name shows the id.
 
 ### `divided-among-targets` — an effect divided among its targets — ✅ landed 2026-11-03
 
-1,476 lines of code and tests against ~1,200–1,650, added and removed, a moved
-test provider not counted.
+PR #308. 1,476 lines of code and tests against ~1,200–1,650, added and removed,
+a moved test provider not counted.
 - **The labels** (#307's review): a row's label lists its resolution's targets,
   and `ui::display::what_the_option_does` holds a counter's CR 122.1 words
   beside a label that stays short.

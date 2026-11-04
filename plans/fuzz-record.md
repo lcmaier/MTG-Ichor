@@ -97,8 +97,8 @@ one means the engine's cost model moved
 ## The records, newest first
 
 **Re-recorded 2026-11-03 for `divided-among-targets`, an effect divided among its targets**
-(`choices/divided-among-targets`: CR 601.2d on a cast, an activation and a
-trigger, two label commits and a count the board can't meet rewinding). Arc
+(`choices/divided-among-targets`, PR #308: CR 601.2d on a cast, an activation
+and a trigger, two label commits and a count the board can't meet rewinding). Arc
 Lightning joins the registry and the performance pool (124 → 125), so both §3
 columns are new baselines. One `close_out.py` sitting against **main**
 `c364e92f` (#307's merge): **engine** `10b05ea1`, the commit before the card,
