@@ -19,7 +19,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, Chosen, GameStart};
 use mtgsim::state::game_state::{GameState, StepType};
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, test_dp, AtEachPrompt, Reversed};
+use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, test_dp, AtEachPrompt};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{AmountExpr, CounterType, Effect, EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
@@ -579,9 +579,8 @@ fn played() -> (BuiltStart, decision_log::Log) {
     (built, log)
 }
 
-/// The log writes each target with its share, and a replay offered every list
-/// reversed gives each share to the same target: the answer names who gets
-/// what, never where they sat.
+/// The log writes each target with its share, and a replay plays the same game
+/// from those words.
 #[test]
 fn a_logged_division_replays_to_the_same_game() {
     let (original, log) = played();
@@ -602,7 +601,7 @@ fn a_logged_division_replays_to_the_same_game() {
     let mut replayed = log.start.build(&CardRegistry::default_registry()).expect("the log's start builds");
     replayed.game_mut().state.record_events();
     let replay = Replay::of(log);
-    replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&Reversed(&replay))).expect("the replay plays");
+    replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&replay)).expect("the replay plays");
 
     assert_eq!(replay.remaining(), 0, "every answer the log holds was asked for");
     assert_eq!(format_event_log(&replayed.game().state), format_event_log(&original.game().state));

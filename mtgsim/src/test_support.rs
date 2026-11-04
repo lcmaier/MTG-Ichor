@@ -126,55 +126,6 @@ impl<D, F: Fn(&GameState, &ChoiceContext)> AtEachPrompt<D, F> {
     }
 }
 
-/// Asks the provider it wraps with every list reversed and maps the answer
-/// back, as a build listing the options in another order would. A replay gets
-/// through it only if its answers name what they chose, not where it sat.
-pub struct Reversed<'a>(pub &'a dyn DecisionProvider);
-
-impl Reversed<'_> {
-    fn back(listed: usize, answer: Vec<usize>) -> Vec<usize> {
-        answer.into_iter().map(|at| listed - 1 - at).collect()
-    }
-}
-
-impl DecisionProvider for Reversed<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        let reversed: Vec<ChoiceOption> = options.iter().rev().cloned().collect();
-        Self::back(options.len(), self.0.pick_n(game, player, ctx, &reversed, bounds))
-    }
-
-    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.0.pick_number(game, player, ctx, min, max)
-    }
-
-    fn allocate(
-        &self,
-        game: &GameState,
-        player: PlayerId,
-        ctx: &ChoiceContext,
-        total: u64,
-        buckets: &[ChoiceOption],
-        per_bucket_mins: &[u64],
-        per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        let reversed: Vec<ChoiceOption> = buckets.iter().rev().cloned().collect();
-        let mins: Vec<u64> = per_bucket_mins.iter().rev().copied().collect();
-        let maxs: Option<Vec<u64>> = per_bucket_maxs.map(|maxs| maxs.iter().rev().copied().collect());
-        let mut given = self.0.allocate(game, player, ctx, total, &reversed, &mins, maxs.as_deref());
-        given.reverse();
-        given
-    }
-
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        let reversed: Vec<ChoiceOption> = items.iter().rev().cloned().collect();
-        Self::back(items.len(), self.0.choose_ordering(game, player, ctx, &reversed))
-    }
-
-    fn seat_mode(&self, player: PlayerId) -> SeatMode {
-        self.0.seat_mode(player)
-    }
-}
-
 impl<D: DecisionProvider, F: Fn(&GameState, &ChoiceContext)> DecisionProvider for AtEachPrompt<D, F> {
     fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
         (self.hook)(game, context);

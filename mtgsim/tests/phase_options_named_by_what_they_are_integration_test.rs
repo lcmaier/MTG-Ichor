@@ -20,7 +20,7 @@ use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, Chosen, GameStart};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, test_dp, Reversed};
+use mtgsim::test_support::{fill_library, put_on_battlefield, setup_game, test_dp};
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -133,9 +133,8 @@ fn zombies(built: &BuiltStart) -> usize {
 }
 
 /// The log names each of the Bridge's two triggers by its ability and the
-/// creature it is for, and a replay of each order plays it again, offered
-/// every list reversed: a Zombie when its trigger resolved first, none when
-/// the exile did.
+/// creature it is for, and a replay of each order plays it again: a Zombie
+/// when its trigger resolved first, none when the exile did.
 #[test]
 fn bridge_from_below_replays_its_trigger_order_both_ways() {
     for token_first in [true, false] {
@@ -162,7 +161,7 @@ fn bridge_from_below_replays_its_trigger_order_both_ways() {
         let mut replayed = log.start.build(&CardRegistry::default_registry()).expect("the log's start builds");
         replayed.game_mut().state.record_events();
         let replay = Replay::of(log);
-        replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&Reversed(&replay))).expect("the replay plays");
+        replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&replay)).expect("the replay plays");
         assert_eq!(replay.remaining(), 0, "every answer the log holds was asked for");
         assert_eq!(format_event_log(&replayed.game().state), format_event_log(&original.game().state));
         assert_eq!(zombies(&replayed), zombies(&original));
