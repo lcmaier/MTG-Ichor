@@ -23,9 +23,9 @@ use crate::oracle::characteristics::{controls, defending_player_for, get_effecti
 use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
 use crate::state::restrictions::{RegisteredRestriction, RestrictionId};
 use crate::types::restriction::RestrictionDef;
-use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::effects::{AffectedSet, EntersAttacking, ExtraPhasesAfter};
-use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite};
+use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite, Uses};
 use crate::engine::returns::ReturningObject;
 use crate::engine::triggers::binding_reads::TriggerBindingReads;
 use crate::types::triggers::{
@@ -184,6 +184,13 @@ impl ResolutionWalk {
             remembering: None,
             remembered: None,
             last_action: None,
+        }
+    }
+
+    /// What an atom acts on, for an `Effect::Remember` around it.
+    fn note_acted_on(&mut self, targets: &[ObjectOrPlayerId]) {
+        if let Some(acted_on) = self.remembering.as_mut() {
+            acted_on.extend_from_slice(targets);
         }
     }
 }
@@ -371,6 +378,13 @@ impl GameState {
             }
             Effect::Atom(primitive, recipient) => {
                 match instance_of(recipient, declared, &mut walk.instance_cursor) {
+                    // The atom that declared the division acts by the shares;
+                    // a later one naming its instance ("each of those
+                    // creatures") reads the targets alone, as `clause` does.
+                    Some((ix, clause)) if recipient.is_divided() => {
+                        let shares = shares_of_surviving_targets(declared.division(ix), ctx.targets.instance(ix), ctx)?;
+                        self.resolve_divided(primitive, clause, &shares, ctx, dp, walk)
+                    }
                     Some((ix, clause)) => {
                         self.resolve_primitive(primitive, clause, ctx.targets.instance(ix), ctx, dp, walk)
                     }
@@ -533,6 +547,85 @@ impl GameState {
         }
     }
 
+    /// An atom CR 601.2d divided, acting in one instruction on each surviving
+    /// target by that target's share (`shares`). A target CR 608.2b found
+    /// illegal is not among them, and the rest keep the shares announced:
+    /// Arc Lightning's ruling, "the original division of damage still applies".
+    /// A verb no text divides is refused rather than given the whole amount.
+    fn resolve_divided(
+        &mut self,
+        primitive: &Primitive,
+        clause: &EffectRecipient,
+        shares: &[(ObjectOrPlayerId, u64)],
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+        walk: &mut ResolutionWalk,
+    ) -> Result<(), String> {
+        if shares.is_empty() {
+            return Ok(());
+        }
+        let targets: Vec<ObjectOrPlayerId> = shares.iter().map(|&(target, _)| target).collect();
+        match primitive {
+            Primitive::DealDamage { unpreventable, .. } => {
+                walk.note_acted_on(&targets);
+                self.deal_resolution_damage(shares.iter().copied(), *unpreventable, ctx, dp)
+            }
+            // One batch, as `AddCounters` undivided is (CR 608.2f).
+            Primitive::AddCounters { counter, by, .. } => {
+                walk.note_acted_on(&targets);
+                let by = PlayerRef::Player(self.player_the_instruction_names(by, &targets, ctx, dp)?);
+                let mut batch = Vec::new();
+                for &(target, share) in shares {
+                    let ObjectOrPlayerId::Object(id) = target else {
+                        return Err(format!("{:?} divides counters onto a player, and `AddCounters` puts them on permanents", ctx.source));
+                    };
+                    let put = Primitive::AddCounters { counter: *counter, amount: AmountExpr::Fixed(share), by: by.clone() };
+                    batch.extend(self.event_for(&put, id, &targets, ctx)?);
+                }
+                self.execute_actions(batch, &ActionContext::resolving(dp, ctx))?;
+                Ok(())
+            }
+            // Each target a shield of its own share (CR 615.7 states a shield
+            // on one permanent or player, and no count shared across them).
+            Primitive::CreateReplacement(def, duration, pattern_fill) if matches!(def.uses, Uses::NextDamage(_)) => {
+                for &(target, share) in shares {
+                    let shield = Primitive::CreateReplacement(Box::new((**def).clone().next_damage(share)), *duration, *pattern_fill);
+                    self.resolve_primitive(&shield, clause, &[target], ctx, dp, walk)?;
+                }
+                Ok(())
+            }
+            other => Err(format!("{other:?} on {:?} has no share to read: no verb but damage, counters and a damage shield divides (CR 601.2d)", ctx.source)),
+        }
+    }
+
+    /// The damage a resolution deals, one batch however many things it hits:
+    /// CR 615.7's "two or more applicable sources" and CR 603.2c's "one or
+    /// more" read the batch.
+    fn deal_resolution_damage(
+        &mut self,
+        hits: impl Iterator<Item = (ObjectOrPlayerId, u64)>,
+        unpreventable: bool,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        let source_lki = self.source_lki(ctx);
+        let batch = hits
+            // CR 615.12's per-event flag, set by the effect that proposes the damage
+            // and carried onto every member: Pinpoint Avalanche's "can't be
+            // prevented" is about this resolution's damage and nothing else.
+            .map(|(target, amount)| GameAction::DealDamage {
+                source: ctx.effect_source(),
+                source_lki: source_lki.clone(),
+                target,
+                amount,
+                is_combat: false,
+                unpreventable,
+            })
+            .collect();
+        self.execute_actions(batch, &ActionContext::resolving(dp, ctx))?;
+        Ok(())
+    }
+
     /// Resolve a single primitive action against its targets.
     ///
     /// `targets` is **this atom's instance** of "target" (CR 115.3), already
@@ -552,16 +645,12 @@ impl GameState {
         // Every mutation a primitive proposes belongs to *this* resolution
         // (CR 614.15 / the resolution stamp on each emitted event).
         let actx = ActionContext::resolving(dp, ctx);
-        if let Some(acted_on) = walk.remembering.as_mut() {
-            acted_on.extend_from_slice(targets);
-        }
+        walk.note_acted_on(targets);
         match primitive {
             // === One-shot primitives ===
 
-            // **One batch, however many things it hits**: CR 615.7's "two or more
-            // applicable sources" and CR 603.2c's "one or more" read the batch
-            // (`CLAUDE.md`). `FilteredPermanents` is "every permanent matching this
-            // **now**", resolved here and ordered for the CR 616.1 prompt and the log.
+            // `FilteredPermanents` is "every permanent matching this **now**",
+            // resolved here and ordered for the CR 616.1 prompt and the log.
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx, None)?;
                 let targets: Vec<ObjectOrPlayerId> = match recipient {
@@ -612,25 +701,7 @@ impl GameState {
                 if targets.is_empty() {
                     return Ok(());
                 }
-                let source_lki = self.source_lki(ctx);
-                self.execute_actions(
-                    targets
-                        .into_iter()
-                        // CR 615.12's per-event flag, set by the effect that proposes the damage
-                        // and carried onto every member: Pinpoint Avalanche's "can't be
-                        // prevented" is about this resolution's damage and nothing else.
-                        .map(|target| GameAction::DealDamage {
-                            source: ctx.effect_source(),
-                            source_lki: source_lki.clone(),
-                            target,
-                            amount,
-                            is_combat: false,
-                            unpreventable: *unpreventable,
-                        })
-                        .collect(),
-                    &actx,
-                )?;
-                Ok(())
+                self.deal_resolution_damage(targets.into_iter().map(|target| (target, amount)), *unpreventable, ctx, dp)
             }
 
             Primitive::DrawCards(amount_expr) => {
@@ -3146,6 +3217,25 @@ fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> Strin
         "a primitive on {:?} was handed {:?}, a back-reference to an instance of \"target\" rather than the clause that declared it (CR 115.3). Resolve it through `targeting::instance_of`.",
         ctx.source, recipient
     )
+}
+
+/// Each target CR 608.2b left in `survivors` with its share of `division`,
+/// found by identity, since one instance never holds a target twice (CR
+/// 601.2c). A survivor with no share is a divided clause that resolved with
+/// nothing announced, which is a wiring error rather than a card's.
+fn shares_of_surviving_targets(
+    division: &[(ObjectOrPlayer, u64)],
+    survivors: &[ObjectOrPlayerId],
+    ctx: &ResolutionContext,
+) -> Result<Vec<(ObjectOrPlayerId, u64)>, String> {
+    let share_of = |target: ObjectOrPlayerId| division.iter().find(|(divided, _)| divided.id() == target).map(|&(_, share)| share);
+    survivors
+        .iter()
+        .map(|&target| {
+            let share = share_of(target).ok_or_else(|| format!("{target:?} on {:?} has no share of a division CR 601.2d announced", ctx.source))?;
+            Ok((target, share))
+        })
+        .collect()
 }
 
 #[cfg(test)]

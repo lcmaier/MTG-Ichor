@@ -1073,7 +1073,7 @@ pub fn fixed_target_bounds(recipient: &EffectRecipient) -> crate::types::effects
     let none = crate::types::effects::TargetBounds { fewest: 0, most: 0 };
     match recipient {
         EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => {
-            count.bounds(|_| Err(String::new())).unwrap_or(none)
+            count.bounds(&|_| Err(String::new())).unwrap_or(none)
         }
         _ => none,
     }

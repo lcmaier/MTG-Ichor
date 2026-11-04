@@ -741,17 +741,12 @@ pub fn ask_select_recipients(
     min_selections: usize,
     max_selections: usize,
 ) -> Vec<ObjectOrPlayerId> {
-    // Nothing to choose from, or a count of zero, is no question.
-    if legal_selections.is_empty() || (min_selections == 0 && max_selections == 0) {
+    // Nothing to choose from, too little to meet the count, or a count of zero
+    // is no question: `validate_targets` refuses what comes back (CR 601.2c).
+    if legal_selections.is_empty() || legal_selections.len() < min_selections || (min_selections == 0 && max_selections == 0) {
         return Vec::new();
     }
-    let options: Vec<ChoiceOption> = legal_selections
-        .iter()
-        .map(|t| match t {
-            ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
-            ObjectOrPlayerId::Player(id) => ChoiceOption::Player(*id),
-        })
-        .collect();
+    let options = recipient_options(legal_selections);
     let ctx = ChoiceContext::new(ChoiceKind::SelectRecipients {
         recipient: recipient.clone(),
         spell_id,
@@ -761,6 +756,32 @@ pub fn ask_select_recipients(
     // for "target creature" is the common shape of it.
     let indices = pick_unless_forced(dp, game, player, ctx, &options, (min_selections, max_selections), "select_recipients");
     indices.iter().map(|&i| legal_selections[i]).collect()
+}
+
+/// CR 601.2d — divide `total` among `targets`, each receiving at least one.
+/// One target, or as many targets as `total`, is one split and not asked.
+/// Returns each target's share, in `targets`' order.
+pub fn ask_divide_among(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    source: ObjectId,
+    targets: &[ObjectOrPlayerId],
+    total: u64,
+) -> Vec<u64> {
+    let ctx = ChoiceContext::new(ChoiceKind::DivideAmong { source });
+    allocate_unless_forced(dp, game, player, ctx, total, &recipient_options(targets), &vec![1; targets.len()], None, "divide_among")
+}
+
+/// Each object or player as an option names it.
+fn recipient_options(recipients: &[ObjectOrPlayerId]) -> Vec<ChoiceOption> {
+    recipients
+        .iter()
+        .map(|recipient| match recipient {
+            ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
+            ObjectOrPlayerId::Player(id) => ChoiceOption::Player(*id),
+        })
+        .collect()
 }
 
 /// Prompt the casting/activating player for a mana ability to activate
@@ -1445,6 +1466,20 @@ mod tests {
         );
         let result = ask_choose_x_value(&dp, &game, 0, spell_id, LegalXValues::zero_through(5));
         assert_eq!(result, 5);
+    }
+
+    // --- a division among targets ---
+
+    /// Arc Lightning at three creatures: 3, 0, 0 leaves two with no share and
+    /// is refused, and 1 each is the one split there is, so the player is
+    /// never asked (CR 601.2d's "at least one").
+    // COVERS: ATOM-601.2d-002
+    #[test]
+    fn three_among_three_targets_refuses_a_target_with_no_share() {
+        let each_at_least_one = [1, 1, 1];
+        let refused = allocation_fits(&[3, 0, 0], 3, &each_at_least_one, None).expect_err("two targets have no share");
+        assert_eq!(refused, "allocated 0 to bucket 1 but minimum is 1");
+        assert_eq!(forced_allocation(3, &each_at_least_one, None), Some(vec![1, 1, 1]));
     }
 
     // --- allocate basic ---

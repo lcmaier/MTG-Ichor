@@ -7,7 +7,8 @@
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Antecedent, Choice, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet, SelectionFilter, TargetCount,
+    AmountExpr, Antecedent, Choice, DividedCount, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
+    SelectionFilter, TargetCount,
 };
 use crate::types::triggers::EventRole;
 use crate::types::zones::ZoneSet;
@@ -47,6 +48,12 @@ pub fn target_spell() -> EffectRecipient {
 /// (CR 115.3), each different.
 pub fn targets(count: u32, filter: SelectionFilter) -> EffectRecipient {
     EffectRecipient::Target(filter, TargetCount::Exactly(count))
+}
+
+/// `total` "divided as you choose among" `among` targets matching `what`: one
+/// instance of "target" (CR 115.3) whose announcement also divides (CR 601.2d).
+pub fn divided_among(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
+    EffectRecipient::Target(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
 }
 
 /// "It", "that creature", "them": what was chosen for the `ix`th instance of

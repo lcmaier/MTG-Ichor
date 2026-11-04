@@ -128,7 +128,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
 | 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
-| 601.2d | Distribution (damage/counters among targets) | ❌ still unbuilt after A4i, and now the only half of `backlog.md` §2.20 left — `roadmap-v2.md` row `divided-among-targets` sizes it | `engine/put_on_stack.rs` |
+| 601.2d | Distribution (damage/counters among targets) | ✅ `divided-among-targets`: announced after every instance's targets, on a cast, an activation and a trigger alike; damage, counters and a damage shield read each target's share. The untargeted half (CR 608.2d) is `costs-and-choices-at-resolution`'s | `engine/put_on_stack.rs` (`announce_targets`), `engine/resolve.rs` (`resolve_divided`) |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
@@ -3228,7 +3228,7 @@ Censer-Bearer. Items 25, 40, 47 and 65 are updated above; `replacement-
 architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
 `plans/traces/rd-2-a-decision-is-per-subject.html`.
 
-90. **A resolution-created row keeps its targets, and nothing reads them
+90. **A resolution-created row keeps its targets, and no rider reads them
     yet.** `RegisteredReplacementEffect.targets` is written by
     `Primitive::CreateReplacement` because the targets are unrecoverable a
     moment later and Divine Deflection's rider — "deals that much damage to
@@ -3290,22 +3290,18 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     615.7 prevention shields, and the loop's unit (2026-09-09)" item 91.
 
 92. **A CR 615.7 count spanning subjects with two choosers is refused, not
-    answered.** `next_damage_shares` asserts one chooser across every bucket
-    and errors otherwise, because every printed multi-subject count is scoped
-    to one player and that player's permanents (Divine Deflection, Harm's
-    Way). A hypothetical "prevent the next 3 damage that would be dealt to any
-    number of target creatures" across two controllers would need CR 616.1's
-    last sentence applied to *shares* — an APNAP round of allocations — which
-    the rules do not describe for 615.7 and no card asks for.
+    answered: a record.** `next_damage_shares` asserts one chooser across every
+    bucket and errors otherwise. CR 615.7 states a shield on one permanent or
+    player, whose player or controller chooses which damage it prevents, and
+    states no count shared across subjects. Each of the 5 printed divided
+    preventions announces each target's share, so `divided-among-targets`
+    gives each target a shield of its own share, which has one chooser (the
+    fixture is Remedy's shape). The refusal stays the answer to the shape the
+    CR does not state.
 
-    **Reachability (2026-09-09):** unreachable — every registered count's
-    buckets share a chooser, and the error names the def.
-
-    **Sized:** unknown until a card asks; the error is the right answer until
-    then.
-    **Slotted:** `divided-among-targets`, CR 601.2d's effect divided among its targets: the six
-    printed "prevent the next N … divided as you choose" cards; until then the
-    refusal is the answer.
+    **Reachability (2026-11-03):** nothing owed — a record: every printed count
+    across subjects shares a chooser, and the error names the def.
+    **Slotted:** none — a record of why the refusal stands.
 
 93. **~~A later group's doubling moves the member, not the allocation.~~ — ✅
     CLOSED 2026-10-09 (PR #238).** — archived.
@@ -10273,3 +10269,28 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      of its uses depend on the order.~~ — ✅ CLOSED 2026-11-02 (PR #307,
      `options-named-by-what-they-are`).** — archived. All 44 tests that failed
      with every list reversed name what they chose, and pass reversed.
+
+362. **What a client is handed of a division and a counter reaches no client
+     yet.** `TargetInstance::division` and `ui::display::what_the_option_does`
+     have no caller outside a test. With Arc Lightning on the stack at the
+     Bears for 2 and the opponent for 1, the dev GUI's `StackItem` shows two
+     names and no numbers, so an opponent deciding whether to save the Bears
+     cannot read the split.
+
+     **Reachability (2026-11-03):** reachable — not wrong: the game is right,
+     and a client is shown less than it could be.
+     **Sized:** ~40 lines: a field on `StackItem`, its drawing, and the words
+     beside a counter's row, under `engineering-practices.md#the-dev-gui`.
+     **Slotted:** `modes-plus-choice-kinds`, the dev GUI PR after
+     `divided-among-targets`; the owner's cadence puts it next.
+
+363. **CR 115.7f has no writer to be tested against.** "The original division
+     can't be changed" when targets change, and the engine rewrites no target:
+     `TargetInstance::from_announcement` is the only writer of one. The share
+     sits in the target's slot, so a rewrite of that slot keeps it, which is
+     decision 5's reason for A and is unproved until one exists.
+
+     **Reachability (2026-11-03):** unreachable — nothing changes a target or
+     chooses new ones.
+     **Slotted:** `spell-copies`, CR 707.10c's new targets, the first writer:
+     its test copies a divided spell, rewrites a target and reads the share.

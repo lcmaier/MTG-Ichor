@@ -22,8 +22,9 @@ use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::PhaseType;
 use crate::types::effects::{
     AmountExpr, ColorChange, CopyException, CopyRoles, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
-    ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, TokenDef, TypeChange,
+    ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
+use super::recipients::divided_among;
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
@@ -149,6 +150,31 @@ pub fn deal_damage(recipient: EffectRecipient, amount: impl Into<AmountExpr>) ->
 /// the clause says so by the word it picks.
 pub fn deal_damage_unpreventable(recipient: EffectRecipient, amount: impl Into<AmountExpr>) -> Effect {
     Effect::Atom(Primitive::DealDamage { amount: amount.into(), unpreventable: true }, recipient)
+}
+
+/// What a divided shield's count is written as: each row's is its target's
+/// share, read as the row is made, so no row ever holds this.
+const EACH_TARGETS_SHARE: u64 = 0;
+
+/// "[This] deals [total] damage divided as you choose among [among] [what]"
+/// (CR 601.2d): the atom prints the total, and the clause carries it to the
+/// announcement that divides it.
+pub fn deal_damage_divided(what: SelectionFilter, among: TargetCount, total: impl Into<AmountExpr>) -> Effect {
+    let total = total.into();
+    deal_damage(divided_among(what, among, total.clone()), total)
+}
+
+/// "Distribute [total] [counter]s among [among] [what]" (CR 601.2d), put by you.
+pub fn distribute_counters(what: SelectionFilter, among: TargetCount, counter: CounterType, total: impl Into<AmountExpr>) -> Effect {
+    let total = total.into();
+    put_counters(divided_among(what, among, total.clone()), counter, total)
+}
+
+/// "Prevent the next [total] damage that would be dealt this turn to [among]
+/// [what], divided as you choose" (CR 601.2d, 615.7): each target a shield of
+/// its own share, so the clause alone holds the total.
+pub fn prevent_the_next_damage_divided(what: SelectionFilter, among: TargetCount, total: impl Into<AmountExpr>) -> Effect {
+    prevent_the_next_n_damage_this_turn(divided_among(what, among, total.into()), EACH_TARGETS_SHARE)
 }
 
 /// "[Recipient] draws [amount] cards" (CR 121.1), one at a time (121.2):

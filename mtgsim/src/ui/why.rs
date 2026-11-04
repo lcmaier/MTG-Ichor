@@ -341,6 +341,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::ChooseAlternativeCost { .. }
             | ChoiceKind::ChooseAdditionalCosts { .. }
             | ChoiceKind::SelectRecipients { .. }
+            | ChoiceKind::DivideAmong { .. }
             | ChoiceKind::GenericManaAllocation { .. }
             | ChoiceKind::OrderCostReductions { .. }
             | ChoiceKind::ManaAbilityWindow { .. }
@@ -477,6 +478,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::ApplyOptionalReplacement { source, .. } => (format!("whether {}'s effect applies", n(source)), Some("614.1a")),
         ChoiceKind::ApplyOptionalEffect { source } => (format!("whether {} does what it says {who} may", n(source)), Some("603.5")),
+        ChoiceKind::DivideAmong { source } => (format!("the targets {} divides among, each receiving at least one", n(source)), Some("601.2d")),
         ChoiceKind::AllocateNextDamage { source, remaining } => {
             (format!("the damage {}'s effect prevents, {remaining} at most", n(source)), Some("615.7"))
         }

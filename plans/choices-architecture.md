@@ -1,9 +1,9 @@
 # Choices — the modes, payments, divisions, orders and values a card or rule asks a player for
 
-> **Status:** designed, no code. `modes-plus-choice-kinds` (`roadmap-v2.md`
+> **Status:** designed, and building. `modes-plus-choice-kinds` (`roadmap-v2.md`
 > step 5 of "From triggers to v0.5") wrote it as a design note, reviewed at
 > its design stop on #307 over three rounds; every decision below is the
-> owner's (2026-11-01 to 2026-11-02). It is built as the five PRs under "The
+> owner's (2026-11-01 to 2026-11-02). It is built as the six PRs under "The
 > build, sized", the first on the design's branch.
 > **Authority:** CR 700.2 and 603.3c (modes); 118.12–118.12a, 107.3f and
 > 702.21 (a cost paid as an effect resolves, and ward); 601.2d and 608.2d's
@@ -691,9 +691,17 @@ Darkness: "sacrifice this unless you sacrifice a creature") become writable.
 
 ### Decision 5 — where a division lives
 
-**The table**: 114 cards divide among targets (3 in `tdc`: one cast, one
+**The table**: 113 cards divide among targets (3 in `tdc`: one cast, one
 activation, one trigger, so 601.2d, 602.2b and 603.3d all announce a
-division), 10 among objects not targeted, 5 divide prevention.
+division), 8 among objects not targeted, 5 divide prevention.
+
+**The 113 by shape** (the census's "divided, its count" and "its verb" rows, run
+2026-11-03): 48 divide among "one, two, or three", 8 among "up to N", 55 among
+"any number" and 2 among "X" or "up to X"; 73 divide damage and 40 counters.
+Two neighbors are not this decision's, both in `backlog.md`'s "2.52 A division
+the announcement cannot state": "divided evenly" (Fireball, Dwarven Catapult)
+is no player's split, and 2 cards read a share in a later clause (Bounty of the
+Hunt, Shambling Swarm).
 
 **The problem.** CR 601.2d announces a division with the targets, at least
 one to each; 608.2b keeps it when a target goes illegal (that target is not
@@ -743,7 +751,7 @@ damage divided as Grizzly Bears 2 and the opponent 1:
 |---|---|---|---|
 | The entry holds | `Divided[(Bears, 2), (opponent, 1)]` | `chosen: [Bears, opponent]`, `shares: [2, 1]` | `chosen: [Bears, opponent]`, and beside it `{Bears: 2, opponent: 1}` for an amount that reads a share by target |
 | It resolves | each pair's target takes its share | `chosen[i]` takes `shares[i]` | each target looks up its share |
-| Bears has gained hexproof (608.2b) | the re-check drops the pair, and the opponent takes 1 (its ruling: the division stands) | the re-check's survivors (`ChosenTargets`, `engine/targeting.rs:83`) drop Bears, so `shares` must drop its first entry in step, or the opponent takes 2 | the map is keyed by target, so dropping Bears is safe |
+| Bears has gained hexproof (608.2b) | the re-check drops the pair, and the opponent takes 1 (its ruling: the division stands) | the re-check's survivors (`ChosenTargets`) drop Bears, so `shares` must drop its first entry in step, or the opponent takes 2 | the map is keyed by target, so dropping Bears is safe |
 | Redirect moves Bears' 2 to Llanowar Elves (115.7f) | the pair's target is rewritten and its share stays: (Elves, 2) | `chosen[0]` is rewritten in place and `shares[0]` stays, right while no rewrite reorders the list | the map still names Bears: every rewrite of a target must also re-key it, or the Elves have no share |
 | Reverberate copies it with new targets (707.10c) | the pairs are copied, then rewritten as above | both lists copied, then as above | the map copied, then re-keyed as above |
 
@@ -872,9 +880,9 @@ conditions (a reduction whose amount is a hybrid symbol, CR 118.7e, and a
 floored "not below" reduction). So the order is asked when two reductions
 apply and one of them meets a condition, which no registered card does: the
 prompt drops out of every game that meets two reductions, a fixture migration
-(9 lines in 8 test files name it) and a moved random stream, in the first PR,
-beside its format change. Kept as it is, the engine has two policies for one
-concept.
+(9 lines in 8 test files name it) and a moved random stream, in
+`orders-the-cr-hands-a-player`. Kept as it is, the engine has two policies for
+one concept.
 
 **Decided in review: B, and 6b folded into it**, the trigger order's precedent
 (asked only where an order can change the game,
@@ -991,17 +999,20 @@ model (`remaining-costs`), never an effect's `Choose`.
 
 ## 5. The build, sized
 
-Five PRs, each with its consumer, in this order. Code and tests apart,
+Six PRs, each with its consumer, in this order. Code and tests apart,
 estimates from the item sizings and from #306's for decision 4. The first
 was split in two at its build (the owner, 2026-11-02): #306's decision 4
 alone measured ~925 lines before its last part, against its estimate of
-440–760 for all of it, so it is a PR of its own, and the division and the
-orders are the next.
+440–760 for all of it, so it is a PR of its own. The division and the orders
+were the next, and split at the brief (the owner, 2026-11-03): they share no
+code, and over a hundred printed cards and three `tdc` cards wait on the
+division.
 
 | PR | What it builds | Consumer | Code | Tests |
 |---|---|---|---:|---:|
 | **`options-named-by-what-they-are` — every option named by what it is** | #306's decision 4: the trigger and replacement arms, the typed matcher with its cost names, and in its first commit item 361's order-dependent `picking(n)` uses | the log's replay of Bridge from Below's two triggers, both orders; the order-dependent tests, each passing with every list reversed | 907 measured | 772 measured |
-| **`division-and-orders` — a division among targets, and the orders the CR hands a player** | decision 5's division at cast, activation and placement; decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | Arc Lightning (or Forked Bolt pooled); Omnath beside Momentous Fall as a fixture board | ~450–700 by the item sizings | ~400–650 |
+| **`divided-among-targets` — an effect divided among its targets** | decision 5's division at cast, activation and placement, targeted only; ahead of it #307's two label commits (a row's targets on its label, a counter's words beside its label); item 92's record | Arc Lightning pooled; fixtures for an activation and a trigger | ~1,200–1,650 with its tests | |
+| **`orders-the-cr-hands-a-player` — the orders the CR hands a player** | decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | Omnath beside Momentous Fall as a fixture board | ~350–650 with its tests, by the item sizings | |
 | **`modal-spells-and-abilities` — CR 700.2 whole** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the record of what an ability chose before, castability through the enumerator | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost (700.2h) | ~760–1,150 | ~600–920 |
 | **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
 | **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
@@ -1010,9 +1021,12 @@ orders are the next.
 decision 4 was sized at 440–760 lines and came to about twice that: the
 estimate had no line for a script naming an effect by its source, the test
 helpers that name an effect, or an ability's place read where the engine
-read it. `division-and-orders` reads ~850–1,350 by its item sizings, which
-at that ratio is inside the band (1,500–2,500,
-`engineering-practices.md#sizing-a-phase`); `modal-spells-and-abilities` and
+read it. `divided-among-targets` is the backlog's 500–700 for the division at
+#307's measured 2.2× its estimate's top, plus about 100 for the two label
+commits, near the bottom of the band (1,500–2,500,
+`engineering-practices.md#sizing-a-phase`). `orders-the-cr-hands-a-player` is
+what the pair's ~850–1,350 by the item sizings leaves, before any ratio;
+`modal-spells-and-abilities` and
 `costs-and-choices-at-resolution` read ~1,150–2,070 and may land past its
 top, and `values-chosen-at-resolution` ~1,010–1,570. Each is re-sized
 against the measured ratio at its brief, and a split goes in this table.
@@ -1020,16 +1034,17 @@ against the measured ratio at its brief, and a split goes in this table.
 **Fuzz A/B, predicted per PR.** `options-named-by-what-they-are` changes no
 option's count or order and asks no new question: its gameplay rows are
 predicted `IDENTICAL` to `main`, its change being what the log and a client
-read. `division-and-orders` moves the stream twice on purpose: 6b drops a
-prompt from every game that meets two cost reductions, and the division's
-card is registered. So it runs three arms (`main`; the branch with the
-division's card unregistered, which isolates 6b and should differ from
-`main` only in games that met two reductions; the branch), through
-`fuzz_ab --require`, which runs every arm on the new cards. Decision 6's new
-questions should be asked by no registered card, which the build checks
-first by running the test over every registered cost and every registered
-entry batch. Each later PR registers cards, and its stream moves with them,
-measured the same way.
+read. `divided-among-targets` registers its card last and on its own, so its
+engine arm is predicted `IDENTICAL` to `main` and the stream moves only with
+Arc Lightning. `orders-the-cr-hands-a-player` moves the stream on purpose: 6b
+drops a prompt from every game that meets two cost reductions. So it runs
+three arms (`main`; the branch with any card it registers unregistered, which
+isolates 6b and should differ from `main` only in games that met two
+reductions; the branch), through `fuzz_ab --require`, which runs every arm on
+the new cards. Decision 6's new questions should be asked by no registered
+card, which the build checks first by running the test over every registered
+cost and every registered entry batch. Each later PR registers cards, and its
+stream moves with them, measured the same way.
 
 ### `options-named-by-what-they-are` — every option named by what it is — ✅ landed 2026-11-02
 
@@ -1052,8 +1067,8 @@ estimate of 440–760 (the ratio the later rows are re-sized by).
 - **The typed matcher**: `ChoiceOption` derives `PartialEq`; scripts, the
   recording provider and setup lines find a name through `position_named`:
   two equal options are taken in turn, a name fitting two different ones is
-  refused. `(n of m)` is gone, and the consumer test replays through a
-  provider that reverses every list.
+  refused. `(n of m)` is gone, and `Replay`'s tests offer each list in another
+  order than the log wrote it.
 - **A cost names its whole cost**: "Escape {3}{B}{B}, exile 5 from your
   graveyard".
 
@@ -1069,6 +1084,42 @@ A row's label shows what made it (the owner, at #307, after playing the
 boards): an ability's text, which the row keeps as it is made (CR 405.4), with
 the stack object's id, the order the two went on the stack, not the order they
 resolved; a spell's text stays on its card, whose name shows the id.
+
+### `divided-among-targets` — an effect divided among its targets — ✅ landed 2026-11-03
+
+PR #308. 1,578 lines of code and tests against ~1,200–1,650, added and removed.
+- **The labels** (#307's review): a row's label lists its resolution's targets,
+  and `ui::display::what_the_option_does` holds a counter's CR 122.1 words
+  beside a label that stays short.
+- **The shape** (decision 5's A): `TargetInstance.chosen` is private and an
+  enum, read through `targets()`. `TargetCount::Divided` is any count plus a
+  `total`, and `TargetCount` gains `Between` and `AnyNumber`. The total caps
+  the targets on every shape, and a floor past it refuses the announcement.
+- **The announcement**: a second walk in `announce_targets`, after every
+  instance's targets, so all three paths ask `ChoiceKind::DivideAmong`. One
+  split is not asked. Reading the total there fixes it (CR 608.2d's last
+  sentence). `ask_select_recipients` no longer asks for more than it offers,
+  on any count, so "X target creatures" past the board rewinds.
+- **Resolution** (`resolve_divided`): only the atom that declared the division
+  reads shares; a later atom naming its instance reads targets alone. Damage
+  and counters each stay one batch, a shield is a row per target at its share,
+  and any other verb, or a `Choose`, is refused.
+
+Three places it differs from decision 5's words:
+- **The survivors stay ids.** `ChosenTargets` gains nothing: the walk finds each
+  survivor's share in the announcement by identity, since one instance never
+  holds a target twice (CR 601.2c). No second list is kept in step.
+- **The atom's copy of the total is read by nothing.** `Effect::instances` hands
+  the announcement recipients and no atom, so the clause carries the total and
+  the atom prints it, both from one argument of `deal_damage_divided` and
+  `distribute_counters`; a registry test keeps them equal. A shield prints none.
+- **Counters and shields ship here**, though the row names damage: CR 601.2d
+  says "damage or counters", 40 printed cards distribute, and each arm is under
+  twenty lines.
+
+**CR 115.7f has no test**, since the engine rewrites no target (item 363).
+What the card text can't state yet is `backlog.md`'s "2.52 A division the
+announcement cannot state", and a client can't yet read the shares (item 362).
 
 ## 6. Found while designing
 

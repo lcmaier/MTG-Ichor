@@ -153,11 +153,13 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         ChoiceKind::OrderCostReductions { .. } => LineAnswer::Unanswered,
         ChoiceKind::ChooseXValue { spell_id, .. } => LineAnswer::X(*spell_id),
         // Asked while a line plays, with no word to answer them yet: the
-        // line's own costs, the order of what it triggers, a replacement on
-        // its events, and the state-based actions checked before and after
-        // it. A board that needs one adds the word.
+        // line's own costs, CR 601.2d's division past the one split, the order
+        // of what it triggers, a replacement on its events, and the
+        // state-based actions checked before and after it. A board that needs
+        // one adds the word.
         ChoiceKind::ChooseAlternativeCost { .. }
         | ChoiceKind::ChooseAdditionalCosts { .. }
+        | ChoiceKind::DivideAmong { .. }
         | ChoiceKind::ChooseSacrificeForCost { .. }
         | ChoiceKind::OrderTriggers { .. }
         | ChoiceKind::ChooseDelayedTriggerEvent { .. }

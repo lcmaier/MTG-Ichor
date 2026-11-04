@@ -27,6 +27,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
+use crate::types::effects::CounterType;
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
@@ -436,6 +437,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             format!("Choose for {}", n(spell_id))
         }
         ChoiceKind::SelectRecipients { spell_id, .. } => format!("Choose targets for {}", n(spell_id)),
+        ChoiceKind::DivideAmong { source } => format!("Divide {} among its targets, at least one each", n(source)),
         ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
             format!("Split the generic part of {mana_cost} for {}", n(spell_or_ability_id))
         }
@@ -546,20 +548,56 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
     }
 }
 
+/// What `option` does, in the rule's own words, for a client that shows them
+/// beside the short [`option_label`], as Arena does on a hover
+/// (`backlog.md`'s "What a client is handed"). `None` where the label says it
+/// all. CR 122.1c, d and h state each counter's effect.
+pub fn what_the_option_does(option: &ChoiceOption) -> Option<&'static str> {
+    let ChoiceOption::Replacement(ReplacementOption::Counter { counter, effect, .. }) = option else { return None };
+    match (counter, effect) {
+        (CounterType::Shield, CounterEffectKind::Replacement) => {
+            Some("If this permanent would be destroyed as the result of an effect, instead remove a shield counter from it.")
+        }
+        (CounterType::Shield, CounterEffectKind::Prevention) => {
+            Some("If damage would be dealt to this permanent, prevent that damage and remove a shield counter from it.")
+        }
+        (CounterType::Stun, _) => Some("If a permanent with a stun counter on it would become untapped, instead remove a stun counter from it."),
+        (CounterType::Finality, _) => Some("If this permanent would be put into a graveyard from the battlefield, exile it instead."),
+        _ => None,
+    }
+}
+
 /// What made a row, as a person reads it. A spell is its own source, so the
 /// name beside this already shows its id and its text is its card's (CR 405.4).
 /// An ability's text is the row's, with the stack object that tells two
-/// activations apart. The row is on the board: CR 616.1 offered it.
+/// activations apart. Either way its targets follow, since two activations
+/// aimed at two creatures differ by nothing else. The row is on the board: CR
+/// 616.1 offered it.
 fn resolution_words(game: &GameState, source: ObjectId, resolution: ObjectId) -> String {
+    let rows = || game.replacement_effects.iter().filter(|row| row.source == source && row.resolution.source == resolution);
     let spell = (source == resolution).then(|| game.objects.get(&source)).flatten().map(|spell| spell.card_data.rules_text.as_str());
-    if let Some(text) = spell.filter(|text| !text.is_empty()) {
-        return text.to_string();
+    let made_by = match (spell.filter(|text| !text.is_empty()), rows().next().and_then(|row| row.made_by_text)) {
+        (Some(text), _) => text.to_string(),
+        (None, Some(text)) => format!("{text} ({resolution})"),
+        (None, None) => format!("the effect made as {resolution} resolved"),
+    };
+    // A division's shields hold a target each, and the option names their
+    // resolution: its targets are every row's.
+    let mut targets: Vec<ObjectOrPlayer> = Vec::new();
+    for target in rows().flat_map(|row| &row.targets) {
+        if !targets.contains(target) {
+            targets.push(*target);
+        }
     }
-    let row = game.replacement_effects.iter().find(|row| row.source == source && row.resolution.source == resolution);
-    match row.and_then(|row| row.made_by_text) {
-        Some(text) => format!("{text} ({resolution})"),
-        None => format!("the effect made as {resolution} resolved"),
+    match targets.is_empty() {
+        true => made_by,
+        false => format!("{}, targeting {}", made_by.trim_end_matches('.'), targets_listed(game, &targets)),
     }
+}
+
+/// `targets`, each as the board names it, as a list a label reads.
+fn targets_listed(game: &GameState, targets: &[ObjectOrPlayer]) -> String {
+    targets.iter().map(|target| damage_target_name(game, &target.id())).collect::<Vec<_>>().join(" and ")
 }
 
 /// An option's ability as a person reads it: its text as the engine read it,
@@ -1351,6 +1389,24 @@ mod tests {
     use crate::types::zones::Zone;
 
     #[test]
+    fn a_counters_words_sit_beside_its_short_label() {
+        let mut game = GameState::new(2, 20);
+        let bears = game.add_object(GameObject::new(printings::grizzly_bears(), 0, Zone::Battlefield));
+        let object = game.object_ref(bears).expect("the Bears are in the store");
+        let counter = |counter, effect| ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, effect });
+
+        let finality = counter(CounterType::Finality, CounterEffectKind::Replacement);
+        assert_eq!(option_label(&game, &finality), format!("Grizzly Bears ({bears}) · its finality counter"));
+        assert_eq!(what_the_option_does(&finality), Some("If this permanent would be put into a graveyard from the battlefield, exile it instead."));
+
+        let shield = what_the_option_does(&counter(CounterType::Shield, CounterEffectKind::Replacement));
+        let its_prevention = what_the_option_does(&counter(CounterType::Shield, CounterEffectKind::Prevention));
+        assert_ne!(shield, its_prevention, "CR 122.1c's two effects are worded apart");
+        assert!(what_the_option_does(&counter(CounterType::Stun, CounterEffectKind::Replacement)).is_some());
+        assert_eq!(what_the_option_does(&ChoiceOption::Object(bears)), None, "an object's label says it all");
+    }
+
+    #[test]
     fn test_card_name() {
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Forest").card_type(CardType::Land).build();
@@ -1710,7 +1766,6 @@ mod tests {
     #[test]
     fn a_shield_counters_two_effects_read_apart() {
         use crate::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};
-        use crate::types::effects::CounterType;
 
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);

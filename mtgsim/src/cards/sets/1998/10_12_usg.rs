@@ -3,15 +3,43 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    add_mana, all_damage_to_you, creatures_you_control, each, gains_ability, gets, mana_ability, static_ability, static_replacement,
+    add_mana, all_damage_to_you, creatures_you_control, deal_damage_divided, each, gains_ability, gets, mana_ability, spell_ability, static_ability,
+    static_replacement,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, ManaOutput, ObjectSet, SelectionFilter};
+use crate::types::effects::{AmountExpr, ManaOutput, ObjectSet, SelectionFilter, TargetCount};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::RetargetSpec;
+
+/// Arc Lightning — {2}{R}
+/// Sorcery
+/// Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.
+///
+/// # The rulings, and where each is tested
+///
+/// All in `phase_divided_among_targets_integration_test`.
+/// - *"You choose how many targets Arc Lightning has and how the damage is
+///   divided as you cast the spell. Each target must receive at least 1
+///   damage."* (#1) → `arc_lightning_keeps_the_division_it_was_cast_with`,
+///   `arc_lightning_refuses_a_target_with_no_share`.
+/// - *"If some of the creatures are illegal targets as Arc Lightning tries to
+///   resolve, the original division of damage still applies but no damage is
+///   dealt to the illegal targets. If all targets are illegal, Arc Lightning
+///   doesn't resolve."* (#2) → `an_illegal_target_takes_no_share_and_the_rest_stand`,
+///   `arc_lightning_with_every_target_illegal_does_not_resolve`.
+pub fn arc_lightning() -> Arc<CardData> {
+    let text = "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.";
+    CardDataBuilder::new("Arc Lightning")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 2))
+        .color(Color::Red)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 3), 3)))
+        .build()
+}
 
 /// Citanul Hierophants — {3}{G}
 /// Creature — Human Druid, 3/2

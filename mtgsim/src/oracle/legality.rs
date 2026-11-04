@@ -357,15 +357,6 @@ fn left_since_read<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, t
 /// became. Not a CR 610.3 return, which is no triggered ability.
 fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     use crate::types::ids::ObjectOrPlayer;
-    let objects_of = |targets: &[ObjectOrPlayer]| -> Vec<ObjectRef> {
-        targets
-            .iter()
-            .filter_map(|t| match t {
-                ObjectOrPlayer::Object(object) => Some(*object),
-                ObjectOrPlayer::Player(_) => None,
-            })
-            .collect()
-    };
     let mut referred: Vec<ObjectRef> = Vec::new();
     for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
         referred.extend(read_as_they_left(game, entry.ability_identity, entry.trigger.as_ref()));
@@ -373,7 +364,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
             referred.extend(binding.referred.objects.iter().map(|r| r.object));
         }
         for instance in &entry.chosen_targets {
-            referred.extend(objects_of(&instance.chosen));
+            referred.extend(instance.targets().filter_map(ObjectOrPlayer::object));
         }
         referred.extend(left_since_read(game, entry.ability_identity, entry.trigger.as_ref()));
     }
@@ -383,7 +374,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     }
     for row in game.replacement_effects.iter() {
         referred.extend(row.def.pattern.chosen_damage_source());
-        referred.extend(objects_of(&row.targets));
+        referred.extend(row.targets.iter().copied().filter_map(ObjectOrPlayer::object));
         if let crate::types::effects::ObjectSet::Fixed(ids) = &row.def.affected.objects {
             referred.extend(ids.iter().filter_map(|&id| game.object_ref(id)));
         }

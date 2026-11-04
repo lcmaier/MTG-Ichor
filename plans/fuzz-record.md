@@ -96,6 +96,76 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-03 for `divided-among-targets`, an effect divided among its targets**
+(`choices/divided-among-targets`, PR #308: CR 601.2d on a cast, an activation
+and a trigger, two label commits and a count the board can't meet rewinding). Arc
+Lightning joins the registry and the performance pool (124 → 125), so both §3
+columns are new baselines. One `close_out.py` sitting against **main**
+`c364e92f` (#307's merge): **engine** `10b05ea1`, the commit before the card,
+and **shipped**, the card.
+
+**Predictions, before any arm ran**:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seat
+  counts, no registered card dividing and none printing "X target";
+- instructions per decision within half a point, the new work being one
+  discriminant test per targeted atom and a chained iterator at CR 608.2b;
+- shipped: every gameplay row moved by the pool, read as 0 errors, 0 panics and
+  0 turn limits, with Arc Lightning cast and resolved.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,442 / 172,255 | 341,528 / 361,996 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 178,133 / 173,623 | 331,075 / 357,511 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6506 M → 0.6504 M, **-0.03%** |
+
+**Every prediction held.** The functions past half a point come in pairs
+present in one arm only, an inlining that moved: `EffectiveCharacteristics`'
+drop glue, and `ChosenTargets::push`'s monomorphs, renamed by `targets()`'s
+chained iterator.
+
+**A second sitting reads the pre-review's fixes alone**, `2de3b636` against
+`0c54fd30`, predicted `IDENTICAL`, since each is a shape, a refusal no
+registered card reaches or a label: every gameplay row **IDENTICAL** on both
+pools at both seat counts, the audit unmoved, and instructions a decision
+0.5885 M → 0.5881 M on the shipped pool, which reads no number against the
+table above.
+
+**§3, shipped, 50 games at seed 12345**, the new baseline:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 23 / 25 | 28 / 22 |
+| Wins by effect | 2 | 0 |
+| Avg turns | 28.7 | 23.6 |
+| Spells cast | 21.5 | 17.9 |
+| Creatures died | 8.1 | 4.1 |
+| Total damage | 59.9 | 44.4 |
+| **Layer walks** | **387** | **369** |
+| **Board walks** | **222** | **189** |
+| **Memo hits** | **54,445** | **45,683** |
+| **Layer frames** | **4,111** | **3,242** |
+| **Frames/walk** | **10.62** | **8.78** |
+| **Dependency checks** | **8** | **5** |
+| **Replacement gathers** | **1010** | **823** |
+| **Restriction queries** | **1026** | **832** |
+| Decisions | 195 | 189 |
+
+**Reachability**, shipped, `performance`, 200 games, Arc Lightning forced: cast
+165 and resolved 162 in 112 games (56%) at two seats, 1.35 copies a deck; 92 and
+91 in 79 (40%) at four, 2.70 a deck.
+
+**The fork sweep**, 192 games with the division in both pools: 0 of 13,103
+branches diverged, 28 forked while a delayed trigger waited and 24 while a
+return did. Two of `priority_fork_test`'s board seeds were re-picked from it.
+
+**CI's checked sitting found what the suite did not.** `release-checked` on the
+fixtures pool panicked at game 26: Meteor Swarm's shape at X = 3 with one
+creature asked for three out of one, `TargetCount::ExactlyAmount`'s gap since
+it landed, which no registered card reaches. Fixed before the engine arm; 50
+games, 0 errors, 0 panics, 0 turn limits after it, and the same on `stress`.
+
 **Measured 2026-11-02 for `modes-plus-choice-kinds`' first PR, every option named by what it is**
 (`choices/modes-plus-choice-kinds`, PR #307: `ChoiceOption::Trigger` and
 `::Replacement`, the typed matcher for scripts and setup lines, a cost's

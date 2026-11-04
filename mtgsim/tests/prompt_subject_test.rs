@@ -253,6 +253,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::AcceptAsObjectEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
         ChoiceKind::ChooseDelayedTriggerEvent { source: id },
         ChoiceKind::ChooseEnteringDefender { object: id },
+        ChoiceKind::DivideAmong { source: id },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();
@@ -296,7 +297,8 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ScryOrder { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
         ChoiceKind::AcceptAsObjectEnters { .. } => 30,
+        ChoiceKind::DivideAmong { .. } => 31,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
-    assert_eq!(reached, (0..31).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
+    assert_eq!(reached, (0..32).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

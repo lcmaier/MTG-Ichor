@@ -135,6 +135,7 @@ is derived.
 | 2026-10-21 | State triggers, the draw, and the rule-owned arm | `TR-6` | `triggers-architecture.md` |
 | 2026-10-22 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
 | 2026-11-02 | Every option named by what it is | `options-named-by-what-they-are` | `choices-architecture.md` |
+| 2026-11-03 | An effect divided among its targets | `divided-among-targets` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -148,7 +149,7 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| A division among targets, and the orders the CR hands a player | `division-and-orders` | `choices-architecture.md` |
+| The orders the CR hands a player | `orders-the-cr-hands-a-player` | `choices-architecture.md` |
 | CR 700.2 whole | `modal-spells-and-abilities` | `choices-architecture.md` |
 | A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
 | A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
@@ -173,9 +174,9 @@ cell, and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 217 |
-| …of them in `PERFORMANCE_POOL` | 124 |
-| `#[test]` functions | 2901 |
+| Cards registered | 218 |
+| …of them in `PERFORMANCE_POOL` | 125 |
+| `#[test]` functions | 2929 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -196,14 +197,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 412 |
+| Numbered items | 414 |
 | …closed, still recorded | 261 |
 | …open — unreachable, and says why | 105 |
 | **…open — reachable, wrong today** | **2** |
-| …open — reachable, not wrong (perf, a name, a harness) | 29 |
-| …open — nothing to build, a record for a later phase | 15 |
+| …open — reachable, not wrong (perf, a name, a harness) | 30 |
+| …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 149 of 151 |
+| …open, carrying an explicit `**Sized:**` | 149 of 153 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -217,8 +218,8 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 139 |
-| …a record, nothing to build | 12 |
+| …slotted to a phase or roadmap row still to come | 140 |
+| …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
 

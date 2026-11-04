@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-11-01",
+  "fetched": "2026-11-03",
   "fixtures": ["Five-Color Land Fixture", "Loyalty Probe", "Moonlace Fixture"],
   "cards": {
     "Act of Treason": {
@@ -122,6 +122,13 @@
       "rulings": [
         {"n": 1, "published_at": "2011-09-22", "comment": "If the creature dies before the Angelic Destiny spell resolves, Angelic Destiny will go to its owner's graveyard. It won't return to its owner's hand."},
         {"n": 2, "published_at": "2011-09-22", "comment": "If Angelic Destiny is no longer in a graveyard when its triggered ability resolves, it won't be returned to its owner's hand."}
+      ]
+    },
+    "Arc Lightning": {
+      "first_seen": "2026-11-03",
+      "rulings": [
+        {"n": 1, "published_at": "2014-09-20", "comment": "You choose how many targets Arc Lightning has and how the damage is divided as you cast the spell. Each target must receive at least 1 damage."},
+        {"n": 2, "published_at": "2014-09-20", "comment": "If some of the creatures are illegal targets as Arc Lightning tries to resolve, the original division of damage still applies but no damage is dealt to the illegal targets. If all targets are illegal, Arc Lightning doesn’t resolve."}
       ]
     },
     "Archelos, Lagoon Mystic": {

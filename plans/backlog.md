@@ -1375,7 +1375,7 @@ mechanic rather than a migration, which is why it is here and not in
   UI enough info to display the gamestate properly." That prompt turned out to
   be fine; the absence of anything that would have told us is the entry.
 
-### 2.20 Several target clauses on one spell — **shipped 2026-09-17 (A4i), except CR 601.2d**
+### 2.20 Several target clauses on one spell — **shipped 2026-09-17 (A4i), CR 601.2d 2026-11-03**
 
 - **What shipped.** CR 115.3's instance is the unit: `StackEntry.chosen_targets`
   is a `Vec<TargetInstance>`, `Effect::instances` walks an effect's
@@ -1396,16 +1396,9 @@ mechanic rather than a migration, which is why it is here and not in
   the consumers are Seeds of Strength (pooled), Incremental Growth, Jagged
   Lightning, Plague Spores and Seat of the Synod. The A/B was `IDENTICAL` on
   `performance` and found a live bug on `stress` (`codebase-state.md` item 152).
-- **What is left: CR 601.2d, and it is scheduled.** ATOM-601.2d-001 and -002 —
-  "deal 3 damage divided as you choose among one, two, or three targets". It is
-  a second mechanism rather than a second clause: `TargetCount` gains a divided
-  form, `TargetInstance` a parallel allocation, `DealDamage` a per-target
-  amount, and the `DecisionProvider` a prompt that returns numbers rather than
-  indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
-  written around its numbers) and Forked Bolt as the cheap pooled option at one
-  mana. `roadmap-v2.md` row **`divided-among-targets`**, built inside
-  `modes-plus-choice-kinds` since `route-review` (2026-10-29), before the
-  decks, three of whose cards divide.
+- **CR 601.2d shipped as `divided-among-targets`**: its as-built is
+  `choices-architecture.md`'s, and what is left of a division is the untargeted
+  half (CR 608.2d), `costs-and-choices-at-resolution`'s.
 - **The rest of this entry is the record of the design as it was sized**, kept
   because the atoms and the card counts are still what A4j is sized against.
 
@@ -2573,6 +2566,23 @@ chooses how much of it to show. Arena shows a finality counter's words only on
 a hover or a close look at the card. So a label stays short, and what a thing
 does is data beside it; `information-model` decides what each seat's copy holds.
 
+**Designed in `information-model-design`** (the owner, 2026-11-04, at #308):
+what a client is handed and what it answers with, since a seat's copy and the
+structure it arrives in inform each other, and the CLI's AI games need it as
+much as Phase 10 does. The vocabulary is unified and the forms are not: one
+table per `ChoiceKind` of its name, its log word, its scenario word and its
+fields, which v1's documentation can be generated from, while a `then:` line
+stays a macro over several questions, written before any id exists. Three
+things wait on it:
+- **A setup line's word for a division**, and every word like it: `targeting
+  Grizzly Bears for 2` keeps a share with its target.
+- **`ability N`**, a scenario word that names a position.
+- **What an answer names.** `pick_n`, `allocate` and `choose_ordering` return
+  positions into the list they were handed, so `allocate`'s `Vec<u64>` is a list
+  kept parallel to `buckets`: the shape decision 5 refused for a division, at
+  the boundary. An answer that names its options takes the position out of the
+  trait. About 100 providers change, and no game, log or record moves.
+
 **Open question 1: where the engine runs.** `roadmap-v2.md` §E and §6 named
 Wasm; they point here now and leave it open. In a browser tab the blocking
 provider needs one of four things:
@@ -3038,6 +3048,20 @@ routing.
 | **Blocks** | 12 cards (Scryfall, 2026-11-01, `(o:/(gain )?control (of )?(target\|that\|each\|an\|the other) (player\|opponent)/ or o:/controls the other during/) -o:"control of target creature"`): Mindslaver, Sorin Markov, Emrakul, the Promised End, Opposition Agent among them; Emrakul's "after that turn" also waits here (`cr-coverage-audit.md`) |
 | **Atoms** | none filed |
 | **Owner** | after v0.5, wider card work: the routing is the decision boundary's, designed in `setup-architecture.md`'s "Pausing at a decision" (its decision on the provider's shape), and the view is `information-model`'s |
+
+### 2.52 A division the announcement cannot state — a total off how it was cast, an even split, and a share read later
+
+**Found by `divided-among-targets`' pre-review (2026-11-03)**: CR 601.2d is built,
+and these nine printed cards divide in ways its clause does not write.
+
+| Field | |
+|---|---|
+| **Rules** | CR 601.2d and 608.2d's last sentence: the amount and the division are fixed as the spell or ability is put on the stack. Fireball's ruling: "divided as Fireball resolves, not as it's cast, because there are no choices involved" |
+| **Verdict** | Three gaps, each its own. A **total that turns on how it was cast**: Fight with Fire and Pollen Remedy on a kicker, Avacyn's Judgment on a madness cost, Shatterskull Smashing on its X, Sundering Stroke on the mana spent, where `DividedCount.total` is one `AmountExpr` and Fight with Fire's targets change too. An **even split**: Fireball and Dwarven Catapult, no player's choice, read over the targets legal as it resolves. A **share read later**: Bounty of the Hunt and Shambling Swarm's "for each counter you put on a creature this way", which a later atom reads where `SameInstanceAs` hands it targets alone |
+| **Size** | ~1 PR for the three, each under about 100 lines with its first card; the kicked total leans on `linked-abilities`' record of what was paid |
+| **Blocks** | 9 cards (`choice-kinds-census.py`'s "divided" rows, and the family's "instead" clauses), none in `tdc` |
+| **Atoms** | none filed |
+| **Owner** | after v0.5, wider card work |
 
 ## 3. Dispositioned — sections that need no entry of their own
 

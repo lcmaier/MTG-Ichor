@@ -14,7 +14,7 @@ use std::ops::BitOr;
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
     ObjectSet, AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
-    Primitive, };
+    Primitive, TargetCount, };
 use crate::types::triggers::{
     BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
@@ -251,6 +251,14 @@ fn effect_reads(e: &Effect) -> TriggerBindingReads {
     }
 }
 
+fn count_reads(count: &TargetCount) -> TriggerBindingReads {
+    match count {
+        TargetCount::UpToAmount(amount) | TargetCount::ExactlyAmount(amount) => amount_reads(amount),
+        TargetCount::Exactly(_) | TargetCount::UpTo(_) | TargetCount::Between(..) | TargetCount::AnyNumber => TriggerBindingReads::NONE,
+        TargetCount::Divided(divided) => count_reads(&divided.among) | amount_reads(&divided.total),
+    }
+}
+
 fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
     match r {
         // An instance is never elided, and "you" is one player across the
@@ -261,12 +269,7 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         | EffectRecipient::EachOf(_) => TriggerBindingReads::NONE,
         // How many targets, where the text defines it: "where X is the number
         // of cards looked at while scrying this way".
-        EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => match count {
-            crate::types::effects::TargetCount::UpToAmount(amount) | crate::types::effects::TargetCount::ExactlyAmount(amount) => {
-                amount_reads(amount)
-            }
-            crate::types::effects::TargetCount::Exactly(_) | crate::types::effects::TargetCount::UpTo(_) => TriggerBindingReads::NONE,
-        },
+        EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => count_reads(count),
         EffectRecipient::ThisObject | EffectRecipient::Host => TriggerBindingReads::SOURCE,
         EffectRecipient::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::event_role(*p),
         EffectRecipient::TriggeringPlayer => TriggerBindingReads::PLAYER,

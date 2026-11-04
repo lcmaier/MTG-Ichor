@@ -277,7 +277,47 @@ mod tests {
     use crate::cards::registry::CardRegistry;
     use crate::engine::priority::PriorityResult;
     use crate::test_support::{put_in_hand, setup_two_player_game};
+    use crate::types::ids::ObjectId;
     use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
+
+    /// A replay of one line, player 0's answer to `kind` where `game` stands.
+    fn answering<'a>(game: &GameState, kind: &ChoiceKind, chosen: Chosen) -> Replay<'a> {
+        let (turn, step) = (game.turn_number, position_word(game.phase));
+        Replay::new(vec![AnswerLine { number: 1, turn, step, player: 0, kind: kind.as_str().to_string(), forced: false, chosen }])
+    }
+
+    fn the_seats_the_other_way_round() -> [ChoiceOption; 2] {
+        [ChoiceOption::Player(1), ChoiceOption::Player(0)]
+    }
+
+    /// The log wrote player 0's share first. Offered player 1 first, the
+    /// answer still gives each seat its own: a share follows its bucket.
+    #[test]
+    fn a_share_follows_its_bucket_wherever_the_build_lists_it() {
+        let game = setup_two_player_game();
+        let kind = ChoiceKind::DivideAmong { source: ObjectId::UNASSIGNED };
+        let shares = Chosen::Allocation(vec![(1, "player 0".to_string()), (2, "player 1".to_string())]);
+        let answer = answering(&game, &kind, shares).allocate(&game, 0, &ChoiceContext::new(kind), 3, &the_seats_the_other_way_round(), &[1, 1], None);
+        assert_eq!(answer, vec![2, 1]);
+    }
+
+    #[test]
+    fn a_pick_finds_its_option_wherever_the_build_lists_it() {
+        let game = setup_two_player_game();
+        let kind = ChoiceKind::ChooseOpponent { source: ObjectId::UNASSIGNED };
+        let picked = Chosen::Picks(vec!["player 0".to_string()]);
+        let answer = answering(&game, &kind, picked).pick_n(&game, 0, &ChoiceContext::new(kind), &the_seats_the_other_way_round(), (1, 1));
+        assert_eq!(answer, vec![1]);
+    }
+
+    #[test]
+    fn an_order_finds_its_items_wherever_the_build_lists_them() {
+        let game = setup_two_player_game();
+        let kind = ChoiceKind::OrderCostReductions { spell_id: ObjectId::UNASSIGNED };
+        let ordered = Chosen::Order(vec!["player 0".to_string(), "player 1".to_string()]);
+        let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &ChoiceContext::new(kind), &the_seats_the_other_way_round());
+        assert_eq!(answer, vec![1, 0]);
+    }
 
     /// The audits paused for a replay's lines come back on as it hands the
     /// game to the seats, whose answers nothing has checked.

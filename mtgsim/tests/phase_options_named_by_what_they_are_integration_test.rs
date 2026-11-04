@@ -11,7 +11,7 @@
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
-use mtgsim::cards::printings::{grizzly_bears, lightning_bolt, mending_hands, words_of_worship};
+use mtgsim::cards::printings::{grizzly_bears, lightning_bolt, mending_hands, samite_healer, words_of_worship};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
@@ -127,63 +127,14 @@ fn played(token_first: bool) -> (BuiltStart, decision_log::Log) {
     (built, log)
 }
 
-/// A provider that hands `0` every list reversed and maps its answer back, as
-/// a build listing the options in another order would.
-struct Reversed<'a>(&'a dyn DecisionProvider);
-
-impl Reversed<'_> {
-    fn back(listed: usize, answer: Vec<usize>) -> Vec<usize> {
-        answer.into_iter().map(|at| listed - 1 - at).collect()
-    }
-}
-
-impl DecisionProvider for Reversed<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        let reversed: Vec<ChoiceOption> = options.iter().rev().cloned().collect();
-        Self::back(options.len(), self.0.pick_n(game, player, ctx, &reversed, bounds))
-    }
-
-    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, min: u64, max: u64) -> u64 {
-        self.0.pick_number(game, player, ctx, min, max)
-    }
-
-    fn allocate(
-        &self,
-        game: &GameState,
-        player: PlayerId,
-        ctx: &ChoiceContext,
-        total: u64,
-        buckets: &[ChoiceOption],
-        per_bucket_mins: &[u64],
-        per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        let reversed: Vec<ChoiceOption> = buckets.iter().rev().cloned().collect();
-        let mins: Vec<u64> = per_bucket_mins.iter().rev().copied().collect();
-        let maxs: Option<Vec<u64>> = per_bucket_maxs.map(|maxs| maxs.iter().rev().copied().collect());
-        let mut given = self.0.allocate(game, player, ctx, total, &reversed, &mins, maxs.as_deref());
-        given.reverse();
-        given
-    }
-
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        let reversed: Vec<ChoiceOption> = items.iter().rev().cloned().collect();
-        Self::back(items.len(), self.0.choose_ordering(game, player, ctx, &reversed))
-    }
-
-    fn seat_mode(&self, player: PlayerId) -> SeatMode {
-        self.0.seat_mode(player)
-    }
-}
-
 fn zombies(built: &BuiltStart) -> usize {
     // ORDER-FREE: a count.
     built.game().state.battlefield.keys().filter(|id| built.game().state.objects[id].card_data.name.starts_with("Zombie")).count()
 }
 
 /// The log names each of the Bridge's two triggers by its ability and the
-/// creature it is for, and a replay of each order plays it again, offered
-/// every list reversed: a Zombie when its trigger resolved first, none when
-/// the exile did.
+/// creature it is for, and a replay of each order plays it again: a Zombie
+/// when its trigger resolved first, none when the exile did.
 #[test]
 fn bridge_from_below_replays_its_trigger_order_both_ways() {
     for token_first in [true, false] {
@@ -210,7 +161,7 @@ fn bridge_from_below_replays_its_trigger_order_both_ways() {
         let mut replayed = log.start.build(&CardRegistry::default_registry()).expect("the log's start builds");
         replayed.game_mut().state.record_events();
         let replay = Replay::of(log);
-        replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&Reversed(&replay))).expect("the replay plays");
+        replayed.game_mut().until_stopped(|game| game.resume_turn_at_priority(&replay)).expect("the replay plays");
         assert_eq!(replay.remaining(), 0, "every answer the log holds was asked for");
         assert_eq!(format_event_log(&replayed.game().state), format_event_log(&original.game().state));
         assert_eq!(zombies(&replayed), zombies(&original));
@@ -342,8 +293,33 @@ fn a_row_a_spell_made_reads_as_its_cards_text() {
     resolved(lightning_bolt(), &drawing);
 
     let drawn = drawing.drawn.into_inner();
-    let text = "Prevent the next 4 damage that would be dealt to any target this turn.";
+    let text = "Prevent the next 4 damage that would be dealt to any target this turn";
     for hands in [one, other] {
-        assert!(drawn.contains(&format!("Mending Hands ({hands}) · {text}")), "{drawn:?}");
+        assert!(drawn.contains(&format!("Mending Hands ({hands}) · {text}, targeting Grizzly Bears ({bears})")), "{drawn:?}");
     }
+}
+
+/// Two activations of one ability aimed at two targets: where a row redirects
+/// damage, as Nomads en-Kor's does, the row picked decides who takes it, and
+/// its targets are all that tells the two apart.
+#[test]
+fn a_row_says_which_target_it_was_made_for() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let healer = put_on_battlefield(&mut game, samite_healer(), 0);
+    let mut label_of_a_shield_on = |target: ChoiceOption| {
+        let answers = ScriptedDecisionProvider::new();
+        answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: healer }, vec![target]);
+        game.activate_ability(0, healer, 0, &answers).expect("{T} pays");
+        let ability = *game.stack.last().expect("the ability is on the stack");
+        game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
+        game.battlefield.get_mut(&healer).expect("on the battlefield").tapped = false;
+        option_label(&game, &ChoiceOption::Replacement(ReplacementOption::FromResolution { source: healer, resolution: ability }))
+    };
+
+    let at_the_bears = label_of_a_shield_on(ChoiceOption::Object(bears));
+    let at_the_opponent = label_of_a_shield_on(ChoiceOption::Player(1));
+
+    assert!(at_the_bears.ends_with(&format!(", targeting Grizzly Bears ({bears})")), "{at_the_bears}");
+    assert!(at_the_opponent.ends_with(", targeting Player 1"), "{at_the_opponent}");
 }
