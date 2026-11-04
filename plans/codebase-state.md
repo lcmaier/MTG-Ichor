@@ -10269,3 +10269,28 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      of its uses depend on the order.~~ — ✅ CLOSED 2026-11-02 (PR #307,
      `options-named-by-what-they-are`).** — archived. All 44 tests that failed
      with every list reversed name what they chose, and pass reversed.
+
+362. **What a client is handed of a division and a counter reaches no client
+     yet.** `TargetInstance::division` and `ui::display::what_the_option_does`
+     have no caller outside a test. With Arc Lightning on the stack at the
+     Bears for 2 and the opponent for 1, the dev GUI's `StackItem` shows two
+     names and no numbers, so an opponent deciding whether to save the Bears
+     cannot read the split.
+
+     **Reachability (2026-11-03):** reachable — not wrong: the game is right,
+     and a client is shown less than it could be.
+     **Sized:** ~40 lines: a field on `StackItem`, its drawing, and the words
+     beside a counter's row, under `engineering-practices.md#the-dev-gui`.
+     **Slotted:** `modes-plus-choice-kinds`, the dev GUI PR after
+     `divided-among-targets`; the owner's cadence puts it next.
+
+363. **CR 115.7f has no writer to be tested against.** "The original division
+     can't be changed" when targets change, and the engine rewrites no target:
+     `TargetInstance::from_announcement` is the only writer of one. The share
+     sits in the target's slot, so a rewrite of that slot keeps it, which is
+     decision 5's reason for A and is unproved until one exists.
+
+     **Reachability (2026-11-03):** unreachable — nothing changes a target or
+     chooses new ones.
+     **Slotted:** `spell-copies`, CR 707.10c's new targets, the first writer:
+     its test copies a divided spell, rewrites a target and reads the share.

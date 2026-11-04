@@ -695,6 +695,14 @@ Darkness: "sacrifice this unless you sacrifice a creature") become writable.
 activation, one trigger, so 601.2d, 602.2b and 603.3d all announce a
 division), 8 among objects not targeted, 5 divide prevention.
 
+**The 113 by shape** (the census's "divided, its count" and "its verb" rows, run
+2026-11-03): 48 divide among "one, two, or three", 8 among "up to N", 55 among
+"any number" and 2 among "X" or "up to X"; 73 divide damage and 40 counters.
+Two neighbors are not this decision's, both in `backlog.md`'s "2.52 A division
+the announcement cannot state": "divided evenly" (Fireball, Dwarven Catapult)
+is no player's split, and 2 cards read a share in a later clause (Bounty of the
+Hunt, Shambling Swarm).
+
 **The problem.** CR 601.2d announces a division with the targets, at least
 one to each; 608.2b keeps it when a target goes illegal (that target is not
 dealt its share); 115.7f keeps it across a change of targets; 608.2d chooses
@@ -743,7 +751,7 @@ damage divided as Grizzly Bears 2 and the opponent 1:
 |---|---|---|---|
 | The entry holds | `Divided[(Bears, 2), (opponent, 1)]` | `chosen: [Bears, opponent]`, `shares: [2, 1]` | `chosen: [Bears, opponent]`, and beside it `{Bears: 2, opponent: 1}` for an amount that reads a share by target |
 | It resolves | each pair's target takes its share | `chosen[i]` takes `shares[i]` | each target looks up its share |
-| Bears has gained hexproof (608.2b) | the re-check drops the pair, and the opponent takes 1 (its ruling: the division stands) | the re-check's survivors (`ChosenTargets`, `engine/targeting.rs:83`) drop Bears, so `shares` must drop its first entry in step, or the opponent takes 2 | the map is keyed by target, so dropping Bears is safe |
+| Bears has gained hexproof (608.2b) | the re-check drops the pair, and the opponent takes 1 (its ruling: the division stands) | the re-check's survivors (`ChosenTargets`) drop Bears, so `shares` must drop its first entry in step, or the opponent takes 2 | the map is keyed by target, so dropping Bears is safe |
 | Redirect moves Bears' 2 to Llanowar Elves (115.7f) | the pair's target is rewritten and its share stays: (Elves, 2) | `chosen[0]` is rewritten in place and `shares[0]` stays, right while no rewrite reorders the list | the map still names Bears: every rewrite of a target must also re-key it, or the Elves have no share |
 | Reverberate copies it with new targets (707.10c) | the pairs are copied, then rewritten as above | both lists copied, then as above | the map copied, then re-keyed as above |
 
@@ -1079,42 +1087,40 @@ resolved; a spell's text stays on its card, whose name shows the id.
 
 ### `divided-among-targets` — an effect divided among its targets — ✅ landed 2026-11-03
 
-1,324 lines of code and tests against ~1,200–1,650.
+1,476 lines of code and tests against ~1,200–1,650, added and removed, a moved
+test provider not counted.
 - **The labels** (#307's review): a row's label lists its resolution's targets,
   and `ui::display::what_the_option_does` holds a counter's CR 122.1 words
   beside a label that stays short.
 - **The shape** (decision 5's A): `TargetInstance.chosen` is private and an
-  enum, read through `targets()`. `TargetCount::Divided` holds `among`
-  (`Between`, `AnyNumber`, `ExactlyAmount`) and `total`. The total caps the
-  targets on every shape, and a floor past it refuses the announcement.
+  enum, read through `targets()`. `TargetCount::Divided` is any count plus a
+  `total`, and `TargetCount` gains `Between` and `AnyNumber`. The total caps
+  the targets on every shape, and a floor past it refuses the announcement.
 - **The announcement**: a second walk in `announce_targets`, after every
   instance's targets, so all three paths ask `ChoiceKind::DivideAmong`. One
   split is not asked. Reading the total there fixes it (CR 608.2d's last
-  sentence).
+  sentence). `ask_select_recipients` no longer asks for more than it offers,
+  on any count, so "X target creatures" past the board rewinds.
 - **Resolution** (`resolve_divided`): only the atom that declared the division
   reads shares; a later atom naming its instance reads targets alone. Damage
   and counters each stay one batch, a shield is a row per target at its share,
-  and any other verb is refused.
+  and any other verb, or a `Choose`, is refused.
 
 Three places it differs from decision 5's words:
 - **The survivors stay ids.** `ChosenTargets` gains nothing: the walk finds each
   survivor's share in the announcement by identity, since one instance never
   holds a target twice (CR 601.2c). No second list is kept in step.
-- **The total is written twice and authored once.** `Effect::instances` hands
-  the announcement recipients and no atom, so the clause carries the total while
-  the atom prints it. `deal_damage_divided`, `distribute_counters` and
-  `prevent_the_next_damage_divided` write both from one argument.
+- **The atom's copy of the total is read by nothing.** `Effect::instances` hands
+  the announcement recipients and no atom, so the clause carries the total and
+  the atom prints it, both from one argument of `deal_damage_divided` and
+  `distribute_counters`; a registry test keeps them equal. A shield prints none.
 - **Counters and shields ship here**, though the row names damage: CR 601.2d
-  says "damage or counters", 39 printed cards distribute, and each arm is under
+  says "damage or counters", 40 printed cards distribute, and each arm is under
   twenty lines.
 
-**CR 115.7f has no test**, since the engine rewrites no target today. The first
-writer is `spell-copies`' CR 707.10c, and the share is in the slot it rewrites.
-
-**Five printed cards divide a total the clause cannot state yet**: Fight with
-Fire, Avacyn's Judgment and Pollen Remedy change the total on a kicker or a
-madness cost, Shatterskull Smashing on its X, and Sundering Stroke stops
-dividing on the mana spent. Each needs a total read off how it was cast.
+**CR 115.7f has no test**, since the engine rewrites no target (item 363).
+What the card text can't state yet is `backlog.md`'s "2.52 A division the
+announcement cannot state", and a client can't yet read the shares (item 362).
 
 ## 6. Found while designing
 

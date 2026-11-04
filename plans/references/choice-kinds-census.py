@@ -582,7 +582,7 @@ def _(c, t):
 
 @family("divided, its count: up to N")
 def _(c, t):
-    return any(re.match(r"up to (?:one|two|three|four|five|six)\b", among) for among in among_targets(t))
+    return any(re.match(r"up to (?!x\b)\w+", among) for among in among_targets(t))
 
 
 @family("divided, its count: any number")

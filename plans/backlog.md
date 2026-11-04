@@ -3032,6 +3032,20 @@ routing.
 | **Atoms** | none filed |
 | **Owner** | after v0.5, wider card work: the routing is the decision boundary's, designed in `setup-architecture.md`'s "Pausing at a decision" (its decision on the provider's shape), and the view is `information-model`'s |
 
+### 2.52 A division the announcement cannot state — a total off how it was cast, an even split, and a share read later
+
+**Found by `divided-among-targets`' pre-review (2026-11-03)**: CR 601.2d is built,
+and these nine printed cards divide in ways its clause does not write.
+
+| Field | |
+|---|---|
+| **Rules** | CR 601.2d and 608.2d's last sentence: the amount and the division are fixed as the spell or ability is put on the stack. Fireball's ruling: "divided as Fireball resolves, not as it's cast, because there are no choices involved" |
+| **Verdict** | Three gaps, each its own. A **total that turns on how it was cast**: Fight with Fire and Pollen Remedy on a kicker, Avacyn's Judgment on a madness cost, Shatterskull Smashing on its X, Sundering Stroke on the mana spent, where `DividedCount.total` is one `AmountExpr` and Fight with Fire's targets change too. An **even split**: Fireball and Dwarven Catapult, no player's choice, read over the targets legal as it resolves. A **share read later**: Bounty of the Hunt and Shambling Swarm's "for each counter you put on a creature this way", which a later atom reads where `SameInstanceAs` hands it targets alone |
+| **Size** | ~1 PR for the three, each under about 100 lines with its first card; the kicked total leans on `linked-abilities`' record of what was paid |
+| **Blocks** | 9 cards (`choice-kinds-census.py`'s "divided" rows, and the family's "instead" clauses), none in `tdc` |
+| **Atoms** | none filed |
+| **Owner** | after v0.5, wider card work |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
