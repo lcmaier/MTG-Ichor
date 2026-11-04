@@ -24,10 +24,12 @@ merge. The default is the next PR, so a round stays the size of its comments.
 - **Gloss everything once.** Every item number, roadmap row, phase code and
   engine term the first time it appears in the reply; cite docs by heading
   anchor, never by section number.
-- **A question back to the owner** opens with the problem the options share,
-  then gives each option's code shape in a line or three, its performance and
-  its upkeep, then the recommendation. Only genuine choices go to the owner; a
-  defect you found is yours to fix.
+- **A question back to the owner** leads with its retrofit cost: what changing
+  the answer after the merge would take (the files and lines, and whether a
+  game, a log or a test moves), so the owner knows how hard to weigh it. Then
+  the problem the options share, each option's code shape in a line or three,
+  its performance and its upkeep, then the recommendation. Only genuine choices
+  go to the owner; a defect you found is yours to fix.
 - **An approval of small changes is an approval of those changes.** Do exactly
   them; anything larger is asked first.
 
