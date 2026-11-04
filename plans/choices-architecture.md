@@ -1036,49 +1036,39 @@ measured the same way.
 PR #307, on the design's branch. 1,679 lines of code and tests against an
 estimate of 440–760 (the ratio the later rows are re-sized by).
 - **The order-dependent tests** (item 361): all 44 tests that failed with
-  every list `picking(n)` answers reversed name what they chose
-  (`RecordingDecisionProvider::choosing`, `allocating`, `ordering`) and pass
-  reversed.
+  every `picking(n)` list reversed name what they chose and pass reversed.
 - **A trigger and a replacement effect named by what each is** (item 336):
   `ChoiceOption::Trigger` (its source as the existence that triggered, its
   ability by definition, granter and place, what triggered it; a delayed
   one by what it refers to) and `ChoiceOption::Replacement` (a registry row
   by its source and the stack object whose resolution made it, a static
-  ability, counters, or CR 903.9b's rule). The place and the rules text are
-  captured where the engine read the ability, through CR 614.12's frame for
-  an entering object, since neither the log, the replay nor a client's label
-  can reach that frame. They are how the ability reads, not which ability it
-  is: an `AbilityAsRead` compares equal whatever it holds, so a script names
-  an ability without knowing where it sits. A registry row keeps the
-  `ResolutionStamp` of the resolution that made it. What triggered a trigger
-  is named by id, since a dies trigger's event is about the card's new object
-  in the graveyard, which no script written before the event can name. An
-  activation logs its ability's place, not an internal id.
+  ability, counters, or CR 903.9b's rule). An ability's place and text are
+  captured where the engine read it, through CR 614.12's frame for an
+  entering object, which neither the log, the replay nor a label can reach;
+  an `AbilityAsRead` compares equal whatever it holds, so a script names an
+  ability without knowing where it sits. What triggered a trigger is named
+  by id, since a dies trigger's event is about the card's new object in the
+  graveyard, which no script written before the event can name.
 - **The typed matcher**: `ChoiceOption` derives `PartialEq`; scripts, the
-  recording provider and setup lines find what they name through one
-  matcher, `position_named`, a source naming its one offered effect: two
-  equal options are taken in turn, and a name that fits two different ones
-  is refused. `(n of m)` and the place-based answers are gone. The consumer
-  test replays its log through a provider that reverses every list.
+  recording provider and setup lines find a name through `position_named`:
+  two equal options are taken in turn, a name fitting two different ones is
+  refused. `(n of m)` is gone, and the consumer test replays through a
+  provider that reverses every list.
 - **A cost names its whole cost**: "Escape {3}{B}{B}, exile 5 from your
   graveyard".
 
 One place it differs from #306's decision 4, the owner's call at #307: the
-replay finds a logged answer by its words (every option's whole words), not by
-parsing them, since three arms carry what the log does not write (an
-existence's epoch, a cost's filters, an ability's internal id), so a parse
-yields only part of an option. **Retrofit, if a later need asks for the parse:**
-`Replay::found` and a parser per `ChoiceOption` arm, about 200–300 lines, and
-about one arm more for each arm added. It changes no engine code and no log's
-words, so no game, record or fixture moves.
+replay finds a logged answer by its words, not by parsing them, since three
+arms carry what the log does not write (an existence's epoch, a cost's
+filters, an ability's internal id), so a parse yields only part of an option.
+**Retrofit, if a later need asks for it:** `Replay::found` and a parser per
+`ChoiceOption` arm, about 200–300 lines, about one arm more per arm added; no
+engine code or log's words change, so no game, record or fixture moves.
 
-A label for a registry row shows what made it (the owner, at #307, after
-playing the boards): "Words of Worship (#1) · {1}: The next time you would
-draw a card this turn, you gain 5 life instead. (#15)". The row keeps an
-ability's text as it is made, since that text goes with the stack object (CR
-405.4, 608.2n); a spell's stays on its card, and the name already shows its id.
-The id is the order the two went on the stack, which tells them apart; it is
-not the order they resolved.
+A row's label shows what made it (the owner, at #307, after playing the
+boards): an ability's text, which the row keeps as it is made (CR 405.4), with
+the stack object's id, the order the two went on the stack, not the order they
+resolved; a spell's text stays on its card, whose name shows the id.
 
 ## 6. Found while designing
 

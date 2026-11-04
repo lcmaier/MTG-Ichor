@@ -102,7 +102,7 @@ one means the engine's cost model moved
 whole cost in its words, and item 361's order-dependent tests named; the
 design, `choices-architecture.md`, rides on the same branch). No pool
 changed, so no table is re-recorded. One `close_out.py` sitting against
-**main** `d00a2abd` (#306's merge): **engine** `426e730a`, the last code
+**main** `d00a2abd` (#306's merge): **engine** `ea52cb1f`, the last code
 commit. A second sitting reads the pre-review's fixes alone: `b78c1025`, the
 commit an earlier sitting measured at +0.05%, against `72322211`, the last of
 them.
@@ -118,15 +118,13 @@ building of a trigger's or a replacement's option at a prompt that asks.
 |---|---|---|
 | gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
 | audit, engine, performance / stress, dispatches agreed | 176,442 / 172,255 | 341,528 / 361,996 |
-| instructions / decision, engine vs main, callgrind, Commander scale, 20 games | | 0.6471 M → 0.6505 M, **+0.53%** |
+| instructions / decision, engine vs main, callgrind, Commander scale, 20 games | | 0.6473 M → 0.6503 M, **+0.46%** |
 | `72322211` vs `b78c1025` (the pre-review's fixes alone) | | 0.6477 M → 0.6503 M, **+0.40%** |
 
 Against main, the functions whose inclusive share moved half a point come in
 pairs present in one arm only, an inlining that moved and no work that did:
-`advance_turn` +8.5 points against `run_turn_steps` −8.4, and
-`get_effective_abilities` +5.1 against the mana window's offer read −3.4.
-`random_deck` +1.1, with a `Vec<&str>` iterator's `try_fold` it calls, +1.1
-in one arm only, is the deal, which this PR does not touch.
+`advance_turn` +8.4 points against `run_turn_steps` −8.5, and
+`get_effective_abilities` +5.1 against the mana window's offer read −3.3.
 
 **The fixes' +0.40% is codegen.** All of it, 24.7 M instructions over the
 sitting, is under `activatable_abilities_with` (`oracle/mana_helpers.rs`,
