@@ -419,11 +419,11 @@ fn arc_lightning_keeps_the_division_it_was_cast_with() {
     assert_eq!([damage_on(&game, giant), damage_on(&game, bears), damage_on(&game, lions)], [2, 1, 0]);
 }
 
-/// Three on the board, two chosen, and nothing left for the second. All three
-/// chosen leaves one split, which [`arc_lightning_asks_nothing_of_one_split`]
-/// shows is never asked, so an answer of 3, 0, 0 has no prompt to reach.
+/// Two chosen of three on the board, and nothing left for the second: the one
+/// way a real prompt can be answered with a target left out, since all three
+/// chosen is a split [`arc_lightning_asks_nothing_of_one_split`] never asks.
 // RULING: Arc Lightning #1 - "Each target must receive at least 1 damage."
-// COVERS: ATOM-601.2d-002
+// COVERS-PARTIAL: ATOM-601.2d-002
 #[test]
 #[should_panic(expected = "allocated 0 to bucket 1 but minimum is 1")]
 fn arc_lightning_refuses_a_target_with_no_share() {

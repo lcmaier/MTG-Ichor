@@ -1468,6 +1468,20 @@ mod tests {
         assert_eq!(result, 5);
     }
 
+    // --- a division among targets ---
+
+    /// Arc Lightning at three creatures: 3, 0, 0 leaves two with no share and
+    /// is refused, and 1 each is the one split there is, so the player is
+    /// never asked (CR 601.2d's "at least one").
+    // COVERS: ATOM-601.2d-002
+    #[test]
+    fn three_among_three_targets_refuses_a_target_with_no_share() {
+        let each_at_least_one = [1, 1, 1];
+        let refused = allocation_fits(&[3, 0, 0], 3, &each_at_least_one, None).expect_err("two targets have no share");
+        assert_eq!(refused, "allocated 0 to bucket 1 but minimum is 1");
+        assert_eq!(forced_allocation(3, &each_at_least_one, None), Some(vec![1, 1, 1]));
+    }
+
     // --- allocate basic ---
 
     #[test]
