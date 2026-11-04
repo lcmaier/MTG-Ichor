@@ -741,8 +741,9 @@ pub fn ask_select_recipients(
     min_selections: usize,
     max_selections: usize,
 ) -> Vec<ObjectOrPlayerId> {
-    // Nothing to choose from, or a count of zero, is no question.
-    if legal_selections.is_empty() || (min_selections == 0 && max_selections == 0) {
+    // Nothing to choose from, too little to meet the count, or a count of zero
+    // is no question: `validate_targets` refuses what comes back (CR 601.2c).
+    if legal_selections.is_empty() || legal_selections.len() < min_selections || (min_selections == 0 && max_selections == 0) {
         return Vec::new();
     }
     let options = recipient_options(legal_selections);

@@ -235,6 +235,22 @@ fn a_count_past_the_total_rewinds_the_cast() {
     assert_eq!(game.objects[&swarm].zone, Zone::Hand, "the cast rewinds");
 }
 
+/// CR 601.2c: X = 2 with one creature to choose has no legal announcement, so
+/// the cast rewinds (CR 732.1) rather than asking for two out of one.
+#[test]
+fn a_count_the_board_cannot_meet_rewinds_the_cast() {
+    let mut game = setup_game(2);
+    let swarm = put_in_hand(&mut game, meteor_swarm_fixture(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    game.players[0].mana_pool.add(ManaType::Red, 3);
+    let answers = ScriptedDecisionProvider::new();
+    answers.expect_number(ChoiceKind::ChooseXValue { spell_id: swarm, values: Box::new(LegalXValues::zero_through(2)) }, 2);
+
+    game.cast_spell(0, swarm, &ManaWindowStop::new(answers)).expect_err("two targets, one creature");
+
+    assert_eq!(game.objects[&swarm].zone, Zone::Hand, "the cast rewinds");
+}
+
 /// A later atom naming a divided instance reads its targets and prints its own
 /// amount: only the atom that declared the division acts by the shares.
 #[test]
