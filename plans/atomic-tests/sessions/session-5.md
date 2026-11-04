@@ -275,8 +275,8 @@
 - **Rule:** 601.2d — Each target must receive at least one of whatever is being divided.
 - **Mechanism:** Zero-allocation rejected
 - **Minimal Board:** Same Arc Lightning scenario with 3 creatures.
-- **Action:** Player chooses A and B and attempts to distribute 3 to A, 0 to B. (All three chosen leaves 1 each as the one split, which the engine does not ask, so 3, 0, 0 has no prompt to reach.)
-- **Expected Result:** Illegal distribution — B receives 0. Must redistribute so each chosen target gets ≥1.
+- **Action:** Player attempts to distribute 3 to A, 0 to B, 0 to C.
+- **Expected Result:** Illegal distribution — B and C receive 0. Must redistribute so each chosen target gets ≥1.
 - **Phase:** Phase 5 Pre-Work (T18)
 - **Ticket:** T18
 

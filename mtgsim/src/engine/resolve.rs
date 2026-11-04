@@ -600,7 +600,7 @@ impl GameState {
 
     /// The damage a resolution deals, one batch however many things it hits:
     /// CR 615.7's "two or more applicable sources" and CR 603.2c's "one or
-    /// more" read the batch (`CLAUDE.md`).
+    /// more" read the batch.
     fn deal_resolution_damage(
         &mut self,
         hits: impl Iterator<Item = (ObjectOrPlayerId, u64)>,
