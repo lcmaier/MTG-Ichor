@@ -294,7 +294,7 @@ fn a_row_a_spell_made_reads_as_its_cards_text() {
     resolved(lightning_bolt(), &drawing);
 
     let drawn = drawing.drawn.into_inner();
-    let text = "Prevent the next 4 damage that would be dealt to any target this turn.";
+    let text = "Prevent the next 4 damage that would be dealt to any target this turn";
     for hands in [one, other] {
         assert!(drawn.contains(&format!("Mending Hands ({hands}) · {text}, targeting Grizzly Bears ({bears})")), "{drawn:?}");
     }
@@ -307,21 +307,19 @@ fn a_row_a_spell_made_reads_as_its_cards_text() {
 fn a_row_says_which_target_it_was_made_for() {
     let mut game = setup_game(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    let card = samite_healer();
-    let healer = put_on_battlefield(&mut game, Arc::clone(&card), 0);
-    let mut label_of_a_shield_on = |target: ObjectOrPlayerId| {
-        let ability = game.add_object(GameObject::new(Arc::clone(&card), 0, Zone::Stack));
-        let ctx = ResolutionContext {
-            ability_source: game.object_ref(healer),
-            targets: ChosenTargets::one(vec![target]),
-            ..ResolutionContext::untargeted(ability, 0, GeneratedBy::ActivatedAbility)
-        };
-        game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("the ability resolves");
+    let healer = put_on_battlefield(&mut game, samite_healer(), 0);
+    let mut label_of_a_shield_on = |target: ChoiceOption| {
+        let answers = ScriptedDecisionProvider::new();
+        answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: healer }, vec![target]);
+        game.activate_ability(0, healer, 0, &answers).expect("{T} pays");
+        let ability = *game.stack.last().expect("the ability is on the stack");
+        game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
+        game.battlefield.get_mut(&healer).expect("on the battlefield").tapped = false;
         option_label(&game, &ChoiceOption::Replacement(ReplacementOption::FromResolution { source: healer, resolution: ability }))
     };
 
-    let at_the_bears = label_of_a_shield_on(ObjectOrPlayerId::Object(bears));
-    let at_the_opponent = label_of_a_shield_on(ObjectOrPlayerId::Player(1));
+    let at_the_bears = label_of_a_shield_on(ChoiceOption::Object(bears));
+    let at_the_opponent = label_of_a_shield_on(ChoiceOption::Player(1));
 
     assert!(at_the_bears.ends_with(&format!(", targeting Grizzly Bears ({bears})")), "{at_the_bears}");
     assert!(at_the_opponent.ends_with(", targeting Player 1"), "{at_the_opponent}");

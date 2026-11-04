@@ -591,17 +591,13 @@ fn resolution_words(game: &GameState, source: ObjectId, resolution: ObjectId) ->
     }
     match targets.is_empty() {
         true => made_by,
-        false => format!("{made_by}, targeting {}", targets_listed(game, &targets)),
+        false => format!("{}, targeting {}", made_by.trim_end_matches('.'), targets_listed(game, &targets)),
     }
 }
 
 /// `targets`, each as the board names it, as a list a label reads.
 fn targets_listed(game: &GameState, targets: &[ObjectOrPlayer]) -> String {
-    let target_name = |target: &ObjectOrPlayer| match target.id() {
-        ObjectOrPlayerId::Object(id) => named(game, id),
-        ObjectOrPlayerId::Player(player) => player_name(player),
-    };
-    targets.iter().map(target_name).collect::<Vec<_>>().join(" and ")
+    targets.iter().map(|target| damage_target_name(game, &target.id())).collect::<Vec<_>>().join(" and ")
 }
 
 /// An option's ability as a person reads it: its text as the engine read it,

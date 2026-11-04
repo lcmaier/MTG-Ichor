@@ -110,8 +110,9 @@ pub struct RegisteredReplacementEffect {
     ///
     /// A division's shield keeps its own target alone (CR 601.2d).
     ///
-    /// Its one reader is the row's label: two activations aimed at two
-    /// creatures differ by nothing else. The `EffectRecipient` leaf that would
+    /// Read by the row's label, since two activations aimed at two creatures
+    /// differ by nothing else, and by CR 609.7's sources of damage (what the
+    /// row refers to, in `referred_damage_sources`). The `EffectRecipient` leaf that would
     /// say "the thing this effect targeted at resolution" arrives with the
     /// first rider that needs it, and threads this onto `ReplacementInstance`
     /// and `Rider` then (`codebase-state.md`, Deferred Migrations).
