@@ -201,7 +201,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 903.7 | **Commander designation + command zone start** | 🟡 `GameObject.is_commander: bool` flag exists (2026-04-18); no deck-construction / setup hook yet flips it, and no "commander starts in command zone" routing. **This is now the gate on 903.9** — both halves of the zone redirection work and neither is reachable in a real game, because nothing outside tests sets the flag |
 | 903.8 | **Commander tax (+{2} per prior cast from command zone)** | ❌ no cast counter, no cost modification |
 | 903.9a | **Commander in graveyard or exile → command zone** | ✅ 2026-08-26 (Phase RB item 8). A *state-based action* (**CR 704.6d**), not a replacement effect — the 2026-08-24 correction, now in code. "Since the last time state-based actions were checked" is answered by `GameObject.zone_change_epoch`, with the window read at the **top** of the check: a commander CR 704.5g kills moves *during* a check, so an end-of-check boundary would never offer it | `engine/sba.rs` |
-| 903.9b | **Commander to hand or library → command zone instead** | ✅ 2026-08-26 (Phase RB item 9). Synthesized per event as a *game rule*, not card text, and the rules' only `exempt_from_614_5` effect. Its chooser needs no special case: CR 616.1's "or its owner if it has no controller" already answers for a card in a graveyard, library or hand. **It is also what exposed the hang in §4.1's loop** — exempt *and* optional means a decline is re-offered forever unless declines are tracked separately | `engine/replacement/gather.rs` |
+| 903.9b | **Commander to hand or library → command zone instead** | ✅ 2026-08-26 (Phase RB item 9). Synthesized per event as a *game rule*, not card text, and the rules' only `exempt_from_614_5` effect. Its chooser needs no special case: CR 616.1's "or its owner if it has no controller" already answers for a card in a graveyard, library or hand. A stolen commander on the battlefield has a controller, and that case is item 372. **It is also what exposed the hang in §4.1's loop** — exempt *and* optional means a decline is re-offered forever unless declines are tracked separately | `engine/replacement/gather.rs` |
 | 903.10a / 704.6c | **Commander damage loss (≥21 combat damage from one commander)** | ✅ SBA (T16); `commander_damage_taken: HashMap<ObjectId, u32>` on `PlayerState` (T02). The loss itself is the state-based action at **CR 704.6c**; 903.10a is the Commander-variant rule it implements | `state/player.rs`, `engine/sba.rs` |
 | 903.10a | Attacking with commander + accumulating commander damage | ✅ (2026-04-18) `GameObject.is_commander` flag + `execute_action(DealDamage)` accumulates per-source `commander_damage_taken` when `is_combat && target == Player && source.is_commander`. 5 unit tests cover basic accumulation, 21-damage threshold, non-combat exclusion, non-commander exclusion, and per-source isolation. Still requires a Commander-format setup hook to actually flip the flag at deck construction — no gameplay wiring yet sets `is_commander = true` outside tests. |
 | 903.11 | Cards from outside the game (wishes) | ❌ Phase 9 — `atomic-tests/sessions/session-10.md` defers it, with the Companion cross-ref |
@@ -4704,7 +4704,13 @@ beside a pump, in both timestamp orders.
 
    **Sized:** read `blocker_damage_divisions` in
    that arm instead of the first living attacker, ~40–60 lines, with
-   the first "can block an additional creature" card.
+   the first "can block an additional creature" card. Re-read by the hunt
+   against `phase` (2026-11-04): no `choose_blocker_damage_division` exists and
+   nothing writes `blocker_damage_divisions`, so the prompt is unbuilt and this
+   size is low. A staged Two-Headed Dragon block puts all 4 on the first
+   attacker unasked. `lethal_damage_owed` also counts only earlier creatures,
+   so a first trampler putting 0 on a blocker it shares with a second putting
+   4 is refused, which CR 510.1e's check of the total allows.
    **Slotted:** `layers-combat-and-counters` builds it (the
 card-homed triage, 2026-10-23): the multi-block arm reads
 `blocker_damage_divisions` (CR 510.1d), and the same board tells CR 509.3a's
@@ -5365,7 +5371,10 @@ Primal Vigor. Item 43 closed and evicted; `backlog.md` §2.16 graduated.
      and payment), so no proposal a cost makes exists to be wrongly matched.
      When it does, the payment's `AddCounters` needs a cause the pattern's
      `AddCounters` arm refuses — `LifeLossCause::Cost`'s shape — and
-     `pattern_watches` one clause.
+     `pattern_watches` one clause. Measured by the hunt against `phase`
+     (2026-11-04): `AddCounters` proposed under `ActionContext::paying_cost`
+     beside Doubling Season takes Gideon Jura's +2 from 12 to 16, so the cost's
+     first proposal will be wrong until that clause exists.
 
      **Reachability (2026-09-13):** unreachable — no cost puts counters;
      `backlog.md` §2.11's loyalty abilities are the producer.
@@ -7666,7 +7675,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        run CR 514.2 before CR 514.1's discard, the reverse of the CR's order.
        It shows only through an effect that a discard reads and cleanup ends,
        such as an "until end of turn" maximum hand size or a "this turn"
-       discard trigger, and is confirmed or dismissed with the rest.
+       discard trigger. Confirmed 2026-11-04 as item 369.
      - **`Primitive::ChangeType` was lowered in two places.** Fixed at the
        review: `resolve.rs` calls `TypeChange::modifications`.
 
@@ -10001,8 +10010,9 @@ folds and 345–347 the gaps the duplicates hid.
      and a permanent arm, as `ParticipantFilter` will have; the second is a
      stack object that is not a spell. Targets in a graveyard (886) are
      `ironworks-loop`'s already.
-     **Reachability (2026-10-26):** unreachable — no registered card targets
-     either.
+     **Reachability (2026-11-04):** reachable — wrong today: Skullcrack targets
+     a player or planeswalker, and is written with `target_player()`, so a
+     planeswalker is refused.
      **Sized:** ~60–100 lines and a fixture for each.
      **Slotted:** `resolution-recipients-and-amounts`, the targets row
      (`route-review`, 2026-10-29).
@@ -10051,6 +10061,11 @@ folds and 345–347 the gaps the duplicates hid.
      graveyards", a resolution sweeping every graveyard, cannot be written.
      Rest in Peace is registered with its replacement alone; its trigger was
      deferred when it shipped, 2026-08-31. Found at #297's pre-review.
+     The hunt against `phase` (2026-11-04) read it differently: the resolution
+     does not refuse. `exile` and `return_to_the_battlefield` over `each_in`
+     return `Ok(())` and move nothing, since the arm iterates no targets, so a
+     card written this way does nothing silently. "Item 344's four refusals"
+     above points at an unrelated closed item.
      **Reachability (2026-10-27):** unreachable — no registered card sweeps
      another zone as it resolves.
      **Sized:** ~40–60 lines: the sweep over the named zones in a fixed
@@ -10294,3 +10309,133 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      chooses new ones.
      **Slotted:** `spell-copies`, CR 707.10c's new targets, the first writer:
      its test copies a divided spell, rewrites a target and reads the share.
+
+### Found by the hunt against `phase` (2026-11-04)
+
+Five `rules-hunter` runs at `c73c1ba4`, the same brief run at `phase-rs/phase`,
+every board with a control arm. The probes sit outside the repo, in the owner's
+comparison folder. Each slot below is a proposal for the owner's next
+scheduling. Bootstrapped cards' slips are the planned card phases', not items.
+
+364. **A life floor reads one loss at a time, never the event's net.** CR
+     120.4's own example: a player at 2 life with Worship, two unblocked 5/5s,
+     Awe Strike on one. The event is "loses 5, gains 5", the total would not
+     fall below 1, so Worship does not apply and the player stays at 2.
+     `AmountRewrite::LifeFloor` clamps each `LoseLife` against the total as
+     it performs, and the gain comes after: lifelink's at the batch's end
+     (`execute_batch_inner`), a prevention's as a rider. Ali from Cairo beside
+     Reverse Damage ends on 6, and beside the player's own lifelinker on 6
+     where the rules give 2 and on 5 where they give 1.
+
+     No gate could see it: `session-1.md` files 120.4b–d as `PURE-DEF`, so no
+     atom reaches the example, and the rulings gate is per card while the
+     example names two unregistered ones.
+
+     **Reachability (2026-11-04):** reachable — wrong today: Ali from Cairo,
+     Reverse Damage and any lifelinker are registered.
+     **Slotted:** `resolution-recipients-and-amounts`, once the owner decides
+     whether a prevention's gain is a result inside the event, as the example
+     has it, or a rider after it, as CR 615.5 and `CLAUDE.md` have it.
+     Lifelink's boards need the net either way.
+
+365. **After a non-active player acts, the active player gets priority.** CR
+     117.3c gives it back to the player who acted. A cast or an activation
+     returns from the round, and every round starts at the active player, so
+     P1's Lightning Bolt is followed by P0 at two seats and by P0, P1, P2 at
+     three. The comment beside the return cites 117.3c, and the caller's fresh
+     round does not honor it. Item 140 records the same mechanism as a limit on
+     resuming a fork. The rules outcome is reachable: a non-active player
+     cannot hold priority.
+
+     **Reachability (2026-11-04):** reachable — wrong today: any spell or
+     ability from a non-active player.
+     **Slotted:** `multiplayer-rules`, beside CR 800's rotation. Item 140's
+     `run_priority_round` taking the player to start from is this fix too.
+
+366. **One creature can be declared attacking two players.** `legal_pairs` is
+     every creature with every target, and `validate_attackers` checks each pair
+     and never that a creature appears once (CR 508.1b, 802.3). Blocks have
+     `TooManyBlocks`; attacks have nothing. At three seats Hellrider declared at
+     P1 and P2 is accepted, triggers twice and attacks P2.
+
+     **Reachability (2026-11-04):** reachable — wrong today: any game of three
+     or more seats.
+     **Slotted:** `multiplayer-rules`, CR 802's defending-player choice.
+
+367. **Defending players block in timestamp order.** `get_defending_players`
+     lists them by first appearance among the attackers, where CR 802.4 says
+     APNAP. At four seats, a creature attacking P3 with the earlier timestamp
+     puts P3's blocks ahead of P1's.
+
+     **Reachability (2026-11-04):** reachable — wrong today: any game of three
+     or more seats with attacks on two players.
+     **Slotted:** `multiplayer-rules`, CR 802.
+
+368. **CR 302.6's clock forgets an interruption.** `control_since_turn` falls
+     back to the entry turn when a steal's row expires, so a creature returned
+     at the thief's cleanup is not summoning sick for its owner. The comment on
+     `has_summoning_sickness` calls this unobservable, and it is: at three
+     seats the next player's turn sits between, and at two seats so does an
+     extra turn. Act of Treason on Merfolk Thaumaturgist or Samite Healer, or
+     on Dryad Arbor for its mana, offers {T} where it must not.
+
+     **Reachability (2026-11-04):** reachable — wrong today: Act of Treason at
+     three seats, or with Time Walk at two.
+     **Slotted:** `multiplayer-rules`: the clock wants a stored fact, the turn
+     control last began, not a fallback.
+
+369. **CR 514.2 runs before CR 514.1's discard.** `begin_step` ends "until end
+     of turn" effects and removes damage, then `handle_cleanup_discard` runs.
+     The note under CR 514.3a's repeated-cleanup fix held this open, with a
+     maximum hand size and a discard trigger as its examples. A steal is a
+     third, and registered cards reach it: P0 holding P1's Leyline of the Void
+     by Act of Treason, under Opalescence, discards into exile at cleanup, where
+     P0 still controls it at 514.1 and the cards go to the graveyard.
+
+     **Reachability (2026-11-04):** reachable — wrong today: registered cards,
+     and a control without the steal exiles correctly.
+     **Slotted:** `multiplayer-rules`, the turn's end at N seats.
+
+370. **A redirect leaves one chooser for two subjects.** `subject_groups`
+     groups members by subject, and the chooser and order come from the first
+     live member. After a `Retarget`, members of a group can have different
+     subjects: two attackers hitting P1 with Ghosts of the Innocent and Furnace
+     of Rath out, and Reflect Damage sending one to P0. One prompt covers both,
+     where CR 616.1 has each affected player order their own.
+
+     **Reachability (2026-11-04):** reachable — wrong today: all three cards
+     are registered, and which player is asked turns on the batch's order.
+     **Slotted:** `multiplayer-rules`, beside item 25, the other gap in how a
+     batch's members choose.
+
+371. **A trigger born during placement joins a later seat's pass.**
+     `place_pending_triggers` reads each seat's entries off the live queue, and
+     `place_one`'s `announce_targeted_records` dispatches mid-pass. P0's
+     Flickerwisp targets P1's Cephalid Aristocrat while P1's Soul Warden waits.
+     CR 603.3b has P1 place the Warden alone, SBAs run, then the Aristocrat's
+     trigger go on top. P1 is instead asked to order them and can build a stack
+     the rules cannot make.
+
+     **Reachability (2026-11-04):** reachable — wrong today: all three cards
+     are registered.
+     **Slotted:** `multiplayer-rules`, CR 101.4's order at N seats.
+
+372. **CR 903.9b's question goes to the controller.** The rule says "its owner
+     may". `commander_zone_replacement` names the owner, and the optional prompt
+     asks `chooser_for`'s answer instead, so a stolen commander's zone choice
+     goes to the thief. The 903.9b row's "its chooser needs no special case"
+     holds only for a card with no controller.
+
+     **Reachability (2026-11-04):** unreachable — nothing outside tests sets
+     `is_commander`; a board that sets it by hand asks the thief.
+     **Slotted:** `game-formats`, whose designation makes it live.
+
+373. **Deathtouch asks for marked damage.** `engine/sba.rs` requires
+     `damage_marked > 0` for CR 704.5h, and
+     `test_sba_deathtouch_zero_damage_no_destroy` pins it. CR 702.2b says "dealt
+     damage", and infect and wither mark none (CR 120.3d), so a creature dealt
+     infect deathtouch damage would live once item 86 lands.
+
+     **Reachability (2026-11-04):** unreachable — nothing deals damage that
+     marks none.
+     **Slotted:** `layers-combat-and-counters`, with item 86's infect and wither.
