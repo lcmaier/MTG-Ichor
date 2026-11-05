@@ -526,6 +526,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `controller p`, `owner p` | 110.2b, 108.3 | the entity's default controller; the object's owner | each the other |
 | `tapped` | 110.5 | `tapped` | untapped |
 | `arrived this turn`, `arrived turn N` | 302.6 | the door's arrival turn. CR 302.6 measures from the controller's own most recent turn, so a non-active player's creature that arrived on their last turn is still sick, which "this turn" alone cannot say (the build, 2026-10-01) | arrived before the first turn |
+| `control since turn N` | 302.6 | `control_began_turn`, where a change of control came after the arrival | the arrival |
 | `<kind> N`, a counter | 122.1, 613.7c, 306.5b | `add_counters`, in order; a stated kind replaces its intrinsic count | the intrinsic entry counters |
 | `counters: <card> \| <kind> N` | 613.7c | a counter kind stamped at its own line (§4.3) | — |
 | `damage N` | 120.6 | `damage_marked` | 0 |

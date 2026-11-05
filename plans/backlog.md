@@ -1011,7 +1011,7 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   `cant-effects-architecture.md`'s); CR 402.2 as modified
 - **Verdict** — **`PlayerState` stores rule values and no effect can reach
   them.** `max_hand_size` is seeded from config and read raw by
-  `handle_cleanup_discard`; nothing can say "you have hexproof" for a player,
+  `discard_to_maximum_hand_size`; nothing can say "you have hexproof" for a player,
   and target legality consults nothing player-scoped. CR 613.11 applies these
   after all object layers, in timestamp order — that application point does
   not exist. `lands_per_turn` is the same shape and already dispositioned to a
@@ -3349,7 +3349,7 @@ pass 1's (5 from 38), so "no doc mentions it" turned out to be a weak signal.
 | 112 | 2 | spell controller — implemented |
 | 303 | 2 | Aura SBAs — beside 704.5m, already §3.1 |
 | 304 | 2 | instant zone guard (at the entry proposal since the item 6 audit's close-out) and instant-speed timing — implemented |
-| 402 | 2 | maximum hand size — `perform_cleanup_actions` / `handle_cleanup_discard` (402.3 is §2.9) |
+| 402 | 2 | maximum hand size — `perform_cleanup_actions` / `discard_to_maximum_hand_size` (402.3 is §2.9) |
 | 404 | 2 | graveyard ordering and empty start — implemented (404.2 is §2.9) |
 | 201 | 1 | 201.2a is audit §5.2's "an object with several names" near-miss — already recorded, needs Layer 3 |
 | 300 | 1 | `CardType` enum completeness — implemented |

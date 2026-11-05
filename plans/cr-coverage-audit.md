@@ -959,10 +959,9 @@ CR 302.6, 500.1. **Key:** a player. **Owner:** `PlayerHistory`, which
 #### The turn a permanent entered, and control since
 CR 302.6, 603.6. **Key:** a permanent's existence. **Query:** type `u32`
 named `entered_battlefield_turn`; type `u32` named `entered_turn`; type `u32`
-named `control_since_turn`
-- `PermanentState` — owner of the turn it entered, which seeds CR 302.6's
-  clock (item 325 removed `controller_since_turn`, that turn by
-  construction).
+named `control_since_turn`; type `u32` named `control_began_turn`
+- `PermanentState` ×2 — owner of the turn it entered, and of the turn control
+  last moved, which seeds CR 302.6's clock (item 368).
 - `EffectiveCharacteristics` — owner: control since, computed through Layer 2.
 - `PermanentFacts` — moment: in an `Lki`.
 

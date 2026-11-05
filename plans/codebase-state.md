@@ -1321,6 +1321,12 @@ registered card returns an object.
     inside out, a per-member state machine under an outer APNAP round-robin.
     **Revisit at Phase 6**, where triggers make the other half of CR 101.4 live
     anyway; not at RD, which is finished.
+    Item 370's split reads the batch's later groups but not a sibling run, so a
+    CR 615.7 count spanning two subjects after a redirect allocates a run at a
+    time. And a redirect onto a subject a later group also affects gives that
+    subject two loops, so a shield counter pays twice where CR 122.1c's ruling
+    pays once: Pariah's host with a shield counter, taking other damage at the
+    same time. Both predate the split. The round-robin takes them too.
     **Slotted:** `multiplayer-rules`, CR 800 at four seats, where a redirect onto another seat's
     permanent stops being an accident: phase 1 becomes an APNAP round-robin
     over its groups (CR 101.4d).
