@@ -174,6 +174,7 @@ fn two_meditates_make_a_player_skip_their_next_two_turns() {
     let first = resolve_spell(&mut game, meditate(), 0, vec![]);
     resolve_spell(&mut game, meditate(), 0, vec![]);
     assert_eq!(game.replacement_effects.len(), 2, "one row per Meditate");
+    // Past the cleanup step's discard: two Meditates and the eight cards they draw.
     game.players[0].max_hand_size = 10;
 
     // Two applicable rows on one event is a real CR 616.1 choice, and the
