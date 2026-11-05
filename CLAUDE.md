@@ -184,7 +184,7 @@ A design stop is `/design-note`, a build closes with `/pr-handover`, a review ro
 - **Dev GUI: logic is plain Rust under tests, egui only draws**; a GUI PR is reviewed by `engineering-practices.md#the-dev-gui`.
   **Register every card you write, and read its rulings** — `check_rulings.py` gates the second, a
   phase opening a new engine path adds one to `PERFORMANCE_POOL`. → `engineering-practices.md#cards-and-pools` and `engineering-practices.md#rulings`.
-- A bugfix must be shown to fail against the pre-fix tree (`git stash push mtgsim/src`) first.
+- A bugfix must be shown to fail against the pre-fix tree first: `python plans/fails_before_fix.py`, never `git stash`.
 
 ## Maintaining this file
 

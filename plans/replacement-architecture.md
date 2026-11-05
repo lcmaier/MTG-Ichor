@@ -4107,8 +4107,8 @@ Same discipline as the layer phases:
   whole scenario. 58 atoms are written directly against CR 614/615/616; 88 of
   Phase 6's 124 are replacement-family once CR 122/400/609/701 are counted in.
   Run `specdb orphans` and `specdb suspicious` before each PR.
-- **Every bugfix fails first.** `git stash push mtgsim/src`, watch it fail, then
-  commit. Non-negotiable per `CLAUDE.md`.
+- **Every bugfix fails first.** `python plans/fails_before_fix.py`, watch it
+  fail, then commit. Non-negotiable per `CLAUDE.md`.
 - **Mutation-check the assertions.** The Layer 2 phase found four vacuous
   assertions this way (`fc68600`). A replacement test that passes because the
   effect never fired is the exact failure this phase is prone to — assert on the

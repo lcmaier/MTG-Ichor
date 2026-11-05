@@ -251,6 +251,8 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
 - **A landed phase's section is a stub of at most 40 lines**; its body moves to
   `plans/archive/<doc>-landed.md` under the same heading in the landing PR, and
   `check_state_of_play.py --check` fails a longer one.
+- **A bug fix fails first**: `plans/fails_before_fix.py` shows its test failing
+  without the fix and passing with it, in a worktree, never by `git stash`.
 
 ### Naming a phase
 
