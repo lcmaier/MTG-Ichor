@@ -3142,6 +3142,45 @@ through a rule, and CR 104.3a lets them leave at any time.
 | **Atoms** | none filed |
 | **Owner** | `resolution-recipients-and-amounts` |
 
+### 2.59 What the comparison with `phase` offers later steps
+
+**From the comparison of 2026-11-04.** Each line is a design input for a step's
+author, read at its design stop, and none is a mechanic. The owner's private
+comparison page has the reasoning.
+
+- **`pausing-at-a-decision`**: answers carrying the prompt's identity, an entry
+  for leaving outside a prompt (2.53), and phase's history of orphaned frames as
+  a test list.
+- **`information-model-design`**: build a seat's view by addition, since phase's
+  subtraction leaks by default. Keep the client's structure apart from internal
+  state. Epoch-stamped knowledge facts, where a shuffle voids facts by bumping a
+  counter, and typed random draws, which also help loop detection.
+- **`permission-design`**: read phase's `CastingPermission` fields as a checklist:
+  grantee, cost provenance, cast-time constraint, cleanup.
+- **`double-faced-cards` and the card model's builds**: phase's extra copiable
+  facts, namely Room halves, prepare faces and flip status.
+- **`tarkir-dragonstorm-decks`**: skills that list every registration point for
+  one kind of change, such as add-keyword or add-trigger; single-gap ranking on
+  the deck census; a per-card structural snapshot diff in PRs.
+- **`mana-payment-solver`**: a mode that won't auto-pay with sacrificial mana;
+  remembered replacement answers as a provider decorator; cast reversal with a
+  library barrier for the mana-ability gap.
+- **CR 113.11's "can't have"**: placement at the end of Layer 6, repeated after
+  keyword counters.
+- **The first real AI agent**: paired-seed flip reports on non-mirror matchups,
+  with a panic counted as a failure; a verdict of reject or score; an LLM seat
+  that chooses among engine-issued options, revalidates, falls back, and rejects
+  stale answers by fingerprint.
+
+| Field | |
+|---|---|
+| **Rules** | each step's own |
+| **Verdict** | none of these blocks its step. Each is cheaper at the step than after it |
+| **Size** | inside each step's design |
+| **Blocks** | nothing |
+| **Atoms** | none filed |
+| **Owner** | each step named above, and the CR 113.11 line after v0.5, wider card work |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

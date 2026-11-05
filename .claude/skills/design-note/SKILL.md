@@ -16,6 +16,8 @@ in order, then stop.
   body; take each item or re-slot it.
 - Re-count each item's **Sized:** line against the tree, code and tests apart
   (`plans/engineering-practices.md#sizing-a-phase`).
+- Read `plans/backlog.md` 2.59's line for this step, if it has one: what the
+  comparison with `phase` offers it.
 
 ## 2. Count before you shape
 
