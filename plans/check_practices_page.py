@@ -36,7 +36,9 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = "plans/engineering-practices.md"
-BUDGET = 640
+#: Raised from 625 on 2026-11-04 for four rules no line already covered: the binding table,
+#: a fix failing first, the nightly sweep and the gates' own test.
+BUDGET = 638
 TEXT_SUFFIXES = (".md", ".rs", ".py", ".yml", ".yaml", ".toml", ".sh", ".html", ".txt", ".json")
 # Records, not read for citations: the archive and the docs `CLAUDE.md` calls
 # historical, accurate as they stood; the pinned trace pages, never edited; and

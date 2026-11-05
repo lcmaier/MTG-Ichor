@@ -55,6 +55,7 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum, auto
 from pathlib import Path
 from typing import NamedTuple
 
@@ -64,6 +65,7 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).resolve().parent.parent
 #: Long paths break deletion on Windows, and this is the short one when it exists.
 SHORT_PATHS = Path(r"C:\w")
+#: Eight run the plants in about 30 s, against about two minutes for one.
 TREES = min(8, os.cpu_count() or 1)
 #: Several gates print through the console's encoding unless told otherwise.
 ENV = {**os.environ, "PYTHONIOENCODING": "utf-8"}
@@ -86,10 +88,18 @@ GATES = [CLAUDE_MD, MODULES, GLOSSARY, BOARD, RULINGS, LITERALS, SURFACE, CLIPPY
 # --- a plant, as data --------------------------------------------------------
 
 
+class Op(Enum):
+    APPEND = auto()
+    REPLACE = auto()
+    CREATE = auto()
+    DELETE = auto()
+
+
 class Edit(NamedTuple):
+    op: Op
     path: str
-    anchor: str | None  # the text to replace, `None` for the file's end, `NEW` for a file that must not exist
-    text: str | None  # `None` deletes the file
+    anchor: str = ""  # what REPLACE finds, exactly once
+    text: str = ""  # what APPEND, REPLACE and CREATE write
 
 
 class Plant(NamedTuple):
@@ -99,27 +109,24 @@ class Plant(NamedTuple):
     edits: tuple[Edit, ...]
 
 
-NEW = "<new file>"
-
-
 def add(path, text):
-    return Edit(path, None, text)
+    return Edit(Op.APPEND, path, text=text)
 
 
 def swap(path, anchor, text):
-    return Edit(path, anchor, text)
+    return Edit(Op.REPLACE, path, anchor, text)
 
 
 def after(path, anchor, text):
-    return Edit(path, anchor, anchor + text)
+    return Edit(Op.REPLACE, path, anchor, anchor + text)
 
 
 def create(path, text):
-    return Edit(path, NEW, text)
+    return Edit(Op.CREATE, path, text=text)
 
 
 def delete(path):
-    return Edit(path, None, None)
+    return Edit(Op.DELETE, path)
 
 
 def plant(gate, rule, expect, *edits):
@@ -515,18 +522,18 @@ class CouldNotApply(Exception):
 
 def apply(tree: Path, edit: Edit):
     path = tree / edit.path
-    if edit.anchor is NEW:
+    if edit.op is Op.CREATE:
         if path.exists():
             raise CouldNotApply(f"{edit.path} already exists")
         path.write_bytes(edit.text.encode("utf-8"))
         return
     if not path.is_file():
         raise CouldNotApply(f"{edit.path} is gone")
-    if edit.text is None:
+    if edit.op is Op.DELETE:
         path.unlink()
         return
     text = path.read_bytes().decode("utf-8")
-    if edit.anchor is None:
+    if edit.op is Op.APPEND:
         text += edit.text
     elif (found := text.count(edit.anchor)) != 1:
         raise CouldNotApply(f"{edit.anchor!r} is in {edit.path} {found} times, not once")

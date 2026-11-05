@@ -62,6 +62,8 @@ test. A hunt has found both wrong.
 - `UNCLEAR`: the rule does not settle it.
 - `PLAUSIBLE`: traced, could not run.
 - `HELD`: you tried to break it and the answer was right.
+- `CARD`: a bootstrapped card's slip, one line each after the table, and never
+  counted as an engine finding.
 
 ## The report
 
