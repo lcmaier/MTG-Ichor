@@ -688,7 +688,7 @@ pub fn combat_refusal(game: &GameState, error: &CombatError, refused: Declaring)
             Some("302.6"),
         ),
         CombatError::InvalidAttackTarget(id) => (format!("{} can't attack that", n(id)), None),
-        CombatError::AttacksTwice(id) => (format!("{} can attack only one player", n(id)), Some("802.3")),
+        CombatError::AttacksTwice(id) => (format!("{} can attack only one thing", n(id)), Some("802.3")),
         CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => (
             format!("{} is not attacking you, so {} can't block it", n(attacker), n(blocker)),
             Some("509.1a"),
@@ -1826,6 +1826,14 @@ mod tests {
         assert_eq!(
             rejection(&game, &blocks),
             format!("Those blocks are illegal: Grizzly Bears ({blocker}) can block only one attacker (CR 509.1a)")
+        );
+        let attacks = Rejection::IllegalAttacks {
+            attacks: vec![(attacker, AttackTarget::Player(0)), (attacker, AttackTarget::Player(1))],
+            why: CombatError::AttacksTwice(attacker),
+        };
+        assert_eq!(
+            rejection(&game, &attacks),
+            format!("Those attacks are illegal: Grizzly Bears ({attacker}) can attack only one thing (CR 802.3)"),
         );
     }
 
