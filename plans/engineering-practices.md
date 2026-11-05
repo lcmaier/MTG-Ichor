@@ -135,6 +135,8 @@ it is, rename it. Every name a PR adds is read against this list:
   lives or how long.** TR-2b chose where last known information lived by how
   long each keeper needed it, and twenty fields followed; the key CR 400.7 gives
   it, the existence, came only with #285's store.
+- **A design note binds new rules state in a table**: when bound, live or latched,
+  where stored, who reads it, what invalidates it (`/design-note`).
 - **A concept with two owners is a finding, and so is a key narrower than the
   CR's.** Each concept's key, owner and holders are the register,
   `cr-coverage-audit.md#4c-concepts-and-their-owners`; `check_type_surface.py`

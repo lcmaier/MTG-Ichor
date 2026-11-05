@@ -42,6 +42,11 @@ A shape drawn from the cards the brief happens to name is the miss this step
 exists for. A decision with no printed family, such as a rename or a type no
 card reaches, says so in one line, with why.
 
+**The binding table.** Every new piece of rules state gets a row: when it is
+bound, whether it stays live or is latched, where it is stored, who reads it,
+and what invalidates it. A cell the note cannot fill is a decision it has not
+made (`plans/engineering-practices.md#key-a-concept-before-storing-it`).
+
 ## 3. The decisions
 
 - Each in `/review-round`'s format: its retrofit cost, the problem the options
