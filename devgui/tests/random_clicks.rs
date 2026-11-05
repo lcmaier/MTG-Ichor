@@ -6,9 +6,10 @@
 //! between prompts it turns full control on or off now and then, as the
 //! header's switch does. The window's clock runs too: a click in the beat
 //! after each prompt arrives must do nothing, and nothing may show as live.
-//! Most games must finish inside their budget, the engine thread must not
-//! panic, the engine must accept every reply the view model builds, and every
-//! click the window offers must move the answer along or act on the seat.
+//! Every game must finish inside its budget, a stalled stress game excepted,
+//! the engine thread must not panic, the engine must accept every reply the
+//! view model builds, and every click the window offers must move the answer
+//! along or act on the seat.
 //!
 //! The board editor's clicks are random too, with no game: every click it
 //! offers must change the board or what is selected, the board must always
@@ -33,10 +34,9 @@ use rand::{Rng, SeedableRng};
 
 const SEEDS: [u64; 3] = [1, 2, 3];
 
-/// The prompts a game is played for. A game that finishes takes under 700. A
-/// stalled stress game can pass 5,000, on a board of 90 permanents where each
-/// prompt's debug audits take 70 ms, and past this it shows the window nothing
-/// new, so it stops here as a window closed mid-game does.
+/// The prompts a game is played for. Every other game finishes in under 700,
+/// and only a stress game may stall past this, on the board its pool builds. It
+/// then stops as a window closed mid-game does. Any other game has hung.
 const PROMPT_BUDGET: usize = 1_500;
 
 /// Clicks at one prompt before the window is judged to offer no way to answer
@@ -73,9 +73,8 @@ const STOP_ONE_IN: u32 = 2;
 #[derive(Default)]
 struct Reached {
     primitives: Vec<Primitive>,
-    finished: usize,
-    /// Games stopped at `PROMPT_BUDGET`.
-    stopped: usize,
+    /// Stress games stopped at `PROMPT_BUDGET`.
+    stalled: usize,
     /// Priority prompts with `Pass` alone, which only full control asks.
     pass_only: usize,
     yields: usize,
@@ -95,7 +94,7 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
             play_at_random(GameSetup { pool, ..dealt(seed) }, seed, &mut reached);
         }
     }
-    assert!(reached.finished > reached.stopped, "{} finished, {} stopped", reached.finished, reached.stopped);
+    assert!(reached.stalled < SEEDS.len(), "every stress game stalled");
     let primitive = |test: fn(&Primitive) -> bool| reached.primitives.iter().any(test);
     assert!(primitive(|p| matches!(p, Primitive::PickN { max: 1, .. })), "no single pick reached");
     assert!(primitive(|p| matches!(p, Primitive::PickN { max, .. } if *max > 1)), "no multiple pick reached");
@@ -130,6 +129,7 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
         Some(path) => format!("{} at seed {seed}", path.display()),
         None => format!("{:?} pool, seed {}", setup.pool, setup.seed.unwrap_or_default()),
     };
+    let may_stall = setup.pool == Pool::Stress && setup.scenario.is_none();
     let engine = spawn(setup);
     let mut rng = StdRng::seed_from_u64(seed);
     let mut state = WindowState::default();
@@ -140,7 +140,6 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
         match &message {
             ToWindow::Finished { outcome, .. } => {
                 assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{game}: {outcome:?}");
-                reached.finished += 1;
                 return;
             }
             ToWindow::Panicked { message } => panic!("{game}: the engine thread panicked after {last}: {message}"),
@@ -176,7 +175,8 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
         }
         engine.answers.send(reply).expect("the engine hung up with a prompt open");
     }
-    reached.stopped += 1;
+    assert!(may_stall, "{game}: no result after {PROMPT_BUDGET} prompts");
+    reached.stalled += 1;
 }
 
 /// Clicks until a reply closes the prompt. "Stop yielding" and a why are
