@@ -216,6 +216,18 @@ fn a_creature_nobody_stole_is_not_summoning_sick_on_another_players_turn() {
     assert!(!has_summoning_sickness(&game, creature));
 }
 
+/// A board that says when control last moved reads that way, and writes it back.
+#[test]
+fn a_board_states_when_control_last_moved() {
+    let text = "players 2\nturn 4\nactive 0\nbattlefield: Grizzly Bears | controller 1, control since turn 3";
+    let scenario = Scenario::parse(text).unwrap();
+    let game = scenario.build(&CardRegistry::default_registry()).unwrap().game;
+    let bears = game.state.battlefield_ids_ordered()[0];
+    assert_eq!(game.state.battlefield.get(&bears).unwrap().control_began_turn, 3);
+    let written = Scenario::write(&game.state).to_string();
+    assert!(written.contains("control since turn 3"), "{written}");
+}
+
 /// Two attackers hit P1 beside Ghosts of the Innocent and Furnace of Rath, and
 /// P1's Reflect Damage sends one back at P0. P1 chooses it first, and the two
 /// events then affect two players, so CR 616.1 has each choose for their own,
