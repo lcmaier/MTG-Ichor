@@ -403,8 +403,9 @@ fn never_happens(action: &GameAction) -> bool {
 /// instance is applied to each member it applies to, its rider queued once
 /// with the members' amounts summed, its use spent once by what the whole
 /// application did. A rewrite that moves a member's subject breaks the
-/// premise, so the group finishes as a run per subject, each this same loop
-/// from the applied set so far. Two printed rulings are what fixed the unit. Kalitas's
+/// premise, so the members split into a subject group each, and each finishes
+/// in this same loop from the applied set so far. Two printed rulings are what
+/// fixed the unit. Kalitas's
 /// says N opposing creatures dying at once make N Zombies — N subjects, N
 /// applications — and CR 122.1c's says two blockers hitting one creature with
 /// shield counters remove **one** counter — one subject, one application. The
@@ -444,7 +445,7 @@ pub(crate) fn apply_replacements(
 ) -> Result<(), String> {
     debug_assert!(
         group.windows(2).all(|pair| pair[0].event.as_ref().map(subject_of) == pair[1].event.as_ref().map(subject_of)),
-        "a subject group or a run of one is one subject's"
+        "a subject group is one subject's"
     );
     // An entry is its own subject, so the CR 614.12 frame below — built for
     // one entering permanent — is built for a group of one.
@@ -481,15 +482,15 @@ pub(crate) fn apply_replacements(
         }
         // CR 616.1 — a redirect can leave the group's events affecting two
         // subjects, and each one's own player chooses for it, in APNAP order.
-        if std::mem::take(&mut subject_moved) && sort_into_subject_runs(game, group) {
+        if std::mem::take(&mut subject_moved) && regroup_by_subject(game, group) {
             give_applied_set(group, &mut riders[riders_before..], applied.clone());
-            let queued_before_the_runs = riders.len();
+            let queued_before_the_split = riders.len();
             let mut start = 0;
             while let Some(subject) = group.get(start).and_then(|m| m.event.as_ref()).map(subject_of) {
                 let same_subject = |m: &&BatchMember| m.event.as_ref().map(subject_of) == Some(subject);
                 let end = start + group[start..].iter().take_while(same_subject).count();
                 apply_replacements(game, &mut group[start..end], later, ctx, &applied, riders)?;
-                for rider in &mut riders[riders_before..queued_before_the_runs] {
+                for rider in &mut riders[riders_before..queued_before_the_split] {
                     rider.lineage.join_for_rider(&group[start].applied);
                 }
                 start = end;
@@ -764,10 +765,11 @@ pub(crate) fn apply_replacements(
     }
 }
 
-/// Whether `group`'s live events affect more than one subject, and if so
-/// `group` sorted into a run per subject, CR 616.1's choosers in CR 101.4's
-/// order and the members with no event left last.
-fn sort_into_subject_runs(game: &GameState, group: &mut [BatchMember]) -> bool {
+/// Whether a moved subject left `group`'s events affecting more than one
+/// subject. If so `group` is sorted so each subject's members sit together, in
+/// the order CR 101.4 gives CR 616.1's choosers, and the members with no event
+/// left go last.
+fn regroup_by_subject(game: &GameState, group: &mut [BatchMember]) -> bool {
     let mut subjects: Vec<Option<ObjectOrPlayerId>> = Vec::new();
     for event in group.iter().filter_map(|m| m.event.as_ref()) {
         if !subjects.contains(&subject_of(event)) {

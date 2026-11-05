@@ -2084,8 +2084,8 @@ removed". `execute_batch_inner` now buckets the APNAP-ordered members by
 applied set and one chooser; an instance applies to every member of the group
 it applies to, its rider is queued once with the members' amounts summed, its
 use spent once. A redirect that moves a member's subject breaks the premise, so
-the group finishes as a run per subject in CR 101.4's order, each the same loop
-from the applied set so far (item 370). The batch, not the turn, is the scope — CR 510.4's two combat
+the members split into a subject group each, in CR 101.4's order, and each
+finishes in the same loop from the applied set so far (item 370). The batch, not the turn, is the scope — CR 510.4's two combat
 damage steps are two batches and spend two counters. §9's RD decision 3 and §11
 items 15 and 24 carry the argument; `plans/traces/rd-2-a-decision-is-per-subject.html`
 walks the boards read by read.
