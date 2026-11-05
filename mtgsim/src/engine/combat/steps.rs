@@ -279,7 +279,8 @@ impl GameState {
         self.phase.phase_type == PhaseType::Combat && self.opponents_of(self.active_player).contains(&player)
     }
 
-    /// Get the list of defending players (players being attacked).
+    /// The players being attacked, in the order they declare blocks: APNAP
+    /// (CR 802.4).
     fn get_defending_players(&self) -> Vec<PlayerId> {
         let mut defenders = Vec::new();
         for (_id, entry) in self.battlefield_ordered() {
@@ -289,6 +290,7 @@ impl GameState {
                 defenders.push(pid);
             }
         }
+        defenders.sort_by_key(|&player| self.apnap_index(player));
         defenders
     }
 
