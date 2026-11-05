@@ -23,6 +23,7 @@ env:
 jobs:
   sweep:
     runs-on: ubuntu-latest
+    # Twice the estimate below, so a hang stops rather than a slow night.
     timeout-minutes: 45
     defaults:
       run:
@@ -51,6 +52,11 @@ jobs:
           echo "MTGSIM_HASH_SEED=$seed" >> "$GITHUB_ENV"
           echo "Master seed $seed"
 
+      # About 20 minutes together on a runner, estimated from 16-thread local
+      # runs (300 audited stress games in 89 s, 4 audited four-seat games in
+      # 47 s, 300 unaudited fixture games in 88 s). Correct these against the
+      # first nights. A failed sweep leaves the others running, so one failure
+      # hides nothing.
       - name: Sweep — stress pool, two seats
         run: target/release-checked/fuzz_games --games 300 --seed "$MASTER_SEED" --pool stress --audit
 

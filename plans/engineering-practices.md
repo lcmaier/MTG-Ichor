@@ -473,8 +473,9 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 ### The nightly sweep
 
 - **`nightly.yml` plays a new seed each night**, since every CI sweep plays 12345.
-  A failure is a bug in `main` with its seed in the log: replay it with `--seed`
-  and `MTGSIM_HASH_SEED` both set to it, and fix or record it the same day.
+  A failure is a bug in `main` with its seed in the log: rerun the failing step's
+  own command under `release-checked`, with `MTGSIM_HASH_SEED` set to that seed,
+  since a plain release build compiles out what may have caught it.
 
 ## The spec database
 
