@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{deal_damage, every_permanent_and_player, static_replacement};
+use mtgsim::cards::authoring::{
+    create_replacement_from_a_chosen_source, deal_damage, each_opponent, spell_ability,
+    the_next_damage_from_a_chosen_source,
+};
 use mtgsim::cards::printings::*;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::combat::validation::CombatError;
@@ -23,10 +26,10 @@ use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::*;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{AmountRewrite, Rewrite};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -380,44 +383,63 @@ fn a_redirect_leaves_each_affected_player_choosing_for_their_own_event() {
     assert_eq!(game.players[1].life_total, 20 - 3, "P1 doubles then halves its 3");
 }
 
-/// A doubler that deals 1 to the event's subject afterward, as a fixture: a
-/// rider whose own damage a halving effect could reach.
-fn echoing_furnace() -> Arc<CardData> {
-    let text = "If a source would deal damage to a permanent or player, it deals double that damage instead. \
-                Then this deals 1 damage to that permanent or player.";
-    let rider = deal_damage(EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)), 1);
-    CardDataBuilder::new("Echoing Furnace")
-        .card_type(CardType::Enchantment)
+/// Eye for an Eye, in its printed words. No rider can name "that source's
+/// controller" yet, so on this two-seat board the opponent stands in.
+fn eye_for_an_eye() -> Arc<CardData> {
+    let text = "The next time a source of your choice would deal damage to you this turn, instead that \
+                source deals that much damage to you and Eye for an Eye deals that much damage to that \
+                source's controller.";
+    CardDataBuilder::new("Eye for an Eye")
+        .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(static_replacement(
+        .ability(spell_ability(
             text,
-            ReplacementDef::new(
-                EventPattern::DealDamage { source: None, combat: None },
-                every_permanent_and_player(),
-                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            create_replacement_from_a_chosen_source(
+                the_next_damage_from_a_chosen_source(None, Rewrite::Amount(AmountRewrite::Multiplier(1)))
+                    .with_then(deal_damage(each_opponent(), AmountExpr::ReplacedAmount)),
             )
-            .with_then(rider),
+            .until_end_of_turn(),
         ))
         .build()
 }
 
-/// The doubler's rider is queued before the redirect, and Ghosts of the Innocent
-/// applies after it, in each player's run. A rider is the rest of its effect, so
-/// what applied to its event has had its one opportunity (CR 614.5), and its 1
-/// damage is not halved to nothing.
+/// P1 applies Eye for an Eye to the attacker it keeps, so Eye's own 3 waits as a
+/// rider, then Reflect Damage to the other, which splits the group. Ghosts of the
+/// Innocent then halves each attacker's damage. A rider carries everything that
+/// applied to its event, so Eye's 3 is not halved.
 #[test]
 fn a_rider_queued_before_a_redirect_carries_what_applied_after_it() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, ghosts_of_the_innocent(), 1);
-    let echo = put_on_battlefield(&mut game, echoing_furnace(), 1);
-    let (.., reflect) = two_attackers_one_reflected(&mut game);
+    let (_, kept, reflect) = two_attackers_one_reflected(&mut game);
+    let choosing = RecordingDecisionProvider::choosing([ChoiceOption::Object(kept)]);
+    let eye = resolve_card(&mut game, eye_for_an_eye(), 1, vec![], &choosing);
 
     let dp = ScriptedDecisionProvider::new();
     let chooses = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(echo)]);
+    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(eye)]);
     dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(reflect)]);
     game.process_combat_damage(&dp, false).unwrap();
 
-    assert_eq!(game.players[0].life_total, 20 - 3, "3 doubled, sent back, then halved");
-    assert_eq!(game.players[1].life_total, 20 - 3 - 1, "the same 3, and the rider's 1");
+    assert_eq!(game.players[0].life_total, 20 - 1 - 3, "the reflected 3 halved, and Eye's 3");
+    assert_eq!(game.players[1].life_total, 20 - 1, "the kept 3 halved");
+}
+
+/// Ghosts of the Innocent's ruling: "If damage is redirected, it's only halved
+/// once." P1 applies Ghosts first, so it has had its opportunity when P0's group
+/// forms, and the reflected 3 stays 1.
+// RULING: Ghosts of the Innocent #5
+#[test]
+fn damage_redirected_after_it_was_halved_is_not_halved_again() {
+    let mut game = setup_two_player_game();
+    let ghosts = put_on_battlefield(&mut game, ghosts_of_the_innocent(), 1);
+    two_attackers_one_reflected(&mut game);
+
+    let dp = ScriptedDecisionProvider::new();
+    let chooses = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(ghosts)]);
+    game.process_combat_damage(&dp, false).unwrap();
+
+    assert_eq!(game.players[0].life_total, 20 - 1);
+    assert_eq!(game.players[1].life_total, 20 - 1);
 }
