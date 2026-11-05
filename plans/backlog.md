@@ -857,6 +857,17 @@ kept as written for the record.*
     hidden card is unknown, so the redeal shuffles all of them, and the
     observation makes no visibility query. The build pays a lookup per card
     for the first and the per-viewer query for the second.
+- **Inputs for the design** (2026-11-04):
+  - **Build a seat's view by addition.** Subtracting what a seat may not see
+    leaks each new field until someone remembers it. Starting empty and adding
+    what it may see fails closed.
+  - **Keep the client's structure apart from internal state**, so an internal
+    reshape is not a wire change.
+  - **Stamp knowledge facts with an epoch.** A shuffle bumps a counter on its
+    library, which voids what was known about it at once and spares a sweep
+    over each fact.
+  - **Name each random draw by its kind**, so a replay or a loop check can read
+    what the draw was for.
 - **Owner** — `information-model-design`, then `information-model` (the
   route's step 8): 39 `tdc` cards, the dev GUI's one-player view and an AI's
   observation all read through it.

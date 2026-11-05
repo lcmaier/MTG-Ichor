@@ -10308,9 +10308,8 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
 
 ### Found by the `rules-hunter` hunt (2026-11-04)
 
-Five `rules-hunter` runs at `c73c1ba4`, every board with a control arm, as the
-Ichor half of a comparison with the `phase-rs/phase` engine. Each item states its
-board, and the probes sit outside the repo, in the owner's comparison folder.
+Five `rules-hunter` runs at `c73c1ba4`, every board with a control arm. Each
+item states its board, and the probes sit outside the repo.
 Each slot is a proposal for the owner's next scheduling. Bootstrapped cards'
 slips are the planned card phases', not items.
 
@@ -10463,3 +10462,25 @@ slips are the planned card phases', not items.
      **Sized:** ~40 lines of code and ~30 of tests: `damage_marked` cannot hold
      the fact, so deathtouch damage needs a record of its own.
      **Slotted:** `layers-combat-and-counters`, with item 86's infect and wither.
+
+### Inputs for two steps with no doc of their own (2026-11-04)
+
+374. **Mass card work wants a checklist per kind of change.** The four skills
+     are stages of a PR. A skill for one kind of change, such as adding a keyword
+     or a trigger, listing every place it must be registered, pays once many
+     cards land together. So does a per-card structural snapshot in a PR's
+     diff, which shows a shared helper's change card by card.
+
+     **Reachability (2026-11-04):** nothing owed — an input for a brief.
+     **Slotted:** `tarkir-dragonstorm-decks`, at its brief.
+375. **Three inputs for the first real AI agent.**
+     - Compare two agents by which seeds flipped, on non-mirror matchups, with a
+       sign test. A panic counts as a failure, never a draw.
+     - A candidate's verdict is reject or score, so one that breaks a rule is
+       out, never merely scored low.
+     - An LLM seat chooses among the options the engine issued. Its choice is
+       revalidated, a failure falls back, and a stale answer is refused by the
+       prompt's identity (`setup-architecture.md#7e-pausing-at-a-decision`).
+
+     **Reachability (2026-11-04):** nothing owed — an input for a design.
+     **Slotted:** Phase 10, the AI harness.

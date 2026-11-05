@@ -16,8 +16,6 @@ in order, then stop.
   body; take each item or re-slot it.
 - Re-count each item's **Sized:** line against the tree, code and tests apart
   (`plans/engineering-practices.md#sizing-a-phase`).
-- Read this step's section of `plans/references/phase-comparison.md`, if it has
-  one: what the `phase-rs/phase` engine's build offers it.
 
 ## 2. Count before you shape
 

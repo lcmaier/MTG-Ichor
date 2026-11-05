@@ -3392,6 +3392,16 @@ paused game is a path no fuzz game takes: `fuzz_games` keeps calling
    (`types/ids.rs:296`). Decision 4a's build writes the ability's place on
    its object, as the scenario's `ability N` names it, and its typed matcher
    reads that.
+6. **An answer names the prompt it answers.** Decision 4 names what an answer
+   chose, not which prompt it was for, so a client answering late or twice
+   lands on whatever prompt came next. Each prompt needs an identity, and the
+   paused game refuses an answer carrying any other.
+7. **Leaving outside a prompt.** `answer` serves only the seat asked, and CR
+   104.3a lets any player concede at any time (`backlog.md`'s "2.53 Conceding").
+8. **Three boards to try against a paused game**, each a place where what must
+   resume can be stranded: proliferate with a replacement effect on its counters,
+   triggers pending on a batch that turned out empty, and ordering triggers
+   during a live resolution.
 
 ---
 

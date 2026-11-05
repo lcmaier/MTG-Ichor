@@ -1829,6 +1829,11 @@ Four things to act on rather than read past:
     whoever answers H9 for Phase RD knows a second customer exists, and so `merging-and-meld`
     does not discover it.
 
+13. **Two facts for `card-and-object-model`, when it fixes what a copy holds.** CR
+    709.5b makes the existence of each half of a shared type line part of the
+    copiable values. CR 707.3's Tomoya example reads a flip card's copy through
+    the copier's own status. Each gets a board there.
+
 ---
 
 ## 10. Explicitly out of scope

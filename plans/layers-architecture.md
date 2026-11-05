@@ -2877,6 +2877,11 @@ Phase LA ships a **minimum** AST (3–4 leaves) to unblock the type surface. No 
    order-preserving `DurationRegistry::retain` over rows kept sorted; the tiebreak stands for
    the shared timestamps, which is CR 613.7a's "relative order".)
 
+5. **Where CR 113.11's "can't have" applies.** No effect or keyword counter can
+   add the ability, and CR 613.1f applies both in Layer 6, so the removal runs
+   last in that layer, after every grant and keyword counter. An input for
+   whichever step takes the rule.
+
 ---
 
 ## 16. Explicitly Deferred
