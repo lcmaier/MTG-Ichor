@@ -5,7 +5,7 @@ use crate::oracle::characteristics::has_keyword;
 use crate::oracle::legality::{can_attack, can_be_a_blocker};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::ids::{IdMap, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
 // ---------------------------------------------------------------------------
@@ -161,16 +161,15 @@ pub fn validate_attackers(
     constraints: &AttackConstraints,
 ) -> Result<(), CombatError> {
     let num_players = game.num_players();
-    let mut declared: IdSet<ObjectId> = IdSet::default();
 
-    for (creature_id, target) in proposed {
+    for (place, (creature_id, target)) in proposed.iter().enumerate() {
         // Per-creature legality (CR 508.1a), the check the question's
         // options were built by.
         can_attack(game, player_id, *creature_id)?;
 
         // The options pair every creature with every target, so a set can
         // hold a creature twice, and CR 802.3 chooses one target for it.
-        if !declared.insert(*creature_id) {
+        if proposed[..place].iter().any(|(earlier, _)| earlier == creature_id) {
             return Err(CombatError::AttacksTwice(*creature_id));
         }
 
