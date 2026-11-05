@@ -10333,10 +10333,15 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: Ali from Cairo,
      Reverse Damage and any lifelinker are registered.
-     **Slotted:** `resolution-recipients-and-amounts`, once the owner decides
-     whether a prevention's gain is a result inside the event, as the example
-     has it, or a rider after it, as CR 615.5 and `CLAUDE.md` have it.
-     Lifelink's boards need the net either way.
+     **Decided (owner, 2026-11-04):** a prevention's life gain is part of the
+     event, as the example writes it, so the floor reads one net with lifelink's
+     gain. Every other rider stays after the event. CR 615.5's "immediately
+     afterward" and the example disagree only on this case, and 8 cards are in
+     it (`o:"gain life equal to the damage prevented" game:paper -is:funny`,
+     2026-11-04), against 35 that say "prevented this way".
+     **Slotted:** `resolution-recipients-and-amounts`, which also amends
+     `CLAUDE.md`'s rider line and `replacement-architecture.md`'s timing
+     contract when it lands.
 
 365. **After a non-active player acts, the active player gets priority.** CR
      117.3c gives it back to the player who acted. A cast or an activation
