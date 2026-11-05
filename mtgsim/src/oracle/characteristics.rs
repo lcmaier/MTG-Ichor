@@ -291,12 +291,6 @@ pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
 /// who has not had a turn has the start of the game as their earliest reference
 /// point — so an opening-hand Leyline is not sick, while anything that arrived
 /// after the game began is, until its controller's first turn.
-///
-/// **Known imprecision, unobservable.** When an `UntilEndOfTurn` steal expires,
-/// control was interrupted during the turn, so CR 302.6 makes the creature sick
-/// again for its original controller; we report it as not sick. The only window
-/// before that player's next turn begins is the cleanup step, where nobody gets
-/// priority (CR 514.3), so nothing can ever ask.
 pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     if !game.battlefield.contains_key(&id) {
         return false;

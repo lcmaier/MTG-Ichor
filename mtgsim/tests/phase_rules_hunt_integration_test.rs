@@ -10,6 +10,7 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
+use mtgsim::oracle::characteristics::{get_effective_controller, has_summoning_sickness};
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
@@ -174,4 +175,41 @@ fn a_trigger_born_during_placement_waits_for_the_next_pass() {
         game.stack.iter().map(|id| game.stack_entries[id].ability_identity.map(|ability| ability.source.id)).collect();
     assert_eq!(sources, vec![Some(wisp), Some(warden), Some(aristocrat)], "bottom of the stack first");
     assert_eq!(dp.kinds(), vec!["SelectRecipients"], "P1 has nothing to order");
+}
+
+/// P0 steals P2's creature with Act of Treason. It goes back at P0's cleanup,
+/// so through P1's turn P2 has not controlled it continuously since P2's most
+/// recent turn began (CR 302.6), and only P2's next turn frees it.
+#[test]
+fn a_steal_that_ended_leaves_the_creature_summoning_sick_for_its_owner() {
+    let mut game = setup_game(3);
+    (0..3).for_each(|player| fill_library(&mut game, player, 10));
+    let creature = place_vanilla_creature(&mut game, 2, 2, 2, &[]);
+    assert!(!has_summoning_sickness(&game, creature));
+    act_of_treason_on(&mut game, 0, creature);
+
+    let dp = test_dp();
+    while game.active_player != 1 {
+        game.advance_turn(&dp).unwrap();
+    }
+    assert_eq!(get_effective_controller(&game, creature), Some(2));
+    assert!(has_summoning_sickness(&game, creature), "P2's control was interrupted");
+
+    while game.active_player != 2 {
+        game.advance_turn(&dp).unwrap();
+    }
+    assert!(!has_summoning_sickness(&game, creature), "P2's turn began with it under control");
+}
+
+/// A creature nobody took stays free across the same turns.
+#[test]
+fn a_creature_nobody_stole_is_not_summoning_sick_on_another_players_turn() {
+    let mut game = setup_game(3);
+    (0..3).for_each(|player| fill_library(&mut game, player, 10));
+    let creature = place_vanilla_creature(&mut game, 2, 2, 2, &[]);
+    let dp = test_dp();
+    while game.active_player != 1 {
+        game.advance_turn(&dp).unwrap();
+    }
+    assert!(!has_summoning_sickness(&game, creature));
 }

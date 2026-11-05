@@ -137,6 +137,9 @@ pub enum CardWord {
     Tapped,
     /// When the permanent arrived, which starts CR 302.6's clock.
     Arrived(Arrival),
+    /// The turn control last changed, where that is after it arrived, which
+    /// restarts CR 302.6's clock.
+    ControlSince(u32),
     Counter(CounterType, u32),
     Damage(u32),
     DealtFirstStrikeDamage,

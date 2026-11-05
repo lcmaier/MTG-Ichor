@@ -867,6 +867,7 @@ pub fn put_on_battlefield(
     let mods = intrinsic_entry_mods(game, id, player);
     let entry = place_on_battlefield(game, id, player, &mods);
     entry.entered_battlefield_turn = 0;
+    entry.control_began_turn = 0;
     // The field is a layer-walk input, and the entry's own dispatch has
     // just walked the board: a write after it needs the bump every
     // other writer makes, or the memo serves the turn the permanent entered.
@@ -892,6 +893,7 @@ pub fn put_on_battlefield_under(
     let mods = intrinsic_entry_mods(game, id, controller);
     let entry = place_on_battlefield(game, id, controller, &mods);
     entry.entered_battlefield_turn = 0;
+    entry.control_began_turn = 0;
     game.bump_layer_epoch();
     id
 }

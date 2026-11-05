@@ -46,6 +46,7 @@ graveyard 0: Savannah Lions                   # each card on top of the last
 #   controller p, owner p    each defaults to the other
 #   tapped                   untapped
 #   arrived this turn        arrived before the game; also `arrived turn N`
+#   control since turn 3     control last changed on that turn (CR 302.6)
 #   <kind> N                 a counter: +1/+1, -1/-1, loyalty, flying, shield, ...;
 #                            the intrinsic ones (a planeswalker's loyalty) unless stated
 #   damage N                 0

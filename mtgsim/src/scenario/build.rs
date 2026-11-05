@@ -271,6 +271,12 @@ impl<'s> Loader<'s> {
         for word in &card_line.words {
             match word {
                 CardWord::Tapped => self.update_permanent(id, |entry| entry.tapped = true),
+                CardWord::ControlSince(since) if (1..=turn).contains(since) => {
+                    self.update_permanent(id, |entry| entry.control_began_turn = *since)
+                }
+                CardWord::ControlSince(since) => {
+                    return Err(unreachable(format!("`control since turn {since}` is not a turn before turn {turn}")));
+                }
                 CardWord::Counter(kind, count) => self.set_counters(id, *kind, *count),
                 CardWord::Damage(damage) => self.update_permanent(id, |entry| entry.damage_marked = *damage),
                 CardWord::DealtFirstStrikeDamage => {

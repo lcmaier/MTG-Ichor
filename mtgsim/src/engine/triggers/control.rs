@@ -113,7 +113,21 @@ impl GameState {
         if sweep.changes.is_empty() {
             return Ok(());
         }
+        self.restart_control_clocks(&sweep.changes);
         self.announce(sweep, ctx)
+    }
+
+    /// CR 302.6's clock, for each permanent whose control moved in play. A
+    /// frame seeds from it. A board built outside play states its own, so the
+    /// sweep that settles one starts none.
+    fn restart_control_clocks(&mut self, changes: &[ControlChange]) {
+        let turn = self.turn_number;
+        for change in changes {
+            if let Some(entry) = self.battlefield.get_mut(&change.object) {
+                entry.control_began_turn = turn;
+            }
+        }
+        self.bump_layer_epoch();
     }
 
     /// The sweep: write each permanent's controller as the one announced, and
