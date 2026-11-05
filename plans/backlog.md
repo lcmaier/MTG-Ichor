@@ -3065,7 +3065,7 @@ and these nine printed cards divide in ways its clause does not write.
 
 ### 2.53 Conceding (CR 104.3a) — a player leaves when no one asked them
 
-**Found by the hunt against `phase` (2026-11-04)**: a player leaves only by losing
+**Found by the `rules-hunter` hunt (2026-11-04)**: a player leaves only by losing
 through a rule, and CR 104.3a lets them leave at any time.
 
 | Field | |
@@ -3079,7 +3079,7 @@ through a rule, and CR 104.3a lets them leave at any time.
 
 ### 2.54 Ending the turn (CR 723) — "end the turn"
 
-**Found by the hunt against `phase` (2026-11-04)**.
+**Found by the `rules-hunter` hunt (2026-11-04)**.
 
 | Field | |
 |---|---|
@@ -3092,7 +3092,7 @@ through a rule, and CR 104.3a lets them leave at any time.
 
 ### 2.55 Split second (CR 702.61) — a spell that forbids casting
 
-**Found by the hunt against `phase` (2026-11-04)**.
+**Found by the `rules-hunter` hunt (2026-11-04)**.
 
 | Field | |
 |---|---|
@@ -3105,7 +3105,7 @@ through a rule, and CR 104.3a lets them leave at any time.
 
 ### 2.56 Effects that stop abilities triggering — Torpor Orb and Hushbringer
 
-**Found by the hunt against `phase` (2026-11-04)**.
+**Found by the `rules-hunter` hunt (2026-11-04)**.
 
 | Field | |
 |---|---|
@@ -3116,22 +3116,35 @@ through a rule, and CR 104.3a lets them leave at any time.
 | **Atoms** | none filed |
 | **Owner** | after v0.5, wider card work |
 
-### 2.57 A negative amount — "gets -1/-1" as a static, and a cost per extra target
+### 2.57 A negative amount — "gets -1/-1"
 
-**Found by the hunt against `phase` (2026-11-04)**: two small gaps in what an amount can say.
+**Found by the `rules-hunter` hunt (2026-11-04)**.
 
 | Field | |
 |---|---|
-| **Rules** | CR 613.4c for the first; CR 601.2f for the second |
-| **Verdict** | `Primitive::ModifyPowerToughness` takes `AmountExpr`, whose `Fixed` is a `u64` with no negative arm, though the layers' `PtValue::Fixed` is signed, so a printed minus cannot be written. `CostChange` has no arm for "{1} more for each target beyond the first" |
-| **Size** | under 100 lines each |
-| **Blocks** | 123 cards with a static "get -N/-N" and 19 with "+N/-N" (`o:/(get\|gets) -[0-9]+\/-[0-9]+/` and `o:/gets? \+[0-9]+\/-[0-9]+/`, each `-o:"until end of turn" game:paper -is:funny`, 2026-11-04); 22 with a cost per target (`o:"for each target beyond the first"`) |
+| **Rules** | CR 613.4c |
+| **Verdict** | `gets` and `and_gets` lower to `Primitive::ModifyPowerToughness`, which takes `AmountExpr`, whose `Fixed` is a `u64` with no negative arm, though the layers' `PtValue::Fixed` is signed. So a printed minus cannot be written, static or until end of turn |
+| **Size** | under 100 lines |
+| **Blocks** | 767 cards (`o:/gets? (-[0-9X]+\/[+-][0-9X]+\|\+[0-9X]+\/-[0-9X]+)/ game:paper -is:funny`, 2026-11-04) |
 | **Atoms** | none filed |
-| **Owner** | `resolution-recipients-and-amounts` for the amount; `remaining-costs` for the cost |
+| **Owner** | `resolution-recipients-and-amounts` |
 
-### 2.58 What a resolution can do with what it just moved — "that creature", and a hand onto the battlefield
+### 2.58 A cost per extra target — "{1} more for each target beyond the first"
 
-**Found by the hunt against `phase` (2026-11-04)**.
+**Found by the `rules-hunter` hunt (2026-11-04)**.
+
+| Field | |
+|---|---|
+| **Rules** | CR 601.2f |
+| **Verdict** | `CostChange` has no arm for a cost that counts the announced targets |
+| **Size** | under 100 lines |
+| **Blocks** | 22 cards (`o:"for each target beyond the first" game:paper -is:funny`, 2026-11-04) |
+| **Atoms** | none filed |
+| **Owner** | `remaining-costs` |
+
+### 2.59 What a resolution can do with what it just moved — "that creature", and a hand onto the battlefield
+
+**Found by the `rules-hunter` hunt (2026-11-04)**.
 
 | Field | |
 |---|---|
@@ -3141,45 +3154,6 @@ through a rule, and CR 104.3a lets them leave at any time.
 | **Blocks** | 160 cards with "from your hand onto the battlefield" (`game:paper -is:funny`, 2026-11-04) |
 | **Atoms** | none filed |
 | **Owner** | `resolution-recipients-and-amounts` |
-
-### 2.59 What the comparison with `phase` offers later steps
-
-**From the comparison of 2026-11-04.** Each line is a design input for a step's
-author, read at its design stop, and none is a mechanic. The owner's private
-comparison page has the reasoning.
-
-- **`pausing-at-a-decision`**: answers carrying the prompt's identity, an entry
-  for leaving outside a prompt (2.53), and phase's history of orphaned frames as
-  a test list.
-- **`information-model-design`**: build a seat's view by addition, since phase's
-  subtraction leaks by default. Keep the client's structure apart from internal
-  state. Epoch-stamped knowledge facts, where a shuffle voids facts by bumping a
-  counter, and typed random draws, which also help loop detection.
-- **`permission-design`**: read phase's `CastingPermission` fields as a checklist:
-  grantee, cost provenance, cast-time constraint, cleanup.
-- **`double-faced-cards` and the card model's builds**: phase's extra copiable
-  facts, namely Room halves, prepare faces and flip status.
-- **`tarkir-dragonstorm-decks`**: skills that list every registration point for
-  one kind of change, such as add-keyword or add-trigger; single-gap ranking on
-  the deck census; a per-card structural snapshot diff in PRs.
-- **`mana-payment-solver`**: a mode that won't auto-pay with sacrificial mana;
-  remembered replacement answers as a provider decorator; cast reversal with a
-  library barrier for the mana-ability gap.
-- **CR 113.11's "can't have"**: placement at the end of Layer 6, repeated after
-  keyword counters.
-- **The first real AI agent**: paired-seed flip reports on non-mirror matchups,
-  with a panic counted as a failure; a verdict of reject or score; an LLM seat
-  that chooses among engine-issued options, revalidates, falls back, and rejects
-  stale answers by fingerprint.
-
-| Field | |
-|---|---|
-| **Rules** | each step's own |
-| **Verdict** | none of these blocks its step. Each is cheaper at the step than after it |
-| **Size** | inside each step's design |
-| **Blocks** | nothing |
-| **Atoms** | none filed |
-| **Owner** | each step named above, and the CR 113.11 line after v0.5, wider card work |
 
 ## 3. Dispositioned — sections that need no entry of their own
 
