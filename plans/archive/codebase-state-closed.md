@@ -10057,7 +10057,7 @@ The item as it stood:
 
 ### Item 371 — closed 2026-11-05 by PR #310 (`rules/hunt-small-fixes`)
 
-371. **A trigger born during placement joins a later seat's pass.**
+371. **A trigger created during placement joins a later seat's pass.**
      `place_pending_triggers` reads each seat's entries off the live queue, and
      `place_one`'s `announce_targeted_records` dispatches mid-pass. P0's
      Flickerwisp targets P1's Cephalid Aristocrat while P1's Soul Warden waits.

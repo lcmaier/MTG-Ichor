@@ -222,7 +222,7 @@ fn an_opponents_leyline_still_exiles_the_cleanup_discard() {
 /// targeted. That trigger was not waiting when the placement began, so P1
 /// places the Warden's alone and it goes on top after the state-based check.
 #[test]
-fn a_trigger_born_during_placement_waits_for_the_next_pass() {
+fn a_trigger_created_during_placement_waits_for_the_next_pass() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 10);
     fill_library(&mut game, 1, 10);

@@ -1321,9 +1321,9 @@ registered card returns an object.
     inside out, a per-member state machine under an outer APNAP round-robin.
     **Revisit at Phase 6**, where triggers make the other half of CR 101.4 live
     anyway; not at RD, which is finished.
-    Item 370's split reads the batch's later groups but not a sibling run, so a
-    CR 615.7 count spanning two subjects after a redirect allocates a run at a
-    time. And a redirect onto a subject a later group also affects gives that
+    Item 370's split reads the batch's later groups but not the group it split
+    from, so a CR 615.7 count spanning two subjects after a redirect allocates
+    one at a time. And a redirect onto a subject a later group also affects gives that
     subject two loops, so a shield counter pays twice where CR 122.1c's ruling
     pays once: Pariah's host with a shield counter, taking other damage at the
     same time. Both predate the split. The round-robin takes them too.
@@ -10393,7 +10393,7 @@ slips are the planned card phases', not items.
      **Reachability (2026-11-05):** closed — PR #310.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 370".
 
-371. **A trigger born during placement joins a later seat's pass.** — ✅ closed.
+371. **A trigger created during placement joins a later seat's pass.** — ✅ closed.
      A pass places what was waiting as it began.
      **Reachability (2026-11-05):** closed — PR #310.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 371".
