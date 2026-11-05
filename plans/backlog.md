@@ -857,6 +857,17 @@ kept as written for the record.*
     hidden card is unknown, so the redeal shuffles all of them, and the
     observation makes no visibility query. The build pays a lookup per card
     for the first and the per-viewer query for the second.
+- **Inputs for the design** (2026-11-04):
+  - **Build a seat's view by addition.** Subtracting what a seat may not see
+    leaks each new field until someone remembers it. Starting empty and adding
+    what it may see fails closed.
+  - **Keep the client's structure apart from internal state**, so an internal
+    reshape is not a wire change.
+  - **Stamp knowledge facts with an epoch.** A shuffle bumps a counter on its
+    library, which voids what was known about it at once and spares a sweep
+    over each fact.
+  - **Name each random draw by its kind**, so a replay or a loop check can read
+    what the draw was for.
 - **Owner** — `information-model-design`, then `information-model` (the
   route's step 8): 39 `tdc` cards, the dev GUI's one-player view and an AI's
   observation all read through it.
@@ -3062,6 +3073,98 @@ and these nine printed cards divide in ways its clause does not write.
 | **Blocks** | 9 cards (`choice-kinds-census.py`'s "divided" rows, and the family's "instead" clauses), none in `tdc` |
 | **Atoms** | none filed |
 | **Owner** | after v0.5, wider card work |
+
+### 2.53 Conceding (CR 104.3a) — a player leaves when no one asked them
+
+**Found by the `rules-hunter` hunt (2026-11-04)**: a player leaves only by losing
+through a rule, and CR 104.3a lets them leave at any time.
+
+| Field | |
+|---|---|
+| **Rules** | CR 104.3a: a player can concede at any time, leaves immediately and loses |
+| **Verdict** | No `GameAction` and no question offers it, and `PausedGame`'s `answer` as designed serves only the seat asked, so a seat that wants to leave has no way to say so. A departure from inside a prompt, such as a defender conceding at their block declaration, has no route either |
+| **Size** | ~1 PR under the band once the paused game's shape is settled |
+| **Blocks** | any client with a human seat, and the boards that leave mid-prompt |
+| **Atoms** | ATOM-104.3a-001 |
+| **Owner** | `multiplayer-rules`, with the entry for it decided in `pausing-at-a-decision`'s build |
+
+### 2.54 Ending the turn (CR 723) — "end the turn"
+
+**Found by the `rules-hunter` hunt (2026-11-04)**.
+
+| Field | |
+|---|---|
+| **Rules** | CR 723.1: exile the stack, end combat, skip to cleanup, with 723.1a–c's triggers and priority |
+| **Verdict** | `Primitive` has no "end the turn" |
+| **Size** | ~1 PR under the band |
+| **Blocks** | 8 cards (`o:"end the turn" game:paper -is:funny`, 2026-11-04), including Time Stop and Sundial of the Infinite |
+| **Atoms** | ATOM-723.1-001 and its letters, in `session-9b.md` |
+| **Owner** | after v0.5, wider card work |
+
+### 2.55 Split second (CR 702.61) — a spell that forbids casting
+
+**Found by the `rules-hunter` hunt (2026-11-04)**.
+
+| Field | |
+|---|---|
+| **Rules** | CR 702.61a–b |
+| **Verdict** | `KeywordFlag` has no split second, and `EventPattern` has no cast or activate arm, so nothing can forbid one |
+| **Size** | under 100 lines with its first card, on `cant-cast-play-or-activate`'s reasons |
+| **Blocks** | 21 cards (`kw:"split second" game:paper -is:funny`, 2026-11-04) |
+| **Atoms** | ATOM-702.61a-001, ATOM-702.61b-001 |
+| **Owner** | `cant-cast-play-or-activate` |
+
+### 2.56 Effects that stop abilities triggering — Torpor Orb and Hushbringer
+
+**Found by the `rules-hunter` hunt (2026-11-04)**.
+
+| Field | |
+|---|---|
+| **Rules** | The cards' own text and rulings; a look-back reads whether the suppressor existed as the event happened (CR 603.10) |
+| **Verdict** | `TriggerMultiplierDef.additional` is a `u32`, so it can only add, nothing in dispatch removes a trigger, and `Restriction` has no arm for it |
+| **Size** | under 100 lines with its first card |
+| **Blocks** | 6 cards (`o:"cause abilities to trigger" game:paper -is:funny`, 2026-11-04) |
+| **Atoms** | none filed |
+| **Owner** | after v0.5, wider card work |
+
+### 2.57 A negative amount — "gets -1/-1"
+
+**Found by the `rules-hunter` hunt (2026-11-04)**.
+
+| Field | |
+|---|---|
+| **Rules** | CR 613.4c |
+| **Verdict** | `gets` and `and_gets` lower to `Primitive::ModifyPowerToughness`, which takes `AmountExpr`, whose `Fixed` is a `u64` with no negative arm, though the layers' `PtValue::Fixed` is signed. So a printed minus cannot be written, static or until end of turn |
+| **Size** | under 100 lines |
+| **Blocks** | 767 cards (`o:/gets? (-[0-9X]+\/[+-][0-9X]+\|\+[0-9X]+\/-[0-9X]+)/ game:paper -is:funny`, 2026-11-04) |
+| **Atoms** | none filed |
+| **Owner** | `resolution-recipients-and-amounts` |
+
+### 2.58 A cost per extra target — "{1} more for each target beyond the first"
+
+**Found by the `rules-hunter` hunt (2026-11-04)**.
+
+| Field | |
+|---|---|
+| **Rules** | CR 601.2f |
+| **Verdict** | `CostChange` has no arm for a cost that counts the announced targets |
+| **Size** | under 100 lines |
+| **Blocks** | 22 cards (`o:"for each target beyond the first" game:paper -is:funny`, 2026-11-04) |
+| **Atoms** | none filed |
+| **Owner** | `remaining-costs` |
+
+### 2.59 What a resolution can do with what it just moved — "that creature", and a hand onto the battlefield
+
+**Found by the `rules-hunter` hunt (2026-11-04)**.
+
+| Field | |
+|---|---|
+| **Rules** | CR 608.2c's reading of a resolution's own words |
+| **Verdict** | `EffectRecipient::Referred` works only in a trigger's resolution, so a spell or activated ability cannot name what it just moved. `ChoiceScope` is only `ChoosersPermanents`, so "put a creature card from your hand onto the battlefield" cannot be written. Sneak Attack needs both |
+| **Size** | ~1 PR under the band, with item 350's sweep |
+| **Blocks** | 160 cards with "from your hand onto the battlefield" (`game:paper -is:funny`, 2026-11-04) |
+| **Atoms** | none filed |
+| **Owner** | `resolution-recipients-and-amounts` |
 
 ## 3. Dispositioned — sections that need no entry of their own
 

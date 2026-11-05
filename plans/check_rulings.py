@@ -224,13 +224,16 @@ def annotated_fn(lines, n):
     Walks forward past comments, attributes and blank lines. A fixed lookahead
     does not work and `specdb.py` says why: an annotation here carries the
     ruling's own text, so the block above a test runs to a dozen lines.
+    Empty when what follows is not a `#[test]`, which `verify` refuses.
     """
+    is_test = False
     for look in lines[n:n + 60]:
         s = look.strip()
+        is_test = is_test or s.startswith("#[test")
         if not s or s.startswith("//") or s.startswith("#["):
             continue
         fm = RUST_FN_RE.search(look)
-        return fm.group(1) if fm else ""
+        return fm.group(1) if fm and is_test else ""
     return ""
 
 
@@ -303,6 +306,11 @@ def verify(ledger, names, pool, links, deviations=None, register=frozenset()):
     """Every failure, as a list of strings. Empty means the gate passes."""
     deviations = deviations or {}
     bad = []
+    for (card, number), places in sorted({**links, **deviations}.items()):
+        for test, path, line, *_ in places:
+            if not test:
+                bad.append(f"{path}:{line}: {card} #{number} sits above no test, "
+                           f"and only a test answers a ruling")
     cards, created = ledger["cards"], ledger["created"]
     known = set(cards) | set(ledger.get("fixtures", []))
     for n in names:

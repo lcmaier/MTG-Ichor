@@ -19,8 +19,8 @@ audit is its own sitting, run while the material is fresh.
 ## The passes
 
 In this order: the close-out gates the rest, the eviction opens second,
-hygiene and readiness commute, and scheduling needs the close-out and
-readiness.
+hygiene, readiness and the hunt commute, and scheduling needs the close-out,
+readiness and the hunt.
 
 1. **The close-out.** The phase's done-checklist read off the tree, every
    entry closed, scheduled with an owner, or deferred with a dated
@@ -95,7 +95,23 @@ readiness.
 
    It produces the lever list re-ranked by instruction share, each lever sized
    in its item.
-5. **Scheduling.** One table: each open track phase and lattice entry, what it
+5. **The hunt.** Boards built to make the subsystem that closed give a wrong
+   answer. A test, a gate and a fuzz sweep each check what someone thought to
+   ask, and a sweep cannot tell a wrong life total from a right one, so this
+   finds what they cannot. Instruments:
+   - **the `rules-hunter` agent**, one per area of the subsystem, briefed with
+     the area and nothing else: a brief naming a suspected bug gets it
+     confirmed;
+   - **a running board for every finding**, with a control arm, in a throwaway
+     crate outside the tree. A board whose control also fails proves nothing,
+     and a finding traced by reading alone stays `PLAUSIBLE`.
+
+   A wrong board reaches the owner as a question, with its rule number and the
+   board, since rules correctness is theirs; a confirmed one becomes a numbered
+   `codebase-state.md` item. Boards that held are listed in the report: they
+   say what was tried. Card-text slips in a bootstrapped card are the planned
+   card phases', not this pass's.
+6. **Scheduling.** One table: each open track phase and lattice entry, what it
    unlocks in cards (the ledger and the docs' consumer lists, no Scryfall
    count re-derived) and in atoms (`spec.sqlite` by rule prefix), what it
    needs, and which of the next spine item's design questions needs it landed

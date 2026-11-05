@@ -11,7 +11,7 @@ cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
 cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card, --audit checks every trigger dispatch
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py && python plans/check_invariants.py && python plans/check_practices_page.py   # all must pass
+python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py && python plans/check_invariants.py && python plans/check_practices_page.py && python plans/check_gates_bite.py   # all must pass
 ```
 
 ## Where authority lives
@@ -184,7 +184,7 @@ A design stop is `/design-note`, a build closes with `/pr-handover`, a review ro
 - **Dev GUI: logic is plain Rust under tests, egui only draws**; a GUI PR is reviewed by `engineering-practices.md#the-dev-gui`.
   **Register every card you write, and read its rulings** — `check_rulings.py` gates the second, a
   phase opening a new engine path adds one to `PERFORMANCE_POOL`. → `engineering-practices.md#cards-and-pools` and `engineering-practices.md#rulings`.
-- A bugfix must be shown to fail against the pre-fix tree (`git stash push mtgsim/src`) first.
+- A bugfix must be shown to fail against the pre-fix tree first: `python plans/fails_before_fix.py`, never `git stash`.
 
 ## Maintaining this file
 

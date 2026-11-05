@@ -46,7 +46,10 @@ under a name this cannot follow; iteration through a local bound to the map;
 a write through a `&mut PermanentState` returned by a helper and written under
 another name; anything in `devgui/`, which reaches the engine through its
 snapshot by id. Registry membership (item 233's decision sites, the
-static-ability existence rule) is not a shape at all.
+static-ability existence rule) is not a shape at all. Shapes `check_gates_bite.py`
+probed that pass and nothing in the tree uses: the first statement of an
+`if let` bound to a card, a `match` binding or a destructured `CardData`, a walk
+over a `.clone()` of a map, and `&mut player.hand[0]`.
 """
 
 import re

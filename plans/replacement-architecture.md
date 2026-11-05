@@ -1013,6 +1013,13 @@ spell or ability did (§2b.4, `codebase-state.md` item 261, built in A6r).
     influence needs nothing new: a win that makes opponents lose is still the
     effect that said so.
 
+Decided, not built:
+- **A prevention's life gain is part of the event** (owner, 2026-11-04). CR
+  120.4's example writes the event as "[the defending player loses 5 life, the
+  defending player gains 5 life]", and a life floor reads that net, so Awe
+  Strike's gain cannot wait in the rider queue. Every other `then` stays a rider
+  under CR 615.5. `codebase-state.md` item 364 holds the boards and the slot.
+
 Open:
 - **A payment inside a resolution** (CR 118.12): its cause is the `Effect`, by
   Sigarda's ruling. Whether "an effect causes" (Library of Leng) includes it
@@ -4100,8 +4107,8 @@ Same discipline as the layer phases:
   whole scenario. 58 atoms are written directly against CR 614/615/616; 88 of
   Phase 6's 124 are replacement-family once CR 122/400/609/701 are counted in.
   Run `specdb orphans` and `specdb suspicious` before each PR.
-- **Every bugfix fails first.** `git stash push mtgsim/src`, watch it fail, then
-  commit. Non-negotiable per `CLAUDE.md`.
+- **Every bugfix fails first.** `python plans/fails_before_fix.py`, watch it
+  fail, then commit. Non-negotiable per `CLAUDE.md`.
 - **Mutation-check the assertions.** The Layer 2 phase found four vacuous
   assertions this way (`fc68600`). A replacement test that passes because the
   effect never fired is the exact failure this phase is prone to — assert on the

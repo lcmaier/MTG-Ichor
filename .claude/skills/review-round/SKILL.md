@@ -36,8 +36,9 @@ merge. The default is the next PR, so a round stays the size of its comments.
 ## Fixing
 
 - One concept per commit, so the owner can review commit by commit.
-- A bug fix shows its own test failing against the pre-fix tree first; then
-  run the module's tests and push. CI runs the rest.
+- A bug fix shows its own test failing against the pre-fix tree first
+  (`python plans/fails_before_fix.py`); then run the module's tests and push.
+  CI runs the rest.
 
 ## The report
 

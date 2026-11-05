@@ -26,7 +26,7 @@ design note's path. Read, in order:
 
 **At a design stop** the prompt gives only the note, and there is no diff
 yet. Read the note whole, open the code its decisions name, and apply checks
-2, 4, 6 and 12 to the decisions.
+2, 4, 6, 12 and 17 to the decisions. Check 17 reads the note's binding table.
 
 Use Bash for `git diff`, `git log`, `git show` and `grep` only. Never change
 the working copy, the index or a branch, and never build or run tests; the
@@ -87,6 +87,25 @@ gates do that. Stop at about 60 tool calls and report what you have.
     what the empty one means. Grep the diff's added lines for `default()`.
     A `Default` derive kept only so a containing type can derive it is fine
     when its doc says so. The owner caught this twice at #294.
+14. **A negative test reaches its code.** Flag a "does not happen" assertion
+    (no trigger, no prompt, no counter) with no arm showing the same input
+    gets there when the condition flips. An early return upstream passes it
+    for the wrong reason, so a negative needs its positive twin.
+15. **Fixtures take the branch a game takes.** For each fixture the diff adds,
+    name the branch it takes through the changed function. Flag a real branch
+    no fixture takes, and a fixture so simple it takes a shortcut a played
+    game would not.
+16. **"This way" is carried, not rescanned.** Flag a resolution that finds what
+    an earlier step chose by searching the board. "This way", "that source",
+    "the chosen" and "from among them" name what that step selected, which
+    the step must hand on.
+17. **Fixed when the rules fix it.** Flag a live read where the rules fix a
+    value at a moment (as a spell resolves, as a replacement applies, as a
+    duration begins), a stored value where they read live, and a test that
+    never changes the input after that moment.
+18. **The empty and declined paths.** Flag an optional choice or tracked set
+    whose declined or empty answer leaves different state from a non-empty
+    one: a count, a record, a flag the next step reads.
 
 The layer, chokepoint, replacement and determinism invariants are `CLAUDE.md`'s
 and the `check_*.py` gates'; flag a breach you see, but do not hunt for them.

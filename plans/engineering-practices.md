@@ -135,6 +135,8 @@ it is, rename it. Every name a PR adds is read against this list:
   lives or how long.** TR-2b chose where last known information lived by how
   long each keeper needed it, and twenty fields followed; the key CR 400.7 gives
   it, the existence, came only with #285's store.
+- **A design note binds new rules state in a table**: when bound, live or latched,
+  where stored, who reads it, what invalidates it (`/design-note`).
 - **A concept with two owners is a finding, and so is a key narrower than the
   CR's.** Each concept's key, owner and holders are the register,
   `cr-coverage-audit.md#4c-concepts-and-their-owners`; `check_type_surface.py`
@@ -249,6 +251,8 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
 - **A landed phase's section is a stub of at most 40 lines**; its body moves to
   `plans/archive/<doc>-landed.md` under the same heading in the landing PR, and
   `check_state_of_play.py --check` fails a longer one.
+- **A bug fix fails first**: `plans/fails_before_fix.py` shows its test failing
+  without the fix and passing with it, in a worktree, never by `git stash`.
 
 ### Naming a phase
 
@@ -466,6 +470,13 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
   `prof_arm.sh` checks its native run against valgrind's. `fuzz_ab.py` stays the
   tool for timing rounds and `--copies` on a heavy board.
 
+### The nightly sweep
+
+- **`nightly.yml` plays a new seed each night**, since every CI sweep plays 12345.
+  A failure is a bug in `main` with its seed in the log: rerun the failing step's
+  own command under `release-checked`, with `MTGSIM_HASH_SEED` set to that seed,
+  since a plain release build compiles out what may have caught it.
+
 ## The spec database
 
 - **Annotate at write time**, above `#[test]`: `// COVERS:` when the test builds
@@ -608,6 +619,8 @@ or a write through a `&mut` a helper returned; the `std` hash maps off
 `GameState` (CI's three-process determinism step catches a leak there);
 `devgui/`; a swallowed `Result` and registry membership. Review owns them.
 Making event fields private is `names-and-hygiene-sweeps`' question.
+A rule the family gains gets a plant in `check_gates_bite.py`, which fails a gate
+that lets its plant through: a rotted pattern otherwise reads as a clean pass.
 
 ### Randomness
 

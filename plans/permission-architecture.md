@@ -250,6 +250,9 @@ Named here so the design session starts from them; none is answered.
    Each is a row carried across the move, and the cast is what knows "this
    way", so the design says how it hands the prune what to spare. The
    corpus has no atoms for 400.7g, h, i or k; the design authors them.
+7. **What a permission states.** A cast from exile with another cost needs four
+   answers: who may cast, where the cost came from, what constraint holds at
+   the cast, and how the permission is cleaned up. Does the type carry all four?
 
 ## 6. Sizing and the phase plan
 

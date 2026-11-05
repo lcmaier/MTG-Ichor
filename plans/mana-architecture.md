@@ -702,6 +702,11 @@ the cost is uncovered, which is disjoint from `ManaWindowStop`'s predicate
 gets it under the toggle; `fuzz_games` gets a flag, off by default
 (`backlog.md` §2.18's floor 1 note).
 
+**Two inputs for the build** (2026-11-04). A mode that will not auto-pay with
+sacrificial mana, so the solver never spends a permanent the player would not
+have chosen to lose. And a provider decorator that remembers a replacement
+answer, so a repeated choice is asked once with no engine change.
+
 ### 3.13 The why of the three mana prompts
 
 `setup-architecture.md` §7c and `cast-census.md` §9 give these kinds typed

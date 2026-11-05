@@ -16,7 +16,7 @@ use crate::games::dealt;
 pub const BOLT_IN_HAND: &str = "hand 0: Lightning Bolt
 library 0: Mountain | x5
 library 1: Mountain | x5
-                            battlefield: Mountain | controller 0
+battlefield: Mountain | controller 0
 player 0: life 13
 ";
 

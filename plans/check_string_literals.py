@@ -41,6 +41,10 @@ never exempt.
 **If you need a long message**, use the backslash continuation like everything
 else — and if a tool keeps eating it, write the message as one long line and let
 `rustfmt` leave it alone. A literal is not the place to be tidy.
+
+**What it does not see.** A lost backslash that keeps its newline, since this
+reads a line at a time: the scar then starts a line, in a literal it cannot tell
+from a multi-line one written on purpose.
 """
 
 import re

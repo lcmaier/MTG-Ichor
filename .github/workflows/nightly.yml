@@ -1,0 +1,69 @@
+# The sweep `ci.yml` cannot be. Every CI sweep plays seed 12345, so code that
+# has not changed never meets a new board. This one plays a new seed each night
+# with debug assertions and the trigger audit on, and a failure here is a game
+# nobody has seen. `plans/engineering-practices.md#the-nightly-sweep` says what
+# to do with one.
+name: Nightly sweep
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: Master seed, to replay a night (default is tonight's)
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # Twice the estimate below, so a hang stops rather than a slow night.
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mtgsim
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: mtgsim
+
+      - name: Build the checked harness
+        run: cargo build --locked --profile release-checked --bin fuzz_games
+
+      # A game's seed is the master seed plus its index, so seeds a day apart
+      # would replay nearly all of yesterday's games, shifted by one. The day
+      # number times a million keeps every night's games apart.
+      - name: Tonight's seed
+        env:
+          INPUT_SEED: ${{ inputs.seed }}
+        run: |
+          seed="${INPUT_SEED:-$(( $(date -u +%s) / 86400 * 1000000 ))}"
+          echo "MASTER_SEED=$seed" >> "$GITHUB_ENV"
+          echo "MTGSIM_HASH_SEED=$seed" >> "$GITHUB_ENV"
+          echo "Master seed $seed"
+
+      # About 20 minutes together on a runner, estimated from 16-thread local
+      # runs (300 audited stress games in 89 s, 4 audited four-seat games in
+      # 47 s, 300 unaudited fixture games in 88 s). Correct these against the
+      # first nights. A failed sweep leaves the others running, so one failure
+      # hides nothing.
+      - name: Sweep — stress pool, two seats
+        run: target/release-checked/fuzz_games --games 300 --seed "$MASTER_SEED" --pool stress --audit
+
+      - name: Sweep — stress pool, four seats at Commander scale
+        if: ${{ !cancelled() }}
+        run: target/release-checked/fuzz_games --games 30 --seed "$MASTER_SEED" --pool stress --audit --players 4 --deck-size 100 --life 40
+
+      - name: Sweep — fixture pool
+        if: ${{ !cancelled() }}
+        run: target/release-checked/fuzz_games --games 100 --seed "$MASTER_SEED" --pool fixtures --audit
