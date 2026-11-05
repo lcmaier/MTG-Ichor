@@ -144,6 +144,21 @@ mutation; which facts the rules fix at a moment the code recomputes later;
 where matching is done outside the one matcher; and what a per-event path
 scans, read off a profile. Item 6's was A6k.
 
+## The CI review
+
+Due at each audit, and whenever a merged PR's number crosses a multiple of 20
+(the owner, 2026-11-05), which `/next-brief` watches for. It reads the last run
+on main for where the minutes went, not for whether it passed:
+
+- each job's time, its slowest step, and which job finishes last;
+- inside a test step, the slowest binary, its slowest test, and that test's
+  slowest game: `random_clicks`'s five minutes were one stalled game, which no
+  step's time could show;
+- each time a `ci.yml` comment quotes, against what it reads now;
+- the nightly's failures and length, and what Dependabot has open.
+
+A small finding goes in the next PR; a larger one becomes an item.
+
 ## The runs
 
 - **The post-RE audit**, 2026-09-15, at critical-path item 5's close:
