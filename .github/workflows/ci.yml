@@ -331,9 +331,7 @@ jobs:
         run: cargo run --locked --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool fixtures
 
   # The dev GUI (`devgui/`), a crate beside the engine with its own lockfile
-  # and target. A job of its own, so it runs beside `check`. Its build takes
-  # about a minute, but its tests make it CI's long pole: 7.8 minutes against
-  # `check`'s 4.0 on main, 2026-11-04.
+  # and target. A job of its own, so it runs beside `check`.
   #
   # The review pictures are drawn on the owner's machine only. Here their
   # boards are played and the window run without drawing: one drawn by Linux's
