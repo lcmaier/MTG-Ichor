@@ -264,10 +264,9 @@ pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
 /// > activated unless the creature has been under its controller's control
 /// > continuously since their most recent turn began.
 ///
-/// Both halves come from the layer frame, so a stolen creature is sick under its
-/// new controller with nothing written to the battlefield — see
-/// `EffectiveCharacteristics::control_since_turn` for why that has to be
-/// derived.
+/// Both halves come from the layer frame: a Layer 2 row is read at once, and
+/// `EffectiveCharacteristics::control_since_turn` says what the stored turn
+/// covers that no row can.
 ///
 /// **Only creatures are ever summoning-sick.** CR 302.6 restricts "a creature's
 /// activated ability" and attacking, so a noncreature permanent is unrestricted
