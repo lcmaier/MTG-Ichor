@@ -520,6 +520,7 @@ pub fn ask_choose_attackers(
     game: &GameState,
     player: PlayerId,
     legal: &[(ObjectId, AttackTarget)],
+    rejected: Option<Rejection>,
 ) -> Vec<(ObjectId, AttackTarget)> {
     if legal.is_empty() {
         return Vec::new();
@@ -528,7 +529,7 @@ pub fn ask_choose_attackers(
         .iter()
         .map(|&(id, t)| ChoiceOption::AttackerTarget(id, t))
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::DeclareAttackers);
+    let ctx = ChoiceContext { kind: ChoiceKind::DeclareAttackers, rejected };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
     validate_pick_n(&indices, &options, (0, legal.len()), "choose_attackers", game, player, &ctx);
     indices.iter().map(|&i| legal[i]).collect()
@@ -1673,7 +1674,7 @@ mod tests {
             (id_a, AttackTarget::Player(1)),
             (id_b, AttackTarget::Player(1)),
         ];
-        let result = ask_choose_attackers(&dp, &game, 0, &legal);
+        let result = ask_choose_attackers(&dp, &game, 0, &legal, None);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0, id_a);
         assert_eq!(result[1].0, id_b);

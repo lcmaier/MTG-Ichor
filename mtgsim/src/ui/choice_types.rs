@@ -495,6 +495,9 @@ pub enum Rejection {
     /// another action (CR 732.2). Most often a cost the player stopped paying,
     /// or could not pay, in CR 601.2g's window.
     Reversed(PriorityAction),
+    /// The attacks declared were illegal, so the active player declares
+    /// again; `why` names the creature and the rule (CR 802.3).
+    IllegalAttacks { attacks: Vec<(ObjectId, AttackTarget)>, why: CombatError },
     /// The blocks declared were illegal, so the defending player declares
     /// again; `why` names the creatures and the rule (CR 509.1a–c).
     IllegalBlocks { blocks: Vec<(ObjectId, ObjectId)>, why: CombatError },

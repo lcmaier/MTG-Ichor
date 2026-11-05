@@ -2,14 +2,61 @@
 //! "Found by the `rules-hunter` hunt"), each test a board that gave a wrong
 //! answer before its fix.
 
+use mtgsim::cards::printings::*;
+use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
 use mtgsim::test_support::*;
-use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 fn in_combat_step(game: &mut GameState, step: StepType) {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(step) });
+}
+
+fn attacks(creature: ObjectId, player: PlayerId) -> ChoiceOption {
+    ChoiceOption::AttackerTarget(creature, AttackTarget::Player(player))
+}
+
+fn attacking(game: &GameState, creature: ObjectId) -> Option<AttackTarget> {
+    game.battlefield.get(&creature)?.attacking.as_ref().map(|info| info.target)
+}
+
+// COVERS: ATOM-802.3-001
+#[test]
+fn each_attacker_chooses_its_own_defending_player() {
+    let mut game = setup_game(4);
+    let x = place_vanilla_creature(&mut game, 0, 2, 2, &[]);
+    let y = place_vanilla_creature(&mut game, 0, 2, 2, &[]);
+    in_combat_step(&mut game, StepType::DeclareAttackers);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(x, 1), attacks(y, 2)]);
+    game.process_declare_attackers(&dp).unwrap();
+
+    assert_eq!(attacking(&game, x), Some(AttackTarget::Player(1)));
+    assert_eq!(attacking(&game, y), Some(AttackTarget::Player(2)));
+}
+
+/// CR 802.3 gives a creature one target, so a declaration naming it twice is
+/// illegal and declared again, and Hellrider triggers once.
+#[test]
+fn a_creature_declared_at_two_players_is_asked_again() {
+    let mut game = setup_game(3);
+    let rider = put_on_battlefield(&mut game, hellrider(), 0);
+    in_combat_step(&mut game, StepType::DeclareAttackers);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 1), attacks(rider, 2)]);
+    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 1)]);
+    let seat = RejectionRecorder::new(dp);
+    game.process_declare_attackers(&seat).unwrap();
+
+    let asked = seat.rejected_at("DeclareAttackers");
+    assert_eq!(asked.len(), 2, "the illegal declaration is declared again");
+    assert!(asked[0].is_none() && asked[1].is_some(), "the second ask names what it rejected");
+    assert_eq!(attacking(&game, rider), Some(AttackTarget::Player(1)));
+    assert_eq!(game.pending_triggers.len(), 1, "one attacker, one trigger");
 }
 
 // COVERS: ATOM-802.4-001

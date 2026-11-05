@@ -5,7 +5,7 @@ use crate::oracle::characteristics::has_keyword;
 use crate::oracle::legality::{can_attack, can_be_a_blocker};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::ids::{IdMap, ObjectId, PlayerId};
+use crate::types::ids::{IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
 // ---------------------------------------------------------------------------
@@ -23,6 +23,8 @@ pub enum CombatError {
     CreatureIsTapped(ObjectId),
     CreatureHasSummoningSickness(ObjectId),
     InvalidAttackTarget(ObjectId),
+    /// CR 802.3: declared attacking two things.
+    AttacksTwice(ObjectId),
     AttackerNotAttackingThisPlayer(ObjectId, ObjectId),
     TooManyBlocks(ObjectId, usize),
     HasDefender(ObjectId),
@@ -40,6 +42,7 @@ impl std::fmt::Display for CombatError {
             CombatError::CreatureIsTapped(id) => write!(f, "Creature {} is tapped", id),
             CombatError::CreatureHasSummoningSickness(id) => write!(f, "Creature {} has summoning sickness", id),
             CombatError::InvalidAttackTarget(id) => write!(f, "Invalid attack target for creature {}", id),
+            CombatError::AttacksTwice(id) => write!(f, "Creature {} is declared attacking twice", id),
             CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => {
                 write!(f, "Blocker {} cannot block attacker {} (not attacking this player)", blocker, attacker)
             }
@@ -158,11 +161,18 @@ pub fn validate_attackers(
     constraints: &AttackConstraints,
 ) -> Result<(), CombatError> {
     let num_players = game.num_players();
+    let mut declared: IdSet<ObjectId> = IdSet::default();
 
     for (creature_id, target) in proposed {
         // Per-creature legality (CR 508.1a), the check the question's
         // options were built by.
         can_attack(game, player_id, *creature_id)?;
+
+        // The options pair every creature with every target, so a set can
+        // hold a creature twice, and CR 802.3 chooses one target for it.
+        if !declared.insert(*creature_id) {
+            return Err(CombatError::AttacksTwice(*creature_id));
+        }
 
         // The attack target must be valid
         match target {

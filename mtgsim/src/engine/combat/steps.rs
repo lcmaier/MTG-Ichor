@@ -45,16 +45,33 @@ impl GameState {
             .into_iter()
             .flat_map(|id| attackable.iter().map(move |&target| (id, target)))
             .collect();
-        let proposed = ask_choose_attackers(decisions, self, active, &legal_pairs);
+
+        // A declaration that breaks CR 802.3 is illegal, so it is reversed
+        // (CR 732.1) and the player declares again, as blocks are below.
+        // `AttackConstraints::none()`: attack requirements and restrictions are
+        // `cant-effects-architecture.md`'s (`combat-restrictions` and `combat-requirements`).
+        let mut rejected: Option<Rejection> = None;
+        let mut rejections: usize = 0;
+        let proposed = loop {
+            let candidate = ask_choose_attackers(decisions, self, active, &legal_pairs, rejected.take());
+            match validate_attackers(self, active, &candidate, &AttackConstraints::none()) {
+                Ok(()) => break candidate,
+                Err(why) => {
+                    rejections += 1;
+                    if rejections == REJECTION_LIMIT {
+                        return Err(format!(
+                            "Invalid attackers: player {active} declared illegal attacks {REJECTION_LIMIT} times, \
+                             the last: {why}"
+                        ));
+                    }
+                    rejected = Some(Rejection::IllegalAttacks { attacks: candidate, why });
+                }
+            }
+        };
 
         if proposed.is_empty() {
             return Ok(false);
         }
-
-        // `AttackConstraints::none()`: attack requirements and restrictions are
-        // `cant-effects-architecture.md`'s (`combat-restrictions` and `combat-requirements`).
-        validate_attackers(self, active, &proposed, &AttackConstraints::none())
-            .map_err(|e| format!("Invalid attackers: {}", e))?;
 
         // Pre-collect vigilance set to avoid borrow-checker conflict
         // (has_keyword borrows self.objects, battlefield.get_mut borrows self.battlefield)
