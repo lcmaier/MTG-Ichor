@@ -201,7 +201,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 903.7 | **Commander designation + command zone start** | 🟡 `GameObject.is_commander: bool` flag exists (2026-04-18); no deck-construction / setup hook yet flips it, and no "commander starts in command zone" routing. **This is now the gate on 903.9** — both halves of the zone redirection work and neither is reachable in a real game, because nothing outside tests sets the flag |
 | 903.8 | **Commander tax (+{2} per prior cast from command zone)** | ❌ no cast counter, no cost modification |
 | 903.9a | **Commander in graveyard or exile → command zone** | ✅ 2026-08-26 (Phase RB item 8). A *state-based action* (**CR 704.6d**), not a replacement effect — the 2026-08-24 correction, now in code. "Since the last time state-based actions were checked" is answered by `GameObject.zone_change_epoch`, with the window read at the **top** of the check: a commander CR 704.5g kills moves *during* a check, so an end-of-check boundary would never offer it | `engine/sba.rs` |
-| 903.9b | **Commander to hand or library → command zone instead** | ✅ 2026-08-26 (Phase RB item 9). Synthesized per event as a *game rule*, not card text, and the rules' only `exempt_from_614_5` effect. Its chooser needs no special case: CR 616.1's "or its owner if it has no controller" already answers for a card in a graveyard, library or hand. A stolen commander on the battlefield has a controller, and that case is item 372. **It is also what exposed the hang in §4.1's loop** — exempt *and* optional means a decline is re-offered forever unless declines are tracked separately | `engine/replacement/gather.rs` |
+| 903.9b | **Commander to hand or library → command zone instead** | ✅ 2026-08-26 (Phase RB item 9). Synthesized per event as a *game rule*, not card text, and the rules' only `exempt_from_614_5` effect. Its chooser is CR 616.1's "or its owner if it has no controller" for a card in a graveyard, library or hand; on the battlefield a stolen commander has a controller, and CR 903.9b still says its owner chooses (item 372). **It is also what exposed the hang in §4.1's loop** — exempt *and* optional means a decline is re-offered forever unless declines are tracked separately | `engine/replacement/gather.rs` |
 | 903.10a / 704.6c | **Commander damage loss (≥21 combat damage from one commander)** | ✅ SBA (T16); `commander_damage_taken: HashMap<ObjectId, u32>` on `PlayerState` (T02). The loss itself is the state-based action at **CR 704.6c**; 903.10a is the Commander-variant rule it implements | `state/player.rs`, `engine/sba.rs` |
 | 903.10a | Attacking with commander + accumulating commander damage | ✅ (2026-04-18) `GameObject.is_commander` flag + `execute_action(DealDamage)` accumulates per-source `commander_damage_taken` when `is_combat && target == Player && source.is_commander`. 5 unit tests cover basic accumulation, 21-damage threshold, non-combat exclusion, non-commander exclusion, and per-source isolation. Still requires a Commander-format setup hook to actually flip the flag at deck construction — no gameplay wiring yet sets `is_commander = true` outside tests. |
 | 903.11 | Cards from outside the game (wishes) | ❌ Phase 9 — `atomic-tests/sessions/session-10.md` defers it, with the Companion cross-ref |
@@ -4702,13 +4702,13 @@ beside a pump, in both timestamp orders.
    **Reachability (2026-10-23):** unreachable — nothing registered populates
    `blocking_limits`, so `max_blocks_for` answers 1 outside a unit test.
 
-   **Sized:** read `blocker_damage_divisions` in
-   that arm instead of the first living attacker, ~40–60 lines, with
-   the first "can block an additional creature" card. Re-read by the hunt
-   against `phase` (2026-11-04): no `choose_blocker_damage_division` exists and
-   nothing writes `blocker_damage_divisions`, so the prompt is unbuilt and this
-   size is low. A staged Two-Headed Dragon block puts all 4 on the first
-   attacker unasked. `lethal_damage_owed` also counts only earlier creatures,
+   **Sized:** ~150–250 lines of code and ~100 of tests, with the first "can
+   block an additional creature" card (re-read 2026-11-04): no
+   `choose_blocker_damage_division` exists and nothing writes
+   `blocker_damage_divisions`, so the prompt and its writer are new, and that
+   arm then reads them instead of the first living attacker. A staged
+   Two-Headed Dragon block puts all 4 on the first attacker unasked.
+   `lethal_damage_owed` also counts only earlier creatures,
    so a first trampler putting 0 on a blocker it shares with a second putting
    4 is refused, which CR 510.1e's check of the total allows.
    **Slotted:** `layers-combat-and-counters` builds it (the
@@ -5371,7 +5371,7 @@ Primal Vigor. Item 43 closed and evicted; `backlog.md` §2.16 graduated.
      and payment), so no proposal a cost makes exists to be wrongly matched.
      When it does, the payment's `AddCounters` needs a cause the pattern's
      `AddCounters` arm refuses — `LifeLossCause::Cost`'s shape — and
-     `pattern_watches` one clause. Measured by the hunt against `phase`
+     `pattern_watches` one clause. Measured by the `rules-hunter` hunt
      (2026-11-04): `AddCounters` proposed under `ActionContext::paying_cost`
      beside Doubling Season takes Gideon Jura's +2 from 12 to 16, so the cost's
      first proposal will be wrong until that clause exists.
@@ -6187,8 +6187,8 @@ Commander-scale board closes item 69.
      **Reachability (2026-09-15):** unreachable — nothing forks; the probe was
      a throwaway.
 
-     **Sized:** `run_priority_round` taking the player to start from and
-     deriving the pass count, ~30 lines; a `Game` entry that finishes the
+     **Sized:** deriving the pass count from the start seat item 365 builds,
+     ~15 lines; a `Game` entry that finishes the
      current step from its priority loop rather than re-running the step's
      turn-based actions (the probe did it by hand: `run_priority_loop`,
      `advance_turn`, then `run_turn`), ~30 lines. The `blacklist` it once
@@ -10055,17 +10055,13 @@ folds and 345–347 the gaps the duplicates hid.
      (`route-review`, 2026-10-29).
 
 350. **A resolution cannot sweep a zone other than the battlefield.**
-     `EffectRecipient::FilteredObjectsIn` names objects in any zones, and the
-     resolution refuses every zone but the battlefield (item 344's four
-     refusals), so Rest in Peace's "When this enchantment enters, exile all
-     graveyards", a resolution sweeping every graveyard, cannot be written.
+     `EffectRecipient::FilteredObjectsIn` names objects in any zones, but
+     `exile` and `return_to_the_battlefield` over `each_in` return `Ok(())` and
+     move nothing, since the arm iterates no targets. So Rest in Peace's "When
+     this enchantment enters, exile all graveyards", a resolution sweeping every
+     graveyard, would resolve and do nothing, with no refusal to show it.
      Rest in Peace is registered with its replacement alone; its trigger was
      deferred when it shipped, 2026-08-31. Found at #297's pre-review.
-     The hunt against `phase` (2026-11-04) read it differently: the resolution
-     does not refuse. `exile` and `return_to_the_battlefield` over `each_in`
-     return `Ok(())` and move nothing, since the arm iterates no targets, so a
-     card written this way does nothing silently. "Item 344's four refusals"
-     above points at an unrelated closed item.
      **Reachability (2026-10-27):** unreachable — no registered card sweeps
      another zone as it resolves.
      **Sized:** ~40–60 lines: the sweep over the named zones in a fixed
@@ -10310,12 +10306,13 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      **Slotted:** `spell-copies`, CR 707.10c's new targets, the first writer:
      its test copies a divided spell, rewrites a target and reads the share.
 
-### Found by the hunt against `phase` (2026-11-04)
+### Found by the `rules-hunter` hunt (2026-11-04)
 
-Five `rules-hunter` runs at `c73c1ba4`, the same brief run at `phase-rs/phase`,
-every board with a control arm. The probes sit outside the repo, in the owner's
-comparison folder. Each slot below is a proposal for the owner's next
-scheduling. Bootstrapped cards' slips are the planned card phases', not items.
+Five `rules-hunter` runs at `c73c1ba4`, every board with a control arm, as the
+Ichor half of a comparison with the `phase-rs/phase` engine. Each item states its
+board, and the probes sit outside the repo, in the owner's comparison folder.
+Each slot is a proposal for the owner's next scheduling. Bootstrapped cards'
+slips are the planned card phases', not items.
 
 364. **A life floor reads one loss at a time, never the event's net.** CR
      120.4's own example: a player at 2 life with Worship, two unblocked 5/5s,
@@ -10323,9 +10320,13 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
      fall below 1, so Worship does not apply and the player stays at 2.
      `AmountRewrite::LifeFloor` clamps each `LoseLife` against the total as
      it performs, and the gain comes after: lifelink's at the batch's end
-     (`execute_batch_inner`), a prevention's as a rider. Ali from Cairo beside
-     Reverse Damage ends on 6, and beside the player's own lifelinker on 6
-     where the rules give 2 and on 5 where they give 1.
+     (`execute_batch_inner`), a prevention's as a rider. Three boards, each
+     with Ali from Cairo's controller at 2 life and two 5-power attackers:
+
+     - Both unblocked, Reverse Damage on one: 6, where the rules give 2.
+     - One unblocked and one blocked by that player's own 5-power lifelinker:
+       6, where the rules give 2.
+     - The same with a 4-power lifelinker: 5, where the rules give 1.
 
      No gate could see it: `session-1.md` files 120.4b–d as `PURE-DEF`, so no
      atom reaches the example, and the rulings gate is per card while the
@@ -10339,9 +10340,10 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
      afterward" and the example disagree only on this case, and 8 cards are in
      it (`o:"gain life equal to the damage prevented" game:paper -is:funny`,
      2026-11-04), against 35 that say "prevented this way".
-     **Slotted:** `resolution-recipients-and-amounts`, which also amends
-     `CLAUDE.md`'s rider line and `replacement-architecture.md`'s timing
-     contract when it lands.
+     **Sized:** ~100–150 lines of code and ~80 of tests.
+     **Slotted:** `resolution-recipients-and-amounts`, which also files an atom
+     for CR 120.4's example, and amends `CLAUDE.md`'s rider line and
+     `replacement-architecture.md`'s timing contract when it lands.
 
 365. **After a non-active player acts, the active player gets priority.** CR
      117.3c gives it back to the player who acted. A cast or an activation
@@ -10354,8 +10356,12 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: any spell or
      ability from a non-active player.
-     **Slotted:** `multiplayer-rules`, beside CR 800's rotation. Item 140's
-     `run_priority_round` taking the player to start from is this fix too.
+     **Sized:** ~30 lines of code and ~20 of tests, then a fixture migration:
+     changing who is asked next moves the decision stream, which has cost about
+     40 fixtures and a three-arm A/B before.
+     **Slotted:** `multiplayer-rules`, beside CR 800's rotation, which builds
+     `run_priority_round`'s start seat. Item 140 then reads it. Two seats reach
+     this too; that step is where the migration gets paid once.
 
 366. **One creature can be declared attacking two players.** `legal_pairs` is
      every creature with every target, and `validate_attackers` checks each pair
@@ -10365,6 +10371,7 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: any game of three
      or more seats.
+     **Sized:** ~15 lines of code and ~25 of tests.
      **Slotted:** `multiplayer-rules`, CR 802's defending-player choice.
 
 367. **Defending players block in timestamp order.** `get_defending_players`
@@ -10374,6 +10381,7 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: any game of three
      or more seats with attacks on two players.
+     **Sized:** ~10 lines of code and ~30 of tests.
      **Slotted:** `multiplayer-rules`, CR 802.
 
 368. **CR 302.6's clock forgets an interruption.** `control_since_turn` falls
@@ -10386,8 +10394,10 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: Act of Treason at
      three seats, or with Time Walk at two.
+     **Sized:** ~40 lines of code and ~40 of tests.
      **Slotted:** `multiplayer-rules`: the clock wants a stored fact, the turn
-     control last began, not a fallback.
+     control last began, not a fallback. Two seats reach it only with an extra
+     turn, and every seat past two reaches it plainly.
 
 369. **CR 514.2 runs before CR 514.1's discard.** `begin_step` ends "until end
      of turn" effects and removes damage, then `handle_cleanup_discard` runs.
@@ -10399,7 +10409,10 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: registered cards,
      and a control without the steal exiles correctly.
-     **Slotted:** `multiplayer-rules`, the turn's end at N seats.
+     **Sized:** ~20 lines of code and ~30 of tests.
+     **Slotted:** `multiplayer-rules`, the next step through the turn's end, for
+     CR 800.4's leaving players. No seat count is in this bug, so it could land
+     sooner.
 
 370. **A redirect leaves one chooser for two subjects.** `subject_groups`
      groups members by subject, and the chooser and order come from the first
@@ -10410,8 +10423,9 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: all three cards
      are registered, and which player is asked turns on the batch's order.
+     **Sized:** ~40 lines of code and ~40 of tests.
      **Slotted:** `multiplayer-rules`, beside item 25, the other gap in how a
-     batch's members choose.
+     batch's members choose, so one step reads both. Two seats reach this too.
 
 371. **A trigger born during placement joins a later seat's pass.**
      `place_pending_triggers` reads each seat's entries off the live queue, and
@@ -10423,7 +10437,9 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** reachable — wrong today: all three cards
      are registered.
-     **Slotted:** `multiplayer-rules`, CR 101.4's order at N seats.
+     **Sized:** ~30 lines of code and ~40 of tests.
+     **Slotted:** `multiplayer-rules`, CR 101.4's order at N seats, which re-reads
+     this pass. Two seats reach this too.
 
 372. **CR 903.9b's question goes to the controller.** The rule says "its owner
      may". `commander_zone_replacement` names the owner, and the optional prompt
@@ -10433,6 +10449,7 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** unreachable — nothing outside tests sets
      `is_commander`; a board that sets it by hand asks the thief.
+     **Sized:** ~15 lines of code and ~25 of tests.
      **Slotted:** `game-formats`, whose designation makes it live.
 
 373. **Deathtouch asks for marked damage.** `engine/sba.rs` requires
@@ -10443,4 +10460,6 @@ scheduling. Bootstrapped cards' slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** unreachable — nothing deals damage that
      marks none.
+     **Sized:** ~40 lines of code and ~30 of tests: `damage_marked` cannot hold
+     the fact, so deathtouch damage needs a record of its own.
      **Slotted:** `layers-combat-and-counters`, with item 86's infect and wither.

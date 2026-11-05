@@ -204,7 +204,7 @@ with less than 20% room is bolded.
 | …open — reachable, not wrong (perf, a name, a harness) | 30 |
 | …open — nothing to build, a record for a later phase | 16 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 149 of 163 |
+| …open, carrying an explicit `**Sized:**` | 159 of 163 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
