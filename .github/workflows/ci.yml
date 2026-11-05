@@ -289,6 +289,13 @@ jobs:
         working-directory: .
         run: python3 plans/check_practices_page.py
 
+      # Last, because its control needs every gate above to pass. Plants a
+      # violation of each rule in a throwaway worktree and fails if its gate
+      # lets it through, since a rotted pattern reads as a clean pass.
+      - name: The gates bite
+        working-directory: .
+        run: python3 plans/check_gates_bite.py
+
   # The guards a release build compiles out, played over every registered card:
   # each `debug_assert!`, and with them the layer walk's and the memo's audits,
   # the mana watcher's and the pipeline's

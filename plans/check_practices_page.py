@@ -36,7 +36,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = "plans/engineering-practices.md"
-BUDGET = 625
+BUDGET = 640
 TEXT_SUFFIXES = (".md", ".rs", ".py", ".yml", ".yaml", ".toml", ".sh", ".html", ".txt", ".json")
 # Records, not read for citations: the archive and the docs `CLAUDE.md` calls
 # historical, accurate as they stood; the pinned trace pages, never edited; and

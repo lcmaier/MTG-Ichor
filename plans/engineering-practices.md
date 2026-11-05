@@ -618,6 +618,8 @@ or a write through a `&mut` a helper returned; the `std` hash maps off
 `GameState` (CI's three-process determinism step catches a leak there);
 `devgui/`; a swallowed `Result` and registry membership. Review owns them.
 Making event fields private is `names-and-hygiene-sweeps`' question.
+A rule the family gains gets a plant in `check_gates_bite.py`, which fails a gate
+that lets its plant through: a rotted pattern otherwise reads as a clean pass.
 
 ### Randomness
 
