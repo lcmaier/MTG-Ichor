@@ -1,0 +1,15 @@
+# Bumps for the actions `ci.yml` and `nightly.yml` pin by commit, in one monthly
+# PR. Cargo is not enrolled: a dependency changes through a lockfile diff someone
+# chose. Neither is the toolchain: its pin moves on purpose, since the clippy
+# step was counted on that version's lint set.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: dtolnay/rust-toolchain
