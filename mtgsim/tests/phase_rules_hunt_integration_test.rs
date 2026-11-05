@@ -148,3 +148,30 @@ fn the_cleanup_discard_comes_before_until_end_of_turn_effects_end() {
 fn an_opponents_leyline_still_exiles_the_cleanup_discard() {
     assert_eq!(discarded_beside_a_leyline(false), (0, 3));
 }
+
+/// P1's Soul Warden triggers on Flickerwisp entering, and Flickerwisp's trigger,
+/// placed first, targets P1's Cephalid Aristocrat, which triggers as it is
+/// targeted. That trigger was not waiting when the placement began, so P1
+/// places the Warden's alone and it goes on top after the state-based check.
+#[test]
+fn a_trigger_born_during_placement_waits_for_the_next_pass() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 10);
+    fill_library(&mut game, 1, 10);
+    let warden = put_on_battlefield(&mut game, soul_warden(), 1);
+    let aristocrat = put_on_battlefield(&mut game, cephalid_aristocrat(), 1);
+    let answers = test_dp();
+    game.perform_sba_and_triggers(&answers).unwrap();
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&answers).unwrap();
+    }
+    let wisp = put_on_battlefield(&mut game, flickerwisp(), 0);
+
+    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(aristocrat)]);
+    game.perform_sba_and_triggers(&dp).unwrap();
+
+    let sources: Vec<Option<ObjectId>> =
+        game.stack.iter().map(|id| game.stack_entries[id].ability_identity.map(|ability| ability.source.id)).collect();
+    assert_eq!(sources, vec![Some(wisp), Some(warden), Some(aristocrat)], "bottom of the stack first");
+    assert_eq!(dp.kinds(), vec!["SelectRecipients"], "P1 has nothing to order");
+}

@@ -57,12 +57,21 @@ impl GameState {
             self.trace(|| trace_records::pending(self, t, None, Some("departed"), &[]));
         }
 
+        // CR 603.3b: what triggers as these go on the stack waits for the next
+        // pass, after the state-based check. Held here and not on `GameState`
+        // because the pass ends before the next priority prompt, where a fork
+        // resumes.
+        let next_pass = TriggerId(self.next_trigger_id);
+
         let mut placed = 0usize;
         let seats = self.players_in_game_apnap();
         for tier in [TriggerTier::First, TriggerTier::Second] {
             for &player in &seats {
-                let entries: Vec<&PendingTrigger> =
-                    self.pending_triggers.iter().filter(|t| t.is_placed_with(tier, player)).collect();
+                let entries: Vec<&PendingTrigger> = self
+                    .pending_triggers
+                    .iter()
+                    .filter(|t| t.id < next_pass && t.is_placed_with(tier, player))
+                    .collect();
                 if entries.is_empty() {
                     continue;
                 }
@@ -79,7 +88,7 @@ impl GameState {
                     let triggers = entries.iter().map(|t| self.trigger_option(t)).collect();
                     ask_order_triggers(dp, self, player, tier, triggers)
                 };
-                self.queue_last_placed_first(tier, player, &order);
+                self.queue_last_placed_first(tier, player, next_pass, &order);
                 for i in order {
                     let id = mine[i];
                     let Some(from_end) = self.pending_triggers.iter().rev().position(|t| t.id == id) else { continue };
@@ -100,9 +109,10 @@ impl GameState {
     /// once per entry, thousands of times over after a board wipe. The other
     /// entries keep their order, and so did these until their ordering
     /// prompt, which has been asked.
-    fn queue_last_placed_first(&mut self, tier: TriggerTier, player: PlayerId, order: &[usize]) {
-        let (block, rest): (Vec<PendingTrigger>, Vec<PendingTrigger>) =
-            std::mem::take(&mut self.pending_triggers).into_iter().partition(|t| t.is_placed_with(tier, player));
+    fn queue_last_placed_first(&mut self, tier: TriggerTier, player: PlayerId, next_pass: TriggerId, order: &[usize]) {
+        let (block, rest): (Vec<PendingTrigger>, Vec<PendingTrigger>) = std::mem::take(&mut self.pending_triggers)
+            .into_iter()
+            .partition(|t| t.id < next_pass && t.is_placed_with(tier, player));
         self.pending_triggers = rest.into_iter().collect();
         let mut slots: Vec<Option<PendingTrigger>> = block.into_iter().map(Some).collect();
         let last_placed_first: Vec<PendingTrigger> = order.iter().rev().filter_map(|&i| slots.get_mut(i)?.take()).collect();
