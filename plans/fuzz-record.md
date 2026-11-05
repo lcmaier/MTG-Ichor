@@ -96,6 +96,31 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-05 for the hunt's small fixes** (`rules/hunt-small-fixes`,
+PR #310: items 366 to 371). No pool changed. One `close_out.py` sitting against
+**main** `c73c1ba4`: **engine** `4ceaff7a`, the last engine commit.
+
+**Predictions, before any arm ran**:
+- two seats: every gameplay row nearly unmoved. Only the cleanup order, the clock
+  and the placement pass reach two seats, and each needs a rare board;
+- four seats: every game diverges, the random agent no longer declaring a creature
+  at two players;
+- instructions per decision: nothing, every addition sitting off the hot path.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | differ / differ |
+| audit, engine, dispatches agreed, performance / stress | 178,133 / 173,623 | 343,392 / 353,443 |
+| errors, panics, turn limits, performance / stress | 0 / 0 | 0 / 0 |
+| instructions / decision, callgrind, 100 games at seed 12345, performance / stress | -0.06% / +0.04% | |
+| instructions / decision, callgrind, 20 Commander-scale games, seed 12345 / 777 / 4242 | | +15.05% / +2.97% / -4.16% |
+
+**The two-seat rows beat the prediction**: the sweep's boards reach none of the
+fixes. **The budget reads at two seats**, where the games are identical. The
+close-out's own line is four seats across different games, so its +15.05% is no
+reading: main alone ranges 523–698 K per decision across those three seeds, and
+the arms trade places.
+
 **Re-recorded 2026-11-03 for `divided-among-targets`, an effect divided among its targets**
 (`choices/divided-among-targets`, PR #308: CR 601.2d on a cast, an activation
 and a trigger, two label commits and a count the board can't meet rewinding). Arc

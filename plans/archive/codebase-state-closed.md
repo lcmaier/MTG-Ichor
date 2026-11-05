@@ -9980,3 +9980,93 @@ The item as it stood:
      `modes-plus-choice-kinds` reorders and lengthens the lists they answer;
      `picking(n)` stays for the 142 uses no order reaches.
      **Slotted:** `modes-plus-choice-kinds`, whose first PR builds decision 4.
+
+### Item 366 — closed 2026-11-05 by PR #310 (`rules/hunt-small-fixes`)
+
+366. **One creature can be declared attacking two players.** `legal_pairs` is
+     every creature with every target, and `validate_attackers` checks each pair
+     and never that a creature appears once (CR 508.1b, 802.3). Blocks have
+     `TooManyBlocks`; attacks have nothing. At three seats Hellrider declared at
+     P1 and P2 is accepted, triggers twice and attacks P2.
+
+     **Reachability (2026-11-04):** reachable — wrong today: any game of three
+     or more seats.
+     **Sized:** ~15 lines of code and ~25 of tests.
+     **Slotted:** `multiplayer-rules`, CR 802's defending-player choice.
+
+### Item 367 — closed 2026-11-05 by PR #310 (`rules/hunt-small-fixes`)
+
+367. **Defending players block in timestamp order.** `get_defending_players`
+     lists them by first appearance among the attackers, where CR 802.4 says
+     APNAP. At four seats, a creature attacking P3 with the earlier timestamp
+     puts P3's blocks ahead of P1's.
+
+     **Reachability (2026-11-04):** reachable — wrong today: any game of three
+     or more seats with attacks on two players.
+     **Sized:** ~10 lines of code and ~30 of tests.
+     **Slotted:** `multiplayer-rules`, CR 802.
+
+### Item 368 — closed 2026-11-05 by PR #310 (`rules/hunt-small-fixes`)
+
+368. **CR 302.6's clock forgets an interruption.** `control_since_turn` falls
+     back to the entry turn when a steal's row expires, so a creature returned
+     at the thief's cleanup is not summoning sick for its owner. The comment on
+     `has_summoning_sickness` calls this unobservable, and it is: at three
+     seats the next player's turn sits between, and at two seats so does an
+     extra turn. Act of Treason on Merfolk Thaumaturgist or Samite Healer, or
+     on Dryad Arbor for its mana, offers {T} where it must not.
+
+     **Reachability (2026-11-04):** reachable — wrong today: Act of Treason at
+     three seats, or with Time Walk at two.
+     **Sized:** ~40 lines of code and ~40 of tests.
+     **Slotted:** `multiplayer-rules`: the clock wants a stored fact, the turn
+     control last began, not a fallback. Two seats reach it only with an extra
+     turn, and every seat past two reaches it plainly.
+
+### Item 369 — closed 2026-11-05 by PR #310 (`rules/hunt-small-fixes`)
+
+369. **CR 514.2 runs before CR 514.1's discard.** `begin_step` ends "until end
+     of turn" effects and removes damage, then `handle_cleanup_discard` runs.
+     The note under CR 514.3a's repeated-cleanup fix held this open, with a
+     maximum hand size and a discard trigger as its examples. A steal is a
+     third, and registered cards reach it: P0 holding P1's Leyline of the Void
+     by Act of Treason, under Opalescence, discards into exile at cleanup, where
+     P0 still controls it at 514.1 and the cards go to the graveyard.
+
+     **Reachability (2026-11-04):** reachable — wrong today: registered cards,
+     and a control without the steal exiles correctly.
+     **Sized:** ~20 lines of code and ~30 of tests.
+     **Slotted:** `multiplayer-rules`, the next step through the turn's end, for
+     CR 800.4's leaving players. No seat count is in this bug, so it could land
+     sooner.
+
+### Item 370 — closed 2026-11-05 by PR #310 (`rules/hunt-small-fixes`)
+
+370. **A redirect leaves one chooser for two subjects.** `subject_groups`
+     groups members by subject, and the chooser and order come from the first
+     live member. After a `Retarget`, members of a group can have different
+     subjects: two attackers hitting P1 with Ghosts of the Innocent and Furnace
+     of Rath out, and Reflect Damage sending one to P0. One prompt covers both,
+     where CR 616.1 has each affected player order their own.
+
+     **Reachability (2026-11-04):** reachable — wrong today: all three cards
+     are registered, and which player is asked turns on the batch's order.
+     **Sized:** ~40 lines of code and ~40 of tests.
+     **Slotted:** `multiplayer-rules`, beside item 25, the other gap in how a
+     batch's members choose, so one step reads both. Two seats reach this too.
+
+### Item 371 — closed 2026-11-05 by PR #310 (`rules/hunt-small-fixes`)
+
+371. **A trigger born during placement joins a later seat's pass.**
+     `place_pending_triggers` reads each seat's entries off the live queue, and
+     `place_one`'s `announce_targeted_records` dispatches mid-pass. P0's
+     Flickerwisp targets P1's Cephalid Aristocrat while P1's Soul Warden waits.
+     CR 603.3b has P1 place the Warden alone, SBAs run, then the Aristocrat's
+     trigger go on top. P1 is instead asked to order them and can build a stack
+     the rules cannot make.
+
+     **Reachability (2026-11-04):** reachable — wrong today: all three cards
+     are registered.
+     **Sized:** ~30 lines of code and ~40 of tests.
+     **Slotted:** `multiplayer-rules`, CR 101.4's order at N seats, which re-reads
+     this pass. Two seats reach this too.
