@@ -120,6 +120,14 @@ impl AppliedReplacements {
         (!self.applied.is_empty()).then(|| self.applied.as_slice().into())
     }
 
+    /// Adds what `other` holds and this does not, as a rider's set holds it:
+    /// a rider carries what applied to its event after it was queued.
+    pub fn join_for_rider(&mut self, other: &AppliedReplacements) {
+        let other = other.without_redirects();
+        other.applied.into_iter().for_each(|applied| self.apply(applied));
+        other.declined.into_iter().for_each(|id| self.decline(id));
+    }
+
     /// The same effects, with none marked as having redirected: what a
     /// rider's events start from. They had their chance at the event the rider
     /// is the rest of (CR 614.5), and none of them moved the rider's own
