@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
-use crate::engine::actions::{ActionContext, ZoneChangeAct};
-use crate::events::cause::{GameRule, TurnBasedAction};
+use crate::engine::actions::ActionContext;
+use crate::events::cause::GameRule;
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
 use crate::state::game_state::{GameResult, GameState, PhaseType, StepType};
-use crate::types::zones::Zone;
-use crate::engine::actions::GameAction;
-use crate::ui::ask::ask_discard;
 use crate::ui::decision::{DecisionProvider, Stop};
 
 /// A player's deck, the cards CR 103.3 makes their library, in order. A
@@ -256,7 +253,6 @@ impl Game {
                     if !self.state.begin_step(StepType::Cleanup, decisions)? {
                         break;
                     }
-                    self.process_turn_based_actions(PhaseType::Ending, Some(StepType::Cleanup), decisions)?;
                 }
             } else {
                 let gets_priority = !matches!(
@@ -300,7 +296,6 @@ impl Game {
     ///
     /// These happen BEFORE the priority round for each step:
     /// - Combat: declare attackers/blockers, deal damage
-    /// - Cleanup: discard to hand size
     fn process_turn_based_actions(
         &mut self,
         phase_type: PhaseType,
@@ -308,11 +303,10 @@ impl Game {
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // CR 800.4j — a turn whose active player has left "continues to its
-        // completion without an active player". The two turn-based actions
-        // *that player* performs — declaring attackers (508.1) and the
-        // cleanup discard (514.1) — have nobody to perform them; the untap
-        // step's and the draw step's are `engine::turns`'s and gate the same
-        // way there. Their permanents have left with them (CR 800.4a).
+        // completion without an active player". Declaring attackers (508.1)
+        // has nobody to perform it; the untap, draw and cleanup steps' actions
+        // are `engine::turns`'s and gate the same way there. Their permanents
+        // have left with them (CR 800.4a).
         let no_active_player = !self.state.in_game(self.state.active_player);
         match (phase_type, step) {
             // --- Combat phase ---
@@ -331,11 +325,6 @@ impl Game {
             }
             (PhaseType::Combat, Some(StepType::CombatDamage)) => {
                 self.state.process_combat_damage(decisions, false)?;
-            }
-            // --- Cleanup step ---
-            (PhaseType::Ending, Some(StepType::Cleanup)) if no_active_player => {}
-            (PhaseType::Ending, Some(StepType::Cleanup)) => {
-                self.handle_cleanup_discard(decisions)?;
             }
             _ => {}
         }
@@ -367,44 +356,6 @@ impl Game {
     /// the engine records at the batch that ended the game.
     pub fn result(&self) -> Option<GameResult> {
         self.state.result.clone()
-    }
-
-    /// Handle cleanup step discard to hand size (rule 514.1).
-    ///
-    /// > 514.1. First, if the active player's hand contains more cards than
-    /// > their maximum hand size (normally seven), they discard **enough
-    /// > cards** to reduce their hand size to that number.
-    ///
-    /// **One discard of N, not N discards of one.** The rule names a single
-    /// turn-based action over "enough cards", so the choice is made once and
-    /// the cards move as one batch — which is what CR 603.2c's "whenever one
-    /// or more cards are discarded" will read, and the same shape
-    /// `Primitive::Discard` builds for Mind Rot.
-    fn handle_cleanup_discard(
-        &mut self,
-        decisions: &dyn DecisionProvider,
-    ) -> Result<(), String> {
-        let active = self.state.active_player;
-        let max = self.state.players[active].max_hand_size as usize;
-        let hand: Vec<_> = self.state.players[active].hand.clone();
-        if hand.len() <= max {
-            return Ok(());
-        }
-        // No `source`: CR 514.1 is a turn-based action and no spell or ability
-        // caused it, which is also why a `ReplacementDef::by` never matches it.
-        let chosen = ask_discard(decisions, &self.state, active, &hand, hand.len() - max, None);
-        let batch: Vec<GameAction> = chosen
-            .into_iter()
-            .map(|object| GameAction::ZoneChange {
-                object,
-                from: Zone::Hand,
-                to: Zone::Graveyard,
-                act: ZoneChangeAct::Discarded,
-            })
-            .collect();
-        let actx = ActionContext::turn_based(decisions, TurnBasedAction::CleanupDiscard);
-        self.state.execute_actions(batch, &actx)?;
-        Ok(())
     }
 
 }

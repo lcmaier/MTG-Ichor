@@ -1569,7 +1569,7 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
     g.state.record_events();
     let dp = RandomDecisionProvider::seeded(603);
     g.setup(&dp).unwrap();
-    g.state.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::Cleanup) });
+    g.state.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
     put_on_battlefield(
         &mut g.state,
         enchantment_watcher(
@@ -1601,7 +1601,7 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
         .iter()
         .filter(|r| matches!(r.event, GameEvent::StepBegin { step: StepType::Cleanup, .. }))
         .count();
-    assert_eq!(cleanups, 1, "CR 514.3a — another cleanup step began");
+    assert_eq!(cleanups, 2, "CR 514.3a — another cleanup step began");
 }
 
 // ---------------------------------------------------------------------------
