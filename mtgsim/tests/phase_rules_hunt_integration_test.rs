@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::printings::*;
+use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
@@ -12,6 +13,7 @@ use mtgsim::objects::card_data::CardData;
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{get_effective_controller, has_summoning_sickness};
 use mtgsim::state::battlefield::AttackTarget;
+use mtgsim::scenario::Scenario;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType, StepType};
@@ -212,4 +214,44 @@ fn a_creature_nobody_stole_is_not_summoning_sick_on_another_players_turn() {
         game.advance_turn(&dp).unwrap();
     }
     assert!(!has_summoning_sickness(&game, creature));
+}
+
+/// Two attackers hit P1 beside Ghosts of the Innocent and Furnace of Rath, and
+/// P1's Reflect Damage sends one back at P0. P1 chooses it first, and the two
+/// events then affect two players, so CR 616.1 has each choose for their own,
+/// the active player first.
+#[test]
+fn a_redirect_leaves_each_affected_player_choosing_for_their_own_event() {
+    let mut game = setup_two_player_game();
+    let sent_back = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
+    let kept = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
+    set_attacking(&mut game, sent_back, 1);
+    set_attacking(&mut game, kept, 1);
+    let ghosts = put_on_battlefield(&mut game, ghosts_of_the_innocent(), 1);
+    let furnace = put_on_battlefield(&mut game, furnace_of_rath(), 1);
+    let reflect = put_in_hand(&mut game, reflect_damage(), 1);
+    let card = reflect_damage();
+    let context = ResolutionContext {
+        source: reflect,
+        ability_source: None,
+        controller: 1,
+        generated_by: GeneratedBy::Spell,
+        targets: ChosenTargets::one(vec![]),
+        replaced_event: None,
+        trigger: None,
+    };
+    let choosing = RecordingDecisionProvider::choosing([ChoiceOption::Object(sent_back)]);
+    game.resolve_effect(&card.abilities[0].effect, &context, &choosing).unwrap();
+
+    let dp = ScriptedDecisionProvider::new();
+    let chooses = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(reflect)]);
+    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(ghosts)]);
+    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(furnace)]);
+    game.process_combat_damage(&dp, false).unwrap();
+
+    let asked: Vec<PlayerId> = dp.asked_of().into_iter().map(|(player, _)| player).collect();
+    assert_eq!(asked, vec![1, 0, 1], "P1, then each for their own, the active player first");
+    assert_eq!(game.players[0].life_total, 20 - 2, "P0 halves then doubles its 3");
+    assert_eq!(game.players[1].life_total, 20 - 3, "P1 doubles then halves its 3");
 }

@@ -464,6 +464,7 @@ pub(crate) fn apply_replacements(
     let mut exempt_applied: Option<ReplacementInstanceId> = None;
 
     let mut iteration: u64 = 0;
+    let mut subject_moved = false;
     // Unbounded on purpose: every iteration consumes something finite — CR 614.5's
     // `applied`, `declined`, or `check_exempt_terminates`'s slot — and nothing
     // touches the board between iterations (riders queue, §4.1a).
@@ -476,6 +477,19 @@ pub(crate) fn apply_replacements(
                 m.event = None;
             }
         }
+        // CR 616.1 — a redirect can leave the group's events affecting two
+        // subjects, and each one's own player chooses for it, in APNAP order.
+        if std::mem::take(&mut subject_moved) && sort_into_subject_runs(game, group) {
+            give_applied_set(group, &mut riders[riders_before..], applied.clone());
+            let mut start = 0;
+            while let Some(subject) = group.get(start).and_then(|m| m.event.as_ref()).map(subject_of) {
+                let same_subject = |m: &&BatchMember| m.event.as_ref().map(subject_of) == Some(subject);
+                let end = start + group[start..].iter().take_while(same_subject).count();
+                apply_replacements(game, &mut group[start..end], later, ctx, &applied, riders)?;
+                start = end;
+            }
+            return Ok(());
+        }
         // Owned, because the gather below walks `group` mutably; one small
         // clone per iteration of a loop that runs once for most proposals.
         let Some(first) = group.iter().find_map(|m| m.event.clone()) else {
@@ -483,10 +497,10 @@ pub(crate) fn apply_replacements(
             return Ok(());
         };
 
-        // The group's key, not the member's subject: a `Rewrite::Retarget` (CR 614.9)
-        // moves an event's subject, so from the second iteration the two can differ,
-        // and every question below — chooser, prompt, counter subject — is the event's.
-        // Re-derived per iteration for the same reason `gather` is (CR 616.1f).
+        // Not the group's key: a `Rewrite::Retarget` (CR 614.9) moves an event's
+        // subject, and every question below — chooser, prompt, counter subject —
+        // is the event's. Re-derived per iteration for the same reason `gather`
+        // is (CR 616.1f).
         let subject = subject_of(&first);
 
         // CR 614.12 / 614.17d — the frame both questions below read for an
@@ -662,9 +676,7 @@ pub(crate) fn apply_replacements(
         let rider_subject = applicable.first().and_then(|&pos| group[pos].event.as_ref()).map_or(subject, subject_of);
         let mut outcome = Applied::CHANGED_NOTHING;
         let mut redirected = false;
-        // Whom it prevented damage to, and how much, in member order: a
-        // redirect earlier in the loop can leave two members of one group
-        // dealing damage to two recipients.
+        // Whom it prevented damage to, and how much, in member order.
         let mut prevented_to: Vec<(ObjectOrPlayerId, u64)> = Vec::new();
         for (k, &pos) in applicable.iter().enumerate() {
             let event = group[pos].event.take().expect("gathered this iteration, so live");
@@ -677,9 +689,6 @@ pub(crate) fn apply_replacements(
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
             replaced_damage |= damaged.is_some();
-            // Per member, and it is the member's own event that answers: two
-            // members of one group can have different subjects once a redirect
-            // has moved one of them.
             let member_subject = subject_of(&event);
             let share = shares.as_ref().map(|s| s[k]);
             // Kept for `check_order_invariance`'s fourth shape, which asks what
@@ -714,6 +723,7 @@ pub(crate) fn apply_replacements(
                 }
             }
             redirected |= next.as_ref().is_some_and(|next| destination(next) != went_to);
+            subject_moved |= next.as_ref().is_some_and(|next| subject_of(next) != member_subject);
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
             group[pos].event = next;
@@ -761,6 +771,30 @@ pub(crate) fn apply_replacements(
             game.trace(|| t.record(game, group));
         }
     }
+}
+
+/// Whether `group`'s live events affect more than one subject, and if so
+/// `group` sorted into a run per subject, CR 616.1's choosers in CR 101.4's
+/// order and the members with no event left last.
+fn sort_into_subject_runs(game: &GameState, group: &mut [BatchMember]) -> bool {
+    let mut subjects: Vec<Option<ObjectOrPlayerId>> = Vec::new();
+    for event in group.iter().filter_map(|m| m.event.as_ref()) {
+        if !subjects.contains(&subject_of(event)) {
+            subjects.push(subject_of(event));
+        }
+    }
+    if subjects.len() < 2 {
+        return false;
+    }
+    let everyone = game.players.len();
+    group.sort_by_key(|m| match &m.event {
+        Some(event) => (
+            chooser_for(game, event).map_or(everyone, |player| game.apnap_index(player)),
+            subjects.iter().position(|subject| *subject == subject_of(event)),
+        ),
+        None => (everyone + 1, None),
+    });
+    true
 }
 
 /// The group's final applied set, given to each member and to each rider the
