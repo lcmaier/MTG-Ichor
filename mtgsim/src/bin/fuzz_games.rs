@@ -16,7 +16,7 @@
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --census
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --observe
 //        cargo run --release --bin fuzz_games -- --ladder --threads 1   (the ratchet's boards)
-//        cargo run --release --bin fuzz_games -- --ladder --ladder-top 100 --threads 16
+//        cargo run --release --bin fuzz_games -- --ladder --ladder-shape "a wipe" --ladder-rung 6400 --ladder-steps 2
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
 // flag, deduplicated, in the order given. Repeating is how a card whose name
@@ -109,6 +109,7 @@ use std::time::{Duration, Instant};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
+use mtgsim::cards::fixtures::essence_of_the_wild_fixture;
 use mtgsim::cards::printings::{blood_artist, glorious_anthem, master_biomancer, sigarda_host_of_herons};
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
@@ -196,7 +197,7 @@ struct Args {
     tokens_per_seat: usize,
     /// Count the decisions that reach the agent, by prompt kind and by the
     /// observation rows the deciding seat sees, and time each band, `--census`:
-    /// floor 1's reading (`engineering-practices.md#the-floors`). Off by default;
+    /// floor 1's count (`engineering-practices.md#the-floors`). Off by default;
     /// on, it changes no game.
     census: bool,
     /// Build a naive observation for the seat at each decision that reaches
@@ -228,9 +229,13 @@ struct Args {
     /// (`engineering-practices.md#the-floors`). `--threads` runs each rung that
     /// many times at once.
     ladder: bool,
-    /// The highest rung `--ladder` reads, `--ladder-top N`. Sixteen boards of
-    /// 51,200 permanents take minutes a shape. All of them by default.
-    ladder_top: usize,
+    /// One shape of `--ladder`, `--ladder-shape NAME`, a name its table prints.
+    ladder_shape: Option<String>,
+    /// One rung of `--ladder`, `--ladder-rung N`, in permanents.
+    ladder_rung: Option<usize>,
+    /// The steps a `--ladder` rung reads, `--ladder-steps N`, for a read that
+    /// must do the same work every time. Otherwise as many as fill its time.
+    ladder_steps: Option<usize>,
 }
 
 /// The pools, and the reason there are several.
@@ -289,7 +294,9 @@ fn parse_args() -> Args {
         trace_game: None,
         audit: false,
         ladder: false,
-        ladder_top: usize::MAX,
+        ladder_shape: None,
+        ladder_rung: None,
+        ladder_steps: None,
         scenario: None,
     };
 
@@ -453,15 +460,18 @@ fn parse_args() -> Args {
             "--ladder" => {
                 result.ladder = true;
             }
-            "--ladder-top" => {
+            "--ladder-shape" => {
                 i += 1;
-                result.ladder_top = match args.get(i).map(|n| n.parse::<usize>()) {
-                    Some(Ok(n)) => n,
-                    _ => {
-                        eprintln!("--ladder-top wants a number of permanents");
-                        std::process::exit(2);
-                    }
+                result.ladder_shape = args.get(i).cloned();
+            }
+            "--ladder-rung" | "--ladder-steps" => {
+                let flag = args[i].as_str();
+                i += 1;
+                let Some(n) = args.get(i).and_then(|n| n.parse::<usize>().ok()) else {
+                    eprintln!("{flag} wants a number");
+                    std::process::exit(2);
                 };
+                *(if flag == "--ladder-rung" { &mut result.ladder_rung } else { &mut result.ladder_steps }) = Some(n);
             }
             "--tokens" => {
                 i += 1;
@@ -968,7 +978,7 @@ struct DecisionBand {
 }
 
 /// How wide a band of observation rows is, centered on a multiple of itself:
-/// the 128 band holds floor 1's limit, 112 to 143.
+/// band 128 is 112 to 143 rows.
 const BAND_ROWS: usize = 32;
 
 /// The rows [`Observer`] builds for `seat`, counted without building them.
@@ -1513,9 +1523,12 @@ enum LadderShape {
     /// Those Goblins, each seat's first creature carrying Sigarda, Host of
     /// Herons' ability: a "can't" that every event asks about.
     TokensUnderACant,
+    /// The whole rung made for one seat in one event, under Essence of the
+    /// Wild's ability: each token a copy, named as a copy in its records.
+    TokensAsCopies,
 }
 
-const LADDER_SHAPES: [LadderShape; 8] = [
+const LADDER_SHAPES: [LadderShape; 9] = [
     LadderShape::BareCreatures,
     LadderShape::Anthem,
     LadderShape::Counters,
@@ -1524,6 +1537,7 @@ const LADDER_SHAPES: [LadderShape; 8] = [
     LadderShape::TokensInOneEvent,
     LadderShape::TokensUnderAReplacement,
     LadderShape::TokensUnderACant,
+    LadderShape::TokensAsCopies,
 ];
 
 /// Permanents on the board, doubling.
@@ -1549,13 +1563,17 @@ impl LadderShape {
             LadderShape::TokensInOneEvent => "tokens in one event",
             LadderShape::TokensUnderAReplacement => "tokens, a replacement",
             LadderShape::TokensUnderACant => "tokens, a can't",
+            LadderShape::TokensAsCopies => "tokens, as copies",
         }
     }
 
     /// Whether a step makes the rung's tokens, where the board holds only what
     /// they enter under.
     fn makes_its_tokens(self) -> bool {
-        matches!(self, LadderShape::TokensInOneEvent | LadderShape::TokensUnderAReplacement | LadderShape::TokensUnderACant)
+        matches!(
+            self,
+            LadderShape::TokensInOneEvent | LadderShape::TokensUnderAReplacement | LadderShape::TokensUnderACant | LadderShape::TokensAsCopies
+        )
     }
 
     /// The card whose abilities one creature of each seat carries.
@@ -1565,6 +1583,7 @@ impl LadderShape {
             LadderShape::DeathTriggers => Some(blood_artist()),
             LadderShape::TokensUnderAReplacement => Some(master_biomancer()),
             LadderShape::TokensUnderACant => Some(sigarda_host_of_herons()),
+            LadderShape::TokensAsCopies => Some(essence_of_the_wild_fixture()),
             LadderShape::BareCreatures | LadderShape::Counters | LadderShape::AWipe | LadderShape::TokensInOneEvent => None,
         }
     }
@@ -1576,7 +1595,11 @@ impl LadderShape {
         match self {
             LadderShape::BareCreatures | LadderShape::Anthem | LadderShape::Counters => usize::MAX,
             LadderShape::DeathTriggers => permanents / 10,
-            LadderShape::AWipe | LadderShape::TokensInOneEvent | LadderShape::TokensUnderAReplacement | LadderShape::TokensUnderACant => 1,
+            LadderShape::AWipe
+            | LadderShape::TokensInOneEvent
+            | LadderShape::TokensUnderAReplacement
+            | LadderShape::TokensUnderACant
+            | LadderShape::TokensAsCopies => 1,
         }
     }
 
@@ -1622,7 +1645,10 @@ fn ladder_board(shape: LadderShape, permanents: usize, dp: &dyn DecisionProvider
 
 /// What the engine does for a decision: an event, the state-based check with
 /// whatever it puts on the stack, and the list of actions the player with
-/// priority chooses among. `step` counts from the board's first.
+/// priority chooses among. `step` counts from the board's first. Never inlined,
+/// since the growth gate counts instructions by this function's name
+/// (`plans/close_out.py`).
+#[inline(never)]
 fn ladder_step(
     state: &mut GameState,
     shape: LadderShape,
@@ -1661,6 +1687,11 @@ fn ladder_step(
             }
             state.perform_sba_and_triggers(dp)?;
         }
+        LadderShape::TokensAsCopies => {
+            let create = GameAction::CreateTokens { defs: ladder_goblins(permanents * LADDER_SEATS), controller: 0, attacking: None };
+            state.execute_action(create, &by_the_harness)?;
+            state.perform_sba_and_triggers(dp)?;
+        }
     }
     std::hint::black_box(candidate_priority_actions(state, state.active_player));
     Ok(())
@@ -1668,9 +1699,9 @@ fn ladder_step(
 
 /// One rung: how many decisions it read and how long they took, every board
 /// built off the clock.
-fn read_rung(shape: LadderShape, permanents: usize, seed: u64) -> Result<(usize, Duration), String> {
+fn read_rung(shape: LadderShape, permanents: usize, seed: u64, steps: Option<usize>) -> Result<(usize, Duration), String> {
     let dp = RandomDecisionProvider::seeded(seed);
-    let wanted = (LADDER_WORK / permanents).max(8);
+    let wanted = steps.unwrap_or((LADDER_WORK / permanents).max(8));
     let (mut taken, mut clock) = (0, Duration::ZERO);
     while taken < wanted {
         let (mut state, mut creatures) = ladder_board(shape, permanents, &dp)?;
@@ -1685,18 +1716,20 @@ fn read_rung(shape: LadderShape, permanents: usize, seed: u64) -> Result<(usize,
     Ok((taken * shape.decisions_per_step(), clock))
 }
 
-/// `--ladder`: every rung up to `top` of every shape, `threads` at once.
+/// `--ladder`: every rung of every shape asked for, `threads` at once.
 /// `Decisions/s` is the workers' rates summed; `ns/permanent` stays flat where
 /// a rung's cost grows with its board and no faster. A step is lighter than a
 /// game's decision, so no limit reads this (`fuzz-record.md#the-ladder`).
-fn run_ladder(threads: usize, top: usize, seed: u64) -> Result<(), String> {
+fn run_ladder(args: &Args, seed: u64) -> Result<(), String> {
+    let threads = args.threads;
+    let steps = args.ladder_steps;
     println!("=== Ladder ===");
     println!("Seats: {LADDER_SEATS}, threads: {threads}, seed: {seed}");
     println!("{:<22} {:>10} {:>9} {:>13} {:>12} {:>12}", "Shape", "Permanents", "Decisions", "us/decision", "ns/permanent", "Decisions/s");
-    for shape in LADDER_SHAPES {
-        for permanents in LADDER_RUNGS.into_iter().filter(|permanents| *permanents <= top) {
+    for shape in LADDER_SHAPES.into_iter().filter(|shape| args.ladder_shape.as_deref().is_none_or(|name| name == shape.name())) {
+        for permanents in LADDER_RUNGS.into_iter().filter(|permanents| args.ladder_rung.is_none_or(|rung| rung == *permanents)) {
             let readings = std::thread::scope(|scope| {
-                let workers: Vec<_> = (0..threads).map(|_| scope.spawn(move || read_rung(shape, permanents, seed))).collect();
+                let workers: Vec<_> = (0..threads).map(|_| scope.spawn(move || read_rung(shape, permanents, seed, steps))).collect();
                 workers.into_iter().map(|worker| worker.join().map_err(|_| "a rung's worker panicked".to_string())?).collect::<Result<Vec<_>, String>>()
             })?;
             let decided: usize = readings.iter().map(|(decided, _)| decided).sum();
@@ -1721,7 +1754,7 @@ fn main() {
     });
 
     if args.ladder {
-        if let Err(e) = run_ladder(args.threads, args.ladder_top, master_seed) {
+        if let Err(e) = run_ladder(&args, master_seed) {
             eprintln!("Ladder error: {e}");
             std::process::exit(1);
         }
@@ -2012,8 +2045,8 @@ fn main() {
     println!();
     println!("=== Timing ===");
     println!("Total time:      {:.2}s", elapsed.as_secs_f64());
-    // Each worker's time since its last decision, so `Decisions/s` is the
-    // workers together, and over the physical cores it is floor 1's reading.
+    // What a real decision costs on boards of each size: each worker's time
+    // since its last decision, so `Decisions/s` is the workers together.
     for (band, read) in agg_stats.total_decision_bands.iter().filter(|(_, read)| read.timed > 0) {
         let micros = read.nanos as f64 / 1e3 / read.timed as f64;
         let rate = args.threads as f64 * 1e6 / micros;
@@ -2332,6 +2365,13 @@ mod ladder_tests {
 
         let (state, _) = ladder_board(LadderShape::TokensUnderACant, 100, &dp).unwrap();
         assert_eq!(state.restriction_ability_sources.len(), 4);
+
+        let shape = LadderShape::TokensAsCopies;
+        let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
+        ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
+        assert_eq!(state.battlefield.len(), 104);
+        let copies = state.battlefield_ids_ordered().into_iter().filter(|id| state.battlefield[id].entered_as.copy.is_some());
+        assert_eq!(copies.count(), 100);
     }
 
     /// The census counts what the observer builds, so a band is the rows a

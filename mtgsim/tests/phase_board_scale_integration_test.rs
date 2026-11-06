@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::fixtures::essence_of_the_wild_fixture;
 use mtgsim::cards::printings::{blood_moon, glorious_anthem, sigarda_host_of_herons};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::layers::compute_characteristics;
@@ -20,7 +21,7 @@ use mtgsim::types::card_types::{CardType, CreatureType};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, PlayerRef, TokenDef};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::types::replacement::{CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -138,21 +139,6 @@ fn a_cant_is_found_with_the_sweep_narrowed_to_its_sources() {
     assert_eq!(tokens_owned_by(&game, 1).len(), 3, "she says nothing of an entry");
 }
 
-/// "Creatures you control enter as a copy of this creature": Essence of the
-/// Wild, its 6/6 and its one ability.
-fn essence_of_the_wild_fixture() -> Arc<CardData> {
-    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
-    let def = ReplacementDef::new(
-        EventPattern::EnterBattlefield { cast: None },
-        ObjectSet::battlefield_filter(yours),
-        Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
-    );
-    CardDataBuilder::new("Essence of the Wild Fixture")
-        .card_type(CardType::Creature)
-        .power_toughness(6, 6)
-        .ability(textless_static(Effect::Replacement(Box::new(def))))
-        .build()
-}
 
 /// With no row to write a name, the copy a permanent entered as names it, read
 /// off the entity and not off a pass: what the record says, and what a walk
