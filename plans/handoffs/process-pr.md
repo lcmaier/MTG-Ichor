@@ -29,6 +29,10 @@ not a closing gate** (the owner, in the brief for `v0.5-sizing`).
 ✅ heading, a roadmap row, or its own State cell. A row that is half a phase or
 a §C paragraph has only the last, so `/pr-handover` should say to set it.
 
+**A row's deck cards.** From step 9's close each row registers the deck cards it
+unlocks (`roadmap-v2.md`, "From triggers to v0.5"), so `/next-brief` should name
+them and the PR that registers them.
+
 ## Open, for the owner
 
 1. **Whether a new gate or rule raised in review defaults to the next PR.**
