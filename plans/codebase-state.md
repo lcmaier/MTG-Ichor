@@ -10458,3 +10458,25 @@ slips are the planned card phases', not items.
      value means empty, counted at the build.
      **Slotted:** `orders-the-cr-hands-a-player`, riding with its work and not a
      PR of its own.
+
+377. **Floor 1 reads the bot's games, so it moves when the bot does.** A counting
+     change, a dropped prompt and a bound on attacks each moved it with the
+     engine unchanged, and the budget is what catches slow code. What is left of
+     its point is what a decision costs on a board of a given size, so it moves
+     to a ladder of fixed boards: about 100 to 50,000 permanents, doubling, at
+     four seats, setup off the clock, on four shapes: bare creatures, an anthem,
+     death triggers, and tokens made in one event. The limit is re-derived at
+     Phase 10, as `plans/references/ai-performance-floors.md` already plans.
+
+     A throwaway probe read bare creatures, a tap, the state-based check and the
+     action list: 8 µs at 100 permanents, 107 at 1,600, 592 at 6,400 and 11.9 ms
+     at 51,200, near linear, all ten rungs in 0.3 s. Peak memory was 50 MB at
+     25,600 tokens. `fuzz_games --tokens` hides that: making the tokens in one
+     event is most of a run past a few hundred a seat, about 0.9 s at 400 a seat
+     and 25 s at 1,600, so item 354's readings hold setup too. Past about a
+     million identical tokens the board is `GameNumber`'s (item 264).
+
+     **Reachability (2026-11-05):** reachable — not wrong: a measurement.
+     **Sized:** ~100–150 lines in `fuzz_games` and the floor's rows, no engine code.
+     **Slotted:** `orders-the-cr-hands-a-player`, riding with its work and not a
+     PR of its own.
