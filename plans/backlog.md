@@ -2583,7 +2583,7 @@ structure it arrives in inform each other, and the CLI's AI games need it as
 much as Phase 10 does. The vocabulary is unified and the forms are not: one
 table per `ChoiceKind` of its name, its log word, its scenario word and its
 fields, which v1's documentation can be generated from, while a `then:` line
-stays a macro over several questions, written before any id exists. Three
+stays a macro over several questions, written before any id exists. Four
 things wait on it:
 - **A setup line's word for a division**, and every word like it: `targeting
   Grizzly Bears for 2` keeps a share with its target.
@@ -2593,6 +2593,10 @@ things wait on it:
   kept parallel to `buckets`: the shape decision 5 refused for a division, at
   the boundary. An answer that names its options takes the position out of the
   trait. About 100 providers change, and no game, log or record moves.
+- **What an attack declaration answers with.** A map from creature to target, so
+  a repeat can't be written. Today it is a pick of (creature, target) pairs, one
+  per creature by `attacks_fit`. A client's gestures, such as Arena's one click on
+  a target for every attacker, read off that data (the owner, 2026-11-05, #310).
 
 **Open question 1: where the engine runs.** `roadmap-v2.md` §E and §6 named
 Wasm; they point here now and leave it open. In a browser tab the blocking

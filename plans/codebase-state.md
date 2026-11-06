@@ -10369,7 +10369,7 @@ slips are the planned card phases', not items.
      this too; that step is where the migration gets paid once.
 
 366. **One creature can be declared attacking two players.** — ✅ closed.
-     A creature attacks one thing: a declaration naming one twice is asked again.
+     A creature attacks one thing: the question takes one target per creature.
      **Reachability (2026-11-05):** closed — PR #310.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 366".
 

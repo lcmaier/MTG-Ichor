@@ -353,6 +353,9 @@ opponent" body is a target per opponent, 57 cards (decision 5).
    | The controller or owner of a target | 107 controller, 12 owner | Swords to Plowshares | nothing |
    | The player a "for each opponent" is on | 59 | Adeline, Resplendent Cathar | nothing (decision 5) |
 
+   A rider's "that source's controller" is the same word: Deflecting Palm and Eye
+   for an Eye read `ControllerOf` the replaced damage's source.
+
    Queries: `(o:"when" or o:"whenever") o:"opponent controls dies" o:"that player"`,
    `(o:"when" or o:"whenever") o:"into an opponent's graveyard" o:"that player"`,
    `(o:"when" or o:"whenever") o:"dies" o:"its controller"`,
