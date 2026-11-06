@@ -53,6 +53,11 @@ out of the generated file.
 6. **A number used twice in one run** — three main items collided in
    September, when parallel branches each took the next free number.
 
+7. **A route row with no size, or a size with no row** — `roadmap-v2.md`'s
+   Sizing table is what "The way to v0.5" totals, so a row of the critical path
+   it does not carry, a row the route has no name for, or a PR cell that is not
+   a count or a range would each misstate how far v0.5 is.
+
 It does **not** derive per-phase status for the "can't" and copy tracks,
 because those docs record their phases only in sizing tables with no status
 marker. The replacement track has heading markers and is checked; the others
@@ -87,6 +92,19 @@ def read(rel):
 # Derivation — file reads only
 # --------------------------------------------------------------------------
 
+#: What a decklist's count leaves out: CR 205.3i's basic land types' cards.
+BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
+
+
+def deck_cards():
+    """The distinct cards of v0.5's five lists, less basics. Read off the lists
+    and not Scryfall's `e:tdc`, whose 373 leaves out the 12 printed in `tdm`."""
+    names = set()
+    for f in (ROOT / "mtgsim" / "decks").glob("tdc-*.txt"):
+        names.update(re.findall(r"^\d+ (.+?)\s*$", f.read_text(encoding="utf-8"), re.M))
+    return names - BASIC_LANDS
+
+
 def counts():
     reg = read("mtgsim/src/cards/registry.rs")
     pool = re.search(r"PERFORMANCE_POOL: \[&str; (\d+)\]", reg)
@@ -94,14 +112,18 @@ def counts():
     for base in ("mtgsim/src", "mtgsim/tests"):
         for f in (ROOT / base).rglob("*.rs"):
             tests += f.read_text(encoding="utf-8", errors="replace").count("#[test]")
+    # `registry.register("` and not `registry.register(`: the latter also
+    # matches `performance_pool`'s own loop, which re-registers a name it
+    # was handed rather than adding a card, so every board since this
+    # script was written has reported one card too many.
+    registered = set(re.findall(r'registry\.register\(\s*"([^"]+)"', reg))
+    decks = deck_cards()
     return {
-        # `registry.register("` and not `registry.register(`: the latter also
-        # matches `performance_pool`'s own loop, which re-registers a name it
-        # was handed rather than adding a card, so every board since this
-        # script was written has reported one card too many.
-        "cards": len(re.findall(r'registry\.register\(\s*"', reg)),
+        "cards": len(registered),
         "pool": int(pool.group(1)) if pool else 0,
         "tests": tests,
+        "deck_cards": len(decks),
+        "deck_cards_registered": len(decks & registered),
     }
 
 
@@ -425,6 +447,31 @@ def selftest():
     intake = [intake_names(t, c) for t, c in [("TR-4", "TR-4a"), ("TR-4b", "TR-4a"), ("TR-4a", "TR-4"), ("TR-40", "TR-4"),
                                               ("combat-restrictions", "combat-restrictions"), ("combat-restriction", "combat-restrictions")]]
     assert intake == [True, False, True, False, True, False], f"selftest: intake {intake}"
+    # The Sizing table: a row lands by the route or by its own cell, half a
+    # phase takes nothing from the phase, and a date is no PR count.
+    sized = [
+        ["1", "`route-review`", "", "1", "", "", ""],
+        ["2", "`card-layer-cleanup`", "✅ 2026-11-01", "5", "", "", ""],
+        ["3", "`double-faced-cards`, the transform half", "", "2–3", "", "", ""],
+        ["3", "`token-copies`", "", "1", "", "", ""],
+        ["4", "`A6e`, readiness", "", "2", "", "", ""],
+    ]
+    known = {"route-review": True, "card-layer-cleanup": False, "double-faced-cards": False, "token-copies": False, "A6e": True}
+    parsed, problems = sized_rows(sized, known)
+    assert problems == [], f"selftest: sizing problems {problems}"
+    assert [(s, landed, lo, hi) for s, _, landed, lo, hi in parsed] == [
+        (1, True, 1, 1), (2, True, 5, 5), (3, False, 2, 3), (3, False, 1, 1), (4, True, 2, 2),
+    ], f"selftest: sized {parsed}"
+    steps, left = way_to_v05(parsed)
+    assert [(s, state, prs) for s, _, state, prs in steps] == [
+        (1, "landed", "—"), (2, "landed", "—"), (3, "to come", "3–4"), (4, "landed", "—"),
+    ], f"selftest: steps {steps}"
+    assert steps[2][1] == "`double-faced-cards`, the transform half and 1 more", f"selftest: {steps[2]}"
+    assert (sum(r[3] for r in left), sum(r[4] for r in left)) == (3, 4), f"selftest: left {left}"
+    wrong = [["5", "`not-a-row`", "", "1", "", "", ""], ["6", "`token-copies`", "", "2026-10", "", "", ""], ["7", "`token-copies`", "", "4–2", "", "", ""]]
+    assert len(sized_rows(wrong, known)[1]) == 3, f"selftest: {sized_rows(wrong, known)[1]}"
+    path = ["**After 6, in order** x:", "`route-review`; `token-copies`; `roadmap-v2.md`", "**v0.5 is** `not-yet-sized`"]
+    assert unsized_route_rows(path, "`route-review`") == ["token-copies"], "selftest: an unsized route row"
     # The phase index's parser: coded and plain-named ✅ headings, a parent
     # heading and a closed phase, a trace page's ✅, a sizing table's cells.
     phases = "\n".join([
@@ -461,7 +508,7 @@ def selftest():
 
 
 def table_rows(path, marker, width):
-    """The body rows of the four-column table between `<!-- {marker}: begin -->`
+    """The body rows of the `width`-column table between `<!-- {marker}: begin -->`
     and its end marker, each as its cells."""
     text = read(path)
     start = text.index(f"<!-- {marker}: begin -->")
@@ -469,11 +516,83 @@ def table_rows(path, marker, width):
     rows = []
     for line in text[start:end].split("\n"):
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) != width or cells[0] == "Floor" or set(cells[0]) <= set("-"):
+        if len(cells) != width or cells[0] in ("Floor", "Step") or set(cells[0]) <= set("-"):
             continue
         rows.append(cells)
     assert rows, f"the table between {path}'s {marker} markers is empty"
     return rows
+
+
+#: `roadmap-v2.md`'s Sizing table: step, row, state, PRs, stop, splits, rests on.
+SIZING_COLUMNS = 7
+#: A PR cell, whole: a count or a range. Anchored, since a loose number
+#: reads a date such as 2026-10 as a range.
+PRS_RE = re.compile(r"(\d+)(?:–(\d+))?\Z")
+#: A row's own record that it landed, for a row with no heading to carry one.
+OWN_LANDED_RE = re.compile(r"✅ \d{4}-\d{2}-\d{2}\Z")
+
+
+def sized_rows(rows, route):
+    """The Sizing table's rows as `(step, row, landed, low, high)`, and what is
+    wrong with it. `row` is the cell as written, which may name part of a phase.
+
+    A row has landed when the route records its name as landed, or, for a row
+    with no heading of its own (half a phase, a §C paragraph), when its State
+    cell does. Half of a phase takes nothing from the phase still being open."""
+    parsed, problems = [], []
+    for step, row, state, prs, *_ in rows:
+        token = ROUTE_TOKEN_RE.search(row)
+        status = route_status(token.group(0), route) if token else None
+        size = PRS_RE.match(prs)
+        if status is None:
+            problems.append(f"the Sizing table's {row} is no phase or row the route names")
+        if not size or not step.isdigit():
+            problems.append(f"the Sizing table's {row} wants a step and a PR count or range, not {step!r} and {prs!r}")
+            continue
+        low = int(size.group(1))
+        high = int(size.group(2) or low)
+        if low > high:
+            problems.append(f"the Sizing table's {row} runs {low} down to {high}")
+        parsed.append((int(step), row, bool(status) or bool(OWN_LANDED_RE.match(state)), low, high))
+    return parsed, problems
+
+
+def unsized_route_rows(critical_path_lines, table_text):
+    """Every phase the critical path names between item 6 and v0.5 that no line
+    of the Sizing table mentions."""
+    text = "\n".join(critical_path_lines)
+    route = text[text.index("**After 6, in order**"):text.index("**v0.5 is")]
+    return [name.strip("`") for name in dict.fromkeys(re.findall(NAME, route)) if name not in table_text]
+
+
+def sizing():
+    """The table as `sized_rows` reads it, and every problem with it."""
+    rows = table_rows("plans/roadmap-v2.md", "v0.5 sizing", SIZING_COLUMNS)
+    parsed, problems = sized_rows(rows, route_ids())
+    for name in unsized_route_rows(critical_path(), "\n".join(" ".join(r) for r in rows)):
+        problems.append(f"the critical path names {name}, and the Sizing table has no line for it")
+    return parsed, problems
+
+
+def span(low, high):
+    return str(low) if low == high else f"{low}–{high}"
+
+
+def way_to_v05(parsed):
+    """Each step as `(step, row, state, PRs left)`, and the rows left in all."""
+    steps = {}
+    for step, row, landed, low, high in parsed:
+        steps.setdefault(step, []).append((row, landed, low, high))
+    out = []
+    for step, rows in steps.items():
+        left = [r for r in rows if not r[1]]
+        named = (left or rows)[0][0]
+        also = len(left or rows) - 1
+        state = "landed" if not left else "to come" if len(left) == len(rows) else f"{len(rows) - len(left)} of {len(rows)} landed"
+        prs = span(sum(r[2] for r in left), sum(r[3] for r in left)) if left else "—"
+        out.append((step, f"{named} and {also} more" if also else named, state, prs))
+    left = [r for r in parsed if not r[2]]
+    return out, left
 
 
 def floors():
@@ -640,6 +759,25 @@ def render():
     L.append("Quoted verbatim from `CLAUDE.md`, which owns the ordering.")
     L.append("")
     L.extend(critical_path())
+    L.append("")
+    L.append("## The way to v0.5")
+    L.append("")
+    L.append("Each step of `roadmap-v2.md` §3a, its state, and the PRs left in it, from")
+    L.append("the Sizing table (`roadmap-v2.md` §8), which says what each range rests on.")
+    L.append("A row has landed when a ✅ heading or roadmap row records it under its")
+    L.append("name, or, with neither, when its own State cell does. Route PRs only: §8")
+    L.append("says what the audits, the dev GUI and the detours beside them have cost.")
+    L.append("")
+    L.append("| Step | Rows | State | PRs left |")
+    L.append("|---:|---|---|---:|")
+    steps, left = way_to_v05(sizing()[0])
+    for step, row, state, prs in steps:
+        L.append(f"| {step} | {row} | {state} | {prs} |")
+    total = span(sum(r[3] for r in left), sum(r[4] for r in left))
+    L.append(f"| | **To v0.5** | **{len(left)} rows to come** | **{total}** |")
+    L.append("")
+    L.append(f"**Deck cards registered: {c['deck_cards_registered']} of {c['deck_cards']}**,")
+    L.append("the five lists' distinct cards less basics.")
     L.append("")
     L.append("## Phases by name")
     L.append("")
@@ -883,6 +1021,7 @@ def main():
         for run, number, lines in duplicate_numbers(block):
             where = ", ".join(str(start_line + l) for l in lines)
             problems.append(f"codebase-state.md: {cite(run, number)} is numbered twice (lines {where})")
+        problems += sizing()[1]
         for doc, code, n in oversized_landed():
             problems.append(
                 f"{doc}: {code} is landed but keeps {n} lines in the live doc "

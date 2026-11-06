@@ -31,7 +31,7 @@ through a GUI**, and **highly parallel AI games over the CLI**. Two-player
 Standard is a checkpoint on the way, not a target. **v1 is when it can be
 called done: the GUI built for players, Phase 10** (the owner, 2026-10-29).
 The first milestone that ends is **v0.5**: Tarkir: Dragonstorm Commander's
-five decks at one five-seat table, in the dev GUI and over the CLI (§3a).
+five decks at one five-seat table, in the dev GUI and headless in `fuzz_games` (§3a).
 
 Behind both sits one engine bar, made explicit here:
 
@@ -275,7 +275,7 @@ Until this list, the route was ordered only to the end of item 6. On
 2026-10-12 every half-built subsystem got a place before Phase 8; on
 2026-10-29 `route-review` gave the route a first milestone that ends, **v0.5:
 Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the
-dev GUI and over the CLI (the owner). The steps before the decks are the shapes
+dev GUI and headless in `fuzz_games` (the owner). The steps before the decks are the shapes
 a card's code is written around, designed before any deck card is written
 (`cr-coverage-audit.md#2-the-method--the-type-surface`'s test: would building it
 later unbuild something), and the rows the decks' cards need. The census
@@ -296,13 +296,13 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 9. **`permission-design`**, with **`card-and-object-model`**, `text-changing-effects`' design, `cant-cast-play-or-activate`'s reasons and CR 610.5's grant at cast designed beside it; **`command-zone-casting`**, **`game-formats`**, **`multiplayer-rules`**, with teams designed in it | `permission-architecture.md`, below, B | One cast path for who may cast what and which characteristics it is cast with; then a commander cast from the command zone (CR 903.8), Commander at any number of seats, and CR 800 and 802 |
 | 10. **`player-scoped-values`**, then **`cant-be-targeted`**, then **`cant-cast-play-or-activate`** | `cant-effects-architecture.md` | `tdc`'s cards need both |
 | 11. **`combat-restrictions`**, **`cant-pay-costs`**, **`combat-requirements`** with costs to attack (CR 508.1g–h), then **`as-though-effects`**'s permission half, then **`layers-combat-and-counters`** | `cant-effects-architecture.md`, B, below | Combat's "can't"s are the largest family (1,267 of 1,277 Tier-1a clauses), and `as-though-effects` is cut against them; a cost to attack is paid as the declaration is made, so it is designed with the declaration's solver; row 7's combat builds read the declaration `combat-requirements` reshapes |
-| 12. **`rulings-for-every-card`** | §C | Every registered card's rulings tested before the decks add 373 more |
-| 13. **`tarkir-dragonstorm-decks`**: its gap census | below | Each of the 373 cards read against the tree, since the census misses parameters; what it finds is slotted to this row or the rows below by name |
+| 12. **`rulings-for-every-card`** | §C | Every registered card's rulings tested before the decks add the rest of their 385 |
+| 13. **`tarkir-dragonstorm-decks`**: its gap census | below | Each of the 385 cards read against the tree, since the census misses parameters; what it finds is slotted to this row or the rows below by name |
 | 14. **`mana-ability-costs`**, then **`mana-provenance`**, its design reviewed first, then **`any-color-plus-painlands-plus-signets`**, **`chosen-color-plus-could-produce`**, **`convoke-delve-improvise`**, **`hybrid-and-phyrexian-payment`** with `as-though-effects`'s payment half, and **`remaining-costs`** | `mana-architecture.md`, `cost-architecture.md` | Any-color mana alone is 62 `tdc` cards; `mana-ability-costs` widens the check the others extend (the owner, at #224's and #225's reviews) |
 | 15. **`casting-from-other-zones`**; **`double-faced-cards`**' transform half; **`token-copies`**, **`spell-copies`** | `permission-architecture.md`, `copy-effects-architecture.md` | 37, 10 and 9 `tdc` cards. No `tdc` card is double-faced, but token copies (CR 707.8a), spell copies (707.10g), face-down (712.15a) and a commander's color identity (903.4d) each have a rule for one, so one transforming card proves `card-and-object-model`'s faces before they build on them (the owner, 2026-10-31; the card is in `copy-effects-architecture.md`'s ordering) |
-| 16. The card model's three builds the decks need: split cards (from **`split-and-adventure-style-cards`**), face-down with manifest (from **`face-down-and-morph`**), and an Aura on a player (**`card-and-object-model`**) | `copy-effects-architecture.md`, below | Expansion // Explosion, Reality Shift and Curse of Opulence; morph, disguise and cloak are the rest of `face-down-and-morph`, after v0.5 |
-| 17. **The five decks** | `tarkir-dragonstorm-decks` | Each mechanic their cards need built from its whole CR section (the family rule, `engineering-practices.md#gaps-a-phase-finds`) |
-| 18. **`mana-payment-solver`** | `mana-architecture.md` | A person paying at a seat. **Milestone: v0.5** |
+| 16. The card model's three builds the decks need: split and Omen cards (from **`split-and-adventure-style-cards`**), face-down with manifest (from **`face-down-and-morph`**), and an Aura on a player (**`card-and-object-model`**) | `copy-effects-architecture.md`, below | Expansion // Explosion, the two Omen dragons (Stormshriek Feral, Whirlwing Stormbrood), Reality Shift and Curse of Opulence; morph, disguise and cloak are the rest of `face-down-and-morph`, after v0.5 |
+| 17. **The five decks**, then **`decks-in-fuzz-games`** | `tarkir-dragonstorm-decks`, below | Each mechanic their cards need built from its whole CR section (the family rule, `engineering-practices.md#gaps-a-phase-finds`); then the five lists at one table with nobody at it |
+| 18. **`devgui-at-five-seats`**, then **`mana-payment-solver`** | below, `mana-architecture.md` | The same table in the window, then a person paying at a seat. **Milestone: v0.5** |
 
 **After v0.5, ordered at its close:** `pausing-at-a-decision`'s build with the
 AI harness; `ironworks-loop`; the card model's other
@@ -335,8 +335,10 @@ mechanisms, so its items go into the card plan with their cards.
 | `card-and-object-model` | **The card and object model**: faces and characteristic sets as two independent choices, several components for meld and mutate, and an attachment to a player, extending `copy-effects-architecture.md` and `permission-architecture.md`'s characteristic sets. Foretell (CR 702.143, a card exiled face down and cast later) is designed here beside face-down | `CardData` holds one set of characteristics and `PermanentState` one object; designed beside `permission-design`, the decks' cards are written in the shape that stays. It builds the Aura on a player itself (Curse of Opulence); the copy track's rows build the rest | design + 1 |
 | `resolution-recipients-and-amounts` | **Recipients, targets and amounts at resolution**: the item 6 audit's cleanup row 6, on its design note `plans/handoffs/resolution-recipients-and-amounts.md` (#295, its decisions taken) | Left the audit at `route-review` (2026-10-29); after `modes-plus-choice-kinds` and `linked-abilities`, whose types it writes | 2, by its note's split |
 | `layers-combat-and-counters` | **Layer, combat and counter builds**: the item 6 audit's cleanup row 7, with a counter on a card off the battlefield (item 23), a static ability's duration (item 331), a negative P/T change at resolution, and the survey of two roads to one state (item 188) | Left the audit at `route-review`; after `combat-requirements`, whose declaration its combat builds read | 1–2 |
-| `tarkir-dragonstorm-decks` | **Tarkir: Dragonstorm Commander's five decks** (`tdc`, 2025-04-11, 373 cards less basics): a gap census of every card, then the rows it confirms, then the five decks. The census also asks of each card whether it can close a loop the engine cannot end (CR 104.4b): until `loop-detection` lands such a card is not registered, so one in the decks brings `loop-detection`'s draw half before them | v0.5 (the owner, 2026-10-29), chosen for its cards over the cheaper Starter Commander Decks: 24 roadmap steps against 16 | census, then sized there |
+| `tarkir-dragonstorm-decks` | **Tarkir: Dragonstorm Commander's five decks** (`tdc`, 2025-04-11, 385 distinct cards less basics: Scryfall's `e:tdc -t:basic` is 373, and the lists hold 12 more printed in `tdm`, which no `tdc` count in the census or `plans/references/tdc-names.txt` read): a gap census of every card, then the rows it confirms, then the five decks. The census also asks of each card whether it can close a loop the engine cannot end (CR 104.4b): until `loop-detection` lands such a card is not registered, so one in the decks brings `loop-detection`'s draw half before them | v0.5 (the owner, 2026-10-29), chosen for its cards over the cheaper Starter Commander Decks: 24 roadmap steps against 16 | census, then sized there |
 | `fork-test-at-every-decision` | **The fork test, ahead of the paused game**: `setup-architecture.md#7e-pausing-at-a-decision`'s gate, forking at every decision of seeded games at two seats and four | A choice kind that keeps state off `GameState` past the next anchor fails nothing until this test exists, and every row from here writes choice kinds. Its brief checks first that the fork separates from the paused game, which 7e.5 calls one consumer's two halves | 1 |
+| `decks-in-fuzz-games` | **The five decks in `fuzz_games`**: a flag that seats one decklist from `mtgsim/decks/` per player as a Commander deck, through `game-formats`' setup, so the table plays with nobody at it and a floor can be read on real decks | v0.5 is both halves of one table, and `fuzz_games` deals random decks from a pool today, not a list | 1 |
+| `devgui-at-five-seats` | **The dev GUI at five seats**: five seats laid out in the window, each one's command zone, and commander damage by commander, drawn from what `game-formats` builds. A GUI PR: `engineering-practices.md#the-dev-gui`'s review | v0.5's other half. The window plays every seat and has dealt four; nothing draws a command zone or commander damage yet | 1–2 |
 | `player-scoped-values` | **Player-scoped continuous effects** (CR 613.10–613.11, `backlog.md` §2.15): the effective-value query, with the land count, maximum hand size and player hexproof as its readers | `cant-be-targeted` rewrites target legality, which must read it, and Reliquary Tower is in a `tdc` deck | 1 |
 | `board-scale` | ✅ 2026-11-05 (PR #313) — **What a board can hold**: `codebase-state.md` items 376, 377 and 378: bulk token creation made linear, a ladder of fixed boards and a growth gate over it, and `new()` for `default()` | Off the route, between `modes-plus-choice-kinds`' PRs and before `orders-the-cr-hands-a-player`, whose moved random stream and fixture migration need a PR to themselves. No game moves here, so one close-out proves all of it | 1 |
 | `partial-damage-redirection` | **A replacement whose result is two events** (CR 614.9), graduating `backlog.md` §2.25: Harm's Way, and Exquisite Archangel's exile-or-graveyard choice (item 125) | After v0.5: about 30 mechanical sites, and nothing before it builds on them. Its shape is `replacement-architecture.md`'s RD-5 section | design + 1 |
@@ -634,7 +636,7 @@ Phase 9, **user-ready** after Phase 10.
 
 **v0.5 — five decks at one table** (`route-review`, 2026-10-29): Tarkir:
 Dragonstorm Commander's five decks play to completion at a five-seat table,
-in the dev GUI and over the CLI, every card registered with its rulings
+in the dev GUI and headless in `fuzz_games`, every card registered with its rulings
 tested. It sits between Milestone 8 and core-rules-complete: Commander is
 playable, and the card work after it is the rest of Phase 8.
 
@@ -689,33 +691,112 @@ gets drawn formally rather than by default. → `backlog.md` §4.
 
 ---
 
-## 8. Sizing — starting guesses only
+## 8. Sizing — every row to v0.5, on what it rests
 
-**The order is §3a's; this table is only the per-segment guess it sums.**
+**The order is §3a's; this table says how big each row is.** Read 2026-11-06
+at #313's merge, and **re-derive a row from a live count at its brief**
+(`engineering-practices.md#sizing-a-phase`). The board totals this table
+(`state-of-play.md`, "The way to v0.5"), so a row's size is changed here and
+nowhere else.
 
-In the project's 1,500–2,500-addition PR band. **Re-derive from a live count
-before scheduling any row** (`engineering-practices.md#sizing-a-phase`): two estimates in
-the audit workstream ran low, and RB ran to +5,475 because nobody counted.
+**A range is PRs in the band, a design PR included, and rests on the best
+evidence the row has**, the first of these it can use:
 
-| Segment | Phases | PRs (guess) |
-|---|---|---:|
-| Item 5 remainder | RC, RD, RE | 3–5 guessed; **RC 6 ✅, RD 4 ✅, RE 9** (sized 2026-09-11) |
-| Item 5b | the "can't" phases | ~4 |
-| Item 5c | the copy phases | ~7 |
-| Item 6 | triggers + LKI (conditional statics landed with LI-3) | 4–6 guessed; **re-counted 2026-10-12 at 17** (TR-1, TR-1b, TR-2a, TR-2b, TR-3a–c, TR-4a–d, TR-5a–d, TR-6, TR-7), **19 since TR-5e's review** (TR-5e and TR-5f, 2026-10-16), **21 at its close** (TR-5g and TR-5h, 2026-10-19; landed 2026-10-22), `triggers-architecture.md` §12 |
-| Item 7 | CR 613.8 cluster | 1–2 |
-| Commander interleave | §2.1 ×2, `commander()`, CR 903.7, CR 800/802 | ~4 |
-| The lattice | §4's table | 10–13 |
-| **To "breadth unconstrained"** | | **~35–40** |
-| Phase 8's gate | **`card-layer-cleanup`** — the card layer, re-filed by set, plus `cards::helpers`, the instruction constructors and the duration helper (§C) | 1–2 |
-| Phase 8's gate | **`rulings-for-every-card`** — the rulings backlog, pooled cards first, each ruling linked to a passing test (§C) | ~3–5, guessed |
+1. **Design:** a size from a design, at its kind's ratio.
+2. **Nearest:** the closest landed row of the same shape, by its enforcement
+   sites, census family and CR section, named in the cell.
+3. **Sum:** the row's `**Sized:**` lines at their ratio. That covers its open
+   items only, so the feature is added on top.
+4. **Guess:** labeled, and kept wide.
 
-After that, Phase 8's 643 atoms are throughput, not architecture — every card
-a normal diff — and the bottleneck moves to card-authoring speed, which is
-when the deferred Scryfall import pipeline earns its slot. **`card-layer-cleanup` is that
-phase's first PR** and is the only one of these that buys no rule: it is
-mechanical, and its whole argument is that the same move costs an order of
-magnitude more once breadth has multiplied the files it touches.
+The ratios are `plans/references/sizing-calibration.md`, measured from git over
+every landed estimate since #244: a design's top lands at about 1.0×, 0.7–1.6; a
+plain sum at about 2×, 1.4–2.7; a route's PR count before any design at about
+3×, 3.5–4× for a whole subsystem; and a PR count set at a design holds, TR-5's
+doubling the exception. A phase PR ran about 1,700 lines. **Stop** says whether
+the row needs a design stop, and whether it takes a PR of its own or rides the
+first build.
+
+**A row's state** is landed when a ✅ heading or a `roadmap-v2.md` row records it
+under its name, and a row with neither, a half of a named phase or a §C
+paragraph, carries its own ✅ in **State**. The check fails a row the route has no
+name for, and a row of the critical path with no line here.
+
+<!-- v0.5 sizing: begin -->
+| Step | Row | State | PRs | Stop | Splits | Rests on |
+|---|---|---|---|---|---|---|
+| 1 | `route-review` | | 1 | | | |
+| 2 | `A6e`, readiness | | 2 | | | |
+| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 5 | | | |
+| 4 | `pausing-at-a-decision`, the design | ✅ 2026-11-02 | 1 | | | |
+| 5 | `options-named-by-what-they-are` | | 1 | | | The first of `modes-plus-choice-kinds`' PRs |
+| 5 | `divided-among-targets` | | 1 | | | |
+| 5 | `orders-the-cr-hands-a-player` | | 1 | no | no | Sum: 350–650 at 2× is 700–1,300, with 9 lines of fixture migration |
+| 5 | `modal-spells-and-abilities` | | 1–2 | no | may | Design: 1,360–2,070 at 1.0×, so 1,400–3,300. Eleven consumers against TR-5c's 2,630 |
+| 5 | `costs-and-choices-at-resolution` | | 1–2 | no | may | Design: 1,150–1,800, so up to 2,900 at the ratio's top |
+| 5 | `values-chosen-at-resolution` | | 1–2 | no | may | Design: 1,010–1,570, so up to 2,500 |
+| 5 | `fork-test-at-every-decision` | | 1–2 | no | may | Nearest: #159's fork test, one PR. A second if the fork does not separate from the paused game, which `setup-architecture.md#7e-pausing-at-a-decision` calls one consumer's two halves |
+| 6 | `linked-abilities` | | 3–4 | own PR | likely | Nearest: RH, a record reshaped under all its readers, a design and three builds. Five items sum 230–360, one unsized; CR 607's 20 atoms are all open |
+| 7 | `resolution-recipients-and-amounts` | | 2–3 | no, #295 | yes, in two | Design: its note's two builds carried 665–1,210 and 930–1,490. Five items have joined since; `batches-durations-and-control` carried a like size into two PRs at 1.16× |
+| 8 | `information-model-design` | | 1 | it is one | no | Nearest: #306 and #266, one PR each, with item 357's `ui/` decision in it |
+| 8 | `information-model` | | 3–6 | above | likely | Nearest: TR-4, the frame's readers, four PRs. The route's 1–2 is a count before design, about 3×. It holds every search and reveal: 21 deck cards search a library, and no instruction does yet |
+| 9 | `permission-design` | | 1 | it is one | no | Nearest: #306. `cant-cast-play-or-activate`'s reasons and CR 610.5's grant are designed in it |
+| 9 | `card-and-object-model`, the design | | 1 | it is one | no | Nearest: #306 |
+| 9 | `text-changing-effects`, the design | | 0–1 | it is one | no | Guess: rides `card-and-object-model`'s PR unless its review splits it |
+| 9 | `command-zone-casting` | | 1–3 | rides `permission-design` | may | Guess until `permission-design` sizes it. Nearest: CM-1, the first sweep on the cast, one PR at 1,783, and six items wait on the cast path's shape |
+| 9 | `game-formats` | | 2–3 | no | likely | Sum: six items at 265–325, twice that, on top of formats as data, deck validation, the legality table and the designation |
+| 9 | `multiplayer-rules` | | 2–4 | rides, for teams | likely | Sum: 650–890 at 2×, one item unsized and item 342's ~195 filter sites in it. The route's 1 is a count before design |
+| 10 | `player-scoped-values` | | 1–2 | rides | may | Nearest: RF, a query beside the oracle layer, one PR at 1,429 |
+| 10 | `cant-be-targeted` | | 1 | no | no | Nearest: RS-1. One enforcement site and two enumerations, and CR 702's three keywords |
+| 10 | `cant-cast-play-or-activate` | | 1–2 | at `permission-design` | may | Sum: 230–250 at 2×, two items unsized, over one site for each of three arms since SU-7 |
+| 11 | `combat-restrictions` | | 1–2 | no | may | Nearest: TR-5e, the declaration, 1,551. Two validators, two enumerators and the evasion family, each with its card |
+| 11 | `cant-pay-costs` | | 1 | no | no | Nearest: CM-2. A ten-arm projection and two payment sites |
+| 11 | `combat-requirements` | | 2–4 | own PR | likely | Nearest: MA-1, a bounded exact check, a design and one PR at 2,580. CR 508.1d is the highest risk left in its doc, and costs to attack ride with it |
+| 11 | `as-though-effects`, the permission half | | 2–3 | own PR | may | Sum: `backlog.md` §2.24's 600–900 at 2× and more, and it graduates to a doc of its own |
+| 11 | `layers-combat-and-counters` | | 3–4 | no | yes | Sum: 20 items at 795–1,095, two unsized, at 2× and with tests, against the route's 1–2. Item 23 moves counters off `PermanentState`, 65 reads in 14 files, so it is likely a PR alone. `batches-durations-and-control`, 9 items, took two |
+| 12 | `rulings-for-every-card` | | 3–6 | no | yes | Nearest: a count. 319 rulings unread on 92 cards, about one test per two rulings at 40 lines, 6,400 lines, plus what they find |
+| 13 | `tarkir-dragonstorm-decks`, the gap census | | 1–2 | it is one | may | Nearest: this PR's card pilot read 20 cards. It holds 385 |
+| 14 | `mana-ability-costs` | | 1 | no | no | Design: 650–850, so up to 1,360, with the stress board first |
+| 14 | `mana-provenance` | | 2–3 | own PR | may | Design: its row's design and 1–2, with a fixture migration. Three items sum 200–320 |
+| 14 | `any-color-plus-painlands-plus-signets` | | 1–2 | no | may | Design: 1,500–2,000, so up to 3,200 |
+| 14 | `chosen-color-plus-could-produce` | | 1 | no | no | Design: 1,200–1,500, so up to 2,400 |
+| 14 | `convoke-delve-improvise` | | 1–2 | no | may | Design: 1,900–2,400, so up to 3,840 |
+| 14 | `hybrid-and-phyrexian-payment` | | 1–2 | no | may | Nearest: MA-2, one PR at 1,908, plus `as-though-effects`' payment half, 200–300, and an activation's `{X}` |
+| 14 | `remaining-costs` | | 3–4 | own PR | likely | Nearest: CM-3's payment, 1,608, for each of four arms and the shapes they share. Its question, an arm per action or a composed cost, needs a stop. The route's 1–2 is a count before design |
+| 15 | `casting-from-other-zones` | | 2–4 | at `permission-design` | likely | Guess until `permission-design` sizes it: 37 `tdc` cards and several casting families |
+| 15 | `double-faced-cards`, the transform half | | 2–3 | at `card-and-object-model` | likely | Nearest: CV-2a and CV-2b, two PRs on one object path. Its doc calls it a second card model and most likely to split |
+| 15 | `token-copies` | | 1 | no | no | Design: one constructor and one arm, three items |
+| 15 | `spell-copies` | | 1–2 | no | may | Nearest: CV-2a. One new object path, the retarget prompt and one state-based action |
+| 16 | `split-and-adventure-style-cards`, split and Omen | | 1–3 | at `card-and-object-model` | may | Guess: `backlog.md` §2.41 says about a PR a mechanic, and the decks print a split card and two Omens |
+| 16 | `face-down-and-morph`, manifest | | 1–2 | at `card-and-object-model` | may | Guess: the layer half is small and known, and manifest has no cast |
+| 16 | `card-and-object-model`, an Aura on a player | | 1 | no | no | Sum: 350–450 at 2×, with Curse of Opulence |
+| 17 | `tarkir-dragonstorm-decks`, the five decks | | 15–40 | census | yes | Nearest: the registered cards, 47 lines each with comments, and with their tests 60–140, so the 378 left at 1,700–2,500 a PR are 10–31. Plus 5–10 for about 25 keyword mechanics and the gaps no row owns. `plans/references/card-census/pilot-2026-11-06.md` |
+| 17 | `decks-in-fuzz-games` | | 1 | no | no | Guess: a flag, a seat per list and `game-formats`' setup |
+| 18 | `devgui-at-five-seats` | | 1–2 | no | may | Nearest: #214's seats, 297 lines, and SU-6's window work, 546, for a command zone and commander damage |
+| 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400, so up to 2,240, and a GUI review |
+<!-- v0.5 sizing: end -->
+
+**What the rows sum to, read 2026-11-06:** 74–139 route PRs, 15–40 of them the
+decks' cards.
+
+**Overhead.** Of 177 merge commits in the eight weeks to #313, 75 were on the
+route, 28 the dev GUI, 47 audit and cleanup, 13 process and docs, and 14
+detours, so 2.4 merged PRs for each route PR and 42% audit, process and detours.
+The item 6 audit was much of that, and its own plan's 13–20 ran to 28. At
+that rate the route is 178–334 merged PRs. With audits held to a budget, the
+process PR at each multiple of 20 and a dev GUI PR when notes are PR-sized, about
+1.5 per route PR, it is 111–209. So **about 110–335 merged PRs**.
+
+**A date, and what it assumes.** The route ran 9.4 PRs a week over those eight
+weeks and 3.5 over the last fortnight, an audit's. 74 PRs at the first pace is
+about 8 weeks and 139 at the second about 40, so **between January and August
+2027**, near March if 105 PRs go at 6 a week. It assumes the owner's review keeps
+pace, no row's design doubles it as TR-5's did, and the gap census at step 13
+finds no more than the pilot did. That census is the first thing to move this.
+
+Past v0.5 Phase 8's other atoms are throughput, not architecture, and the
+bottleneck moves to card-authoring speed, which is when the deferred Scryfall
+import pipeline earns its slot.
 
 ---
 

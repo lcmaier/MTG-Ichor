@@ -221,6 +221,8 @@ def state_field(field, ty):
     return after(PLAYER, PLAYER_OPENER, f"    pub {field}: {ty},\n")
 
 
+ROADMAP = "plans/roadmap-v2.md"
+SIZING_END = "<!-- v0.5 sizing: end -->"
 ZZ_STRUCT = "pub struct ZzBite {\n    pub at: Timestamp,\n}\n"
 FLOOR_ROW = "| 9. Zz bite | 1 | 2026-11-04 | planted |\n"
 
@@ -275,6 +277,12 @@ PLANTS = [
           after(DEBT, DEBT_HEADING, debt_item("**Slotted:** with the first registered card."))),
     plant(BOARD, "one number twice in a run", "item 9991 is numbered twice",
           after(DEBT, DEBT_HEADING, debt_item("**Slotted:** Phase 10.") + debt_item("**Slotted:** Phase 10."))),
+    plant(BOARD, "a sized row the route has no name for", "is no phase or row the route names",
+          swap(ROADMAP, SIZING_END, "| 18 | `zz-no-row` | | 1 | | | |\n" + SIZING_END)),
+    plant(BOARD, "a date in a sized row's PR cell", "wants a step and a PR count or range",
+          swap(ROADMAP, "| 18 | `mana-payment-solver` | | 1–2 |", "| 18 | `mana-payment-solver` | | 2026-10 |")),
+    plant(BOARD, "a row of the critical path has no size", "the critical path names zz-no-row",
+          after("CLAUDE.md", "**After 6, in order**", " `zz-no-row`;")),
     plant(BOARD, "a landed section keeps its body in the live doc", "ZZ-9 is landed but keeps",
           add("plans/layers-architecture.md", "\n### ZZ-9 — planted — ✅ landed 2026-11-04\n" + "planted\n" * 50)),
     plant(BOARD, "the parser's selftest fails a rotted item pattern", "selftest:",

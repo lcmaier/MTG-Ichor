@@ -915,7 +915,7 @@ kept as written for the record.*
 - **Atoms** — 20, across CR 202 (11) and CR 105 (9).
 - **Owner** — `card-and-object-model`, which designs what a face's
   characteristics are: CR 202.2 derives a face's color from its mana cost
-  rather than storing it, and the decks' 373 cards are authored against
+  rather than storing it, and the decks' 385 cards are authored against
   whichever shape that design leaves.
 
 ### 2.11 Loyalty abilities — ✅ graduated 2026-10-05 to `permission-architecture.md` and `remaining-costs`
