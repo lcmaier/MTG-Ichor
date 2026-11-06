@@ -73,6 +73,7 @@ impl GameState {
             }),
             cost_choices: entry.cost_choices.clone(),
             x_value: entry.x_value,
+            chosen_targets: entry.chosen_targets.clone(),
             identity: entry.ability_identity,
             trigger: entry.trigger.clone(),
             began_at: self.events.next_seq(),
@@ -343,7 +344,9 @@ fn binding_reads_are_named(
 #[cfg(test)]
 mod tests {
     use crate::cards::authoring::spell_ability;
-    use crate::test_support::place_on_battlefield;
+    use crate::cards::printings::{forest, mind_rot};
+    use crate::test_support::{AtEachPrompt, place_on_battlefield, put_in_hand};
+    use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::types::ids::ObjectOrPlayerId;
@@ -721,6 +724,32 @@ mod tests {
         // Host should have the Aura in its attached_by list
         let host_entry = game.battlefield.get(&creature_id).unwrap();
         assert!(host_entry.attached_by.contains(&aura_id));
+    }
+
+    /// CR 608.2n: a spell is on the stack until it finishes, so a question asked
+    /// while it resolves reads what its entry said.
+    #[test]
+    fn a_resolving_spell_answers_as_its_entry_did() {
+        let mut game = GameState::new(2, 20);
+        let [one, other, _] = [(); 3].map(|()| put_in_hand(&mut game, forest(), 1));
+        let rot = put_spell_on_stack(&mut game, mind_rot(), 0, vec![ObjectOrPlayerId::Player(1)]);
+        game.stack_entries.get_mut(&rot).expect("just put there").x_value = Some(3);
+        let answers = test_dp();
+        answers.expect_choice(ChoiceKind::Discard { source: None }, vec![ChoiceOption::Object(one), ChoiceOption::Object(other)]);
+        let asked = std::cell::Cell::new(false);
+        let seat = AtEachPrompt::new(answers, |game: &GameState, _: &ChoiceContext| {
+            let facts = game.stack_object_facts(rot).expect("on the stack until it finishes");
+            let targets: Vec<_> = facts.chosen_targets.iter().flat_map(TargetInstance::as_resolved_targets).collect();
+            assert!(facts.is_spell);
+            assert_eq!(facts.x_value, Some(3));
+            assert_eq!(targets, [ObjectOrPlayerId::Player(1)]);
+            asked.set(true);
+        });
+
+        game.resolve_top_of_stack(&seat).unwrap();
+
+        assert!(asked.get(), "the discard asked while the spell resolved");
+        assert_eq!(game.stack_object_facts(rot), None, "finished, it says nothing");
     }
 
     /// `GameState::resolving` licenses two things that are bugs anywhere else:
