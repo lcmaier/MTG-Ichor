@@ -17,7 +17,7 @@ use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{AffectedSet, ObjectSet};
-use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId, Timestamp};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
@@ -164,7 +164,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 
     // --- Source 1: the battlefield sweep ---------------------------------
     if has_static_source {
-        for id in game.battlefield_ids_ordered() {
+        for id in permanents_to_sweep(game, sweep) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             for ability in get_effective_abilities(game, id).iter() {
                 if ability.ability_type != AbilityType::Static {
@@ -194,6 +194,24 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     }
 
     None
+}
+
+/// The permanents that could hold a static restriction ability, oldest first
+/// (CR 613.7): those that entered with one, or every permanent once a row can
+/// put one on any of them. The audit asks every permanent.
+fn permanents_to_sweep(game: &GameState, sweep: Sweep) -> Vec<ObjectId> {
+    let summary = game.continuous_effects.summary();
+    if sweep == Sweep::Everything || summary.any_granted_restriction || summary.any_copied_restriction {
+        return game.battlefield_ids_ordered();
+    }
+    // ORDER-FREE: sorted by timestamp below.
+    let mut sources: Vec<(Timestamp, ObjectId)> = game
+        .restriction_ability_sources
+        .iter()
+        .filter_map(|&id| Some((game.battlefield.get(&id)?.timestamp, id)))
+        .collect();
+    sources.sort_unstable_by_key(|(timestamp, _)| *timestamp);
+    sources.into_iter().map(|(_, id)| id).collect()
 }
 
 /// Does this restriction forbid what the query asks about?

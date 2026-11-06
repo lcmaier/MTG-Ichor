@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::printings::{blood_moon, glorious_anthem};
+use mtgsim::cards::printings::{blood_moon, glorious_anthem, sigarda_host_of_herons};
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
@@ -104,6 +104,36 @@ fn a_run_of_tokens_costs_the_same_passes_however_long_it_is() {
         put_replacement(game, entry_at_power(2, plus_one_counter()));
     };
     assert_eq!(board_walks_for(2, frame_reader), board_walks_for(200, frame_reader));
+}
+
+/// What one creation asks of the board's permanents, as memo hits: it asks
+/// each source of a "can't" and no other permanent, however many there are.
+fn memo_hits_beside(goblins: usize) -> u64 {
+    let mut game = setup_game(4);
+    put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
+    create(&mut game, vec![goblin(); goblins], 1);
+    let before = game.diagnostics.memo_hits();
+    create(&mut game, vec![goblin(); 2], 0);
+    game.diagnostics.memo_hits() - before
+}
+
+#[test]
+fn a_static_cant_costs_an_event_nothing_for_the_permanents_beside_it() {
+    assert_eq!(memo_hits_beside(2), memo_hits_beside(200));
+}
+
+/// The sweep narrowed to its sources still finds what a row grants anywhere:
+/// the audit compares it with every permanent's.
+#[test]
+fn a_cant_is_found_with_the_sweep_narrowed_to_its_sources() {
+    let mut game = audited_game();
+    let sigarda = put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
+    create(&mut game, vec![goblin(); 3], 0);
+    assert!(game.restriction_ability_sources.contains(&sigarda));
+
+    create(&mut game, vec![goblin(); 3], 1);
+
+    assert_eq!(tokens_owned_by(&game, 1).len(), 3, "she says nothing of an entry");
 }
 
 /// CR 614.12's third clause: the continuous effects that exist are in the
