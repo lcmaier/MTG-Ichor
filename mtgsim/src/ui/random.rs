@@ -41,7 +41,7 @@ use rand::seq::SliceRandom;
 
 use crate::oracle::mana_supply::{available_mana_sources, controls_a_pool_multiplier, is_pool_multiplier};
 use crate::state::game_state::GameState;
-use crate::types::ids::{AbilityId, EmptyCollection, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdCollection, ObjectId, PlayerId};
 use crate::types::mana::{ManaBag, ManaCost, ManaSymbol, ManaType};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
@@ -107,7 +107,7 @@ pub(crate) fn mana_window_preference(
     // ability are one ability the permanent has, not two. An ability can
     // make several types, a land Wild Growth enchants its own and green.
     let mut produces: crate::types::ids::IdMap<(ObjectId, AbilityId), Vec<ManaType>> =
-        crate::types::ids::IdMap::empty();
+        crate::types::ids::IdMap::new();
     for source in available_mana_sources(game, player) {
         let types = produces.entry((source.permanent_id, source.ability_id.definition())).or_default();
         if !types.contains(&source.produces) {
@@ -116,7 +116,7 @@ pub(crate) fn mana_window_preference(
     }
     // How many wanted types each permanent can make: its flexibility.
     let mut flexibility: crate::types::ids::IdMap<ObjectId, usize> =
-        crate::types::ids::IdMap::empty();
+        crate::types::ids::IdMap::new();
     for ((perm, _), types) in &produces {
         let made_and_wanted = types.iter().filter(|t| wanted.contains(t)).count();
         if made_and_wanted > 0 {
@@ -327,7 +327,7 @@ impl DecisionProvider for RandomDecisionProvider {
         if matches!(context.kind, ChoiceKind::DeclareAttackers | ChoiceKind::DeclareBlockers) {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);
-            let mut declared: crate::types::ids::IdSet<ObjectId> = crate::types::ids::IdSet::empty();
+            let mut declared: crate::types::ids::IdSet<ObjectId> = crate::types::ids::IdSet::new();
             let mut picked: Vec<usize> = Vec::new();
             for idx in shuffled {
                 if picked.len() >= count {

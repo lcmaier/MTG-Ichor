@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::types::effects::CounterType;
-use crate::types::ids::{EmptyCollection, IdMap, ObjectId, PlayerId};
+use crate::types::ids::{IdCollection, IdMap, ObjectId, PlayerId};
 use crate::types::mana::ManaPool;
 
 /// Per-player state in the game.
@@ -61,7 +61,7 @@ impl PlayerState {
             lands_per_turn: 1,
             lands_played_this_turn: 0,
             counters: BTreeMap::new(),
-            commander_damage_taken: IdMap::empty(),
+            commander_damage_taken: IdMap::new(),
             has_drawn_from_empty_library: false,
         }
     }

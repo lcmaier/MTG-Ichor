@@ -45,7 +45,7 @@ use crate::state::game_state::{GameState, Phase, PhaseType};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter, TargetCount, TokenDef};
-use crate::types::ids::{AbilityId, EmptyCollection, ObjectId, PlayerId, new_ability_id};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSpent, ManaType};
 use crate::engine::actions::ActionContext;
@@ -1337,7 +1337,7 @@ pub fn assert_not_asked(game: &GameState, player: PlayerId, kind: &str, why: &st
 /// Attach a buffer-backed sink to `game` and write its header. `label` is the
 /// trace's own name for the board, usually the test's.
 pub fn install_trace(game: &mut GameState, label: &str) -> TraceBuffer {
-    let memory = crate::state::trace::TraceMemory::empty();
+    let memory = crate::state::trace::TraceMemory::new();
     let sink = TraceSink::to_writer(memory.clone());
     game.install_trace(TraceHandle::new(&sink));
     game.trace_game(label, None);

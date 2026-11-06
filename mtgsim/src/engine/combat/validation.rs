@@ -5,7 +5,7 @@ use crate::oracle::characteristics::has_keyword;
 use crate::oracle::legality::{can_attack, can_be_a_blocker};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::ids::{EmptyCollection, IdMap, ObjectId, PlayerId};
+use crate::types::ids::{IdCollection, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ impl BlockConstraints {
         BlockConstraints {
             restrictions: Vec::new(),
             requirements: Vec::new(),
-            blocking_limits: IdMap::empty(),
+            blocking_limits: IdMap::new(),
         }
     }
 
@@ -302,7 +302,7 @@ pub fn validate_blockers(
     constraints: &BlockConstraints,
 ) -> Result<(), CombatError> {
     // Count how many times each blocker is used
-    let mut block_counts: IdMap<ObjectId, usize> = IdMap::empty();
+    let mut block_counts: IdMap<ObjectId, usize> = IdMap::new();
 
     for (blocker_id, attacker_id) in proposed {
         // Per-pair hard legality (shared with the pre-filter in

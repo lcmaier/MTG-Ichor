@@ -51,7 +51,7 @@ use crate::oracle::characteristics::{controller_or_owner, get_effective_abilitie
 use crate::state::game_state::GameState;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, ObjectFilter, Primitive};
-use crate::types::ids::{AbilityId, EmptyCollection, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdCollection, IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaBag, ManaCost, ManaDemand, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
 use crate::types::zones::Zone;
@@ -583,7 +583,7 @@ enum CostRecheck {
 
 impl ManaAbilityWindowOffer {
     pub fn read(game: &GameState, player: PlayerId) -> ManaAbilityWindowOffer {
-        let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::empty();
+        let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::new();
         let mut abilities = Vec::new();
         for (permanent, its_mana_abilities) in controlled_mana_abilities(game, player) {
             for ability in its_mana_abilities.iter() {

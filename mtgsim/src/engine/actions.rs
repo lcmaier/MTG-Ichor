@@ -10,7 +10,7 @@ use crate::events::event::{AppliedReplacement, DepartedObject, EventId, GameEven
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
-use crate::types::ids::{EmptyCollection, ExtraTurnId, IdMap, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::ids::{ExtraTurnId, IdCollection, IdMap, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
@@ -2594,7 +2594,7 @@ impl GameState {
             None;
         let mut run_is_refused = false;
         let mut ids = Vec::with_capacity(defs.len());
-        let mut definitions = IdMap::empty();
+        let mut definitions = IdMap::new();
         let mut entries = Vec::with_capacity(defs.len());
         for def in defs {
             let opens_a_run = !lowered.as_ref().is_some_and(|(seen, ..)| *seen == def);

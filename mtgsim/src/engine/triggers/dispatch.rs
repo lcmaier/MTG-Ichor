@@ -44,7 +44,7 @@ use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
 use crate::state::history_log::RowFact;
 use crate::types::effects::{Condition, Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::history::CountIs;
-use crate::types::ids::{DelayedTriggerId, EmptyCollection, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
+use crate::types::ids::{DelayedTriggerId, IdCollection, IdMap, IdSet, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::triggers::{zone_change_looks_back, AttackOccurrence, BlockOccurrence, ObjectOrPlayerSubject, TargetedBy, DamageRecipient, DefenderFilter, EventIndex, EventKind, EventKindMask, IdentityRef, Lki, Multiplicity, PendingTrigger, Referred, RememberedObject, TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerId, TriggerSubject, TriggeringEvent, TriggeringEventObjects};
 use super::binding::TriggeringEventView;
@@ -1368,7 +1368,7 @@ impl GameState {
             readers
         } else {
             // A permanent both printed and named is one candidate.
-            let mut once: IdSet<ObjectId> = IdSet::empty();
+            let mut once: IdSet<ObjectId> = IdSet::new();
             self.in_battlefield_order(readers.iter().chain(&named).copied().filter(|&id| once.insert(id)))
         };
         let mut elsewhere: Vec<(Timestamp, ObjectId)> = off_battlefield_sources.map(|id| (self.object_timestamp(id), id)).collect();
@@ -1444,7 +1444,7 @@ impl GameState {
     /// Each survivor's lists from before the window's snapshotting batches,
     /// by the snapshot that holds each.
     fn lists_before<'a>(&self, snapshots: &'a [LookBackSnapshot]) -> IdMap<ObjectId, Vec<(usize, &'a Lki)>> {
-        let mut before: IdMap<ObjectId, Vec<(usize, &Lki)>> = IdMap::empty();
+        let mut before: IdMap<ObjectId, Vec<(usize, &Lki)>> = IdMap::new();
         for (k, snapshot) in snapshots.iter().enumerate() {
             for frame in &snapshot.frames {
                 let object = frame.lki.object();

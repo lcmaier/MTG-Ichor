@@ -61,7 +61,7 @@ use crate::types::card_types::Subtype;
 use crate::types::effects::{
     ObjectSet, AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
     };
-use crate::types::ids::{AbilityId, EmptyCollection, IdMap, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdCollection, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::zones::{Zone, ZoneSet};
 use crate::state::layer_memo::{GatedInputs, GatedWalkInput};
@@ -213,12 +213,12 @@ impl<'l> Board<'l> {
         Board {
             members: Vec::new(),
             battlefield_entities: 0,
-            frames: IdMap::empty(),
+            frames: IdMap::new(),
             live: false,
             started: HashMap::new(),
             track_started: false,
             lookahead: None,
-            sub: RefCell::new(IdMap::empty()),
+            sub: RefCell::new(IdMap::new()),
             left_out: ZoneSet::EMPTY,
             notes: Vec::new(),
             entered_as: Vec::new(),
@@ -300,12 +300,12 @@ impl<'l> Board<'l> {
         let mut board = Board {
             members,
             battlefield_entities,
-            frames: IdMap::empty(),
+            frames: IdMap::new(),
             live: true,
             started: HashMap::new(),
             track_started,
             lookahead,
-            sub: RefCell::new(IdMap::empty()),
+            sub: RefCell::new(IdMap::new()),
             left_out,
             notes: Vec::new(),
             entered_as: Vec::new(),

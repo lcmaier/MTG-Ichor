@@ -51,7 +51,7 @@ use crate::engine::layers::compute_characteristics;
 use crate::events::cause::EventCause;
 use crate::events::event::{EventStamp, GameEvent, NamesAsAnnounced};
 use crate::state::game_state::GameState;
-use crate::types::ids::{EmptyCollection, ObjectId};
+use crate::types::ids::ObjectId;
 
 /// The build's commit, baked in by `stamp_commit.rs` so a trace says which engine
 /// wrote it — the per-game header the two-version diff will key on.
@@ -143,9 +143,11 @@ fn write_line(out: &mut impl Write, seq: u64, branch: u64, body: &str) -> io::Re
 #[derive(Clone, Debug, Default)]
 pub struct TraceMemory(Arc<Mutex<Vec<u8>>>);
 
-impl EmptyCollection for TraceMemory {}
-
 impl TraceMemory {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// What the sink has written so far. Flush the sink first: it buffers.
     pub fn text(&self) -> String {
         String::from_utf8_lossy(&self.0.lock().unwrap_or_else(PoisonError::into_inner)).into_owned()
