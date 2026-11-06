@@ -1149,6 +1149,8 @@ fn seat(player: &PlayerView, marks: &Marks) -> SeatView {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OptionButton {
     pub label: String,
+    /// Drawn beside the label, for a label that doesn't say it.
+    pub what_it_does: Option<&'static str>,
     pub chosen: bool,
     /// Its place in an ordering, from 1.
     pub place: Option<usize>,
@@ -1232,6 +1234,7 @@ impl PromptView {
         let options = prompt.options.iter().enumerate();
         let button = |i: usize, label: &str| OptionButton {
             label: label.to_string(),
+            what_it_does: prompt.options[i].what_it_does,
             chosen: false,
             place: None,
             amount: None,
@@ -1428,7 +1431,7 @@ mod tests {
     }
 
     fn option(label: &str, refs: Vec<BoardRef>) -> OptionView {
-        OptionView { label: label.to_string(), refs, attacker: None }
+        OptionView { label: label.to_string(), what_it_does: None, refs, attacker: None }
     }
 
     fn unnamed(count: usize) -> Vec<OptionView> {
@@ -1605,6 +1608,25 @@ mod tests {
         assert_eq!(view.options[0].label, "Yes: Blood Artist");
         assert_eq!(view.done, Some(DoneButton { label: "No".to_string(), live: true }));
         assert_eq!(state.clone().input(Input::Done), Some(Reply::Answer(Answer::Picks(Vec::new()))));
+    }
+
+    /// Whichever primitive offers the row, and with the "may" wording added
+    /// to its label, the words stay out of the label.
+    #[test]
+    fn an_options_words_ride_beside_its_label() {
+        let b = board();
+        let finality = OptionView { what_it_does: Some("exile it instead"), ..option("its finality counter", Vec::new()) };
+        let words = |primitive: Primitive, options: Vec<OptionView>| {
+            let view = deciding(&b, prompt(primitive, options)).prompt_view().unwrap();
+            view.options.iter().map(|option| (option.label.clone(), option.what_it_does)).collect::<Vec<_>>()
+        };
+        let printed = option("Rest in Peace", Vec::new());
+        let beside = [("Rest in Peace".to_string(), None), ("its finality counter".to_string(), Some("exile it instead"))];
+        assert_eq!(words(Primitive::PickN { min: 1, max: 1 }, vec![printed.clone(), finality.clone()]), beside);
+        assert_eq!(words(Primitive::Order, vec![printed.clone(), finality.clone()]), beside);
+        assert_eq!(words(Primitive::Allocate { total: 2, mins: vec![0, 0], maxs: None }, vec![printed, finality.clone()]), beside);
+        let may = [("Yes: its finality counter".to_string(), Some("exile it instead"))];
+        assert_eq!(words(Primitive::PickN { min: 0, max: 1 }, vec![finality]), may);
     }
 
     #[test]

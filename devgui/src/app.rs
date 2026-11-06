@@ -15,8 +15,8 @@ use crate::editor::{
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, PromptView, SeatButton,
-    ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
+    Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, OptionButton, PromptView,
+    SeatButton, ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
 };
 
 /// Every scroll area fills its panel's width, so its bar stays at the
@@ -754,33 +754,24 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
         ui.colored_label(ui.visuals().warn_fg_color, rejected);
     }
     ui.weak(&prompt.rule);
-    ui.horizontal_wrapped(|ui| {
+    // Words beside a button need the width, so a prompt with any gives each
+    // option a row, in the order the digit keys count.
+    if prompt.options.iter().any(|option| option.what_it_does.is_some()) {
         for (i, option) in prompt.options.iter().enumerate() {
-            match option.amount {
-                Some(Amount { value, can_lower, can_raise }) => {
-                    ui.group(|ui| {
-                        ui.label(&option.label);
-                        if ui.add_enabled(can_lower, egui::Button::new("−")).clicked() {
-                            inputs.push(Input::OneFewer(i));
-                        }
-                        ui.strong(value.to_string());
-                        if ui.add_enabled(can_raise, egui::Button::new("+")).clicked() {
-                            inputs.push(Input::OneMore(i));
-                        }
-                    });
+            ui.horizontal_wrapped(|ui| {
+                option_control(ui, i, option, inputs);
+                if let Some(words) = option.what_it_does {
+                    ui.weak(words);
                 }
-                None => {
-                    let label = match option.place {
-                        Some(place) => format!("{place}. {}", option.label),
-                        None => option.label.clone(),
-                    };
-                    if ui.add_enabled(option.live, egui::Button::new(label).selected(option.chosen)).clicked() {
-                        inputs.push(Input::OptionButton(i));
-                    }
-                }
-            }
+            });
         }
-    });
+    } else {
+        ui.horizontal_wrapped(|ui| {
+            for (i, option) in prompt.options.iter().enumerate() {
+                option_control(ui, i, option, inputs);
+            }
+        });
+    }
     for not_yet in &prompt.not_offered_yet {
         ui.horizontal_wrapped(|ui| {
             ui.add_enabled(false, egui::Button::new(&not_yet.label));
@@ -819,6 +810,32 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
         });
     }
     ui.weak(KEYS);
+}
+
+fn option_control(ui: &mut egui::Ui, i: usize, option: &OptionButton, inputs: &mut Vec<Input>) {
+    match option.amount {
+        Some(Amount { value, can_lower, can_raise }) => {
+            ui.group(|ui| {
+                ui.label(&option.label);
+                if ui.add_enabled(can_lower, egui::Button::new("−")).clicked() {
+                    inputs.push(Input::OneFewer(i));
+                }
+                ui.strong(value.to_string());
+                if ui.add_enabled(can_raise, egui::Button::new("+")).clicked() {
+                    inputs.push(Input::OneMore(i));
+                }
+            });
+        }
+        None => {
+            let label = match option.place {
+                Some(place) => format!("{place}. {}", option.label),
+                None => option.label.clone(),
+            };
+            if ui.add_enabled(option.live, egui::Button::new(label).selected(option.chosen)).clicked() {
+                inputs.push(Input::OptionButton(i));
+            }
+        }
+    }
 }
 
 /// The shortcut keys pressed this frame, taken out of egui's input so that a

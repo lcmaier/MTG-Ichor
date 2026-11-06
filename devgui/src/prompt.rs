@@ -9,7 +9,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
-use mtgsim::ui::display::{option_label, question, rejection};
+use mtgsim::ui::display::{option_label, question, rejection, what_the_option_does};
 use mtgsim::ui::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
 
 /// An answer, in the shape of the primitive that asked.
@@ -75,6 +75,8 @@ impl BoardRef {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OptionView {
     pub label: String,
+    /// `ui::display::what_the_option_does`, for a label that doesn't say it.
+    pub what_it_does: Option<&'static str>,
     /// In order: none, one, or a pair's two — attacker then what it attacks,
     /// blocker then what it blocks.
     pub refs: Vec<BoardRef>,
@@ -190,7 +192,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         | ChoiceOption::CounterType(_)
         | ChoiceOption::ManaType(_) => vec![],
     };
-    OptionView { label: option_label(game, option), refs, attacker: option.attacker() }
+    OptionView { label: option_label(game, option), what_it_does: what_the_option_does(option), refs, attacker: option.attacker() }
 }
 
 fn attack_target_ref(target: &AttackTarget) -> BoardRef {
