@@ -91,9 +91,9 @@ it is, rename it. Every name a PR adds is read against this list:
 6. **Name a type by its contents**: a set of objects alone is `ObjectSet`, not `AffectedSet`, which names the objects and players an effect affects.
 7. **Where the card's text has a phrase, use it**: `DoThisOnlyOnceEachTurn`.
 8. **Name the players**: a condition about a player says which ones.
-9. **A constructor says what it builds**: `IdMap::default()`, not
-   `Default::default()`; an empty value that is a claim is a named constant
-   (`ObjectSet::NO_OBJECTS`). Clippy's `default_trait_access` gates the first half.
+9. **A call names the type it builds**: `IdMap::default()`, never a bare
+   `Default::default()`, whose type only the compiler can see. An empty value that
+   means something is a named constant (`ObjectSet::NO_OBJECTS`). Clippy's `default_trait_access` gates the first half.
 10. **A return names its parts**: a tuple only for a pair that is one thing;
     otherwise a struct with named fields, or two functions.
 
