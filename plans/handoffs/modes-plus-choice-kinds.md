@@ -31,6 +31,8 @@ merges.
 - `board-scale`, off the route, is handed over (#313): items 376 to 378.
 - Next: `orders-the-cr-hands-a-player` (decision 6 and 6b), on its own branch
   once `board-scale` merges.
+- `mana-provenance`'s design comes before `costs-and-choices-at-resolution`
+  (the owner, 2026-11-06, #314).
 
 **Traps, for `orders-the-cr-hands-a-player`:**
 - 6b drops `OrderCostReductions`' prompt: a fixture migration (9 lines in 8

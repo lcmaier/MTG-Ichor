@@ -1031,6 +1031,10 @@ what the pair's ~850–1,350 by the item sizings leaves, before any ratio;
 top, and `values-chosen-at-resolution` ~1,010–1,570. Each is re-sized
 against the measured ratio at its brief, and a split goes in this table.
 
+**`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
+(the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's
+`plan_payment`, whose generic split that design's source axis reshapes.
+
 **Fuzz A/B, predicted per PR.** `options-named-by-what-they-are` changes no
 option's count or order and asks no new question: its gameplay rows are
 predicted `IDENTICAL` to `main`, its change being what the log and a client
