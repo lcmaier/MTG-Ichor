@@ -112,7 +112,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     results.add(clicked_picture(&waiting, &header("waiting.scenario"), "Waiting (4)", "waiting"));
     results.add(hovered_picture(&waiting, &header("waiting.scenario"), "Flickerwisp", "hover"));
     results.add(picture(&partway(divided_on_the_stack()), &header("division.scenario"), None, "division_on_stack"));
-    results.add(picture(&partway(counter_row()), &header("counter.scenario"), None, "counter_words"));
+    results.add(picture(&partway(finality_counter_row()), &header("finality-counter.scenario"), None, "finality_counter_words"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
     // Taller, to reach the third seat's commander damage.
@@ -446,10 +446,10 @@ fn divided_on_the_stack() -> WindowState {
     state
 }
 
-/// The click script's board, `counter.scenario`: the Bolt at the Bears
-/// resolves and they die, and player 0 is asked which exile applies.
-fn counter_row() -> WindowState {
-    let engine = spawn(from_board("counter.scenario"));
+/// The click script's board, `finality-counter.scenario`: the Bolt at the
+/// Bears resolves and they die, and player 0 is asked which exile applies.
+fn finality_counter_row() -> WindowState {
+    let engine = spawn(from_board("finality-counter.scenario"));
     let mut state = WindowState::default();
     loop {
         state.receive(next(&engine));
