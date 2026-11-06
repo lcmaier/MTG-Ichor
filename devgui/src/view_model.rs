@@ -1735,7 +1735,7 @@ mod tests {
         let mut state = at_priority(&b);
         let target = |name: &str, share| StackTarget { name: name.to_string(), share };
         let targets = vec![target("Grizzly Bears (#12)", Some(2)), target("Player 1", Some(1)), target("Forest (#3)", None)];
-        let spell = StackItem { id: b.bolt, name: "Magma Opus".to_string(), is_spell: Some(true), controller: 0, targets, x: None };
+        let spell = StackItem { id: b.bolt, name: "A spell".to_string(), is_spell: Some(true), controller: 0, targets, x: None };
         state.board.as_mut().unwrap().stack.push(spell);
         let view = state.board_view().unwrap();
         assert_eq!(view.stack[0].detail, "Player 0's · targets Grizzly Bears (#12) for 2, Player 1 for 1, Forest (#3)");

@@ -321,7 +321,43 @@ fn target_name(game: &GameState, target: &ObjectOrPlayerId) -> String {
 
 #[cfg(test)]
 mod tests {
+    use mtgsim::cards::fixtures::magma_opus_fixture;
+    use mtgsim::cards::printings::{forest, grizzly_bears};
+    use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game};
+    use mtgsim::types::effects::EffectRecipient;
+    use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+    use mtgsim::ui::decision::ScriptedDecisionProvider;
+    use mtgsim::ui::mana_window_stop::ManaWindowStop;
+
     use super::*;
+
+    /// Two instances of "target" on a spell cast from hand, the first divided:
+    /// each target is read off the announcement, and only the division's has a
+    /// share.
+    #[test]
+    fn a_stack_item_keeps_each_share_with_its_target() {
+        let mut game = setup_game(2);
+        let opus = put_in_hand(&mut game, magma_opus_fixture(), 0);
+        let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+        let (one, other) = (put_on_battlefield(&mut game, forest(), 1), put_on_battlefield(&mut game, forest(), 1));
+        game.players[0].mana_pool.add(ManaType::Red, 5);
+        let answers = ScriptedDecisionProvider::new();
+        let names_targets = |chosen| {
+            let kind = ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
+            answers.expect_choice(kind, chosen);
+        };
+        names_targets(vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+        names_targets(vec![ChoiceOption::Object(one), ChoiceOption::Object(other)]);
+        let shares = vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 3)];
+        answers.expect_allocation(ChoiceKind::DivideAmong { source: ObjectId::UNASSIGNED }, shares);
+
+        game.cast_spell(0, opus, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+
+        let targets = stack_item(&game, opus).targets;
+        let read: Vec<(String, Option<u64>)> = targets.into_iter().map(|target| (target.name, target.share)).collect();
+        let (bears, one, other) = (named(&game, bears), named(&game, one), named(&game, other));
+        assert_eq!(read, [(bears, Some(1)), (player_name(1), Some(3)), (one, None), (other, None)]);
+    }
 
     #[test]
     fn the_mana_pool_reads_in_wubrgc_order_whatever_the_hash_order() {
