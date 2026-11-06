@@ -58,6 +58,88 @@ RESHAPES = [
     ("modal-spells-and-abilities", r"Effect::Modal"),
 ]
 
+#: Where each gap is filed and the row that builds it.
+GAPS = {
+    "target-card-in-a-zone": ("cant-be-targeted", "item 392"),
+    "target-an-ability": ("cant-be-targeted", "item 392"),
+    "targets-controlled-by-different-players": (DECKS_ROW, "item 393"),
+    "modes-target-different-players": (DECKS_ROW, "item 393"),
+    "targets-with-a-total": (DECKS_ROW, "item 393"),
+    "target-by-kicker": (DECKS_ROW, "item 393"),
+    "filter-by-keyword": (DECKS_ROW, "`backlog.md` 2.43"),
+    "filter-mana-value": (DECKS_ROW, "item 394"),
+    "filter-against-an-amount": (DECKS_ROW, "item 394"),
+    "filter-tapped": (DECKS_ROW, "item 394"),
+    "condition-counts-permanents": (DECKS_ROW, "item 395"),
+    "during-your-turn": (DECKS_ROW, "item 396"),
+    "condition-on-the-triggering-object": (DECKS_ROW, "item 396"),
+    "condition-most-life": (DECKS_ROW, "item 396"),
+    "attacked-you-last-turn": (DECKS_ROW, "item 396"),
+    "count-of-attackers-at-you": (DECKS_ROW, "item 396"),
+    "count-off-the-battlefield": (DECKS_ROW, "item 397"),
+    "value-over-a-set": (DECKS_ROW, "item 398"),
+    "amount-difference": (DECKS_ROW, "item 398"),
+    "amount-opponents": (DECKS_ROW, "item 398"),
+    "amount-spells-targets": (DECKS_ROW, "item 398"),
+    "count-colors-among": (DECKS_ROW, "item 398"),
+    "amount-cards-put-in-graveyard": (DECKS_ROW, "item 398"),
+    "tokens-created-this-turn": (DECKS_ROW, "item 398"),
+    "token-with-an-amount": (DECKS_ROW, "item 398"),
+    "assigns-damage-by-toughness": (DECKS_ROW, "item 399"),
+    "for-each-object": (DECKS_ROW, "item 400"),
+    "nth-spell-each-turn": (DECKS_ROW, "item 401"),
+    "first-time-each-turn-on-a-zone-change": (DECKS_ROW, "item 401"),
+    "monstrosity": (DECKS_ROW, "item 402"),
+    "surveil": (DECKS_ROW, "item 402"),
+    "proliferate": (DECKS_ROW, "item 402"),
+    "connive": (DECKS_ROW, "item 402"),
+    "riot": (DECKS_ROW, "item 402"),
+    "exchange-life-and-toughness": (DECKS_ROW, "item 402"),
+    "protection": (DECKS_ROW, "item 402"),
+    "myriad": (DECKS_ROW, "item 402"),
+    "untap-on-another-players-untap-step": (DECKS_ROW, "item 403"),
+    "mana-keeps-between-steps": (DECKS_ROW, "item 403"),
+    "counter-then-exile": (DECKS_ROW, "item 404"),
+    "when-you-cycle": (DECKS_ROW, "item 404"),
+    "random-opponent": (DECKS_ROW, "item 404"),
+    "has-activated-abilities-of-cards": (DECKS_ROW, "item 404"),
+    "choose-with-a-total-the-rest-acts": (DECKS_ROW, "item 404"),
+    "entry-counters-amount": (DECKS_ROW, "item 389"),
+    "amount-differently-named-tokens": (DECKS_ROW, "item 390"),
+    "dredge": (DECKS_ROW, "`backlog.md` 2.49"),
+    "exert": (DECKS_ROW, "`backlog.md` 2.14"),
+}
+
+#: Each gap's code and tests, low and high, an estimate at filing: a plain sum,
+#: which `plans/references/sizing-calibration.md` reads at about 3x.
+GAP_LINES = {
+    "target-card-in-a-zone": (300, 500), "target-an-ability": (100, 150),
+    "targets-controlled-by-different-players": (60, 100), "modes-target-different-players": (40, 80),
+    "targets-with-a-total": (80, 120), "target-by-kicker": (60, 100),
+    "filter-by-keyword": (100, 150), "filter-mana-value": (40, 60), "filter-against-an-amount": (80, 120), "filter-tapped": (30, 40),
+    "condition-counts-permanents": (30, 50), "during-your-turn": (15, 25), "condition-on-the-triggering-object": (40, 60),
+    "condition-most-life": (30, 40), "attacked-you-last-turn": (40, 60), "count-of-attackers-at-you": (30, 50),
+    "count-off-the-battlefield": (80, 120), "value-over-a-set": (80, 120), "amount-difference": (20, 30), "amount-opponents": (15, 25),
+    "amount-spells-targets": (30, 40), "count-colors-among": (30, 40), "amount-cards-put-in-graveyard": (40, 60),
+    "tokens-created-this-turn": (30, 50), "token-with-an-amount": (50, 80), "assigns-damage-by-toughness": (60, 100),
+    "for-each-object": (120, 200), "nth-spell-each-turn": (40, 60), "first-time-each-turn-on-a-zone-change": (30, 50),
+    "monstrosity": (80, 120), "surveil": (60, 100), "proliferate": (100, 150), "connive": (60, 100), "riot": (40, 70),
+    "exchange-life-and-toughness": (80, 120), "protection": (300, 500), "myriad": (100, 160),
+    "untap-on-another-players-untap-step": (40, 60), "mana-keeps-between-steps": (60, 100), "counter-then-exile": (40, 70),
+    "when-you-cycle": (30, 50), "random-opponent": (30, 50), "has-activated-abilities-of-cards": (120, 200),
+    "choose-with-a-total-the-rest-acts": (80, 120), "entry-counters-amount": (30, 60), "amount-differently-named-tokens": (40, 80),
+    "dredge": (300, 500), "exert": (100, 160),
+}
+PLAIN_SUM_RATIO = 3
+LINES_A_PR = 1700
+
+
+def gap_prs(gaps):
+    """A set of gaps as route PRs, low and high, at a plain sum's ratio."""
+    low = sum(GAP_LINES[g[4:]][0] for g in gaps) * PLAIN_SUM_RATIO / LINES_A_PR
+    high = sum(GAP_LINES[g[4:]][1] for g in gaps) * PLAIN_SUM_RATIO / LINES_A_PR
+    return round(low, 1), round(high, 1)
+
 
 def source_of(functions, name, seen):
     """A function's text and the text of every function it calls, so a card
@@ -149,10 +231,14 @@ def status(left):
     return "gap" if any(n.startswith("gap:") for n in left) else "blocked"
 
 
+def home(need):
+    """The row a need is built in: its own name, or a gap's filing."""
+    return GAPS[need[4:]][0] if need.startswith("gap:") else need
+
+
 def last_step(left, rows):
-    """The step at which every need is met: a gap waits for the decks' own row."""
-    steps = [rows[DECKS_ROW].step if n.startswith("gap:") else rows[n].step for n in left]
-    return max(steps, default=0)
+    """The step at which every need is met."""
+    return max((rows[home(n)].step for n in left), default=0)
 
 
 def deck_title(path):
@@ -165,7 +251,8 @@ def report():
     unknown = sorted({n for r in records.values() for n in r["needs"] if not n.startswith("gap:") and n not in rows})
     registered = registered_cards()
     lists = [(deck_title(path), names) for path, names in deck_lists()]
-    out = ["<!-- GENERATED by gap_census.py report. Do not hand-edit. -->", "", "# The gap census's tables", ""]
+    out = ["<!-- GENERATED by gap_census.py report. Do not hand-edit. -->", "", "# The gap census's tables", "",
+           "Each card written against the tree and played; `plans/references/card-census/README.md#the-gap-census` says how far to trust it. **The census sees a card's blockers only up to its first row not built**, so a list below is not complete past that row, and a row's hunt finishes it.", ""]
     distinct = {n for _, names in lists for n in names if n not in registered}
     out += [f"{len(set(records) & distinct)} of {len(distinct)} unregistered cards read.", ""]
 
@@ -177,8 +264,8 @@ def report():
     out += ["| | Cards |", "|---|---:|", f"| Writable today | {tally['writable']} |", f"| Blocked by a named row | {tally['blocked']} |",
             f"| A gap no row owned | {tally['gap']} |", ""]
 
-    out += ["## The decks, closest first", "", "A card in several lists counts in each. A deck's last step is where its last card can be written, and PRs are the route's rows up to it.", "",
-            "| Deck | Registered | Writable | Left | Read | Last step | Route PRs before it | Rows it needs |", "|---|---:|---:|---:|---:|---:|---:|---|"]
+    out += ["## The decks, closest first", "", "A card in several lists counts in each. **Last step** is where a deck's last card can be written on the route as it stands, a gap counting at the row that builds it, and **PRs** the route's rows up to it. **Rows done** is the step its last row closes, with its gaps built beside the rows, and **to it** the route's PRs to that step; **gap PRs** is what its gaps add, at a plain sum's ratio. Closest is the fewest of those two together.", "",
+            "| Deck | Registered | Writable | Left | Gaps | Gap PRs | Last step | PRs | Rows done | To it | Rows it needs |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
     rated = []
     for title, names in lists:
         cards = set(names)
@@ -186,12 +273,33 @@ def report():
         ready = sum(1 for n in read if not left[n])
         waiting = [n for n in read if left[n]]
         step = max((last_step(left[n], rows) for n in waiting), default=0)
-        needed = sorted({need for n in waiting for need in left[n] if not need.startswith("gap:")}, key=lambda n: (rows[n].step, n))
-        before = [r for r in to_come if r.step <= step and not r.row.startswith(f"`{DECKS_ROW}`, the gap census")]
+        aside = max((last_step([x for x in left[n] if not x.startswith("gap:")], rows) for n in waiting), default=0)
+        needed = {need for n in waiting for need in left[n] if not need.startswith("gap:")}
+        deck_gaps = {need for n in waiting for need in left[n] if need.startswith("gap:")}
+        before = [r for r in to_come if r.step <= step]
         low, high = sum(r.low for r in before), sum(r.high for r in before)
-        rated.append((step, len(waiting), title, len(cards & registered), ready, len(waiting), len(read), low, high, needed))
-    for step, _, title, reg, ready, waiting, read, low, high, needed in sorted(rated):
-        out.append(f"| {title} | {reg} | {ready} | {waiting} | {read} | {step} | {low}–{high} | {len(needed)} |")
+        rows_done = [r for r in to_come if r.step <= aside]
+        to_low, to_high = sum(r.low for r in rows_done), sum(r.high for r in rows_done)
+        gap_low, gap_high = gap_prs(deck_gaps)
+        cost = (to_low + to_high + gap_low + gap_high) / 2
+        rated.append((cost, len(deck_gaps), title, len(cards & registered), ready, len(waiting), gap_low, gap_high, step, low, high, aside, to_low, to_high, len(needed), cards, sorted(deck_gaps)))
+    rated.sort(key=lambda r: r[:3])
+    for _, gap_count, title, reg, ready, waiting, gap_low, gap_high, step, low, high, aside, to_low, to_high, needed, _, _ in rated:
+        out.append(f"| {title} | {reg} | {ready} | {waiting} | {gap_count} | {gap_low}–{gap_high} | {step} | {low}–{high} | {aside} | {to_low}–{to_high} | {needed} |")
+    out.append("")
+
+    steps = sorted({r.step for r in to_come})
+    out += ["## Each deck's cards by step", "", "The share of a deck's cards that could be written once a step closes, registered cards included, a gap counting at the row that builds it. Step 0 is today.", "",
+            "| Deck | Cards | " + " | ".join(["0"] + [str(s) for s in steps]) + " |", "|---|---:|" + "---:|" * (len(steps) + 1)]
+    for _, _, title, *rest in rated:
+        cards = rest[-2]
+        counts = [sum(1 for n in cards if n in registered or (n in left and last_step(left[n], rows) <= step)) for step in [0] + steps]
+        out.append(f"| {title} | {len(cards)} | " + " | ".join(str(c) for c in counts) + " |")
+    out.append("")
+
+    out += ["## The gaps each deck needs", "", "| Deck | Gaps |", "|---|---|"]
+    for _, _, title, *rest in rated:
+        out.append(f"| {title} | {', '.join(g[4:] for g in rest[-1])} |")
     out.append("")
 
     out += ["## Each row's cards", "", "**Needs** counts every card that waits on the row; **unlocks** counts those for which it is the last need, which is what the row registers from step 9's close.", "",
@@ -201,20 +309,24 @@ def report():
         for need in l:
             if not need.startswith("gap:"):
                 by_row[need].append(name)
-        if l and status(l) == "blocked":
-            unlocked[max(l, key=lambda n: rows[n].step)].append(name)
-    for row in sorted(by_row, key=lambda n: (rows[n].step, n)):
+        if l:
+            unlocked[max((home(n) for n in l), key=lambda n: rows[n].step)].append(name)
+    for row in sorted(set(by_row) | set(unlocked), key=lambda n: (rows[n].step, n)):
         out.append(f"| {rows[row].step} | `{row}` | {len(by_row[row])} | {len(unlocked[row])} | {', '.join(sorted(unlocked[row]))} |")
     out.append("")
+    unnamed = [r.row for r in to_come if re.match(r"`([^`]+)`", r.row).group(1) not in set(by_row) | set(unlocked)]
+    out += ["**No card named these rows.** The census stops at a card's first row not built, so this is what it saw and no more: " + ", ".join(unnamed) + ".", ""]
 
     gaps = defaultdict(list)
     for name, l in left.items():
         for need in l:
             if need.startswith("gap:"):
                 gaps[need[4:]].append(name)
-    out += ["## Each gap no row owned", "", "| Gap | Cards | Which |", "|---|---:|---|"]
+    out += ["## Each gap no row owned", "", "A gap builds in the row named here, its filing says what it is, and each was tried once more before it was filed.", "",
+            "| Gap | Cards | Built in | Filed as | Which |", "|---|---:|---|---|---|"]
     for gap in sorted(gaps, key=lambda g: (-len(gaps[g]), g)):
-        out.append(f"| {gap} | {len(gaps[gap])} | {', '.join(sorted(gaps[gap]))} |")
+        row, filed = GAPS[gap]
+        out.append(f"| {gap} | {len(gaps[gap])} | `{row}` | {filed} | {', '.join(sorted(gaps[gap]))} |")
     out.append("")
 
     out += ["## Every card", "", "| Card | Written | Today | Needs | Reshaped by | Loop | Board | Reached play | Note |", "|---|---|---|---|---|---|---|---:|---|"]

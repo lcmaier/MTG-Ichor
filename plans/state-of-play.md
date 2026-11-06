@@ -48,20 +48,20 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | — |
 | 3 | `card-layer-cleanup` | landed | — |
 | 4 | `pausing-at-a-decision`, the design | landed | — |
-| 5 | `tarkir-dragonstorm-decks`, the gap census and 6 more | 2 of 9 landed | 7–12 |
+| 5 | `orders-the-cr-hands-a-player` and 5 more | 3 of 9 landed | 6–10 |
 | 6 | `linked-abilities` | to come | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 4–7 |
 | 9 | `permission-design` and 5 more | to come | 7–13 |
-| 10 | `player-scoped-values` and 2 more | to come | 3–5 |
+| 10 | `player-scoped-values` and 2 more | to come | 3–6 |
 | 11 | `combat-restrictions` and 4 more | to come | 9–14 |
 | 12 | `rulings-for-every-card` | to come | 3–6 |
 | 14 | `chosen-color-plus-could-produce` and 3 more | to come | 6–9 |
 | 15 | `casting-from-other-zones` and 3 more | to come | 6–10 |
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
-| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 16–42 |
+| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 17–41 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **44 rows to come** | **74–140** |
+| | **To v0.5** | **43 rows to come** | **74–138** |
 
 **Deck cards registered: 7 of 385**,
 the five lists' distinct cards less basics.
@@ -229,14 +229,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 441 |
+| Numbered items | 454 |
 | …closed, still recorded | 273 |
-| …open — unreachable, and says why | 109 |
+| …open — unreachable, and says why | 122 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 35 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 162 of 168 |
+| …open, carrying an explicit `**Sized:**` | 175 of 181 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -250,7 +250,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 155 |
+| …slotted to a phase or roadmap row still to come | 168 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

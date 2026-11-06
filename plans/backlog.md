@@ -316,7 +316,8 @@ record, corrected where it was wrong.*
   explore (2 cards, Topography Tracker), a connive, a learn and a proliferate
   (1 each); a spell's copy (Twinning Staff); a die roll or coin flip (8,
   §2.31) and a search (Aven Mindcensor) as above; mana emptying from a pool
-  (CR 500.4, 5 cards, Kruphix, God of Horizons); and a life total reduced,
+  (CR 500.5, 5 cards, Kruphix, God of Horizons, Leyline Tyrant among them,
+  `codebase-state.md` item 403); and a life total reduced,
   damage and life loss in one pattern (9, Enduring Angel), the one family
   whose events exist but no arm pairs them. Each arrives with its event and
   its kind; `plans/references/replacement-kinds-census.py --names` lists the

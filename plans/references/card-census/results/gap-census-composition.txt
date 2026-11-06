@@ -92,7 +92,7 @@ unwritten: {T}: Add X mana in any combination of colors, where X is the number o
 unwritten: During your turn, each creature assigns combat damage equal to its toughness rather than its power.
 [triggered] "Whenever Baldin attacks, up to one hundred target creatures each get +0/+X until end of turn, where X is the number of cards in your hand." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(ModifyPowerToughness(Fixed(0), CountOf(Filter { filter: ByOwner(You), zones: ZoneSet(2) }), UntilEndOfTurn), Target(Creature, UpTo(100))) })
 
-=== Baral and Kari Zev (body, gap)
+=== Baral and Kari Zev (body, blocked)
 unwritten: Whenever you cast your first instant or sorcery spell each turn, you may cast a spell with lesser mana value that shares a card type with it from your hand without paying its mana cost. If you don't, create First Mate Ragavan, a legendary 2/1 red Monkey Pirate creature token. It gains haste until end of turn.
 
 === Baral's Expertise (part, blocked)
@@ -117,7 +117,7 @@ unwritten: You may cast a spell with mana value 4 or less from your hand without
 === Beetleback Chief (whole, writable)
 [triggered] "When this creature enters, create two 1/1 red Goblin creature tokens." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Goblin)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(2)), Controller) })
 
-=== Behind the Scenes (part, gap)
+=== Behind the Scenes (part, blocked)
 unwritten: Creatures you control have skulk.
 [activated] "{4}{W}: Creatures you control get +1/+1 until end of turn." costs [Mana(ManaCost { symbols: [Generic, Generic, Generic, Generic, Colored(White)] })] => Atom(ModifyPowerToughness(Fixed(1), Fixed(1), UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))
 
@@ -143,7 +143,7 @@ unwritten: Equipped creature has myriad.
 === Blight Pile (part, gap)
 [activated] "{2}{B}, {T}: Each opponent loses X life, where X is the number of creatures with defender you control." costs [Mana(ManaCost { symbols: [Generic, Generic, Colored(Black)] }), TapSelf] => Atom(LoseLife(Fixed(1)), EachOf(PlayerGroup { relation: Opponents, named: Nobody }))
 
-=== Bojuka Bog (part, gap)
+=== Bojuka Bog (part, blocked)
 unwritten: When this land enters, exile target player's graveyard.
 [static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
 [mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
@@ -691,7 +691,7 @@ unwritten: Dredge 3
 unwritten: Flashback {1}{B}
 [spell] "Create two 1/1 white Spirit creature tokens with flying." costs [] => Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Spirit)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [Flying], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(2)), Controller)
 
-=== Living Death (body, gap)
+=== Living Death (body, blocked)
 unwritten: Each player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then puts all cards they exiled this way onto the battlefield.
 
 === Llanowar Wastes (whole, blocked)
@@ -780,7 +780,7 @@ unwritten: {2}, {T}, Sacrifice this land: Search your library for up to two basi
 === Narset's Reversal (body, blocked)
 unwritten: Copy target instant or sorcery spell, then return it to its owner's hand. You may choose new targets for the copy.
 
-=== Necromantic Selection (body, gap)
+=== Necromantic Selection (body, blocked)
 unwritten: Destroy all creatures, then return a creature card put into a graveyard this way to the battlefield under your control. It's a black Zombie in addition to its other colors and types. Exile Necromantic Selection.
 
 === Necropolis Fiend (body, blocked)
@@ -956,9 +956,9 @@ unwritten: Sacrifice this creature: Search your library for a basic land card, p
 [mana] "{T}: Add {W}, {B}, or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {W}, {B}, or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
 
-=== Sarkhan, Soul Aflame (part, gap)
-unwritten: Whenever a Dragon you control enters, you may have Sarkhan become a copy of it until end of turn, except its name is Sarkhan, Soul Aflame and it's legendary in addition to its other types.
+=== Sarkhan, Soul Aflame (whole, writable)
 [static] "Dragon spells you cast cost {1} less to cast." costs [] => CostModification(CostModificationDef { applies_to: Spells(And(BySubtype(Creature(Dragon)), ByController(You))), change: Reduce(ManaCost { symbols: [Generic] }) })
+[triggered] "Whenever a Dragon you control enters, you may have Sarkhan become a copy of it until end of turn, except its name is Sarkhan, Soul Aflame and it's legendary in addition to its other types." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(BySubtype(Creature(Dragon)), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(Copy { roles: ThisObjectCopiesRecipient, except: [Modifies(Name("Sarkhan, Soul Aflame")), Modifies(Types(TypeChange { add_types: [], remove_types: [], set_types: None, add_subtypes: [], remove_subtypes: [], set_subtypes: None, add_supertypes: [Legendary], remove_supertypes: [], set_supertypes: None }))], duration: UntilEndOfTurn }, Triggering(Object)) } })
 
 === Satyr Wayfinder (body, blocked)
 unwritten: When this creature enters, reveal the top four cards of your library. You may put a land card from among them into your hand. Put the rest into your graveyard.
@@ -976,7 +976,7 @@ unwritten: Untap all permanents you control during each other player's untap ste
 === Selfless Spirit (whole, writable)
 [activated] "Sacrifice this creature: Creatures you control gain indestructible until end of turn." costs [SacrificeSelf] => Atom(GrantKeywordFlag(Indestructible, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))
 
-=== Selvala's Stampede (body, gap)
+=== Selvala's Stampede (body, blocked)
 unwritten: Council's dilemma — Starting with you, each player votes for wild or free. Reveal cards from the top of your library until you reveal a creature card for each wild vote. Put those creature cards onto the battlefield, then shuffle the rest into your library. You may put a permanent card from your hand onto the battlefield for each free vote.
 
 === Shadow Summoning (whole, writable)
@@ -1409,7 +1409,7 @@ unwritten: {W}, {T}: You may play the exiled card without paying its mana cost i
 unwritten: Whenever another creature you control with defender enters, create a 1/1 white Bird creature token with flying.
 [triggered] "When this creature enters, create a 1/1 white Bird creature token with flying for each creature with defender you control." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Bird)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [Flying], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Within Range (part, gap)
+=== Within Range (part, blocked)
 unwritten: Whenever you attack, each opponent loses life equal to the number of creatures attacking them.
 [triggered] "When this enchantment enters, create two 1/1 red Warrior creature tokens." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Warrior)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(2)), Controller) })
 
@@ -1436,7 +1436,7 @@ unwritten: This creature escapes with two +1/+1 counters on it.
 === Young Pyromancer (whole, writable)
 [triggered] "Whenever you cast an instant or sorcery spell, create a 1/1 red Elemental creature token." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(You), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Elemental)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Zenith Festival (body, gap)
+=== Zenith Festival (body, blocked)
 unwritten: Exile the top X cards of your library. You may play them until the end of your next turn.
 unwritten: Harmonize {X}{R}{R}
 

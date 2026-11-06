@@ -316,7 +316,8 @@ release. **v1 is when Phase 10 is done** (the owner, 2026-10-29).
 **From step 9's close, each row registers the deck cards it unlocks**, with their
 rulings, in a PR of its own after the row, and step 17 is what is left (the owner,
 2026-11-06, #314: better for manual testing and morale). Not before: the rows up
-to it reshape what 9 of the card pilot's 20 cards are written in.
+to it reshape what 9 of the card pilot's 20 cards are written in. Each row's list is
+`plans/references/card-census/results/gap-census.md`, which a row's hunt finishes.
 
 **Only these bind:** `combat-restrictions`, then `cant-pay-costs`, then `combat-requirements`; `as-though-effects` after `combat-requirements`; `hybrid-and-phyrexian-payment` carries
 `as-though-effects`'s payment half; `card-and-object-model`'s design before any of the card model's builds, which frees face-down from waiting on `double-faced-cards`; `double-faced-cards`' transform half before `token-copies`, `spell-copies` and face-down's manifest half; `double-faced-cards`, then `merging-and-meld`;
@@ -738,7 +739,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 4 | `pausing-at-a-decision`, the design | ✅ 2026-11-02 | 1 | | | |
 | 5 | `options-named-by-what-they-are`, of `modes-plus-choice-kinds` | | 1 | | | |
 | 5 | `divided-among-targets` | | 1 | | | |
-| 5 | `tarkir-dragonstorm-decks`, the gap census | | 1–2 | it is one | may | Nearest: the card pilot wrote 20 cards in 28 minutes (`plans/references/card-census/pilot-2026-11-06.md`), so 385 is about 9 hours of session |
+| 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 | 1 | it is one | no | Landed in about 2 hours of session against the pilot's 9, with what it finds in `plans/references/card-census/results/gap-census.md` |
 | 5 | `orders-the-cr-hands-a-player` | | 1 | no | no | Design: 350–650 at its table's 1.7× is 600–1,100, with 9 lines of fixture migration |
 | 5 | `modal-spells-and-abilities` | | 1–2 | no | likely | Design: 1,360–2,070 at 1.7× is 2,300–3,500. Eleven consumers against TR-5c's 2,630 |
 | 5 | `mana-provenance`, the design | | 1 | it is one | no | Nearest: #306 and #224, one PR each. It says whether `Primitive::Pay` needs the build first, which would bring `mana-ability-costs` and the build ahead of the next row |
@@ -751,7 +752,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 7 | `mana-provenance`, the build | | 1–2 | above | may | Design: its row's 1–2, with a fixture migration. Three items sum 200–320 |
 | 7 | `any-color-plus-painlands-plus-signets` | | 1–2 | no | may | Design: 1,500–2,000 at 1.4× is up to 2,800 |
 | 8 | `information-model-design` | | 1 | it is one | no | Nearest: #306 and #266, one PR each, with item 357's `ui/` decision in it |
-| 8 | `information-model` | | 3–6 | above | likely | Nearest: TR-4, the frame's readers, four PRs. The route's 1–2 is a count before design, about 3×. It holds every search and reveal: 21 deck cards search a library, and no instruction does yet |
+| 8 | `information-model` | | 3–6 | above | likely | Nearest: TR-4, the frame's readers, four PRs. The route's 1–2 is a count before design, about 3×. It holds every search and reveal: 39 deck cards wait on it, by the gap census, and no instruction searches yet |
 | 9 | `permission-design` | | 1 | it is one | no | Nearest: #306. `cant-cast-play-or-activate`'s reasons and CR 610.5's grant are designed in it |
 | 9 | `card-and-object-model`, the design | | 1 | it is one | no | Nearest: #306 |
 | 9 | `text-changing-effects`, the design | | 0–1 | it is one | no | Guess: rides `card-and-object-model`'s PR unless its review splits it |
@@ -759,7 +760,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 9 | `game-formats` | | 2–3 | no | likely | Sum: six items at 265–325, about 1,000 at 3×, on top of formats as data, deck validation, the legality table and the designation |
 | 9 | `multiplayer-rules` | | 2–4 | rides, for teams | likely | Sum: 650–890 at 3× is 2,000–2,700, one item unsized and item 342's ~195 filter sites in it. The route's 1 is a count before design |
 | 10 | `player-scoped-values` | | 1–2 | rides | may | Nearest: RF, a query beside the oracle layer, one PR at 1,429 |
-| 10 | `cant-be-targeted` | | 1 | no | no | Nearest: RS-1. One enforcement site and two enumerations, and CR 702's three keywords |
+| 10 | `cant-be-targeted` | | 1–2 | no | may | Nearest: RS-1. One enforcement site and two enumerations, and CR 702's three keywords. Item 392's target in a graveyard, 18 deck cards, rewrites the same two functions: 400–650 at 3× is 1,200–1,950 |
 | 10 | `cant-cast-play-or-activate` | | 1–2 | at `permission-design` | may | Sum: 230–250 at 3×, two items unsized, over one site for each of three arms since SU-7 |
 | 11 | `combat-restrictions` | | 1–2 | no | may | Nearest: TR-5e, the declaration, 1,551. Two validators, two enumerators and the evasion family, each with its card |
 | 11 | `cant-pay-costs` | | 1 | no | no | Nearest: CM-2. A ten-arm projection and two payment sites |
@@ -771,20 +772,20 @@ name for, and a phase of the critical path that no Row cell names.
 | 14 | `convoke-delve-improvise` | | 1–2 | no | may | Design: 1,900–2,400 at 1.4× is up to 3,360 |
 | 14 | `hybrid-and-phyrexian-payment` | | 1–2 | no | may | Nearest: MA-2, one PR at 1,908, plus `as-though-effects`' payment half, 200–300, and an activation's `{X}` |
 | 14 | `remaining-costs` | | 3–4 | own PR | likely | Nearest: CM-3's payment, 1,608, for each of four arms and the shapes they share. Its question, an arm per action or a composed cost, needs a stop. The route's 1–2 is a count before design |
-| 15 | `casting-from-other-zones` | | 2–4 | at `permission-design` | likely | Guess until `permission-design` sizes it: 37 `tdc` cards and several casting families |
+| 15 | `casting-from-other-zones` | | 2–4 | at `permission-design` | likely | Guess until `permission-design` sizes it: 34 deck cards by the gap census, and several casting families |
 | 15 | `double-faced-cards`, the transform half | | 2–3 | at `card-and-object-model` | likely | Nearest: CV-2a and CV-2b, two PRs on one object path. Its doc calls it a second card model and most likely to split |
 | 15 | `token-copies` | | 1 | no | no | Design: one constructor and one arm, three items |
 | 15 | `spell-copies` | | 1–2 | no | may | Nearest: CV-2a. One new object path, the retarget prompt and one state-based action |
 | 16 | `split-and-adventure-style-cards`, split and Omen | | 1–3 | at `card-and-object-model` | may | Guess: `backlog.md` §2.41 says about a PR a mechanic, and the decks print a split card and two Omens |
 | 16 | `face-down-and-morph`, manifest | | 1–2 | at `card-and-object-model` | may | Guess: the layer half is small and known, and manifest has no cast |
 | 16 | `card-and-object-model`, an Aura on a player | | 1 | no | no | Sum: 350–450 at 3× is about 1,200, with Curse of Opulence |
-| 17 | `tarkir-dragonstorm-decks`, the five decks | | 15–41 | census | yes | Nearest: the registered cards. A bare card and one test is 18 + 35 lines and a commented card with three tests 47 + 105, so 60–140 a card. The 378 left at 2,500 and 1,700 a PR are 10–31, and about 25 keyword mechanics and items 389–391 add a guessed 5–10. From step 9's close these PRs land beside the rows that unlock them, so this count falls as the board's deck count rises. `plans/references/card-census/pilot-2026-11-06.md` |
+| 17 | `tarkir-dragonstorm-decks`, the five decks | | 16–40 | census | yes | Nearest: the registered cards. A bare card and one test is 18 + 35 lines and a commented card with three tests 47 + 105, so 60–140 a card. The 378 left at 2,500 and 1,700 a PR are 10–31. Sum: the gaps slotted here, items 389–391 and 393–404 with `backlog.md`'s three, are 2,990–4,800 at 3×, 6–9 PRs. From step 9's close these PRs land beside the rows that unlock them, so this count falls as the board's deck count rises. `plans/references/card-census/results/gap-census.md` |
 | 17 | `decks-in-fuzz-games` | | 1 | no | no | Guess: a flag, a seat per list and `game-formats`' setup |
 | 18 | `devgui-at-five-seats` | | 1–2 | no | may | Nearest: #214's seats, 297 lines, and SU-6's window work, 546, for a command zone and commander damage |
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-06:** 74–140 route PRs, 15–41 of them the
+**What the rows sum to, read 2026-11-06:** 74–138 route PRs, 16–40 of them the
 decks' cards.
 
 **Overhead.** A route PR is one that builds a row of this table, or of the cleanup
@@ -792,18 +793,19 @@ plan whose last rows joined it, so work is counted the way the rows left are. Of
 177 merge commits in the eight weeks to #313, 87 were on the route, 27 the dev
 GUI, 36 audit, 13 process and docs, and 14 detours: 2.0 merged PRs for each route
 PR, and 36% audit, process and detours. The item 6 audit's plan said 13–20 PRs and
-ran to 28, its cleanup builds among them. At that rate the route is 148–280 merged
+ran to 28, its cleanup builds among them. At that rate the route is 148–276 merged
 PRs. Held to about 1.5 for each route PR, with audits on a budget, the process PR
-at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 111–210. So
-**about 110–280 merged PRs**.
+at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 111–207. So
+**about 110–275 merged PRs**.
 
 **A date, and what it assumes.** The route ran 10.9 PRs a week over those eight
 weeks and 5 in its slowest fortnight, the dev GUI's. 74 PRs at the first pace is
-about 7 weeks and 140 at the second 28, so **between about New Year and late May
-2027**. Each range's midpoint, 107 PRs at 8 a week, gives early February. It
-assumes the owner's review keeps pace, no row's design doubles it as TR-5's did,
-and the gap census finds what the five-decks row's guessed 5–10 PRs hold. That
-census, next on the route, is the first thing to move this.
+about 7 weeks and 138 at the second 28, so **between about New Year and late May
+2027**. Each range's midpoint, 106 PRs at 8 a week, gives early February. It
+assumes the owner's review keeps pace and no row's design doubles it as TR-5's did.
+The gap census held the date: its gaps are 6–9 PRs where the five-decks row guessed
+5–10, and it sees a card's blockers only up to its first row not built, so each
+row's hunt can still add to them.
 
 Past v0.5 Phase 8's other atoms are throughput, not architecture, and the
 bottleneck moves to card-authoring speed, which is when the deferred Scryfall
