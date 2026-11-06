@@ -33,6 +33,7 @@ Usage:
     python plans/specdb.py stats          # coverage by phase
     python plans/specdb.py next           # uncovered atoms on the critical path
     python plans/specdb.py next --phase "Phase 5-Layers" --rule 613
+    python plans/specdb.py next --rule 700.2   # a rule's atoms, in every phase
     python plans/specdb.py show ATOM-305.7-001
     python plans/specdb.py orphans        # COVERS ids with no matching atom
     python plans/specdb.py suspicious     # COVERS ids that exist but look wrong
@@ -731,7 +732,9 @@ def next_up(phase, rule, limit):
     if phase:
         q += " AND a.phase = ?"
         args.append(phase)
-    else:
+    elif not rule:
+        # A rule is a row's checklist, and its atoms sit under whatever phase
+        # the corpus filed them, so only a bare `next` narrows to the path.
         q += " AND a.phase IN (%s)" % ",".join("?" * len(CRITICAL_PATH))
         args += CRITICAL_PATH
     if rule:
