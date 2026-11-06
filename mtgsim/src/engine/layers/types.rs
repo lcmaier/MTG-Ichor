@@ -380,15 +380,11 @@ pub struct EffectiveCharacteristics {
     /// `PermanentState`.
     pub loyalty: Option<i32>,
     pub controller: PlayerId,
-    /// The turn `controller` took control (CR 302.6). **Computed, never stored:**
-    /// an `UntilEndOfTurn` steal reverts when its row leaves the registry, which
-    /// mutates nothing and fires no event, so there is no moment at which a
-    /// stored field could be put back.
-    ///
-    /// Seeded from `PermanentState.entered_battlefield_turn`: entering is the
-    /// one change of control that is not a Layer 2 effect. The Layer 2 arm
-    /// overwrites it only when the controller actually changes — gaining control
-    /// of your own permanent must not restart the clock.
+    /// The turn `controller` took control (CR 302.6). Seeded from
+    /// `PermanentState::control_began_turn`, which the control sweep advances.
+    /// The Layer 2 arm overwrites it only when the controller actually changes
+    /// — gaining control of your own permanent must not restart the clock — so
+    /// a row is read at once, ahead of the sweep that announces it.
     pub control_since_turn: u32,
 }
 

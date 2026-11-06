@@ -17,6 +17,8 @@ everything below it is for the session.
   for a detour still running.
 - Every count, size and SHA in the brief is read off the tree today, never
   carried from memory or an older brief.
+- When the merged PR's number crossed a multiple of 20, run the CI review
+  (`plans/spine-phase-audit.md#the-ci-review`) and put what it finds in the list below.
 
 ## Where we stand, in chat, before the brief
 

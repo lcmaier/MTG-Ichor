@@ -344,6 +344,7 @@ fn parse_card_word(word: &str, line: usize) -> Result<CardWord, ScenarioError> {
                 "owner" => CardWord::Owner(parse_number(n, name, line)?),
                 "controller" => CardWord::Controller(parse_number(n, name, line)?),
                 "arrived turn" => CardWord::Arrived(Arrival::Turn(parse_number(n, name, line)?)),
+                "control since turn" => CardWord::ControlSince(parse_number(n, name, line)?),
                 "damage" => CardWord::Damage(parse_number(n, name, line)?),
                 "resolved" => CardWord::Resolved { ability: None, times: parse_number(n, name, line)? },
                 kind => CardWord::Counter(CounterType::named(kind).ok_or_else(unknown)?, parse_number(n, kind, line)?),
@@ -589,6 +590,7 @@ impl std::fmt::Display for CardWord {
             CardWord::Tapped => f.write_str("tapped"),
             CardWord::Arrived(Arrival::ThisTurn) => f.write_str("arrived this turn"),
             CardWord::Arrived(Arrival::Turn(n)) => write!(f, "arrived turn {n}"),
+            CardWord::ControlSince(n) => write!(f, "control since turn {n}"),
             CardWord::Counter(kind, n) => write!(f, "{} {n}", kind.name()),
             CardWord::Damage(n) => write!(f, "damage {n}"),
             CardWord::DealtFirstStrikeDamage => f.write_str("dealt first-strike damage"),
@@ -746,6 +748,7 @@ mod tests {
             CardWord::Tapped,
             CardWord::Arrived(Arrival::ThisTurn),
             CardWord::Arrived(Arrival::Turn(2)),
+            CardWord::ControlSince(3),
             CardWord::Counter(CounterType::FirstStrike, 1),
             CardWord::Damage(2),
             CardWord::DealtFirstStrikeDamage,
@@ -763,7 +766,7 @@ mod tests {
             let kind = match word {
                 CardWord::Triggered { .. } | CardWord::Resolved { .. } | CardWord::TookOnceEachTurnAction { .. } => LineKind::ThisTurn,
                 CardWord::Owner(_) | CardWord::Controller(_) | CardWord::Commander | CardWord::Tapped | CardWord::Arrived(_)
-                | CardWord::Counter(..) | CardWord::Damage(_) | CardWord::DealtFirstStrikeDamage | CardWord::Blocked
+                | CardWord::ControlSince(_) | CardWord::Counter(..) | CardWord::Damage(_) | CardWord::DealtFirstStrikeDamage | CardWord::Blocked
                 | CardWord::AttachedTo(_) | CardWord::Attacking(_) | CardWord::Blocking(_) => LineKind::Battlefield,
             };
             scenario.cards.push(LineNumbered { line: 0, value: CardLine { kind, card: card.clone(), copies: 1, words: vec![word] } });

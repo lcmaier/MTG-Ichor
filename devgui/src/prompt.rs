@@ -78,6 +78,8 @@ pub struct OptionView {
     /// In order: none, one, or a pair's two — attacker then what it attacks,
     /// blocker then what it blocks.
     pub refs: Vec<BoardRef>,
+    /// The creature an attack option declares, which takes one target.
+    pub attacker: Option<ObjectId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -188,7 +190,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         | ChoiceOption::CounterType(_)
         | ChoiceOption::ManaType(_) => vec![],
     };
-    OptionView { label: option_label(game, option), refs }
+    OptionView { label: option_label(game, option), refs, attacker: option.attacker() }
 }
 
 fn attack_target_ref(target: &AttackTarget) -> BoardRef {

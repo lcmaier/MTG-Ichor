@@ -319,23 +319,22 @@ impl DecisionProvider for RandomDecisionProvider {
             rng.random_range(bounds.0..=bounds.1)
         };
 
-        // For `DeclareBlockers`, dedup on blocker-id so RandomDP declares a
-        // legal set in one shot instead of being asked again: each blocker
+        // For a declaration, dedup on the creature: an attacker attacks one
+        // thing (CR 802.3), which the question requires, and each blocker
         // blocks one attacker (CR 509.1a) unless an effect lets it block more,
-        // and this policy never uses one. The engine's re-ask remains the net —
-        // this branch just spares it.
-        if matches!(context.kind, ChoiceKind::DeclareBlockers) {
+        // which this policy never uses. For blocks the engine's re-ask remains
+        // the net, and this branch just spares it.
+        if matches!(context.kind, ChoiceKind::DeclareAttackers | ChoiceKind::DeclareBlockers) {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);
-            let mut used_blockers: crate::types::ids::IdSet<ObjectId> =
-                crate::types::ids::IdSet::default();
+            let mut declared: crate::types::ids::IdSet<ObjectId> = crate::types::ids::IdSet::default();
             let mut picked: Vec<usize> = Vec::new();
             for idx in shuffled {
                 if picked.len() >= count {
                     break;
                 }
-                if let ChoiceOption::BlockerAttacker(blocker, _) = &options[idx] {
-                    if used_blockers.insert(*blocker) {
+                if let ChoiceOption::AttackerTarget(creature, _) | ChoiceOption::BlockerAttacker(creature, _) = &options[idx] {
+                    if declared.insert(*creature) {
                         picked.push(idx);
                     }
                 } else {
@@ -659,5 +658,29 @@ mod tests {
         let result = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins, None);
         assert_eq!(result.len(), 2);
         assert_eq!(result.iter().sum::<u64>(), 5);
+    }
+
+    /// At three seats the options pair each creature with two players, and a
+    /// set naming one twice is illegal (CR 802.3), so this agent never builds it.
+    #[test]
+    fn a_declaration_names_each_creature_once() {
+        let game = setup_basic_game();
+        let creatures: [ObjectId; 3] = std::array::from_fn(|_| crate::types::ids::new_object_id());
+        let options: Vec<ChoiceOption> = creatures
+            .iter()
+            .flat_map(|&id| [1, 2].map(|player| ChoiceOption::AttackerTarget(id, crate::state::battlefield::AttackTarget::Player(player))))
+            .collect();
+        let context = ChoiceContext::new(ChoiceKind::DeclareAttackers);
+        for seed in 0..50 {
+            let picked = RandomDecisionProvider::seeded(seed).pick_n(&game, 0, &context, &options, (0, options.len()));
+            let named: Vec<ObjectId> = picked
+                .iter()
+                .filter_map(|&i| match options[i] {
+                    ChoiceOption::AttackerTarget(id, _) => Some(id),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(named.len(), named.iter().collect::<std::collections::HashSet<_>>().len(), "seed {seed}: {named:?}");
+        }
     }
 }

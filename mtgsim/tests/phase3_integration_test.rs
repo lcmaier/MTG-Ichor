@@ -618,6 +618,9 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     assert!(game.state.battlefield.contains_key(&elemental));
     assert_eq!(game.state.battlefield.get(&elemental).unwrap().damage_marked, 2);
 
+    // Past the cleanup step's discard, which this board is not about.
+    game.state.players[0].max_hand_size = 8;
+
     // Advance to next turn's Upkeep step (advance_turn moves state machine, no priority granted)
     // Turn structure: EndCombat → Postcombat → End(EndStep) → End(Cleanup) → Beginning(Untap) → Beginning(Upkeep)
     advance_to_step(&mut game, PhaseType::Beginning, Some(StepType::Upkeep));

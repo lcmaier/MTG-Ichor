@@ -1011,7 +1011,7 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   `cant-effects-architecture.md`'s); CR 402.2 as modified
 - **Verdict** — **`PlayerState` stores rule values and no effect can reach
   them.** `max_hand_size` is seeded from config and read raw by
-  `handle_cleanup_discard`; nothing can say "you have hexproof" for a player,
+  `discard_to_maximum_hand_size`; nothing can say "you have hexproof" for a player,
   and target legality consults nothing player-scoped. CR 613.11 applies these
   after all object layers, in timestamp order — that application point does
   not exist. `lands_per_turn` is the same shape and already dispositioned to a
@@ -2583,7 +2583,7 @@ structure it arrives in inform each other, and the CLI's AI games need it as
 much as Phase 10 does. The vocabulary is unified and the forms are not: one
 table per `ChoiceKind` of its name, its log word, its scenario word and its
 fields, which v1's documentation can be generated from, while a `then:` line
-stays a macro over several questions, written before any id exists. Three
+stays a macro over several questions, written before any id exists. Four
 things wait on it:
 - **A setup line's word for a division**, and every word like it: `targeting
   Grizzly Bears for 2` keeps a share with its target.
@@ -2593,6 +2593,10 @@ things wait on it:
   kept parallel to `buckets`: the shape decision 5 refused for a division, at
   the boundary. An answer that names its options takes the position out of the
   trait. About 100 providers change, and no game, log or record moves.
+- **What an attack declaration answers with.** A map from creature to target, so
+  a repeat can't be written. Today it is a pick of (creature, target) pairs, one
+  per creature by `attacks_fit`. A client's gestures, such as Arena's one click on
+  a target for every attacker, read off that data (the owner, 2026-11-05, #310).
 
 **Open question 1: where the engine runs.** `roadmap-v2.md` §E and §6 named
 Wasm; they point here now and leave it open. In a browser tab the blocking
@@ -3349,7 +3353,7 @@ pass 1's (5 from 38), so "no doc mentions it" turned out to be a weak signal.
 | 112 | 2 | spell controller — implemented |
 | 303 | 2 | Aura SBAs — beside 704.5m, already §3.1 |
 | 304 | 2 | instant zone guard (at the entry proposal since the item 6 audit's close-out) and instant-speed timing — implemented |
-| 402 | 2 | maximum hand size — `perform_cleanup_actions` / `handle_cleanup_discard` (402.3 is §2.9) |
+| 402 | 2 | maximum hand size — `perform_cleanup_actions` / `discard_to_maximum_hand_size` (402.3 is §2.9) |
 | 404 | 2 | graveyard ordering and empty start — implemented (404.2 is §2.9) |
 | 201 | 1 | 201.2a is audit §5.2's "an object with several names" near-miss — already recorded, needs Layer 3 |
 | 300 | 1 | `CardType` enum completeness — implemented |

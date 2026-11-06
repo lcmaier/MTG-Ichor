@@ -298,6 +298,8 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     for player in 0..2 {
         // Every turn, turn 0 among them, which counts none of its rows.
         assert_eq!(game.state.history.count(player, TurnFact::CardsDrawn, 0..=u32::MAX), 0);
+        // Past the cleanup step's discard, which this board is not about.
+        game.state.players[player].max_hand_size = 8;
     }
     pass_turn(&mut game.state);
     while game.state.phase.phase_type != PhaseType::Precombat {

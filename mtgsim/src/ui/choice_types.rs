@@ -642,6 +642,15 @@ impl ChoiceOption {
     /// since the log is an observer and a layer read counts a walk; a cost is
     /// its keyword and mana as CR 702.33a prints one. A change to these words
     /// is a change to the log's format.
+    /// The creature this option declares attacking, which a declaration takes
+    /// one option for.
+    pub fn attacker(&self) -> Option<ObjectId> {
+        match self {
+            ChoiceOption::AttackerTarget(creature, _) => Some(*creature),
+            _ => None,
+        }
+    }
+
     pub fn as_logged(&self, game: &GameState) -> String {
         let object = |id: &ObjectId| format!("{} ({id})", printed_name(game, *id));
         let objects = |ids: &[ObjectId]| ids.iter().map(object).collect::<Vec<_>>().join(" and ");

@@ -264,10 +264,9 @@ pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
 /// > activated unless the creature has been under its controller's control
 /// > continuously since their most recent turn began.
 ///
-/// Both halves come from the layer frame, so a stolen creature is sick under its
-/// new controller with nothing written to the battlefield — see
-/// `EffectiveCharacteristics::control_since_turn` for why that has to be
-/// derived.
+/// Both halves come from the layer frame: a Layer 2 row is read at once, and
+/// `EffectiveCharacteristics::control_since_turn` says what the stored turn
+/// covers that no row can.
 ///
 /// **Only creatures are ever summoning-sick.** CR 302.6 restricts "a creature's
 /// activated ability" and attacking, so a noncreature permanent is unrestricted
@@ -291,12 +290,6 @@ pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
 /// who has not had a turn has the start of the game as their earliest reference
 /// point — so an opening-hand Leyline is not sick, while anything that arrived
 /// after the game began is, until its controller's first turn.
-///
-/// **Known imprecision, unobservable.** When an `UntilEndOfTurn` steal expires,
-/// control was interrupted during the turn, so CR 302.6 makes the creature sick
-/// again for its original controller; we report it as not sick. The only window
-/// before that player's next turn begins is the cleanup step, where nobody gets
-/// priority (CR 514.3), so nothing can ever ask.
 pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     if !game.battlefield.contains_key(&id) {
         return false;

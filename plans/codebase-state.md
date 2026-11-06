@@ -1321,6 +1321,12 @@ registered card returns an object.
     inside out, a per-member state machine under an outer APNAP round-robin.
     **Revisit at Phase 6**, where triggers make the other half of CR 101.4 live
     anyway; not at RD, which is finished.
+    Item 370's split reads the batch's later groups but not the group it split
+    from, so a CR 615.7 count spanning two subjects after a redirect allocates
+    one at a time. And a redirect onto a subject a later group also affects gives that
+    subject two loops, so a shield counter pays twice where CR 122.1c's ruling
+    pays once: Pariah's host with a shield counter, taking other damage at the
+    same time. Both predate the split. The round-robin takes them too.
     **Slotted:** `multiplayer-rules`, CR 800 at four seats, where a redirect onto another seat's
     permanent stops being an accident: phase 1 becomes an APNAP round-robin
     over its groups (CR 101.4d).
@@ -10161,6 +10167,8 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      decision at 50 a seat and 7,840 loaded, against 126.3 µs and 7,030 for
      #299's merge on the same idle machine (item 138's table). Still under
      the floor; the two parts left are the ones this entry sizes.
+     **Read 2026-11-05:** these readings hold bulk token creation, which item
+     378 removes, so `board-scale` re-reads them before this entry's design.
      **Slotted:** Phase 10, profile-driven performance, with item 138's
      levers re-ranked on both boards (2026-10-29).
 
@@ -10362,83 +10370,35 @@ slips are the planned card phases', not items.
      `run_priority_round`'s start seat. Item 140 then reads it. Two seats reach
      this too; that step is where the migration gets paid once.
 
-366. **One creature can be declared attacking two players.** `legal_pairs` is
-     every creature with every target, and `validate_attackers` checks each pair
-     and never that a creature appears once (CR 508.1b, 802.3). Blocks have
-     `TooManyBlocks`; attacks have nothing. At three seats Hellrider declared at
-     P1 and P2 is accepted, triggers twice and attacks P2.
+366. **One creature can be declared attacking two players.** — ✅ closed.
+     A creature attacks one thing: the question takes one target per creature.
+     **Reachability (2026-11-05):** closed — PR #310.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 366".
 
-     **Reachability (2026-11-04):** reachable — wrong today: any game of three
-     or more seats.
-     **Sized:** ~15 lines of code and ~25 of tests.
-     **Slotted:** `multiplayer-rules`, CR 802's defending-player choice.
+367. **Defending players block in timestamp order.** — ✅ closed.
+     Defending players block in APNAP order.
+     **Reachability (2026-11-05):** closed — PR #310.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 367".
 
-367. **Defending players block in timestamp order.** `get_defending_players`
-     lists them by first appearance among the attackers, where CR 802.4 says
-     APNAP. At four seats, a creature attacking P3 with the earlier timestamp
-     puts P3's blocks ahead of P1's.
+368. **CR 302.6's clock forgets an interruption.** — ✅ closed.
+     The turn control last moved is stored, so a steal that ended leaves the creature sick.
+     **Reachability (2026-11-05):** closed — PR #310.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 368".
 
-     **Reachability (2026-11-04):** reachable — wrong today: any game of three
-     or more seats with attacks on two players.
-     **Sized:** ~10 lines of code and ~30 of tests.
-     **Slotted:** `multiplayer-rules`, CR 802.
+369. **CR 514.2 runs before CR 514.1's discard.** — ✅ closed.
+     The cleanup discard comes before CR 514.2's expiry.
+     **Reachability (2026-11-05):** closed — PR #310.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 369".
 
-368. **CR 302.6's clock forgets an interruption.** `control_since_turn` falls
-     back to the entry turn when a steal's row expires, so a creature returned
-     at the thief's cleanup is not summoning sick for its owner. The comment on
-     `has_summoning_sickness` calls this unobservable, and it is: at three
-     seats the next player's turn sits between, and at two seats so does an
-     extra turn. Act of Treason on Merfolk Thaumaturgist or Samite Healer, or
-     on Dryad Arbor for its mana, offers {T} where it must not.
+370. **A redirect leaves one chooser for two subjects.** — ✅ closed.
+     After a redirect each affected player chooses for their own event.
+     **Reachability (2026-11-05):** closed — PR #310.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 370".
 
-     **Reachability (2026-11-04):** reachable — wrong today: Act of Treason at
-     three seats, or with Time Walk at two.
-     **Sized:** ~40 lines of code and ~40 of tests.
-     **Slotted:** `multiplayer-rules`: the clock wants a stored fact, the turn
-     control last began, not a fallback. Two seats reach it only with an extra
-     turn, and every seat past two reaches it plainly.
-
-369. **CR 514.2 runs before CR 514.1's discard.** `begin_step` ends "until end
-     of turn" effects and removes damage, then `handle_cleanup_discard` runs.
-     The note under CR 514.3a's repeated-cleanup fix held this open, with a
-     maximum hand size and a discard trigger as its examples. A steal is a
-     third, and registered cards reach it: P0 holding P1's Leyline of the Void
-     by Act of Treason, under Opalescence, discards into exile at cleanup, where
-     P0 still controls it at 514.1 and the cards go to the graveyard.
-
-     **Reachability (2026-11-04):** reachable — wrong today: registered cards,
-     and a control without the steal exiles correctly.
-     **Sized:** ~20 lines of code and ~30 of tests.
-     **Slotted:** `multiplayer-rules`, the next step through the turn's end, for
-     CR 800.4's leaving players. No seat count is in this bug, so it could land
-     sooner.
-
-370. **A redirect leaves one chooser for two subjects.** `subject_groups`
-     groups members by subject, and the chooser and order come from the first
-     live member. After a `Retarget`, members of a group can have different
-     subjects: two attackers hitting P1 with Ghosts of the Innocent and Furnace
-     of Rath out, and Reflect Damage sending one to P0. One prompt covers both,
-     where CR 616.1 has each affected player order their own.
-
-     **Reachability (2026-11-04):** reachable — wrong today: all three cards
-     are registered, and which player is asked turns on the batch's order.
-     **Sized:** ~40 lines of code and ~40 of tests.
-     **Slotted:** `multiplayer-rules`, beside item 25, the other gap in how a
-     batch's members choose, so one step reads both. Two seats reach this too.
-
-371. **A trigger born during placement joins a later seat's pass.**
-     `place_pending_triggers` reads each seat's entries off the live queue, and
-     `place_one`'s `announce_targeted_records` dispatches mid-pass. P0's
-     Flickerwisp targets P1's Cephalid Aristocrat while P1's Soul Warden waits.
-     CR 603.3b has P1 place the Warden alone, SBAs run, then the Aristocrat's
-     trigger go on top. P1 is instead asked to order them and can build a stack
-     the rules cannot make.
-
-     **Reachability (2026-11-04):** reachable — wrong today: all three cards
-     are registered.
-     **Sized:** ~30 lines of code and ~40 of tests.
-     **Slotted:** `multiplayer-rules`, CR 101.4's order at N seats, which re-reads
-     this pass. Two seats reach this too.
+371. **A trigger created during placement joins a later seat's pass.** — ✅ closed.
+     A pass places what was waiting as it began.
+     **Reachability (2026-11-05):** closed — PR #310.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 371".
 
 372. **CR 903.9b's question goes to the controller.** The rule says "its owner
      may". `commander_zone_replacement` names the owner, and the optional prompt
@@ -10484,3 +10444,59 @@ slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** nothing owed — an input for a design.
      **Slotted:** Phase 10, the AI harness.
+
+### Found at #310's review (2026-11-05)
+
+376. **`::default()` says too little at a call site.** `IdSet::default()` names
+     the type and not what it holds, and the owner finds it too generic to read:
+     a collection says `empty()`. `IdSet` and `IdMap` are aliases of std's types
+     and their hasher reads a seed at run time, so a small trait carries the name,
+     and no constant can. Rule 9 (`engineering-practices.md#names`) takes the new
+     spelling as its example.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a name, and no game moves.
+     **Sized:** ~20 lines of code, then a counted sweep: 29 id-collection calls in
+     the engine and the dev GUI, and each other engine collection whose blank
+     value means empty, counted at the build.
+     **Slotted:** `board-scale`, its last commit, since it moves no game.
+
+377. **Floor 1 reads the bot's games, so it moves when the bot does.** A counting
+     change, a dropped prompt and a bound on attacks each moved it with the
+     engine unchanged, and the budget is what catches slow code. What is left of
+     its point is what a decision costs on a board of a given size, so it moves
+     to a ladder of fixed boards: about 100 to 50,000 permanents, doubling, at
+     four seats, setup off the clock, on four shapes: bare creatures, an anthem,
+     death triggers, and tokens made in one event. The limit is re-derived at
+     Phase 10, as `plans/references/ai-performance-floors.md` already plans.
+
+     A throwaway probe read bare creatures, a tap, the state-based check and the
+     action list: 8 µs at 100 permanents, 107 at 1,600, 592 at 6,400 and 11.9 ms
+     at 51,200, near linear, all ten rungs in 0.3 s. Peak memory was 50 MB at
+     25,600 tokens. `fuzz_games --tokens` hides that: making the tokens in one
+     event is most of a run past a few hundred a seat, about 0.9 s at 400 a seat
+     and 25 s at 1,600, so item 354's readings hold setup too. Past about a
+     million identical tokens the board is `GameNumber`'s (item 264).
+
+     **Reachability (2026-11-05):** reachable — not wrong: a measurement.
+     **Sized:** ~100–150 lines in `fuzz_games` and the floor's rows, no engine code.
+     **Slotted:** `board-scale`.
+
+378. **Making tokens walks the whole board three times a token.** Each question
+     about a token not yet on the battlefield runs a pass over the board, and
+     nothing keeps the answer for the next token, so one event making N tokens
+     costs N passes three times over:
+     - `keyword_prohibits` asks every event's object about indestructible, which
+       only a destruction can read: 34% of a 400-a-seat board;
+     - `entry_proposal` asks each token whether it is an instant or a sorcery
+       (CR 111.5), where `create_tokens` already holds runs of equal definitions;
+     - CR 614.12's look-ahead runs per entry, though a run of equal entries
+       decided against one board has one answer.
+
+     A throwaway build with all three gone, on a board with no continuous
+     effects: 1,600 a seat from 24.6 s to 0.13 s, 25,600 a seat in 2.9 s, near
+     linear. Its look-ahead shortcut holds only on such a board, so an anthem's
+     board is unread until the real fix.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~30–50 lines of code; the look-ahead's sharing needs the most care.
+     **Slotted:** `board-scale`.

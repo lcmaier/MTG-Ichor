@@ -1,10 +1,12 @@
-use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
+use crate::types::zones::Zone;
+use crate::ui::ask::ask_discard;
 use crate::ui::decision::DecisionProvider;
 
 /// Turn structure engine — CR 500, and CR 614.10's three replaceable units.
@@ -409,8 +411,9 @@ impl GameState {
                 self.priority_player = self.active_player;
             }
             StepType::Cleanup => {
-                // Rule 514.1 (discard to hand size) needs a DecisionProvider, so it
-                // lives one level up in `Game::process_turn_based_actions`, not here.
+                // CR 514.1 is "first": what CR 514.2 ends still applies to the
+                // discard, so a stolen Leyline of the Void is still the thief's.
+                self.discard_to_maximum_hand_size(dp)?;
 
                 // ORDER-FREE: the permanents with damage to clear, read first
                 // so only those are written: a write copies the permanent if a
@@ -473,7 +476,7 @@ impl GameState {
                 self.settle_layer_consequences(&ActionContext::game_rule(dp, GameRule::ControlChanges))?;
 
                 // No priority during cleanup (CR 514.3). CR 514.3a's repeated step is
-                // `Game::run_turn`'s loop, one level up with 514.1's discard.
+                // `Game::run_turn`'s loop, one level up.
             }
         }
         Ok(())
@@ -499,6 +502,44 @@ impl GameState {
     }
 
     // --- Step processors ---
+
+    /// Cleanup step's discard to hand size (rule 514.1).
+    ///
+    /// > 514.1. First, if the active player's hand contains more cards than
+    /// > their maximum hand size (normally seven), they discard **enough
+    /// > cards** to reduce their hand size to that number.
+    ///
+    /// **One discard of N, not N discards of one.** The rule names a single
+    /// turn-based action over "enough cards", so the choice is made once and
+    /// the cards move as one batch — which is what CR 603.2c's "whenever one
+    /// or more cards are discarded" will read, and the same shape
+    /// `Primitive::Discard` builds for Mind Rot.
+    fn discard_to_maximum_hand_size(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
+        let active = self.active_player;
+        // CR 800.4j: a turn with no active player has nobody to discard.
+        if !self.in_game(active) {
+            return Ok(());
+        }
+        let max = self.players[active].max_hand_size as usize;
+        let hand: Vec<_> = self.players[active].hand.clone();
+        if hand.len() <= max {
+            return Ok(());
+        }
+        // No `source`: CR 514.1 is a turn-based action and no spell or ability
+        // caused it, which is also why a `ReplacementDef::by` never matches it.
+        let chosen = ask_discard(dp, self, active, &hand, hand.len() - max, None);
+        let batch: Vec<GameAction> = chosen
+            .into_iter()
+            .map(|object| GameAction::ZoneChange {
+                object,
+                from: Zone::Hand,
+                to: Zone::Graveyard,
+                act: ZoneChangeAct::Discarded,
+            })
+            .collect();
+        self.execute_actions(batch, &ActionContext::turn_based(dp, TurnBasedAction::CleanupDiscard))?;
+        Ok(())
+    }
 
     /// Untap step: untap all permanents controlled by the active player,
     /// reset land drops (rule 502)

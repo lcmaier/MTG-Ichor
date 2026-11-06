@@ -36,9 +36,9 @@ impl GameState {
     ) -> Result<bool, String> {
         let active = self.active_player;
         // The option list is every legal attacker × every legal target, and it
-        // grows with planeswalkers and battles as targets. Whether the ask
-        // becomes two-step — which creatures attack, then each one's target —
-        // is a `DecisionProvider` choice-shape question, `backlog.md` §2.4's.
+        // grows with planeswalkers and battles as targets. The question takes
+        // one pair per creature (`ask_choose_attackers`), and a client reads a
+        // creature's targets off its pairs.
         let attacker_ids = legal_attackers(self, active);
         let attackable = self.what_can_be_attacked();
         let legal_pairs: Vec<(ObjectId, AttackTarget)> = attacker_ids
@@ -279,7 +279,8 @@ impl GameState {
         self.phase.phase_type == PhaseType::Combat && self.opponents_of(self.active_player).contains(&player)
     }
 
-    /// Get the list of defending players (players being attacked).
+    /// The players being attacked, in the order they declare blocks: APNAP
+    /// (CR 802.4).
     fn get_defending_players(&self) -> Vec<PlayerId> {
         let mut defenders = Vec::new();
         for (_id, entry) in self.battlefield_ordered() {
@@ -289,6 +290,7 @@ impl GameState {
                 defenders.push(pid);
             }
         }
+        defenders.sort_by_key(|&player| self.apnap_index(player));
         defenders
     }
 

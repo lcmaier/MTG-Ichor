@@ -71,9 +71,11 @@ pub(crate) struct Rider {
     pub source: ObjectId,
     /// What generated the replacement effect this rider is the rest of.
     pub generated_by: GeneratedBy,
-    /// CR 614.5's applied set for the event this rider is the rest of — the
-    /// group's *final* set, filled in by `execute_batch_inner` once the loop
-    /// has returned, and handed to every proposal the rider makes.
+    /// CR 614.5's applied set for the event this rider is the rest of, as it
+    /// stood when the rider was queued, its own effect included, and handed to
+    /// every proposal the rider makes. An effect that applies later has yet to
+    /// reach this half of the modified event: Ghosts of the Innocent halves Eye
+    /// for an Eye's damage whichever of the two the player applies first.
     ///
     /// A rider's proposals are "modified events that may replace that
     /// event", not new events: Alms Collector's *"you and that player each
@@ -402,7 +404,10 @@ fn never_happens(action: &GameAction) -> bool {
 /// and it gets **one** applied set, one chooser and one loop: a chosen
 /// instance is applied to each member it applies to, its rider queued once
 /// with the members' amounts summed, its use spent once by what the whole
-/// application did. Two printed rulings are what fixed the unit. Kalitas's
+/// application did. A rewrite that moves a member's subject breaks the
+/// premise, so the members split into a subject group each, and each finishes
+/// in this same loop from the applied set so far. Two printed rulings are what
+/// fixed the unit. Kalitas's
 /// says N opposing creatures dying at once make N Zombies — N subjects, N
 /// applications — and CR 122.1c's says two blockers hitting one creature with
 /// shield counters remove **one** counter — one subject, one application. The
@@ -442,7 +447,7 @@ pub(crate) fn apply_replacements(
 ) -> Result<(), String> {
     debug_assert!(
         group.windows(2).all(|pair| pair[0].event.as_ref().map(subject_of) == pair[1].event.as_ref().map(subject_of)),
-        "a subject group is built by `execute_batch_inner` from one subject"
+        "a subject group is one subject's"
     );
     // An entry is its own subject, so the CR 614.12 frame below — built for
     // one entering permanent — is built for a group of one.
@@ -451,7 +456,6 @@ pub(crate) fn apply_replacements(
             || !group.iter().any(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))),
         "an entry shares its subject with nothing"
     );
-    let riders_before = riders.len();
 
     let mut applied: AppliedReplacements = inherited.clone();
     // Declining is tracked separately from CR 614.5's applied set: CR 903.9b is
@@ -464,6 +468,7 @@ pub(crate) fn apply_replacements(
     let mut exempt_applied: Option<ReplacementInstanceId> = None;
 
     let mut iteration: u64 = 0;
+    let mut subject_moved = false;
     // Unbounded on purpose: every iteration consumes something finite — CR 614.5's
     // `applied`, `declined`, or `check_exempt_terminates`'s slot — and nothing
     // touches the board between iterations (riders queue, §4.1a).
@@ -476,17 +481,30 @@ pub(crate) fn apply_replacements(
                 m.event = None;
             }
         }
+        // CR 616.1 — a redirect can leave the group's events affecting two
+        // subjects, and each one's own player chooses for it, in APNAP order.
+        if std::mem::take(&mut subject_moved) && regroup_by_subject(game, group) {
+            give_applied_set(group, applied.clone());
+            let mut start = 0;
+            while let Some(subject) = group.get(start).and_then(|m| m.event.as_ref()).map(subject_of) {
+                let same_subject = |m: &&BatchMember| m.event.as_ref().map(subject_of) == Some(subject);
+                let end = start + group[start..].iter().take_while(same_subject).count();
+                apply_replacements(game, &mut group[start..end], later, ctx, &applied, riders)?;
+                start = end;
+            }
+            return Ok(());
+        }
         // Owned, because the gather below walks `group` mutably; one small
         // clone per iteration of a loop that runs once for most proposals.
         let Some(first) = group.iter().find_map(|m| m.event.clone()) else {
-            give_applied_set(group, &mut riders[riders_before..], applied);
+            give_applied_set(group, applied);
             return Ok(());
         };
 
-        // The group's key, not the member's subject: a `Rewrite::Retarget` (CR 614.9)
-        // moves an event's subject, so from the second iteration the two can differ,
-        // and every question below — chooser, prompt, counter subject — is the event's.
-        // Re-derived per iteration for the same reason `gather` is (CR 616.1f).
+        // Not the group's key: a `Rewrite::Retarget` (CR 614.9) moves an event's
+        // subject, and every question below — chooser, prompt, counter subject —
+        // is the event's. Re-derived per iteration for the same reason `gather`
+        // is (CR 616.1f).
         let subject = subject_of(&first);
 
         // CR 614.12 / 614.17d — the frame both questions below read for an
@@ -551,7 +569,7 @@ pub(crate) fn apply_replacements(
             if let Some(t) = trace {
                 game.trace(|| t.record(game, group));
             }
-            give_applied_set(group, &mut riders[riders_before..], applied);
+            give_applied_set(group, applied);
             return Ok(());
         }
 
@@ -656,47 +674,23 @@ pub(crate) fn apply_replacements(
         // what the whole application did (decision 7).
         let mut replaced_amount: Option<u64> = None;
         let mut replaced_damage = false;
-        // The first member's subject, read before its rewrite: CR 615.5's "that much"
-        // is about the event the effect replaced, so a later redirect in the same loop
-        // does not rename Reverse Damage's player.
-        let rider_subject = applicable.first().and_then(|&pos| group[pos].event.as_ref()).map_or(subject, subject_of);
         let mut outcome = Applied::CHANGED_NOTHING;
         let mut redirected = false;
-        // Whom it prevented damage to, and how much, in member order: a
-        // redirect earlier in the loop can leave two members of one group
-        // dealing damage to two recipients.
-        let mut prevented_to: Vec<(ObjectOrPlayerId, u64)> = Vec::new();
         for (k, &pos) in applicable.iter().enumerate() {
             let event = group[pos].event.take().expect("gathered this iteration, so live");
             let went_to = destination(&event);
-            let damaged = match &event {
-                GameAction::DealDamage { target, .. } => Some(*target),
-                _ => None,
-            };
             if let Some(amount) = event_amount(&event) {
                 replaced_amount = Some(replaced_amount.unwrap_or(0) + amount);
             }
-            replaced_damage |= damaged.is_some();
-            // Per member, and it is the member's own event that answers: two
-            // members of one group can have different subjects once a redirect
-            // has moved one of them.
-            let member_subject = subject_of(&event);
+            replaced_damage |= matches!(event, GameAction::DealDamage { .. });
             let share = shares.as_ref().map(|s| s[k]);
             // Kept for `check_order_invariance`'s fourth shape, which asks what
             // a *different* member would have substituted for this same event.
             // Debug-only work, so the clone is behind the same gate.
             let before = cfg!(debug_assertions).then(|| event.clone());
-            let (next, did) = apply_rewrite(game, ctx, &chosen, event, member_subject, share)?;
+            let (next, did) = apply_rewrite(game, ctx, &chosen, event, subject, share)?;
             outcome.took_effect |= did.took_effect;
             outcome.prevented += did.prevented;
-            if let Some(target) = damaged
-                && did.prevented > 0
-            {
-                match prevented_to.iter_mut().find(|(to, _)| *to == target) {
-                    Some((_, amount)) => *amount += did.prevented,
-                    None => prevented_to.push((target, did.prevented)),
-                }
-            }
             if let Some(next) = &next {
                 // CR 616.1f — the modified event is what the next iteration
                 // re-gathers against, which is how CR 616.2's "a replacement
@@ -709,19 +703,24 @@ pub(crate) fn apply_replacements(
                     && !unsuppressed.is_empty()
                 {
                     game.unobserved(|| {
-                        check_order_invariance(game, ctx, &chosen, before, next, member_subject, pos, &unsuppressed)
+                        check_order_invariance(game, ctx, &chosen, before, next, subject, pos, &unsuppressed)
                     });
                 }
             }
             redirected |= next.as_ref().is_some_and(|next| destination(next) != went_to);
+            subject_moved |= next.as_ref().is_some_and(|next| subject_of(next) != subject);
             // CR 614.6 — `None` here means this member's event does not
             // happen. Queued riders still run.
             group[pos].event = next;
         }
         // CR 615.13 — the application is the event, so it is announced as the
         // batch decides; unpreventable damage (CR 615.12) prevented none.
-        for (target, amount) in prevented_to {
-            let event = GameEvent::DamagePrevented { recipient: target.for_record(game)?, amount, by: chosen.id };
+        if let Some(target) = subject.filter(|_| replaced_damage && outcome.prevented > 0) {
+            let event = GameEvent::DamagePrevented {
+                recipient: target.for_record(game)?,
+                amount: outcome.prevented,
+                by: chosen.id,
+            };
             game.emit_event(event, caused_by_replacement(game, &chosen)?)?;
         }
         // Into the set once applied, before the next iteration gathers (CR
@@ -740,10 +739,9 @@ pub(crate) fn apply_replacements(
             riders.push(Rider {
                 source: chosen.source,
                 generated_by: replacement_generator(game, &chosen)?,
-                // The group's final applied set, once the loop has it.
-                lineage: AppliedReplacements::EMPTY,
+                lineage: applied.without_redirects(),
                 controller: chosen.controller,
-                subject: rider_subject,
+                subject,
                 // One kind of event per group, since a pattern matches one
                 // `GameAction` arm, and damage always carries its amount.
                 replaced_event: match (replaced_damage, replaced_amount) {
@@ -763,17 +761,36 @@ pub(crate) fn apply_replacements(
     }
 }
 
-/// The group's final applied set, given to each member and to each rider the
-/// group queued. CR 614.5: a rider is the rest of its replacement's effect, so
-/// it carries everything that applied to the event, including what applied
-/// after it was queued.
-///
-/// The set itself goes to the last member, so the common group, one member
-/// and no rider, copies nothing.
-fn give_applied_set(group: &mut [BatchMember], queued: &mut [Rider], applied: AppliedReplacements) {
-    for rider in queued {
-        rider.lineage = applied.without_redirects();
+/// Whether a moved subject left `group`'s events affecting more than one
+/// subject. If so `group` is sorted so each subject's members sit together, in
+/// the order CR 101.4 gives CR 616.1's choosers, and the members with no event
+/// left go last.
+fn regroup_by_subject(game: &GameState, group: &mut [BatchMember]) -> bool {
+    let mut subjects: Vec<Option<ObjectOrPlayerId>> = Vec::new();
+    for event in group.iter().filter_map(|m| m.event.as_ref()) {
+        if !subjects.contains(&subject_of(event)) {
+            subjects.push(subject_of(event));
+        }
     }
+    if subjects.len() < 2 {
+        return false;
+    }
+    // A subject with no chooser sorts after every seat, as in `subject_groups`.
+    let no_chooser = game.players.len();
+    let no_event = no_chooser + 1;
+    group.sort_by_key(|m| match &m.event {
+        Some(event) => (
+            chooser_for(game, event).map_or(no_chooser, |player| game.apnap_index(player)),
+            subjects.iter().position(|subject| *subject == subject_of(event)),
+        ),
+        None => (no_event, None),
+    });
+    true
+}
+
+/// The group's final applied set, given to each member. The set itself goes to
+/// the last member, so the common group of one copies nothing.
+fn give_applied_set(group: &mut [BatchMember], applied: AppliedReplacements) {
     if let Some((last, rest)) = group.split_last_mut() {
         for member in rest {
             member.applied = applied.clone();

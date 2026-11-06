@@ -682,6 +682,7 @@ mod tests {
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
         game.begin_turn(3, 0);
         game.battlefield.get_mut(&creature_id).unwrap().entered_battlefield_turn = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().control_began_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
@@ -695,6 +696,7 @@ mod tests {
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
         game.begin_turn(3, 0);
         game.battlefield.get_mut(&creature_id).unwrap().entered_battlefield_turn = 3;
+        game.battlefield.get_mut(&creature_id).unwrap().control_began_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
         plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx()).unwrap();

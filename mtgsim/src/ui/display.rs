@@ -679,6 +679,7 @@ pub fn combat_refusal(game: &GameState, error: &CombatError, refused: Declaring)
             Some("302.6"),
         ),
         CombatError::InvalidAttackTarget(id) => (format!("{} can't attack that", n(id)), None),
+
         CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => (
             format!("{} is not attacking you, so {} can't block it", n(attacker), n(blocker)),
             Some("509.1a"),
@@ -1817,6 +1818,7 @@ mod tests {
             rejection(&game, &blocks),
             format!("Those blocks are illegal: Grizzly Bears ({blocker}) can block only one attacker (CR 509.1a)")
         );
+
     }
 
     /// One record of every `GameEvent` variant, each object it carries a

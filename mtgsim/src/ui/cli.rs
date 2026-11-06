@@ -14,7 +14,7 @@ use std::io::{self, BufRead, Write};
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::ask::allocation_fits;
+use crate::ui::ask::{allocation_fits, attacks_fit};
 use crate::ui::auto_yield::{Yield, Yields, pass_index};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
@@ -181,6 +181,10 @@ impl DecisionProvider for CliDecisionProvider {
 
         loop {
             let indices = read_usize_list("Enter indices:", options.len());
+            if let Err(why) = attacks_fit(&indices, options) {
+                println!("{why}. Try again.");
+                continue;
+            }
             if indices.len() >= bounds.0 && indices.len() <= bounds.1 {
                 return indices;
             }

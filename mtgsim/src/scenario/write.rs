@@ -511,6 +511,7 @@ impl<'g> Writer<'g> {
             face_down,
             phased_out,
             entered_battlefield_turn,
+            control_began_turn,
             damage_marked,
             damaged_by_deathtouch,
             attacking,
@@ -539,6 +540,9 @@ impl<'g> Writer<'g> {
             words.push(CardWord::Arrived(Arrival::ThisTurn));
         } else if arrived > 0 && arrived >= since {
             words.push(CardWord::Arrived(Arrival::Turn(arrived)));
+        }
+        if *control_began_turn != arrived && *control_began_turn >= since {
+            words.push(CardWord::ControlSince(*control_began_turn));
         }
         if let Some(kind) = intrinsic_entry_counter_kind(&obj.card_data).filter(|kind| entry.counter_count(*kind) == 0) {
             words.push(CardWord::Counter(kind, 0));

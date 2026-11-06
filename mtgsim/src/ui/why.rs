@@ -845,6 +845,7 @@ fn about_the_blocker_alone(error: &CombatError, blocker: ObjectId) -> bool {
         | CombatError::CreatureIsTapped(id) => *id == blocker,
         CombatError::CreatureHasSummoningSickness(_)
         | CombatError::InvalidAttackTarget(_)
+
         | CombatError::AttackerNotAttackingThisPlayer(..)
         | CombatError::TooManyBlocks(..)
         | CombatError::HasDefender(_)

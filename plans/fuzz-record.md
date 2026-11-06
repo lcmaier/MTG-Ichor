@@ -47,7 +47,7 @@ room; the two tables must name the same floors.
 <!-- floor readings: begin -->
 | Floor | Reading | Read on | Where |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | 15180 | 2026-10-30 | the tree items 352 and 356 left (`7a2c8ae5`, PR #300) on `performance` at Commander scale, 200 games, counted by `fuzz_games --census` (437 a game reach the agent): 17,410 a core-second on one thread by the wall (18,320 by CPU a game) times 6.97, the 16-thread speed-up, over 8 physical cores, the median of five rounds on an idle machine. #299's merge read 13,330 in the same sitting, and its recorded 11,900 was taken with MTG Arena holding 1.5 cores. The token board at 50 a seat reads 7,840 (`codebase-state.md` item 354) |
+| 1. Decisions per loaded physical core-second | 11970 | 2026-11-05 | #310's tree (`3d4236c4`), median of three 16-thread runs, main's 14,428 in the same sitting: a declaration bounded by its creatures sends fewer attackers, so games run 89 turns against 67 on bigger boards. The reading before, 15,180 on 2026-10-30: the tree items 352 and 356 left (`7a2c8ae5`, PR #300) on `performance` at Commander scale, 200 games, counted by `fuzz_games --census` (437 a game reach the agent): 17,410 a core-second on one thread by the wall (18,320 by CPU a game) times 6.97, the 16-thread speed-up, over 8 physical cores, the median of five rounds on an idle machine. #299's merge read 13,330 in the same sitting, and its recorded 11,900 was taken with MTG Arena holding 1.5 cores. The token board at 50 a seat reads 7,840 (`codebase-state.md` item 354) |
 | 2. Allocations per clone | 39 | 2026-10-29 | the same tree: `clone_bound_test` in release at 192 checkpoints and all 10,675 decisions over 24 Commander games, the worst `stress` 777's mana window at turn 41; `clone_fixture_test`'s boards at most 14, the token board at most 33 |
 | 2. Microseconds per clone | 5.6 | 2026-10-29 | the median of five means of 2,000 clone-and-drops, the worst of three runs: `clone_fixture_test`'s 8,000 stacked triggers (4.4–5.6). The 192 checkpoints read at most 1.83, the 20 decisions heaviest by bytes 1.97 (`clone-architecture.md` decision 6(d)), the token board 2.00. Read by a probe under the System allocator; the clone tests' ignored tests read the same within that spread |
 | 3. Kilobytes per clone | 8.7 | 2026-10-29 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.6 at a decision and 6.1 on the token board |
@@ -60,7 +60,7 @@ what moved it; a new reading is added to its row.
 
 | Floor | Standing |
 |---|---|
-| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block). **Read at item 6's close by the census** (2026-10-29): 11,900 loaded and 14,070 on one thread, counting only what reaches the agent; by `ui::ask`'s count 15,450 on one thread against #225's tree's 17,100 in the same sitting, 7 points of it item 352's regrowth. **Fails on the token board from 50 tokens a seat**: 5,700 loaded at 50 and 2,000 at 100 (`codebase-state.md` item 354). **Re-read after items 352 and 356** (2026-10-30, an idle machine): 15,180 loaded and 18,320 on one thread by CPU, against #299's merge's 13,330 in the same sitting; the token board at 50 a seat 7,840, from 7,030, still failing |
+| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block). **Read at item 6's close by the census** (2026-10-29): 11,900 loaded and 14,070 on one thread, counting only what reaches the agent; by `ui::ask`'s count 15,450 on one thread against #225's tree's 17,100 in the same sitting, 7 points of it item 352's regrowth. **Fails on the token board from 50 tokens a seat**: 5,700 loaded at 50 and 2,000 at 100 (`codebase-state.md` item 354). **Re-read after items 352 and 356** (2026-10-30, an idle machine): 15,180 loaded and 18,320 on one thread by CPU, against #299's merge's 13,330 in the same sitting; the token board at 50 a seat 7,840, from 7,030, still failing. **Moved by the bot, not the engine** (#310, 2026-11-05): 11,970 against main's 14,428, instructions per decision unmoved at two seats where the games match. Four-seat games are longer, since the agent's attack count now reads the creatures and not the pairs |
 | 2. Full-state clone ≤ 10 µs | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack. **Read at item 6's close** (2026-10-29), every decision by the engine's predicates: at most 39 allocations over 10,675 decisions and 36 between turns; 1.70–1.83 µs at the worst checkpoint, 1.87–1.97 at the 20 heaviest decisions, 4.4–5.6 on the 8,000-trigger stack; the token board at most 33 and 2.0 µs |
 | 3. ≤ 128 KB per state | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store. **Read at item 6's close** (2026-10-29): at most 6.6 KB at a decision and 6.2 between turns, 8.7 on the 8,000-trigger stack, 2.6 after the 4,000 tokens, 6.1 on the token board at up to 400 Goblins |
 
@@ -95,6 +95,39 @@ one means the engine's cost model moved
   got longer".
 
 ## The records, newest first
+
+**Re-recorded 2026-11-05 for the hunt's small fixes** (`rules/hunt-small-fixes`,
+PR #310: items 366 to 371). No pool changed. One `close_out.py` sitting against
+**main** `a0ebab44`: **engine** `3d4236c4`, the last engine commit.
+
+**Predictions, before any arm ran**:
+- two seats: every gameplay row nearly unmoved. Only the cleanup order, the clock
+  and the placement pass reach two seats, and each needs a rare board;
+- four seats: every game diverges, the random agent no longer declaring a creature
+  at two players;
+- instructions per decision: nothing, every addition sitting off the hot path.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | differ / differ |
+| audit, engine, dispatches agreed, performance / stress | 178,133 / 173,623 | 411,795 / 436,528 |
+| errors, panics, turn limits, performance / stress | 0 / 0 | 0 / 0 |
+| average turns, main → engine, performance / stress | | 50.5 → 64.1 / 50.7 → 60.8 |
+| instructions / decision, callgrind, 100 games at seed 12345, performance / stress | -0.10% / +0.01% | |
+| Floor 1, main → engine, loaded, the Commander board | | 14,428 → 11,970 |
+
+**The two-seat rows beat the prediction**: the sweep's boards reach none of the
+fixes. **The budget reads at two seats**, where the games are identical. The
+close-out's own line is four seats across different games, so its 0.5883 M →
+0.8749 M is no reading.
+
+**The four-seat move nobody predicted is the bound.** At the owner's review the
+attack question took one pair per creature, and its most is the creature count,
+not the pair count. The random agent draws how many to send from that bound, so
+at four seats it sends fewer, as it always has at two, and games run longer on
+bigger boards. Floor 1 moved with them; the engine did not. A 50-game audited
+Commander-scale stress run met one 200-turn limit, where the close-out's boards
+met none.
 
 **Re-recorded 2026-11-03 for `divided-among-targets`, an effect divided among its targets**
 (`choices/divided-among-targets`, PR #308: CR 601.2d on a cast, an activation

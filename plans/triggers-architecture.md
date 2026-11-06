@@ -2602,9 +2602,9 @@ choice for an earlier player.
 
 **The drain removes each entry from `pending_triggers` as it places it**,
 and that is a design statement rather than a detail: the queue is then the
-placement's progress record, so a `GameState` cloned at the ordering prompt
-resumes by running `place_pending_triggers` again — item 40's invariant met
-by construction, at the fork model's own boundary, a priority grant.
+placement's progress record. A fork resumes at the fork model's own boundary,
+a priority grant, and never inside a pass, which is why a pass may hold its
+bound on what CR 603.3b lets it place (item 371) as a local.
 
 **The ordering prompt is `ChoiceKind::OrderTriggers { player, tier }`**,
 subject `None` (it is about several objects, like `DeclareAttackers`), asked

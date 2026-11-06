@@ -1160,11 +1160,12 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
     let modification = match resolved {
         // Layer 2. CR 302.6 asks whether control has been *continuous*, so the
         // clock restarts only when control moves: gaining control of what you
-        // control (a legal Act of Treason) gives no summoning sickness.
+        // control (a legal Act of Treason) gives no summoning sickness. A row
+        // older than the seed lost and regained it, so the later turn stands.
         Resolved::Controller(Some((new_controller, since))) => {
             if chars.controller != *new_controller {
                 chars.controller = *new_controller;
-                chars.control_since_turn = *since;
+                chars.control_since_turn = (*since).max(chars.control_since_turn);
             }
             return;
         }

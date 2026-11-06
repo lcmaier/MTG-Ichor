@@ -106,6 +106,10 @@ gates do that. Stop at about 60 tool calls and report what you have.
 18. **The empty and declined paths.** Flag an optional choice or tracked set
     whose declined or empty answer leaves different state from a non-empty
     one: a count, a record, a flag the next step reads.
+19. **Fixtures from printed text.** Flag a fixture whose rules text is invented
+    where a printed card has that shape: search for one, and name it. Flag one
+    wearing a real card's name while it behaves differently. A rule no card
+    prints may have an invented fixture, and its doc says so.
 
 The layer, chokepoint, replacement and determinism invariants are `CLAUDE.md`'s
 and the `check_*.py` gates'; flag a breach you see, but do not hunt for them.

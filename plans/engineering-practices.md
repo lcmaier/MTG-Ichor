@@ -91,9 +91,9 @@ it is, rename it. Every name a PR adds is read against this list:
 6. **Name a type by its contents**: a set of objects alone is `ObjectSet`, not `AffectedSet`, which names the objects and players an effect affects.
 7. **Where the card's text has a phrase, use it**: `DoThisOnlyOnceEachTurn`.
 8. **Name the players**: a condition about a player says which ones.
-9. **A constructor says what it builds**: `IdMap::default()`, not
-   `Default::default()`; an empty value that is a claim is a named constant
-   (`ObjectSet::NO_OBJECTS`). Clippy's `default_trait_access` gates the first half.
+9. **A call names the type it builds**: `IdMap::default()`, never a bare
+   `Default::default()`, whose type only the compiler can see. An empty value that
+   means something is a named constant (`ObjectSet::NO_OBJECTS`). Clippy's `default_trait_access` gates the first half.
 10. **A return names its parts**: a tuple only for a pair that is one thing;
     otherwise a struct with named fields, or two functions.
 
@@ -285,9 +285,9 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
   `fuzz-record.md`; `performance_pool()` panics on a name no longer registered.
 - **Before a word in a card's text becomes structural, find two more cards in
   the bucket that print it.** Structure is the expensive direction to be wrong in.
-- **A fixture may be invented. It must not wear a real card's name while
-  behaving differently, nor be cited in the corpus or plans as evidence about
-  printed Magic.**
+- **A fixture takes a printed card's words and shape where one has them, its
+  doc naming the card. It must not wear that name while behaving differently,
+  nor be cited in the corpus or plans as evidence about printed Magic.**
 - **The pool measures cost; `--require` measures coverage.** The unforced count
   is not a target. Run `--require` once per phase that adds a card and record
   its resolutions beside its copies per deck, since a count compares only per

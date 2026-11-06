@@ -213,10 +213,19 @@ fn pick(
     }
     if let Some(at) = chosen.iter().position(|i| *i == clicked) {
         chosen.remove(at);
+    } else if let Some(at) = chosen.iter().position(|i| declares_the_same_attacker(prompt, *i, clicked)) {
+        chosen[at] = clicked;
     } else if chosen.len() < max {
         chosen.push(clicked);
     }
     None
+}
+
+/// Whether two options send one creature to attack, so the later replaces the
+/// earlier: it attacks one thing (CR 802.3).
+fn declares_the_same_attacker(prompt: &Prompt, one: usize, other: usize) -> bool {
+    let attacker = prompt.options[one].attacker;
+    attacker.is_some() && attacker == prompt.options[other].attacker
 }
 
 /// A board click as an option: the one option naming `target` first, or the
@@ -1414,7 +1423,7 @@ mod tests {
     }
 
     fn option(label: &str, refs: Vec<BoardRef>) -> OptionView {
-        OptionView { label: label.to_string(), refs }
+        OptionView { label: label.to_string(), refs, attacker: None }
     }
 
     fn unnamed(count: usize) -> Vec<OptionView> {
@@ -1554,6 +1563,22 @@ mod tests {
         assert_eq!(state.prompt_view().unwrap().rule, format!("now click what {bear} goes with"));
         state.input(Input::Board(Object(b.their_giant)));
         state.input(Input::Board(Object(b.arbor)));
+        assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Picks(vec![1, 2]))));
+    }
+
+    /// A creature attacks one thing, so a second target for it replaces the first.
+    #[test]
+    fn a_second_target_for_an_attacker_replaces_its_first() {
+        let b = board();
+        let attack = |creature, player| OptionView {
+            attacker: Some(creature),
+            ..option("attacks", vec![Object(creature), BoardRef::Player(player)])
+        };
+        let attacks = vec![attack(b.bear, 1), attack(b.bear, 2), attack(b.arbor, 1)];
+        let mut state = deciding(&b, prompt(Primitive::PickN { min: 0, max: 2 }, attacks));
+        state.input(Input::OptionButton(0));
+        state.input(Input::OptionButton(2));
+        state.input(Input::OptionButton(1));
         assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Picks(vec![1, 2]))));
     }
 

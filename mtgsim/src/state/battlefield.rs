@@ -104,11 +104,15 @@ pub struct PermanentState {
     pub flipped: bool,
     pub face_down: bool,
     pub phased_out: bool,
-    /// The turn number when this permanent entered the battlefield, and so
-    /// the turn its controller took control as it entered: CR 302.6's clock,
-    /// seeded into `EffectiveCharacteristics::control_since_turn`, which a
-    /// Layer 2 change advances. Convention: 0 = pregame (rule 103.6 Leylines).
+    /// The turn number when this permanent entered the battlefield.
+    /// Convention: 0 = pregame (rule 103.6 Leylines).
     pub entered_battlefield_turn: u32,
+    /// The turn the last change of control the stream announced happened, or
+    /// `entered_battlefield_turn` before any: CR 302.6's clock, seeded into
+    /// `EffectiveCharacteristics::control_since_turn`. Stored, since a steal
+    /// ending goes back to a controller whose control was interrupted, which
+    /// no Layer 2 row is left to say.
+    pub control_began_turn: u32,
 
     // Creature-specific (only meaningful if the permanent is a creature)
     pub damage_marked: u32,
@@ -293,6 +297,7 @@ pub struct PermanentFields<'a> {
     pub face_down: &'a bool,
     pub phased_out: &'a bool,
     pub entered_battlefield_turn: &'a u32,
+    pub control_began_turn: &'a u32,
     pub damage_marked: &'a u32,
     pub damaged_by_deathtouch: &'a bool,
     pub attacking: &'a Option<AttackingInfo>,
@@ -324,6 +329,7 @@ impl PermanentState {
             face_down,
             phased_out,
             entered_battlefield_turn,
+            control_began_turn,
             damage_marked,
             damaged_by_deathtouch,
             attacking,
@@ -346,6 +352,7 @@ impl PermanentState {
             face_down,
             phased_out,
             entered_battlefield_turn,
+            control_began_turn,
             damage_marked,
             damaged_by_deathtouch,
             attacking,
@@ -374,6 +381,7 @@ impl PermanentState {
             face_down: false,
             phased_out: false,
             entered_battlefield_turn: current_turn,
+            control_began_turn: current_turn,
             damage_marked: 0,
             damaged_by_deathtouch: false,
             attacking: None,
