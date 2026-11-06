@@ -620,12 +620,7 @@ pub fn rejection(game: &GameState, rejected: &Rejection) -> String {
             let (words, _) = rejection_words(game, rejected);
             format!("{words} (CR 732.1)")
         }
-        Rejection::IllegalAttacks { why, .. } => {
-            format!("Those attacks are illegal: {}", combat_error(game, why, Declaring::Attackers))
-        }
-        Rejection::IllegalBlocks { why, .. } => {
-            format!("Those blocks are illegal: {}", combat_error(game, why, Declaring::Blockers))
-        }
+        Rejection::IllegalBlocks { why, .. } => format!("Those blocks are illegal: {}", combat_error(game, why)),
     }
 }
 
@@ -640,10 +635,6 @@ pub fn rejection_words(game: &GameState, rejected: &Rejection) -> (String, Optio
             ),
             Some("732.1"),
         ),
-        Rejection::IllegalAttacks { why, .. } => {
-            let (words, rule) = combat_refusal(game, why, Declaring::Attackers);
-            (format!("Those attacks are illegal: {words}"), rule)
-        }
         Rejection::IllegalBlocks { why, .. } => {
             let (words, rule) = combat_refusal(game, why, Declaring::Blockers);
             (format!("Those blocks are illegal: {words}"), rule)
@@ -660,8 +651,8 @@ pub enum Declaring {
 }
 
 /// The rule a combat declaration broke, as the re-asked question shows it.
-fn combat_error(game: &GameState, error: &CombatError, declaring: Declaring) -> String {
-    match combat_refusal(game, error, declaring) {
+fn combat_error(game: &GameState, error: &CombatError) -> String {
+    match combat_refusal(game, error, Declaring::Blockers) {
         (words, Some(rule)) => format!("{words} (CR {rule})"),
         (words, None) => words,
     }
@@ -688,7 +679,7 @@ pub fn combat_refusal(game: &GameState, error: &CombatError, refused: Declaring)
             Some("302.6"),
         ),
         CombatError::InvalidAttackTarget(id) => (format!("{} can't attack that", n(id)), None),
-        CombatError::AttacksTwice(id) => (format!("{} can attack only one thing", n(id)), Some("802.3")),
+
         CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => (
             format!("{} is not attacking you, so {} can't block it", n(attacker), n(blocker)),
             Some("509.1a"),
@@ -1827,14 +1818,7 @@ mod tests {
             rejection(&game, &blocks),
             format!("Those blocks are illegal: Grizzly Bears ({blocker}) can block only one attacker (CR 509.1a)")
         );
-        let attacks = Rejection::IllegalAttacks {
-            attacks: vec![(attacker, AttackTarget::Player(0)), (attacker, AttackTarget::Player(1))],
-            why: CombatError::AttacksTwice(attacker),
-        };
-        assert_eq!(
-            rejection(&game, &attacks),
-            format!("Those attacks are illegal: Grizzly Bears ({attacker}) can attack only one thing (CR 802.3)"),
-        );
+
     }
 
     /// One record of every `GameEvent` variant, each object it carries a

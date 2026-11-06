@@ -251,9 +251,6 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
 fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
     match rejected {
         Rejection::Reversed(action) => names(&ChoiceOption::Action(action.clone()), about),
-        Rejection::IllegalAttacks { attacks, .. } => {
-            attacks.iter().any(|&(attacker, target)| names(&ChoiceOption::AttackerTarget(attacker, target), about))
-        }
         Rejection::IllegalBlocks { blocks, .. } => {
             blocks.iter().any(|&(blocker, attacker)| names(&ChoiceOption::BlockerAttacker(blocker, attacker), about))
         }
@@ -848,7 +845,7 @@ fn about_the_blocker_alone(error: &CombatError, blocker: ObjectId) -> bool {
         | CombatError::CreatureIsTapped(id) => *id == blocker,
         CombatError::CreatureHasSummoningSickness(_)
         | CombatError::InvalidAttackTarget(_)
-        | CombatError::AttacksTwice(_)
+
         | CombatError::AttackerNotAttackingThisPlayer(..)
         | CombatError::TooManyBlocks(..)
         | CombatError::HasDefender(_)

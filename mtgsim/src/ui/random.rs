@@ -319,12 +319,11 @@ impl DecisionProvider for RandomDecisionProvider {
             rng.random_range(bounds.0..=bounds.1)
         };
 
-        // For a declaration, dedup on the creature so RandomDP declares a
-        // legal set in one shot instead of being asked again: an attacker
-        // attacks one thing (CR 802.3), and each blocker blocks one attacker
-        // (CR 509.1a) unless an effect lets it block more, which this policy
-        // never uses. The engine's re-ask remains the net — this branch just
-        // spares it.
+        // For a declaration, dedup on the creature: an attacker attacks one
+        // thing (CR 802.3), which the question requires, and each blocker
+        // blocks one attacker (CR 509.1a) unless an effect lets it block more,
+        // which this policy never uses. For blocks the engine's re-ask remains
+        // the net, and this branch just spares it.
         if matches!(context.kind, ChoiceKind::DeclareAttackers | ChoiceKind::DeclareBlockers) {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);

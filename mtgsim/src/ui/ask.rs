@@ -37,7 +37,7 @@ use crate::engine::trace_records;
 use crate::events::unasked::{Unasked, UnaskedAnswer};
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
@@ -520,7 +520,6 @@ pub fn ask_choose_attackers(
     game: &GameState,
     player: PlayerId,
     legal: &[(ObjectId, AttackTarget)],
-    rejected: Option<Rejection>,
 ) -> Vec<(ObjectId, AttackTarget)> {
     if legal.is_empty() {
         return Vec::new();
@@ -529,10 +528,27 @@ pub fn ask_choose_attackers(
         .iter()
         .map(|&(id, t)| ChoiceOption::AttackerTarget(id, t))
         .collect();
-    let ctx = ChoiceContext { kind: ChoiceKind::DeclareAttackers, rejected };
-    let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
-    validate_pick_n(&indices, &options, (0, legal.len()), "choose_attackers", game, player, &ctx);
+    let creatures = legal.iter().map(|&(creature, _)| creature).collect::<IdSet<ObjectId>>().len();
+    let ctx = ChoiceContext::new(ChoiceKind::DeclareAttackers);
+    let indices = dp.pick_n(game, player, &ctx, &options, (0, creatures));
+    validate_pick_n(&indices, &options, (0, creatures), "choose_attackers", game, player, &ctx);
+    if let Err(why) = attacks_fit(&indices, &options) {
+        panic!("ask_choose_attackers: DP returned {why}");
+    }
     indices.iter().map(|&i| legal[i]).collect()
+}
+
+/// Whether `indices` name each creature among `options` once. A creature
+/// attacks one thing (CR 802.3), so a declaration takes one pair per creature:
+/// this is the question's shape, as a repeated index is, and no rule to break.
+pub(crate) fn attacks_fit(indices: &[usize], options: &[ChoiceOption]) -> Result<(), String> {
+    for (place, &index) in indices.iter().enumerate() {
+        let Some(creature) = options[index].attacker() else { continue };
+        if indices[..place].iter().any(|&earlier| options[earlier].attacker() == Some(creature)) {
+            return Err(format!("{creature} declared attacking twice"));
+        }
+    }
+    Ok(())
 }
 
 /// Choose which creatures to declare as blockers.
@@ -1674,7 +1690,7 @@ mod tests {
             (id_a, AttackTarget::Player(1)),
             (id_b, AttackTarget::Player(1)),
         ];
-        let result = ask_choose_attackers(&dp, &game, 0, &legal, None);
+        let result = ask_choose_attackers(&dp, &game, 0, &legal);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0, id_a);
         assert_eq!(result[1].0, id_b);

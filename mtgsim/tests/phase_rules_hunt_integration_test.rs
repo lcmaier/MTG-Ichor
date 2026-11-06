@@ -10,7 +10,7 @@ use mtgsim::cards::authoring::{
 };
 use mtgsim::cards::printings::*;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::combat::validation::CombatError;
+
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::cause::GeneratedBy;
@@ -31,7 +31,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{AmountRewrite, Rewrite};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 fn bears_deck() -> Vec<Arc<CardData>> {
@@ -131,29 +131,34 @@ fn each_attacker_chooses_its_own_defending_player() {
     assert_eq!(attacking(&game, y), Some(AttackTarget::Player(2)));
 }
 
-/// CR 802.3 gives a creature one target, so a declaration naming it twice is
-/// illegal and declared again, and Hellrider triggers once.
+/// CR 802.3 gives a creature one target, so the question takes one pair per
+/// creature, and an answer naming Hellrider twice is malformed, as a repeated
+/// index is. There is no second declaration for it to trigger on.
 #[test]
-fn a_creature_declared_at_two_players_is_asked_again() {
+#[should_panic(expected = "declared attacking twice")]
+fn a_declaration_naming_a_creature_twice_is_malformed() {
+    let mut game = setup_game(3);
+    let rider = put_on_battlefield(&mut game, hellrider(), 0);
+    place_vanilla_creature(&mut game, 0, 2, 2, &[]);
+    in_combat_step(&mut game, StepType::DeclareAttackers);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 1), attacks(rider, 2)]);
+    let _ = game.process_declare_attackers(&dp);
+}
+
+/// The most a declaration can name is one pair for each creature.
+#[test]
+fn a_declaration_is_bounded_by_its_creatures_and_not_its_pairs() {
     let mut game = setup_game(3);
     let rider = put_on_battlefield(&mut game, hellrider(), 0);
     in_combat_step(&mut game, StepType::DeclareAttackers);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 1), attacks(rider, 2)]);
-    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 1)]);
-    let seat = RejectionRecorder::new(dp);
-    game.process_declare_attackers(&seat).unwrap();
+    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 2)]);
+    game.process_declare_attackers(&dp).unwrap();
 
-    let asked = seat.rejected_at("DeclareAttackers");
-    assert_eq!(asked.len(), 2, "the illegal declaration is declared again");
-    assert!(asked[0].is_none());
-    assert!(
-        matches!(&asked[1], Some(Rejection::IllegalAttacks { why: CombatError::AttacksTwice(id), .. }) if *id == rider),
-        "the second ask says what it rejected: {:?}",
-        asked[1],
-    );
-    assert_eq!(attacking(&game, rider), Some(AttackTarget::Player(1)));
+    assert_eq!(attacking(&game, rider), Some(AttackTarget::Player(2)));
     assert_eq!(game.pending_triggers.len(), 1, "one attacker, one trigger");
 }
 
