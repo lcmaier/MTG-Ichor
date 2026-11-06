@@ -617,7 +617,7 @@ mod tests {
         assert_eq!(walk.len(), 2);
         assert_eq!(walk.map(|(id, _)| id.raw()).collect::<Vec<_>>(), [2, 33]);
         assert_eq!((table.keys().len(), table.values().len()), (4, 4));
-        assert_eq!(ObjectTable::<u64>::default().iter().size_hint(), (0, Some(0)));
+        assert_eq!(ObjectTable::<u64>::empty().iter().size_hint(), (0, Some(0)));
     }
 
     #[test]

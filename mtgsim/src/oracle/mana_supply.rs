@@ -72,12 +72,12 @@ fn holds(a: &ManaBag, b: &ManaBag) -> bool {
 }
 
 /// A set of the six types, a bit each.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ManaTypes(u8);
 
-impl EmptyCollection for ManaTypes {}
-
 impl ManaTypes {
+    const EMPTY: ManaTypes = ManaTypes(0);
+
     fn one(slot: usize) -> ManaTypes {
         ManaTypes(1 << slot)
     }
@@ -551,7 +551,7 @@ fn mana_types_made(
             return fixed.map(|(mana_type, _)| *mana_type).collect();
         }
     };
-    let types = made.iter().fold(ManaTypes::empty(), |set, m| set.union(ManaTypes::of(m)));
+    let types = made.iter().fold(ManaTypes::EMPTY, |set, m| set.union(ManaTypes::of(m)));
     ManaType::ALL.into_iter().filter(|&t| types.has(slot(t))).collect()
 }
 
@@ -1206,7 +1206,7 @@ impl SplitSupply {
         }
         // One mana of any type in a set: a dual, a five-color land.
         if ways.iter().all(|way| way.iter().sum::<u64>() == 1) {
-            let types = ways.iter().fold(ManaTypes::empty(), |set, way| set.union(ManaTypes::of(way)));
+            let types = ways.iter().fold(ManaTypes::EMPTY, |set, way| set.union(ManaTypes::of(way)));
             self.add_free(types, copies);
             return;
         }

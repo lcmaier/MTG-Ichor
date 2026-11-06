@@ -559,9 +559,10 @@ pub type IdMap<K, V> = HashMap<K, V, IdHash>;
 pub type IdSet<K> = HashSet<K, IdHash>;
 
 /// How a collection says it starts with nothing in it, which `default()` leaves
-/// for the reader to work out. A trait, because [`IdMap`] and [`IdSet`] are
-/// aliases of std's types, and no constant, because their hasher reads a seed
-/// at run time.
+/// for the reader to work out. A trait because [`IdMap`] and [`IdSet`] are
+/// aliases of std's types, whose hasher reads a seed at run time, so no constant
+/// can say it; the engine's collections spell it as they do, and a bitset that
+/// can be a constant is one (`ZoneSet::EMPTY`).
 pub trait EmptyCollection: Default {
     fn empty() -> Self {
         Self::default()
