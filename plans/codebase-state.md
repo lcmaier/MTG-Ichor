@@ -10442,3 +10442,19 @@ slips are the planned card phases', not items.
 
      **Reachability (2026-11-04):** nothing owed — an input for a design.
      **Slotted:** Phase 10, the AI harness.
+
+### Found at #310's review (2026-11-05)
+
+376. **`::default()` says too little at a call site.** `IdSet::default()` names
+     the type and not what it holds, and the owner finds it too generic to read:
+     a collection says `empty()`. `IdSet` and `IdMap` are aliases of std's types
+     and their hasher reads a seed at run time, so a small trait carries the name,
+     and no constant can. Rule 9 (`engineering-practices.md#names`) takes the new
+     spelling as its example.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a name, and no game moves.
+     **Sized:** ~20 lines of code, then a counted sweep: 29 id-collection calls in
+     the engine and the dev GUI, and each other engine collection whose blank
+     value means empty, counted at the build.
+     **Slotted:** `orders-the-cr-hands-a-player`, riding with its work and not a
+     PR of its own.
