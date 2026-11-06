@@ -176,7 +176,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 218 |
 | …of them in `PERFORMANCE_POOL` | 125 |
-| `#[test]` functions | 2947 |
+| `#[test]` functions | 2948 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -188,7 +188,7 @@ with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | 15180 | 52% | 2026-10-30 |
+| **1. Decisions per loaded physical core-second** | ≥ 10000 | 11970 | **20%** | 2026-11-05 |
 | 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-29 |
 | 2. Microseconds per clone | ≤ 10 | 5.6 | 79% | 2026-10-29 |
 | 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-29 |
