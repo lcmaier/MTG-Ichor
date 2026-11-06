@@ -428,16 +428,20 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 <!-- floors: begin -->
 | Floor | Limit | Definition | Instrument |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | at Commander scale (`--deck-size 100 --life 40 --players 4`) under the default bot stack; a decision counted where it reaches the agent; loaded = the one-thread rate × (16-thread speed-up ÷ physical cores) | the readiness pass, counted innermost in the stack by `fuzz_games --census`, with callgrind instructions per decision beside it |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | on the ladder's fixed boards at four seats, setup off the clock: the limit reads the lowest rung, 100 permanents, the board size it was derived for, on the worst of bare creatures, an anthem and death triggers; a decision is an event, the state-based check with what it puts on the stack, and the action list, and each trigger's target is one more; loaded = the 16-thread rate ÷ physical cores | the readiness pass, by `fuzz_games --ladder --ladder-top 100 --threads 16`, and on one thread every rung from 100 to 51,200 permanents on those shapes and tokens made in one event, with callgrind instructions per decision beside it |
 | 2. Allocations per clone | ≤ 64 | CI's proxy for a full-state clone within 10 µs, at item 143's checkpoints, at every decision and on the fixture boards | `clone_bound_test` and `clone_fixture_test` in CI's release step, with `fork_copies_test` beside them |
 | 2. Microseconds per clone | ≤ 10 | a full-state clone, portably ≤ 1/6 of one decision's engine CPU, at the same readings | the readiness pass, by the clone tests' ignored tests |
 | 3. Kilobytes per clone | ≤ 128 | deep clone size, bounded by the board's high-water mark and never by the turn count | the same tests, exact bytes with the hash seed pinned |
 <!-- floors: end -->
 
-- **Floor 1 is read under a named stack** (`backlog.md` §2.22's default:
-  `ManaWindowStop` on, the tap-solver decorator off), on a named board; under
-  another stack, or after a prompt is dropped, it is another operating point,
-  never a regression. A dropped prompt is judged by games per loaded core-second.
+- **Floor 1 has no agent in it**: its boards are fixed, so it moves when the
+  engine does. The rungs above the limit's are read for their shape: `ns/permanent`
+  stays flat where a decision's cost grows with the board and no faster. Phase 10
+  re-derives the limit (`plans/references/ai-performance-floors.md`).
+- **A bot's games are read beside it** (`fuzz_games --census` at Commander scale,
+  under `backlog.md` §2.22's default stack: `ManaWindowStop` on, the tap-solver
+  decorator off). That rate moves with the bot, and a dropped prompt is judged
+  by games per loaded core-second.
 - **A reading is replaced in place when it is taken again**; every reading's
   dated record stays in `fuzz-record.md`.
 

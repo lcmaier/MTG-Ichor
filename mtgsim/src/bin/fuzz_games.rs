@@ -15,6 +15,8 @@
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --tokens 50
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --census
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --observe
+//        cargo run --release --bin fuzz_games -- --ladder --threads 1   (floor 1's boards)
+//        cargo run --release --bin fuzz_games -- --ladder --ladder-top 100 --threads 16
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
 // flag, deduplicated, in the order given. Repeating is how a card whose name
@@ -102,11 +104,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::panic;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
+use mtgsim::cards::printings::{blood_artist, glorious_anthem};
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction};
@@ -114,6 +117,7 @@ use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
+use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::scenario::{Scenario, SetupActions, SetupDriver};
 use mtgsim::state::game::{Game, Halt, RandomStreams};
 use mtgsim::state::diagnostics::TriggerDispatchWork;
@@ -122,8 +126,8 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::card_types::CreatureType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::TokenDef;
-use mtgsim::types::ids::{IdMap, ObjectId, PlayerId};
+use mtgsim::types::effects::{CounterType, TokenDef};
+use mtgsim::types::ids::{IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
@@ -218,6 +222,15 @@ struct Args {
     /// default; on, it changes no counter, and a disagreement is a `PANIC`
     /// line carrying the game's seed.
     audit: bool,
+    /// Read what a decision costs up [`LADDER_RUNGS`], on each of
+    /// [`LADDER_SHAPES`], instead of playing games, `--ladder`: floor 1's
+    /// reading (`engineering-practices.md#the-floors`). `--threads` runs each
+    /// rung that many times at once.
+    ladder: bool,
+    /// The highest rung `--ladder` reads, `--ladder-top N`. Sixteen boards of
+    /// 51,200 permanents take minutes a shape, and floor 1's limit reads the
+    /// lowest rung. All of them by default.
+    ladder_top: usize,
 }
 
 /// The pools, and the reason there are several.
@@ -275,6 +288,8 @@ fn parse_args() -> Args {
         trace: None,
         trace_game: None,
         audit: false,
+        ladder: false,
+        ladder_top: usize::MAX,
         scenario: None,
     };
 
@@ -434,6 +449,19 @@ fn parse_args() -> Args {
                         }
                     };
                 }
+            }
+            "--ladder" => {
+                result.ladder = true;
+            }
+            "--ladder-top" => {
+                i += 1;
+                result.ladder_top = match args.get(i).map(|n| n.parse::<usize>()) {
+                    Some(Ok(n)) => n,
+                    _ => {
+                        eprintln!("--ladder-top wants a number of permanents");
+                        std::process::exit(2);
+                    }
+                };
             }
             "--tokens" => {
                 i += 1;
@@ -1413,6 +1441,188 @@ fn run_games(
     collected.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
+/// The boards of `--ladder`. A fixed board has no agent in it, so what is read
+/// moves when the engine does, and never when the bot's games do.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LadderShape {
+    /// 1/1 Goblins.
+    BareCreatures,
+    /// The Goblins, one of each seat's carrying Glorious Anthem's ability: a
+    /// row for the layer pass to apply to every creature.
+    Anthem,
+    /// The Goblins, one of each seat's carrying Blood Artist's: every death
+    /// is four triggers, each with its target, resolved.
+    DeathTriggers,
+    /// An empty board, and each seat's Goblins made in one event.
+    TokensInOneEvent,
+}
+
+const LADDER_SHAPES: [LadderShape; 4] =
+    [LadderShape::BareCreatures, LadderShape::Anthem, LadderShape::DeathTriggers, LadderShape::TokensInOneEvent];
+
+/// Permanents on the board, doubling.
+const LADDER_RUNGS: [usize; 10] = [100, 200, 400, 800, 1_600, 3_200, 6_400, 12_800, 25_600, 51_200];
+
+const LADDER_SEATS: usize = 4;
+
+/// More than a rung's drain can take, so no seat leaves a board mid-read.
+const LADDER_LIFE: i64 = 1_000_000;
+
+/// The steps a rung reads are this over its permanents, at least eight, so
+/// each rung takes about as long as the others.
+const LADDER_WORK: usize = 400_000;
+
+impl LadderShape {
+    fn name(self) -> &'static str {
+        match self {
+            LadderShape::BareCreatures => "bare creatures",
+            LadderShape::Anthem => "an anthem",
+            LadderShape::DeathTriggers => "death triggers",
+            LadderShape::TokensInOneEvent => "tokens in one event",
+        }
+    }
+
+    /// The card whose abilities one creature of each seat carries.
+    fn seat_card(self) -> Option<Arc<CardData>> {
+        match self {
+            LadderShape::Anthem => Some(glorious_anthem()),
+            LadderShape::DeathTriggers => Some(blood_artist()),
+            LadderShape::BareCreatures | LadderShape::TokensInOneEvent => None,
+        }
+    }
+
+    /// The steps one board reads before it is built again. A death takes a
+    /// Goblin off, so a tenth of the board is what it may lose and still be
+    /// the rung it was built as.
+    fn steps_per_board(self, permanents: usize) -> usize {
+        match self {
+            LadderShape::BareCreatures | LadderShape::Anthem => usize::MAX,
+            LadderShape::DeathTriggers => permanents / 10,
+            LadderShape::TokensInOneEvent => 1,
+        }
+    }
+
+    /// The decisions a step holds: each trigger of a death names its target,
+    /// and elsewhere the step's own action list is the one.
+    fn decisions_per_step(self) -> usize {
+        match self {
+            LadderShape::DeathTriggers => LADDER_SEATS,
+            LadderShape::BareCreatures | LadderShape::Anthem | LadderShape::TokensInOneEvent => 1,
+        }
+    }
+}
+
+fn ladder_goblins(permanents: usize) -> Vec<TokenDef> {
+    vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin]); permanents / LADDER_SEATS]
+}
+
+/// `permanents` on the board `shape` names, and the creatures a step acts on,
+/// oldest first. Each seat's first is the one carrying `seat_card`.
+fn ladder_board(shape: LadderShape, permanents: usize, dp: &dyn DecisionProvider) -> Result<(GameState, Vec<ObjectId>), String> {
+    let mut state = GameState::new(LADDER_SEATS, LADDER_LIFE);
+    if shape == LadderShape::TokensInOneEvent {
+        return Ok((state, Vec::new()));
+    }
+    let by_the_harness = ActionContext { dp, cause: EventCause::Harness };
+    for controller in 0..LADDER_SEATS {
+        let mut defs = ladder_goblins(permanents);
+        if let Some(card) = shape.seat_card() {
+            defs[0].abilities = card.abilities.to_vec();
+        }
+        state.execute_action(GameAction::CreateTokens { defs, controller, attacking: None }, &by_the_harness)?;
+    }
+    let creatures = state.battlefield_ids_ordered();
+    Ok((state, creatures))
+}
+
+/// What the engine does for a decision: an event, the state-based check with
+/// whatever it puts on the stack, and the list of actions the player with
+/// priority chooses among. `step` counts from the board's first.
+fn ladder_step(
+    state: &mut GameState,
+    shape: LadderShape,
+    permanents: usize,
+    step: usize,
+    creatures: &mut Vec<ObjectId>,
+    dp: &dyn DecisionProvider,
+) -> Result<(), String> {
+    let by_the_harness = ActionContext { dp, cause: EventCause::Harness };
+    match shape {
+        // On, then off: a board change that moves the layer epoch, as a game's
+        // does between two decisions, and leaves the rung's board as it was.
+        LadderShape::BareCreatures | LadderShape::Anthem => {
+            let subject = ObjectOrPlayerId::Object(creatures[(step / 2) % creatures.len()]);
+            let counter = CounterType::PlusOnePlusOne;
+            let change = match step % 2 {
+                0 => GameAction::AddCounters { subject, counter, n: 1, by: 0 },
+                _ => GameAction::RemoveCounters { subject, counter, n: 1, by: None },
+            };
+            state.execute_action(change, &by_the_harness)?;
+            state.perform_sba_and_triggers(dp)?;
+        }
+        LadderShape::DeathTriggers => {
+            let object = creatures.pop().ok_or("a rung ran out of creatures")?;
+            state.execute_action(GameAction::Destroy { object }, &by_the_harness)?;
+            state.run_priority_loop(dp)?;
+        }
+        LadderShape::TokensInOneEvent => {
+            for controller in 0..LADDER_SEATS {
+                let create = GameAction::CreateTokens { defs: ladder_goblins(permanents), controller, attacking: None };
+                state.execute_action(create, &by_the_harness)?;
+            }
+            state.perform_sba_and_triggers(dp)?;
+        }
+    }
+    std::hint::black_box(candidate_priority_actions(state, state.active_player));
+    Ok(())
+}
+
+/// One rung: how many decisions it read and how long they took, every board
+/// built off the clock.
+fn read_rung(shape: LadderShape, permanents: usize, seed: u64) -> Result<(usize, Duration), String> {
+    let dp = RandomDecisionProvider::seeded(seed);
+    let wanted = (LADDER_WORK / permanents).max(8);
+    let (mut taken, mut clock) = (0, Duration::ZERO);
+    while taken < wanted {
+        let (mut state, mut creatures) = ladder_board(shape, permanents, &dp)?;
+        let steps = shape.steps_per_board(permanents).min(wanted - taken);
+        let started = Instant::now();
+        for step in 0..steps {
+            ladder_step(&mut state, shape, permanents, step, &mut creatures, &dp)?;
+        }
+        clock += started.elapsed();
+        taken += steps;
+    }
+    Ok((taken * shape.decisions_per_step(), clock))
+}
+
+/// `--ladder`: every rung up to `top` of every shape, `threads` at once.
+/// `Decisions/s` is the workers' rates summed, so `--threads 16` over the
+/// physical cores is floor 1's loaded rate; `ns/permanent` stays flat where a
+/// rung's cost grows with its board and no faster.
+fn run_ladder(threads: usize, top: usize, seed: u64) -> Result<(), String> {
+    println!("=== Ladder ===");
+    println!("Seats: {LADDER_SEATS}, threads: {threads}, seed: {seed}");
+    println!("{:<20} {:>10} {:>9} {:>13} {:>12} {:>12}", "Shape", "Permanents", "Decisions", "us/decision", "ns/permanent", "Decisions/s");
+    for shape in LADDER_SHAPES {
+        for permanents in LADDER_RUNGS.into_iter().filter(|permanents| *permanents <= top) {
+            let readings = std::thread::scope(|scope| {
+                let workers: Vec<_> = (0..threads).map(|_| scope.spawn(move || read_rung(shape, permanents, seed))).collect();
+                workers.into_iter().map(|worker| worker.join().map_err(|_| "a rung's worker panicked".to_string())?).collect::<Result<Vec<_>, String>>()
+            })?;
+            let decided: usize = readings.iter().map(|(decided, _)| decided).sum();
+            let clock: Duration = readings.iter().map(|(_, clock)| clock).sum();
+            let micros = clock.as_secs_f64() * 1e6 / decided as f64;
+            let rate: f64 = readings.iter().map(|(decided, clock)| *decided as f64 / clock.as_secs_f64()).sum();
+            println!(
+                "{:<20} {:>10} {:>9} {:>13.1} {:>12.1} {:>12.0}",
+                shape.name(), permanents, decided, micros, micros * 1e3 / permanents as f64, rate
+            );
+        }
+    }
+    Ok(())
+}
+
 fn main() {
     let mut args = parse_args();
 
@@ -1420,6 +1630,14 @@ fn main() {
     let master_seed = args.seed.unwrap_or_else(|| {
         rand::rng().random::<u64>()
     });
+
+    if args.ladder {
+        if let Err(e) = run_ladder(args.threads, args.ladder_top, master_seed) {
+            eprintln!("Ladder error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     println!("=== MTG Simulator Fuzz Harness ===");
     println!(
@@ -1960,6 +2178,55 @@ fn main() {
 
     if panics > 0 || errors > 0 || uncast > 0 {
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod ladder_tests {
+    use super::{ladder_board, ladder_step, LadderShape};
+    use mtgsim::types::effects::CounterType;
+    use mtgsim::ui::random::RandomDecisionProvider;
+
+    /// A rung is the board it says, and a step leaves it so: the reading is of
+    /// one board size, however many steps it took.
+    #[test]
+    fn a_step_leaves_a_rung_the_size_it_was_built() {
+        let dp = RandomDecisionProvider::seeded(1);
+        for shape in [LadderShape::BareCreatures, LadderShape::Anthem] {
+            let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
+            assert_eq!(state.battlefield.len(), 100);
+            for step in 0..4 {
+                ladder_step(&mut state, shape, 100, step, &mut creatures, &dp).unwrap();
+            }
+            assert_eq!(state.battlefield.len(), 100);
+            assert!(creatures.iter().all(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 0));
+        }
+    }
+
+    #[test]
+    fn a_death_on_the_ladder_resolves_a_trigger_for_each_seat() {
+        let dp = RandomDecisionProvider::seeded(1);
+        let shape = LadderShape::DeathTriggers;
+        let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
+        let triggers_before = state.diagnostics.triggers_placed();
+
+        ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
+
+        assert_eq!(state.battlefield.len(), 99);
+        assert_eq!(state.diagnostics.triggers_placed() - triggers_before, shape.decisions_per_step() as u64);
+        assert!(state.stack.is_empty(), "each resolved");
+    }
+
+    #[test]
+    fn the_token_shape_makes_its_rung_from_an_empty_board() {
+        let dp = RandomDecisionProvider::seeded(1);
+        let shape = LadderShape::TokensInOneEvent;
+        let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
+        assert!(state.battlefield.is_empty());
+
+        ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
+
+        assert_eq!(state.battlefield.len(), 100);
     }
 }
 

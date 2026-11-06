@@ -73,6 +73,8 @@ readiness and the hunt.
    dated reading beside the previous close's, never worse per decision
    without a written reason; then the three floors
    (`engineering-practices.md#the-floors`). Instruments:
+   - **the ladder**, `fuzz_games --ladder`, floor 1's boards, its limit's rung
+     at 16 threads and every rung on one;
    - **the census**, `fuzz_games --census`, counting decisions where they
      reach the agent;
    - **the clone timer**, `clone_bound_test`'s and `clone_fixture_test`'s
