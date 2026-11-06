@@ -1,0 +1,18 @@
+# A division on the stack: player 0 casts Arc Lightning at player 1's Grizzly
+# Bears for 2 and at player 1 for 1. Player 1 then holds priority with Giant
+# Growth and a Forest, deciding whether to save the Bears, and the stack row
+# says how the damage was split.
+turn 3
+active 0
+step precombat main
+
+hand 0: Arc Lightning
+hand 1: Giant Growth
+library 0: Mountain | x8
+library 1: Forest | x8
+
+battlefield: Mountain | controller 0
+battlefield: Mountain | controller 0
+battlefield: Mountain | controller 0
+battlefield: Forest | controller 1
+battlefield: Grizzly Bears | controller 1
