@@ -23,7 +23,13 @@ runs:
         base="${{ github.event.pull_request.base.sha }}"
         if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
           echo "code=true" >> "$GITHUB_OUTPUT"
-        elif git diff --name-only "$base" HEAD | grep -qvE '^(plans|MTG-Rules)/|\.md$'; then
+          exit 0
+        fi
+        # Read whole, never piped to `grep -q`: a composite step runs under
+        # `pipefail`, where grep leaving early kills `git diff`, fails the
+        # pipeline and would read as docs-only, skipping every Rust step green.
+        changed=$(git diff --name-only "$base" HEAD)
+        if grep -qvE '^(plans|MTG-Rules)/|\.md$' <<<"$changed"; then
           echo "code=true" >> "$GITHUB_OUTPUT"
         else
           echo "code=false" >> "$GITHUB_OUTPUT"
