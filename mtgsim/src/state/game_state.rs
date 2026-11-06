@@ -677,7 +677,7 @@ pub struct GameState {
     /// `GameState` because the entry that announces the creation is a member
     /// of a batch `create_tokens` proposes, which carries no definition.
     /// Saved and restored by `create_tokens` for a nested creation.
-    pub(crate) tokens_being_created: Vec<(ObjectId, Arc<crate::types::effects::TokenDef>)>,
+    pub(crate) tokens_being_created: IdMap<ObjectId, Arc<crate::types::effects::TokenDef>>,
 
     /// CR 120.10's lethal damage, for the batch being performed: each
     /// creature or planeswalker its decided damage is dealt to, and how much
@@ -1089,7 +1089,7 @@ impl GameState {
             nesting: NestingGuards::default(),
             rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
-            tokens_being_created: Vec::new(),
+            tokens_being_created: IdMap::default(),
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
             arrivals_since_last_sba_check: Vec::new(),

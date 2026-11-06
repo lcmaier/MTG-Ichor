@@ -2540,6 +2540,21 @@ item 40's first violator.
 defect is the entry hop (`codebase-state.md`, "Before Triggered abilities"
 item 4), which is not the overlay's but the two-event entry it sits on.
 
+**A run of equal tokens walks once** (`board-scale`, 2026-11-05). CR 614.12's
+inputs are the board, the proposal and the object, and the tokens of one
+`create_tokens` run hold one printed card and one owner, with nothing on the
+board able to name an id just minted. So at one layer epoch two proposals with
+one controller and one `EnterMods` have one frame, and the second is served
+the first's out of the layer memo (`shared_entering_frame`). Keyed on all three
+because CR 614.12's first clause makes the frame per iteration: a replacement
+already applied, a player's "no", or a CR 616.1b controller makes a run's
+proposals unequal, and each is walked. Stored with what the walk read of the
+gated inputs, as a memoized frame is. What the walk writes can name the object,
+an ability derived on it (a planeswalker's loyalty, a land type's mana), so a
+frame holding one stays that token's. The frame is the one shortcut here the
+gather's audit cannot see through, so each served frame is compared with a walk
+of its own, as `audit_memo_hit` compares a memo hit.
+
 ### 5e. A ruling that reads the look-ahead otherwise (decided 2026-09-29)
 
 **The register row is `lookahead-entry-counters`**

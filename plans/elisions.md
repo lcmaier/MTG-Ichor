@@ -140,15 +140,17 @@ takes each gate's printed leg away and sees the panic
 | recomputing an object's characteristics | `compute_characteristics` `engine/layers/compute.rs:103`; `LayerMemo` `state/layer_memo.rs:45` | a result stored at the current epoch is still right: every write to anything the layers read moves the epoch, and a few inputs (`GatedWalkInput` `state/layer_memo.rs:89`) move it only when a stored result read them | `audit_memo_hit` `engine/layers/compute.rs:210` recomputes every stored result it serves, in debug builds |
 | checking each "target" clause when deciding whether a spell can be cast (A4q) | `every_instance_has_a_choice` `oracle/mana_helpers.rs:415` | two identical clauses that do not depend on earlier targets have the same answer | its audit answers the folded clause anyway. No test takes the premise away, since no board makes two equal clauses past the feed answer differently; Seeds of Strength, pooled, reaches it in audited games |
 | walking every object for commanders that changed zones (CR 704.6d) | `arrivals_since_last_sba_check`, kept as objects arrive | every arrival the state-based check needs is noted | `moved_since` `engine/sba.rs:142` walks every object in debug builds and compares |
+| asking an event's object about a keyword that forbids it | `keyword_restrictions` `engine/restriction/predicate.rs:367` | a keyword's restriction watches only its pattern's kinds of action, so an event of another kind cannot be forbidden by it | its audit: `prohibition_sweeping` asks the keyword of every event |
+| walking CR 614.12's frame, and asking CR 111.5's question, for each token of a run | `shared_entering_frame` `engine/layers/lookahead.rs:205`; `create_tokens` `engine/actions.rs:2582` | a run of equal tokens holds one printed card and one owner, nothing on the board names an id just minted, and no entity exists to count or filter, so at one epoch two equal proposals have one frame; a frame holding an ability derived on its object is kept out | every served frame is walked again and compared, in every debug test and game and under `--audit`; `create_tokens`' answer under `--audit`. `tests/phase_board_scale_integration_test.rs` falsifies each premise in turn, and a test serves a frame no walk would find and sees the panic |
 | the four feedback loops' skipped work | `references/feedback-loops.md` §2, §3, §4, §5 | loop 1's is the CR 616.1 row above; loop 2's pre-check covers every filter, condition and amount; loop 3 skips nothing; loop 4's is the dispatcher row | there |
 
 ## 5. What checks what
 
 - **The compiler**: the feeds table's inputs; `trigger_binding_reads`.
-- **Every debug test and game**: the memo's audit, `check_order_invariance`,
-  the trigger check, the commanders' walk.
-- **`--audit`**: the dispatcher's, the three gates', the control sweep's and
-  the castability fold's audits.
+- **Every debug test and game**: the memo's audit, the shared look-ahead's,
+  `check_order_invariance`, the trigger check, the commanders' walk.
+- **`--audit`**: the dispatcher's, the three gates', the control sweep's, the
+  castability fold's and the shared look-ahead's audits.
 - **Only an argument and tests**: the source read by a route the trigger check
   does not note (§3); `get_effective_controller` between two sweeps; and CR
   616.1's second to fourth properties outside the two tests that reach every

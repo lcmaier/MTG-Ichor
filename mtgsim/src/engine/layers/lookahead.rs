@@ -15,15 +15,19 @@
 //! why this is not a `GameState` clone, why the entering object is invisible
 //! to a count over the battlefield, and why the frame may live on the stack.
 
+use std::sync::Arc;
+
 use crate::engine::layers::board::compute_board;
 use crate::engine::layers::types::{ContinuousEffect, EffectOrigin, EffectiveCharacteristics, Timestamp};
 use crate::objects::card_data::AbilityType;
 use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::RegistryScopeSummary;
 use crate::state::game_state::GameState;
+use crate::state::layer_memo::{EnteringToken, GatedInputs};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
+use crate::types::zones::Zone;
 
 /// The look-ahead for one entering object — see the module docs.
 ///
@@ -158,10 +162,22 @@ pub fn compute_as_entering(
     controller: PlayerId,
     pending: &EnterMods,
 ) -> Option<EffectiveCharacteristics> {
+    walk_as_entering(game, id, controller, pending).map(|(frame, _)| frame)
+}
+
+/// [`compute_as_entering`]'s walk, with what it read of the gated inputs.
+fn walk_as_entering(
+    game: &GameState,
+    id: ObjectId,
+    controller: PlayerId,
+    pending: &EnterMods,
+) -> Option<(EffectiveCharacteristics, GatedInputs)> {
     game.diagnostics.record_layer_walk();
     let frames_before = game.diagnostics.layer_frames();
     let lookahead = Lookahead::new(game, id, controller, pending);
-    let frame = compute_board(game, Some(&lookahead)).take(id)?;
+    let board = compute_board(game, Some(&lookahead));
+    let read = board.gated_reads();
+    let frame = board.take(id)?;
     game.trace(|| {
         crate::engine::trace_records::layer_walk(
             game,
@@ -171,6 +187,55 @@ pub fn compute_as_entering(
             &frame,
         )
     });
+    Some((frame, read))
+}
+
+/// [`compute_as_entering`] for the pipeline, walked once for a run of equal
+/// tokens: the frame CR 614.12 asks of one token is the frame of every token
+/// of its run decided at this epoch, under the same controller and `EnterMods`.
+///
+/// Nothing the walk reads tells two of them apart. They hold one printed card
+/// and one owner, nothing on the board names an id just minted, and no entity
+/// exists for a count or a filter to find (`Board::seed`). One thing it writes
+/// does: an ability derived on the object, a planeswalker's loyalty or a basic
+/// land type's mana, so a frame holding one stays that token's own.
+///
+/// Stored with what the walk read of the gated inputs, as the memo stores a
+/// frame, so a write to one moves the epoch and ends the sharing.
+pub(crate) fn shared_entering_frame(
+    game: &GameState,
+    id: ObjectId,
+    controller: PlayerId,
+    pending: &EnterMods,
+) -> Option<Arc<EffectiveCharacteristics>> {
+    let obj = game.objects.get(&id)?;
+    let being_created = obj.is_token && obj.zone == Zone::Battlefield && !game.battlefield.contains_key(&id);
+    if !being_created {
+        return compute_as_entering(game, id, controller, pending).map(Arc::new);
+    }
+    let epoch = game.layer_epoch();
+    if let Some(frame) = game.layer_memo.entering_token(epoch, &obj.card_data, controller, pending) {
+        if cfg!(debug_assertions) || game.audit_on() {
+            let walked = game.unobserved(|| compute_as_entering(game, id, controller, pending));
+            assert!(
+                walked.as_ref() == Some(&*frame),
+                "{id:?} was served its run's CR 614.12 frame {frame:?}, and its own walk found {walked:?}: \
+                 something the walk reads tells two equal tokens apart",
+            );
+        }
+        return Some(frame);
+    }
+    let (frame, read) = walk_as_entering(game, id, controller, pending)?;
+    let frame = Arc::new(frame);
+    if !frame.abilities.iter().any(|ability| ability.id.is_derived_on_an_object()) {
+        game.layer_memo.insert_gated_reads(epoch, read);
+        game.layer_memo.insert_entering_token(epoch, EnteringToken {
+            card: Arc::clone(&obj.card_data),
+            controller,
+            mods: pending.clone(),
+            frame: Arc::clone(&frame),
+        });
+    }
     Some(frame)
 }
 
@@ -179,18 +244,80 @@ mod tests {
     use crate::test_support::place_on_battlefield;
     use std::sync::Arc;
 
-    use super::Lookahead;
+    use super::{compute_as_entering, shared_entering_frame, EnteringToken, Lookahead};
     use crate::cards::printings::grizzly_bears;
     use crate::engine::layers::copiable_values;
+    use crate::objects::card_data::CardData;
+    use crate::objects::object::GameObject;
     use crate::state::battlefield::{CastFacts, CostChoices};
-    use crate::state::game_state::ResolvingObject;
+    use crate::state::game_state::{GameState, ResolvingObject};
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
     use crate::types::card_types::{CreatureType, Subtype};
     use crate::types::costs::AdditionalCost;
     use crate::types::effects::{CharacteristicEdit, CounterType, TypeChange};
+    use crate::types::ids::ObjectId;
     use crate::types::mana::ManaSpent;
     use crate::types::replacement::{CopyAdditions, EnterMods, EntryCopy, EntryCounters, TapStatus};
     use crate::types::zones::Zone;
+
+    /// A token being created, as `create_tokens` leaves it: in the zone, with
+    /// no entity. Each call makes one of the same run, on `card`.
+    fn token_of_run(game: &mut GameState, card: &Arc<CardData>) -> ObjectId {
+        let mut token = GameObject::new(Arc::clone(card), 0, Zone::Battlefield);
+        token.is_token = true;
+        game.add_object(token)
+    }
+
+    /// The share's audit is the walk it saved: a frame no walk would find is a
+    /// panic, whatever the frame's reader would have made of it.
+    #[test]
+    #[should_panic(expected = "something the walk reads tells two equal tokens apart")]
+    fn a_shared_frame_the_walk_disagrees_with_panics() {
+        let mut game = setup_two_player_game();
+        let card = grizzly_bears();
+        let first = token_of_run(&mut game, &card);
+        let mut lie = compute_as_entering(&game, first, 0, &EnterMods::NONE).unwrap();
+        lie.power = Some(99);
+        game.layer_memo.insert_entering_token(game.layer_epoch(), EnteringToken {
+            card: Arc::clone(&card),
+            controller: 0,
+            mods: EnterMods::NONE,
+            frame: Arc::new(lie),
+        });
+
+        shared_entering_frame(&game, first, 0, &EnterMods::NONE);
+    }
+
+    /// A walk that read a life total is stored with that read, so the write
+    /// moves the epoch, and the next token of the run is walked afresh: the
+    /// memo's rule for a gated input, kept by the share too.
+    #[test]
+    fn a_gated_input_the_frame_read_ends_the_sharing_when_it_is_written() {
+        use crate::cards::authoring::{as_long_as, creatures_you_control, each, gets, static_ability, you_have};
+        use crate::engine::actions::GameAction;
+        use crate::objects::card_data::CardDataBuilder;
+        use crate::test_support::test_ctx;
+        use crate::types::card_types::CardType;
+        use crate::types::effects::{AmountExpr, PlayerFact};
+
+        let mut game = setup_two_player_game();
+        let while_hale = as_long_as(you_have(PlayerFact::LifeAtLeast(AmountExpr::Fixed(20))), gets(each(creatures_you_control()), 1, 1));
+        let anthem = CardDataBuilder::new("Fixture Hale Anthem")
+            .card_type(CardType::Enchantment)
+            .ability(static_ability("As long as you have 20 or more life, creatures you control get +1/+1.", while_hale))
+            .build();
+        put_on_battlefield(&mut game, anthem, 0);
+        let card = grizzly_bears();
+        let (first, second) = (token_of_run(&mut game, &card), token_of_run(&mut game, &card));
+
+        let hale = shared_entering_frame(&game, first, 0, &EnterMods::NONE).unwrap();
+        assert_eq!(hale.power, Some(3));
+
+        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, damage_source: None }, &test_ctx()).unwrap();
+
+        let wounded = shared_entering_frame(&game, second, 0, &EnterMods::NONE).unwrap();
+        assert_eq!(wounded.power, Some(2));
+    }
 
     /// `replacement-architecture.md` §3.5's constructor, field by field: the permanent
     /// the frame predicts is the one the performer places, for every field

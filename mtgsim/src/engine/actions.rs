@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::engine::audit::assert_shortcut_agrees;
 use crate::engine::combat::keywords::lethal_damage_owed;
 use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag, deals_damage_with_keyword};
 use crate::engine::replacement::{AppliedReplacements, BatchMember, JustBeforeEntry, SubjectGroup};
@@ -9,7 +10,7 @@ use crate::events::event::{AppliedReplacement, DepartedObject, EventId, GameEven
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, EntersAttacking, TokenDef};
-use crate::types::ids::{ExtraTurnId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::ids::{ExtraTurnId, IdMap, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
@@ -1576,14 +1577,25 @@ impl GameState {
                 None => n,
             }
         });
+        // Nearly every batch: one member, and no group to find it.
+        if members.len() == 1 {
+            return members
+                .into_iter()
+                .filter_map(|member| Some(SubjectGroup { subject: member.event.as_ref().map(subject_of)?, members: vec![member] }))
+                .collect();
+        }
         let mut groups: Vec<SubjectGroup> = Vec::new();
+        // A subject's place among `groups`, only ever looked up: N entries are
+        // N subjects, and a search of the groups would pay N each.
+        let mut place_of: std::collections::HashMap<_, usize> = std::collections::HashMap::new();
         for member in members {
             // Every member is still its proposal here, so none is skipped.
             let Some(subject) = member.event.as_ref().map(subject_of) else { continue };
-            match groups.iter_mut().find(|g| g.subject == subject) {
-                Some(group) => group.members.push(member),
-                None => groups.push(SubjectGroup { subject, members: vec![member] }),
-            }
+            let place = *place_of.entry(subject).or_insert_with(|| {
+                groups.push(SubjectGroup { subject, members: Vec::new() });
+                groups.len() - 1
+            });
+            groups[place].members.push(member);
         }
         groups
     }
@@ -2429,9 +2441,8 @@ impl GameState {
         let owner = self.get_object(object)?.owner;
         let definition = self
             .tokens_being_created
-            .iter()
-            .find(|(id, _)| *id == object)
-            .map(|(_, definition)| Arc::clone(definition))
+            .get(&object)
+            .map(Arc::clone)
             .ok_or_else(|| format!("{object} is announced as a token no creation made"))?;
         self.emit_event(GameEvent::TokenCreated { token: self.existence_for_record(object)?, owner, zone, definition }, cause)?;
         Ok(())
@@ -2458,15 +2469,21 @@ impl GameState {
         controller: PlayerId,
         act: Option<ZoneChangeAct>,
     ) -> Option<GameAction> {
-        if self.left_a_multiplayer_game(controller) {
-            return None;
-        }
-        use crate::types::card_types::CardType;
-        let types = crate::oracle::characteristics::get_effective_types(self, object);
-        if types.contains(&CardType::Instant) || types.contains(&CardType::Sorcery) {
+        if self.entry_is_refused_by_a_rule(object, controller) {
             return None;
         }
         Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, act })
+    }
+
+    /// Whether [`Self::entry_proposal`]'s rules refuse `object` entering
+    /// under `controller`.
+    fn entry_is_refused_by_a_rule(&self, object: ObjectId, controller: PlayerId) -> bool {
+        use crate::types::card_types::CardType;
+        if self.left_a_multiplayer_game(controller) {
+            return true;
+        }
+        let types = crate::oracle::characteristics::get_effective_types(self, object);
+        types.contains(&CardType::Instant) || types.contains(&CardType::Sorcery)
     }
 
     /// CR 111.8 — whether `action` moves a token that is off the battlefield.
@@ -2571,15 +2588,18 @@ impl GameState {
     ) -> Result<(), String> {
         // One `Arc<CardData>` and one definition per run of equal defs: a
         // doubled creation repeats each def in place, and the repeats share
-        // one printed text.
+        // one printed text, which is what a token's CR 614.12 frame is shared
+        // by (`shared_entering_frame`).
         let mut lowered: Option<(&TokenDef, std::sync::Arc<crate::objects::card_data::CardData>, Arc<TokenDef>)> =
             None;
+        let mut run_is_refused = false;
         let mut ids = Vec::with_capacity(defs.len());
-        let mut definitions = Vec::with_capacity(defs.len());
+        let mut definitions = IdMap::default();
         let mut entries = Vec::with_capacity(defs.len());
         for def in defs {
+            let opens_a_run = !lowered.as_ref().is_some_and(|(seen, ..)| *seen == def);
             let (data, definition) = match &lowered {
-                Some((seen, data, definition)) if *seen == def => (data.clone(), Arc::clone(definition)),
+                Some((_, data, definition)) if !opens_a_run => (data.clone(), Arc::clone(definition)),
                 _ => {
                     let (data, definition) = (def.card_data(), Arc::new(def.clone()));
                     lowered = Some((def, data.clone(), Arc::clone(&definition)));
@@ -2594,8 +2614,18 @@ impl GameState {
             obj.is_token = true;
             let id = self.add_object(obj);
             ids.push(id);
-            definitions.push((id, definition));
-            if let Some(mut entry) = self.entry_proposal(id, None, controller, None) {
+            definitions.insert(id, definition);
+            // Asked once a run, since a walk reads nothing that tells equal
+            // tokens apart (`shared_entering_frame`).
+            if opens_a_run {
+                run_is_refused = self.entry_is_refused_by_a_rule(id, controller);
+            }
+            if self.audit_on() {
+                let walked = self.unobserved(|| self.entry_is_refused_by_a_rule(id, controller));
+                assert_shortcut_agrees("a run's token entry", || format!("{id:?}"), vec![run_is_refused.to_string()], vec![walked.to_string()]);
+            }
+            if !run_is_refused {
+                let mut entry = GameAction::EnterBattlefield { object: id, from: None, controller, mods: EnterMods::NONE, act: None };
                 // "Create a tapped …" is the creating effect's own word on
                 // how the token enters, so it joins what the rules give the
                 // entry, ahead of any replacement (CR 614.1c).

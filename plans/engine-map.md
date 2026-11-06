@@ -289,7 +289,9 @@ What each gate assumes, and what checks it: `elisions.md` §4.
 - `engine/replacement/lookahead.rs` is **when, and for whom**: `EntryFrame`
   `engine/replacement/lookahead.rs:40` is the pipeline's frame of the
   proposal's subject, computed at most once per CR 616.1 iteration and only if
-  something asks (`frame_of` `engine/replacement/lookahead.rs:93`). The gather
+  something asks (`frame_of` `engine/replacement/lookahead.rs:93`), and walked
+  once for a run of equal tokens (`shared_entering_frame`
+  `engine/layers/lookahead.rs:205`, kept in the layer memo). The gather
   and `is_prohibited` share it; `EntryFrame::for_entering`
   `engine/replacement/lookahead.rs:64` builds one for a synthetic question, the
   counters an exception or a template would add.

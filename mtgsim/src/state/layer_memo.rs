@@ -21,10 +21,12 @@ use std::sync::Arc;
 
 use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::objects::card_data::CardData;
 use crate::oracle::mana_supply::ManaProductionWatchers;
 use crate::state::history_log::RowKind;
 use crate::state::shared_stores::ObjectTable;
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::replacement::EnterMods;
 
 /// Per-object frames, each stamped with the epoch it was computed at.
 ///
@@ -57,6 +59,11 @@ pub struct LayerMemo {
     /// one scan per epoch for every player's inventory. Shared, so a fork
     /// copies nothing for it.
     mana_production_watchers: RefCell<Option<(u64, Arc<ManaProductionWatchers>)>>,
+    /// The CR 614.12 frames of the run of tokens being decided, stamped with
+    /// the epoch they were walked at (`layers::lookahead::shared_entering_frame`):
+    /// one walk for a run, whatever its length. Shared, so a fork copies
+    /// nothing for it.
+    entering_tokens: RefCell<Option<(u64, Arc<Vec<EnteringToken>>)>>,
     /// What the frames stored at the latest epoch read of the gated inputs:
     /// what a write to one asks before it moves the epoch.
     gated_reads: Cell<GatedReadsAt>,
@@ -75,6 +82,17 @@ pub struct LayerMemo {
 pub(crate) struct StoredFrame {
     epoch: u64,
     frame: Arc<EffectiveCharacteristics>,
+}
+
+/// One token's CR 614.12 frame, and what a second token must match to be
+/// served it: the printed card a run of equal tokens shares (`create_tokens`),
+/// and the proposal's controller and `EnterMods`, the frame's other inputs.
+#[derive(Debug, Clone)]
+pub(crate) struct EnteringToken {
+    pub(crate) card: Arc<CardData>,
+    pub(crate) controller: PlayerId,
+    pub(crate) mods: EnterMods,
+    pub(crate) frame: Arc<EffectiveCharacteristics>,
 }
 
 /// A walk input whose write moves the layer epoch only when a frame stored at
@@ -220,6 +238,7 @@ impl LayerMemo {
             frames,
             notes,
             mana_production_watchers,
+            entering_tokens,
             gated_reads,
             #[cfg(debug_assertions)]
             audit_paused,
@@ -229,6 +248,7 @@ impl LayerMemo {
         self.frames.replace(frames.into_inner());
         self.notes.replace(notes.into_inner());
         self.mana_production_watchers.replace(mana_production_watchers.into_inner());
+        self.entering_tokens.replace(entering_tokens.into_inner());
         self.gated_reads.set(gated_reads.get());
         #[cfg(debug_assertions)]
         {
@@ -324,6 +344,37 @@ impl LayerMemo {
 
     pub(crate) fn insert_mana_production_watchers(&self, epoch: u64, found: Arc<ManaProductionWatchers>) {
         *self.mana_production_watchers.borrow_mut() = Some((epoch, found));
+    }
+
+    /// The CR 614.12 frame stored at `epoch` for a token of `card`'s run,
+    /// entering under `controller` with `mods`.
+    pub(crate) fn entering_token(
+        &self,
+        epoch: u64,
+        card: &Arc<CardData>,
+        controller: PlayerId,
+        mods: &EnterMods,
+    ) -> Option<Arc<EffectiveCharacteristics>> {
+        let stored = self.entering_tokens.borrow();
+        let (_, tokens) = stored.as_ref().filter(|(at, _)| *at == epoch)?;
+        tokens
+            .iter()
+            .find(|token| Arc::ptr_eq(&token.card, card) && token.controller == controller && token.mods == *mods)
+            .map(|token| Arc::clone(&token.frame))
+    }
+
+    /// Store one more frame of the run being decided. A run's members are
+    /// decided in a row, so a new card ends the last run and the list stays as
+    /// long as one run has distinct proposals: one, and one more for each
+    /// way a replacement effect rewrote them.
+    pub(crate) fn insert_entering_token(&self, epoch: u64, token: EnteringToken) {
+        let mut stored = self.entering_tokens.borrow_mut();
+        match stored.as_mut() {
+            Some((at, tokens)) if *at == epoch && tokens.iter().all(|t| Arc::ptr_eq(&t.card, &token.card)) => {
+                Arc::make_mut(tokens).push(token);
+            }
+            _ => *stored = Some((epoch, Arc::new(vec![token]))),
+        }
     }
 
     /// Keep what a walk whose frames are stored at `epoch` read, beside them.

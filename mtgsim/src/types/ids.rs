@@ -242,6 +242,11 @@ impl AbilityId {
         AbilityId::defined(ROLE_ON_OBJECT | (((object.0 << 8) | ability as u64) & !ROLE_MASK))
     }
 
+    /// Whether this id came from [`Self::derived_on`], so names one object.
+    pub fn is_derived_on_an_object(self) -> bool {
+        self.definition & ROLE_MASK == ROLE_ON_OBJECT
+    }
+
     /// A delayed triggered ability's (CR 603.7), by its registry number,
     /// which starts at one. It is printed on no card and derived on no
     /// object, and it must not be the ability that created it: that one's CR

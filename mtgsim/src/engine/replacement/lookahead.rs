@@ -6,7 +6,8 @@
 //! and never need it. CR 616.1(1)'s "replacement effects that have already
 //! modified how it enters" is why the frame is per *iteration*: the loop
 //! rewrites the proposal between iterations, and the next gather reads the
-//! rewritten `EnterMods` and controller.
+//! rewritten `EnterMods` and controller. A run of equal tokens walks it once
+//! for each proposal the run holds (`shared_entering_frame`).
 //!
 //! One event has a frame: `EnterBattlefield`, which is also the zone change
 //! onto the battlefield, so a CR 614.17d "can't enter" — Worms of the
@@ -19,9 +20,10 @@
 //! zone.
 
 use std::cell::OnceCell;
+use std::sync::Arc;
 
 use crate::engine::actions::GameAction;
-use crate::engine::layers::compute_as_entering;
+use crate::engine::layers::lookahead::shared_entering_frame;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -40,7 +42,7 @@ struct FrameBasis {
 pub(crate) struct EntryFrame<'g> {
     game: &'g GameState,
     basis: Option<FrameBasis>,
-    frame: OnceCell<Option<EffectiveCharacteristics>>,
+    frame: OnceCell<Option<Arc<EffectiveCharacteristics>>>,
 }
 
 impl<'g> EntryFrame<'g> {
@@ -103,9 +105,7 @@ impl<'g> EntryFrame<'g> {
             return None;
         }
         self.frame
-            .get_or_init(|| {
-                compute_as_entering(self.game, basis.object, basis.controller, &basis.mods)
-            })
-            .as_ref()
+            .get_or_init(|| shared_entering_frame(self.game, basis.object, basis.controller, &basis.mods))
+            .as_deref()
     }
 }

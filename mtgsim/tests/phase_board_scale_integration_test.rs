@@ -1,0 +1,251 @@
+//! `board-scale`: one event making many tokens, at a cost that grows with the
+//! tokens and no faster. Every token of a run asks CR 614.12's question of one
+//! frame, so these boards are the ones where a frame shared wrongly would show:
+//! an anthem the frame must read, a replacement a frame must take into
+//! account, and proposals a player's answer makes unequal. Each board runs
+//! audited, so a served frame is compared with the walk it saved
+//! (`shared_entering_frame`).
+
+use std::sync::Arc;
+
+use mtgsim::cards::printings::{blood_moon, glorious_anthem};
+use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
+use mtgsim::state::game_state::GameState;
+use mtgsim::test_support::{put_on_battlefield, setup_game, test_ctx, textless_static};
+use mtgsim::types::card_types::{CardType, CreatureType};
+use mtgsim::types::colors::Color;
+use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, PlayerRef, TokenDef};
+use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::ScriptedDecisionProvider;
+
+fn goblin() -> TokenDef {
+    TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])
+}
+
+fn enchantment_with(name: &str, ability: AbilityDef) -> Arc<CardData> {
+    CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(ability).build()
+}
+
+/// "Each permanent with power `at_least` or greater enters ...": a replacement
+/// whose reach is the entering object's frame, so it reads CR 614.12.
+fn entry_at_power(at_least: i32, template: EnterModsTemplate) -> ReplacementDef {
+    let reaches = ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(at_least - 1)));
+    ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::battlefield_filter(reaches),
+        Rewrite::EnterWith(template),
+    )
+}
+
+fn put_replacement(game: &mut GameState, def: ReplacementDef) -> ObjectId {
+    let ability = textless_static(Effect::Replacement(Box::new(def)));
+    put_on_battlefield(game, enchantment_with("Fixture Welcome", ability), 0)
+}
+
+fn plus_one_counter() -> EnterModsTemplate {
+    EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)
+}
+
+fn create(game: &mut GameState, defs: Vec<TokenDef>, controller: PlayerId) {
+    game.execute_action(GameAction::CreateTokens { defs, controller, attacking: None }, &test_ctx())
+        .expect("the creation performs");
+}
+
+fn audited_game() -> GameState {
+    let mut game = setup_game(4);
+    game.enable_audit();
+    game
+}
+
+/// The tokens `controller` has, oldest first.
+fn tokens_of(game: &GameState, controller: PlayerId) -> Vec<ObjectId> {
+    game.battlefield_ids_ordered()
+        .into_iter()
+        .filter(|id| game.objects[id].is_token && game.objects[id].owner == controller)
+        .collect()
+}
+
+fn plus_one_counters(game: &GameState, tokens: &[ObjectId]) -> Vec<u32> {
+    tokens.iter().map(|id| game.battlefield[id].counter_count(CounterType::PlusOnePlusOne)).collect()
+}
+
+/// What one creation of `n` Goblins costs in passes over the board.
+fn board_walks_for(n: usize, board: impl Fn(&mut GameState)) -> u64 {
+    let mut game = setup_game(4);
+    board(&mut game);
+    let before = game.diagnostics.board_walks();
+    create(&mut game, vec![goblin(); n], 0);
+    game.diagnostics.board_walks() - before
+}
+
+#[test]
+fn a_run_of_tokens_costs_the_same_passes_however_long_it_is() {
+    let bare = |_: &mut GameState| {};
+    assert_eq!(board_walks_for(2, bare), board_walks_for(200, bare));
+
+    let anthem = |game: &mut GameState| {
+        put_on_battlefield(game, glorious_anthem(), 0);
+    };
+    assert_eq!(board_walks_for(2, anthem), board_walks_for(200, anthem));
+
+    let frame_reader = |game: &mut GameState| {
+        put_on_battlefield(game, glorious_anthem(), 0);
+        put_replacement(game, entry_at_power(2, plus_one_counter()));
+    };
+    assert_eq!(board_walks_for(2, frame_reader), board_walks_for(200, frame_reader));
+}
+
+/// CR 614.12's third clause: the continuous effects that exist are in the
+/// frame, so P0's Goblins are 2/2 as they enter and P1's are 1/1.
+#[test]
+fn every_token_of_a_run_is_read_with_the_anthem_it_enters_under() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+    put_replacement(&mut game, entry_at_power(2, plus_one_counter()));
+
+    create(&mut game, vec![goblin(); 5], 0);
+    create(&mut game, vec![goblin(); 5], 1);
+
+    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 0)), vec![1; 5]);
+    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 1)), vec![0; 5]);
+}
+
+/// CR 614.12's first clause, for each token in turn: the counter the first
+/// effect gave it is in the frame the second effect reads, and the first
+/// token's rewritten proposal is not served to the second token's plain one.
+#[test]
+fn a_replacement_already_applied_is_in_every_tokens_next_frame() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+    put_replacement(&mut game, entry_at_power(2, plus_one_counter()));
+    put_replacement(&mut game, entry_at_power(3, EnterModsTemplate::tapped()));
+
+    create(&mut game, vec![goblin(); 4], 0);
+
+    let goblins = tokens_of(&game, 0);
+    assert_eq!(plus_one_counters(&game, &goblins), vec![1; 4]);
+    assert!(goblins.iter().all(|id| game.battlefield[id].tapped), "each read 3 power, its counter in the frame");
+}
+
+/// A player's answer makes two entries of a run unequal, so each is read by
+/// what its own proposal says: only the Goblin given the counter has the power
+/// the second effect asks for.
+#[test]
+fn a_token_whose_proposal_differs_is_not_served_its_runs_frame() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+    let welcome = put_replacement(&mut game, entry_at_power(2, plus_one_counter()).optional());
+    put_replacement(&mut game, entry_at_power(3, EnterModsTemplate::tapped()));
+
+    let dp = ScriptedDecisionProvider::new();
+    let asked = ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: welcome };
+    dp.expect_choice(asked.clone(), vec![]);
+    dp.expect_choice(asked.clone(), vec![ChoiceOption::Object(welcome)]);
+    dp.expect_choice(asked, vec![]);
+    let create = GameAction::CreateTokens { defs: vec![goblin(); 3], controller: 0, attacking: None };
+    game.execute_action(create, &ActionContext::new(&dp)).expect("the creation performs");
+
+    let goblins = tokens_of(&game, 0);
+    assert_eq!(plus_one_counters(&game, &goblins), vec![0, 1, 0]);
+    let tapped: Vec<bool> = goblins.iter().map(|id| game.battlefield[id].tapped).collect();
+    assert_eq!(tapped, vec![false, true, false]);
+}
+
+/// CR 616.1b's rewrite is a proposal's controller, and the anthem is P0's: the
+/// Goblin given to P1 enters a 1/1 beside a run of P0's 2/2s.
+#[test]
+fn a_token_entering_under_another_player_is_read_under_that_player() {
+    let mut game = setup_game(2);
+    game.enable_audit();
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+    let to_the_opponent = Rewrite::EnterUnderControlOf(PlayerRef::Opponent);
+    let defection = ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::battlefield_filter(ObjectFilter::All),
+        to_the_opponent,
+    );
+    let defects = put_replacement(&mut game, defection.optional());
+    put_replacement(&mut game, entry_at_power(2, plus_one_counter()));
+
+    let dp = ScriptedDecisionProvider::new();
+    let asked = ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: defects };
+    dp.expect_choice(asked.clone(), vec![]);
+    dp.expect_choice(asked.clone(), vec![ChoiceOption::Object(defects)]);
+    dp.expect_choice(asked, vec![]);
+    let create = GameAction::CreateTokens { defs: vec![goblin(); 3], controller: 0, attacking: None };
+    game.execute_action(create, &ActionContext::new(&dp)).expect("the creation performs");
+
+    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 0)), vec![1, 0, 1]);
+}
+
+/// Three runs, the last equal to the first: a run's frame goes with its card,
+/// and the Plant's power is its own.
+#[test]
+fn each_run_of_a_creation_is_read_as_its_own_definition() {
+    let plant = TokenDef::creature(0, 1, &[Color::Green], &[CreatureType::Plant]);
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+    put_replacement(&mut game, entry_at_power(2, plus_one_counter()));
+
+    create(&mut game, vec![goblin(), goblin(), plant.clone(), plant, goblin()], 0);
+
+    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 0)), vec![1, 1, 0, 0, 1]);
+}
+
+/// A Mountain's mana ability, given by Blood Moon (CR 305.7), is derived on
+/// its object, so a frame holding one is not another token's: served one, the
+/// audit panics.
+#[test]
+fn a_frame_holding_an_ability_of_its_object_stays_that_objects() {
+    let land = TokenDef { types: vec![CardType::Land], power: None, toughness: None, ..goblin() };
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, blood_moon(), 0);
+
+    create(&mut game, vec![land; 3], 0);
+
+    let lands = tokens_of(&game, 0);
+    let mut ids: Vec<_> = lands.iter().map(|id| get_effective_abilities(&game, *id)[0].id).collect();
+    ids.dedup();
+    assert_eq!(ids.len(), 3, "each has an instance of its own");
+}
+
+/// CR 306.5b's "enters with" ability is derived on its object too, and it is
+/// the frame that hands it to the pipeline.
+#[test]
+fn each_planeswalker_token_of_a_run_has_its_own_entry_ability() {
+    let walker = TokenDef { types: vec![CardType::Planeswalker], power: None, toughness: None, ..goblin() };
+    let mut game = audited_game();
+
+    create(&mut game, vec![walker; 2], 0);
+
+    assert_eq!(tokens_of(&game, 0).len(), 2);
+}
+
+/// CR 304.4 and 111.5, asked once of a run and true of each token of it.
+#[test]
+fn a_run_of_instants_is_refused_whole() {
+    let instant = TokenDef { types: vec![CardType::Instant], power: None, toughness: None, ..goblin() };
+    let mut game = audited_game();
+    let objects_before = game.objects.len();
+
+    create(&mut game, vec![instant; 3], 0);
+
+    assert_eq!(game.objects.len(), objects_before, "CR 111.5: none is created");
+}
+
+/// The run's tokens are the anthem's creatures once they have entered.
+#[test]
+fn the_tokens_of_a_shared_frame_are_each_a_permanent_of_their_own() {
+    let mut game = audited_game();
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+
+    create(&mut game, vec![goblin(); 3], 0);
+
+    let goblins = tokens_of(&game, 0);
+    assert_eq!(goblins.len(), 3);
+    assert!(goblins.iter().all(|id| get_effective_power(&game, *id) == Some(2)));
+}
