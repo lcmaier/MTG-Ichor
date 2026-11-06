@@ -15,7 +15,7 @@
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --tokens 50
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --census
 //        cargo run --bin fuzz_games -- --players 4 --deck-size 100 --life 40 --observe
-//        cargo run --release --bin fuzz_games -- --ladder --threads 1   (floor 1's boards)
+//        cargo run --release --bin fuzz_games -- --ladder --threads 1   (the ratchet's boards)
 //        cargo run --release --bin fuzz_games -- --ladder --ladder-top 100 --threads 16
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
@@ -194,9 +194,10 @@ struct Args {
     /// Created after setup, one event per seat, so they are on the
     /// battlefield before the first turn. None by default.
     tokens_per_seat: usize,
-    /// Count the decisions that reach the agent, by prompt kind, `--census`:
-    /// a bot's games, read beside floor 1 (`engineering-practices.md#the-floors`).
-    /// Off by default; on, it changes no game.
+    /// Count the decisions that reach the agent, by prompt kind and by the
+    /// observation rows the deciding seat sees, and time each band, `--census`:
+    /// floor 1's reading (`engineering-practices.md#the-floors`). Off by default;
+    /// on, it changes no game.
     census: bool,
     /// Build a naive observation for the seat at each decision that reaches
     /// the agent, and time it against the engine, `--observe`: k, floor 1's
@@ -222,14 +223,13 @@ struct Args {
     /// default; on, it changes no counter, and a disagreement is a `PANIC`
     /// line carrying the game's seed.
     audit: bool,
-    /// Read what a decision costs up [`LADDER_RUNGS`], on each of
-    /// [`LADDER_SHAPES`], instead of playing games, `--ladder`: floor 1's
-    /// reading (`engineering-practices.md#the-floors`). `--threads` runs each
-    /// rung that many times at once.
+    /// Read what a step costs up [`LADDER_RUNGS`], on each of [`LADDER_SHAPES`],
+    /// instead of playing games, `--ladder`: the ratchet's boards
+    /// (`engineering-practices.md#the-floors`). `--threads` runs each rung that
+    /// many times at once.
     ladder: bool,
     /// The highest rung `--ladder` reads, `--ladder-top N`. Sixteen boards of
-    /// 51,200 permanents take minutes a shape, and floor 1's limit reads the
-    /// lowest rung. All of them by default.
+    /// 51,200 permanents take minutes a shape. All of them by default.
     ladder_top: usize,
 }
 
@@ -519,6 +519,8 @@ struct GameStats {
     /// `--census`: the decisions that reached the agent, by the prompt's kind.
     /// Empty without the flag.
     agent_decisions: BTreeMap<String, u64>,
+    /// `--census`: the same decisions by their observation band.
+    decision_bands: BTreeMap<usize, DecisionBand>,
     /// `--observe`: what building the observations cost. Zero without the flag.
     observation: ObservationCost,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
@@ -780,6 +782,7 @@ struct AggregateStats {
     total_trigger_dispatch: TriggerDispatchWork,
     /// `--census`'s counts, summed.
     total_agent_decisions: BTreeMap<String, u64>,
+    total_decision_bands: BTreeMap<usize, DecisionBand>,
     /// `--observe`'s cost, summed.
     total_observation: ObservationCost,
 }
@@ -818,6 +821,12 @@ impl AggregateStats {
         self.total_observation.add(game.observation);
         for (kind, count) in &game.agent_decisions {
             *self.total_agent_decisions.entry(kind.clone()).or_default() += count;
+        }
+        for (band, read) in &game.decision_bands {
+            let total = self.total_decision_bands.entry(*band).or_default();
+            total.decisions += read.decisions;
+            total.timed += read.timed;
+            total.nanos += read.nanos;
         }
         if self.reach.is_empty() {
             self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
@@ -941,15 +950,49 @@ struct MiddlewareConfig {
 }
 
 /// `--census`'s count for one game: the decisions that reach the agent, by
-/// the prompt's kind.
+/// the prompt's kind and by what the deciding seat sees.
 #[derive(Default)]
-struct AgentCensus(RefCell<BTreeMap<String, u64>>);
+struct AgentCensus {
+    kinds: RefCell<BTreeMap<String, u64>>,
+    bands: RefCell<BTreeMap<usize, DecisionBand>>,
+    last_decision: std::cell::Cell<Option<Instant>>,
+}
+
+/// The decisions made on boards of one size, and the engine's time since the
+/// decision before each. A game's first has no decision before it.
+#[derive(Debug, Default, Clone, Copy)]
+struct DecisionBand {
+    decisions: u64,
+    timed: u64,
+    nanos: u64,
+}
+
+/// How wide a band of observation rows is, centered on a multiple of itself:
+/// the 128 band holds floor 1's limit, 112 to 143.
+const BAND_ROWS: usize = 32;
+
+/// The rows [`Observer`] builds for `seat`, counted without building them.
+fn observation_rows(game: &GameState, seat: PlayerId) -> usize {
+    let graveyards: usize = game.players.iter().map(|player| player.graveyard.len()).sum();
+    let hand = game.players.get(seat).map_or(0, |player| player.hand.len());
+    game.battlefield.len() + game.stack.len() + game.exile.len() + game.command.len() + graveyards + hand + game.players.len()
+}
 
 impl AgentCensus {
-    fn count(&self, context: &ChoiceContext) {
+    fn count(&self, game: &GameState, seat: PlayerId, context: &ChoiceContext) {
+        let arrived = Instant::now();
         let kind = format!("{:?}", context.kind);
         let name = kind.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default();
-        *self.0.borrow_mut().entry(name.to_string()).or_default() += 1;
+        *self.kinds.borrow_mut().entry(name.to_string()).or_default() += 1;
+        let centered = (observation_rows(game, seat) + BAND_ROWS / 2) / BAND_ROWS * BAND_ROWS;
+        let mut bands = self.bands.borrow_mut();
+        let band = bands.entry(centered).or_default();
+        band.decisions += 1;
+        if let Some(last) = self.last_decision.get() {
+            band.timed += 1;
+            band.nanos += (arrived - last).as_nanos() as u64;
+        }
+        self.last_decision.set(Some(Instant::now()));
     }
 }
 
@@ -1070,7 +1113,7 @@ impl<D> AtTheAgent<D> {
     /// A decision has reached the agent: count it, and build what the agent sees.
     fn on_decision(&self, game: &GameState, player: PlayerId, context: &ChoiceContext) {
         if let Some(census) = &self.census {
-            census.count(context);
+            census.count(game, player, context);
         }
         if let Some(observer) = &self.observer {
             observer.observe(game, player);
@@ -1332,7 +1375,8 @@ fn run_one_game(
                 let (dispatches, triggers) = game.state.dispatch_audit_counts().unwrap_or((0, 0));
                 s.audited_dispatches = dispatches;
                 s.audited_triggers = triggers;
-                s.agent_decisions = census.map(|census| census.0.take()).unwrap_or_default();
+                (s.agent_decisions, s.decision_bands) =
+                    census.map(|census| (census.kinds.take(), census.bands.take())).unwrap_or_default();
                 s.observation = observer.map(|observer| observer.cost.get()).unwrap_or_default();
                 s
             },
@@ -1642,9 +1686,9 @@ fn read_rung(shape: LadderShape, permanents: usize, seed: u64) -> Result<(usize,
 }
 
 /// `--ladder`: every rung up to `top` of every shape, `threads` at once.
-/// `Decisions/s` is the workers' rates summed, so `--threads 16` over the
-/// physical cores is floor 1's loaded rate; `ns/permanent` stays flat where a
-/// rung's cost grows with its board and no faster.
+/// `Decisions/s` is the workers' rates summed; `ns/permanent` stays flat where
+/// a rung's cost grows with its board and no faster. A step is lighter than a
+/// game's decision, so no limit reads this (`fuzz-record.md#the-ladder`).
 fn run_ladder(threads: usize, top: usize, seed: u64) -> Result<(), String> {
     println!("=== Ladder ===");
     println!("Seats: {LADDER_SEATS}, threads: {threads}, seed: {seed}");
@@ -1968,6 +2012,13 @@ fn main() {
     println!();
     println!("=== Timing ===");
     println!("Total time:      {:.2}s", elapsed.as_secs_f64());
+    // Each worker's time since its last decision, so `Decisions/s` is the
+    // workers together, and over the physical cores it is floor 1's reading.
+    for (band, read) in agg_stats.total_decision_bands.iter().filter(|(_, read)| read.timed > 0) {
+        let micros = read.nanos as f64 / 1e3 / read.timed as f64;
+        let rate = args.threads as f64 * 1e6 / micros;
+        println!("Band {band:>4} rows:  {micros:>8.1} us/decision {rate:>9.0} Decisions/s");
+    }
     println!(
         "Time/game:       {:.2}ms",
         elapsed.as_millis() as f64 / args.games as f64
@@ -2156,6 +2207,11 @@ fn main() {
         for (kind, count) in kinds {
             println!("  {kind:<32} {:>8.2}", agg_stats.avg(*count));
         }
+        println!();
+        println!("=== Census by observation rows (--census, band centers, decisions per game) ===");
+        for (band, read) in &agg_stats.total_decision_bands {
+            println!("  {band:>5} {:>8.2}", agg_stats.avg(read.decisions));
+        }
     }
 
     // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`
@@ -2228,7 +2284,7 @@ fn main() {
 
 #[cfg(test)]
 mod ladder_tests {
-    use super::{ladder_board, ladder_step, LadderShape};
+    use super::{ladder_board, ladder_step, observation_rows, LadderShape, Observer};
     use mtgsim::oracle::characteristics::get_effective_power;
     use mtgsim::types::effects::CounterType;
     use mtgsim::ui::random::RandomDecisionProvider;
@@ -2276,6 +2332,20 @@ mod ladder_tests {
 
         let (state, _) = ladder_board(LadderShape::TokensUnderACant, 100, &dp).unwrap();
         assert_eq!(state.restriction_ability_sources.len(), 4);
+    }
+
+    /// The census counts what the observer builds, so a band is the rows a
+    /// policy would read.
+    #[test]
+    fn the_census_counts_the_rows_the_observer_builds() {
+        let dp = RandomDecisionProvider::seeded(1);
+        let (mut state, mut creatures) = ladder_board(LadderShape::DeathTriggers, 100, &dp).unwrap();
+        ladder_step(&mut state, LadderShape::DeathTriggers, 100, 0, &mut creatures, &dp).unwrap();
+        let observer = Observer::default();
+
+        observer.observe(&state, 0);
+
+        assert_eq!(observer.rows.borrow().len(), observation_rows(&state, 0));
     }
 
     /// The row is live: each seat's carrier reaches a plain Goblin beside it.
