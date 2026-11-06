@@ -10,15 +10,28 @@ games.
 **4-player Commander** — and **highly parallel AI games** over the CLI. A correct
 two-player game is a checkpoint on the way, not the destination.
 
-> **Status (2026-10-22):** The layer system (CR 613) is complete but for Layer 3 and Layer
+<table><tr>
+<td><img src="devgui/tests/snapshots/why_panel.png" alt="The dev GUI's why panel showing what Humility did to Serra Angel, layer by layer"></td>
+<td><img src="devgui/tests/snapshots/editor.png" alt="The dev GUI's board editor on a four-seat Commander board"></td>
+</tr><tr>
+<td>Right-click anything to ask why: here, what each layer did to Serra Angel under Humility.</td>
+<td>Build a board by clicking, then play every seat of it.</td>
+</tr></table>
+
+That window is the [dev GUI](#play-in-the-window-the-dev-gui), where cards are tested and
+the engine shows its work.
+
+> **Status (2026-11-05):** The layer system (CR 613) is complete but for Layer 3 and Layer
 > 1b, including the CR 613.8 dependency algorithm, and replacement and prevention effects
 > (CR 614–616) landed as Phases RA–RE: every observable mutation is a proposal the CR 616.1
 > pipeline sees before it happens. Triggered abilities (CR 603) landed as TR-1–TR-7: the
 > dispatch and its queue, look-back, delayed and reflexive triggers, state triggers, and a
-> history log every "this turn" and "this game" reads. Their close audit runs now. Beside
+> history log every "this turn" and "this game" reads, and their close audit is done. Beside
 > them: copy effects through "enters as a copy", the exact mana check and the legal values
 > of X, boards written as scenario files, and a window to play and debug them in, the dev
-> GUI. Build is green with zero warnings.
+> GUI. The route now runs to v0.5, Tarkir: Dragonstorm Commander's five decks at one
+> five-seat table, and the choices a card asks for are being built. Build is green with zero
+> warnings.
 >
 > For anything more precise than that — per-rule coverage, what's stubbed, what's next —
 > read [`plans/state-of-play.md`](plans/state-of-play.md), the generated board, and
@@ -122,9 +135,9 @@ A coarse map. The per-CR-rule breakdown lives in
 | **Triggered abilities (CR 603)** | ✅ TR-1–TR-7: dispatch, the queue and placement, CR 603.10's look-back, "may", delayed and reflexive triggers, combat's shapes, state triggers and the history log; the close audit's findings are `codebase-state.md` items |
 | Commander (CR 903) | 🟡 command zone, CR 903.9a/b, commander damage; the tax, designation and `GameConfig::commander()` pending |
 | Multiplayer (CR 800/802) | 🟡 any number of seats, N-player rotation, a lost player leaves the game (CR 800.4a–e); CR 802 pending |
-| CLI play, seeded and threaded fuzz harness at any seat count | ✅ |
-| Scenarios: a board as a text file (CR 103's setup) | ✅ loaded, written back from any game, and setup actions that cast and activate before the first question |
 | The dev GUI | ✅ a window that plays every seat, with a board editor, undo and savestates, and a "why" panel over the layers, the options and the trace |
+| Seeded, threaded fuzz harness at any seat count | ✅ |
+| Scenarios: a board as a text file (CR 103's setup) | ✅ loaded, written back from any game, and setup actions that cast and activate before the first question |
 
 **Cards:** [`plans/state-of-play.md`](plans/state-of-play.md) carries the count, registered
 and pooled. Basic and dual lands, Alpha staples, vanilla and keyword creatures, the
@@ -178,14 +191,6 @@ Every game writes its decision log, with a save beside it, under `devgui/logs/` 
 board's folder in `devgui/boards/`. A debug build (`cargo run`) runs the engine's own
 checks, which is what to test cards under; `cargo run --release` is quicker on a large
 board. [`plans/devgui-map.md`](plans/devgui-map.md) is where to start reading its code.
-
-### Play at the terminal
-
-```bash
-cd mtgsim && cargo run --bin cli_play
-```
-
-You play Player 0 against a random-decision bot.
 
 ### Fuzz harness
 
@@ -246,8 +251,8 @@ in `ui/ask.rs`, which build the context, pack the options, call the right primit
 validate the response (bounds, counts, sums, permutations) before unpacking it into typed
 results.
 
-**Built-in implementations:** `CliDecisionProvider` (interactive stdin/stdout),
-`RandomDecisionProvider` (fuzzing and bot opponents; `::seeded` for replayable runs),
+**Built-in implementations:** `RandomDecisionProvider` (fuzzing and bot opponents;
+`::seeded` for replayable runs),
 `ScriptedDecisionProvider` (deterministic integration tests), and
 `DispatchDecisionProvider` (routes decisions per player id).
 
@@ -287,7 +292,7 @@ phase in hindsight; what item 6 inherits from it is listed there.
 
 ```
 mtgsim/src/
-├── bin/            cli_play.rs, fuzz_games.rs
+├── bin/            fuzz_games.rs
 ├── cards/          Card definitions (data only), one file per phase + registry.rs
 ├── engine/         actions (the chokepoint), put_on_stack, costs, mana, priority,
 │                   resolve, sba, stack, targeting, turns, zones, keywords,
@@ -315,7 +320,7 @@ mtgsim/src/
 │                   restriction, triggers, history, card_types, colors, keywords,
 │                   keyword_actions, zones
 └── ui/             decision (trait), ask (typed bridge), choice_types, display,
-                    cli, random, auto_payer, auto_yield, auto_order_triggers,
+                    random, auto_payer, auto_yield, auto_order_triggers,
                     full_control, mana_window_stop, replay, waiting, why,
                     what_happened
 

@@ -1,8 +1,0 @@
-# The deck `cli_play` deals each seat: forty cards, red and green.
-Deck
-10 Mountain
-10 Forest
-4 Grizzly Bears
-4 Hill Giant
-4 Lightning Bolt
-8 Mountain
