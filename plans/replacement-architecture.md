@@ -1471,7 +1471,11 @@ at RE-4's review, 2026-09-13: that loop was the engine's, not the rules' —
 a rider's proposals carry the replaced event's applied set now, §11 item 77,
 so both encodings terminate; `Instead` stays because the drawing player's one
 draw is the same event as the instruction it replaced.)* Measured
-as a stack overflow the first time the test ran.
+as a stack overflow the first time the test ran. *(Decided, the owner,
+2026-11-05, at #310: the set a rider carries is the one it was queued with,
+its own effect included. Eye for an Eye makes the event two pieces of damage,
+and Ghosts of the Innocent, applied next, reaches both, so either order gives
+the same numbers. Carrying the loop's final set left Eye's damage unhalved.)*
 
 **The rule, and it is the one both "and" cards needed.** Split a printed
 "instead X and Y" by asking which half CR 614.5 has to cover; that half is the

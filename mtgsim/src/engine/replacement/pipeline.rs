@@ -71,9 +71,11 @@ pub(crate) struct Rider {
     pub source: ObjectId,
     /// What generated the replacement effect this rider is the rest of.
     pub generated_by: GeneratedBy,
-    /// CR 614.5's applied set for the event this rider is the rest of — the
-    /// group's *final* set, filled in by `execute_batch_inner` once the loop
-    /// has returned, and handed to every proposal the rider makes.
+    /// CR 614.5's applied set for the event this rider is the rest of, as it
+    /// stood when the rider was queued, its own effect included, and handed to
+    /// every proposal the rider makes. An effect that applies later has yet to
+    /// reach this half of the modified event: Ghosts of the Innocent halves Eye
+    /// for an Eye's damage whichever of the two the player applies first.
     ///
     /// A rider's proposals are "modified events that may replace that
     /// event", not new events: Alms Collector's *"you and that player each
@@ -454,7 +456,6 @@ pub(crate) fn apply_replacements(
             || !group.iter().any(|m| matches!(m.event, Some(GameAction::EnterBattlefield { .. }))),
         "an entry shares its subject with nothing"
     );
-    let riders_before = riders.len();
 
     let mut applied: AppliedReplacements = inherited.clone();
     // Declining is tracked separately from CR 614.5's applied set: CR 903.9b is
@@ -483,16 +484,12 @@ pub(crate) fn apply_replacements(
         // CR 616.1 — a redirect can leave the group's events affecting two
         // subjects, and each one's own player chooses for it, in APNAP order.
         if std::mem::take(&mut subject_moved) && regroup_by_subject(game, group) {
-            give_applied_set(group, &mut riders[riders_before..], applied.clone());
-            let queued_before_the_split = riders.len();
+            give_applied_set(group, applied.clone());
             let mut start = 0;
             while let Some(subject) = group.get(start).and_then(|m| m.event.as_ref()).map(subject_of) {
                 let same_subject = |m: &&BatchMember| m.event.as_ref().map(subject_of) == Some(subject);
                 let end = start + group[start..].iter().take_while(same_subject).count();
                 apply_replacements(game, &mut group[start..end], later, ctx, &applied, riders)?;
-                for rider in &mut riders[riders_before..queued_before_the_split] {
-                    rider.lineage.join_for_rider(&group[start].applied);
-                }
                 start = end;
             }
             return Ok(());
@@ -500,7 +497,7 @@ pub(crate) fn apply_replacements(
         // Owned, because the gather below walks `group` mutably; one small
         // clone per iteration of a loop that runs once for most proposals.
         let Some(first) = group.iter().find_map(|m| m.event.clone()) else {
-            give_applied_set(group, &mut riders[riders_before..], applied);
+            give_applied_set(group, applied);
             return Ok(());
         };
 
@@ -572,7 +569,7 @@ pub(crate) fn apply_replacements(
             if let Some(t) = trace {
                 game.trace(|| t.record(game, group));
             }
-            give_applied_set(group, &mut riders[riders_before..], applied);
+            give_applied_set(group, applied);
             return Ok(());
         }
 
@@ -742,8 +739,7 @@ pub(crate) fn apply_replacements(
             riders.push(Rider {
                 source: chosen.source,
                 generated_by: replacement_generator(game, &chosen)?,
-                // The group's final applied set, once the loop has it.
-                lineage: AppliedReplacements::EMPTY,
+                lineage: applied.without_redirects(),
                 controller: chosen.controller,
                 subject,
                 // One kind of event per group, since a pattern matches one
@@ -792,17 +788,9 @@ fn regroup_by_subject(game: &GameState, group: &mut [BatchMember]) -> bool {
     true
 }
 
-/// The group's final applied set, given to each member and to each rider the
-/// group queued. CR 614.5: a rider is the rest of its replacement's effect, so
-/// it carries everything that applied to the event, including what applied
-/// after it was queued.
-///
-/// The set itself goes to the last member, so the common group, one member
-/// and no rider, copies nothing.
-fn give_applied_set(group: &mut [BatchMember], queued: &mut [Rider], applied: AppliedReplacements) {
-    for rider in queued {
-        rider.lineage = applied.without_redirects();
-    }
+/// The group's final applied set, given to each member. The set itself goes to
+/// the last member, so the common group of one copies nothing.
+fn give_applied_set(group: &mut [BatchMember], applied: AppliedReplacements) {
     if let Some((last, rest)) = group.split_last_mut() {
         for member in rest {
             member.applied = applied.clone();

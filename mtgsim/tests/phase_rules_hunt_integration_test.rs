@@ -383,13 +383,14 @@ fn a_redirect_leaves_each_affected_player_choosing_for_their_own_event() {
     assert_eq!(game.players[1].life_total, 20 - 3, "P1 doubles then halves its 3");
 }
 
-/// Eye for an Eye, in its printed words. No rider can name "that source's
-/// controller" yet, so on this two-seat board the opponent stands in.
-fn eye_for_an_eye() -> Arc<CardData> {
+/// Eye for an Eye's words and shape, with "each opponent" for "that source's
+/// controller", which no rider can name yet: its own damage waits as a rider
+/// beside an event that still happens.
+fn retaliating_eye() -> Arc<CardData> {
     let text = "The next time a source of your choice would deal damage to you this turn, instead that \
-                source deals that much damage to you and Eye for an Eye deals that much damage to that \
-                source's controller.";
-    CardDataBuilder::new("Eye for an Eye")
+                source deals that much damage to you and this spell deals that much damage to each \
+                opponent.";
+    CardDataBuilder::new("Retaliating Eye")
         .card_type(CardType::Instant)
         .rules_text(text)
         .ability(spell_ability(
@@ -403,17 +404,41 @@ fn eye_for_an_eye() -> Arc<CardData> {
         .build()
 }
 
-/// P1 applies Eye for an Eye to the attacker it keeps, so Eye's own 3 waits as a
-/// rider, then Reflect Damage to the other, which splits the group. Ghosts of the
-/// Innocent then halves each attacker's damage. A rider carries everything that
-/// applied to its event, so Eye's 3 is not halved.
+/// A 3/3 attacks P1 beside Ghosts of the Innocent, and P1's Retaliating Eye names
+/// it. The eye turns the event into two pieces of damage. Applied first, it
+/// leaves Ghosts to reach both; applied second, its "that much" is already
+/// halved, and Ghosts has had its one opportunity (CR 614.5). Either way each
+/// player takes 1.
 #[test]
-fn a_rider_queued_before_a_redirect_carries_what_applied_after_it() {
+fn a_rider_gives_the_same_damage_whichever_effect_applies_first() {
+    for eye_first in [true, false] {
+        let mut game = setup_two_player_game();
+        let ghosts = put_on_battlefield(&mut game, ghosts_of_the_innocent(), 1);
+        let attacker = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
+        set_attacking(&mut game, attacker, 1);
+        let choosing = RecordingDecisionProvider::choosing([ChoiceOption::Object(attacker)]);
+        let eye = resolve_card(&mut game, retaliating_eye(), 1, vec![], &choosing);
+
+        let dp = ScriptedDecisionProvider::new();
+        let first = if eye_first { eye } else { ghosts };
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(first)]);
+        game.process_combat_damage(&dp, false).unwrap();
+
+        assert_eq!(game.players[0].life_total, 20 - 1, "the rider's half, eye first: {eye_first}");
+        assert_eq!(game.players[1].life_total, 20 - 1, "the attacker's half, eye first: {eye_first}");
+    }
+}
+
+/// The same across a split: the eye's rider waits, Reflect Damage sends the other
+/// attacker back, and Ghosts of the Innocent applies in each player's group,
+/// after the rider was queued, so it reaches the rider's 3 as well.
+#[test]
+fn a_rider_queued_before_a_redirect_meets_what_applied_after_it() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, ghosts_of_the_innocent(), 1);
     let (_, kept, reflect) = two_attackers_one_reflected(&mut game);
     let choosing = RecordingDecisionProvider::choosing([ChoiceOption::Object(kept)]);
-    let eye = resolve_card(&mut game, eye_for_an_eye(), 1, vec![], &choosing);
+    let eye = resolve_card(&mut game, retaliating_eye(), 1, vec![], &choosing);
 
     let dp = ScriptedDecisionProvider::new();
     let chooses = ChoiceKind::ChooseReplacementEffect { affected_object: None };
@@ -421,7 +446,7 @@ fn a_rider_queued_before_a_redirect_carries_what_applied_after_it() {
     dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(reflect)]);
     game.process_combat_damage(&dp, false).unwrap();
 
-    assert_eq!(game.players[0].life_total, 20 - 1 - 3, "the reflected 3 halved, and Eye's 3");
+    assert_eq!(game.players[0].life_total, 20 - 1 - 1, "the reflected 3 halved, and the rider's 3 halved");
     assert_eq!(game.players[1].life_total, 20 - 1, "the kept 3 halved");
 }
 
