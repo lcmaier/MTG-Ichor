@@ -1369,17 +1369,18 @@ fn write_affected(
 }
 
 /// Apply `app` to every member it affects — for real, or under a `journal`
-/// that lets it be taken back. Returns the members it affected.
+/// that lets it be taken back — and tell `reached`, when a caller asks, each
+/// member it affected, once.
 fn perform(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
     app: &Application<'_>,
     journal: &mut Option<Journal>,
-) -> Vec<ObjectId> {
+    mut reached: Option<&mut Vec<ObjectId>>,
+) {
     match &app.kind {
         Kind::Effect { rows, would_be } => {
-            let mut reached: Vec<ObjectId> = Vec::new();
             for row in rows {
                 let (affected, fresh) = match row_affected(game, board, row, *would_be, layer_index) {
                     Affected::Gone => continue,
@@ -1417,20 +1418,20 @@ fn perform(
                     board.started.insert(group, affected.clone());
                 }
                 write_affected(game, board, layer_index, &row.modification, Some(row), &affected, journal);
-                for target in affected {
-                    if !reached.contains(&target) {
-                        reached.push(target);
-                    }
+                if let Some(reached) = reached.as_deref_mut() {
+                    let mut seen: IdSet<ObjectId> = reached.iter().copied().collect();
+                    reached.extend(affected.into_iter().filter(|target| seen.insert(*target)));
                 }
             }
-            reached
         }
         Kind::Own { object, own, modification } => {
             if own.stripped(board, *object) {
-                return Vec::new();
+                return;
             }
             write_affected(game, board, layer_index, modification, None, &[*object], journal);
-            vec![*object]
+            if let Some(reached) = reached {
+                reached.push(*object);
+            }
         }
     }
 }
@@ -1455,7 +1456,8 @@ fn perform_recorded(
         let before = board.frames.get(&id)?.clone();
         Some((id, before, missed(game, board, layer_index, app, id)))
     });
-    let affected = perform(game, board, layer_index, app, &mut None);
+    let mut affected = Vec::new();
+    perform(game, board, layer_index, app, &mut None, Some(&mut affected));
     let watched = seen.map(|(id, before, missed)| match board.frames.get(&id) {
         Some(after) if affected.contains(&id) => StepResult::Applied { before, after: after.clone() },
         _ => missed,
@@ -1603,7 +1605,7 @@ fn depends_on(
     game.diagnostics.record_dependency_check();
     let before = observe(game, board, layer_index, a);
     let mut journal = Some(Journal::default());
-    perform(game, board, layer_index, b, &mut journal);
+    perform(game, board, layer_index, b, &mut journal, None);
     let after = observe(game, board, layer_index, a);
     journal.expect("the journal was handed in").restore(board);
     before != after
@@ -1714,7 +1716,7 @@ fn resolve_order_within_layer(
         let index = pending.remove(next);
         match recorder.as_deref_mut() {
             None => {
-                perform(game, board, layer_index, &apps[index], &mut None);
+                perform(game, board, layer_index, &apps[index], &mut None, None);
             }
             Some(recorder) => {
                 let waited_for = waits[index].iter().map(|&j| apps[j].source_object()).collect();
