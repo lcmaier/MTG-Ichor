@@ -10136,10 +10136,13 @@ The item as it stood:
      **Reachability (2026-11-05):** reachable — not wrong: a measurement.
      **Sized:** ~100–150 lines in `fuzz_games` and the floor's rows, no engine code.
      **Slotted:** `board-scale`.
-     **Closed:** `fuzz_games --ladder`. A step moves the layer epoch, since a tap
-     moves none and an anthem's row would never be read, so it reads about five
-     times the probe's cost. The reading and the curve are
-     `fuzz-record.md#the-latest-floor-readings`.
+     **Closed:** `fuzz_games --ladder`, eight shapes, for the ratchet. A step moves
+     the layer epoch, since a tap moves none and an anthem's row would never be
+     read, so it reads about five times the probe's cost. Floor 1 itself did not
+     stay on it: a step proved 3 to 5 times lighter than a real decision, so at the
+     owner's decision the limit reads real decisions in band 128 of `--census`, the
+     board it was derived for, and a board-size drift such as #310's cannot move
+     that. The reading and both tables are `fuzz-record.md#the-latest-floor-readings`.
 
 ### Item 378
 

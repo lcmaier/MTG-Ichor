@@ -428,16 +428,16 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 <!-- floors: begin -->
 | Floor | Limit | Definition | Instrument |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | on the ladder's fixed boards at four seats, setup off the clock: the limit reads the lowest rung, 100 permanents, the nearest to the 128 tokens it was derived at, on the worst of bare creatures, an anthem and death triggers; tokens in one event read a creation, and no limit reads them. A decision is an event, the state-based check with what it puts on the stack, and the action list; a death is four, one per trigger's target; loaded = the 16-thread rate ÷ physical cores | the readiness pass, by `fuzz_games --ladder --ladder-top 100 --threads 16`, and on one thread every rung from 100 to 51,200 permanents on all eight shapes, with callgrind instructions per decision beside it |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | real decisions at Commander scale (`--deck-size 100 --life 40 --players 4`) on `performance` under the default bot stack, on the board the limit was derived for: those whose seat sees 112–143 observation rows, around its 128 tokens; a decision counted where it reaches the agent; loaded = the band's 16-thread rate ÷ physical cores | the readiness pass, by `fuzz_games --census --threads 16`'s band 128, with callgrind instructions per decision beside it |
 | 2. Allocations per clone | ≤ 64 | CI's proxy for a full-state clone within 10 µs, at item 143's checkpoints, at every decision and on the fixture boards | `clone_bound_test` and `clone_fixture_test` in CI's release step, with `fork_copies_test` beside them |
 | 2. Microseconds per clone | ≤ 10 | a full-state clone, portably ≤ 1/6 of one decision's engine CPU, at the same readings | the readiness pass, by the clone tests' ignored tests |
 | 3. Kilobytes per clone | ≤ 128 | deep clone size, bounded by the board's high-water mark and never by the turn count | the same tests, exact bytes with the hash seed pinned |
 <!-- floors: end -->
 
-- **No bot's play shapes floor 1's boards**, so it moves when the engine does, and the
-  rungs above the limit's are read for their shape. Phase 10 re-derives the limit.
-- **A bot's games are read beside it** (`--census`, under `backlog.md` §2.22's default stack). That
-  rate moves with the bot, and a dropped prompt is judged by games per loaded core-second.
+- **Floor 1 reads one board size**, so a bot that changes how big its boards get cannot move it. A
+  dropped prompt still can, and is judged by games per loaded core-second. Phase 10 re-derives the limit.
+- **The ladder is the ratchet's own boards** (`fuzz_games --ladder`): no bot, each rung never worse
+  without a reason, and `ns/permanent` flat where cost grows with the board. No limit reads it.
 - **A reading is replaced in place when it is taken again**; every reading's
   dated record stays in `fuzz-record.md`.
 

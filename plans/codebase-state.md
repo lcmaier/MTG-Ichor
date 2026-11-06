@@ -10455,7 +10455,8 @@ slips are the planned card phases', not items.
 
 377. **Floor 1 reads the bot's games, so it moves when the bot does.** — ✅ closed.
      `fuzz_games --ladder` reads fixed boards from 100 to 51,200 permanents at
-     four seats, with no agent in them, and the limit reads the lowest rung.
+     four seats for the ratchet, and Floor 1 reads real decisions on the limit's
+     own board, band 128 of `--census`, so board-size drift cannot move it.
      **Reachability (2026-11-05):** closed — PR #313.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 377".
 
@@ -10524,3 +10525,28 @@ slips are the planned card phases', not items.
      **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
      **Sized:** a profile first.
      **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+386. **Each trigger resolving pays a pass over the board.** A stack entry is a layer
+     walk input, so taking one moves the epoch and the next read walks everything:
+     exactly one board walk a trigger. One Soul Warden a seat and 800 tokens is
+     3,200 triggers at 322 µs each, about 1 s, of which the four seats' action
+     lists and the state-based check are 68 µs. No player is asked anything:
+     CR 603.3b's order is elided and "you gain 1 life" has no target. The CR owes
+     each one a resolution and a check, and not a pass; a stack object's own frame
+     is all that moved. Item 354's design is this question.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** with item 354's design, how much of the board a change invalidates.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+387. **Floor 1 should read frozen real positions.** Band 128 of `--census` reads
+     real decisions, so a change to which prompts appear can still move it. About
+     200 decisions sampled from real games and saved as scenarios, one decision
+     timed from each, would be real and free of the bot both. The owner's choice,
+     after the band (2026-11-06).
+
+     **Reachability (2026-11-06):** nothing owed — an instrument, for the limit's
+     re-derivation.
+     **Sized:** ~150 lines and the fixture files. Whether a scenario restores every
+     mid-turn position is unchecked, and `pausing-at-a-decision`'s work may decide it.
+     **Slotted:** Phase 10, the AI harness, where the limit is re-derived.
