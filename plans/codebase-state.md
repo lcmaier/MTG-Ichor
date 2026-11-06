@@ -10493,22 +10493,3 @@ slips are the planned card phases', not items.
      **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
      **Sized:** ~30–50 lines of code; the look-ahead's sharing needs the most care.
      **Slotted:** `board-scale`.
-
-### Found by `division-shares-plus-counter-words` (2026-11-05)
-
-379. **A resolving object's stack row says it is being cast, and shows no
-     targets.** `resolve_top_of_stack` takes the `StackEntry`, and the dev GUI's
-     `StackItem` reads `is_spell` and the targets off it. So at a question asked
-     during a resolution, Lightning Bolt's row reads "being cast or activated"
-     with its target gone: Bolt the Bears with a shield counter on them and
-     Mending Hands' shield waiting, and CR 616.1's question shows it. A
-     division's shares go with the targets.
-
-     **Reachability (2026-11-05):** reachable — not wrong: the game is right,
-     and the window misnames the step.
-     **Sized:** ~20 lines: `ResolvingObject` keeps the targets as it keeps
-     `x_value`, one clone at each resolution, and the snapshot reads them.
-     `GameState::is_spell_on_stack` already answers for a resolving object.
-     **Slotted:** `modes-plus-choice-kinds`, the dev GUI PR that follows
-     `modal-spells-and-abilities`, as a proposal: the owner's cadence puts it
-     there, and it needs an engine field, which a dev GUI PR's read does not.

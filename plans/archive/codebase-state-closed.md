@@ -10086,7 +10086,7 @@ The item as it stood:
      beside a counter's row, under `engineering-practices.md#the-dev-gui`.
      **Slotted:** `modes-plus-choice-kinds`, the dev GUI PR after
      `divided-among-targets`; the owner's cadence puts it next.
-     **Closed:** the dev GUI reads both. The CLI reads neither, and that half
+     **Closed:** the dev GUI reads both, a resolving spell's row among them
+     (`GameState::stack_object_facts`). The CLI reads neither, and that half
      waits on `information-model-design` (`backlog.md`'s "What a client is
-     handed"). A question asked during a resolution still loses a spell's
-     targets, shares included: item 379.
+     handed").
