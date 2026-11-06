@@ -395,10 +395,10 @@ pub fn player_name(player: PlayerId) -> String {
     format!("Player {player}")
 }
 
-/// A target of a division with its share (CR 601.2d), `target` as the board
-/// names it: `Grizzly Bears (#12) for 2`, damage or counters alike.
-pub fn target_with_share(target: &str, share: u64) -> String {
-    format!("{target} for {share}")
+/// A target of a division with its share (CR 601.2d), whatever was divided:
+/// `Grizzly Bears (#12) for 2`.
+pub fn target_with_share(target_name: &str, share: u64) -> String {
+    format!("{target_name} for {share}")
 }
 
 pub fn attack_target_name(game: &GameState, target: &AttackTarget) -> String {
@@ -557,7 +557,8 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
 /// What `option` does, in the rule's own words, for a client that shows them
 /// beside the short [`option_label`], as Arena does on a hover
 /// (`backlog.md`'s "What a client is handed"). `None` where the label says it
-/// all. CR 122.1c, d and h state each counter's effect.
+/// all: an ability's text stays in its label, which is what tells two
+/// abilities of one object apart. CR 122.1c, d and h state each counter's effect.
 pub fn what_the_option_does(option: &ChoiceOption) -> Option<&'static str> {
     let ChoiceOption::Replacement(ReplacementOption::Counter { counter, effect, .. }) = option else { return None };
     match (counter, effect) {
