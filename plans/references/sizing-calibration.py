@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""How far estimates ran from what landed, grouped by the estimate's kind, and
+what share of merged PRs was the route. Writes `sizing-calibration.md`, which
+`roadmap-v2.md`'s Sizing section reads.
+
+    python plans/references/sizing-calibration.py
+
+Measured from git, so a PR body's own figure never enters it: code plus tests
+(`mtgsim/src`, `mtgsim/tests`), lines added across the merge's first parent,
+review rounds included, generated fingerprints left out. That is the band's
+measure. A part of a PR is measured by its commits, and an estimate given in
+changed lines against lines added and removed. The estimates are keyed by hand
+from each PR's Size section or the doc that set them, at the figure the owner
+was shown, since a loose number regex reads a date as a range.
+"""
+
+import contextlib
+import datetime
+import io
+import re
+import statistics
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+OUT = Path(__file__).with_suffix(".md")
+#: Where the window closes: #313's merge, which the tables were read at.
+END = "71e0919e79bc460e3af029478874aacdc997770a"
+LAST_DAY = datetime.date(2026, 11, 6)
+FORTNIGHTS = 4
+
+HEADER = """# Sizing calibration: how far estimates ran from what landed
+
+**Generated** by `sizing-calibration.py`, read at #313's merge (2026-11-06); a
+dated record, not a live count. These are the estimates a doc or PR body states
+from RH-1 (#243) on, the first phases sized the way the later ones were. Measured
+from git: code plus tests, lines added across the merge, review rounds included.
+A PR body's own figure can differ, and #307's and #308's are added plus removed:
+#307's "2.2×" is 1.70× by lines added.
+
+**How `roadmap-v2.md`'s Sizing section uses each kind:**
+
+- **Set at a design stop:** the top is the expected size, and about 0.5–1.7 of it
+  the range. Most of these already carry code at ×1.5–2.
+- **A plan's sum carried at code ×1.5–2 plus tests:** about 1.1× its top.
+- **A plain sum of `**Sized:**` lines:** about 3× its top, 2.1–3.7, on only four
+  rows, and only for the items it lists, so add the feature itself.
+- **A route's PR count before any design:** about 3× its top, 3.5–4× for a whole
+  subsystem and 1.5–2.5× for a smaller row.
+- **A PR count set where the row was designed:** it holds. TR-5 is the one that
+  doubled, and TR-3 and the item 6 audit grew by about half.
+"""
+
+# (PR, phase, estimate's low, its top, where it was set)
+DESIGN_STOP = [
+    (243, "RH-1", 1900, 2300, "`replacement-architecture.md`, at the multiplier"),
+    (244, "RH-2", 1040, 1235, "`replacement-architecture.md`, at the multiplier"),
+    (245, "RH-3", 1390, 1620, "`replacement-architecture.md`, at the multiplier"),
+    (251, "TR-4a", 2120, 2440, "A6p's re-count"),
+    (252, "TR-4b", 1150, 1850, "A6p's re-count"),
+    (253, "TR-4c", 1560, 1750, "A6p's re-count"),
+    (254, "TR-4d", 1175, 2040, "A6p's re-count"),
+    (255, "TR-5a", 1380, 1600, "its design"),
+    (256, "TR-5e", 1465, 1680, "its design"),
+    (257, "TR-5f", 1770, 1995, "its re-count"),
+    (258, "TR-5b", 1630, 1850, "its design"),
+    (259, "MA-2", 1320, 1360, "its design"),
+    (261, "TR-5c", 2045, 2370, "its design"),
+    (262, "TR-5h", 1630, 1920, "its design"),
+    (263, "TR-5d", 880, 1000, "TR-5h's three designs"),
+    (264, "TR-5g", 1330, 1510, "TR-5h's three designs"),
+    (267, "CL-1", 1350, 1750, "#266's design"),
+    (268, "TR-6", 1305, 1720, "its design"),
+    (269, "TR-7", 975, 1300, "its design"),
+    (307, "`options-named-by-what-they-are`", 440, 760, "#306's decision 4"),
+]
+# A sum of `**Sized:**` lines with a ratio already on it: (PRs, row, low, top,
+# where it was set). #283's is the code at 1.5-2x plus the tests.
+CARRIED = [
+    ((250,), "A6m's second PR", 650, 1150, "its split at #240"),
+    ((284,), "`history-and-frame-records`", 1700, 2000, "#283's plan"),
+    ((288,), "`resolution-context-rider`", 130, 160, "#283's plan"),
+    ((289, 290), "`trigger-matcher-merges`", 1350, 1800, "#283's plan"),
+    ((291,), "`one-fact-one-type`", 1700, 2100, "#283's plan"),
+    ((293, 294), "`batches-durations-and-control`", 1750, 2100, "#283's plan"),
+    ((308,), "`divided-among-targets`", 1200, 1650, "`choices-architecture.md`, the backlog's 500–700 at #307's ratio"),
+]
+# A plain sum of `**Sized:**` lines or a brief's figure, with no ratio on it:
+# (part, low, top, `{"pr": n}`, `{"changed": n}` or `{"commits": [...]}`, where
+# it was set).
+PLAIN_SUM = [
+    ("#310, the hunt's six fixes", 360, 360, {"pr": 310}, "item sizes of about 155 and 205"),
+    ("#305, `scripted-answers-by-identity`", 700, 900, {"changed": 305}, "its brief, in changed lines"),
+    ("#313's ladder", 100, 150, {"commits": ["a1147e05", "721aa655", "5e253031"]}, "its brief, item 377; its three commits"),
+    ("#313's item 378", 30, 50, {"commits": ["395b4059", "52dc549f"]}, "item 378; its two commits"),
+]
+# A route's PR count, written before any design: (row, low, top, landed, what landed).
+ROUTE_COUNT = [
+    ("Item 5's remainder", 3, 5, 20, "RC 6, RD 4, RE 10"),
+    ("Item 6, triggers", 4, 6, 21, "TR-1 to TR-7"),
+    ("`card-layer-cleanup`", 1, 2, 5, "#301–#305"),
+    ("Item 7, CR 613.8", 1, 2, 3, "LI-1 to LI-3"),
+]
+# A PR count set where the row was designed: (row, count, landed, what landed).
+DESIGN_COUNT = [
+    ("RD", 4, 4, "RD-1 to RD-4"),
+    ("RE", 9, 10, "RE-1 to RE-10"),
+    ("CM", 5, 5, "CM-0 to CM-4"),
+    ("RH", 3, 3, "RH-1 to RH-3"),
+    ("TR-3", 2, 3, "TR-3a to TR-3c"),
+    ("TR-4", 4, 4, "TR-4a to TR-4d"),
+    ("TR-5", 4, 8, "TR-5a to TR-5h"),
+    ("`readiness`", 2, 2, "#299, #300"),
+    ("The item 6 audit", 20, 28, "#270–#300; #270's plan said 13–20"),
+]
+
+ROUTE_PREFIXES = {"triggers", "replacement", "mana", "copy", "layers", "choices", "cards", "targeting", "state"}
+GUI_PREFIXES = {"devgui", "ui", "setup"}
+PROCESS_PREFIXES = {"process", "docs", "tooling", "dependabot"}
+#: On the route under another branch prefix: steps 1, 2 and 4 of the Sizing
+#: table, and the cleanup builds of the plan whose last rows are on that table,
+#: so the work is counted the way the rows left are.
+ROUTE_PRS = {284, 285, 288, 289, 290, 291, 293, 294, 298, 299, 300, 306}
+
+
+def git(*args):
+    done = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", check=True)
+    return done.stdout
+
+
+def merges():
+    """`{pr: (merge hash, merge day, branch)}`, every PR merged on the first parent."""
+    out = {}
+    for line in git("log", "--merges", "--first-parent", END, "--format=%H %cs %s").splitlines():
+        m = re.match(r"(\w+) (\S+) Merge pull request #(\d+) from [^/]+/(\S+)", line)
+        if m:
+            out[int(m.group(3))] = (m.group(1), m.group(2), m.group(4))
+    return out
+
+
+def lines_moved(numstat):
+    """`(added, removed)` over a numstat's code and tests."""
+    plus = minus = 0
+    for row in numstat.splitlines():
+        lines, gone, path = row.split("\t")
+        if lines != "-" and not path.endswith("card_fingerprints.txt"):
+            plus += int(lines)
+            minus += int(gone)
+    return plus, minus
+
+
+def merged(merge):
+    return lines_moved(git("diff", "--numstat", f"{merge}^1", merge, "--", "mtgsim/src", "mtgsim/tests"))
+
+
+def added(merge):
+    return merged(merge)[0]
+
+
+def measure(how, all_merges):
+    """A plain sum's measure: a whole PR, its changed lines, or some commits."""
+    if "pr" in how:
+        return added(all_merges[how["pr"]][0])
+    if "changed" in how:
+        return sum(merged(all_merges[how["changed"]][0]))
+    return sum(lines_moved(git("show", "--numstat", "--format=", sha, "--", "mtgsim/src", "mtgsim/tests"))[0]
+               for sha in how["commits"])
+
+
+def spread(ratios):
+    return (f"{len(ratios)} rows: mean {statistics.mean(ratios):.2f}, median {statistics.median(ratios):.2f}, "
+            f"range {min(ratios):.2f}–{max(ratios):.2f}")
+
+
+def format_range(low, top):
+    return f"{low:,}" if low == top else f"{low:,}–{top:,}"
+
+
+def prs(numbers):
+    return ", ".join(f"#{n}" for n in numbers)
+
+
+def line_tables(all_merges):
+    print("### Set at a design stop\n")
+    print("| PR | Phase | Estimate | Measured | × its top | Set by |\n|---|---|---:|---:|---:|---|")
+    ratios = []
+    for pr, name, low, top, source in DESIGN_STOP:
+        measured = added(all_merges[pr][0])
+        ratios.append(measured / top)
+        print(f"| #{pr} | {name} | {format_range(low, top)} | {measured:,} | {measured / top:.2f} | {source} |")
+    print(f"\n{spread(ratios)}.\n")
+
+    print("### A sum with the ratio already on it\n")
+    print("| PRs | Row | Carried | Measured | × its top | Set by |\n|---|---|---:|---:|---:|---|")
+    ratios = []
+    for numbers, name, low, top, source in CARRIED:
+        measured = sum(added(all_merges[n][0]) for n in numbers)
+        ratios.append(measured / top)
+        print(f"| {prs(numbers)} | {name} | {format_range(low, top)} | {measured:,} | {measured / top:.2f} | {source} |")
+    print(f"\n{spread(ratios)}.\n")
+
+    print("### A plain sum of `**Sized:**` lines\n")
+    print("| Part | Estimate | Measured | × its top | Set by |\n|---|---:|---:|---:|---|")
+    ratios = []
+    for name, low, top, how, source in PLAIN_SUM:
+        measured = measure(how, all_merges)
+        ratios.append(measured / top)
+        print(f"| {name} | {format_range(low, top)} | {measured:,} | {measured / top:.2f} | {source} |")
+    print(f"\n{spread(ratios)}.\n")
+
+
+def count_tables():
+    print("### A route's PR count, before any design\n")
+    print("| Row | Guessed | Landed | × its top | What landed |\n|---|---:|---:|---:|---|")
+    ratios = []
+    for name, low, top, landed, what in ROUTE_COUNT:
+        ratios.append(landed / top)
+        print(f"| {name} | {low}–{top} | {landed} | {landed / top:.1f} | {what} |")
+    print(f"\n{spread(ratios)}.\n")
+
+    print("### A PR count set where the row was designed\n")
+    print("| Row | Set | Landed | × | What landed |\n|---|---:|---:|---:|---|")
+    ratios = []
+    for name, count, landed, what in DESIGN_COUNT:
+        ratios.append(landed / count)
+        print(f"| {name} | {count} | {landed} | {landed / count:.2f} | {what} |")
+    print(f"\n{spread(ratios)}.\n")
+
+
+def kind(pr, branch):
+    prefix = branch.split("/")[0]
+    if pr in ROUTE_PRS:
+        return "route"
+    if branch.startswith("tooling/a6g") or prefix in GUI_PREFIXES:
+        return "dev GUI"
+    if prefix in ROUTE_PREFIXES:
+        return "route"
+    if prefix == "audit":
+        return "audit"
+    if prefix in PROCESS_PREFIXES:
+        return "process and docs"
+    return "detour"
+
+
+def overhead(all_merges):
+    first = LAST_DAY - datetime.timedelta(days=14 * FORTNIGHTS - 1)
+    window = [(day, kind(pr, branch)) for pr, (_, day, branch) in all_merges.items() if day >= first.isoformat()]
+    kinds = ("route", "dev GUI", "audit", "process and docs", "detour")
+    print("### What was merged\n")
+    print("By branch prefix, with `ROUTE_PRS` on the route: a route PR is one that builds a row of the Sizing table "
+          "or the cleanup plan whose last rows joined it, so work is counted the way the rows left are.\n")
+    print("| Fortnight from | " + " | ".join(kinds) + " | All |\n|---|" + "---:|" * (len(kinds) + 1))
+    for n in range(FORTNIGHTS):
+        begin = (first + datetime.timedelta(days=14 * n)).isoformat()
+        end = (first + datetime.timedelta(days=14 * (n + 1))).isoformat()
+        here = [k for day, k in window if begin <= day < end]
+        print(f"| {begin} | " + " | ".join(str(here.count(k)) for k in kinds) + f" | {len(here)} |")
+    every = [k for _, k in window]
+    print("| **All** | " + " | ".join(f"**{every.count(k)}**" for k in kinds) + f" | **{len(every)}** |")
+    route = every.count("route")
+    print(f"\n{route} of {len(every)} merge commits on the route: {len(every) / route:.1f} merged PRs for each "
+          f"route PR, and {route / (2 * FORTNIGHTS):.1f} route PRs a week. A PR rebased in has no merge commit "
+          f"and is not counted. `setup/` is the dev GUI's own track; `state/` is the clone's.")
+
+
+def main():
+    all_merges = merges()
+    body = io.StringIO()
+    with contextlib.redirect_stdout(body):
+        print(HEADER)
+        print("## Lines\n")
+        line_tables(all_merges)
+        print("## PR counts\n")
+        count_tables()
+        print("## Overhead, the eight weeks to #313\n")
+        overhead(all_merges)
+        sizes = [added(all_merges[pr][0]) for pr, *_ in DESIGN_STOP]
+        print(f"\nA phase PR's size over the design-stop rows: median {statistics.median(sizes):,.0f}, "
+              f"mean {statistics.mean(sizes):,.0f}.")
+    OUT.write_text(body.getvalue(), encoding="utf-8", newline="\n")
+    print(f"wrote {OUT.name}")
+
+
+if __name__ == "__main__":
+    main()

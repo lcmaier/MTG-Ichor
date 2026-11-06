@@ -34,8 +34,8 @@
 `plans/references/choice-kinds-census.py`'s, run 2026-11-01 over its cached
 corpus (every Commander-legal paper card, fetched 2026-10-05, 32,115 cards),
 with a second column for Tarkir: Dragonstorm Commander's 373 cards (`tdc`,
-Scryfall `e:tdc -t:basic`, committed as `plans/references/tdc-names.txt`), the
-five decks v0.5 plays. The corpus is paper; Alchemy's digital-only cards, in
+Scryfall `e:tdc -t:basic`, committed as `plans/references/tdc-names.txt`), all
+but 12 of the 385 in the five decks v0.5 plays. The corpus is paper; Alchemy's digital-only cards, in
 scope, were counted beside it on Scryfall (the census's docstring) and add no
 family the paper cards lack: 84 modal, 63 "unless", 12 divided, 61 "may pay",
 16 values, and 65 drafting from a spellbook, which is decision 7's card-name
@@ -1030,6 +1030,10 @@ what the pair's ~850–1,350 by the item sizings leaves, before any ratio;
 `costs-and-choices-at-resolution` read ~1,150–2,070 and may land past its
 top, and `values-chosen-at-resolution` ~1,010–1,570. Each is re-sized
 against the measured ratio at its brief, and a split goes in this table.
+
+**`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
+(the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's
+`plan_payment`, whose generic split that design's source axis reshapes.
 
 **Fuzz A/B, predicted per PR.** `options-named-by-what-they-are` changes no
 option's count or order and asks no new question: its gameplay rows are

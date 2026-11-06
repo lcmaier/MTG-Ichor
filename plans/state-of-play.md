@@ -24,15 +24,47 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5b. "Can't" effects (CR 101.2/614.17/613.11) and 5c. copy effects (CR 707/712/708/729 + Layer 1): the phases their docs name, at their steps below
 6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
-`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
+`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `tarkir-dragonstorm-decks`' gap census; `modes-plus-choice-kinds`, `mana-provenance`'s design before its `costs-and-choices-at-resolution`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`; `information-model-design`, `information-model`;
 `permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
-then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
-`casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks; `mana-payment-solver`.
-**v0.5 is Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the dev GUI and over the CLI (owner, 2026-10-29).
+then `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
+`casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks, `decks-in-fuzz-games`; `devgui-at-five-seats`, `mana-payment-solver`.
+**v0.5 is Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the dev GUI and headless in `fuzz_games` (owner, 2026-10-29).
 After it, ordered at its close: the rest of the route's rows, wider card work and Phase 9's remainder; then Phase 10.
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through the GUI built for players, Phase 10, which is when
 v1 is done (2026-10-29), and highly parallel AI games over the CLI. **Write new systems N-player-shaped from the start**.
+
+## The way to v0.5
+
+Each step of `roadmap-v2.md` §3a, its state, and the PRs left in it, from
+the Sizing table (`roadmap-v2.md` §8), which says what each range rests on.
+A row has landed when a ✅ heading or roadmap row records it under its
+name, or, with neither, when its own State cell does. Route PRs only: §8
+says what the audits, the dev GUI and the detours beside them have cost.
+
+| Step | Rows | State | PRs left |
+|---:|---|---|---:|
+| 1 | `route-review` | landed | — |
+| 2 | `A6e`, readiness | landed | — |
+| 3 | `card-layer-cleanup` | landed | — |
+| 4 | `pausing-at-a-decision`, the design | landed | — |
+| 5 | `tarkir-dragonstorm-decks`, the gap census and 6 more | 2 of 9 landed | 7–12 |
+| 6 | `linked-abilities` | to come | 3–4 |
+| 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
+| 8 | `information-model-design` and 1 more | to come | 4–7 |
+| 9 | `permission-design` and 5 more | to come | 7–13 |
+| 10 | `player-scoped-values` and 2 more | to come | 3–5 |
+| 11 | `combat-restrictions` and 4 more | to come | 9–14 |
+| 12 | `rulings-for-every-card` | to come | 3–6 |
+| 14 | `chosen-color-plus-could-produce` and 3 more | to come | 6–9 |
+| 15 | `casting-from-other-zones` and 3 more | to come | 6–10 |
+| 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
+| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 16–42 |
+| 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
+| | **To v0.5** | **44 rows to come** | **74–140** |
+
+**Deck cards registered: 7 of 385**,
+the five lists' distinct cards less basics.
 
 ## Phases by name
 
@@ -197,14 +229,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 438 |
+| Numbered items | 441 |
 | …closed, still recorded | 273 |
-| …open — unreachable, and says why | 106 |
+| …open — unreachable, and says why | 109 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 35 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 159 of 165 |
+| …open, carrying an explicit `**Sized:**` | 162 of 168 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -218,7 +250,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 152 |
+| …slotted to a phase or roadmap row still to come | 155 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
@@ -254,6 +286,7 @@ discipline. → `engineering-practices.md#the-spec-database`.
 is an open plate.
 
 - `plans/handoffs/modes-plus-choice-kinds.md`
+- `plans/handoffs/process-pr.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
 
 ## What this file deliberately does not know

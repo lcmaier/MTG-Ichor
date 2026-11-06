@@ -10562,3 +10562,38 @@ slips are the planned card phases', not items.
      **Sized:** a filter for "is a card" on the rows that say "cards", about 20 lines
      and the audit of which rows do. 19 printed cards say "cards in graveyards".
      **Slotted:** `token-copies`, whose copy of a graveyard ability is the first to show it.
+
+### Found by the card pilot (2026-11-06)
+
+Twenty deck cards written against the tree,
+`plans/references/card-census/pilot-2026-11-06.md`. Each of these has a deck card
+and no row before it.
+
+389. **An entering permanent's counters cannot be a count of anything.**
+     `evaluate_enter_template` reads a fixed number, X and the source's power, and
+     refuses every other amount at resolution, so the card compiles and its first
+     cast errors. Bone Devourer counts the creatures that died this turn, and
+     Towering Titan the toughness of other creatures. CR 614.12 says which board the
+     answer is read from and `EntryFrame` holds it, so this is the amount evaluator
+     over that frame. Item 335 owns what an entry does, not how much.
+
+     **Reachability (2026-11-06):** unreachable — no registered card writes one.
+     **Sized:** ~30–60 lines and a fixture for each card's amount.
+     **Slotted:** `tarkir-dragonstorm-decks`.
+
+390. **Two reads Neriv, Crackling Vanguard asks have no arm.** No amount counts
+     differently named tokens, and no condition asks whether a commander attacked
+     this turn, which reads `game-formats`' designation off the attackers declared.
+
+     **Reachability (2026-11-06):** unreachable — no registered card asks either.
+     **Sized:** ~40–80 lines: an `AmountExpr` arm and a `TurnFact`, each with a test.
+     **Slotted:** `tarkir-dragonstorm-decks`.
+
+391. **"This creature is dealt damage" has no word.** `TriggerEvent::DamageDealt`'s
+     recipient takes a filter, so Hornet Nest writes itself as
+     `non(ObjectFilter::NotSource)`. A board shows it works, but the card reads as
+     nothing it says.
+
+     **Reachability (2026-11-06):** unreachable — no registered card writes it.
+     **Sized:** ~15 lines: a word in `cards::authoring::triggers`.
+     **Slotted:** `tarkir-dragonstorm-decks`.

@@ -823,7 +823,9 @@ card-by-card hunt runs in each PR's brief.
   check that the mana phases still to come extend. It is not urgent for today's games: the
   choice search never passed 6 leaves in about 150,000 checks over the four
   fuzz boards (2026-10-06). It is the guarantee for v1's Commander boards,
-  where Nyxbloom Ancient and many lands do meet.
+  where Nyxbloom Ancient and many lands do meet. It lands before
+  `permission-design`'s builds since #314, so its CR 602.5 read rides
+  `command-zone-casting`, the first build of that surface.
 - **MA-2 to `mana-payment-solver`** go in `roadmap-v2.md` B, before C. **`any-color-plus-painlands-plus-signets` before `ironworks-loop`**,
   the Ironworks loop (TR-7's until 2026-10-13), which needs any-color mana, a
   draw inside a mana ability, and a window inside a mana ability's activation.
@@ -831,6 +833,10 @@ card-by-card hunt runs in each PR's brief.
 - **Item 33's design pass after MA-1**: its seam is §3.6. **Its build right after
   `mana-ability-costs`** (the owner, 2026-11-05, #312): the source axis reshapes the
   generic split, which every payment row after it would otherwise build first.
+  **The design comes before `costs-and-choices-at-resolution`, and those three rows
+  right after `resolution-recipients-and-amounts`** (the owner, 2026-11-06, #314): a
+  cost paid in mana as an effect resolves, Rhystic Study's, goes through the cast's
+  `plan_payment`, so the design says whether `Primitive::Pay` needs its build first.
 
 ---
 
