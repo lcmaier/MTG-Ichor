@@ -65,16 +65,16 @@ whole board's, so each is the cost of the rung.
 
 | Permanents | Bare creatures | An anthem | Counters | Death triggers | A wipe | Tokens in one event | Tokens, a replacement | Tokens, a "can't" | Tokens, as copies |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 100 | 36.5 | 42.3 | 39.2 | 70.0 | 150 | 280 | 1,040 | 330 | 510 |
-| 200 | 72.4 | 83.3 | 80.1 | 130 | 290 | 530 | 2,050 | 620 | 950 |
-| 400 | 140 | 170 | 160 | 250 | 570 | 1,070 | 3,970 | 1,190 | 1,930 |
-| 800 | 270 | 330 | 320 | 510 | 1,190 | 2,010 | 8,220 | 2,330 | 3,890 |
-| 1,600 | 550 | 690 | 700 | 1,020 | 2,670 | 4,090 | 16,800 | 4,950 | 8,270 |
-| 3,200 | 1,640 | 2,030 | 2,080 | 3,300 | 6,260 | 11,000 | 40,900 | 13,300 | 18,300 |
-| 6,400 | 4,790 | 5,480 | 6,090 | 9,170 | 16,600 | 28,500 | 95,400 | 33,500 | 39,200 |
-| 12,800 | 11,600 | 13,300 | 15,100 | 23,600 | 38,300 | 67,800 | 211,500 | 83,600 | 82,500 |
-| 25,600 | 26,000 | 32,300 | 36,500 | 53,200 | 85,400 | 152,600 | 471,500 | 183,600 | 168,400 |
-| 51,200 | 58,000 | 71,100 | 75,900 | 120,700 | 191,100 | 348,000 | 1,020,000 | 407,600 | 356,200 |
+| 100 | 37.5 | 42.1 | 39.9 | 71.0 | 140 | 270 | 1,040 | 330 | 480 |
+| 200 | 71.0 | 86.1 | 79.7 | 130 | 270 | 510 | 1,940 | 610 | 970 |
+| 400 | 140 | 170 | 160 | 250 | 550 | 990 | 3,820 | 1,170 | 1,940 |
+| 800 | 280 | 330 | 330 | 490 | 1,110 | 1,970 | 7,690 | 2,290 | 3,670 |
+| 1,600 | 560 | 680 | 680 | 1,000 | 2,780 | 4,090 | 16,000 | 4,730 | 7,980 |
+| 3,200 | 1,730 | 2,160 | 2,290 | 3,240 | 6,700 | 10,400 | 39,000 | 12,400 | 17,800 |
+| 6,400 | 5,170 | 5,770 | 6,060 | 8,780 | 15,800 | 24,600 | 95,300 | 32,000 | 39,300 |
+| 12,800 | 11,600 | 14,000 | 15,900 | 21,900 | 35,400 | 62,500 | 210,000 | 78,000 | 78,100 |
+| 25,600 | 25,600 | 32,000 | 36,400 | 49,200 | 78,700 | 140,000 | 450,000 | 180,000 | 160,000 |
+| 51,200 | 55,100 | 69,600 | 81,600 | 110,000 | 180,000 | 300,000 | 1,000,000 | 390,000 | 360,000 |
 
 **What each shape should cost, and why it is here.** A shape earns a row when it
 reads a path no other row reads and its cost could outgrow the board. The class
@@ -204,16 +204,20 @@ one means the engine's cost model moved
 
 **Re-recorded 2026-11-05 for `board-scale`, what a board can hold**
 (`engine/board-scale`, PR #313: items 376, 377 and 378). No pool changed. One
-`close_out.py` sitting against **main** `20b3ceb2`: **engine** `ee0dd98b`, the
+`close_out.py` sitting against **main** `20b3ceb2`: **engine** `35deb5ec`, the
 last code commit, after the review rounds that brought in item 380, the fixes
-the ladder's survey found and the growth gate, which passed.
+the ladder's survey found, the growth gate, which passed, and tokens leaving the
+lists of cards.
 
 **Predictions, before any arm ran**:
 - both pools, two seats and four: every gameplay row identical;
 - cost rows only down or sideways, `Memo hits` the largest move, and
   `Replacement gathers` and `Restriction queries` identical;
 - instructions per decision: down a point or two, and no function's share up by
-  half a point.
+  half a point;
+- for the token change, before its own arm: every gameplay row still identical,
+  since a pooled token off the battlefield is gone at the next check and no pooled
+  card prompts or counts first; instructions within 0.2%; a wipe under ×4.05. All held.
 
 | | 2 seats | 4 seats |
 |---|---|---|
@@ -223,9 +227,9 @@ the ladder's survey found and the growth gate, which passed.
 | `Layer walks`, main → engine, performance / stress | 386 → 336 / 408 → 360 | 944 → 832 / 1,163 → 1,045 |
 | `Board walks`, main → engine, performance / stress | 217 → 213 / 222 → 220 | 529 → 519 / 598 → 590 |
 | `Memo hits`, main → engine, performance / stress | 52,460 → 51,402 / 58,622 → 57,534 | 228,845 → 221,246 / 261,232 → 250,169 |
-| `Layer frames`, main → engine, performance / stress | 4,046 → 3,911 / 4,393 → 4,293 | 18,499 → 18,022 / 21,023 → 20,567 |
+| `Layer frames`, main → engine, performance / stress | 4,046 → 3,911 / 4,393 → 4,293 | 18,499 → 18,022 / 21,023 → 20,566 |
 | `Dependency checks`, main → engine, performance / stress | 16 → 16 / 16 → 16 | 142 → 139 / 106 → 105 |
-| instructions / decision, callgrind, 20 games at seed 12345, performance | | 0.8767 M → 0.8394 M, **-4.25%** |
+| instructions / decision, callgrind, 20 games at seed 12345, performance | | 0.8767 M → 0.8393 M, **-4.27%** |
 
 **The prediction about `Memo hits` was wrong in size.** It fell 3.3%, most of that
 item 380's sweep, and `Layer walks` 12%. Most of the walks that went were
@@ -239,7 +243,10 @@ and `shared_entering_frame`, `perform` to `perform_telling_reached`, the frame's
 `OnceCell` to its `Arc`'s.
 
 **Floor 1** stays on whole games as a coarse check at the owner's decision, 12,465
-loaded, and fixed boards are the ratchet's, in `#the-latest-floor-readings`.
+loaded, and fixed boards are the ratchet's, in `#the-latest-floor-readings`. The
+token change did not move it: five interleaved runs against an earlier build of the
+branch read 5.21–5.60 s and 5.18–5.82 s, where a run straight after the close-out
+read 4.96 s, which is the machine.
 **The token board** on one thread, the same games
 on both arms (`codebase-state.md` item 354):
 
@@ -259,8 +266,9 @@ with counters paid an N by N table per application in `next_ready`, so 6,400
 tokens under Master Biomancer took 43 s and now take 0.11 s; and each copy
 entering paid a hidden pass for its record's name, which took one Essence of the
 Wild's event to 5 µs a token. The growth gate's first reading then found the wipe's
-captures, ×8.36 to ×4.82, which took 51,200 permanents from 803 ms to 191 ms. What
-is left is items 381 to 387.
+captures, ×8.36 to ×4.82, which took 51,200 permanents from 803 ms to 191 ms. Tokens
+leaving the lists of cards then took it to ×3.97 and 180 ms. What is left is items
+381 to 384, 386 to 388.
 
 **Re-recorded 2026-11-05 for the hunt's small fixes** (`rules/hunt-small-fixes`,
 PR #310: items 366 to 371). No pool changed. One `close_out.py` sitting against
