@@ -10133,7 +10133,7 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      **Slotted:** Phase 10, profile-driven performance, beside item 138's
      levers.
 
-354. **Floor 1 fails on a board of many tokens.** `fuzz_games --tokens N`
+354. **A decision's cost grows with the board.** `fuzz_games --tokens N`
      gives each seat N 1/1 Goblins before the first turn. On `performance` at
      Commander scale, 200 games, one thread, a decision reaching the agent
      costs 73 µs with no tokens, 72 at 25 a seat, **141 at 50** and **364 at
@@ -10169,6 +10169,12 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      the floor; the two parts left are the ones this entry sizes.
      **Read 2026-11-05:** these readings hold bulk token creation, which item
      378 removes, so `board-scale` re-reads them before this entry's design.
+     **Re-read 2026-11-05 on `board-scale`'s tree:** on one thread, 58.0 µs a
+     decision at 50 a seat and 57.5 at 100, against 63.7 with no tokens, and
+     main's 73.9 and 123.3 in the same sitting over the same games. So most of
+     what this entry read past a few dozen a seat was making the tokens. These
+     are bot games, shorter as the tokens grow (89 turns, 73 and 58), so they say
+     what a game costs; what a decision costs by board size is floor 1's ladder.
      **Slotted:** Phase 10, profile-driven performance, with item 138's
      levers re-ranked on both boards (2026-10-29).
 
@@ -10440,56 +10446,47 @@ slips are the planned card phases', not items.
 
 ### Found at #310's review (2026-11-05)
 
-376. **`::default()` says too little at a call site.** `IdSet::default()` names
-     the type and not what it holds, and the owner finds it too generic to read:
-     a collection says `empty()`. `IdSet` and `IdMap` are aliases of std's types
-     and their hasher reads a seed at run time, so a small trait carries the name,
-     and no constant can. Rule 9 (`engineering-practices.md#names`) takes the new
-     spelling as its example.
+376. **`::default()` says too little at a call site.** — ✅ closed.
+     A collection says `empty()` (`EmptyCollection`, `types/ids.rs`): 52 calls
+     over seven collections, and rule 9 takes the spelling as its example.
+     **Reachability (2026-11-05):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 376".
 
-     **Reachability (2026-11-05):** reachable — not wrong: a name, and no game moves.
-     **Sized:** ~20 lines of code, then a counted sweep: 29 id-collection calls in
-     the engine and the dev GUI, and each other engine collection whose blank
-     value means empty, counted at the build.
-     **Slotted:** `board-scale`, its last commit, since it moves no game.
+377. **Floor 1 reads the bot's games, so it moves when the bot does.** — ✅ closed.
+     `fuzz_games --ladder` reads fixed boards from 100 to 51,200 permanents at
+     four seats, with no agent in them, and the limit reads the lowest rung.
+     **Reachability (2026-11-05):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 377".
 
-377. **Floor 1 reads the bot's games, so it moves when the bot does.** A counting
-     change, a dropped prompt and a bound on attacks each moved it with the
-     engine unchanged, and the budget is what catches slow code. What is left of
-     its point is what a decision costs on a board of a given size, so it moves
-     to a ladder of fixed boards: about 100 to 50,000 permanents, doubling, at
-     four seats, setup off the clock, on four shapes: bare creatures, an anthem,
-     death triggers, and tokens made in one event. The limit is re-derived at
-     Phase 10, as `plans/references/ai-performance-floors.md` already plans.
+378. **Making tokens walks the whole board three times a token.** — ✅ closed.
+     A run of equal tokens asks its questions once, and the event's cost grows
+     with its tokens, an anthem's board among them.
+     **Reachability (2026-11-05):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 378".
 
-     A throwaway probe read bare creatures, a tap, the state-based check and the
-     action list: 8 µs at 100 permanents, 107 at 1,600, 592 at 6,400 and 11.9 ms
-     at 51,200, near linear, all ten rungs in 0.3 s. Peak memory was 50 MB at
-     25,600 tokens. `fuzz_games --tokens` hides that: making the tokens in one
-     event is most of a run past a few hundred a seat, about 0.9 s at 400 a seat
-     and 25 s at 1,600, so item 354's readings hold setup too. Past about a
-     million identical tokens the board is `GameNumber`'s (item 264).
+### Found by `board-scale` (2026-11-05)
 
-     **Reachability (2026-11-05):** reachable — not wrong: a measurement.
-     **Sized:** ~100–150 lines in `fuzz_games` and the floor's rows, no engine code.
-     **Slotted:** `board-scale`.
-
-378. **Making tokens walks the whole board three times a token.** Each question
-     about a token not yet on the battlefield runs a pass over the board, and
-     nothing keeps the answer for the next token, so one event making N tokens
-     costs N passes three times over:
-     - `keyword_prohibits` asks every event's object about indestructible, which
-       only a destruction can read: 34% of a 400-a-seat board;
-     - `entry_proposal` asks each token whether it is an instant or a sorcery
-       (CR 111.5), where `create_tokens` already holds runs of equal definitions;
-     - CR 614.12's look-ahead runs per entry, though a run of equal entries
-       decided against one board has one answer.
-
-     A throwaway build with all three gone, on a board with no continuous
-     effects: 1,600 a seat from 24.6 s to 0.13 s, 25,600 a seat in 2.9 s, near
-     linear. Its look-ahead shortcut holds only on such a board, so an anthem's
-     board is unread until the real fix.
+380. **A board with a static "can't" sweeps the battlefield for every event.**
+     `prohibition_sweeping` walks `battlefield_ids_ordered` for each proposed
+     event once one permanent prints a restriction, whatever that restriction
+     watches. Sigarda, Host of Herons, who says nothing about an entry, makes
+     one event of tokens quadratic: 400 a seat in 0.02 s, 3,200 a seat in 0.92 s,
+     four times the cost for each doubling, where an anthem, Blood Moon and
+     Containment Priest stay linear. `replacement::gather` already files its
+     sources by the kind of action they can answer (`battlefield_candidates`),
+     and the same filing is what this sweep lacks.
 
      **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
-     **Sized:** ~30–50 lines of code; the look-ahead's sharing needs the most care.
-     **Slotted:** `board-scale`.
+     **Sized:** ~15 lines of code, its audit already `Sweep::Everything`.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+381. **A run of tokens holding an ability derived on its object walks per token.**
+     `shared_entering_frame` keeps such a frame its token's own, since the
+     ability's id names the object: a planeswalker's loyalty (CR 306.5b), or a
+     land's mana under Blood Moon (CR 305.7). So N such tokens in one event cost
+     N passes, as every run did before item 378. Serving the frame with its
+     derived ids rewritten for the token asking would reach them.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~20 lines of code, with a test on each kind of derived ability.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.

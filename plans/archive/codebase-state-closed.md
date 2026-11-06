@@ -10088,3 +10088,81 @@ The item as it stood:
      `divided-among-targets`; the owner's cadence puts it next.
      **Closed:** the dev GUI reads both, a resolving spell's row among them
      (`GameState::stack_object_facts`).
+
+### Items 376, 377 and 378 — closed 2026-11-05 by PR #313 (`engine/board-scale`)
+
+### Item 376
+
+376. **`::default()` says too little at a call site.** `IdSet::default()` names
+     the type and not what it holds, and the owner finds it too generic to read:
+     a collection says `empty()`. `IdSet` and `IdMap` are aliases of std's types
+     and their hasher reads a seed at run time, so a small trait carries the name,
+     and no constant can. Rule 9 (`engineering-practices.md#names`) takes the new
+     spelling as its example.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a name, and no game moves.
+     **Sized:** ~20 lines of code, then a counted sweep: 29 id-collection calls in
+     the engine and the dev GUI, and each other engine collection whose blank
+     value means empty, counted at the build.
+     **Slotted:** `board-scale`, its last commit, since it moves no game.
+     **Closed:** 52 calls, every one through `plans/replace_exact.py`: `IdMap` 19,
+     `IdSet` 12, `HistoryLog` 10, `ObjectTable` 5, `SharedList` 3, `TraceMemory` 2,
+     `LkiStore` 1. The dev GUI held no id collection: its one call is
+     `TraceMemory`'s. `ManaTypes`, a bitset, took a constant (`ManaTypes::EMPTY`),
+     as the other bitsets have.
+
+### Item 377
+
+377. **Floor 1 reads the bot's games, so it moves when the bot does.** A counting
+     change, a dropped prompt and a bound on attacks each moved it with the
+     engine unchanged, and the budget is what catches slow code. What is left of
+     its point is what a decision costs on a board of a given size, so it moves
+     to a ladder of fixed boards: about 100 to 50,000 permanents, doubling, at
+     four seats, setup off the clock, on four shapes: bare creatures, an anthem,
+     death triggers, and tokens made in one event. The limit is re-derived at
+     Phase 10, as `plans/references/ai-performance-floors.md` already plans.
+
+     A throwaway probe read bare creatures, a tap, the state-based check and the
+     action list: 8 µs at 100 permanents, 107 at 1,600, 592 at 6,400 and 11.9 ms
+     at 51,200, near linear, all ten rungs in 0.3 s. Peak memory was 50 MB at
+     25,600 tokens. `fuzz_games --tokens` hides that: making the tokens in one
+     event is most of a run past a few hundred a seat, about 0.9 s at 400 a seat
+     and 25 s at 1,600, so item 354's readings hold setup too. Past about a
+     million identical tokens the board is `GameNumber`'s (item 264).
+
+     **Reachability (2026-11-05):** reachable — not wrong: a measurement.
+     **Sized:** ~100–150 lines in `fuzz_games` and the floor's rows, no engine code.
+     **Slotted:** `board-scale`.
+     **Closed:** `fuzz_games --ladder`. A step moves the layer epoch, since a tap
+     moves none and an anthem's row would never be read, so it reads about five
+     times the probe's cost. The reading and the curve are
+     `fuzz-record.md#the-latest-floor-readings`.
+
+### Item 378
+
+378. **Making tokens walks the whole board three times a token.** Each question
+     about a token not yet on the battlefield runs a pass over the board, and
+     nothing keeps the answer for the next token, so one event making N tokens
+     costs N passes three times over:
+     - `keyword_prohibits` asks every event's object about indestructible, which
+       only a destruction can read: 34% of a 400-a-seat board;
+     - `entry_proposal` asks each token whether it is an instant or a sorcery
+       (CR 111.5), where `create_tokens` already holds runs of equal definitions;
+     - CR 614.12's look-ahead runs per entry, though a run of equal entries
+       decided against one board has one answer.
+
+     A throwaway build with all three gone, on a board with no continuous
+     effects: 1,600 a seat from 24.6 s to 0.13 s, 25,600 a seat in 2.9 s, near
+     linear. Its look-ahead shortcut holds only on such a board, so an anthem's
+     board is unread until the real fix.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~30–50 lines of code; the look-ahead's sharing needs the most care.
+     **Slotted:** `board-scale`.
+     **Closed:** the three, and three searches past the item's list that the
+     anthem's board and the top of the ladder showed: `perform`'s reached list,
+     `subject_groups`' search of the groups and `announce_token_created`'s of the
+     definitions. Four seats' events: 1,600 a seat in 0.03 s bare and 0.04 s
+     under an anthem; 51,200 a seat in 1.3 s and 1.6 s. The look-ahead's sharing
+     is in `replacement-architecture.md#5d-the-overlay-as-built-rc-4-2026-09-02`
+     and `elisions.md`. Items 380 and 381 are what this does not reach.
