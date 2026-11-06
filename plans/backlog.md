@@ -1174,8 +1174,8 @@ mechanic rather than a migration, which is why it is here and not in
   mana component is covered — the stop that used to sit in the engine's loop
   (`codebase-state.md` main item 70) — and `ui::AutoPayer<D>` answers
   `GenericManaAllocation` (CR 601.2h) and `OrderCostReductions` (CR 601.2f).
-  Clients compose the stack they want; `cli_play`'s human seat takes both, its
-  bot seat and `fuzz_games` take the stop alone, and `--no-auto-pay` drops it.
+  Clients compose the stack they want; a person's seat takes both, `fuzz_games`
+  takes the stop alone, and `--no-auto-pay` drops it.
   **The stack invariant is one decorator per `ChoiceKind`**, so composition
   commutes and stack order carries no meaning — that is what a third
   automation (priority passing, auto-block) extends rather than a scope enum
@@ -1523,11 +1523,10 @@ mechanic rather than a migration, which is why it is here and not in
   test-function names in `tests/phase_rd_integration_test.rs` match `ask_…(`; count calls.
   `ChoiceKind` has **25 variants**, every one answering `subject()` since A4j
   (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring:
-  `cli_play` runs `AutoPayer(ManaWindowStop(Cli))` for the human and
-  `ManaWindowStop(Random)` for the bot, `fuzz_games` runs
-  `ManaWindowStop(Random)` behind a `MiddlewareConfig` with one field, and
-  `--no-auto-pay` drops the stack on both. **`AutoPayer` has one client**,
-  `cli_play`'s human seat — no test stacks it and the harness never has — so
+  the dev GUI runs `AutoPayer(ManaWindowStop(seat))` for a person,
+  `fuzz_games` runs `ManaWindowStop(Random)` behind a `MiddlewareConfig` with
+  one field, and `--no-auto-pay` drops the stack. **`AutoPayer` has one
+  client**, a person's seat — no test stacks it and the harness never has — so
   nothing this entry does to it can move a fuzz counter. The engine answers
   every forced prompt itself since A4e; the four `validate_*` helpers count
   the rest as `Decisions` and `Priority decisions` (item 138's instrument, the
@@ -1607,7 +1606,7 @@ mechanic rather than a migration, which is why it is here and not in
   hybrid symbol, CR 118.7e; a `not_below` reduction), ~20 lines;
   ATOM-601.2f-004's test restated from "the prompt is asked" to "both
   reductions apply and every order gives the CR's answer"; `AutoPayer` deleted
-  and `cli_play`'s human stack becomes `ManaWindowStop(Cli)`. It moves the
+  and a person's stack becomes `ManaWindowStop` alone. It moves the
   random agent's stream by the 0.07 prompts a game the stress pool asks, so it
   is a `differ` A/B and its own PR, first in the sequence below. §3.4's "take
   it then, not now" was a timing call, and this is the time: the prompt is
@@ -1627,10 +1626,8 @@ mechanic rather than a migration, which is why it is here and not in
   indirection inside every decorator as a handle each one checked. **The
   owner's shape is better:** one `FullControl<D, R>` at the top of the seat
   holding the decorated stack `D` and the raw provider `R`, forwarding each of
-  the four methods to one or the other on a `Cell<bool>` (~40);
-  `CliDecisionProvider` intercepting the command before it parses an index —
-  `pick_n`'s `read_usize` loop is the one place (~45); wiring in `cli_play`
-  (~10). The decorators stay stateless and know nothing of the toggle, so
+  the four methods to one or the other on a `Cell<bool>` (~40). The decorators
+  stay stateless and know nothing of the toggle, so
   rule 3 needs no toggle arm and a new decorator adds nothing here. One
   wrinkle: `R` and the bottom of `D` must be the same human provider. The
   CLI's is a unit struct, so two instances are fine; a GUI provider holding a
@@ -2296,7 +2293,7 @@ comment sweep found the `TODO` in `Game::setup` with no owner.
 | **Rules** | CR 103.5 (declarations in turn order from the starting player, then each mulligan taken, then N cards to the bottom); 103.5c (in a multiplayer game the first mulligan is free); 103.5b ("any time [that player] could mulligan"); 903.5a — Commander is the same rule |
 | **Verdict** | a stub whose configuration is already in place; the engine answers the game's first decision for the player |
 | **Size** | ~100 lines in `Game::setup`: two `ChoiceKind`s, the loop CR 103.5 states, 103.5c keyed on the player count, and the random provider's policy — keep, always, so no fuzz counter moves; the pool moves only if an agent ever mulligans |
-| **Blocks** | every game's opening: the RL harness's first decision (the post-RE audit's fork model, `codebase-state.md` main item 41) and `cli_play`'s human seat |
+| **Blocks** | every game's opening: the RL harness's first decision (the post-RE audit's fork model, `codebase-state.md` main item 41) and a person's seat |
 | **Atoms** | `ATOM-103.5-001` |
 | **Owner** | `game-formats`, in `setup-architecture.md`, which owns CR 103: every game opens with CR 103.5, the five-seat table is the first a person sits down at, and `roadmap-v2.md` §D brings Commander's mulligans forward with the formats; CR 103.5c's free mulligan is keyed on the seat count |
 

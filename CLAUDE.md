@@ -9,7 +9,8 @@ not approximated. Crate lives in `mtgsim/`, edition 2024.
 ```bash
 cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
-cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card, --audit checks every trigger dispatch
+cd devgui && cargo run                    # play in the window
+cd mtgsim && cargo run --bin fuzz_games   # random-vs-random; --pool stress plays every card, --audit checks every trigger dispatch
 python plans/specdb.py stats              # rules coverage by phase
 python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py && python plans/check_invariants.py && python plans/check_practices_page.py && python plans/check_gates_bite.py   # all must pass
 ```
@@ -121,8 +122,8 @@ worse than a missing one**, so both ship narrower than §3.2. → §2a (as built
 reassigns from the same process-independent counter — never `ObjectId`; same for any collection reaching a choice, log **or count**.
 
 **Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`, and `clippy.toml`
-refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
-for interactive play, and an unseeded `fuzz_games` run's seed, are the deliberate opt-outs, each under `#[expect]`.
+refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and an unseeded `fuzz_games`
+run's seed are the deliberate opt-outs, each under `#[expect]`.
 
 The regression is `tests/determinism_test.rs`; CI's three runs under three `MTGSIM_HASH_SEED`s are the end-to-end check.
 

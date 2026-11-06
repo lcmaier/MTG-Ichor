@@ -678,7 +678,7 @@ impl CardRegistry {
         // Layer-system cards.
         //
         // Only the ones whose definition is faithful to the printed card, because
-        // this registry feeds `cli_play` as well as `fuzz_games`. The layer
+        // this registry feeds the dev GUI as well as `fuzz_games`. The layer
         // phases' other cards stay out and each has a reason:
         //
         // - Chromatic Ward and Windswept Heights are invented cards.

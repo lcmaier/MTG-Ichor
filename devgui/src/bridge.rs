@@ -228,8 +228,8 @@ fn play(
     let events_logged = Rc::new(Cell::new(0));
     let watching = Rc::new(Cell::new(watching));
     let from_window = Rc::new(from_window);
-    // Every seat the window's, each with `cli_play`'s stack and a yield of
-    // its own: CR 601.2g's window closes once the cost is paid, and a yield
+    // Every seat the window's, each with the decorators and a yield of its
+    // own: CR 601.2g's window closes once the cost is paid, and a yield
     // passes for the person, all of it off under full control's one switch.
     let seats: Vec<Box<dyn DecisionProvider>> = (0..built.game().state.players.len())
         .map(|_| {

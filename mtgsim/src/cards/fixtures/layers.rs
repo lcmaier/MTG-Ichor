@@ -23,7 +23,7 @@ use crate::types::zones::ZoneSet;
 ///
 /// **Inside Out's shape at a cost the engine can pay**: the printed cost is
 /// {1}{U/R}, and no payment path handles a hybrid pip until
-/// `hybrid-and-phyrexian-payment`. A registry that feeds `cli_play` may not
+/// `hybrid-and-phyrexian-payment`. A registry that feeds the dev GUI may not
 /// quietly recost a card, so this is a fixture under its own name. Layer 7d
 /// gets its registered source from `printings::merfolk_thaumaturgist`,
 /// whose text needs nothing the engine lacks.

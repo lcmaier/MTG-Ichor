@@ -1,4 +1,4 @@
-// Text formatting helpers for CLI output and logging.
+// Text formatting helpers for clients and logging.
 //
 // All functions are pure formatters over &GameState — no mutations.
 // Lives in ui/ because these are presentation helpers, not game-state queries.
@@ -420,8 +420,7 @@ fn damage_target_name(game: &GameState, target: &ObjectOrPlayerId) -> String {
 // ---------------------------------------------------------------------------
 
 /// The question a prompt asks, one arm per kind and no wildcard, so a new kind
-/// is asked a question at birth. Both clients print it; the CLI adds how to
-/// type an answer.
+/// is asked a question at birth.
 pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
     let n = |id: &ObjectId| named(game, *id);
     match kind {

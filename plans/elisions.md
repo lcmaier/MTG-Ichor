@@ -161,8 +161,8 @@ log**: who would have been asked, the question, the answer and why
 (`events::unasked`, `UnaskedChoice` `events/unasked.rs:19`). It is written
 through `note_unasked` `events/recorder.rs:236` beside the event recorder's
 records, placed before the record it preceded, and drawn by `format_event_log`
-(`format_unasked` `ui/display.rs:1215`), so `--dump-events`, `cli_play`'s log
-and a test's log carry it. Three lines from `fuzz_games --games 10 --seed
+(`format_unasked` `ui/display.rs:1215`), so `--dump-events` and a test's log
+carry it. Three lines from `fuzz_games --games 10 --seed
 185 --dump-events` at #278:
 
 ```

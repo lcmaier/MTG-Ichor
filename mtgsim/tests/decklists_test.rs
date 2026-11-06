@@ -39,7 +39,6 @@ fn is_basic_land(name: &str) -> bool {
 fn every_decklist_parses_and_a_registered_one_builds() {
     let registry = CardRegistry::default_registry();
     let lists = decklists();
-    assert!(lists.iter().any(|(name, _)| name == "cli-play.txt"));
     for (name, list) in &lists {
         if list.unregistered_names(&registry).is_empty() {
             let deck = list.build_deck(&registry).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -49,20 +48,13 @@ fn every_decklist_parses_and_a_registered_one_builds() {
     }
 }
 
-/// `cli_play`'s forty, in the order its builder dealt them.
+/// No deck in `decks/` is registered yet, so this one states its own list.
 #[test]
-fn cli_plays_deck_is_its_forty_cards_in_order() {
-    let registry = CardRegistry::default_registry();
-    let (_, list) = decklists().into_iter().find(|(name, _)| name == "cli-play.txt").unwrap();
-    let deck = list.build_deck(&registry).unwrap();
+fn a_decklist_builds_in_the_order_it_was_written() {
+    let list = Decklist::parse("Deck\n2 Mountain\n1 Grizzly Bears\n2 Forest\n").unwrap();
+    let deck = list.build_deck(&CardRegistry::default_registry()).unwrap();
     let names: Vec<&str> = deck.iter().map(|card| card.name.as_str()).collect();
-    let mut expected = vec!["Mountain"; 10];
-    expected.extend(["Forest"; 10]);
-    expected.extend(["Grizzly Bears"; 4]);
-    expected.extend(["Hill Giant"; 4]);
-    expected.extend(["Lightning Bolt"; 4]);
-    expected.extend(["Mountain"; 8]);
-    assert_eq!(names, expected);
+    assert_eq!(names, ["Mountain", "Mountain", "Grizzly Bears", "Forest", "Forest"]);
 }
 
 #[test]

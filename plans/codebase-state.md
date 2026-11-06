@@ -5064,7 +5064,7 @@ The original entry named `HashMap` iteration order as the cause. That was real b
 
 What landed:
 
-- **Randomness is owned, not ambient.** `GameState.rng: StdRng` (seeded to `DEFAULT_RNG_SEED` — a fixed value, so an unseeded game is still reproducible) with `reseed` / `reseed_from_entropy`, and `GameState::shuffle_library` as the one shuffle entry point. `RandomDecisionProvider` holds its own `StdRng`; `::new()` is entropy-seeded, `::seeded(u64)` is not. `fuzz_games` derives three independent streams per game from `master_seed + game_num`; `cli_play` reseeds from entropy, since an identical opening hand every session would be the bug.
+- **Randomness is owned, not ambient.** `GameState.rng: StdRng` (seeded to `DEFAULT_RNG_SEED` — a fixed value, so an unseeded game is still reproducible) with `reseed`, and `GameState::shuffle_library` as the one shuffle entry point. `RandomDecisionProvider` holds its own `StdRng`; `::new()` is entropy-seeded, `::seeded(u64)` is not. `fuzz_games` derives three independent streams per game from `master_seed + game_num`.
 - **`GameState::battlefield_ordered` / `battlefield_ids_ordered`** — every sweep whose order is observable now goes through them: `oracle/{legality,mana_helpers,board}.rs`, all of `engine/sba.rs` (including the legend-rule grouping, now a `BTreeMap`), `engine/combat/{steps,resolution}.rs`, `ui/display.rs`. Sorting by `ObjectId` would *not* have worked — ids are v4 UUIDs, so the key is itself random per run. The deterministic key is `PermanentState::timestamp`, which `place_on_battlefield` allocates once from a monotonic counter and never reassigns, and which is CR 613.7's order anyway. Order-irrelevant sweeps (untap-all, clear-all-damage) still iterate the map directly.
 - `tests/determinism_test.rs` holds the regression. Both halves were shown failing against the pre-fix tree.
 
@@ -7114,7 +7114,7 @@ the file.
 
 161. **~~Full control and auto-yield — sized, sequenced, not built.~~ — ✅
      CLOSED 2026-09-30 (A6j).** — archived. `ui::full_control` and
-     `ui::auto_yield`, stacked on `cli_play`'s human seat; under full control
+     `ui::auto_yield`, stacked on a person's seat; under full control
      the seat also stops at every priority point.
      **Reachability (2026-09-30):** closed — A6j.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 161".
@@ -7309,7 +7309,7 @@ the file.
      `not_below` reduction), the two conditions §3.4 already names;
      ATOM-601.2f-004's test restated from "the prompt is asked" to "both
      reductions apply and every order gives the CR's answer"; `ui/auto_payer.rs`
-     deleted and `cli_play`'s human stack `ManaWindowStop(Cli)`. It moves the
+     deleted and a person's stack `ManaWindowStop` alone. It moves the
      random agent's stream by the prompts it removes, so a `differ` A/B and its
      own PR — §2.22's sequence step 2, first after this one.
 
@@ -7786,8 +7786,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 192. **~~A priority window's blacklist and retry budget are agent guards, and
      they bind a human seat too.~~ — ✅ CLOSED 2026-09-30 (A6j).** — archived.
      `SeatMode::person` exempts a person's seat from both: a canceled action
-     is offered again and nothing is charged. `cli_play`'s and the dev GUI's
-     seats say they are a person's. Since item 193 (2026-10-02) no seat is
+     is offered again and nothing is charged. The dev GUI's seats say they are
+     a person's. Since item 193 (2026-10-02) no seat is
      filtered or charged, and `person` is gone.
      **Reachability (2026-09-30):** closed — A6j.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 192".

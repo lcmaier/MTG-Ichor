@@ -48,7 +48,7 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 1. **The engine asks.** On the engine's thread, the game reaches player 0's
    priority and calls seat 0.
 2. **The seat's decorators may answer first.** Each seat is the bridge's
-   `GuiSeat` wrapped in the decorators `cli_play` uses, helpers that answer
+   `GuiSeat` wrapped in decorators, helpers that answer
    some questions for you: `AutoYield` passes while a yield you set runs,
    `AutoPayer` pays what a cost leaves no choice in, and `ManaWindowStop`
    closes the mana window once a cost is paid (CR 601.2g). Full control

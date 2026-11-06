@@ -636,8 +636,8 @@ impl GameState {
     /// is the DP's problem, and every shipped client answers it:
     /// `ui::ManaWindowStop` declines once the locked component is covered,
     /// `RandomDecisionProvider` caps itself per window — the only terminator left
-    /// when a client drops the stop (`--no-auto-pay`) — and a human CLI user
-    /// self-polices.
+    /// when a client drops the stop (`--no-auto-pay`) — and a person stops
+    /// when they choose.
     fn run_mana_ability_window(
         &mut self,
         player_id: PlayerId,

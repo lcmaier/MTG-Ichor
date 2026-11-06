@@ -514,8 +514,8 @@ Three things follow, and all three are used:
   auto-block, an auto-tapper with lookahead — grows it an arm per subset. The
   stack invariant, written down before the third decorator arrives: **one
   decorator per `ChoiceKind`**, so composition commutes and stack order carries
-  no meaning. `cli_play`'s two seats stack differently (the human takes both,
-  the bot takes the stop alone) and that asymmetry lives in the binary rather
+  no meaning. A person's seat and a bot's stack differently (the person takes
+  both, the bot the stop alone), and that asymmetry lives in each client rather
   than in `ui::`.
 
 `ATOM-601.2f-004`'s expected result says "final cost depends on order if

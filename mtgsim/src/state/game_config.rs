@@ -80,7 +80,7 @@ impl GameConfig {
     }
 
     /// No format's deck limits and no mulligans, for decks no format checks:
-    /// `cli_play`'s, `fuzz_games`' and the dev GUI's.
+    /// `fuzz_games`' and the dev GUI's.
     pub fn unrestricted() -> Self {
         GameConfig {
             starting_life: 20,
