@@ -109,7 +109,7 @@ use std::time::{Duration, Instant};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-use mtgsim::cards::printings::{blood_artist, glorious_anthem};
+use mtgsim::cards::printings::{blood_artist, glorious_anthem, master_biomancer, sigarda_host_of_herons};
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{ActionContext, GameAction};
@@ -1451,15 +1451,34 @@ enum LadderShape {
     /// The Goblins, one of each seat's carrying Glorious Anthem's ability: a
     /// row for the layer pass to apply to every creature.
     Anthem,
+    /// The Goblins, each with a +1/+1 counter: as many of the layer pass's
+    /// applications in one layer as there are creatures.
+    Counters,
     /// The Goblins, one of each seat's carrying Blood Artist's: every death
     /// is four triggers, each with its target, resolved.
     DeathTriggers,
+    /// The Goblins, all destroyed in one event: a batch of departures.
+    AWipe,
     /// An empty board, and each seat's Goblins made in one event.
     TokensInOneEvent,
+    /// Those Goblins, each seat's first creature carrying Master Biomancer's
+    /// ability: every entry rewritten, and read again as CR 614.12 asks.
+    TokensUnderAReplacement,
+    /// Those Goblins, each seat's first creature carrying Sigarda, Host of
+    /// Herons' ability: a "can't" that every event asks about.
+    TokensUnderACant,
 }
 
-const LADDER_SHAPES: [LadderShape; 4] =
-    [LadderShape::BareCreatures, LadderShape::Anthem, LadderShape::DeathTriggers, LadderShape::TokensInOneEvent];
+const LADDER_SHAPES: [LadderShape; 8] = [
+    LadderShape::BareCreatures,
+    LadderShape::Anthem,
+    LadderShape::Counters,
+    LadderShape::DeathTriggers,
+    LadderShape::AWipe,
+    LadderShape::TokensInOneEvent,
+    LadderShape::TokensUnderAReplacement,
+    LadderShape::TokensUnderACant,
+];
 
 /// Permanents on the board, doubling.
 const LADDER_RUNGS: [usize; 10] = [100, 200, 400, 800, 1_600, 3_200, 6_400, 12_800, 25_600, 51_200];
@@ -1478,9 +1497,19 @@ impl LadderShape {
         match self {
             LadderShape::BareCreatures => "bare creatures",
             LadderShape::Anthem => "an anthem",
+            LadderShape::Counters => "counters",
             LadderShape::DeathTriggers => "death triggers",
+            LadderShape::AWipe => "a wipe",
             LadderShape::TokensInOneEvent => "tokens in one event",
+            LadderShape::TokensUnderAReplacement => "tokens, a replacement",
+            LadderShape::TokensUnderACant => "tokens, a can't",
         }
+    }
+
+    /// Whether a step makes the rung's tokens, where the board holds only what
+    /// they enter under.
+    fn makes_its_tokens(self) -> bool {
+        matches!(self, LadderShape::TokensInOneEvent | LadderShape::TokensUnderAReplacement | LadderShape::TokensUnderACant)
     }
 
     /// The card whose abilities one creature of each seat carries.
@@ -1488,7 +1517,9 @@ impl LadderShape {
         match self {
             LadderShape::Anthem => Some(glorious_anthem()),
             LadderShape::DeathTriggers => Some(blood_artist()),
-            LadderShape::BareCreatures | LadderShape::TokensInOneEvent => None,
+            LadderShape::TokensUnderAReplacement => Some(master_biomancer()),
+            LadderShape::TokensUnderACant => Some(sigarda_host_of_herons()),
+            LadderShape::BareCreatures | LadderShape::Counters | LadderShape::AWipe | LadderShape::TokensInOneEvent => None,
         }
     }
 
@@ -1497,9 +1528,9 @@ impl LadderShape {
     /// the rung it was built as.
     fn steps_per_board(self, permanents: usize) -> usize {
         match self {
-            LadderShape::BareCreatures | LadderShape::Anthem => usize::MAX,
+            LadderShape::BareCreatures | LadderShape::Anthem | LadderShape::Counters => usize::MAX,
             LadderShape::DeathTriggers => permanents / 10,
-            LadderShape::TokensInOneEvent => 1,
+            LadderShape::AWipe | LadderShape::TokensInOneEvent | LadderShape::TokensUnderAReplacement | LadderShape::TokensUnderACant => 1,
         }
     }
 
@@ -1508,7 +1539,7 @@ impl LadderShape {
     fn decisions_per_step(self) -> usize {
         match self {
             LadderShape::DeathTriggers => LADDER_SEATS,
-            LadderShape::BareCreatures | LadderShape::Anthem | LadderShape::TokensInOneEvent => 1,
+            _ => 1,
         }
     }
 }
@@ -1521,18 +1552,25 @@ fn ladder_goblins(permanents: usize) -> Vec<TokenDef> {
 /// oldest first. Each seat's first is the one carrying `seat_card`.
 fn ladder_board(shape: LadderShape, permanents: usize, dp: &dyn DecisionProvider) -> Result<(GameState, Vec<ObjectId>), String> {
     let mut state = GameState::new(LADDER_SEATS, LADDER_LIFE);
-    if shape == LadderShape::TokensInOneEvent {
-        return Ok((state, Vec::new()));
-    }
     let by_the_harness = ActionContext { dp, cause: EventCause::Harness };
-    for controller in 0..LADDER_SEATS {
-        let mut defs = ladder_goblins(permanents);
+    let on_the_board = match (shape.makes_its_tokens(), shape.seat_card()) {
+        (true, None) => 0,
+        (true, Some(_)) => LADDER_SEATS,
+        (false, _) => permanents,
+    };
+    for controller in (0..LADDER_SEATS).filter(|_| on_the_board > 0) {
+        let mut defs = ladder_goblins(on_the_board);
         if let Some(card) = shape.seat_card() {
             defs[0].abilities = card.abilities.to_vec();
         }
         state.execute_action(GameAction::CreateTokens { defs, controller, attacking: None }, &by_the_harness)?;
     }
     let creatures = state.battlefield_ids_ordered();
+    if shape == LadderShape::Counters {
+        let counter = CounterType::PlusOnePlusOne;
+        let put_on = |&id| GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter, n: 1, by: 0 };
+        state.execute_actions(creatures.iter().map(put_on).collect(), &by_the_harness)?;
+    }
     Ok((state, creatures))
 }
 
@@ -1551,7 +1589,7 @@ fn ladder_step(
     match shape {
         // On, then off: a board change that moves the layer epoch, as a game's
         // does between two decisions, and leaves the rung's board as it was.
-        LadderShape::BareCreatures | LadderShape::Anthem => {
+        LadderShape::BareCreatures | LadderShape::Anthem | LadderShape::Counters => {
             let subject = ObjectOrPlayerId::Object(creatures[(step / 2) % creatures.len()]);
             let counter = CounterType::PlusOnePlusOne;
             let change = match step % 2 {
@@ -1566,7 +1604,11 @@ fn ladder_step(
             state.execute_action(GameAction::Destroy { object }, &by_the_harness)?;
             state.run_priority_loop(dp)?;
         }
-        LadderShape::TokensInOneEvent => {
+        LadderShape::AWipe => {
+            state.execute_actions(creatures.drain(..).map(|object| GameAction::Destroy { object }).collect(), &by_the_harness)?;
+            state.perform_sba_and_triggers(dp)?;
+        }
+        LadderShape::TokensInOneEvent | LadderShape::TokensUnderAReplacement | LadderShape::TokensUnderACant => {
             for controller in 0..LADDER_SEATS {
                 let create = GameAction::CreateTokens { defs: ladder_goblins(permanents), controller, attacking: None };
                 state.execute_action(create, &by_the_harness)?;
@@ -1604,7 +1646,7 @@ fn read_rung(shape: LadderShape, permanents: usize, seed: u64) -> Result<(usize,
 fn run_ladder(threads: usize, top: usize, seed: u64) -> Result<(), String> {
     println!("=== Ladder ===");
     println!("Seats: {LADDER_SEATS}, threads: {threads}, seed: {seed}");
-    println!("{:<20} {:>10} {:>9} {:>13} {:>12} {:>12}", "Shape", "Permanents", "Decisions", "us/decision", "ns/permanent", "Decisions/s");
+    println!("{:<22} {:>10} {:>9} {:>13} {:>12} {:>12}", "Shape", "Permanents", "Decisions", "us/decision", "ns/permanent", "Decisions/s");
     for shape in LADDER_SHAPES {
         for permanents in LADDER_RUNGS.into_iter().filter(|permanents| *permanents <= top) {
             let readings = std::thread::scope(|scope| {
@@ -1616,7 +1658,7 @@ fn run_ladder(threads: usize, top: usize, seed: u64) -> Result<(), String> {
             let micros = clock.as_secs_f64() * 1e6 / decided as f64;
             let rate: f64 = readings.iter().map(|(decided, clock)| *decided as f64 / clock.as_secs_f64()).sum();
             println!(
-                "{:<20} {:>10} {:>9} {:>13.1} {:>12.1} {:>12.0}",
+                "{:<22} {:>10} {:>9} {:>13.1} {:>12.1} {:>12.0}",
                 shape.name(), permanents, decided, micros, micros * 1e3 / permanents as f64, rate
             );
         }
@@ -2194,15 +2236,44 @@ mod ladder_tests {
     #[test]
     fn a_step_leaves_a_rung_the_size_it_was_built() {
         let dp = RandomDecisionProvider::seeded(1);
-        for shape in [LadderShape::BareCreatures, LadderShape::Anthem] {
+        for (shape, counters) in [(LadderShape::BareCreatures, 0), (LadderShape::Anthem, 0), (LadderShape::Counters, 1)] {
             let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
             assert_eq!(state.battlefield.len(), 100);
             for step in 0..4 {
                 ladder_step(&mut state, shape, 100, step, &mut creatures, &dp).unwrap();
             }
             assert_eq!(state.battlefield.len(), 100);
-            assert!(creatures.iter().all(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 0));
+            assert!(creatures.iter().all(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == counters));
         }
+    }
+
+    #[test]
+    fn a_wipe_on_the_ladder_leaves_nothing() {
+        let dp = RandomDecisionProvider::seeded(1);
+        let shape = LadderShape::AWipe;
+        let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
+
+        ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
+
+        assert!(state.battlefield.is_empty());
+    }
+
+    /// Each seat's carrier is what the rung's tokens enter under: Master
+    /// Biomancer's counter is on them, and Sigarda is a source the sweep asks.
+    #[test]
+    fn the_token_shapes_enter_under_what_their_seats_carry() {
+        let dp = RandomDecisionProvider::seeded(1);
+        let shape = LadderShape::TokensUnderAReplacement;
+        let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
+        let carriers = creatures.clone();
+        ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
+        assert_eq!(state.battlefield.len(), 104);
+        let countered = state.battlefield_ids_ordered().into_iter().filter(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 1);
+        assert_eq!(countered.count(), 100);
+        assert!(carriers.iter().all(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 0));
+
+        let (state, _) = ladder_board(LadderShape::TokensUnderACant, 100, &dp).unwrap();
+        assert_eq!(state.restriction_ability_sources.len(), 4);
     }
 
     /// The row is live: each seat's carrier reaches a plain Goblin beside it.
