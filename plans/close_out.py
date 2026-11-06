@@ -11,6 +11,8 @@ pools, audited, at two seats and four; reads callgrind instructions per decision
 against `--cpu`, and the functions whose share moved even when the total did not; runs
 `--require` on the last arm; prints the `fuzz-record.md` block's tables; and
 lists the copies the last arm made against the first (`similar_functions.py --against`).
+With callgrind it also reads the growth gate on the budget's arm, and exits 1 past its limit
+(engineering-practices.md#the-growth-gate).
 """
 
 import argparse
@@ -29,6 +31,11 @@ import fuzz_ab  # noqa: E402  (its rows, its stripping and its compare, so the t
 #: §3's cost model and the dispatcher's work: rows a change may move without
 #: the game moving. Every other row is gameplay.
 COST = fuzz_ab.BOLD | {"Windows past gate", "Candidate visits"}
+#: How far a ladder shape's instructions may grow over `growth_arm.sh`'s rungs, 4× apart, where
+#: linear cost reads ×4 and a shape's expected cost is `fuzz-record.md#the-ladder`'s table.
+GROWTH_LIMIT = 4.5
+#: A shape over `GROWTH_LIMIT` for a known and filed reason, with the limit it holds to until then.
+GROWTH_LIMITS = {"a wipe": 5.0}
 #: Commander scale, TR-1b's callgrind board, cut to under a minute an arm.
 CPU_GAMES = 20
 CPU_BOARD = f"--games {CPU_GAMES} --seed 12345 --pool performance --players 4 --deck-size 100 --life 40"
@@ -120,6 +127,32 @@ def movers(dirs):
     return [(key, b, a, (a - b) / total * 100) for key, b, a in moved]
 
 
+def growth(label):
+    """Each ladder shape's instructions at the higher rung over the lower, and those past the limit.
+
+    Read on the arm `cpu` built, so the only cost here is the reads themselves, seconds all told.
+    """
+    reads = {}
+    for line in sh(WSL + [f'bash "{unix(HERE)}/profile/growth_arm.sh" close-out-{label}']).splitlines():
+        marker, shape, rung, instructions = (line.split("|") + ["", "", ""])[:4]
+        if marker == "GROWTH":
+            if not instructions:
+                sys.exit(f"growth, {shape} at {rung}: callgrind collected nothing, so there is no reading")
+            reads.setdefault(shape, {})[int(rung)] = int(instructions.replace(",", ""))
+    if not reads:
+        sys.exit("growth: no shape was read; does this arm's fuzz_games have --ladder?")
+    over = []
+    for shape, rungs in sorted(reads.items()):
+        low, high = sorted(rungs)
+        ratio = rungs[high] / rungs[low]
+        limit = GROWTH_LIMITS.get(shape, GROWTH_LIMIT)
+        print(f"| growth, `{shape}`, {low:,} to {high:,} permanents, linear reads ×{high / low:.0f} | | ×{ratio:.2f} "
+              f"{'**over ×' + str(limit) + '**' if ratio > limit else ''} |")
+        if ratio > limit:
+            over.append(shape)
+    return over
+
+
 def table(arms, out):
     base = arms[0][0]
 
@@ -164,6 +197,7 @@ def main():
     ap.add_argument("--out", help="the raw outputs (default: a temp dir)")
     args = ap.parse_args()
     t0 = time.time()
+    over = []
     specs = [s.partition("=") for s in args.arm]
     if len(specs) < 2 or any(not rev for _, _, rev in specs):
         sys.exit("--arm LABEL=REV, at least two")
@@ -192,6 +226,7 @@ def main():
             one_arm = ", one arm only" if not before or not after else ""
             print(f"| moved ≥ {MOVER_POINTS} points, inclusive: `{function}` | | "
                   f"{before / 1e3:,.1f} K → {after / 1e3:,.1f} K, {points:+.1f} points{one_arm} |")
+        over = growth(target)
     for seats in (2, 4) if args.require else ():
         flags = [arms[-1][1], "--games", "200", "--seed", "12345", "--require", args.require] + (["--players", "4"] if seats == 4 else [])
         first = subprocess.run(flags, capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -203,6 +238,8 @@ def main():
     print(f"\ncopies, {arms[-1][0]} against {arms[0][0]}:")
     print(sh([sys.executable, os.path.join(HERE, "similar_functions.py"), "--at", specs[-1][2], "--against", specs[0][2]]))
     print(f"\n{time.time() - t0:.0f}s wall")
+    if over:
+        sys.exit(f"growth gate: {', '.join(over)} grew past the limit (engineering-practices.md#the-growth-gate)")
 
 
 if __name__ == "__main__":
