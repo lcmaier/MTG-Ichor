@@ -16,8 +16,9 @@ not a closing gate** (the owner, in the brief for `v0.5-sizing`).
   `engineering-practices.md#the-spec-database`: "a phase does not close until
   `owed` is clean" goes, and each phase reads its atoms at intake.
 - Have `/next-brief` and `/design-note` read them at intake, with
-  `python plans/specdb.py next --rule <its rules>`. It reads every phase since
-  this PR; its rule is a prefix, so `702.11` also matches `702.110` to `702.119`.
+  `python plans/specdb.py next --rule <its rules>`. It reads every phase and
+  shows every atom since this PR; its rule is a prefix, so `702.11` also matches
+  `702.110` to `702.119`.
 - Make `owed` say what it checked. It filters to atoms ticketed `NEW`, then
   prints "every atom in a shipped phase is covered or was explicitly deferred"
   when that list is empty, which it has not checked. It lists 8 today.
@@ -34,4 +35,4 @@ a §C paragraph has only the last, so `/pr-handover` should say to set it.
 2. **When the next audit runs:** the hunt at each subsystem's close and one full
    audit at v0.5, each with a PR budget, or another cadence. `roadmap-v2.md`'s
    Sizing section assumes a budget for its low case: 1.5 merged PRs for each route
-   PR, against 2.4 measured.
+   PR, against 2.0 measured.

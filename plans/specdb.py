@@ -740,8 +740,13 @@ def next_up(phase, rule, limit):
     if rule:
         q += " AND a.rule_num LIKE ?"
         args.append(rule + "%")
-    q += " ORDER BY a.phase, a.rule_num, a.id LIMIT ?"
-    args.append(limit)
+    q += " ORDER BY a.phase, a.rule_num, a.id"
+    # A rule's list is a checklist, so it is shown whole unless a limit is asked.
+    if limit is None and not rule:
+        limit = 30
+    if limit is not None:
+        q += " LIMIT ?"
+        args.append(limit)
     rows = db.execute(q, args).fetchall()
     if not rows:
         print("nothing uncovered matches that filter.")
@@ -1380,7 +1385,7 @@ def main():
     n = sub.add_parser("next")
     n.add_argument("--phase")
     n.add_argument("--rule")
-    n.add_argument("--limit", type=int, default=30)
+    n.add_argument("--limit", type=int)
     s = sub.add_parser("show")
     s.add_argument("atom_id")
     sub.add_parser("orphans")
