@@ -29,8 +29,8 @@ merges.
   a division's shares on the stack and a counter's words beside its row, item
   362 closed.
 - `board-scale`, off the route, is handed over (#313): items 376 to 378.
-- Next: `orders-the-cr-hands-a-player` (decision 6 and 6b), on its own branch
-  once `board-scale` merges.
+- Next: `tarkir-dragonstorm-decks`' gap census (the owner, 2026-11-06, #314),
+  then `orders-the-cr-hands-a-player` (decision 6 and 6b), on its own branch.
 - `mana-provenance`'s design comes before `costs-and-choices-at-resolution`
   (the owner, 2026-11-06, #314).
 
