@@ -656,9 +656,9 @@ design**, which is the thing that makes this a constraint on a seam rather than
 a second subsystem inside this one.
 
 **Measured 2026-11-05.** `backlog.md` §2.24 carries the census by clause and
-the sizing; the numbers that matter here are that **305** cards re-answer one
-named question each, that **54** of them are "as though it didn't have
-defender", and that **85** pay with mana as though it were another. Combat and
+the sizing; the numbers that matter here are that **322** cards re-answer one
+named question each, that **57** of them are "as though it didn't have
+defender", and that **91** pay with mana as though it were another. Combat and
 costs are the two biggest slices, and both are Tier 1a's and Tier 1e's sites.
 
 **Why it lands on this document rather than on a later one.** Combat legality

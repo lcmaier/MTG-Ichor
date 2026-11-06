@@ -1,5 +1,6 @@
 """What printed "as though" effects re-answer, by the question each one changes.
 
+    python plans/references/as-though-census.py --fetch    # refresh the cards from Scryfall, a few seconds
     python plans/references/as-though-census.py            # the counts
     python plans/references/as-though-census.py --names    # each family's cards and clauses
 
@@ -26,19 +27,23 @@ UNPLACED for a person to read. Every family under 40 was read card by card.
 
 INPUT
 -----
-`.census-cast.json` in this directory, `cast-census.py`'s cache of every
-Commander-legal paper card. If it is missing, run `python
-plans/references/cast-census.py` first (about seven minutes). Banned cards and
-digital-only cards are not in it.
+`.census-as-though.json` in this directory: `--fetch`'s copy of every card
+Scryfall holds with one of the three phrases, paper and digital, legal or banned,
+Alchemy's among them. Silver-bordered and acorn cards are left out.
 """
+import datetime
 import json
 import os
 import re
 import sys
+import time
+import urllib.parse
+import urllib.request
 from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CORPUS = os.path.join(HERE, ".census-cast.json")
+CORPUS = os.path.join(HERE, ".census-as-though.json")
+QUERY = '(o:"as though" or o:"mana of any type can be spent" or o:"any time you could cast an instant") -is:funny'
 
 # Checked in order, so a clause lands in the first family that matches.
 FAMILIES = [
@@ -59,6 +64,24 @@ FAMILIES = [
     ("value: counters", r"as though (it|they) had no"),
     ("zone", r"as though (those|the|that|it|they)( cards?)? (were|was) in"),
 ]
+
+
+def fetch():
+    url = "https://api.scryfall.com/cards/search?" + urllib.parse.urlencode({"q": QUERY, "unique": "cards"})
+    cards = []
+    while url:
+        request = urllib.request.Request(url, headers={"User-Agent": "mtg-ichor-census/1.0", "Accept": "application/json"})
+        with urllib.request.urlopen(request) as response:
+            page = json.load(response)
+        for card in page["data"]:
+            faces = card.get("card_faces", [])
+            text = card.get("oracle_text") or "\n".join(face.get("oracle_text", "") for face in faces)
+            cards.append({"name": card["name"], "text": text, "paper": "paper" in card.get("games", [])})
+        url = page.get("next_page")
+        time.sleep(0.35)
+    with open(CORPUS, "w", encoding="utf8") as handle:
+        json.dump({"query": QUERY, "fetched": datetime.date.today().isoformat(), "cards": cards}, handle)
+    print(f"fetched {len(cards)} cards")
 
 
 def strip_reminder(text):
@@ -92,6 +115,8 @@ def source(clause):
 
 
 def main():
+    if "--fetch" in sys.argv:
+        fetch()
     with open(CORPUS, encoding="utf8") as handle:
         corpus = json.load(handle)
     by_family = defaultdict(list)
@@ -99,7 +124,8 @@ def main():
         for clause in clauses(card["text"]):
             by_family[family(clause)].append((card["name"], clause, source(clause)))
     names_only = {name for rows in by_family.values() for name, _, _ in rows}
-    print(f"corpus fetched {corpus['fetched']}: {len(corpus['cards'])} cards, {len(names_only)} with a clause")
+    digital = sorted(card["name"] for card in corpus["cards"] if not card["paper"] and card["name"] in names_only)
+    print(f"fetched {corpus['fetched']}: {len(names_only)} cards with a clause, {len(digital)} digital-only: {', '.join(digital)}")
     print(f"{'family':32} {'cards':>5}  self linked turn static")
     for name in sorted(by_family, key=lambda family_name: -len({row[0] for row in by_family[family_name]})):
         rows = by_family[name]

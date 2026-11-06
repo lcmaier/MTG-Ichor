@@ -437,30 +437,29 @@ Two more rules matter and both make life easier:
   locked total. CR 118.14's "mana of any type can be spent" is the same rule.
 
 **The population, by clause (2026-11-05).** `plans/references/as-though-census.py`
-reads every Commander-legal card by the clause that does it: **305** cards, among
-them CR 118.14's "mana of any type can be spent" and "any time you could cast an
-instant", which never say "as though". Every family under 40 was read card by
-card. Five more are banned in Commander, Prophet of Kruphix among them; digital-only
-cards are not counted. Sixteen families, and each re-answers **one named question at
-one named read**:
+reads every card Scryfall holds, paper and digital, Alchemy's among them, by the
+clause that does it: **322** cards, among them CR 118.14's "mana of any type can be
+spent" and "any time you could cast an instant", which never say "as though". Every
+family under 40 was read card by card. Sixteen families, none left unplaced, and
+each re-answers **one named question at one named read**:
 
 | Question | Cards | The read | Lands with |
 |---|---:|---|---|
-| May this mana pay that pip (609.4b) | 85 | the check's edges and the payment; 60 ride one cast another effect allowed | `hybrid-and-phyrexian-payment` |
-| May this be cast now | 71 | `can_begin_to_cast` | `as-though-effects`' permission half |
+| May this mana pay that pip (609.4b) | 91 | the check's edges and the payment; 63 ride one cast another effect allowed | `hybrid-and-phyrexian-payment` |
+| May this be cast now | 74 | `can_begin_to_cast` | `as-though-effects`' permission half |
 | The same, on a choice made casting ("if you pay {2} more", "if X is 3 or less", CR 601.3c–d) | 15 | offered at the gate, CR 601.2's rewind refuses it after, as `permission-architecture.md` already does | the same |
 | The same, stated outright ("any time you could cast an instant") | 9 | seven are activation timing, CR 606.3's | `permission-design` |
-| May this attack: defender, haste | 54, 3 | `can_attack`; Frenzied Saddlebrute's haste is per attack target | the permission half |
+| May this attack: defender, haste | 57, 3 | `can_attack`; Frenzied Saddlebrute's haste is per attack target | the permission half |
 | May this block: evasion, tapped | 15, 1 | `can_block`'s pair checks, `can_be_a_blocker` | the permission half |
 | May this be targeted: hexproof, shroud | 5 | `validate_targets`, and CR 608.2b's re-check | the permission half, its seam cut by `cant-be-targeted` |
 | May this be activated: haste, a use limit | 4, 2 | `has_summoning_sickness` at the tap and untap costs and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half, its seam cut by `cant-pay-costs` |
 | How is this creature's damage assigned | 19 | a "may" at CR 510.1c, a choice kind no census has counted | the permission half, with its `ChoiceKind` |
 | What does this source's damage do | 2 | wither's and infect's reads (Everlasting Torment, Phyrexian Unlife) | those keywords' first cards |
-| What number does this rule read | 19, 1 | crew and saddle's power sum (18), Loot's assignment, adapt's counter check | `remaining-costs` for crew and saddle; each other with its mechanic |
+| What number does this rule read | 24, 1 | crew, saddle and station's power sum (22), Loot's and Zimone's assignment, adapt's counter check | `remaining-costs` for crew, saddle and station; each other with its mechanic |
 | Is this card where the rule says | 1 | Shaman's Trance's cast from a graveyard | `casting-from-other-zones` |
 
 **What the census changes.** The family is no longer an unknown. The value "half"
-that had no date is 20 cards, 18 of them one sentence on crew and saddle, and each
+that had no date is 25 cards, 22 of them one sentence on crew, saddle or station, and each
 is a number one rule reads at one site, so **none needs a frame**. Rough cost
 beyond the mechanism below, from each site's shape and unbuilt: 20–60 lines a
 question, and about 100–150 for the damage assignment's choice kind. Two reads
@@ -468,12 +467,12 @@ were guarded by nothing before this count, and `cant-effects-architecture.md` §
 now says so: hexproof's, and summoning sickness's, which one accessor answers for
 two different questions.
 
-**Open, the owner's: how open is the list of questions?** A printed "as though"
+**A closed list of questions (the owner, 2026-11-05, #312).** A printed "as though"
 names one question, but the form could name any rule, and custom cards are a
-post-v1 goal (§2.37). A closed list of questions with any condition and any subject
-on each is what the 305 need, and a new question is one arm at its read. Every read
-consultable is what a total fiction needs, and it is the frame below at every
-read. Not decided; `as-though-effects`' design takes it.
+post-v1 goal (§2.37). The engine takes a closed list, any condition and any subject
+on each, and a new question is one arm at its read; every read consultable would
+be the frame below at every read. Which questions the list holds waits for
+`as-though-effects`' design, since widening it later costs one arm.
 
 **Why the waivers are one mechanism, and what a value is.**
 Waiving a check ("as though it didn't have defender", "as though it were
@@ -499,7 +498,7 @@ shape: **the fiction never reaches `compute_characteristics`
 and never reaches the layer walk** — the day it does, Masako's creature is
 untapped for the untap step and the whole rule inverts.
 
-**What it blocks.** It is not a Phase 8 breadth item: it is a mechanism, and 305
+**What it blocks.** It is not a Phase 8 breadth item: it is a mechanism, and 322
 cards is enough that Phase 8 will hit it immediately.
 
 **Rough size.** The permission half (timing, zone, attack/block legality):
