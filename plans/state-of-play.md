@@ -188,7 +188,7 @@ with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
-| **1. Decisions per loaded physical core-second** | ≥ 10000 | 7632 | **-24%** | 2026-11-06 |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | 12465 | 25% | 2026-11-06 |
 | 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-29 |
 | 2. Microseconds per clone | ≤ 10 | 5.6 | 79% | 2026-10-29 |
 | 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-29 |

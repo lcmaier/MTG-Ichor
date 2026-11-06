@@ -388,7 +388,7 @@ describe**. After the last code commit, each once:
 2. `python plans/close_out.py --arm main=origin/main --arm engine=<sha>
    [--arm shipped=HEAD] [--require "<newly pooled cards>"]`, in the background
    while the docs are written: the audited counters on both pools at two seats
-   and four, the budget, the reachability read, the record block's table, and
+   and four, the budget, the growth gate, the reachability read, the record block's table, and
    the copies the branch made. The model pass over the changed files runs beside it.
 3. **Game-by-game dump attribution only when a gameplay row moves that the
    predictions did not**; a moved cost row is a reading.
@@ -409,14 +409,21 @@ timing sitting (the budget reads instructions).
   board (Commander scale, 20 games, the hasher's seed pinned), or the PR says
   why in its `fuzz-record.md` block and the reviewer decides. A decision is a
   prompt with two or more legal answers.
-- **It is the per-PR half of a ratchet**; the other half is each spine close's
-  readiness reading of decisions per core-second, never worse without a reason.
+- **It reads typical boards, about 40 permanents**, so it is the per-PR half of
+  a ratchet; the growth gate below reads what it cannot.
 - **Instructions, not time**: a timing sitting spreads 2–6%, wider than the
   budget, while instructions repeat to ~0.01%. Stalls are read at readiness.
 - **A total can hold while two functions cancel**, so the close-out lists each
   one whose inclusive share moved half a point; one past the budget gets a line.
 - Adopted 2026-09-15, in instructions since 2026-09-25; the calibration is
   `fuzz-record.md`, "Calibrated 2026-09-25".
+
+### The growth gate
+
+- **Each ladder shape says what it should cost, from what the CR requires, before anything is measured** (`fuzz-record.md#the-ladder`); cost past that is a defect until shown otherwise.
+- **`close_out.py` reads each shape's instructions at 1,600 and 6,400 permanents and exits 1 past ×4.5**, where linear reads ×4. A read that cannot finish is refused.
+- **The budget cannot see this** at 40 permanents. It also covers the players' GUI: a person feels the worst wait, and linear cost keeps it a known multiple of the board.
+- **A phase opening an engine path adds a shape**, as it adds a pooled card; an exception is named in `close_out.py` and filed.
 
 ### The floors
 
@@ -428,16 +435,16 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 <!-- floors: begin -->
 | Floor | Limit | Definition | Instrument |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | real decisions at Commander scale (`--deck-size 100 --life 40 --players 4`) on `performance` under the default bot stack, on the board the limit was derived for: those whose seat sees 112–143 observation rows, around its 128 tokens; a decision counted where it reaches the agent; loaded = the band's 16-thread rate ÷ physical cores | the readiness pass, by `fuzz_games --census --threads 16`'s band 128, with callgrind instructions per decision beside it |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | at Commander scale (`--deck-size 100 --life 40 --players 4`) on `performance` under the default bot stack, over whole games; a decision counted where it reaches the agent; loaded = decisions ÷ the 16-thread wall ÷ physical cores | the readiness pass, by `fuzz_games --census --threads 16`, with callgrind instructions per decision beside it |
 | 2. Allocations per clone | ≤ 64 | CI's proxy for a full-state clone within 10 µs, at item 143's checkpoints, at every decision and on the fixture boards | `clone_bound_test` and `clone_fixture_test` in CI's release step, with `fork_copies_test` beside them |
 | 2. Microseconds per clone | ≤ 10 | a full-state clone, portably ≤ 1/6 of one decision's engine CPU, at the same readings | the readiness pass, by the clone tests' ignored tests |
 | 3. Kilobytes per clone | ≤ 128 | deep clone size, bounded by the board's high-water mark and never by the turn count | the same tests, exact bytes with the hash seed pinned |
 <!-- floors: end -->
 
-- **Floor 1 reads one board size**, so a bot that changes how big its boards get cannot move it. A
-  dropped prompt still can, and is judged by games per loaded core-second. Phase 10 re-derives the limit.
+- **Floor 1 is a coarse check of adequacy, and catches no regression**: its limit's assumptions span
+  2,800–16,100, and a bot that changes its games moves it, which the readiness pass explains. Phase 10 re-derives it.
 - **The ladder is the ratchet's own boards** (`fuzz_games --ladder`): no bot, each rung never worse
-  without a reason, and `ns/permanent` flat where cost grows with the board. No limit reads it.
+  without a reason. No limit reads it.
 - **A reading is replaced in place when it is taken again**; every reading's
   dated record stays in `fuzz-record.md`.
 

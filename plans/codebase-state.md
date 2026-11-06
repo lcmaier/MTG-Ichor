@@ -10455,8 +10455,8 @@ slips are the planned card phases', not items.
 
 377. **Floor 1 reads the bot's games, so it moves when the bot does.** — ✅ closed.
      `fuzz_games --ladder` reads fixed boards from 100 to 51,200 permanents at
-     four seats for the ratchet, and Floor 1 reads real decisions on the limit's
-     own board, band 128 of `--census`, so board-size drift cannot move it.
+     four seats for the ratchet and the growth gate, and Floor 1 stays on whole
+     games as a coarse check of adequacy.
      **Reachability (2026-11-05):** closed — PR #313.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 377".
 
@@ -10490,11 +10490,13 @@ slips are the planned card phases', not items.
      end of layer 1, so a run's cost is tokens times board: one Essence's 1,600
      tokens take 8 ms on an empty board and 0.43 s beside 1,600 others, and 6,400
      beside 6,400 take 16 s. One capture a run at one epoch has one answer, as the
-     frame has (`shared_entering_frame`).
+     frame has (`shared_entering_frame`). Beside it, N copies of Essence all
+     applying to one entry gather N sources N times: the rules owe N applications
+     (CR 616.1f), and 8 tokens onto 400 copies take 0.16 s.
 
      **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
-     **Sized:** ~30 lines of code: a slot in the layer memo, with its gated reads
-     and its audit.
+     **Sized:** ~30 lines of code for the capture, a slot in the layer memo with its
+     gated reads and its audit; the gather's half is a design.
      **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
 
 383. **A granted replacement opens the gather to every permanent.** A `Filter` row
@@ -10517,13 +10519,15 @@ slips are the planned card phases', not items.
      **Sized:** ~40 lines: a per-pass cache keyed on the count's filter and "you".
      **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
 
-385. **A wipe grows faster than its board.** The ladder's `a wipe` row reads 1.4 µs
-     a permanent at 100 and 15.7 at 51,200, three and a half times the cost for the
-     last doubling, where the other rows read a little over two. Nothing has
-     looked at why; at 12,800 permanents it is 73 ms.
+385. **A token leaving a graveyard shifts the graveyard.** CR 704.5d's tokens cease
+     to exist one member at a time, and `remove_from_zone_collection` takes each out
+     of an ordered `Vec`, so a wipe of N tokens moves N²/2 entries: ×4.82 in the
+     growth gate, where linear reads ×4, and the gate's one named exception. The
+     captures beside it are fixed. At 51,200 permanents a wipe takes 191 ms.
 
      **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
-     **Sized:** a profile first.
+     **Sized:** a design: a graveyard's order is observable, so it is a removal the
+     batch does once, or a zone that takes one without a shift.
      **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
 
 386. **Each trigger resolving pays a pass over the board.** A stack entry is a layer
@@ -10539,11 +10543,11 @@ slips are the planned card phases', not items.
      **Sized:** with item 354's design, how much of the board a change invalidates.
      **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
 
-387. **Floor 1 should read frozen real positions.** Band 128 of `--census` reads
-     real decisions, so a change to which prompts appear can still move it. About
-     200 decisions sampled from real games and saved as scenarios, one decision
-     timed from each, would be real and free of the bot both. The owner's choice,
-     after the band (2026-11-06).
+387. **Floor 1 could read frozen real positions.** It reads a bot's games, so a bot
+     moves it. About 200 decisions sampled from real games and saved as scenarios,
+     one decision timed from each, would be real and free of the bot both. The
+     limit's re-derivation decides whether that precision is worth having: the
+     owner's choice (2026-11-06).
 
      **Reachability (2026-11-06):** nothing owed — an instrument, for the limit's
      re-derivation.
