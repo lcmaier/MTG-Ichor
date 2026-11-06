@@ -1,22 +1,23 @@
 # Sizing calibration: how far estimates ran from what landed
 
 **Generated** by `sizing-calibration.py`, read at #313's merge (2026-11-06); a
-dated record, not a live count. Measured from git: code plus tests, lines added
-across the merge, review rounds included. A PR body's own figure can differ,
-and #307's and #308's are added plus removed: #307's "2.2×" is 1.70× by lines
-added.
+dated record, not a live count. These are the estimates a doc or PR body states
+from RH-1 (#243) on, the first phases sized the way the later ones were. Measured
+from git: code plus tests, lines added across the merge, review rounds included.
+A PR body's own figure can differ, and #307's and #308's are added plus removed:
+#307's "2.2×" is 1.70× by lines added.
 
 **How `roadmap-v2.md`'s Sizing section uses each kind:**
 
-- **Set at a design stop:** take the top as the expected size, and 0.7–1.6 of
-  it as the range.
-- **A plan's sum carried at code ×1.5–2 plus tests:** about 1.15× its top.
-- **A plain sum of `**Sized:**` lines:** about 2× its top, 1.4–2.7, and only
-  for the items it lists, so add the feature itself.
+- **Set at a design stop:** the top is the expected size, and about 0.5–1.7 of it
+  the range. Most of these already carry code at ×1.5–2.
+- **A plan's sum carried at code ×1.5–2 plus tests:** about 1.1× its top.
+- **A plain sum of `**Sized:**` lines:** about 3× its top, 2.1–3.7, on only four
+  rows, and only for the items it lists, so add the feature itself.
 - **A route's PR count before any design:** about 3× its top, 3.5–4× for a whole
   subsystem and 1.5–2.5× for a smaller row.
 - **A PR count set where the row was designed:** it holds. TR-5 is the one that
-  doubled, and TR-3 the one that grew by half.
+  doubled, and TR-3 and the item 6 audit grew by about half.
 
 ## Lines
 
@@ -24,7 +25,9 @@ added.
 
 | PR | Phase | Estimate | Measured | × its top | Set by |
 |---|---|---:|---:|---:|---|
-| #244 | RH-2 | 845 | 655 | 0.78 | `replacement-architecture.md` §2b.10 |
+| #243 | RH-1 | 1,900–2,300 | 2,814 | 1.22 | `replacement-architecture.md`, at the multiplier |
+| #244 | RH-2 | 1,040–1,235 | 655 | 0.53 | `replacement-architecture.md`, at the multiplier |
+| #245 | RH-3 | 1,390–1,620 | 1,279 | 0.79 | `replacement-architecture.md`, at the multiplier |
 | #251 | TR-4a | 2,120–2,440 | 2,104 | 0.86 | A6p's re-count |
 | #252 | TR-4b | 1,150–1,850 | 1,650 | 0.89 | A6p's re-count |
 | #253 | TR-4c | 1,560–1,750 | 1,579 | 0.90 | A6p's re-count |
@@ -41,33 +44,34 @@ added.
 | #267 | CL-1 | 1,350–1,750 | 1,340 | 0.77 | #266's design |
 | #268 | TR-6 | 1,305–1,720 | 1,190 | 0.69 | its design |
 | #269 | TR-7 | 975–1,300 | 1,110 | 0.85 | its design |
-| #308 | `divided-among-targets` | 1,200–1,650 | 1,383 | 0.84 | `choices-architecture.md`, re-sized at #307's ratio |
+| #307 | `options-named-by-what-they-are` | 440–760 | 1,294 | 1.70 | #306's decision 4 |
 
-18 rows: mean 1.03, median 0.91, range 0.69–1.64.
+20 rows: mean 1.06, median 0.97, range 0.53–1.70.
 
-### A plan's sum, with the ratio already on it
+### A sum with the ratio already on it
 
 | PRs | Row | Carried | Measured | × its top | Set by |
 |---|---|---:|---:|---:|---|
+| #250 | A6m's second PR | 650–1,150 | 1,125 | 0.98 | its split at #240 |
 | #284 | `history-and-frame-records` | 1,700–2,000 | 1,823 | 0.91 | #283's plan |
 | #288 | `resolution-context-rider` | 130–160 | 202 | 1.26 | #283's plan |
 | #289, #290 | `trigger-matcher-merges` | 1,350–1,800 | 2,517 | 1.40 | #283's plan |
 | #291 | `one-fact-one-type` | 1,700–2,100 | 2,004 | 0.95 | #283's plan |
 | #293, #294 | `batches-durations-and-control` | 1,750–2,100 | 2,445 | 1.16 | #283's plan |
+| #308 | `divided-among-targets` | 1,200–1,650 | 1,383 | 0.84 | `choices-architecture.md`, the backlog's 500–700 at #307's ratio |
 
-5 rows: mean 1.14, median 1.16, range 0.91–1.40.
+7 rows: mean 1.07, median 0.98, range 0.84–1.40.
 
 ### A plain sum of `**Sized:**` lines
 
-| PR | Part | Estimate | Measured | × its top | Set by |
-|---|---|---:|---:|---:|---|
-| #307 | #306's decision 4 | 440–760 | 1,294 | 1.70 | #306; `options-named-by-what-they-are` is that decision |
-| #310 | the hunt's six fixes | 360 | 765 | 2.12 | item sizes of about 155 and 205 |
-| #305 | `scripted-answers-by-identity` | 700–900 | 1,259 | 1.40 | its brief |
-| #313 | #313's ladder | 100–150 | 400 | 2.67 | item 377; the PR body's part |
-| #313 | #313's item 378 | 30–50 | 120 | 2.40 | item 378; the PR body's part |
+| Part | Estimate | Measured | × its top | Set by |
+|---|---:|---:|---:|---|
+| #310, the hunt's six fixes | 360 | 765 | 2.12 | item sizes of about 155 and 205 |
+| #305, `scripted-answers-by-identity` | 700–900 | 2,353 | 2.61 | its brief, in changed lines |
+| #313's ladder | 100–150 | 450 | 3.00 | its brief, item 377; its three commits |
+| #313's item 378 | 30–50 | 186 | 3.72 | item 378; its two commits |
 
-5 rows: mean 2.06, median 2.12, range 1.40–2.67.
+4 rows: mean 2.86, median 2.81, range 2.12–3.72.
 
 ## PR counts
 
@@ -94,22 +98,24 @@ added.
 | TR-4 | 4 | 4 | 1.00 | TR-4a to TR-4d |
 | TR-5 | 4 | 8 | 2.00 | TR-5a to TR-5h |
 | `readiness` | 2 | 2 | 1.00 | #299, #300 |
-| `modes-plus-choice-kinds` | 5 | 6 | 1.20 | named so far; two landed |
+| The item 6 audit | 20 | 28 | 1.40 | #270–#300; #270's plan said 13–20 |
 
-9 rows: mean 1.20, median 1.00, range 1.00–2.00.
+9 rows: mean 1.22, median 1.00, range 1.00–2.00.
 
 ## Overhead, the eight weeks to #313
 
-### What was merged, by branch prefix
+### What was merged
+
+By branch prefix, with `ROUTE_PRS` on the route: a route PR is one that builds a row of the Sizing table or the cleanup plan whose last rows joined it, so work is counted the way the rows left are.
 
 | Fortnight from | route | dev GUI | audit | process and docs | detour | All |
 |---|---:|---:|---:|---:|---:|---:|
 | 2026-09-12 | 33 | 1 | 13 | 5 | 10 | 62 |
 | 2026-09-26 | 10 | 24 | 3 | 5 | 1 | 43 |
 | 2026-10-10 | 25 | 1 | 17 | 0 | 1 | 44 |
-| 2026-10-24 | 7 | 2 | 14 | 3 | 2 | 28 |
-| **All** | **75** | **28** | **47** | **13** | **14** | **177** |
+| 2026-10-24 | 19 | 1 | 3 | 3 | 2 | 28 |
+| **All** | **87** | **27** | **36** | **13** | **14** | **177** |
 
-75 of 177 merge commits on the route: 2.4 merged PRs for each route PR, and 9.4 route PRs a week. A PR rebased in has no merge commit and is not counted. `setup/` is the dev GUI's own track; `state/` is the clone's.
+87 of 177 merge commits on the route: 2.0 merged PRs for each route PR, and 10.9 route PRs a week. A PR rebased in has no merge commit and is not counted. `setup/` is the dev GUI's own track; `state/` is the clone's.
 
-A phase PR's size over the design-stop rows: median 1,647, mean 1,724.
+A phase PR's size over the design-stop rows: median 1,647, mean 1,752.
