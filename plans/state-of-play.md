@@ -60,9 +60,9 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 14 | `mana-ability-costs` and 6 more | to come | 10–15 |
 | 15 | `casting-from-other-zones` and 3 more | to come | 6–10 |
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
-| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 16–41 |
+| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 16–42 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **43 rows to come** | **74–139** |
+| | **To v0.5** | **43 rows to come** | **74–140** |
 
 **Deck cards registered: 7 of 385**,
 the five lists' distinct cards less basics.
@@ -230,14 +230,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 438 |
+| Numbered items | 441 |
 | …closed, still recorded | 273 |
-| …open — unreachable, and says why | 106 |
+| …open — unreachable, and says why | 109 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 35 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 159 of 165 |
+| …open, carrying an explicit `**Sized:**` | 162 of 168 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -251,7 +251,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 152 |
+| …slotted to a phase or roadmap row still to come | 155 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

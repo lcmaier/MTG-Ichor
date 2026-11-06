@@ -283,6 +283,8 @@ PLANTS = [
           swap(ROADMAP, "| 18 | `mana-payment-solver` | | 1–2 |", "| 18 | `mana-payment-solver` | | 2026-10 |")),
     plant(BOARD, "a row of the critical path has no size", "the critical path names zz-no-row",
           after("CLAUDE.md", "**After 6, in order**", " `zz-no-row`;")),
+    plant(BOARD, "a row cited in another row's cell is still unsized", "the critical path names game-formats",
+          swap(ROADMAP, "| 9 | `game-formats` |", "| 9 | `token-copies` |")),
     plant(BOARD, "a landed section keeps its body in the live doc", "ZZ-9 is landed but keeps",
           add("plans/layers-architecture.md", "\n### ZZ-9 — planted — ✅ landed 2026-11-04\n" + "planted\n" * 50)),
     plant(BOARD, "the parser's selftest fails a rotted item pattern", "selftest:",

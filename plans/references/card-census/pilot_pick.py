@@ -10,16 +10,16 @@ that names none. That is what `plain` approximates: the census's "authorable",
 which README.md says cannot be trusted on its own.
 """
 
-import glob
 import json
 import random
 import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from check_state_of_play import deck_lists, registered_cards  # noqa: E402
+
 SEED = 20261106
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
-BASICS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 VERDICTS = [
     ("casting-from-other-zones", r"flashback|escape|encore|eternalize|suspend|you may cast|from your graveyard.*cast|cast .* from"),
     ("any-color", r"mana of any|any color|any type"),
@@ -47,20 +47,15 @@ def verdict(card):
 def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     cards = json.load(open(sys.argv[1], encoding="utf-8"))
-    registry = (ROOT / "mtgsim/src/cards/registry.rs").read_text(encoding="utf-8")
-    registered = set(re.findall(r'registry\.register\(\s*"([^"]+)"', registry))
+    registered = registered_cards()
     rng = random.Random(SEED)
     taken, counts = set(), {}
     for card in cards.values():
         counts[verdict(card)] = counts.get(verdict(card), 0) + 1
     print(f"seed {SEED}; verdicts over the {len(cards)} cards: {sorted(counts.items(), key=lambda kv: -kv[1])}\n")
     used = {}
-    for path in sorted(glob.glob(str(ROOT / "mtgsim/decks/tdc-*.txt"))):
-        names = []
-        for line in open(path, encoding="utf-8"):
-            m = re.match(r"\d+ (.+)$", line.strip())
-            if m and m.group(1) not in BASICS and m.group(1) not in registered and m.group(1) not in taken:
-                names.append(m.group(1))
+    for path, listed in deck_lists():
+        names = [name for name in listed if name not in registered and name not in taken]
         rng.shuffle(names)
         picked = []
         # The verdict used least so far goes first, so twenty cards span them.
@@ -70,7 +65,7 @@ def main():
             picked.append(name)
             taken.add(name)
             used[verdict(cards[name])] = used.get(verdict(cards[name]), 0) + 1
-        print(Path(path).stem)
+        print(path.stem)
         for name in picked:
             print(f"  {verdict(cards[name]):26} {name}")
 

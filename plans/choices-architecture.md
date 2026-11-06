@@ -34,8 +34,8 @@
 `plans/references/choice-kinds-census.py`'s, run 2026-11-01 over its cached
 corpus (every Commander-legal paper card, fetched 2026-10-05, 32,115 cards),
 with a second column for Tarkir: Dragonstorm Commander's 373 cards (`tdc`,
-Scryfall `e:tdc -t:basic`, committed as `plans/references/tdc-names.txt`), the
-five decks v0.5 plays. The corpus is paper; Alchemy's digital-only cards, in
+Scryfall `e:tdc -t:basic`, committed as `plans/references/tdc-names.txt`), all
+but 12 of the 385 in the five decks v0.5 plays. The corpus is paper; Alchemy's digital-only cards, in
 scope, were counted beside it on Scryfall (the census's docstring) and add no
 family the paper cards lack: 84 modal, 63 "unless", 12 divided, 61 "may pay",
 16 values, and 65 drafting from a spellbook, which is decision 7's card-name

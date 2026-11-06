@@ -2886,7 +2886,7 @@ named them.
 | **Size** | unsized: a design first, against the copy track's shapes, then about a PR per mechanic, casting path included |
 | **Blocks** | about 150 Adventure cards (Scryfall, 2026-09-29: `is:adventure game:paper -is:funny` returns 151, `t:adventure` returns 138), 19 Prototype (`keyword:prototype`), and 13 Omen (`t:omen`) |
 | **Atoms** | 33 in the corpus (CR 715, 718, 720, 702.160) |
-| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29). Designed in `card-and-object-model` beside `permission-design`, and built after v0.5 with the rest of `split-and-adventure-style-cards` (`roadmap-v2.md` §3a, "From triggers to v0.5", re-routed 2026-10-29) |
+| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29). Designed in `card-and-object-model` beside `permission-design`. Omen is built before v0.5, for the decks' two Omen cards, and the rest after it with the rest of `split-and-adventure-style-cards` (`roadmap-v2.md` §3a, "From triggers to v0.5", re-routed 2026-10-29) |
 
 ### 2.42 The board editor's other advanced settings — history, a card's lines, setup actions
 

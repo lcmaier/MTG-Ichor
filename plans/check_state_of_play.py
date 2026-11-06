@@ -68,6 +68,7 @@ a check that silently covers one track of three is worse than one that says so.
 import argparse
 import re
 import sys
+from collections import namedtuple
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -92,17 +93,31 @@ def read(rel):
 # Derivation — file reads only
 # --------------------------------------------------------------------------
 
-#: What a decklist's count leaves out: CR 205.3i's basic land types' cards.
+#: The cards with CR 205.4c's basic supertype that a deck may hold any number of.
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 
 
+def deck_lists():
+    """Each of v0.5's five lists as `(file, its names less basics, in order)`."""
+    out = []
+    for f in sorted((ROOT / "mtgsim" / "decks").glob("tdc-*.txt")):
+        names = re.findall(r"^\d+ (.+?)\s*$", f.read_text(encoding="utf-8"), re.M)
+        out.append((f, [name for name in names if name not in BASIC_LANDS]))
+    return out
+
+
 def deck_cards():
-    """The distinct cards of v0.5's five lists, less basics. Read off the lists
-    and not Scryfall's `e:tdc`, whose 373 leaves out the 12 printed in `tdm`."""
-    names = set()
-    for f in (ROOT / "mtgsim" / "decks").glob("tdc-*.txt"):
-        names.update(re.findall(r"^\d+ (.+?)\s*$", f.read_text(encoding="utf-8"), re.M))
-    return names - BASIC_LANDS
+    """The five lists' distinct cards. Read off the lists and not Scryfall's
+    `e:tdc`, whose 373 leaves out the 12 printed in `tdm`."""
+    return {name for _, names in deck_lists() for name in names}
+
+
+def registered_cards():
+    # `registry.register("` and not `registry.register(`: the latter also
+    # matches `performance_pool`'s own loop, which re-registers a name it
+    # was handed rather than adding a card, so every board since this
+    # script was written has reported one card too many.
+    return set(re.findall(r'registry\.register\(\s*"([^"]+)"', read("mtgsim/src/cards/registry.rs")))
 
 
 def counts():
@@ -112,11 +127,7 @@ def counts():
     for base in ("mtgsim/src", "mtgsim/tests"):
         for f in (ROOT / base).rglob("*.rs"):
             tests += f.read_text(encoding="utf-8", errors="replace").count("#[test]")
-    # `registry.register("` and not `registry.register(`: the latter also
-    # matches `performance_pool`'s own loop, which re-registers a name it
-    # was handed rather than adding a card, so every board since this
-    # script was written has reported one card too many.
-    registered = set(re.findall(r'registry\.register\(\s*"([^"]+)"', reg))
+    registered = registered_cards()
     decks = deck_cards()
     return {
         "cards": len(registered),
@@ -452,26 +463,28 @@ def selftest():
     sized = [
         ["1", "`route-review`", "", "1", "", "", ""],
         ["2", "`card-layer-cleanup`", "✅ 2026-11-01", "5", "", "", ""],
+        ["3", "`route-review`, a landed part", "", "4", "", "", ""],
         ["3", "`double-faced-cards`, the transform half", "", "2–3", "", "", ""],
         ["3", "`token-copies`", "", "1", "", "", ""],
         ["4", "`A6e`, readiness", "", "2", "", "", ""],
+        ["5", "`token-copies`", "", "1", "", "", ""],
     ]
     known = {"route-review": True, "card-layer-cleanup": False, "double-faced-cards": False, "token-copies": False, "A6e": True}
     parsed, problems = sized_rows(sized, known)
     assert problems == [], f"selftest: sizing problems {problems}"
-    assert [(s, landed, lo, hi) for s, _, landed, lo, hi in parsed] == [
-        (1, True, 1, 1), (2, True, 5, 5), (3, False, 2, 3), (3, False, 1, 1), (4, True, 2, 2),
+    assert [(r.step, r.landed, r.low, r.high) for r in parsed] == [
+        (1, True, 1, 1), (2, True, 5, 5), (3, True, 4, 4), (3, False, 2, 3), (3, False, 1, 1), (4, True, 2, 2), (5, False, 1, 1),
     ], f"selftest: sized {parsed}"
-    steps, left = way_to_v05(parsed)
+    steps, rows_to_come = way_to_v05(parsed)
     assert [(s, state, prs) for s, _, state, prs in steps] == [
-        (1, "landed", "—"), (2, "landed", "—"), (3, "to come", "3–4"), (4, "landed", "—"),
+        (1, "landed", "—"), (2, "landed", "—"), (3, "1 of 3 landed", "3–4"), (4, "landed", "—"), (5, "to come", "1"),
     ], f"selftest: steps {steps}"
     assert steps[2][1] == "`double-faced-cards`, the transform half and 1 more", f"selftest: {steps[2]}"
-    assert (sum(r[3] for r in left), sum(r[4] for r in left)) == (3, 4), f"selftest: left {left}"
+    assert pr_span(rows_to_come) == "4–5", f"selftest: rows to come {rows_to_come}"
     wrong = [["5", "`not-a-row`", "", "1", "", "", ""], ["6", "`token-copies`", "", "2026-10", "", "", ""], ["7", "`token-copies`", "", "4–2", "", "", ""]]
     assert len(sized_rows(wrong, known)[1]) == 3, f"selftest: {sized_rows(wrong, known)[1]}"
     path = ["**After 6, in order** x:", "`route-review`; `token-copies`; `roadmap-v2.md`", "**v0.5 is** `not-yet-sized`"]
-    assert unsized_route_rows(path, "`route-review`") == ["token-copies"], "selftest: an unsized route row"
+    assert unsized_route_rows(path, ["`route-review`"]) == ["token-copies"], "selftest: an unsized route row"
     # The phase index's parser: coded and plain-named ✅ headings, a parent
     # heading and a closed phase, a trace page's ✅, a sizing table's cells.
     phases = "\n".join([
@@ -532,9 +545,13 @@ PRS_RE = re.compile(r"(\d+)(?:–(\d+))?\Z")
 OWN_LANDED_RE = re.compile(r"✅ \d{4}-\d{2}-\d{2}\Z")
 
 
+#: A Sizing table row. `row` is the cell as written, which may name part of a
+#: phase, and `low` and `high` its PRs.
+SizedRow = namedtuple("SizedRow", "step row landed low high")
+
+
 def sized_rows(rows, route):
-    """The Sizing table's rows as `(step, row, landed, low, high)`, and what is
-    wrong with it. `row` is the cell as written, which may name part of a phase.
+    """The Sizing table's rows as `SizedRow`s, and what is wrong with it.
 
     A row has landed when the route records its name as landed, or, for a row
     with no heading of its own (half a phase, a §C paragraph), when its State
@@ -553,24 +570,26 @@ def sized_rows(rows, route):
         high = int(size.group(2) or low)
         if low > high:
             problems.append(f"the Sizing table's {row} runs {low} down to {high}")
-        parsed.append((int(step), row, bool(status) or bool(OWN_LANDED_RE.match(state)), low, high))
+        parsed.append(SizedRow(int(step), row, bool(status) or bool(OWN_LANDED_RE.match(state)), low, high))
     return parsed, problems
 
 
-def unsized_route_rows(critical_path_lines, table_text):
-    """Every phase the critical path names between item 6 and v0.5 that no line
-    of the Sizing table mentions."""
+def unsized_route_rows(critical_path_lines, row_cells):
+    """Every phase the critical path names between item 6 and v0.5 that no
+    Row cell of the Sizing table names. Only that column: a name cited in
+    another row's Rests-on cell is not a size for it."""
     text = "\n".join(critical_path_lines)
     route = text[text.index("**After 6, in order**"):text.index("**v0.5 is")]
-    return [name.strip("`") for name in dict.fromkeys(re.findall(NAME, route)) if name not in table_text]
+    named = "\n".join(row_cells)
+    return [name.strip("`") for name in dict.fromkeys(re.findall(NAME, route)) if name not in named]
 
 
 def sizing():
     """The table as `sized_rows` reads it, and every problem with it."""
     rows = table_rows("plans/roadmap-v2.md", "v0.5 sizing", SIZING_COLUMNS)
     parsed, problems = sized_rows(rows, route_ids())
-    for name in unsized_route_rows(critical_path(), "\n".join(" ".join(r) for r in rows)):
-        problems.append(f"the critical path names {name}, and the Sizing table has no line for it")
+    for name in unsized_route_rows(critical_path(), [cells[1] for cells in rows]):
+        problems.append(f"the critical path names {name}, and the Sizing table has no row for it")
     return parsed, problems
 
 
@@ -578,21 +597,24 @@ def span(low, high):
     return str(low) if low == high else f"{low}–{high}"
 
 
+def pr_span(rows):
+    return span(sum(r.low for r in rows), sum(r.high for r in rows))
+
+
 def way_to_v05(parsed):
-    """Each step as `(step, row, state, PRs left)`, and the rows left in all."""
+    """Each step as `(step, row, state, PRs left)`, and every row to come."""
     steps = {}
-    for step, row, landed, low, high in parsed:
-        steps.setdefault(step, []).append((row, landed, low, high))
+    for sized in parsed:
+        steps.setdefault(sized.step, []).append(sized)
     out = []
     for step, rows in steps.items():
-        left = [r for r in rows if not r[1]]
-        named = (left or rows)[0][0]
-        also = len(left or rows) - 1
-        state = "landed" if not left else "to come" if len(left) == len(rows) else f"{len(rows) - len(left)} of {len(rows)} landed"
-        prs = span(sum(r[2] for r in left), sum(r[3] for r in left)) if left else "—"
-        out.append((step, f"{named} and {also} more" if also else named, state, prs))
-    left = [r for r in parsed if not r[2]]
-    return out, left
+        to_come = [r for r in rows if not r.landed]
+        shown = to_come or rows
+        also = len(shown) - 1
+        state = "landed" if not to_come else "to come" if len(to_come) == len(rows) else f"{len(rows) - len(to_come)} of {len(rows)} landed"
+        named = f"{shown[0].row} and {also} more" if also else shown[0].row
+        out.append((step, named, state, pr_span(to_come) if to_come else "—"))
+    return out, [r for r in parsed if not r.landed]
 
 
 def floors():
@@ -770,11 +792,10 @@ def render():
     L.append("")
     L.append("| Step | Rows | State | PRs left |")
     L.append("|---:|---|---|---:|")
-    steps, left = way_to_v05(sizing()[0])
+    steps, rows_to_come = way_to_v05(sizing()[0])
     for step, row, state, prs in steps:
         L.append(f"| {step} | {row} | {state} | {prs} |")
-    total = span(sum(r[3] for r in left), sum(r[4] for r in left))
-    L.append(f"| | **To v0.5** | **{len(left)} rows to come** | **{total}** |")
+    L.append(f"| | **To v0.5** | **{len(rows_to_come)} rows to come** | **{pr_span(rows_to_come)}** |")
     L.append("")
     L.append(f"**Deck cards registered: {c['deck_cards_registered']} of {c['deck_cards']}**,")
     L.append("the five lists' distinct cards less basics.")

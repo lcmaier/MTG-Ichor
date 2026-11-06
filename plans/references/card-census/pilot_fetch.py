@@ -5,23 +5,18 @@
 Fetched by name, since `e:tdc` misses the 12 list cards printed in `tdm`.
 """
 
-import glob
 import json
-import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
-BASICS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from check_state_of_play import deck_cards  # noqa: E402
 
 
 def main():
-    names = set()
-    for path in glob.glob(str(ROOT / "mtgsim/decks/tdc-*.txt")):
-        names.update(re.findall(r"^\d+ (.+?)\s*$", open(path, encoding="utf-8").read(), re.M))
-    names = sorted(names - BASICS)
+    names = sorted(deck_cards())
     cards = {}
     for start in range(0, len(names), 70):
         ids = [{"name": n.split(" // ")[0]} for n in names[start:start + 70]]
