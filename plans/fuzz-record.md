@@ -100,16 +100,38 @@ applying N copies of Essence of the Wild to one entry should be N applications,
 where each re-gathers N sources (item 382). A survey of 19 boards on 2026-11-05 found
 the rest linear, or quadratic and filed (items 382 to 386).
 
-**The growth gate's reading**, `close_out.py` on `ee0dd98b`, instructions in
-`ladder_step` at 6,400 permanents over 1,600, where linear reads ×4 and the limit
-is ×4.5: counters ×3.94, tokens under a replacement ×3.96, an anthem, death triggers
-and tokens under a "can't" ×3.98, bare creatures and tokens in one event ×3.99,
-tokens as copies ×4.01, and a wipe ×4.82, held to ×5 by name (item 385).
+**The growth gate's reading**, instructions in `ladder_step` at 6,400 permanents
+over 1,600, where linear reads ×4 and the limit is ×4.35: counters ×3.94, tokens
+under a replacement ×3.96, a wipe ×3.97, an anthem, death triggers and tokens under
+a "can't" ×3.98, bare creatures and tokens in one event ×3.99, and tokens as copies
+×4.01.
+
+**Why ×4.35.** A cost of `a·n + b·n²` whose quadratic part is the share q of the
+lower rung reads 4 + 12q, and its quadratic part passes its linear part at
+n = 1,600 × (1 − q) ÷ q. The question the limit answers is how much quadratic cost
+the gate lets through, and the board that sets it is the ladder's top, 51,200: the
+largest board it reads, past any a real table makes. Keeping the quadratic part under the linear
+part all the way there needs q ≤ 1/33, or ×4.36, so ×4.35, where it crosses near
+53,300.
+
+| Limit | Quadratic share at 1,600 | Quadratic passes linear at |
+|---:|---:|---:|
+| ×5 | 8.3% | 17,600 |
+| ×4.5 | 4.2% | 36,800 |
+| **×4.35** | **2.9%** | **53,300** |
+| ×4.1 | 0.8% | 190,400 |
+
+Below the limit, a shape reads ×4.1 only for a term that is no trouble on any board
+the ladder holds, and the healthy shapes sit 0.34 under, where repeated reads differ
+by 0.01%. Above it, ×5 would admit a term that is the larger cost by 17,600 permanents.
+An `n log n` shape reads 4 + 0.75s for a sort of share s, so ×4.35 admits a shape
+under about half sort, and refuses a pure sort at ×4.75: none reads one today.
 
 **It was calibrated against every bug it should catch**, each put back in a copy of
 the crate on 2026-11-06: `next_ready`'s table, counters ×14.83; the "can't" sweep
 ×12.72; subject groups searched, a wipe ×10.38; captures searched, a wipe ×8.29;
-token definitions searched, copies ×6.04; the reached list searched, an anthem ×5.89.
+token definitions searched, copies ×6.04; the reached list searched, an anthem ×5.89;
+a token shifting the graveyard, a wipe ×4.82.
 The look-ahead unshared, indestructible asked of every event and copy names walking
 the board cannot finish a read at all, so each is refused.
 

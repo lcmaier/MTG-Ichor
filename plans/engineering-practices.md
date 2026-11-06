@@ -421,9 +421,9 @@ timing sitting (the budget reads instructions).
 ### The growth gate
 
 - **Each ladder shape says what it should cost, from what the CR requires, before anything is measured** (`fuzz-record.md#the-ladder`); cost past that is a defect until shown otherwise.
-- **`close_out.py` reads each shape's instructions at 1,600 and 6,400 permanents and exits 1 past ×4.5**, where linear reads ×4. A read that cannot finish is refused.
+- **`close_out.py` reads each shape's instructions at 1,600 and 6,400 permanents and exits 1 past ×4.35**, where linear reads ×4 and a quadratic term that passes stays under the linear cost to the ladder's top. A read that cannot finish is refused.
 - **The budget cannot see this** at 40 permanents. It also covers the players' GUI: a person feels the worst wait, and linear cost keeps it a known multiple of the board.
-- **A phase opening an engine path adds a shape**, as it adds a pooled card; an exception is named in `close_out.py` and filed.
+- **A phase opening an engine path adds a shape**, as it adds a pooled card. A shape past the limit is fixed, or the owner moves the limit.
 
 ### The floors
 

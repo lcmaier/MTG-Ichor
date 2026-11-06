@@ -32,10 +32,9 @@ import fuzz_ab  # noqa: E402  (its rows, its stripping and its compare, so the t
 #: the game moving. Every other row is gameplay.
 COST = fuzz_ab.BOLD | {"Windows past gate", "Candidate visits"}
 #: How far a ladder shape's instructions may grow over `growth_arm.sh`'s rungs, 4× apart, where
-#: linear cost reads ×4 and a shape's expected cost is `fuzz-record.md#the-ladder`'s table.
-GROWTH_LIMIT = 4.5
-#: A shape over `GROWTH_LIMIT` for a known and filed reason, with the limit it holds to until then.
-GROWTH_LIMITS = {"a wipe": 5.0}
+#: linear cost reads ×4 and a shape's expected cost is `fuzz-record.md#the-ladder`'s table. Derived
+#: there: a quadratic term that passes stays under the linear cost to the ladder's top.
+GROWTH_LIMIT = 4.35
 #: Commander scale, TR-1b's callgrind board, cut to under a minute an arm.
 CPU_GAMES = 20
 CPU_BOARD = f"--games {CPU_GAMES} --seed 12345 --pool performance --players 4 --deck-size 100 --life 40"
@@ -145,10 +144,9 @@ def growth(label):
     for shape, rungs in sorted(reads.items()):
         low, high = sorted(rungs)
         ratio = rungs[high] / rungs[low]
-        limit = GROWTH_LIMITS.get(shape, GROWTH_LIMIT)
         print(f"| growth, `{shape}`, {low:,} to {high:,} permanents, linear reads ×{high / low:.0f} | | ×{ratio:.2f} "
-              f"{'**over ×' + str(limit) + '**' if ratio > limit else ''} |")
-        if ratio > limit:
+              f"{'**over ×' + str(GROWTH_LIMIT) + '**' if ratio > GROWTH_LIMIT else ''} |")
+        if ratio > GROWTH_LIMIT:
             over.append(shape)
     return over
 
