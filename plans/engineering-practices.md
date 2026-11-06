@@ -285,9 +285,9 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
   `fuzz-record.md`; `performance_pool()` panics on a name no longer registered.
 - **Before a word in a card's text becomes structural, find two more cards in
   the bucket that print it.** Structure is the expensive direction to be wrong in.
-- **A fixture may be invented. It must not wear a real card's name while
-  behaving differently, nor be cited in the corpus or plans as evidence about
-  printed Magic.**
+- **A fixture takes a printed card's words and shape where one has them, its
+  doc naming the card. It must not wear that name while behaving differently,
+  nor be cited in the corpus or plans as evidence about printed Magic.**
 - **The pool measures cost; `--require` measures coverage.** The unforced count
   is not a target. Run `--require` once per phase that adds a card and record
   its resolutions beside its copies per deck, since a count compares only per
