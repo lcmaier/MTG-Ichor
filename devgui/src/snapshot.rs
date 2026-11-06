@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
+use mtgsim::engine::targeting::TargetInstance;
 use mtgsim::events::event::EventId;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
 use mtgsim::scenario::Scenario;
@@ -149,8 +150,15 @@ pub struct StackItem {
     /// cast or activated (CR 601.2, 602.2), which is when most prompts come.
     pub is_spell: Option<bool>,
     pub controller: PlayerId,
-    pub targets: Vec<String>,
+    pub targets: Vec<StackTarget>,
     pub x: Option<u64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StackTarget {
+    pub name: String,
+    /// What CR 601.2d gave it, when its instance of "target" was divided.
+    pub share: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -268,9 +276,22 @@ fn stack_item(game: &GameState, id: ObjectId) -> StackItem {
         is_spell: entry.map(|e| e.is_spell),
         controller: chars.as_ref().map(|c| c.controller).or(entry.map(|e| e.controller)).unwrap_or_default(),
         targets: entry
-            .map(|e| e.chosen_targets.iter().flat_map(|t| t.as_resolved_targets()).map(|t| target_name(game, &t)).collect())
+            .map(|e| e.chosen_targets.iter().flat_map(|instance| stack_targets(game, instance)).collect())
             .unwrap_or_default(),
         x: entry.and_then(|e| e.x_value),
+    }
+}
+
+fn stack_targets(game: &GameState, instance: &TargetInstance) -> Vec<StackTarget> {
+    match instance.division() {
+        Some(shares) => shares
+            .iter()
+            .map(|(target, share)| StackTarget { name: target_name(game, &target.id()), share: Some(*share) })
+            .collect(),
+        None => instance
+            .as_resolved_targets()
+            .map(|target| StackTarget { name: target_name(game, &target), share: None })
+            .collect(),
     }
 }
 

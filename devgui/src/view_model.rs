@@ -16,7 +16,7 @@ use mtgsim::events::event::EventId;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::display::delayed_trigger_in_log;
+use mtgsim::ui::display::{delayed_trigger_in_log, target_with_share};
 use mtgsim::ui::waiting::{TriggersIn, Waiting};
 use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
 
@@ -24,7 +24,7 @@ use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
 use crate::save::{Destination, Tools};
-use crate::snapshot::{CardView, LogLine, PermanentView, PlayerView, Snapshot};
+use crate::snapshot::{CardView, LogLine, PermanentView, PlayerView, Snapshot, StackTarget};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
 
 /// What the window shows: the game, or the board editor beside it
@@ -1029,7 +1029,8 @@ impl BoardView {
                     };
                     let mut detail = vec![format!("Player {}'s", item.controller)];
                     if !item.targets.is_empty() {
-                        detail.push(format!("targets {}", item.targets.join(", ")));
+                        let targets: Vec<String> = item.targets.iter().map(target_words).collect();
+                        detail.push(format!("targets {}", targets.join(", ")));
                     }
                     if let Some(x) = item.x {
                         detail.push(format!("X = {x}"));
@@ -1050,6 +1051,10 @@ impl BoardView {
             waiting: waiting_zone(&board.waiting),
         }
     }
+}
+
+fn target_words(target: &StackTarget) -> String {
+    target.share.map_or_else(|| target.name.clone(), |share| target_with_share(&target.name, share))
 }
 
 /// A line on the board that names nothing a click could choose.
@@ -1698,6 +1703,20 @@ mod tests {
     fn at_priority(b: &Board) -> WindowState {
         let options = vec![option("Pass", Vec::new()), option("Cast Lightning Bolt", vec![Object(b.bolt)])];
         deciding(b, Prompt { pass: Some(0), ..prompt(Primitive::PickN { min: 1, max: 1 }, options) })
+    }
+
+    /// Two instances of "target", one divided: only the division's targets
+    /// read with a share.
+    #[test]
+    fn a_stack_row_reads_each_share_beside_its_target() {
+        let b = board();
+        let mut state = at_priority(&b);
+        let target = |name: &str, share| StackTarget { name: name.to_string(), share };
+        let targets = vec![target("Grizzly Bears (#12)", Some(2)), target("Player 1", Some(1)), target("Forest (#3)", None)];
+        let spell = StackItem { id: b.bolt, name: "Magma Opus".to_string(), is_spell: Some(true), controller: 0, targets, x: None };
+        state.board.as_mut().unwrap().stack.push(spell);
+        let view = state.board_view().unwrap();
+        assert_eq!(view.stack[0].detail, "Player 0's · targets Grizzly Bears (#12) for 2, Player 1 for 1, Forest (#3)");
     }
 
     /// A yield answers the priority prompt it is set at; the one that waits
