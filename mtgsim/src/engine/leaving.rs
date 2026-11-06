@@ -89,20 +89,8 @@ impl GameState {
                 leaving.push((id, Zone::Battlefield));
             }
         }
-        for (zone, ids) in [
-            (Zone::Stack, self.stack.iter().copied().collect()),
-            (Zone::Exile, self.exile.clone()),
-            (Zone::Command, self.command.clone()),
-        ] {
-            leaving.extend(ids.into_iter().filter(|id| owned(self, id)).map(|id| (id, zone)));
-        }
-        let p = self.get_player(player)?;
-        for (zone, ids) in [
-            (Zone::Graveyard, p.graveyard.clone()),
-            (Zone::Hand, p.hand.clone()),
-            (Zone::Library, p.library.clone()),
-        ] {
-            leaving.extend(ids.into_iter().map(|id| (id, zone)));
+        for zone in [Zone::Stack, Zone::Exile, Zone::Command, Zone::Graveyard, Zone::Hand, Zone::Library] {
+            leaving.extend(self.zone_ids_ordered(zone).into_iter().filter(|id| owned(self, id)).map(|id| (id, zone)));
         }
 
         for (id, from) in leaving {

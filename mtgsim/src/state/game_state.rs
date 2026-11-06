@@ -19,7 +19,7 @@ use crate::state::player::PlayerState;
 use crate::types::effects::{CounterType, Effect};
 use crate::types::mana::ManaSpent;
 use crate::types::ids::{
-    AbilityId, ExtraTurnId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
+    AbilityId, ExtraTurnId, IdCollection, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, EntersAttackingCandidates, ReplacementDef};
@@ -677,7 +677,7 @@ pub struct GameState {
     /// `GameState` because the entry that announces the creation is a member
     /// of a batch `create_tokens` proposes, which carries no definition.
     /// Saved and restored by `create_tokens` for a nested creation.
-    pub(crate) tokens_being_created: Vec<(ObjectId, Arc<crate::types::effects::TokenDef>)>,
+    pub(crate) tokens_being_created: IdMap<ObjectId, Arc<crate::types::effects::TokenDef>>,
 
     /// CR 120.10's lethal damage, for the batch being performed: each
     /// creature or planeswalker its decided damage is dealt to, and how much
@@ -728,6 +728,13 @@ pub struct GameState {
     /// every grant of priority, so a fork there copies nothing for it
     /// (`clone-architecture.md` decision 5).
     pub(crate) arrivals_since_last_sba_check: Vec<ObjectRef>,
+
+    /// Every token off the battlefield, which only this finds: a zone's lists
+    /// hold cards and a token isn't one (CR 108.2b), so a token's own `zone`
+    /// says where it is. Nothing is taken out as a token ends, since CR 704.5d
+    /// ends them all at once and each search would pay for the rest; a check
+    /// drops what has gone. Empty at every grant of priority, like the arrivals.
+    pub(crate) tokens_off_the_battlefield: Vec<ObjectRef>,
 
     /// The tick as of the start of the previous check: the window the debug
     /// walk asserts `arrivals_since_last_sba_check` against.
@@ -810,7 +817,7 @@ pub struct GameState {
     /// take off the battlefield, taken before each batch performs so no
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
     /// each batch drops the rest once it has performed.
-    pub(crate) lki_captures: Vec<crate::engine::triggers::LkiCapture>,
+    pub(crate) lki_captures: crate::engine::triggers::LkiCaptures,
     /// The LKI store: how each existence that has ended last existed, written
     /// by the move that ends it and kept for the game (CR 113.7a, 608.2h;
     /// `engine::last_known`).
@@ -1039,12 +1046,12 @@ impl GameState {
         }
 
         GameState {
-            objects: ObjectTable::default(),
+            objects: ObjectTable::new(),
             players,
-            stack: SharedList::default(),
-            stack_entries: ObjectTable::default(),
+            stack: SharedList::new(),
+            stack_entries: ObjectTable::new(),
             resolving: None,
-            battlefield: ObjectTable::default(),
+            battlefield: ObjectTable::new(),
             diagnostics: Diagnostics::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),
@@ -1068,8 +1075,8 @@ impl GameState {
             turn_rotation: 0,
             combat_had_attackers: false,
             blockers_declared: false,
-            blocker_damage_divisions: IdMap::default(),
-            dealt_first_strike_damage: IdSet::default(),
+            blocker_damage_divisions: IdMap::new(),
+            dealt_first_strike_damage: IdSet::new(),
             next_timestamp: 0,
             next_object_id: 1,
             player_lost: vec![false; num_players],
@@ -1078,38 +1085,39 @@ impl GameState {
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
-            replacement_ability_sources: IdMap::default(),
-            replacement_counter_holders: IdSet::default(),
-            off_battlefield_replacement_ability_sources: IdMap::default(),
+            replacement_ability_sources: IdMap::new(),
+            replacement_counter_holders: IdSet::new(),
+            off_battlefield_replacement_ability_sources: IdMap::new(),
             restrictions: RestrictionRegistry::new(),
-            restriction_ability_sources: IdSet::default(),
-            cost_modification_ability_sources: IdSet::default(),
-            trigger_multiplier_sources: IdSet::default(),
+            restriction_ability_sources: IdSet::new(),
+            cost_modification_ability_sources: IdSet::new(),
+            trigger_multiplier_sources: IdSet::new(),
             entry_selection: EntrySelectionScope::default(),
             nesting: NestingGuards::default(),
             rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
-            tokens_being_created: Vec::new(),
+            tokens_being_created: IdMap::new(),
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
             arrivals_since_last_sba_check: Vec::new(),
+            tokens_off_the_battlefield: Vec::new(),
             #[cfg(debug_assertions)]
             last_sba_check_epoch: 1,
-            pending_triggers: SharedList::default(),
+            pending_triggers: SharedList::new(),
             next_trigger_id: 0,
             delayed_triggers: Vec::new(),
             until_returns: Vec::new(),
             next_delayed_trigger_id: 1,
             next_until_return_id: 1,
             history,
-            trigger_sources: IdMap::default(),
-            off_battlefield_trigger_sources: IdMap::default(),
-            newcomer_trigger_sources: IdSet::default(),
+            trigger_sources: IdMap::new(),
+            off_battlefield_trigger_sources: IdMap::new(),
+            newcomer_trigger_sources: IdSet::new(),
             look_back_snapshots: Vec::new(),
             control_effects_at_last_sweep: false,
             settled_layer_epoch: u64::MAX,
-            lki_captures: Vec::new(),
-            lki_store: crate::engine::last_known::LkiStore::default(),
+            lki_captures: crate::engine::triggers::LkiCaptures::new(),
+            lki_store: crate::engine::last_known::LkiStore::new(),
             dispatch_audit: None,
             events: EventWindow::new(),
             trace: None,
@@ -1438,10 +1446,12 @@ impl GameState {
     /// `Zone::Battlefield` answers `battlefield_ids_ordered` — CR 613.7
     /// timestamp order — so a caller sweeping a `ZoneSet` that happens to
     /// include it still gets the one order counts agree with.
+    ///
+    /// Every object in the zone, so a token there comes after its cards.
     pub fn zone_ids_ordered(&self, zone: Zone) -> Vec<ObjectId> {
-        match zone {
-            Zone::Battlefield => self.battlefield_ids_ordered(),
-            Zone::Stack => self.stack.iter().copied().collect(),
+        let mut ids = match zone {
+            Zone::Battlefield => return self.battlefield_ids_ordered(),
+            Zone::Stack => return self.stack.iter().copied().collect(),
             Zone::Exile => self.exile.clone(),
             Zone::Command => self.command.clone(),
             Zone::Library | Zone::Hand | Zone::Graveyard => {
@@ -1455,7 +1465,11 @@ impl GameState {
                 }
                 ids
             }
-        }
+        };
+        ids.extend(self.tokens_off_the_battlefield.iter().filter(|&&token| {
+            self.find(token).is_some_and(|object| object.zone == zone)
+        }).map(|token| token.id));
+        ids
     }
 
     /// Allocate and return the next timestamp value.

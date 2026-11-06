@@ -195,6 +195,7 @@ impl GameState {
         // commander created in a zone was not put into it (CR 704.6d).
         if is_token {
             self.arrivals_since_last_sba_check.push(ObjectRef { id, zone_change_epoch });
+            self.tokens_off_the_battlefield.push(ObjectRef { id, zone_change_epoch });
         }
         Ok(id)
     }
@@ -264,10 +265,14 @@ impl GameState {
         let obj = self.get_object_mut(id)?;
         obj.zone = zone;
         obj.zone_change_epoch = epoch;
-        let state_based_check_reads = (obj.is_token && zone != Zone::Battlefield)
-            || (obj.is_commander && matches!(zone, Zone::Graveyard | Zone::Exile));
+        let token_off_the_battlefield = obj.is_token && zone != Zone::Battlefield;
+        let state_based_check_reads =
+            token_off_the_battlefield || (obj.is_commander && matches!(zone, Zone::Graveyard | Zone::Exile));
         if state_based_check_reads {
             self.arrivals_since_last_sba_check.push(ObjectRef { id, zone_change_epoch: epoch });
+        }
+        if token_off_the_battlefield {
+            self.tokens_off_the_battlefield.push(ObjectRef { id, zone_change_epoch: epoch });
         }
         self.set_object_timestamp(id, timestamp);
         self.register_off_the_battlefield(id, zone)?;
@@ -366,8 +371,18 @@ impl GameState {
 
     // --- Internal helpers ---
 
+    /// CR 108.2b: a library, hand, graveyard, exile and command zone list cards,
+    /// and what they count, draw and choose from is cards. A token there is found
+    /// by `tokens_off_the_battlefield`.
+    fn is_kept_off_the_card_lists(&self, id: ObjectId, zone: Zone) -> bool {
+        !matches!(zone, Zone::Battlefield | Zone::Stack) && self.objects.get(&id).is_some_and(|object| object.is_token)
+    }
+
     /// Remove an object ID from the zone's collection
     pub(crate) fn remove_from_zone_collection(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
+        if self.is_kept_off_the_card_lists(id, zone) {
+            return Ok(());
+        }
         match zone {
             Zone::Library => {
                 let owner = self.get_object(id)?.owner;
@@ -438,6 +453,9 @@ impl GameState {
     /// to their *owner's* zone, regardless of who controlled them. This is why
     /// we use `obj.owner` here, not the controller from `PermanentState`.
     fn add_to_zone_collection(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
+        if self.is_kept_off_the_card_lists(id, zone) {
+            return Ok(());
+        }
         let owner = self.get_object(id)?.owner;
 
         match zone {

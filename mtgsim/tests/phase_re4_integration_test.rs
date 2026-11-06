@@ -558,7 +558,7 @@ fn hallowed_moonlight_creates_the_token_in_exile_and_it_ceases_to_exist() {
     for (id, zone) in &created {
         assert_eq!(*zone, Zone::Exile, "created in exile, from nowhere");
         assert_eq!(game.get_object(*id).unwrap().zone, Zone::Exile);
-        assert!(game.exile.contains(id));
+        assert!(game.zone_ids_ordered(Zone::Exile).contains(id));
         assert!(!game.battlefield.contains_key(id));
         assert!(
             moves_of(&game, start, *id).is_empty(),
@@ -572,7 +572,7 @@ fn hallowed_moonlight_creates_the_token_in_exile_and_it_ceases_to_exist() {
     let gone = ceased(&game, start);
     assert_eq!(gone.len(), 2);
     assert_eq!(gone, created.iter().map(|(id, _)| *id).collect::<Vec<_>>());
-    assert!(game.exile.is_empty());
+    assert!(game.zone_ids_ordered(Zone::Exile).is_empty());
     assert_eq!(
         game.objects.len(),
         objects_before + 1,

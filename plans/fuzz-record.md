@@ -47,11 +47,117 @@ room; the two tables must name the same floors.
 <!-- floor readings: begin -->
 | Floor | Reading | Read on | Where |
 |---|---|---|---|
-| 1. Decisions per loaded physical core-second | 11970 | 2026-11-05 | #310's tree (`3d4236c4`), median of three 16-thread runs, main's 14,428 in the same sitting: a declaration bounded by its creatures sends fewer attackers, so games run 89 turns against 67 on bigger boards. The reading before, 15,180 on 2026-10-30: the tree items 352 and 356 left (`7a2c8ae5`, PR #300) on `performance` at Commander scale, 200 games, counted by `fuzz_games --census` (437 a game reach the agent): 17,410 a core-second on one thread by the wall (18,320 by CPU a game) times 6.97, the 16-thread speed-up, over 8 physical cores, the median of five rounds on an idle machine. #299's merge read 13,330 in the same sitting, and its recorded 11,900 was taken with MTG Arena holding 1.5 cores. The token board at 50 a seat reads 7,840 (`codebase-state.md` item 354) |
+| 1. Decisions per loaded physical core-second | 12465 | 2026-11-06 | `board-scale`'s tree, `fuzz_games --census --threads 16` at Commander scale on `performance`, 1,000 games of 574 decisions at the agent: decisions ÷ the wall ÷ 8 physical cores, the median of five runs reading 12,128–12,596 on a rested machine. A coarse check of adequacy, its limit's assumptions spanning 2,800–16,100 (`engineering-practices.md#the-floors`) |
 | 2. Allocations per clone | 39 | 2026-10-29 | the same tree: `clone_bound_test` in release at 192 checkpoints and all 10,675 decisions over 24 Commander games, the worst `stress` 777's mana window at turn 41; `clone_fixture_test`'s boards at most 14, the token board at most 33 |
 | 2. Microseconds per clone | 5.6 | 2026-10-29 | the median of five means of 2,000 clone-and-drops, the worst of three runs: `clone_fixture_test`'s 8,000 stacked triggers (4.4–5.6). The 192 checkpoints read at most 1.83, the 20 decisions heaviest by bytes 1.97 (`clone-architecture.md` decision 6(d)), the token board 2.00. Read by a probe under the System allocator; the clone tests' ignored tests read the same within that spread |
 | 3. Kilobytes per clone | 8.7 | 2026-10-29 | the same readings, the worst `clone_fixture_test`'s 8,000 stacked triggers; at most 6.6 at a decision and 6.1 on the token board |
 <!-- floor readings: end -->
+
+### The ladder
+
+The ratchet's fixed boards, which no limit reads. Microseconds a step on one
+thread, `fuzz_games --ladder --threads 1`, the median of three runs on
+`board-scale`'s tree (2026-11-06). `ns/permanent` is
+about flat to 1,600 permanents and about triples by 51,200, which is the board
+leaving the cache: instructions over the same rungs read ×4, as the growth gate
+shows. A token row is every seat's creation in one event each, and a wipe the
+whole board's, so each is the cost of the rung.
+
+| Permanents | Bare creatures | An anthem | Counters | Death triggers | A wipe | Tokens in one event | Tokens, a replacement | Tokens, a "can't" | Tokens, as copies |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 37.5 | 42.1 | 39.9 | 71.0 | 140 | 270 | 1,040 | 330 | 480 |
+| 200 | 71.0 | 86.1 | 79.7 | 130 | 270 | 510 | 1,940 | 610 | 970 |
+| 400 | 140 | 170 | 160 | 250 | 550 | 990 | 3,820 | 1,170 | 1,940 |
+| 800 | 280 | 330 | 330 | 490 | 1,110 | 1,970 | 7,690 | 2,290 | 3,670 |
+| 1,600 | 560 | 680 | 680 | 1,000 | 2,780 | 4,090 | 16,000 | 4,730 | 7,980 |
+| 3,200 | 1,730 | 2,160 | 2,290 | 3,240 | 6,700 | 10,400 | 39,000 | 12,400 | 17,800 |
+| 6,400 | 5,170 | 5,770 | 6,060 | 8,780 | 15,800 | 24,600 | 95,300 | 32,000 | 39,300 |
+| 12,800 | 11,600 | 14,000 | 15,900 | 21,900 | 35,400 | 62,500 | 210,000 | 78,000 | 78,100 |
+| 25,600 | 25,600 | 32,000 | 36,400 | 49,200 | 78,700 | 140,000 | 450,000 | 180,000 | 160,000 |
+| 51,200 | 55,100 | 69,600 | 81,600 | 110,000 | 180,000 | 300,000 | 1,000,000 | 390,000 | 360,000 |
+
+**What each shape should cost, and why it is here.** A shape earns a row when it
+reads a path no other row reads and its cost could outgrow the board. The class
+comes first, from what the CR requires; the growth gate
+(`engineering-practices.md#the-growth-gate`) holds the reading to it. P is the
+permanents on the board, N the tokens or departures in the event.
+
+| Shape | Should cost | Why, and the path it reads |
+|---|---|---|
+| Bare creatures | P a step | the state-based check and the action list read the board, and a change costs a pass |
+| An anthem | P a step, for each row | a row touches each member it reaches |
+| Counters | P a step | a counter is an application on one permanent, reading nothing |
+| Death triggers | P a decision | the dispatch, the stack, then the check and the lists at each resolution |
+| A wipe | N | a batch of departures, each its own work |
+| Tokens in one event | N | a batch of arrivals, equal tokens asking once |
+| Tokens, a replacement | N | each entry rewritten, and read once a run and proposal |
+| Tokens, a "can't" | N | an event asks the sources, not the board |
+| Tokens, as copies | N | each a copy, named by what it entered as |
+
+Off the ladder: N triggers resolving are N × P, N resolutions each paying a check
+and action lists, five times over today (`codebase-state.md` item 386), and
+applying N copies of Essence of the Wild to one entry should be N applications,
+where each re-gathers N sources (item 382). A survey of 19 boards on 2026-11-05 found
+the rest linear, or quadratic and filed (items 382 to 386).
+
+**The growth gate's reading**, instructions in `ladder_step` at 6,400 permanents
+over 1,600, where linear reads ×4 and the limit is ×4.35: counters ×3.94, tokens
+under a replacement ×3.96, a wipe ×3.97, an anthem, death triggers and tokens under
+a "can't" ×3.98, bare creatures and tokens in one event ×3.99, and tokens as copies
+×4.01.
+
+**Why ×4.35.** A cost of `a·n + b·n²` whose quadratic part is the share q of the
+lower rung reads 4 + 12q, and its quadratic part passes its linear part at
+n = 1,600 × (1 − q) ÷ q. The question the limit answers is how much quadratic cost
+the gate lets through, and the board that sets it is the ladder's top, 51,200: the
+largest board it reads, past any a real table makes. Keeping the quadratic part under the linear
+part all the way there needs q ≤ 1/33, or ×4.36, so ×4.35, where it crosses near
+53,300.
+
+| Limit | Quadratic share at 1,600 | Quadratic passes linear at |
+|---:|---:|---:|
+| ×5 | 8.3% | 17,600 |
+| ×4.5 | 4.2% | 36,800 |
+| **×4.35** | **2.9%** | **53,300** |
+| ×4.1 | 0.8% | 190,400 |
+
+Below the limit, a shape reads ×4.1 only for a term that is no trouble on any board
+the ladder holds, and the healthy shapes sit 0.34 under, where repeated reads differ
+by 0.01%. Above it, ×5 would admit a term that is the larger cost by 17,600 permanents.
+An `n log n` shape reads 4 + 0.75s for a sort of share s, so ×4.35 admits a shape
+under about half sort, and refuses a pure sort at ×4.75: none reads one today.
+
+**It was calibrated against every bug it should catch**, each put back in a copy of
+the crate on 2026-11-06: `next_ready`'s table, counters ×14.83; the "can't" sweep
+×12.72; subject groups searched, a wipe ×10.38; captures searched, a wipe ×8.29;
+token definitions searched, copies ×6.04; the reached list searched, an anthem ×5.89;
+a token shifting the graveyard, a wipe ×4.82.
+The look-ahead unshared, indestructible asked of every event and copy names walking
+the board cannot finish a read at all, so each is refused.
+
+**Real decisions, by the rows their seat sees**, a diagnostic, and what a ladder
+step leaves out. `fuzz_games --census` at Commander scale on `performance`, 1,000
+games. A row is a permanent, a card in another public zone, a card in the deciding
+seat's hand or a player. Loaded is the band's 16-thread rate over 8 physical cores.
+
+| Band, rows | Decisions a game | µs a decision, one thread | Loaded |
+|---:|---:|---:|---:|
+| 32 | 117.5 | 38.9 | 25,280 |
+| 64 | 228.4 | 65.7 | 15,102 |
+| 96 | 164.7 | 90.2 | 11,065 |
+| 128 | 42.1 | 119.3 | 8,400 |
+| 160 | 10.4 | 166.8 | 5,810 |
+| 192 | 2.9 | 282.4 | 3,429 |
+
+Band 128 is about 60–79 permanents, since graveyards and hands count too. A real
+decision is about 2 µs a permanent where a ladder step is 0.4 to 0.7: a game's
+decision also pays the priority passes, the steps and the casting between
+prompts, and a ladder board holds no hand and no mana.
+
+Each ladder step moves the layer epoch, so it pays a pass over the board. The
+throwaway probe of `codebase-state.md` item 377 read a tap, which moves none:
+rebuilt on this tree it reads 7.5, 103, 451 and 9,312 µs at 100, 1,600, 6,400
+and 51,200 permanents, beside the item's 8, 107, 592 and 11,900.
 
 ### The floors' standing history
 
@@ -60,7 +166,7 @@ what moved it; a new reading is added to its row.
 
 | Floor | Standing |
 |---|---|
-| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block). **Read at item 6's close by the census** (2026-10-29): 11,900 loaded and 14,070 on one thread, counting only what reaches the agent; by `ui::ask`'s count 15,450 on one thread against #225's tree's 17,100 in the same sitting, 7 points of it item 352's regrowth. **Fails on the token board from 50 tokens a seat**: 5,700 loaded at 50 and 2,000 at 100 (`codebase-state.md` item 354). **Re-read after items 352 and 356** (2026-10-30, an idle machine): 15,180 loaded and 18,320 on one thread by CPU, against #299's merge's 13,330 in the same sitting; the token board at 50 a seat 7,840, from 7,030, still failing. **Moved by the bot, not the engine** (#310, 2026-11-05): 11,970 against main's 14,428, instructions per decision unmoved at two seats where the games match. Four-seat games are longer, since the agent's attack count now reads the creatures and not the pairs |
+| 1. ≥ 10,000 decisions per loaded physical core-second, Commander scale | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware. **Holds on a board with a row reaching the hidden zones since LL** (2026-09-25): 14,290–15,756 / 18,092–18,922 (`performance` / `stress`) on one thread with the card out on an idle machine, from 4,600–6,800; 11,907–15,435 in the close-out's sitting, which ran straight after four minutes of builds (`codebase-state.md` item 181, closed; `fuzz-record.md`, LL's block). **Read at item 6's close by the census** (2026-10-29): 11,900 loaded and 14,070 on one thread, counting only what reaches the agent; by `ui::ask`'s count 15,450 on one thread against #225's tree's 17,100 in the same sitting, 7 points of it item 352's regrowth. **Fails on the token board from 50 tokens a seat**: 5,700 loaded at 50 and 2,000 at 100 (`codebase-state.md` item 354). **Re-read after items 352 and 356** (2026-10-30, an idle machine): 15,180 loaded and 18,320 on one thread by CPU, against #299's merge's 13,330 in the same sitting; the token board at 50 a seat 7,840, from 7,030, still failing. **Moved by the bot, not the engine** (#310, 2026-11-05): 11,970 against main's 14,428, instructions per decision unmoved at two seats where the games match. Four-seat games are longer, since the agent's attack count now reads the creatures and not the pairs. **A coarse check from here** (`board-scale`, 2026-11-06), since a counting change, a dropped prompt and #310's bound had each moved it with the engine unchanged: 12,465, with regressions now the budget's and the growth gate's. Read on 128-row decisions it is 8,400, which is no failure of the limit: scaling the limit by rows rests on an assumption nothing measures |
 | 2. Full-state clone ≤ 10 µs | **Holds** (item 180's fix, 2026-09-25): ≤ 40 allocations over the clone test's 24 games, ≤ 39 since item 183's half fix, `stress` seeds and the budget's own board, worst at `performance` 12358's turn 50. `performance` 12350 read 68 at turn 100 while every fork copied the registry rows' payloads, and reads 34 with them shared (`codebase-state.md` item 180). Time, from the bounded-state PR on the `stress` seeds: ≤ 8.5 µs over three sittings of five Commander games, against up to 1,479 allocations and 136 µs with the log. Since LL a row reaching the hidden zones reads 7.7–9.3 µs at its worst, against 7.1–7.3 without one (item 181, closed). A clone that rebuilds a spiked map (item 183) reads 7.8 µs at its worst on an idle machine, 6.8 before it. A clone taken during a deep stack is back-stopped before Phase 8 (item 183, `roadmap-v2.md` B10). **Read mid-turn at B10's design** (2026-10-21, `clone-architecture.md` §2): 78 allocations at a 22-trigger ordering, 3 of the clone test's 10,253 decisions over 64, none read by the test; 32,014 allocations and 8.2 ms on an 8,000-trigger wipe. **Shared since CL-1** (2026-10-21): at most 37 allocations over those 10,253 decisions and 34 between turns, 14 on the 8,000-trigger stack. **Read at item 6's close** (2026-10-29), every decision by the engine's predicates: at most 39 allocations over 10,675 decisions and 36 between turns; 1.70–1.83 µs at the worst checkpoint, 1.87–1.97 at the 20 heaviest decisions, 4.4–5.6 on the 8,000-trigger stack; the token board at most 33 and 2.0 µs |
 | 3. ≤ 128 KB per state | **Holds** (the same PR): ≤ 107.1 KB at the end of a 168-turn game, the history bounded by the table; ≤ 112.4 KB with a row reaching the hidden zones (item 181). Breached on one fixture board by item 182, `stress` 12351 under Teferi's clause at 150.4 KB after a stack 29 deep, since a clone copied the maps' high-water capacity. **Holds again since that half of item 183 was fixed** (2026-09-26): ≤ 90.7 KB over the clone test's 210 readings, that game at 73.2. A clone during a deep stack is B10's: 10 MB on an 8,000-trigger wipe, 125 KB at 200 permanents, and 101 KB with no objects left after 2,000 tokens came and went, the layer memo's frames (`clone-architecture.md` §2.4, §2.5). **Since CL-1** (2026-10-21): at most 6.7 KB at every decision and 6.0 between turns, 8.7 KB on the 8,000-trigger stack, 1.5 KB after 4,000 tokens came and went, the memo bounded by the store. **Read at item 6's close** (2026-10-29): at most 6.6 KB at a decision and 6.2 between turns, 8.7 on the 8,000-trigger stack, 2.6 after the 4,000 tokens, 6.1 on the token board at up to 400 Goblins |
 
@@ -95,6 +201,74 @@ one means the engine's cost model moved
   got longer".
 
 ## The records, newest first
+
+**Re-recorded 2026-11-05 for `board-scale`, what a board can hold**
+(`engine/board-scale`, PR #313: items 376, 377 and 378). No pool changed. One
+`close_out.py` sitting against **main** `20b3ceb2`: **engine** `35deb5ec`, the
+last code commit, after the review rounds that brought in item 380, the fixes
+the ladder's survey found, the growth gate, which passed, and tokens leaving the
+lists of cards.
+
+**Predictions, before any arm ran**:
+- both pools, two seats and four: every gameplay row identical;
+- cost rows only down or sideways, `Memo hits` the largest move, and
+  `Replacement gathers` and `Restriction queries` identical;
+- instructions per decision: down a point or two, and no function's share up by
+  half a point;
+- for the token change, before its own arm: every gameplay row still identical,
+  since a pooled token off the battlefield is gone at the next check and no pooled
+  card prompts or counts first; instructions within 0.2%; a wipe under ×4.05. All held.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 178,133 / 173,623 | 411,795 / 436,528 |
+| errors, panics, turn limits, performance / stress | 0 / 0 | 0 / 0 |
+| `Layer walks`, main → engine, performance / stress | 386 → 336 / 408 → 360 | 944 → 832 / 1,163 → 1,045 |
+| `Board walks`, main → engine, performance / stress | 217 → 213 / 222 → 220 | 529 → 519 / 598 → 590 |
+| `Memo hits`, main → engine, performance / stress | 52,460 → 51,402 / 58,622 → 57,534 | 228,845 → 221,246 / 261,232 → 250,169 |
+| `Layer frames`, main → engine, performance / stress | 4,046 → 3,911 / 4,393 → 4,293 | 18,499 → 18,022 / 21,023 → 20,566 |
+| `Dependency checks`, main → engine, performance / stress | 16 → 16 / 16 → 16 | 142 → 139 / 106 → 105 |
+| instructions / decision, callgrind, 20 games at seed 12345, performance | | 0.8767 M → 0.8393 M, **-4.27%** |
+
+**The prediction about `Memo hits` was wrong in size.** It fell 3.3%, most of that
+item 380's sweep, and `Layer walks` 12%. Most of the walks that went were
+one-object walks: an event's object off the battlefield was asked about
+indestructible too, and a walk of a card in a hidden zone is no memo hit.
+`Frames/walk` rises for the same reason. `Dependency checks` falls with the passes
+the same memo no longer needs.
+
+**The function rows are renames**: `compute_as_entering` to `walk_as_entering`
+and `shared_entering_frame`, `perform` to `perform_telling_reached`, the frame's
+`OnceCell` to its `Arc`'s.
+
+**Floor 1** stays on whole games as a coarse check at the owner's decision, 12,465
+loaded, and fixed boards are the ratchet's, in `#the-latest-floor-readings`. The
+token change did not move it: five interleaved runs against an earlier build of the
+branch read 5.21–5.60 s and 5.18–5.82 s, where a run straight after the close-out
+read 4.96 s, which is the machine.
+**The token board** on one thread, the same games
+on both arms (`codebase-state.md` item 354):
+
+| Tokens a seat | main, µs a decision | engine | Turns |
+|---:|---:|---:|---:|
+| 0 | 64.3 | 63.7 | 88.7 |
+| 50 | 73.9 | 58.0 | 72.9 |
+| 100 | 123.3 | 57.5 | 57.5 |
+
+**Reaching past the item's list**: an anthem's board stayed quadratic with all
+three of the item's questions gone, 204,800 tokens in 7.3 s against 1.3 s bare,
+and two batch searches showed at the top of the ladder. All three went, and four
+seats' events now read, bare and under an anthem: 1,600 a seat 0.03 s and 0.04 s,
+51,200 a seat 1.3 s and 1.6 s. The review's question about a mass replacement
+found two more, neither a walk the counters could show: a board of N creatures
+with counters paid an N by N table per application in `next_ready`, so 6,400
+tokens under Master Biomancer took 43 s and now take 0.11 s; and each copy
+entering paid a hidden pass for its record's name, which took one Essence of the
+Wild's event to 5 µs a token. The growth gate's first reading then found the wipe's
+captures, ×8.36 to ×4.82, which took 51,200 permanents from 803 ms to 191 ms. Tokens
+leaving the lists of cards then took it to ×3.97 and 180 ms. What is left is items
+381 to 384, 386 to 388.
 
 **Re-recorded 2026-11-05 for the hunt's small fixes** (`rules/hunt-small-fixes`,
 PR #310: items 366 to 371). No pool changed. One `close_out.py` sitting against

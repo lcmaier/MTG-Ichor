@@ -10133,7 +10133,7 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      **Slotted:** Phase 10, profile-driven performance, beside item 138's
      levers.
 
-354. **Floor 1 fails on a board of many tokens.** `fuzz_games --tokens N`
+354. **A decision's cost grows with the board.** `fuzz_games --tokens N`
      gives each seat N 1/1 Goblins before the first turn. On `performance` at
      Commander scale, 200 games, one thread, a decision reaching the agent
      costs 73 µs with no tokens, 72 at 25 a seat, **141 at 50** and **364 at
@@ -10169,6 +10169,12 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      the floor; the two parts left are the ones this entry sizes.
      **Read 2026-11-05:** these readings hold bulk token creation, which item
      378 removes, so `board-scale` re-reads them before this entry's design.
+     **Re-read 2026-11-05 on `board-scale`'s tree:** on one thread, 58.0 µs a
+     decision at 50 a seat and 57.5 at 100, against 63.7 with no tokens, and
+     main's 73.9 and 123.3 in the same sitting over the same games. So most of
+     what this entry read past a few dozen a seat was making the tokens. These
+     are bot games, shorter as the tokens grow (89 turns, 73 and 58), so they say
+     what a game costs; what a decision costs by board size is floor 1's ladder.
      **Slotted:** Phase 10, profile-driven performance, with item 138's
      levers re-ranked on both boards (2026-10-29).
 
@@ -10440,56 +10446,119 @@ slips are the planned card phases', not items.
 
 ### Found at #310's review (2026-11-05)
 
-376. **`::default()` says too little at a call site.** `IdSet::default()` names
-     the type and not what it holds, and the owner finds it too generic to read:
-     a collection says `empty()`. `IdSet` and `IdMap` are aliases of std's types
-     and their hasher reads a seed at run time, so a small trait carries the name,
-     and no constant can. Rule 9 (`engineering-practices.md#names`) takes the new
-     spelling as its example.
+376. **`::default()` says too little at a call site.** — ✅ closed.
+     A collection says `new()`, at review, since a call reads as a verb: 52 calls
+     over seven collections, the id aliases through `IdCollection`, and rule 9
+     takes the spelling as its example.
+     **Reachability (2026-11-05):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 376".
 
-     **Reachability (2026-11-05):** reachable — not wrong: a name, and no game moves.
-     **Sized:** ~20 lines of code, then a counted sweep: 29 id-collection calls in
-     the engine and the dev GUI, and each other engine collection whose blank
-     value means empty, counted at the build.
-     **Slotted:** `board-scale`, its last commit, since it moves no game.
+377. **Floor 1 reads the bot's games, so it moves when the bot does.** — ✅ closed.
+     `fuzz_games --ladder` reads fixed boards from 100 to 51,200 permanents at
+     four seats for the ratchet and the growth gate, and Floor 1 stays on whole
+     games as a coarse check of adequacy.
+     **Reachability (2026-11-05):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 377".
 
-377. **Floor 1 reads the bot's games, so it moves when the bot does.** A counting
-     change, a dropped prompt and a bound on attacks each moved it with the
-     engine unchanged, and the budget is what catches slow code. What is left of
-     its point is what a decision costs on a board of a given size, so it moves
-     to a ladder of fixed boards: about 100 to 50,000 permanents, doubling, at
-     four seats, setup off the clock, on four shapes: bare creatures, an anthem,
-     death triggers, and tokens made in one event. The limit is re-derived at
-     Phase 10, as `plans/references/ai-performance-floors.md` already plans.
+378. **Making tokens walks the whole board three times a token.** — ✅ closed.
+     A run of equal tokens asks its questions once, and the event's cost grows
+     with its tokens, an anthem's board among them.
+     **Reachability (2026-11-05):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 378".
 
-     A throwaway probe read bare creatures, a tap, the state-based check and the
-     action list: 8 µs at 100 permanents, 107 at 1,600, 592 at 6,400 and 11.9 ms
-     at 51,200, near linear, all ten rungs in 0.3 s. Peak memory was 50 MB at
-     25,600 tokens. `fuzz_games --tokens` hides that: making the tokens in one
-     event is most of a run past a few hundred a seat, about 0.9 s at 400 a seat
-     and 25 s at 1,600, so item 354's readings hold setup too. Past about a
-     million identical tokens the board is `GameNumber`'s (item 264).
+### Found by `board-scale` (2026-11-05)
 
-     **Reachability (2026-11-05):** reachable — not wrong: a measurement.
-     **Sized:** ~100–150 lines in `fuzz_games` and the floor's rows, no engine code.
-     **Slotted:** `board-scale`.
+380. **A board with a static "can't" sweeps the battlefield for every event.** — ✅ closed.
+     The sweep asks the permanents that entered with a restriction, or every
+     permanent once a row can grant or copy one.
+     **Reachability (2026-11-06):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 380".
 
-378. **Making tokens walks the whole board three times a token.** Each question
-     about a token not yet on the battlefield runs a pass over the board, and
-     nothing keeps the answer for the next token, so one event making N tokens
-     costs N passes three times over:
-     - `keyword_prohibits` asks every event's object about indestructible, which
-       only a destruction can read: 34% of a 400-a-seat board;
-     - `entry_proposal` asks each token whether it is an instant or a sorcery
-       (CR 111.5), where `create_tokens` already holds runs of equal definitions;
-     - CR 614.12's look-ahead runs per entry, though a run of equal entries
-       decided against one board has one answer.
-
-     A throwaway build with all three gone, on a board with no continuous
-     effects: 1,600 a seat from 24.6 s to 0.13 s, 25,600 a seat in 2.9 s, near
-     linear. Its look-ahead shortcut holds only on such a board, so an anthem's
-     board is unread until the real fix.
+381. **A run of tokens holding an ability derived on its object walks per token.**
+     `shared_entering_frame` keeps such a frame its token's own, since the
+     ability's id names the object: a planeswalker's loyalty (CR 306.5b), or a
+     land's mana under Blood Moon (CR 305.7). So N such tokens in one event cost
+     N passes, as every run did before item 378. Serving the frame with its
+     derived ids rewritten for the token asking would reach them.
 
      **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
-     **Sized:** ~30–50 lines of code; the look-ahead's sharing needs the most care.
-     **Slotted:** `board-scale`.
+     **Sized:** ~20 lines of code, with a test on each kind of derived ability.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+382. **An entering copy captures its donor with a pass of its own.** Under Essence
+     of the Wild each token asks `copiable_values`, a pass over the board to the
+     end of layer 1, so a run's cost is tokens times board: one Essence's 1,600
+     tokens take 8 ms on an empty board and 0.43 s beside 1,600 others, and 6,400
+     beside 6,400 take 16 s. One capture a run at one epoch has one answer, as the
+     frame has (`shared_entering_frame`). Beside it, N copies of Essence all
+     applying to one entry gather N sources N times: the rules owe N applications
+     (CR 616.1f), and 8 tokens onto 400 copies take 0.16 s.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~30 lines of code for the capture, a slot in the layer memo with its
+     gated reads and its audit; the gather's half is a design.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+383. **A granted replacement opens the gather to every permanent.** A `Filter` row
+     granting a replacement ability puts the battlefield in
+     `unattributed_zones`, so each proposal walks every permanent's effective
+     list: tokens in one event read 6 ms at 400 and 1.3 s at 6,400, the sweep item
+     380 closed for a restriction's printed leg, on the replacement's granted one.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** a design first: which permanents a filter row reaches has to be
+     known without resolving the filter per permanent per proposal.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+384. **A counting CDA counts the board for each creature that has it.** A board of
+     N creatures with Keldon Warlord's ability pays N counts of N in every pass:
+     8 ms a step at 400 and 2.5 s at 6,400. A count of one question at one layer
+     has one answer for each member that asks it.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~40 lines: a per-pass cache keyed on the count's filter and "you".
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+385. **A token leaving a graveyard shifts the graveyard.** — ✅ closed.
+     A token off the battlefield sits in no list of cards (CR 108.2b), so nothing
+     shifts; `zone_ids_ordered` finds it through `tokens_off_the_battlefield`.
+     **Reachability (2026-11-06):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 385".
+
+386. **Each trigger resolving pays a pass over the board.** A stack entry is a layer
+     walk input, so taking one moves the epoch and the next read walks everything:
+     exactly one board walk a trigger. One Soul Warden a seat and 800 tokens is
+     3,200 triggers at 322 µs each, about 1 s, of which the four seats' action
+     lists and the state-based check are 68 µs. No player is asked anything:
+     CR 603.3b's order is elided and "you gain 1 life" has no target. The CR owes
+     each one a resolution and a check, and not a pass; a stack object's own frame
+     is all that moved. Item 354's design is this question.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** with item 354's design, how much of the board a change invalidates.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+387. **Floor 1 could read frozen real positions.** It reads a bot's games, so a bot
+     moves it. About 200 decisions sampled from real games and saved as scenarios,
+     one decision timed from each, would be real and free of the bot both. The
+     limit's re-derivation decides whether that precision is worth having: the
+     owner's choice (2026-11-06).
+
+     **Reachability (2026-11-06):** nothing owed — an instrument, for the limit's
+     re-derivation.
+     **Sized:** ~150 lines and the fixture files. Whether a scenario restores every
+     mid-turn position is unchecked, and `pausing-at-a-decision`'s work may decide it.
+     **Slotted:** Phase 10, the AI harness, where the limit is re-derived.
+
+388. **A row over "cards in graveyards" reaches a token there.** A zone's lists hold
+     cards now, but a layer row reaches by zone, and `ObjectFilter::All` matches a
+     token as it matches a card. Cards in graveyards being red colors a white token
+     in a graveyard, until the next check ends it (a probe, 2026-11-06), where CR
+     108.2b says it is no card. `zone_ids_ordered` keeps such a token in the pass on
+     purpose, since it is an object in the zone.
+
+     **Reachability (2026-11-06):** reachable — not wrong: Yixlid Jailer's row takes
+     such a token's abilities, and no registered token has one that works there.
+     **Sized:** a filter for "is a card" on the rows that say "cards", about 20 lines
+     and the audit of which rows do. 19 printed cards say "cards in graveyards".
+     **Slotted:** `token-copies`, whose copy of a graveyard ability is the first to show it.

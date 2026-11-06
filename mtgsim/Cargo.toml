@@ -66,7 +66,7 @@ type_complexity = "allow"
 # row k while writing row i.
 needless_range_loop = "allow"
 
-# Refused, not allowed: a constructor says what it builds (`IdMap::default()`,
+# Refused, not allowed: a constructor says what it builds (`IdMap::new()`,
 # not `Default::default()`, which hid the hasher's seed), the owner's rule at
 # #158's and #248's reviews. An empty value that is a claim is a named constant
 # instead (`ObjectSet::NO_OBJECTS`, `DecisionLogHandle::NONE`), which is review's.

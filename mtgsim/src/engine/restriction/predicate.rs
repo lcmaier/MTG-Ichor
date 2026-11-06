@@ -7,7 +7,7 @@
 //! candidate list, and any notion of order; see [`is_prohibited`] for why the
 //! last one is a property of CR 101.2 rather than a simplification.
 
-use crate::engine::actions::GameAction;
+use crate::engine::actions::{GameAction, GameActionKind};
 use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::object_filter::TextReferents;
@@ -17,7 +17,7 @@ use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{AffectedSet, ObjectSet};
-use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId, Timestamp};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
@@ -133,7 +133,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     // is found and the gate would skip it (§3.5 commitment 2).
     if let Query::EventHappens { action, cause, .. } = query
         && let Some(ObjectOrPlayerId::Object(id)) = subject_of(action)
-        && let Some(keyword) = keyword_prohibits(game, id, action, *cause) {
+        && let Some(keyword) = keyword_prohibits(game, id, action, *cause, sweep) {
         return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
     }
 
@@ -164,7 +164,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
 
     // --- Source 1: the battlefield sweep ---------------------------------
     if has_static_source {
-        for id in game.battlefield_ids_ordered() {
+        for id in permanents_to_sweep(game, sweep) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             for ability in get_effective_abilities(game, id).iter() {
                 if ability.ability_type != AbilityType::Static {
@@ -194,6 +194,24 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     }
 
     None
+}
+
+/// The permanents that could hold a static restriction ability, oldest first
+/// (CR 613.7): those that entered with one, or every permanent once a row can
+/// put one on any of them. The audit asks every permanent.
+fn permanents_to_sweep(game: &GameState, sweep: Sweep) -> Vec<ObjectId> {
+    let summary = game.continuous_effects.summary();
+    if sweep == Sweep::Everything || summary.any_granted_restriction || summary.any_copied_restriction {
+        return game.battlefield_ids_ordered();
+    }
+    // ORDER-FREE: sorted by timestamp below.
+    let mut sources: Vec<(Timestamp, ObjectId)> = game
+        .restriction_ability_sources
+        .iter()
+        .filter_map(|&id| Some((game.battlefield.get(&id)?.timestamp, id)))
+        .collect();
+    sources.sort_unstable_by_key(|(timestamp, _)| *timestamp);
+    sources.into_iter().map(|(_, id)| id).collect()
 }
 
 /// Does this restriction forbid what the query asks about?
@@ -315,8 +333,8 @@ fn cause_matches(by: Option<&SourceFilter>, cause: &EventCause, referents: &mut 
 /// `debug_assert` is what keeps the argument true as the list grows: a keyword
 /// restriction that is *not* `SourceOnly` needs the sweep, and it must not be
 /// able to arrive here quietly.
-fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause: EventCause) -> Option<KeywordFlag> {
-    let defs = keyword_restrictions(game, id);
+fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause: EventCause, sweep: Sweep) -> Option<KeywordFlag> {
+    let defs = keyword_restrictions(game, id, action, sweep);
     if defs.is_empty() {
         return None;
     }
@@ -360,21 +378,27 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause:
 /// and intimidate are the next four (`codebase-state.md` item 15) and are Tier
 /// 1a/1d — `cant-be-targeted`'s and `combat-restrictions`'s, because they forbid a *choice* rather than an
 /// event, so none of them belongs in this function.
-fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<(KeywordFlag, RestrictionDef)> {
+///
+/// Each keyword is asked only of an event its pattern can watch: the pattern
+/// reads the action, and `has_keyword` is a walk of the board for an object
+/// the memo cannot hold, as a token whose entry is being decided.
+fn keyword_restrictions(game: &GameState, id: ObjectId, action: &GameAction, sweep: Sweep) -> Vec<(KeywordFlag, RestrictionDef)> {
     use crate::oracle::characteristics::has_keyword;
 
     let mut out = Vec::new();
+    let could_watch = |pattern: &EventPattern| sweep == Sweep::Everything || pattern.action_kinds().contains(GameActionKind::of(action));
 
     // > 702.12b. A permanent with indestructible can't be destroyed. Such
     // > permanents aren't destroyed by lethal damage, and they ignore the
     // > state-based action that checks for lethal damage (see rule 704.5g).
     //
     // No `DestructionSourcePattern`: 702.12b names both of CR 701.8b's ways.
-    if has_keyword(game, id, KeywordFlag::Indestructible) {
+    let destruction = EventPattern::Destroy { source: None };
+    if could_watch(&destruction) && has_keyword(game, id, KeywordFlag::Indestructible) {
         out.push((
             KeywordFlag::Indestructible,
             RestrictionDef::new(Restriction::Event {
-                pattern: EventPattern::Destroy { source: None },
+                pattern: destruction,
                 affected: AffectedSet::objects(ObjectSet::SourceOnly),
                 by: None,
             }),

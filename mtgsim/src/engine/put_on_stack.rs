@@ -22,7 +22,7 @@ use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::TargetInstance;
 use crate::types::effects::{EffectRecipient, TargetCount};
-use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
+use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
@@ -657,7 +657,7 @@ impl GameState {
         }
 
         let mut failed: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
-            crate::types::ids::IdSet::default();
+            crate::types::ids::IdSet::new();
 
         let mut offer = ManaAbilityWindowOffer::read(self, player_id);
         loop {

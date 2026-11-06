@@ -77,7 +77,7 @@ fn read(start: &GameStart, line: Vec<AnswerLine>, about: WhyAbout, stop: Arc<Rep
         Ok(built) => built,
         Err(refusal) => return Some(trouble(about, "The game did not build again", &refusal)),
     };
-    let memory = TraceMemory::default();
+    let memory = TraceMemory::new();
     let state = &mut built.game_mut().state;
     state.install_trace(TraceHandle::new(&TraceSink::to_writer(memory.clone())));
     // This build checked every answer on the line as it was given.

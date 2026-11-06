@@ -74,7 +74,10 @@ readiness and the hunt.
    without a written reason; then the three floors
    (`engineering-practices.md#the-floors`). Instruments:
    - **the census**, `fuzz_games --census`, counting decisions where they
-     reach the agent;
+     reach the agent, floor 1 at 16 threads, and timing them by the rows
+     their seat sees;
+   - **the ladder**, `fuzz_games --ladder --threads 1`, the ratchet's fixed
+     boards, every rung against the last close's;
    - **the clone timer**, `clone_bound_test`'s and `clone_fixture_test`'s
      ignored tests, at item 143's checkpoints, the heaviest decisions and the
      fixture boards;

@@ -24,7 +24,9 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::mana_supply::ManaProductionWatchers;
 use crate::state::history_log::RowKind;
 use crate::state::shared_stores::ObjectTable;
-use crate::types::ids::ObjectId;
+use crate::types::effects::TokenDef;
+use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::replacement::EnterMods;
 
 /// Per-object frames, each stamped with the epoch it was computed at.
 ///
@@ -57,6 +59,11 @@ pub struct LayerMemo {
     /// one scan per epoch for every player's inventory. Shared, so a fork
     /// copies nothing for it.
     mana_production_watchers: RefCell<Option<(u64, Arc<ManaProductionWatchers>)>>,
+    /// The CR 614.12 frames of the run of tokens being decided, stamped with
+    /// the epoch they were walked at (`layers::lookahead::shared_entering_frame`):
+    /// one walk for a run, whatever its length. Shared, so a fork copies
+    /// nothing for it.
+    run_frames: RefCell<Option<(u64, Arc<Vec<StoredRunFrame>>)>>,
     /// What the frames stored at the latest epoch read of the gated inputs:
     /// what a write to one asks before it moves the epoch.
     gated_reads: Cell<GatedReadsAt>,
@@ -75,6 +82,17 @@ pub struct LayerMemo {
 pub(crate) struct StoredFrame {
     epoch: u64,
     frame: Arc<EffectiveCharacteristics>,
+}
+
+/// A run of tokens' CR 614.12 frame, and what a token must match to be served
+/// it: the definition `create_tokens` made the run from, one `Arc` a run, and
+/// the proposal's controller and `EnterMods`, the frame's other inputs.
+#[derive(Debug, Clone)]
+pub(crate) struct StoredRunFrame {
+    pub(crate) run: Arc<TokenDef>,
+    pub(crate) controller: PlayerId,
+    pub(crate) mods: EnterMods,
+    pub(crate) frame: Arc<EffectiveCharacteristics>,
 }
 
 /// A walk input whose write moves the layer epoch only when a frame stored at
@@ -220,6 +238,7 @@ impl LayerMemo {
             frames,
             notes,
             mana_production_watchers,
+            run_frames,
             gated_reads,
             #[cfg(debug_assertions)]
             audit_paused,
@@ -229,6 +248,7 @@ impl LayerMemo {
         self.frames.replace(frames.into_inner());
         self.notes.replace(notes.into_inner());
         self.mana_production_watchers.replace(mana_production_watchers.into_inner());
+        self.run_frames.replace(run_frames.into_inner());
         self.gated_reads.set(gated_reads.get());
         #[cfg(debug_assertions)]
         {
@@ -324,6 +344,37 @@ impl LayerMemo {
 
     pub(crate) fn insert_mana_production_watchers(&self, epoch: u64, found: Arc<ManaProductionWatchers>) {
         *self.mana_production_watchers.borrow_mut() = Some((epoch, found));
+    }
+
+    /// The CR 614.12 frame stored at `epoch` for a token of `run`, entering
+    /// under `controller` with `mods`.
+    pub(crate) fn run_frame(
+        &self,
+        epoch: u64,
+        run: &Arc<TokenDef>,
+        controller: PlayerId,
+        mods: &EnterMods,
+    ) -> Option<Arc<EffectiveCharacteristics>> {
+        let stored = self.run_frames.borrow();
+        let (_, frames) = stored.as_ref().filter(|(at, _)| *at == epoch)?;
+        frames
+            .iter()
+            .find(|stored| Arc::ptr_eq(&stored.run, run) && stored.controller == controller && stored.mods == *mods)
+            .map(|stored| Arc::clone(&stored.frame))
+    }
+
+    /// Store one more frame of the run being decided. A run's members are
+    /// decided in a row, so a new run ends the last and the list stays as
+    /// long as one run has distinct proposals: one, and one more for each
+    /// way a replacement effect rewrote them.
+    pub(crate) fn insert_run_frame(&self, epoch: u64, frame: StoredRunFrame) {
+        let mut stored = self.run_frames.borrow_mut();
+        match stored.as_mut() {
+            Some((at, frames)) if *at == epoch && frames.iter().all(|f| Arc::ptr_eq(&f.run, &frame.run)) => {
+                Arc::make_mut(frames).push(frame);
+            }
+            _ => *stored = Some((epoch, Arc::new(vec![frame]))),
+        }
     }
 
     /// Keep what a walk whose frames are stored at `epoch` read, beside them.

@@ -3,14 +3,33 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{creature, each_in, loses_all_abilities, static_ability, static_replacement};
+use crate::cards::authoring::{creature, each_in, loses_all_abilities, static_ability, static_replacement, you_control};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{ObjectFilter, ObjectSet};
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use crate::types::replacement::{CopyDonor, EntryCopyTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use crate::types::zones::{Zone, ZoneChangePattern, ZoneSet};
+
+/// **Fixture.** Essence of the Wild's body and its one ability: "Creatures you
+/// control enter as a copy of this creature." What every creature of an event
+/// enters as, so each is a copy from the moment it is announced.
+pub fn essence_of_the_wild_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Essence of the Wild Fixture")
+        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green, ManaType::Green], 3))
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Avatar))
+        .power_toughness(6, 6)
+        .rules_text("Creatures you control enter as a copy of this creature.")
+        .ability(static_replacement("Creatures you control enter as a copy of this creature.", ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::battlefield_filter(creature().and(you_control())),
+            Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
+        )))
+        .build()
+}
 
 /// **Fixture.** "If this creature would be put into a graveyard, exile it
 /// instead." — the same pattern as the Colossus's with **no zone statement**.

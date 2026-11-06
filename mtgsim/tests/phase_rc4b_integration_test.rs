@@ -401,7 +401,7 @@ fn test_an_exiled_instead_token_never_had_a_battlefield_to_leave() {
     let start = game.recorded_events().records().len();
     create_zombie(&mut game, 0, moonlight).expect("the token is created — in exile");
 
-    let token = *game.exile.last().expect("it is in exile");
+    let token = *game.zone_ids_ordered(Zone::Exile).last().expect("it is in exile");
     assert!(game.get_object(token).unwrap().is_token);
     assert!(!game.battlefield.contains_key(&token));
     assert!(entries(&game, start).is_empty(), "it never entered");

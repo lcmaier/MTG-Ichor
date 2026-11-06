@@ -1337,7 +1337,7 @@ pub fn assert_not_asked(game: &GameState, player: PlayerId, kind: &str, why: &st
 /// Attach a buffer-backed sink to `game` and write its header. `label` is the
 /// trace's own name for the board, usually the test's.
 pub fn install_trace(game: &mut GameState, label: &str) -> TraceBuffer {
-    let memory = crate::state::trace::TraceMemory::default();
+    let memory = crate::state::trace::TraceMemory::new();
     let sink = TraceSink::to_writer(memory.clone());
     game.install_trace(TraceHandle::new(&sink));
     game.trace_game(label, None);

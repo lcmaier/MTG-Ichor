@@ -51,7 +51,7 @@ use crate::oracle::characteristics::{controller_or_owner, get_effective_abilitie
 use crate::state::game_state::GameState;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, ObjectFilter, Primitive};
-use crate::types::ids::{AbilityId, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdCollection, IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaBag, ManaCost, ManaDemand, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
 use crate::types::zones::Zone;
@@ -72,10 +72,12 @@ fn holds(a: &ManaBag, b: &ManaBag) -> bool {
 }
 
 /// A set of the six types, a bit each.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ManaTypes(u8);
 
 impl ManaTypes {
+    const EMPTY: ManaTypes = ManaTypes(0);
+
     fn one(slot: usize) -> ManaTypes {
         ManaTypes(1 << slot)
     }
@@ -549,7 +551,7 @@ fn mana_types_made(
             return fixed.map(|(mana_type, _)| *mana_type).collect();
         }
     };
-    let types = made.iter().fold(ManaTypes::default(), |set, m| set.union(ManaTypes::of(m)));
+    let types = made.iter().fold(ManaTypes::EMPTY, |set, m| set.union(ManaTypes::of(m)));
     ManaType::ALL.into_iter().filter(|&t| types.has(slot(t))).collect()
 }
 
@@ -581,7 +583,7 @@ enum CostRecheck {
 
 impl ManaAbilityWindowOffer {
     pub fn read(game: &GameState, player: PlayerId) -> ManaAbilityWindowOffer {
-        let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::default();
+        let mut seen: IdSet<(ObjectId, AbilityId)> = IdSet::new();
         let mut abilities = Vec::new();
         for (permanent, its_mana_abilities) in controlled_mana_abilities(game, player) {
             for ability in its_mana_abilities.iter() {
@@ -1204,7 +1206,7 @@ impl SplitSupply {
         }
         // One mana of any type in a set: a dual, a five-color land.
         if ways.iter().all(|way| way.iter().sum::<u64>() == 1) {
-            let types = ways.iter().fold(ManaTypes::default(), |set, way| set.union(ManaTypes::of(way)));
+            let types = ways.iter().fold(ManaTypes::EMPTY, |set, way| set.union(ManaTypes::of(way)));
             self.add_free(types, copies);
             return;
         }

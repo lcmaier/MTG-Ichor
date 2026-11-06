@@ -18,7 +18,7 @@ use crate::state::history_log::{HistoryLog, HistoryRow, added_to_count};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
-use crate::types::ids::{IdMap, IdSet, PlayerId};
+use crate::types::ids::{IdCollection, IdMap, IdSet, PlayerId};
 
 /// One player's history beside the log.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,10 +154,10 @@ impl GameHistory {
     pub fn new(seats: usize) -> Self {
         GameHistory {
             players: vec![PlayerHistory::before_any_turn(); seats],
-            action_taken_this_turn: IdSet::default(),
-            triggered_this_turn: IdSet::default(),
-            resolutions_this_turn: IdMap::default(),
-            log: HistoryLog::default(),
+            action_taken_this_turn: IdSet::new(),
+            triggered_this_turn: IdSet::new(),
+            resolutions_this_turn: IdMap::new(),
+            log: HistoryLog::new(),
         }
     }
 

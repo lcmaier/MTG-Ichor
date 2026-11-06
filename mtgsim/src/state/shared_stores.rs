@@ -176,11 +176,7 @@ impl<T: ForkCopy> Clone for ObjectTable<T> {
     }
 }
 
-impl<T: ForkCopy> Default for ObjectTable<T> {
-    fn default() -> Self {
-        ObjectTable { chunks: Vec::new(), len: 0 }
-    }
-}
+
 
 /// Where `id` sits: its chunk and its slot.
 fn place(id: ObjectId) -> (usize, usize) {
@@ -188,7 +184,17 @@ fn place(id: ObjectId) -> (usize, usize) {
     (raw / CHUNK, raw % CHUNK)
 }
 
+impl<T: ForkCopy> Default for ObjectTable<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: ForkCopy> ObjectTable<T> {
+    pub fn new() -> Self {
+        ObjectTable { chunks: Vec::new(), len: 0 }
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
@@ -404,13 +410,19 @@ impl<T: ForkCopy> Clone for SharedList<T> {
     }
 }
 
+
+
 impl<T: ForkCopy> Default for SharedList<T> {
     fn default() -> Self {
-        SharedList { chunks: Vec::new(), len: 0 }
+        Self::new()
     }
 }
 
 impl<T: ForkCopy> SharedList<T> {
+    pub fn new() -> Self {
+        SharedList { chunks: Vec::new(), len: 0 }
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
@@ -516,7 +528,7 @@ impl<T: ForkCopy> Extend<T> for SharedList<T> {
 
 impl<T: ForkCopy> FromIterator<T> for SharedList<T> {
     fn from_iter<I: IntoIterator<Item = T>>(items: I) -> Self {
-        let mut list = SharedList::default();
+        let mut list = SharedList::new();
         list.extend(items);
         list
     }
@@ -572,7 +584,7 @@ mod tests {
     }
 
     fn table(ids: impl IntoIterator<Item = u64>) -> ObjectTable<u64> {
-        let mut table = ObjectTable::default();
+        let mut table = ObjectTable::new();
         for raw in ids {
             table.insert(id(raw), raw);
         }
@@ -613,7 +625,7 @@ mod tests {
         assert_eq!(walk.len(), 2);
         assert_eq!(walk.map(|(id, _)| id.raw()).collect::<Vec<_>>(), [2, 33]);
         assert_eq!((table.keys().len(), table.values().len()), (4, 4));
-        assert_eq!(ObjectTable::<u64>::default().iter().size_hint(), (0, Some(0)));
+        assert_eq!(ObjectTable::<u64>::new().iter().size_hint(), (0, Some(0)));
     }
 
     #[test]
