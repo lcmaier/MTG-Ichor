@@ -176,7 +176,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 218 |
 | …of them in `PERFORMANCE_POOL` | 125 |
-| `#[test]` functions | 2948 |
+| `#[test]` functions | 2949 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -197,8 +197,8 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 429 |
-| …closed, still recorded | 267 |
+| Numbered items | 430 |
+| …closed, still recorded | 268 |
 | …open — unreachable, and says why | 106 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 33 |

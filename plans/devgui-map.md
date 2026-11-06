@@ -31,7 +31,7 @@ mechanic.
 | The save | `save.rs` | the journal beside each log: every line played, where the window was asked, the savestates, each move; the tree Undo answer and the menu read | closely |
 | The why's replay | `why_replay.rs` | a why about the past: the game built again, the window's line replayed into it with the trace sink on, and the why read at the open question from the trace (SU-8) | closely |
 | The snapshot | `snapshot.rs` | the board copied as plain data at each question, read through the layers, so the window never touches the live game | closely |
-| The prompt | `prompt.rs` | the question as plain data: who is asked, what, and each option's label and the cards it names | closely |
+| The prompt | `prompt.rs` | the question as plain data: who is asked, what, and each option's label, the cards it names and, where the label doesn't say it, what it does | closely |
 | The view model | `view_model.rs` | turns a snapshot and a prompt into what the window shows, and clicks into an answer | closely |
 | The board editor | `editor.rs`, `boards.rs`, `search.rs` | a board built by clicking and saved as a scenario, a folder per board (SU-3), or as a new board under a name typed (#231); behind its Advanced switch, a line of the file typed in and each player's rows as controls (§11) | closely |
 | The drawing | `app.rs` | lays out what the view model and the editor built, and reports clicks. It decides nothing | against [the egui checklist](#the-egui-checklist), and by running |
@@ -107,9 +107,12 @@ engine surface to add, not client logic.
   options or a prompt's subject, is the engine's. The snapshot reads it, and
   the window never computes a rule.
 - **Wording every reader sees alike**, such as names, questions and option
-  labels, is `ui::display`'s, in the engine crate.
+  labels, is `ui::display`'s, in the engine crate. A label stays short, and
+  what a thing does rides beside it as data: a counter's words on its row, a
+  target's share on the stack (`backlog.md`'s "What a client is handed").
 - **How it looks**, such as layout, color and what is hidden, is the
-  window's.
+  window's: this window draws a counter's words beside its button, in a row
+  of its own, where another client could keep them for a hover.
 
 **The decision log is the engine's.** The engine words every answer, whoever
 gave it (you, a decorator, or the engine's own pass), so a game writes the

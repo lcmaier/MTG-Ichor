@@ -2583,8 +2583,12 @@ structure it arrives in inform each other, and the CLI's AI games need it as
 much as Phase 10 does. The vocabulary is unified and the forms are not: one
 table per `ChoiceKind` of its name, its log word, its scenario word and its
 fields, which v1's documentation can be generated from, while a `then:` line
-stays a macro over several questions, written before any id exists. Four
+stays a macro over several questions, written before any id exists. Five
 things wait on it:
+- **What a CLI seat is shown of a division and a counter.** The dev GUI reads
+  both (#312). `cli_play`'s pick list prints the label alone, and it shows no
+  stack object's targets, so a CLI seat sees neither a counter's words nor a
+  split.
 - **A setup line's word for a division**, and every word like it: `targeting
   Grizzly Bears for 2` keeps a share with its target.
 - **`ability N`**, a scenario word that names a position.

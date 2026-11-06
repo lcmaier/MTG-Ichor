@@ -1119,7 +1119,7 @@ Three places it differs from decision 5's words:
 
 **CR 115.7f has no test**, since the engine rewrites no target (item 363).
 What the card text can't state yet is `backlog.md`'s "2.52 A division the
-announcement cannot state", and a client can't yet read the shares (item 362).
+announcement cannot state". The dev GUI PR after it, #312, reads the shares.
 
 ## 6. Found while designing
 
