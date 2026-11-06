@@ -81,8 +81,8 @@ In this order:
   by hand, off by default at one branch per emit point: each batch, each CR
   616.1 iteration, each top-level layer walk, the decision boundary (the
   prompt, and a rejection between a prompt and its re-ask), and each
-  performed event. It is reachable as `fuzz_games --trace DIR`,
-  `cli_play --trace PATH` and `test_support::install_trace`, and
+  performed event. It is reachable as `fuzz_games --trace DIR` and
+  `test_support::install_trace`, and
   `plans/trace_spine.py` renders one game's lines through
   `plans/traces/viewer.html`. **It makes a page's spine, never its
   argument**: the boards, the question each answers, the "where the reads

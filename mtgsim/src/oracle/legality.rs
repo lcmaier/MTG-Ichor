@@ -683,6 +683,7 @@ mod tests {
             cast: None,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             x_value: None,
+            chosen_targets: Vec::new(),
             identity: None,
             trigger: None,
             began_at: game.events.next_seq(),

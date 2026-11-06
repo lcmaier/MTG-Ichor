@@ -224,6 +224,7 @@ mod tests {
             cast: Some(CastFacts { by: 0, from: Zone::Hand, mana_spent: ManaSpent::NONE }),
             cost_choices: CostChoices { additional: vec![AdditionalCost::Bargain], alternative: None },
             x_value: Some(3),
+            chosen_targets: Vec::new(),
             identity: None,
             trigger: None,
             began_at: game.events.next_seq(),

@@ -2429,8 +2429,7 @@ a planar deck, a scheme deck, an Attraction deck — arrives with that
 variant's format design, and until then the parser refuses a header it does
 not know.
 
-**Its readers.** `cli_play` deals `decks/cli-play.txt`, its forty cards in
-the order its builder dealt them. The five Tarkir: Dragonstorm Commander
+**Its readers.** The five Tarkir: Dragonstorm Commander
 decks (`tdc`), the route's v0.5 table, are each checked for CR 903.5a–b
 before any of their cards is registered, and the test prints the names the
 registry lacks, which `tarkir-dragonstorm-decks`' gap census starts from.
@@ -3336,7 +3335,9 @@ the two effect arms, the typed matcher with its cost parser, and the 33
 the band. Its consumer is the decision log: a replay of a game with Bridge
 from Below's two triggers, both orders.
 
-**After v0.5, with the AI harness** (decisions 1–3):
+**After v0.5, with the AI harness** (decisions 1–3), but for the fork test, which
+goes ahead of the choice kinds still to come as `fork-test-at-every-decision`
+(#312) if its brief finds the fork separates from the paused game:
 
 | PR | Piece | Code | Tests |
 |---|---|---:|---:|
@@ -3795,8 +3796,7 @@ stack and resolved effects as written state (§2), which SU-2's setup actions
 play instead; a script for a seat during play (§5.3, dropped at review); the
 board editor (SU-3, §7b); CR 103.5's mulligans and CR 103.6's opening-hand
 actions, named in the header and owned elsewhere. For the why panel (§7c): a
-why in `cli_play`, which `ui::why` makes possible since it is the engine's,
-but which nothing builds; and a why about an earlier question's board, which is
+why about an earlier question's board, which is
 Undo answer or a savestate away. For pausing (§7e): an explicit state machine
 (decision 2's D, measured and set aside); a paused game written to disk as
 `GameState` rather than as its save; the coroutine, chosen with the AI

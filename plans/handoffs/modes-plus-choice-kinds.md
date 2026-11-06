@@ -25,9 +25,11 @@ merges.
   division and the orders share no code.
 - The second, `divided-among-targets`, is handed over: its as-built is in
   `choices-architecture.md`, item 92 closed as a record.
-- Next: the dev GUI PR, item 362: a division's shares on the stack, and a
-  counter's words beside its row. Then `orders-the-cr-hands-a-player`
-  (decision 6 and 6b) on its own branch once that merges.
+- The dev GUI PR, `division-shares-plus-counter-words` (#312), is handed over:
+  a division's shares on the stack and a counter's words beside its row, item
+  362 closed.
+- Next: `board-scale`, then `orders-the-cr-hands-a-player` (decision 6 and
+  6b), each on its own branch once the one before merges.
 
 **Traps, for `orders-the-cr-hands-a-player`:**
 - 6b drops `OrderCostReductions`' prompt: a fixture migration (9 lines in 8

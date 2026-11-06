@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
+use mtgsim::engine::targeting::TargetInstance;
 use mtgsim::events::event::EventId;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
 use mtgsim::scenario::Scenario;
@@ -149,8 +150,15 @@ pub struct StackItem {
     /// cast or activated (CR 601.2, 602.2), which is when most prompts come.
     pub is_spell: Option<bool>,
     pub controller: PlayerId,
-    pub targets: Vec<String>,
+    pub targets: Vec<StackTarget>,
     pub x: Option<u64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StackTarget {
+    pub name: String,
+    /// What CR 601.2d gave it, when its instance of "target" was divided.
+    pub share: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -262,15 +270,29 @@ fn permanent(game: &GameState, lines: &TypeLines, id: ObjectId) -> Option<Perman
 fn stack_item(game: &GameState, id: ObjectId) -> StackItem {
     let chars = compute_characteristics(game, id);
     let entry = game.stack_entries.get(&id);
+    let facts = game.stack_object_facts(id);
     StackItem {
         id,
         name: chars.as_ref().map_or_else(|| id.to_string(), |c| c.name.clone()),
-        is_spell: entry.map(|e| e.is_spell),
+        is_spell: facts.map(|f| f.is_spell),
         controller: chars.as_ref().map(|c| c.controller).or(entry.map(|e| e.controller)).unwrap_or_default(),
-        targets: entry
-            .map(|e| e.chosen_targets.iter().flat_map(|t| t.as_resolved_targets()).map(|t| target_name(game, &t)).collect())
+        targets: facts
+            .map(|f| f.chosen_targets.iter().flat_map(|instance| stack_targets(game, instance)).collect())
             .unwrap_or_default(),
-        x: entry.and_then(|e| e.x_value),
+        x: facts.and_then(|f| f.x_value),
+    }
+}
+
+fn stack_targets(game: &GameState, instance: &TargetInstance) -> Vec<StackTarget> {
+    match instance.division() {
+        Some(shares) => shares
+            .iter()
+            .map(|(target, share)| StackTarget { name: target_name(game, &target.id()), share: Some(*share) })
+            .collect(),
+        None => instance
+            .as_resolved_targets()
+            .map(|target| StackTarget { name: target_name(game, &target), share: None })
+            .collect(),
     }
 }
 
@@ -300,7 +322,43 @@ fn target_name(game: &GameState, target: &ObjectOrPlayerId) -> String {
 
 #[cfg(test)]
 mod tests {
+    use mtgsim::cards::fixtures::magma_opus_fixture;
+    use mtgsim::cards::printings::{forest, grizzly_bears};
+    use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game};
+    use mtgsim::types::effects::EffectRecipient;
+    use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+    use mtgsim::ui::decision::ScriptedDecisionProvider;
+    use mtgsim::ui::mana_window_stop::ManaWindowStop;
+
     use super::*;
+
+    /// Two instances of "target" on a spell cast from hand, the first divided:
+    /// each target is read off the announcement, and only the division's has a
+    /// share.
+    #[test]
+    fn a_stack_item_keeps_each_share_with_its_target() {
+        let mut game = setup_game(2);
+        let opus = put_in_hand(&mut game, magma_opus_fixture(), 0);
+        let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+        let (one, other) = (put_on_battlefield(&mut game, forest(), 1), put_on_battlefield(&mut game, forest(), 1));
+        game.players[0].mana_pool.add(ManaType::Red, 5);
+        let answers = ScriptedDecisionProvider::new();
+        let names_targets = |chosen| {
+            let kind = ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
+            answers.expect_choice(kind, chosen);
+        };
+        names_targets(vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
+        names_targets(vec![ChoiceOption::Object(one), ChoiceOption::Object(other)]);
+        let shares = vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 3)];
+        answers.expect_allocation(ChoiceKind::DivideAmong { source: ObjectId::UNASSIGNED }, shares);
+
+        game.cast_spell(0, opus, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
+
+        let targets = stack_item(&game, opus).targets;
+        let read: Vec<(String, Option<u64>)> = targets.into_iter().map(|target| (target.name, target.share)).collect();
+        let (bears, one, other) = (named(&game, bears), named(&game, one), named(&game, other));
+        assert_eq!(read, [(bears, Some(1)), (player_name(1), Some(3)), (one, None), (other, None)]);
+    }
 
     #[test]
     fn the_mana_pool_reads_in_wubrgc_order_whatever_the_hash_order() {

@@ -164,11 +164,11 @@ not (§3); `mod.rs` files declare and re-export only
 | `oracle/mana_supply.rs`, `oracle/x_values.rs` | the mana check: a player's `ManaSupply` and whether it pays a cost (CR 601.2g–h's existence half); the values of X a caster may announce (CR 107.3a, 601.2b) |
 | `types/` | the type surface: `effects.rs`, `replacement.rs`, `restriction.rs`, `triggers.rs`, `cost_modification.rs`, `costs.rs`, `zones.rs`, `ids.rs`, `card_types.rs`, `colors.rs`, `mana.rs`, `keywords.rs`, `keyword_actions.rs`, `history.rs`; `mod.rs` holds `counted_enum!` |
 | `ui/decision.rs`, `ui/ask.rs`, `ui/choice_types.rs` | the five-method `DecisionProvider` (`pick_n`, `pick_number`, `allocate`, `choose_ordering`, and the defaulted `seat_mode`); the typed `ask_*` bridge, where every prompt is validated and traced, and every forced one answered unasked and recorded; `ChoiceKind` |
-| `ui/random.rs`, `ui/cli.rs`, `ui/replay.rs`, `ui/mana_window_stop.rs`, `ui/auto_payer.rs`, `ui/auto_yield.rs`, `ui/auto_order_triggers.rs`, `ui/full_control.rs`, `ui/display.rs` | three providers (random, the terminal, a decision log's replay), four decorators, the full-control switch above a person's stack, the text formatters |
+| `ui/random.rs`, `ui/replay.rs`, `ui/mana_window_stop.rs`, `ui/auto_payer.rs`, `ui/auto_yield.rs`, `ui/auto_order_triggers.rs`, `ui/full_control.rs`, `ui/display.rs` | two providers (random, a decision log's replay), four decorators, the full-control switch above a person's stack, the text formatters |
 | `ui/why.rs`, `ui/what_happened.rs`, `ui/waiting.rs` | the engine's answers a client draws: why an object is the way it is or an option is not offered; an event's why, read from a replay's trace; what the game holds for a later event or turn |
 | `cards/registry.rs`, `cards/random_deck.rs`, `cards/authoring/` | the registry and the two pools; the fuzz harness's decks; the card-authoring words, `triggers.rs` today |
 | `cards/*.rs` | card definitions, filed by the phase that first needed them |
-| `bin/fuzz_games.rs`, `bin/cli_play.rs`, `test_support.rs`, `lib.rs`, `main.rs` | the random-versus-random harness; terminal play; the `test-support` feature's helpers; the crate root; a stub |
+| `bin/fuzz_games.rs`, `test_support.rs`, `lib.rs`, `main.rs` | the random-versus-random harness; the `test-support` feature's helpers; the crate root; a stub |
 
 ### 2.2 The chokepoint's arms
 

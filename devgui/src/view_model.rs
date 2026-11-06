@@ -16,7 +16,7 @@ use mtgsim::events::event::EventId;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::display::delayed_trigger_in_log;
+use mtgsim::ui::display::{delayed_trigger_in_log, target_with_share};
 use mtgsim::ui::waiting::{TriggersIn, Waiting};
 use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
 
@@ -24,7 +24,7 @@ use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
 use crate::save::{Destination, Tools};
-use crate::snapshot::{CardView, LogLine, PermanentView, PlayerView, Snapshot};
+use crate::snapshot::{CardView, LogLine, PermanentView, PlayerView, Snapshot, StackTarget};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
 
 /// What the window shows: the game, or the board editor beside it
@@ -1029,7 +1029,8 @@ impl BoardView {
                     };
                     let mut detail = vec![format!("Player {}'s", item.controller)];
                     if !item.targets.is_empty() {
-                        detail.push(format!("targets {}", item.targets.join(", ")));
+                        let targets: Vec<String> = item.targets.iter().map(target_words).collect();
+                        detail.push(format!("targets {}", targets.join(", ")));
                     }
                     if let Some(x) = item.x {
                         detail.push(format!("X = {x}"));
@@ -1050,6 +1051,10 @@ impl BoardView {
             waiting: waiting_zone(&board.waiting),
         }
     }
+}
+
+fn target_words(target: &StackTarget) -> String {
+    target.share.map_or_else(|| target.name.clone(), |share| target_with_share(&target.name, share))
 }
 
 /// A line on the board that names nothing a click could choose.
@@ -1144,6 +1149,8 @@ fn seat(player: &PlayerView, marks: &Marks) -> SeatView {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OptionButton {
     pub label: String,
+    /// Drawn beside the label, for a label that doesn't say it.
+    pub what_it_does: Option<&'static str>,
     pub chosen: bool,
     /// Its place in an ordering, from 1.
     pub place: Option<usize>,
@@ -1227,6 +1234,7 @@ impl PromptView {
         let options = prompt.options.iter().enumerate();
         let button = |i: usize, label: &str| OptionButton {
             label: label.to_string(),
+            what_it_does: prompt.options[i].what_it_does,
             chosen: false,
             place: None,
             amount: None,
@@ -1423,7 +1431,7 @@ mod tests {
     }
 
     fn option(label: &str, refs: Vec<BoardRef>) -> OptionView {
-        OptionView { label: label.to_string(), refs, attacker: None }
+        OptionView { label: label.to_string(), what_it_does: None, refs, attacker: None }
     }
 
     fn unnamed(count: usize) -> Vec<OptionView> {
@@ -1602,6 +1610,25 @@ mod tests {
         assert_eq!(state.clone().input(Input::Done), Some(Reply::Answer(Answer::Picks(Vec::new()))));
     }
 
+    /// Whichever primitive offers the row, and with the "may" wording added
+    /// to its label, the words stay out of the label.
+    #[test]
+    fn an_options_words_ride_beside_its_label() {
+        let b = board();
+        let finality = OptionView { what_it_does: Some("exile it instead"), ..option("its finality counter", Vec::new()) };
+        let words = |primitive: Primitive, options: Vec<OptionView>| {
+            let view = deciding(&b, prompt(primitive, options)).prompt_view().unwrap();
+            view.options.iter().map(|option| (option.label.clone(), option.what_it_does)).collect::<Vec<_>>()
+        };
+        let printed = option("Rest in Peace", Vec::new());
+        let beside = [("Rest in Peace".to_string(), None), ("its finality counter".to_string(), Some("exile it instead"))];
+        assert_eq!(words(Primitive::PickN { min: 1, max: 1 }, vec![printed.clone(), finality.clone()]), beside);
+        assert_eq!(words(Primitive::Order, vec![printed.clone(), finality.clone()]), beside);
+        assert_eq!(words(Primitive::Allocate { total: 2, mins: vec![0, 0], maxs: None }, vec![printed, finality.clone()]), beside);
+        let may = [("Yes: its finality counter".to_string(), Some("exile it instead"))];
+        assert_eq!(words(Primitive::PickN { min: 0, max: 1 }, vec![finality]), may);
+    }
+
     #[test]
     fn done_is_live_only_inside_the_bounds() {
         let b = board();
@@ -1698,6 +1725,20 @@ mod tests {
     fn at_priority(b: &Board) -> WindowState {
         let options = vec![option("Pass", Vec::new()), option("Cast Lightning Bolt", vec![Object(b.bolt)])];
         deciding(b, Prompt { pass: Some(0), ..prompt(Primitive::PickN { min: 1, max: 1 }, options) })
+    }
+
+    /// Two instances of "target", one divided: only the division's targets
+    /// read with a share.
+    #[test]
+    fn a_stack_row_reads_each_share_beside_its_target() {
+        let b = board();
+        let mut state = at_priority(&b);
+        let target = |name: &str, share| StackTarget { name: name.to_string(), share };
+        let targets = vec![target("Grizzly Bears (#12)", Some(2)), target("Player 1", Some(1)), target("Forest (#3)", None)];
+        let spell = StackItem { id: b.bolt, name: "A spell".to_string(), is_spell: Some(true), controller: 0, targets, x: None };
+        state.board.as_mut().unwrap().stack.push(spell);
+        let view = state.board_view().unwrap();
+        assert_eq!(view.stack[0].detail, "Player 0's · targets Grizzly Bears (#12) for 2, Player 1 for 1, Forest (#3)");
     }
 
     /// A yield answers the priority prompt it is set at; the one that waits

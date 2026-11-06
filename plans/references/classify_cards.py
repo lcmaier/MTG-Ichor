@@ -12,7 +12,7 @@ turns on the difference between them:
   Scryfall does not know (`Loyalty Probe`) or not registered at all
   (`flight_clause`, `generic_reducer`, the `*_spell` stand-ins).
 - **the playable pool** — everything `registry.rs` registers, drawn from both.
-  `fuzz_games` and `cli_play` can only build a deck from this, which is why it
+  `fuzz_games` and the dev GUI can only build a deck from this, which is why it
   will always be able to contain a fixture.
 
 The card-list reorganization (roadmap-v2 §C's `card-layer-cleanup`) is a move driven by that

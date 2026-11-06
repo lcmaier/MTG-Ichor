@@ -3980,7 +3980,7 @@ registered and the first two pooled (212 → 215, 122 → 124). Nothing in the
 engine changed for them: the re-count found every facility the loop reads
 already built by TR-4 to TR-6. `ui::AutoOrderTriggers`, item 163's decorator
 half, takes a person's trigger order as offered under full control's toggle,
-in `cli_play` and the dev GUI; a bot's agent orders for itself. The loop is
+in the dev GUI; a bot's agent orders for itself. The loop is
 tested cast from hand under the dispatch audit, run three times by choice and
 stopped by a pass. The twelve rulings are tests, persist's two atoms are
 claimed, and TR-4a's tests claim the two they always proved.

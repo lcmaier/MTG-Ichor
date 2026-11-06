@@ -1,4 +1,4 @@
-// Text formatting helpers for CLI output and logging.
+// Text formatting helpers for clients and logging.
 //
 // All functions are pure formatters over &GameState — no mutations.
 // Lives in ui/ because these are presentation helpers, not game-state queries.
@@ -395,6 +395,12 @@ pub fn player_name(player: PlayerId) -> String {
     format!("Player {player}")
 }
 
+/// A target of a division with its share (CR 601.2d), whatever was divided:
+/// `Grizzly Bears (#12) for 2`.
+pub fn target_with_share(target_name: &str, share: u64) -> String {
+    format!("{target_name} for {share}")
+}
+
 pub fn attack_target_name(game: &GameState, target: &AttackTarget) -> String {
     match target {
         AttackTarget::Player(player) => player_name(*player),
@@ -414,8 +420,7 @@ fn damage_target_name(game: &GameState, target: &ObjectOrPlayerId) -> String {
 // ---------------------------------------------------------------------------
 
 /// The question a prompt asks, one arm per kind and no wildcard, so a new kind
-/// is asked a question at birth. Both clients print it; the CLI adds how to
-/// type an answer.
+/// is asked a question at birth.
 pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
     let n = |id: &ObjectId| named(game, *id);
     match kind {
@@ -551,7 +556,8 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
 /// What `option` does, in the rule's own words, for a client that shows them
 /// beside the short [`option_label`], as Arena does on a hover
 /// (`backlog.md`'s "What a client is handed"). `None` where the label says it
-/// all. CR 122.1c, d and h state each counter's effect.
+/// all: an ability's text stays in its label, which is what tells two
+/// abilities of one object apart. CR 122.1c, d and h state each counter's effect.
 pub fn what_the_option_does(option: &ChoiceOption) -> Option<&'static str> {
     let ChoiceOption::Replacement(ReplacementOption::Counter { counter, effect, .. }) = option else { return None };
     match (counter, effect) {
@@ -1388,6 +1394,11 @@ mod tests {
     use crate::types::card_types::{CardType, CreatureType};
     use crate::types::effects::TokenDef;
     use crate::types::zones::Zone;
+
+    #[test]
+    fn a_target_reads_with_its_share() {
+        assert_eq!(target_with_share(&player_name(1), 2), "Player 1 for 2");
+    }
 
     #[test]
     fn a_counters_words_sit_beside_its_short_label() {

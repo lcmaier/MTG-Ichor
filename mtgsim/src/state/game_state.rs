@@ -196,6 +196,9 @@ pub struct ResolvingObject {
     /// The X its controller chose for it (CR 107.3), carried for
     /// `PermanentState::x_value` as `cast` is. `None` for a spell with no X.
     pub x_value: Option<u64>,
+    /// What each instance of "target" announced, for `stack_object_facts`: the
+    /// resolution holds the entry itself until the object finishes.
+    pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
     /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
     /// ability has resolved this turn". `None` for a spell.
     pub identity: Option<AbilityIdentity>,
@@ -215,6 +218,15 @@ pub struct ResolvingObject {
     /// §3).
     #[cfg(debug_assertions)]
     pub(crate) binding_reads_noted: std::cell::Cell<crate::engine::triggers::binding_reads::TriggerBindingReads>,
+}
+
+/// What an object on the stack announced, wherever that is held now
+/// ([`GameState::stack_object_facts`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StackObjectFacts<'a> {
+    pub is_spell: bool,
+    pub chosen_targets: &'a [crate::engine::targeting::TargetInstance],
+    pub x_value: Option<u64>,
 }
 
 /// One CR 500.7 extra turn in the queue: who takes it, and which turn it is.
@@ -1325,12 +1337,6 @@ impl GameState {
         self.rng = StdRng::seed_from_u64(seed);
     }
 
-    /// Point the game's randomness at the OS — for interactive play, where a
-    /// fresh shuffle each time is the point.
-    #[expect(clippy::disallowed_methods, reason = "the opt-out: interactive play wants a fresh shuffle")]
-    pub fn reseed_from_entropy(&mut self) {
-        self.rng = StdRng::from_os_rng();
-    }
 
     /// Shuffle a player's library with the game's RNG (CR 701.24).
     ///
@@ -2655,21 +2661,29 @@ impl GameState {
         entry
     }
 
+    /// What `id`'s `StackEntry` says; `None` for an object with no entry yet,
+    /// still being cast or activated (CR 601.2, 602.2).
+    ///
+    /// The object **resolving now** is still on the stack until it finishes
+    /// (CR 608.2n), though `resolve_top_of_stack` has taken its entry, so the
+    /// resolving object answers for it.
+    pub fn stack_object_facts(&self, id: ObjectId) -> Option<StackObjectFacts<'_>> {
+        if let Some(entry) = self.stack_entries.get(&id) {
+            return Some(StackObjectFacts { is_spell: entry.is_spell, chosen_targets: &entry.chosen_targets, x_value: entry.x_value });
+        }
+        let resolving = self.resolving.as_ref().filter(|r| r.id == id)?;
+        Some(StackObjectFacts { is_spell: resolving.identity.is_none(), chosen_targets: &resolving.chosen_targets, x_value: resolving.x_value })
+    }
+
     /// CR 112.1 — is `id` a **spell** on the stack, as opposed to an activated
     /// or triggered ability's object?
     ///
     /// **The entry, not the stack, is what answers.** An ability on the stack
     /// is a `GameObject` like any other (CR 113.7a) and nothing about the
     /// object says which it is; the `StackEntry` does, and it is the same field
-    /// the resolution and the fizzle already branch on. The spell **resolving
-    /// now** is still on the stack until it finishes (CR 608.2n), though
-    /// `resolve_top_of_stack` has taken its entry, so the resolving object
-    /// answers for it.
+    /// the resolution and the fizzle already branch on.
     pub fn is_spell_on_stack(&self, id: ObjectId) -> bool {
-        match self.stack_entries.get(&id) {
-            Some(entry) => entry.is_spell,
-            None => self.resolving.as_ref().is_some_and(|r| r.id == id && r.identity.is_none()),
-        }
+        self.stack_object_facts(id).is_some_and(|facts| facts.is_spell)
     }
 
     /// Get an immutable reference to a game object

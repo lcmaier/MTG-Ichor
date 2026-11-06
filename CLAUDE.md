@@ -9,7 +9,8 @@ not approximated. Crate lives in `mtgsim/`, edition 2024.
 ```bash
 cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
-cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card, --audit checks every trigger dispatch
+cd devgui && cargo run                    # play in the window
+cd mtgsim && cargo run --bin fuzz_games   # random-vs-random; --pool stress plays every card, --audit checks every trigger dispatch
 python plans/specdb.py stats              # rules coverage by phase
 python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py && python plans/check_type_surface.py && python plans/check_clippy_allows.py && python plans/check_engine_map.py && python plans/check_egui_only_draws.py && python plans/check_invariants.py && python plans/check_practices_page.py && python plans/check_gates_bite.py   # all must pass
 ```
@@ -121,8 +122,8 @@ worse than a missing one**, so both ship narrower than §3.2. → §2a (as built
 reassigns from the same process-independent counter — never `ObjectId`; same for any collection reaching a choice, log **or count**.
 
 **Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`, and `clippy.toml`
-refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
-for interactive play, and an unseeded `fuzz_games` run's seed, are the deliberate opt-outs, each under `#[expect]`.
+refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and an unseeded `fuzz_games`
+run's seed are the deliberate opt-outs, each under `#[expect]`.
 
 The regression is `tests/determinism_test.rs`; CI's three runs under three `MTGSIM_HASH_SEED`s are the end-to-end check.
 
@@ -136,10 +137,10 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5b. "Can't" effects (CR 101.2/614.17/613.11) and 5c. copy effects (CR 707/712/708/729 + Layer 1): the phases their docs name, at their steps below
 6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
-`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
-`permission-design` with `card-and-object-model` beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`; `cant-be-targeted`; `cant-cast-play-or-activate`;
+`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
+`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
-then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
+then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
 `casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks; `mana-payment-solver`.
 **v0.5 is Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the dev GUI and over the CLI (owner, 2026-10-29).
 After it, ordered at its close: the rest of the route's rows, wider card work and Phase 9's remainder; then Phase 10.

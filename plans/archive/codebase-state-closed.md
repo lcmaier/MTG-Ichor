@@ -10070,3 +10070,21 @@ The item as it stood:
      **Sized:** ~30 lines of code and ~40 of tests.
      **Slotted:** `multiplayer-rules`, CR 101.4's order at N seats, which re-reads
      this pass. Two seats reach this too.
+
+### Item 362 — closed 2026-11-05 by PR #312 (`devgui/division-shares-plus-counter-words`)
+
+362. **What a client is handed of a division and a counter reaches no client
+     yet.** `TargetInstance::division` and `ui::display::what_the_option_does`
+     have no caller outside a test. With Arc Lightning on the stack at the
+     Bears for 2 and the opponent for 1, the dev GUI's `StackItem` shows two
+     names and no numbers, so an opponent deciding whether to save the Bears
+     cannot read the split.
+
+     **Reachability (2026-11-03):** reachable — not wrong: the game is right,
+     and a client is shown less than it could be.
+     **Sized:** ~40 lines: a field on `StackItem`, its drawing, and the words
+     beside a counter's row, under `engineering-practices.md#the-dev-gui`.
+     **Slotted:** `modes-plus-choice-kinds`, the dev GUI PR after
+     `divided-among-targets`; the owner's cadence puts it next.
+     **Closed:** the dev GUI reads both, a resolving spell's row among them
+     (`GameState::stack_object_facts`).

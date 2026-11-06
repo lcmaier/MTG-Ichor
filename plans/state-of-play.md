@@ -24,10 +24,10 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5b. "Can't" effects (CR 101.2/614.17/613.11) and 5c. copy effects (CR 707/712/708/729 + Layer 1): the phases their docs name, at their steps below
 6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
-`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
-`permission-design` with `card-and-object-model` beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`; `cant-be-targeted`; `cant-cast-play-or-activate`;
+`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
+`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
-then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
+then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
 `casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks; `mana-payment-solver`.
 **v0.5 is Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the dev GUI and over the CLI (owner, 2026-10-29).
 After it, ordered at its close: the rest of the route's rows, wider card work and Phase 9's remainder; then Phase 10.
@@ -176,7 +176,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 218 |
 | …of them in `PERFORMANCE_POOL` | 125 |
-| `#[test]` functions | 2948 |
+| `#[test]` functions | 2947 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -198,13 +198,13 @@ with less than 20% room is bolded.
 | | |
 |---|---:|
 | Numbered items | 429 |
-| …closed, still recorded | 267 |
+| …closed, still recorded | 268 |
 | …open — unreachable, and says why | 106 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 33 |
+| …open — reachable, not wrong (perf, a name, a harness) | 32 |
 | …open — nothing to build, a record for a later phase | 18 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 156 of 162 |
+| …open, carrying an explicit `**Sized:**` | 155 of 161 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -218,7 +218,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 149 |
+| …slotted to a phase or roadmap row still to come | 148 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

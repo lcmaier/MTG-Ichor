@@ -84,6 +84,9 @@ struct Reached {
     closed: usize,
     /// The panel opened or closed, sliding the board.
     slid: usize,
+    /// Prompts with a division on the stack, and with an option's words beside it.
+    shares_on_the_stack: usize,
+    words_beside_an_option: usize,
 }
 
 #[test]
@@ -105,13 +108,14 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
 }
 
 /// The review boards reach what a dealt game reaches only now and then: a
-/// blocker with two attackers to choose between, damage to divide, and
-/// blocks declared illegally and asked for again. The four-seat sample has
-/// three seats the window plays and one that has left the game.
+/// blocker with two attackers to choose between, damage to divide, blocks
+/// declared illegally and asked for again, a spell's division on the stack,
+/// and a counter's row at CR 616.1's question. The four-seat sample has three
+/// seats the window plays and one that has left the game.
 #[test]
 fn random_clicks_finish_games_from_the_review_boards() {
     let mut reached = Reached::default();
-    for board in ["main.scenario", "blocks.scenario", "damage.scenario", "reask.scenario"] {
+    for board in ["main.scenario", "blocks.scenario", "damage.scenario", "reask.scenario", "division.scenario", "finality-counter.scenario"] {
         for seed in SEEDS {
             play_at_random(from_board(board), seed, &mut reached);
         }
@@ -121,6 +125,8 @@ fn random_clicks_finish_games_from_the_review_boards() {
         play_at_random(GameSetup { scenario: Some(four_seats.clone()), ..dealt(0) }, seed, &mut reached);
     }
     assert!(reached.primitives.iter().any(|p| matches!(p, Primitive::Allocate { .. })), "no allocation reached");
+    assert!(reached.shares_on_the_stack > 0, "no division reached the stack");
+    assert!(reached.words_beside_an_option > 0, "no option carried its words");
 }
 
 /// Plays a whole game by random clicks, adding what it reached.
@@ -150,11 +156,14 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
             ToWindow::Prompt { prompt, .. } => {
                 reached.primitives.push(prompt.primitive.clone());
                 reached.pass_only += usize::from(prompt.pass.is_some() && prompt.options.len() == 1);
+                reached.words_beside_an_option += usize::from(prompt.options.iter().any(|option| option.what_it_does.is_some()));
             }
         }
         clock += 1.0;
         state.tick(clock);
         state.receive(message);
+        let on_the_stack = state.board.iter().flat_map(|board| &board.stack).flat_map(|item| &item.targets);
+        reached.shares_on_the_stack += usize::from(on_the_stack.into_iter().any(|target| target.share.is_some()));
         // Item 201: the beat after a prompt arrives offers nothing and drops a click.
         assert!(clickable(&state, &mut rng).is_empty(), "{game}: live in the beat at {:?}", state.prompt);
         assert_eq!(state.clone().input(Input::OptionButton(0)), None, "{game}: a click in the beat");

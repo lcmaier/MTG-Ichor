@@ -23,7 +23,7 @@ use devgui::boards::Folders;
 use devgui::bridge::{EngineHandle, GameSetup, ToWindow};
 use devgui::editor::EditorInput;
 use devgui::launch::Start;
-use devgui::prompt::{Answer, BoardRef, Reply};
+use devgui::prompt::{Answer, BoardRef, Prompt, Reply};
 use devgui::save::{Destination, Tools};
 use devgui::session::Session;
 use devgui::view_model::{Input, Mode, Progress, WindowState};
@@ -111,6 +111,9 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let waiting = partway(waiting());
     results.add(clicked_picture(&waiting, &header("waiting.scenario"), "Waiting (4)", "waiting"));
     results.add(hovered_picture(&waiting, &header("waiting.scenario"), "Flickerwisp", "hover"));
+    results.add(picture(&partway(divided_on_the_stack()), &header("division.scenario"), None, "division_on_stack"));
+    results.add(picture(&partway(division_resolving()), &header("division-resolving.scenario"), None, "division_resolving"));
+    results.add(picture(&partway(finality_counter_row()), &header("finality-counter.scenario"), None, "finality_counter_words"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
     // Taller, to reach the third seat's commander damage.
@@ -403,6 +406,88 @@ fn waiting() -> WindowState {
     let shown = state.board_view().and_then(|board| board.waiting).map(|waiting| waiting.name);
     assert_eq!(shown.as_deref(), Some("Waiting (4)"), "{}", state.log.iter().map(|line| line.text.as_str()).collect::<Vec<_>>().join("
 "));
+    finish(engine);
+    state
+}
+
+/// The click script's board, `division.scenario`: the window stopped at
+/// player 1's priority over the spell, the question the split is for.
+fn divided_on_the_stack() -> WindowState {
+    let state = arc_lightning_until("division.scenario", |prompt| prompt.player == 1);
+    let stack = state.board_view().map(|board| board.stack).expect("a board at the question");
+    assert!(stack[0].detail.ends_with(" for 2, Player 1 for 1"), "{}", stack[0].detail);
+    state
+}
+
+/// The click script's board, `division-resolving.scenario`: the question its
+/// damage asks as it resolves, with the spell's row whole.
+fn division_resolving() -> WindowState {
+    let state = arc_lightning_until("division-resolving.scenario", |prompt| prompt.kind == "ChooseReplacementEffect");
+    let stack = state.board_view().map(|board| board.stack).expect("a board at the question");
+    assert!(stack[0].title.starts_with("Arc Lightning") && !stack[0].title.contains("being cast"), "{}", stack[0].title);
+    assert!(stack[0].detail.ends_with(" for 2, Player 1 for 1"), "{}", stack[0].detail);
+    state
+}
+
+/// `board` played to the first question `stop` takes, with Arc Lightning cast
+/// at the Bears for 2 and player 1 for 1 and every other priority passed.
+fn arc_lightning_until(board: &str, stop: fn(&Prompt) -> bool) -> WindowState {
+    let engine = spawn(from_board(board));
+    let mut state = WindowState::default();
+    loop {
+        state.receive(next(&engine));
+        let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
+        if stop(prompt) {
+            break;
+        }
+        let labeled = |label: &str| prompt.options.iter().position(|option| option.label.contains(label));
+        let (bears, player) = (labeled("Grizzly Bears"), labeled("Player 1"));
+        let input = match prompt.kind.as_str() {
+            "PriorityAction" => labeled("Arc Lightning").or(prompt.pass).map(Input::OptionButton),
+            "ManaAbilityWindow" => labeled("Mountain").map(Input::OptionButton),
+            "SelectRecipients" => {
+                state.input(Input::OptionButton(bears.expect("the Bears are offered")));
+                state.input(Input::OptionButton(player.expect("player 1 is offered")));
+                Some(Input::Done)
+            }
+            "DivideAmong" => {
+                state.input(Input::OneMore(bears.expect("the Bears are a bucket")));
+                Some(Input::Done)
+            }
+            _ => None,
+        };
+        let input = input.unwrap_or_else(|| panic!("nothing to take at {}", state.status()));
+        engine.answers.send(state.input(input).expect("one input answers")).unwrap();
+    }
+    finish(engine);
+    state
+}
+
+/// The click script's board, `finality-counter.scenario`: the Bolt at the
+/// Bears resolves and they die, and player 0 is asked which exile applies.
+fn finality_counter_row() -> WindowState {
+    let engine = spawn(from_board("finality-counter.scenario"));
+    let mut state = WindowState::default();
+    loop {
+        state.receive(next(&engine));
+        let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
+        if prompt.kind == "ChooseReplacementEffect" {
+            break;
+        }
+        let labeled = |label: &str| prompt.options.iter().position(|option| option.label.contains(label));
+        let pick = match prompt.kind.as_str() {
+            "PriorityAction" => labeled("Lightning Bolt"),
+            "SelectRecipients" => labeled("Grizzly Bears"),
+            "ManaAbilityWindow" => labeled("Mountain"),
+            _ => None,
+        };
+        let input = Input::OptionButton(pick.or(prompt.pass).unwrap_or_else(|| panic!("nothing to take at {}", state.status())));
+        engine.answers.send(state.input(input).expect("one option answers")).unwrap();
+    }
+    let view = state.prompt_view().expect("the question is open");
+    let words = |label: &str| view.options.iter().find(|option| option.label.contains(label)).map(|option| option.what_it_does);
+    assert_eq!(words("Rest in Peace"), Some(None), "a printed ability's label says it all");
+    assert!(words("its finality counter").flatten().is_some_and(|words| words.contains("exile it instead")), "the counter's row");
     finish(engine);
     state
 }

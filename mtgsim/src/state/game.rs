@@ -82,11 +82,6 @@ impl Game {
         self.state.reseed(seed);
     }
 
-    /// Take this game's randomness from the OS instead — for interactive play,
-    /// where the same opening hand every session would be the bug.
-    pub fn reseed_from_entropy(&mut self) {
-        self.state.reseed_from_entropy();
-    }
 
     /// `run` on this game, ended early by a [`Stop`] a provider raised inside
     /// it; any other panic passes through. A stopped game is the board at the

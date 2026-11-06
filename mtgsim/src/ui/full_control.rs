@@ -49,9 +49,8 @@ impl FullControlSwitch {
 /// `R` while the switch is on.
 ///
 /// `R` and the provider at the bottom of `D` are one seat's: two values that
-/// share whatever the provider keeps, as `cli_play`'s two terminals share their
-/// handles. A provider that cannot be two values, such as a window's channel,
-/// is shared through an `Rc` instead.
+/// share whatever the provider keeps. A provider that cannot be two values,
+/// such as a window's channel, is shared through an `Rc` instead.
 pub struct FullControl<D, R> {
     decorated: D,
     raw: R,

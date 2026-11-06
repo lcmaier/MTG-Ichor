@@ -436,19 +436,45 @@ Two more rules matter and both make life easier:
   payment side (`hybrid-and-phyrexian-payment`), not cost *determination*, and it must not touch the
   locked total. CR 118.14's "mana of any type can be spent" is the same rule.
 
-**The population, counted 2026-09-09.** Scryfall `o:"as though" -is:funny`:
-**287** cards. Not an edge case, and not one mechanic either — the shapes
-split by *which question* they re-answer:
+**The population, by clause (2026-11-05).** `plans/references/as-though-census.py`
+reads every card Scryfall holds, paper and digital, Alchemy's among them, by the
+clause that does it: **322** cards, among them CR 118.14's "mana of any type can be
+spent" and "any time you could cast an instant", which never say "as though". Every
+family under 40 was read card by card. Sixteen families, none left unplaced, and
+each re-answers **one named question at one named read**:
 
-| Shape | Question re-answered | Examples | Rough count |
-|---|---|---|---|
-| Timing | may this be cast now (CR 601.3b–d, which the CR spells out for flash specifically) | Vedalken Orrery, Leyline of Anticipation | part of the **117** that pair "as though" with "you may cast"/"may play" |
-| Zone | may this be played from here | Shaman's Trance, Yawgmoth's Will, Wildfire Devils | the rest of that 117 |
-| Payment | may this mana pay that pip (609.4b) | Chromatic Lantern's cousins, Cascading Cataracts | **62** on `o:"spend mana as though"` |
-| Attack / block legality | may this attack or block | Masako the Humorless, **49** on `o:"as though it didn't have defender"` | ~50+ |
-| A value inside a check | what number does this rule read | "crew as though its power were 2 greater", "adapt as though it had no +1/+1 counters" (Biomancer's Familiar), Elvish Refueler's exhaust | **41** on `o:"as though" o:"power"`, plus the counter-fiction ones |
+| Question | Cards | The read | Lands with |
+|---|---:|---|---|
+| May this mana pay that pip (609.4b) | 91 | the check's edges and the payment; 63 ride one cast another effect allowed | `hybrid-and-phyrexian-payment` |
+| May this be cast now | 74 | `can_begin_to_cast` | `as-though-effects`' permission half |
+| The same, on a choice made casting ("if you pay {2} more", "if X is 3 or less", CR 601.3c–d) | 15 | offered at the gate, CR 601.2's rewind refuses it after, as `permission-architecture.md` already does | the same |
+| The same, stated outright ("any time you could cast an instant") | 9 | seven are activation timing, CR 606.3's | `permission-design` |
+| May this attack: defender, haste | 57, 3 | `can_attack`; Frenzied Saddlebrute's haste is per attack target | the permission half |
+| May this block: evasion, tapped | 15, 1 | `can_block`'s pair checks, `can_be_a_blocker` | the permission half |
+| May this be targeted: hexproof, shroud | 5 | `validate_targets`, and CR 608.2b's re-check | the permission half, its seam cut by `cant-be-targeted` |
+| May this be activated: haste, a use limit | 4, 2 | `has_summoning_sickness` at the tap and untap costs and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half, its seam cut by `cant-pay-costs` |
+| How is this creature's damage assigned | 19 | a "may" at CR 510.1c, a choice kind no census has counted | the permission half, with its `ChoiceKind` |
+| What does this source's damage do | 2 | wither's and infect's reads (Everlasting Torment, Phyrexian Unlife) | those keywords' first cards |
+| What number does this rule read | 24, 1 | crew, saddle and station's power sum (22), Loot's and Zimone's assignment, adapt's counter check | `remaining-costs` for crew, saddle and station; each other with its mechanic |
+| Is this card where the rule says | 1 | Shaman's Trance's cast from a graveyard | `casting-from-other-zones` |
 
-**Why the first four are one mechanism and the fifth is the interesting one.**
+**What the census changes.** The family is no longer an unknown. The value "half"
+that had no date is 25 cards, 22 of them one sentence on crew, saddle or station, and each
+is a number one rule reads at one site, so **none needs a frame**. Rough cost
+beyond the mechanism below, from each site's shape and unbuilt: 20–60 lines a
+question, and about 100–150 for the damage assignment's choice kind. Two reads
+were guarded by nothing before this count, and `cant-effects-architecture.md` §3.7
+now says so: hexproof's, and summoning sickness's, which one accessor answers for
+two different questions.
+
+**A closed list of questions (the owner, 2026-11-05, #312).** A printed "as though"
+names one question, but the form could name any rule, and custom cards are a
+post-v1 goal (§2.37). The engine takes a closed list, any condition and any subject
+on each, and a new question is one arm at its read; every read consultable would
+be the frame below at every read. Which questions the list holds waits for
+`as-though-effects`' design, since widening it later costs one arm.
+
+**Why the waivers are one mechanism, and what a value is.**
 Waiving a check ("as though it didn't have defender", "as though it were
 untapped", "as though it had flash") is a *permission* consulted where a
 legality predicate is asked — the exact mirror of `Restriction`, which is
@@ -458,31 +484,28 @@ an `is_permitted(Query)` beside it is a known shape done twice already
 (restrictions, cost modification), and CR 609.4a's union is `is_prohibited`'s
 union with the sign flipped.
 
-The fifth shape substitutes a **value** rather than waiving a check, and it is
-where the design question actually lives. The engine has the machinery: RC-4's
+A value substitutes rather than waives. The census found every printed one reads a
+single number, so a read at its site answers it. Only an open list of questions
+would want more, and the engine has the machinery for that: RC-4's
 `EntryFrame` already answers "what would this object's characteristics be
 under a hypothesis" for one bounded question, with `frame_of` returning the
 hypothetical for the object under test and the real board for everything else
 — which is CR 609.4's "for that effect / for all other purposes" split,
-built. So the likely shape is a **question-scoped frame**, not a new layer:
+built. That would be a **question-scoped frame**, not a new layer:
 the decision site names the question, the sweep supplies the fictions that
-apply to it, and the check runs against the overlay. What must be written
-down first, in the doc: **the fiction never reaches `compute_characteristics`
+apply to it, and the check runs against the overlay. What holds on either
+shape: **the fiction never reaches `compute_characteristics`
 and never reaches the layer walk** — the day it does, Masako's creature is
 untapped for the untap step and the whole rule inverts.
 
-**What it blocks.** Nothing on the critical path, and it is not a Phase 8
-breadth item either: it is a mechanism, and 287 cards is enough that Phase 8
-will hit it immediately. The three sub-shapes are separable and only the
-first is cheap.
+**What it blocks.** It is not a Phase 8 breadth item: it is a mechanism, and 322
+cards is enough that Phase 8 will hit it immediately.
 
 **Rough size.** The permission half (timing, zone, attack/block legality):
 ~600–900, a `PermissionDef` mirroring `RestrictionDef`, `is_permitted` with
 one `Query` arm per site, the sweep, and 3–4 cards. The payment half
 (609.4b): ~200–300 on top of `hybrid-and-phyrexian-payment`'s payment, and it belongs with it. The
-value-substitution half: **unknown until scoped** — it needs the frame
-generalized past entries, which is RC-4's machinery pointed at a new
-question, and the sizing has to count the decision sites first. Graduates to
+values: a read each, with their mechanics, per the census above. Graduates to
 `as-though-architecture.md` when scheduled; it is a sibling of
 `cant-effects-architecture.md` and should be written against it, because the
 two share the sweep, the union and the decision-site vocabulary and differ
@@ -498,8 +521,8 @@ and no slot is not scheduled, it is merely recorded.
 
 1. **The back-stop lives on the route**: `roadmap-v2.md` §3a row **`as-though-effects`**, which
    puts the permission half after the combat phases and before Phase 8, gates Phase 8's start
-   on it beside `merging-and-meld` and `information-model`, rides the payment half with `hybrid-and-phyrexian-payment`, and says why the
-   value-substitution half deliberately has no date. A back-stop is what turns
+   on it beside `merging-and-meld` and `information-model`, rides the payment half with `hybrid-and-phyrexian-payment`, and gives each
+   value a home. A back-stop is what turns
    "recorded" into "scheduled", and it could not go in this file: §0 allows six
    fields and no seventh, and "nothing here has a date" is the sentence that
    makes the inventory trustworthy.
@@ -1034,7 +1057,8 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   count (CR 305.2), its first consumer and the card family item 212's census
   counted (36 cards that play additional lands). Max hand size and player
   hexproof reuse it, as `cost-architecture.md` §3.9's one surface asks.
-  Slotted with that document's land-count PR, before C (2026-10-05).
+  Slotted: `player-scoped-values`, before `cant-be-targeted`, which must read
+  it (#312, 2026-11-05).
 
 ### 2.16 Counters on players (CR 122.1) — ✅ graduated 2026-09-13 (RE-5)
 
@@ -1174,8 +1198,8 @@ mechanic rather than a migration, which is why it is here and not in
   mana component is covered — the stop that used to sit in the engine's loop
   (`codebase-state.md` main item 70) — and `ui::AutoPayer<D>` answers
   `GenericManaAllocation` (CR 601.2h) and `OrderCostReductions` (CR 601.2f).
-  Clients compose the stack they want; `cli_play`'s human seat takes both, its
-  bot seat and `fuzz_games` take the stop alone, and `--no-auto-pay` drops it.
+  Clients compose the stack they want; a person's seat takes both, `fuzz_games`
+  takes the stop alone, and `--no-auto-pay` drops it.
   **The stack invariant is one decorator per `ChoiceKind`**, so composition
   commutes and stack order carries no meaning — that is what a third
   automation (priority passing, auto-block) extends rather than a scope enum
@@ -1523,11 +1547,10 @@ mechanic rather than a migration, which is why it is here and not in
   test-function names in `tests/phase_rd_integration_test.rs` match `ask_…(`; count calls.
   `ChoiceKind` has **25 variants**, every one answering `subject()` since A4j
   (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring:
-  `cli_play` runs `AutoPayer(ManaWindowStop(Cli))` for the human and
-  `ManaWindowStop(Random)` for the bot, `fuzz_games` runs
-  `ManaWindowStop(Random)` behind a `MiddlewareConfig` with one field, and
-  `--no-auto-pay` drops the stack on both. **`AutoPayer` has one client**,
-  `cli_play`'s human seat — no test stacks it and the harness never has — so
+  the dev GUI runs `AutoPayer(ManaWindowStop(seat))` for a person,
+  `fuzz_games` runs `ManaWindowStop(Random)` behind a `MiddlewareConfig` with
+  one field, and `--no-auto-pay` drops the stack. **`AutoPayer` has one
+  client**, a person's seat — no test stacks it and the harness never has — so
   nothing this entry does to it can move a fuzz counter. The engine answers
   every forced prompt itself since A4e; the four `validate_*` helpers count
   the rest as `Decisions` and `Priority decisions` (item 138's instrument, the
@@ -1607,7 +1630,7 @@ mechanic rather than a migration, which is why it is here and not in
   hybrid symbol, CR 118.7e; a `not_below` reduction), ~20 lines;
   ATOM-601.2f-004's test restated from "the prompt is asked" to "both
   reductions apply and every order gives the CR's answer"; `AutoPayer` deleted
-  and `cli_play`'s human stack becomes `ManaWindowStop(Cli)`. It moves the
+  and a person's stack becomes `ManaWindowStop` alone. It moves the
   random agent's stream by the 0.07 prompts a game the stress pool asks, so it
   is a `differ` A/B and its own PR, first in the sequence below. §3.4's "take
   it then, not now" was a timing call, and this is the time: the prompt is
@@ -1627,10 +1650,8 @@ mechanic rather than a migration, which is why it is here and not in
   indirection inside every decorator as a handle each one checked. **The
   owner's shape is better:** one `FullControl<D, R>` at the top of the seat
   holding the decorated stack `D` and the raw provider `R`, forwarding each of
-  the four methods to one or the other on a `Cell<bool>` (~40);
-  `CliDecisionProvider` intercepting the command before it parses an index —
-  `pick_n`'s `read_usize` loop is the one place (~45); wiring in `cli_play`
-  (~10). The decorators stay stateless and know nothing of the toggle, so
+  the four methods to one or the other on a `Cell<bool>` (~40). The decorators
+  stay stateless and know nothing of the toggle, so
   rule 3 needs no toggle arm and a new decorator adds nothing here. One
   wrinkle: `R` and the bottom of `D` must be the same human provider. The
   CLI's is a unit struct, so two instances are fine; a GUI provider holding a
@@ -2296,7 +2317,7 @@ comment sweep found the `TODO` in `Game::setup` with no owner.
 | **Rules** | CR 103.5 (declarations in turn order from the starting player, then each mulligan taken, then N cards to the bottom); 103.5c (in a multiplayer game the first mulligan is free); 103.5b ("any time [that player] could mulligan"); 903.5a — Commander is the same rule |
 | **Verdict** | a stub whose configuration is already in place; the engine answers the game's first decision for the player |
 | **Size** | ~100 lines in `Game::setup`: two `ChoiceKind`s, the loop CR 103.5 states, 103.5c keyed on the player count, and the random provider's policy — keep, always, so no fuzz counter moves; the pool moves only if an agent ever mulligans |
-| **Blocks** | every game's opening: the RL harness's first decision (the post-RE audit's fork model, `codebase-state.md` main item 41) and `cli_play`'s human seat |
+| **Blocks** | every game's opening: the RL harness's first decision (the post-RE audit's fork model, `codebase-state.md` main item 41) and a person's seat |
 | **Atoms** | `ATOM-103.5-001` |
 | **Owner** | `game-formats`, in `setup-architecture.md`, which owns CR 103: every game opens with CR 103.5, the five-seat table is the first a person sits down at, and `roadmap-v2.md` §D brings Commander's mulligans forward with the formats; CR 103.5c's free mulligan is keyed on the seat count |
 

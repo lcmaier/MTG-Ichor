@@ -217,7 +217,7 @@ impl RandomDecisionProvider {
     ///
     /// For anything that wants to be replayable (the fuzz harness, a test
     /// reproducing a reported panic), use [`RandomDecisionProvider::seeded`].
-    #[expect(clippy::disallowed_methods, reason = "the opt-out: a provider for interactive play")]
+    #[expect(clippy::disallowed_methods, reason = "the opt-out: a provider nothing needs to replay")]
     pub fn new() -> Self {
         RandomDecisionProvider {
             window: Cell::new(None),

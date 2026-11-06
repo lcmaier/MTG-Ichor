@@ -20,7 +20,7 @@ Categories:
               training batch runs
   debug-only  the items, statements and fields under `#[cfg(debug_assertions)]`
               in engine files: the debug checks, compiled out of a release build
-  harness     src/bin (cli_play, fuzz_games), minus its cfg(test) tails
+  harness     src/bin (fuzz_games), minus its cfg(test) tails
   unit-tests  the cfg(test) tails of src files
   tests       mtgsim/tests
   support     src/test_support.rs (feature-gated, never in a release build)
