@@ -41,7 +41,7 @@
 //! otherwise (`compute::compute_non_member`).
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::ops::{BitOr, BitOrAssign, Deref};
 use std::sync::Arc;
 
@@ -731,6 +731,14 @@ fn writes_of(modification: &EffectModification) -> Channels {
 struct Reads {
     source: Channels,
     members: Channels,
+}
+
+impl Reads {
+    /// Whether nothing another application writes can reach what this one
+    /// does: a counter's, or what a member entered as.
+    fn are_none(self) -> bool {
+        !self.source.intersects(Channels::ALL) && !self.members.intersects(Channels::ALL)
+    }
 }
 
 /// The channels a filter's leaves read.
@@ -1630,7 +1638,9 @@ fn depends_on(
 ///
 /// The fast path is the common case: the key-first application depends on
 /// nothing, which the channel check almost always settles without a
-/// hypothetical, and then it is next. Only when it does depend on something
+/// hypothetical, and then it is next. One that reads nothing is settled with
+/// no check, and that is what keeps a board of N creatures with counters, N
+/// applications in a layer, linear. Only when the first does depend on something
 /// is the whole graph built — over a handful of applications, so the closure
 /// is Floyd–Warshall rather than anything cleverer.
 ///
@@ -1648,26 +1658,30 @@ fn next_ready(
     if m == 1 {
         return 0;
     }
-    let mut affected: Vec<Option<Vec<ObjectId>>> = (0..m).map(|_| None).collect();
-    let mut depends = vec![vec![false; m]; m];
-
     let head = &apps[pending[0]];
+    if head.reads.are_none() {
+        return 0;
+    }
+    let mut affected: Vec<Option<Vec<ObjectId>>> = (0..m).map(|_| None).collect();
+    let mut head_depends = vec![false; m];
     let mut head_waits = false;
     for j in 1..m {
-        depends[0][j] = depends_on(game, board, layer_index, head, &apps[pending[j]], &mut affected[j]);
-        head_waits |= depends[0][j];
+        head_depends[j] = depends_on(game, board, layer_index, head, &apps[pending[j]], &mut affected[j]);
+        head_waits |= head_depends[j];
     }
     if !head_waits {
         return 0;
     }
     if let Some(waits_on) = head_waits_on {
-        for j in (1..m).filter(|&j| depends[0][j]) {
+        for j in (1..m).filter(|&j| head_depends[j]) {
             if !waits_on.contains(&pending[j]) {
                 waits_on.push(pending[j]);
             }
         }
     }
 
+    let mut depends = vec![vec![false; m]; m];
+    depends[0] = head_depends;
     for i in 1..m {
         for j in 0..m {
             if i != j {
@@ -1713,13 +1727,13 @@ fn resolve_order_within_layer(
     apps: Vec<Application<'_>>,
     mut recorder: Option<&mut Recorder>,
 ) {
-    let mut pending: Vec<usize> = (0..apps.len()).collect();
+    let mut pending: VecDeque<usize> = (0..apps.len()).collect();
     // Per application, what it waited for: kept only for a recorder, so the
     // game's own passes allocate nothing here.
     let mut waits: Vec<Vec<usize>> = if recorder.is_some() { vec![Vec::new(); apps.len()] } else { Vec::new() };
-    while !pending.is_empty() {
-        let next = next_ready(game, board, layer_index, &apps, &pending, waits.get_mut(pending[0]));
-        let index = pending.remove(next);
+    while let Some(&head) = pending.front() {
+        let next = next_ready(game, board, layer_index, &apps, pending.make_contiguous(), waits.get_mut(head));
+        let Some(index) = pending.remove(next) else { break };
         match recorder.as_deref_mut() {
             None => {
                 perform(game, board, layer_index, &apps[index], &mut None);
