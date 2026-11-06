@@ -19,6 +19,8 @@ everything below it is for the session.
   carried from memory or an older brief.
 - When the merged PR's number crossed a multiple of 20, run the CI review
   (`plans/spine-phase-audit.md#the-ci-review`) and put what it finds in the list below.
+  The process PR lands beside it, from `plans/handoffs/process-pr.md`: a process
+  change goes in that queue, never in the next brief, a bug in a gate excepted.
 
 ## Where we stand, in chat, before the brief
 

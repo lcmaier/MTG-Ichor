@@ -165,6 +165,10 @@ on main for where the minutes went, not for whether it passed:
 
 A small finding goes in the next PR; a larger one becomes an item.
 
+**Process changes land beside this review**, in one PR when a number crosses a
+multiple of 20, queued in `plans/handoffs/process-pr.md`, and never inside an
+engine PR. A bug in a gate is the one exception: it is fixed where it is found.
+
 ## The runs
 
 - **The post-RE audit**, 2026-09-15, at critical-path item 5's close:
