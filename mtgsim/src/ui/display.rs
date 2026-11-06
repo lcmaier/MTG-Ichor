@@ -395,6 +395,12 @@ pub fn player_name(player: PlayerId) -> String {
     format!("Player {player}")
 }
 
+/// A target of a division with its share (CR 601.2d), `target` as the board
+/// names it: `Grizzly Bears (#12) for 2`, damage or counters alike.
+pub fn target_with_share(target: &str, share: u64) -> String {
+    format!("{target} for {share}")
+}
+
 pub fn attack_target_name(game: &GameState, target: &AttackTarget) -> String {
     match target {
         AttackTarget::Player(player) => player_name(*player),
@@ -1388,6 +1394,11 @@ mod tests {
     use crate::types::card_types::{CardType, CreatureType};
     use crate::types::effects::TokenDef;
     use crate::types::zones::Zone;
+
+    #[test]
+    fn a_target_reads_with_its_share() {
+        assert_eq!(target_with_share(&player_name(1), 2), "Player 1 for 2");
+    }
 
     #[test]
     fn a_counters_words_sit_beside_its_short_label() {
