@@ -10713,25 +10713,28 @@ first row not built, so a list here can grow as rows land.
      a record's place in its turn.
      **Slotted:** `tarkir-dragonstorm-decks`.
 
-402. **Eight keywords have no surface.** Surveil (CR 701.25) compiles and is refused
+402. **Eight keywords can't be written.** Surveil (CR 701.25) compiles and is refused
      at resolution; monstrosity (701.37, Protector of the Wastes, Stormbreath Dragon),
      proliferate (701.34), connive (701.50), exchange (701.12, Tree of Redemption),
-     riot (702.136), myriad (702.116, four cards, beside `token-copies`) and protection
-     (702.16, Stormbreath Dragon) have no primitive. Mobilize, battle cry and prowess
-     write themselves out and play. Flanking, skulk and harmonize are their rows'.
+     riot (702.136) and myriad (702.116, four cards, beside `token-copies`) have no
+     primitive. Protection (702.16, Stormbreath Dragon) has its targeting half in
+     `cant-be-targeted` and its blocking half in `combat-restrictions`, and leaves here
+     what those do not hold: the keyword and its quality, and 702.16c–e's attachment
+     and damage halves. Mobilize, battle cry and prowess write themselves out and
+     play. Flanking, skulk and harmonize are their rows'.
 
      **Reachability (2026-11-06):** unreachable — no registered card prints one.
-     **Sized:** ~820–1,320 lines, protection the largest, whose four restrictions
-     `cant-effects-architecture.md` lays out.
+     **Sized:** ~640–1,020 lines, each with its card.
      **Slotted:** `tarkir-dragonstorm-decks`.
 
 403. **Two rules of a step no effect can change.** CR 502.3's untap reads only the
      active player, and a trigger cannot stand in for Seedborn Muse: nothing resolves
      in an untap step (CR 502.4), so its lands stay tapped through it. CR 500.5 empties
-     a mana pool whatever Leyline Tyrant says.
+     a mana pool whatever Leyline Tyrant says, a replaced event `backlog.md` §2.5 lists,
+     which arrives with its `GameAction` and kind.
 
      **Reachability (2026-11-06):** unreachable — no registered card prints either.
-     **Sized:** ~100–160 lines: a query at each.
+     **Sized:** ~100–160 lines: a query at the untap, and the emptying's event.
      **Slotted:** `tarkir-dragonstorm-decks`.
 
 404. **Five words one card each asks.** "If that spell is countered this way, exile

@@ -739,7 +739,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 4 | `pausing-at-a-decision`, the design | ✅ 2026-11-02 | 1 | | | |
 | 5 | `options-named-by-what-they-are`, of `modes-plus-choice-kinds` | | 1 | | | |
 | 5 | `divided-among-targets` | | 1 | | | |
-| 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 | 1 | it is one | no | Landed in about 2 hours of session against the pilot's 9, with what it finds in `plans/references/card-census/results/gap-census.md` |
+| 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 | 1 | | | |
 | 5 | `orders-the-cr-hands-a-player` | | 1 | no | no | Design: 350–650 at its table's 1.7× is 600–1,100, with 9 lines of fixture migration |
 | 5 | `modal-spells-and-abilities` | | 1–2 | no | likely | Design: 1,360–2,070 at 1.7× is 2,300–3,500. Eleven consumers against TR-5c's 2,630 |
 | 5 | `mana-provenance`, the design | | 1 | it is one | no | Nearest: #306 and #224, one PR each. It says whether `Primitive::Pay` needs the build first, which would bring `mana-ability-costs` and the build ahead of the next row |
@@ -779,13 +779,13 @@ name for, and a phase of the critical path that no Row cell names.
 | 16 | `split-and-adventure-style-cards`, split and Omen | | 1–3 | at `card-and-object-model` | may | Guess: `backlog.md` §2.41 says about a PR a mechanic, and the decks print a split card and two Omens |
 | 16 | `face-down-and-morph`, manifest | | 1–2 | at `card-and-object-model` | may | Guess: the layer half is small and known, and manifest has no cast |
 | 16 | `card-and-object-model`, an Aura on a player | | 1 | no | no | Sum: 350–450 at 3× is about 1,200, with Curse of Opulence |
-| 17 | `tarkir-dragonstorm-decks`, the five decks | | 16–40 | census | yes | Nearest: the registered cards. A bare card and one test is 18 + 35 lines and a commented card with three tests 47 + 105, so 60–140 a card. The 378 left at 2,500 and 1,700 a PR are 10–31. Sum: the gaps slotted here, items 389–391 and 393–404 with `backlog.md`'s three, are 2,990–4,800 at 3×, 6–9 PRs. From step 9's close these PRs land beside the rows that unlock them, so this count falls as the board's deck count rises. `plans/references/card-census/results/gap-census.md` |
+| 17 | `tarkir-dragonstorm-decks`, the five decks | | 15–39 | census | yes | Nearest: the registered cards. A bare card and one test is 18 + 35 lines and a commented card with three tests 47 + 105, so 60–140 a card. The 378 left at 2,500 and 1,700 a PR are 10–31. Sum: the gaps slotted here, items 389–391 and 393–404 with `backlog.md`'s three, are 2,810–4,500 at 3×, 5–8 PRs. From step 9's close these PRs land beside the rows that unlock them, so this count falls as the board's deck count rises. `plans/references/card-census/results/gap-census.md` |
 | 17 | `decks-in-fuzz-games` | | 1 | no | no | Guess: a flag, a seat per list and `game-formats`' setup |
 | 18 | `devgui-at-five-seats` | | 1–2 | no | may | Nearest: #214's seats, 297 lines, and SU-6's window work, 546, for a command zone and commander damage |
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-06:** 74–138 route PRs, 16–40 of them the
+**What the rows sum to, read 2026-11-06:** 73–137 route PRs, 15–39 of them the
 decks' cards.
 
 **Overhead.** A route PR is one that builds a row of this table, or of the cleanup
@@ -793,17 +793,17 @@ plan whose last rows joined it, so work is counted the way the rows left are. Of
 177 merge commits in the eight weeks to #313, 87 were on the route, 27 the dev
 GUI, 36 audit, 13 process and docs, and 14 detours: 2.0 merged PRs for each route
 PR, and 36% audit, process and detours. The item 6 audit's plan said 13–20 PRs and
-ran to 28, its cleanup builds among them. At that rate the route is 148–276 merged
+ran to 28, its cleanup builds among them. At that rate the route is 146–274 merged
 PRs. Held to about 1.5 for each route PR, with audits on a budget, the process PR
-at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 111–207. So
+at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–206. So
 **about 110–275 merged PRs**.
 
 **A date, and what it assumes.** The route ran 10.9 PRs a week over those eight
-weeks and 5 in its slowest fortnight, the dev GUI's. 74 PRs at the first pace is
-about 7 weeks and 138 at the second 28, so **between about New Year and late May
-2027**. Each range's midpoint, 106 PRs at 8 a week, gives early February. It
+weeks and 5 in its slowest fortnight, the dev GUI's. 73 PRs at the first pace is
+about 7 weeks and 137 at the second 27, so **between about New Year and mid-May
+2027**. Each range's midpoint, 105 PRs at 8 a week, gives early February. It
 assumes the owner's review keeps pace and no row's design doubles it as TR-5's did.
-The gap census held the date: its gaps are 6–9 PRs where the five-decks row guessed
+The gap census held the date: its gaps are 5–8 PRs where the five-decks row guessed
 5–10, and it sees a card's blockers only up to its first row not built, so each
 row's hunt can still add to them.
 

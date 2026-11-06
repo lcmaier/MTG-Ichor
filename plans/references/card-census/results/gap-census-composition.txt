@@ -18,7 +18,7 @@ unwritten: Remove three charge counters from this artifact: When you next cast a
 unwritten: Whenever you attack, for each opponent, create a 1/1 white Human creature token that's tapped and attacking that player or a planeswalker they control.
 [static] "Adeline's power is equal to the number of creatures you control." costs [] => Atom(SetPowerToughness(CountOf(Filter { filter: And(ByType(Creature), ByController(You)), zones: ZoneSet(4) }), Fixed(4), WhileSourceOnBattlefield), ThisObject)
 
-=== Afterlife from the Loam (body, gap)
+=== Afterlife from the Loam (face, gap)
 unwritten: Delve
 unwritten: For each player, choose up to one target creature card in that player's graveyard. Put those cards onto the battlefield under your control. They're Zombies in addition to their other types.
 
@@ -26,10 +26,10 @@ unwritten: For each player, choose up to one target creature card in that player
 unwritten: Whenever you attack with this creature and/or your commander, for each opponent, create a 1/1 red Goblin creature token that's tapped and attacking that player.
 [activated] "Sacrifice this creature: Creature tokens you control gain indestructible until end of turn." costs [SacrificeSelf] => Atom(GrantKeywordFlag(Indestructible, UntilEndOfTurn), FilteredPermanents(And(And(ByType(Creature), Token), ByController(You))))
 
-=== Aligned Heart (body, gap)
+=== Aligned Heart (face, gap)
 unwritten: Flurry — Whenever you cast your second spell each turn, put a rally counter on this enchantment. Then create a 1/1 white Monk creature token with prowess for each rally counter on it.
 
-=== Amphin Mutineer (body, blocked)
+=== Amphin Mutineer (face, blocked)
 unwritten: When this creature enters, exile up to one target non-Salamander creature. That creature's controller creates a 4/3 blue Salamander Warrior creature token.
 unwritten: Encore {4}{U}{U}
 
@@ -47,14 +47,14 @@ unwritten: Fabricate 2
 === Arasta of the Endless Web (whole, writable)
 [triggered] "Whenever an opponent casts an instant or sorcery spell, create a 1/2 green Spider creature token with reach." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(Opponent), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Green], types: [Creature], subtypes: [Creature(Spider)], supertypes: [], power: Some(1), toughness: Some(2), keyword_flags: [Reach], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Arbor Adherent (body, gap)
+=== Arbor Adherent (face, gap)
 unwritten: {T}: Add one mana of any color.
 unwritten: {T}: Add X mana of any one color, where X is the greatest toughness among other creatures you control.
 
-=== Arboreal Grazer (body, blocked)
+=== Arboreal Grazer (face, blocked)
 unwritten: When this creature enters, you may put a land card from your hand onto the battlefield tapped.
 
-=== Arcane Signet (body, blocked)
+=== Arcane Signet (face, blocked)
 unwritten: {T}: Add one mana of any color in your commander's color identity.
 
 === Archmage Emeritus (part, blocked)
@@ -75,14 +75,14 @@ unwritten: {G}: Target creature with defender can attack this turn as though it 
 === Atarka, World Render (whole, writable)
 [triggered] "Whenever a Dragon you control attacks, it gains double strike until end of turn." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: Filter(And(BySubtype(Creature(Dragon)), ByController(You))), defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(GrantKeywordFlag(DoubleStrike, UntilEndOfTurn), Triggering(Attacker)) })
 
-=== Atsushi, the Blazing Sky (body, blocked)
+=== Atsushi, the Blazing Sky (face, blocked)
 unwritten: When Atsushi dies, choose one — • Exile the top two cards of your library. Until the end of your next turn, you may play those cards. • Create three Treasure tokens.
 
 === Avenger of Zendikar (whole, writable)
 [triggered] "When this creature enters, create a 0/1 green Plant creature token for each land you control." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Green], types: [Creature], subtypes: [Creature(Plant)], supertypes: [], power: Some(0), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, CountOf(Filter { filter: And(ByType(Land), ByController(You)), zones: ZoneSet(4) })), Controller) })
 [triggered] "Landfall — Whenever a land you control enters, you may put a +1/+1 counter on each Plant creature you control." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(ByType(Land), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(AddCounters { counter: PlusOnePlusOne, amount: Fixed(1), by: You }, FilteredPermanents(And(And(ByType(Creature), ByController(You)), BySubtype(Creature(Plant))))) } })
 
-=== Axebane Guardian (body, gap)
+=== Axebane Guardian (face, gap)
 unwritten: {T}: Add X mana in any combination of colors, where X is the number of creatures you control with defender.
 
 === Azorius Signet (whole, blocked)
@@ -92,7 +92,7 @@ unwritten: {T}: Add X mana in any combination of colors, where X is the number o
 unwritten: During your turn, each creature assigns combat damage equal to its toughness rather than its power.
 [triggered] "Whenever Baldin attacks, up to one hundred target creatures each get +0/+X until end of turn, where X is the number of cards in your hand." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(ModifyPowerToughness(Fixed(0), CountOf(Filter { filter: ByOwner(You), zones: ZoneSet(2) }), UntilEndOfTurn), Target(Creature, UpTo(100))) })
 
-=== Baral and Kari Zev (body, blocked)
+=== Baral and Kari Zev (face, blocked)
 unwritten: Whenever you cast your first instant or sorcery spell each turn, you may cast a spell with lesser mana value that shares a card type with it from your hand without paying its mana cost. If you don't, create First Mate Ragavan, a legendary 2/1 red Monkey Pirate creature token. It gains haste until end of turn.
 
 === Baral's Expertise (part, blocked)
@@ -148,7 +148,7 @@ unwritten: When this land enters, exile target player's graveyard.
 [static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
 [mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
 
-=== Bone Devourer (body, gap)
+=== Bone Devourer (face, gap)
 unwritten: This creature enters with a number of +1/+1 counters on it equal to the number of creatures that died this turn.
 unwritten: When this creature dies, you draw X cards and you lose X life, where X is the number of +1/+1 counters on it.
 [static] "Flying" costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: None, counters: [EntryCountersTemplate { counter: PlusOnePlusOne, amount: History(ThisTurn, HistoryCount { players: Everyone, fact: ControlledCreaturesDied, of: None }), by: None, optional: false }], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
@@ -161,21 +161,21 @@ unwritten: {T}, Sacrifice this land: Search your library for a basic Forest, Isl
 unwritten: Cycling {G}{U}{R}
 [mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
 
-=== Breaching Dragonstorm (body, blocked)
+=== Breaching Dragonstorm (face, blocked)
 unwritten: When this enchantment enters, exile cards from the top of your library until you exile a nonland card. You may cast it without paying its mana cost if that spell's mana value is 8 or less. If you don't, put that card into your hand.
 unwritten: When a Dragon you control enters, return this enchantment to its owner's hand.
 
-=== Broodcaller Scourge (body, gap)
+=== Broodcaller Scourge (face, gap)
 unwritten: Whenever one or more Dragons you control deal combat damage to a player, you may put a permanent card with mana value less than or equal to that damage from your hand onto the battlefield.
 
 === Caldera Pyremaw (part, blocked)
 [triggered] "Whenever you cast an instant or sorcery spell, put a +1/+1 counter on this creature. Then this creature deals damage equal to its power to target opponent." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(You), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Sequence([Atom(AddCounters { counter: PlusOnePlusOne, amount: Fixed(1), by: You }, ThisObject), Atom(DealDamage { amount: SourcePower, unpreventable: false }, Target(Player, Exactly(1)))]) })
 
-=== Canopy Gargantuan (body, gap)
+=== Canopy Gargantuan (face, gap)
 unwritten: Flying, ward {2}
 unwritten: At the beginning of your upkeep, put a number of +1/+1 counters on each other creature you control equal to that creature's toughness.
 
-=== Canopy Vista (body, gap)
+=== Canopy Vista (face, gap)
 unwritten: This land enters tapped unless you control two or more basic lands.
 [mana] "{T}: Add {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
@@ -211,18 +211,18 @@ unwritten: {U/R}, {T}: Add {U}{U}, {U}{R}, or {R}{R}.
 [mana] "{T}: Add {W} or {B}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 [mana] "{T}: Add {W} or {B}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 
-=== Cephalid Coliseum (body, blocked)
+=== Cephalid Coliseum (face, blocked)
 unwritten: {T}: Add {U}. This land deals 1 damage to you.
 unwritten: Threshold — {U}, {T}, Sacrifice this land: Target player draws three cards, then discards three cards. Activate only if there are seven or more cards in your graveyard.
 
-=== Chaos Warp (body, blocked)
+=== Chaos Warp (face, blocked)
 unwritten: The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's a permanent card, they put it onto the battlefield.
 
-=== Chittering Witch (body, gap)
+=== Chittering Witch (face, gap)
 unwritten: When this creature enters, create a number of 1/1 black Rat creature tokens equal to the number of opponents you have.
 unwritten: {1}{B}, Sacrifice a creature: Target creature gets -2/-2 until end of turn.
 
-=== Cinder Glade (body, gap)
+=== Cinder Glade (face, gap)
 unwritten: This land enters tapped unless you control two or more basic lands.
 [mana] "{T}: Add {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
@@ -240,20 +240,20 @@ unwritten: At the beginning of the end step, if three or more cards have been ex
 unwritten: Whenever one or more creature cards are put into your graveyard from your library, put one of them onto the battlefield.
 [triggered] "Whenever this creature enters or attacks, mill three cards." costs [] => Triggered(TriggerDef { condition: AnyOf([EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }, Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }]), intervening_if: None, limit: None, effect: Atom(Mill(Fixed(3)), Controller) })
 
-=== Command Beacon (body, blocked)
+=== Command Beacon (face, blocked)
 unwritten: {T}: Add {C}.
 unwritten: {T}, Sacrifice this land: Put your commander into your hand from the command zone.
 
-=== Command Tower (body, blocked)
+=== Command Tower (face, blocked)
 unwritten: {T}: Add one mana of any color in your commander's color identity.
 
-=== Commander's Insignia (body, blocked)
+=== Commander's Insignia (face, blocked)
 unwritten: Creatures you control get +1/+1 for each time you've cast your commander from the command zone this game.
 
 === Compulsive Research (part, blocked)
 [spell] "Target player draws three cards. Then that player discards two cards unless they discard a land card." costs [] => Atom(DrawCards(Fixed(3)), Target(Player, Exactly(1)))
 
-=== Conduit of Worlds (body, gap)
+=== Conduit of Worlds (face, gap)
 unwritten: You may play lands from your graveyard.
 unwritten: {T}: Choose target nonland permanent card in your graveyard. If you haven't cast a spell this turn, you may cast that card. If you do, you can't cast additional spells this turn. Activate only as a sorcery.
 
@@ -261,7 +261,7 @@ unwritten: {T}: Choose target nonland permanent card in your graveyard. If you h
 [spell] "Surveil 1." costs [] => Atom(Surveil(Fixed(1)), Controller)
 [spell] "Draw a card." costs [] => Atom(DrawCards(Fixed(1)), Controller)
 
-=== Consuming Aberration (body, gap)
+=== Consuming Aberration (face, gap)
 unwritten: Consuming Aberration's power and toughness are each equal to the number of cards in your opponents' graveyards.
 unwritten: Whenever you cast a spell, each opponent reveals cards from the top of their library until they reveal a land card, then puts those cards into their graveyard.
 
@@ -282,10 +282,10 @@ unwritten: {2}, {T}: Add {B} for each black creature card in your graveyard.
 [static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
 [mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
 
-=== Cultivate (body, blocked)
+=== Cultivate (face, blocked)
 unwritten: Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.
 
-=== Curse of Opulence (body, blocked)
+=== Curse of Opulence (face, blocked)
 unwritten: Enchant player
 unwritten: Whenever enchanted player is attacked, create a Gold token. Each opponent attacking that player does the same.
 
@@ -295,7 +295,7 @@ unwritten: Whenever enchanted player is attacked, create a Gold token. Each oppo
 === Darkwater Catacombs (whole, blocked)
 [mana] "{1}, {T}: Add {U}{B}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1)), (Black, Fixed(1))], special: [] }), Implicit)
 
-=== Dauthi Voidwalker (body, blocked)
+=== Dauthi Voidwalker (face, blocked)
 unwritten: Shadow
 unwritten: If a card would be put into an opponent's graveyard from anywhere, instead exile it with a void counter on it.
 unwritten: {T}, Sacrifice this creature: Choose an exiled card an opponent owns with a void counter on it. You may play it this turn without paying its mana cost.
@@ -316,13 +316,13 @@ unwritten: Cycling {W}{B}{G}
 unwritten: Flashback—{1}{U}, Pay 3 life.
 [spell] "Target player draws two cards." costs [] => Atom(DrawCards(Fixed(2)), Target(Player, Exactly(1)))
 
-=== Despark (body, gap)
+=== Despark (face, gap)
 unwritten: Exile target permanent with mana value 4 or greater.
 
-=== Disciple of Bolas (body, blocked)
+=== Disciple of Bolas (face, blocked)
 unwritten: When this creature enters, sacrifice another creature. You gain X life and draw X cards, where X is that creature's power.
 
-=== Dismantling Wave (body, gap)
+=== Dismantling Wave (face, gap)
 unwritten: For each opponent, destroy up to one target artifact or enchantment that player controls.
 unwritten: Cycling {6}{W}{W}
 unwritten: When you cycle this card, destroy all artifacts and enchantments.
@@ -334,11 +334,11 @@ unwritten: When you cycle this card, destroy all artifacts and enchantments.
 [static] "This spell costs {2} less to cast if you control a Dragon." costs [] => Conditional(Player { players: You, fact: ControlsPermanent(BySubtype(Creature(Dragon))) }, CostModification(CostModificationDef { applies_to: Itself, change: Reduce(ManaCost { symbols: [Generic, Generic] }) }))
 [spell] "Draw three cards." costs [] => Atom(DrawCards(Fixed(3)), Controller)
 
-=== Dragon Tempest (body, gap)
+=== Dragon Tempest (face, gap)
 unwritten: Whenever a creature you control with flying enters, it gains haste until end of turn.
 unwritten: Whenever a Dragon you control enters, it deals X damage to any target, where X is the number of Dragons you control.
 
-=== Dragon's Hoard (body, blocked)
+=== Dragon's Hoard (face, blocked)
 unwritten: Whenever a Dragon you control enters, put a gold counter on this artifact.
 unwritten: {T}, Remove a gold counter from this artifact: Draw a card.
 unwritten: {T}: Add one mana of any color.
@@ -346,14 +346,14 @@ unwritten: {T}: Add one mana of any color.
 === Dragonlord Atarka (whole, writable)
 [triggered] "When Dragonlord Atarka enters, it deals 5 damage divided as you choose among any number of target creatures and/or planeswalkers your opponents control." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(DealDamage { amount: Fixed(5), unpreventable: false }, Target(Permanent(And(Or(ByType(Creature), ByType(Planeswalker)), ByController(Opponent))), Divided(DividedCount { among: AnyNumber, total: Fixed(5) }))) })
 
-=== Dragonlord Dromoka (body, blocked)
+=== Dragonlord Dromoka (face, blocked)
 unwritten: This spell can't be countered.
 unwritten: Your opponents can't cast spells during your turn.
 
 === Dragonlord's Servant (whole, writable)
 [static] "Dragon spells you cast cost {1} less to cast." costs [] => CostModification(CostModificationDef { applies_to: Spells(And(BySubtype(Creature(Dragon)), ByController(You))), change: Reduce(ManaCost { symbols: [Generic] }) })
 
-=== Dragonmaster Outcast (body, gap)
+=== Dragonmaster Outcast (face, gap)
 unwritten: At the beginning of your upkeep, if you control six or more lands, create a 5/5 red Dragon creature token with flying.
 
 === Dragonskull Summit (whole, writable)
@@ -376,7 +376,7 @@ unwritten: {3}: Return this card from your graveyard to the battlefield tapped.
 === Elemental Bond (whole, writable)
 [triggered] "Whenever a creature you control with power 3 or greater enters, draw a card." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(And(ByType(Creature), ByController(You)), Not(PowerLE(2)))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(DrawCards(Fixed(1)), Controller) })
 
-=== Eliminate the Competition (body, blocked)
+=== Eliminate the Competition (face, blocked)
 unwritten: As an additional cost to cast this spell, sacrifice X creatures.
 unwritten: Destroy X target creatures.
 
@@ -387,11 +387,11 @@ unwritten: Destroy X target creatures.
 === Emeria Angel (whole, writable)
 [triggered] "Landfall — Whenever a land you control enters, you may create a 1/1 white Bird creature token with flying." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(ByType(Land), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Bird)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [Flying], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) } })
 
-=== Encroaching Dragonstorm (body, blocked)
+=== Encroaching Dragonstorm (face, blocked)
 unwritten: When this enchantment enters, search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.
 unwritten: When a Dragon you control enters, return this enchantment to its owner's hand.
 
-=== Eshki, Temur's Roar (body, gap)
+=== Eshki, Temur's Roar (face, gap)
 unwritten: Whenever you cast a creature spell, put a +1/+1 counter on Eshki. If that spell's power is 4 or greater, draw a card. If that spell's power is 6 or greater, Eshki deals damage equal to Eshki's power to each opponent.
 
 === Essence Anchor (part, gap)
@@ -401,19 +401,19 @@ unwritten: At the beginning of your upkeep, surveil 1.
 === Evolving Wilds (part, blocked)
 [activated] "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle." costs [TapSelf, SacrificeSelf] => Atom(ShuffleLibrary, Controller)
 
-=== Exotic Orchard (body, blocked)
+=== Exotic Orchard (face, blocked)
 unwritten: {T}: Add one mana of any color that a land an opponent controls could produce.
 
-=== Expansion // Explosion (body, blocked)
+=== Expansion // Explosion (face, blocked)
 unwritten: Copy target instant or sorcery spell with mana value 4 or less. You may choose new targets for the copy.
 
-=== Expel the Interlopers (body, gap)
+=== Expel the Interlopers (face, gap)
 unwritten: Choose a number between 0 and 10. Destroy all creatures with power greater than or equal to the chosen number.
 
-=== Expressive Iteration (body, blocked)
+=== Expressive Iteration (face, blocked)
 unwritten: Look at the top three cards of your library. Put one of them into your hand, put one of them on the bottom of your library, and exile one of them. You may play the exiled card this turn.
 
-=== Faeburrow Elder (body, gap)
+=== Faeburrow Elder (face, gap)
 unwritten: This creature gets +1/+1 for each color among permanents you control.
 unwritten: {T}: For each color among permanents you control, add one mana of that color.
 
@@ -421,13 +421,13 @@ unwritten: {T}: For each color among permanents you control, add one mana of tha
 unwritten: Flashback {2}{R}
 [spell] "Draw two cards, then discard two cards." costs [] => Sequence([Atom(DrawCards(Fixed(2)), Controller), Atom(Discard(Fixed(2), Affected), Controller)])
 
-=== Farseek (body, blocked)
+=== Farseek (face, blocked)
 unwritten: Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle.
 
 === Feed the Swarm (part, blocked)
 [spell] "Destroy target creature or enchantment an opponent controls. You lose life equal to that permanent's mana value." costs [] => Atom(Destroy, Target(Permanent(And(Or(ByType(Creature), ByType(Enchantment)), ByController(Opponent))), Exactly(1)))
 
-=== Fellwar Stone (body, blocked)
+=== Fellwar Stone (face, blocked)
 unwritten: {T}: Add one mana of any color that a land an opponent controls could produce.
 
 === Felothar the Steadfast (part, gap)
@@ -456,7 +456,7 @@ unwritten: {G/U}, {T}: Add {G}{G}, {G}{U}, or {U}{U}.
 unwritten: {G}, Discard a creature card: Return target land card from your graveyard to the battlefield tapped.
 [triggered] "Landfall — Whenever a land you control enters, put a +1/+1 counter on this creature." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(ByType(Land), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(AddCounters { counter: PlusOnePlusOne, amount: Fixed(1), by: You }, ThisObject) })
 
-=== Forbidden Alchemy (body, blocked)
+=== Forbidden Alchemy (face, blocked)
 unwritten: Look at the top four cards of your library. Put one of them into your hand and the rest into your graveyard.
 unwritten: Flashback {6}{B}
 
@@ -465,7 +465,7 @@ unwritten: {T}, Sacrifice this land: Search your library for a basic Swamp, Fore
 unwritten: Cycling {B}{G}{U}
 [mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
 
-=== Fortified Village (body, blocked)
+=== Fortified Village (face, blocked)
 unwritten: As this land enters, you may reveal a Forest or Plains card from your hand. If you don't, this land enters tapped.
 unwritten: {T}: Add {G} or {W}.
 
@@ -478,17 +478,17 @@ unwritten: {T}: Add {G} or {W}.
 [mana] "{T}: Add {G}, {U}, or {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {G}, {U}, or {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 
-=== Frontier Siege (body, gap)
+=== Frontier Siege (face, gap)
 unwritten: As this enchantment enters, choose Khans or Dragons. • Khans — At the beginning of each of your main phases, add {G}{G}. • Dragons — Whenever a creature you control with flying enters, you may have it fight target creature you don't control.
 
-=== Gadrak, the Crown-Scourge (body, blocked)
+=== Gadrak, the Crown-Scourge (face, blocked)
 unwritten: Gadrak can't attack unless you control four or more artifacts.
 unwritten: At the beginning of your end step, create a Treasure token for each nontoken creature that died this turn.
 
-=== Ghostly Prison (body, blocked)
+=== Ghostly Prison (face, blocked)
 unwritten: Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.
 
-=== Gix, Yawgmoth Praetor (body, blocked)
+=== Gix, Yawgmoth Praetor (face, blocked)
 unwritten: Whenever a creature deals combat damage to one of your opponents, its controller may pay 1 life. If they do, they draw a card.
 unwritten: {4}{B}{B}{B}, Discard X cards: Exile the top X cards of target opponent's library. You may play lands and cast spells from among cards exiled this way without paying their mana costs.
 
@@ -497,10 +497,10 @@ unwritten: {4}{B}{B}{B}, Discard X cards: Exile the top X cards of target oppone
 [mana] "{T}: Add {W} or {U}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {W} or {U}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1))], special: [] }), Implicit)
 
-=== Glorybringer (body, gap)
+=== Glorybringer (face, gap)
 unwritten: You may exert this creature as it attacks. When you do, it deals 4 damage to target non-Dragon creature an opponent controls.
 
-=== Goldlust Triad (body, gap)
+=== Goldlust Triad (face, gap)
 unwritten: Myriad
 unwritten: Whenever this creature deals combat damage to a player, create a Treasure token.
 
@@ -518,27 +518,27 @@ unwritten: Whenever this creature deals combat damage to a player, create a Trea
 === Grapple with the Past (part, blocked)
 [spell] "Mill three cards, then you may return a creature or land card from your graveyard to your hand." costs [] => Atom(Mill(Fixed(3)), Controller)
 
-=== Gravecrawler (body, blocked)
+=== Gravecrawler (face, blocked)
 unwritten: This creature can't block.
 unwritten: You may cast this card from your graveyard as long as you control a Zombie.
 
-=== Grenzo, Havoc Raiser (body, blocked)
+=== Grenzo, Havoc Raiser (face, blocked)
 unwritten: Whenever a creature you control deals combat damage to a player, choose one — • Goad target creature that player controls. • Exile the top card of that player's library. Until end of turn, you may cast that card and you may spend mana as though it were mana of any color to cast that spell.
 
-=== Grisly Salvage (body, blocked)
+=== Grisly Salvage (face, blocked)
 unwritten: Reveal the top five cards of your library. You may put a creature or land card from among them into your hand. Put the rest into your graveyard.
 
 === Guttersnipe (whole, writable)
 [triggered] "Whenever you cast an instant or sorcery spell, this creature deals 2 damage to each opponent." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(You), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Atom(DealDamage { amount: Fixed(2), unpreventable: false }, EachOf(PlayerGroup { relation: Opponents, named: Nobody })) })
 
-=== Hammerhead Tyrant (body, gap)
+=== Hammerhead Tyrant (face, gap)
 unwritten: Whenever you cast a spell, return up to one target nonland permanent an opponent controls with mana value less than or equal to that spell's mana value to its owner's hand.
 
-=== Harbinger of the Hunt (body, gap)
+=== Harbinger of the Hunt (face, gap)
 unwritten: {2}{R}: This creature deals 1 damage to each creature without flying.
 unwritten: {2}{G}: This creature deals 1 damage to each other creature with flying.
 
-=== Harrow (body, blocked)
+=== Harrow (face, blocked)
 unwritten: As an additional cost to cast this spell, sacrifice a land.
 unwritten: Search your library for up to two basic land cards, put them onto the battlefield, then shuffle.
 
@@ -551,7 +551,7 @@ unwritten: Search your library for up to two basic land cards, put them onto the
 [mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
 
-=== Haven of the Spirit Dragon (body, gap)
+=== Haven of the Spirit Dragon (face, gap)
 unwritten: {T}: Add {C}.
 unwritten: {T}: Add one mana of any color. Spend this mana only to cast a Dragon creature spell.
 unwritten: {2}, {T}, Sacrifice this land: Return target Dragon creature card or Ugin planeswalker card from your graveyard to your hand.
@@ -559,7 +559,7 @@ unwritten: {2}, {T}, Sacrifice this land: Return target Dragon creature card or 
 === Hedron Crab (whole, writable)
 [triggered] "Landfall — Whenever a land you control enters, target player mills three cards." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(ByType(Land), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(Mill(Fixed(3)), Target(Player, Exactly(1))) })
 
-=== Hellkite Courser (body, blocked)
+=== Hellkite Courser (face, blocked)
 unwritten: When this creature enters, you may put a commander you own from the command zone onto the battlefield. It gains haste. Return it to the command zone at the beginning of the next end step.
 
 === Hero of Bladehold (whole, writable)
@@ -591,14 +591,14 @@ unwritten: Partner
 === Indulging Patrician (whole, writable)
 [triggered] "At the beginning of your end step, if you gained 3 or more life this turn, each opponent loses 3 life." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: End, whose: Some(You) }), intervening_if: Some(ThisTurn(HistoryCount { players: You, fact: LifeGained, of: None }, AtLeast(3))), limit: None, effect: Atom(LoseLife(Fixed(3)), EachOf(PlayerGroup { relation: Opponents, named: Nobody })) })
 
-=== Infantry Shield (body, blocked)
+=== Infantry Shield (face, blocked)
 unwritten: Equipped creature has menace and mobilize X, where X is its power.
 unwritten: Equip {2}
 
 === Infernal Grasp (whole, writable)
 [spell] "Destroy target creature. You lose 2 life." costs [] => Sequence([Atom(Destroy, Target(Creature, Exactly(1))), Atom(LoseLife(Fixed(2)), Controller)])
 
-=== Ironwill Forger (body, gap)
+=== Ironwill Forger (face, gap)
 unwritten: Lieutenant — At the beginning of combat on your turn, if you control your commander, target nonlegendary creature you control gains myriad until end of turn.
 
 === Irrigated Farmland (part, blocked)
@@ -618,15 +618,15 @@ unwritten: Cycling {2}
 === Jaddi Offshoot (whole, writable)
 [triggered] "Landfall — Whenever a land you control enters, you gain 1 life." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(ByType(Land), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(GainLife(Fixed(1)), Controller) })
 
-=== Jarad, Golgari Lich Lord (body, gap)
+=== Jarad, Golgari Lich Lord (face, gap)
 unwritten: Jarad gets +1/+1 for each creature card in your graveyard.
 unwritten: {1}{B}{G}, Sacrifice another creature: Each opponent loses life equal to the sacrificed creature's power.
 unwritten: Sacrifice a Swamp and a Forest: Return this card from your graveyard to your hand.
 
-=== Jaws of Defeat (body, gap)
+=== Jaws of Defeat (face, gap)
 unwritten: Whenever a creature you control enters, target opponent loses life equal to the difference between that creature's power and its toughness.
 
-=== Junji, the Midnight Sky (body, gap)
+=== Junji, the Midnight Sky (face, gap)
 unwritten: When Junji dies, choose one — • Each opponent discards two cards and loses 2 life. • Put target non-Dragon creature card from a graveyard onto the battlefield under your control. You lose 2 life.
 
 === Karplusan Forest (whole, blocked)
@@ -634,7 +634,7 @@ unwritten: When Junji dies, choose one — • Each opponent discards two cards 
 [mana] "{T}: Add {R} or {G}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 [mana] "{T}: Add {R} or {G}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 
-=== Kaya, Geist Hunter (body, gap)
+=== Kaya, Geist Hunter (face, gap)
 unwritten: +1: Creatures you control gain deathtouch until end of turn. Put a +1/+1 counter on up to one target creature token you control.
 unwritten: −2: Until end of turn, if one or more tokens would be created under your control, twice that many of those tokens are created instead.
 unwritten: −6: Exile all cards from all graveyards, then create a 1/1 white Spirit creature token with flying for each card exiled this way.
@@ -649,10 +649,10 @@ unwritten: {X}{R}{G}, {T}: Target creature gets +X/+0 and gains trample until en
 === Kishla Skimmer (part, gap)
 [triggered] "Whenever a card leaves your graveyard during your turn, draw a card. This ability triggers only once each turn." costs [] => Triggered(TriggerDef { condition: Event(ZoneChange { subject: Any, change: ZoneChangePattern { from: Some(Graveyard), to: None, act: None }, by: None, owner: Some(You), multiplicity: OncePerEvent }), intervening_if: None, limit: Some(TriggersOnlyOnceEachTurn), effect: Atom(DrawCards(Fixed(1)), Controller) })
 
-=== Kodama's Reach (body, blocked)
+=== Kodama's Reach (face, blocked)
 unwritten: Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.
 
-=== Kotis, Sibsig Champion (body, blocked)
+=== Kotis, Sibsig Champion (face, blocked)
 unwritten: Once during each of your turns, you may cast a creature spell from your graveyard by exiling three other cards from your graveyard in addition to paying its other costs.
 unwritten: Whenever one or more creatures you control enter, if one or more of them entered from a graveyard or was cast from a graveyard, put two +1/+1 counters on Kotis.
 
@@ -660,26 +660,26 @@ unwritten: Whenever one or more creatures you control enter, if one or more of t
 [triggered] "Whenever another nontoken Dragon you control enters, create a 5/5 red Dragon creature token with flying." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(And(And(BySubtype(Creature(Dragon)), Not(Token)), ByController(You)), NotSource)), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Dragon)], supertypes: [], power: Some(5), toughness: Some(5), keyword_flags: [Flying], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 [activated] "{1}{R}: Dragons you control get +1/+0 until end of turn." costs [Mana(ManaCost { symbols: [Generic, Colored(Red)] })] => Atom(ModifyPowerToughness(Fixed(1), Fixed(0), UntilEndOfTurn), FilteredPermanents(And(BySubtype(Creature(Dragon)), ByController(You))))
 
-=== Legion Loyalty (body, gap)
+=== Legion Loyalty (face, gap)
 unwritten: Creatures you control have myriad.
 
 === Legion Warboss (part, gap)
 unwritten: Mentor
 [triggered] "At the beginning of combat on your turn, create a 1/1 red Goblin creature token. That token gains haste until end of turn and attacks this combat if able." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: BeginCombat, whose: Some(You) }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Goblin)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Lethal Scheme (body, gap)
+=== Lethal Scheme (face, gap)
 unwritten: Convoke
 unwritten: Destroy target creature or planeswalker. Each creature that convoked this spell connives.
 
-=== Leyline Tyrant (body, gap)
+=== Leyline Tyrant (face, gap)
 unwritten: You don't lose unspent red mana as steps and phases end.
 unwritten: When this creature dies, you may pay any amount of {R}. When you do, it deals that much damage to any target.
 
-=== Lier, Disciple of the Drowned (body, blocked)
+=== Lier, Disciple of the Drowned (face, blocked)
 unwritten: Spells can't be countered.
 unwritten: Each instant and sorcery card in your graveyard has flashback. The flashback cost is equal to that card's mana cost.
 
-=== Life from the Loam (body, gap)
+=== Life from the Loam (face, gap)
 unwritten: Return up to three target land cards from your graveyard to your hand.
 unwritten: Dredge 3
 
@@ -691,7 +691,7 @@ unwritten: Dredge 3
 unwritten: Flashback {1}{B}
 [spell] "Create two 1/1 white Spirit creature tokens with flying." costs [] => Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Spirit)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [Flying], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(2)), Controller)
 
-=== Living Death (body, blocked)
+=== Living Death (face, blocked)
 unwritten: Each player exiles all creature cards from their graveyard, then sacrifices all creatures they control, then puts all cards they exiled this way onto the battlefield.
 
 === Llanowar Wastes (whole, blocked)
@@ -699,27 +699,27 @@ unwritten: Each player exiles all creature cards from their graveyard, then sacr
 [mana] "{T}: Add {B} or {G}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 [mana] "{T}: Add {B} or {G}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 
-=== Lord of Extinction (body, gap)
+=== Lord of Extinction (face, gap)
 unwritten: Lord of Extinction's power and toughness are each equal to the number of cards in all graveyards.
 
 === Lord of the Forsaken (part, blocked)
 unwritten: Pay 1 life: Add {C}. Spend this mana only to cast a spell from your graveyard.
 [activated] "{B}, Sacrifice another creature: Target player mills three cards." costs [Mana(ManaCost { symbols: [Colored(Black)] }), Sacrifice(And(ByType(Creature), NotSource), 1)] => Atom(Mill(Fixed(3)), Target(Player, Exactly(1)))
 
-=== Loyal Apprentice (body, blocked)
+=== Loyal Apprentice (face, blocked)
 unwritten: Lieutenant — At the beginning of combat on your turn, if you control your commander, create a 1/1 colorless Thopter artifact creature token with flying. That token gains haste until end of turn.
 
 === Magma Opus (part, blocked)
 unwritten: {U/R}{U/R}, Discard this card: Create a Treasure token.
 [spell] "Magma Opus deals 4 damage divided as you choose among any number of targets. Tap two target permanents. Create a 4/4 blue and red Elemental creature token. Draw two cards." costs [] => Sequence([Atom(DealDamage { amount: Fixed(4), unpreventable: false }, Target(Any, Divided(DividedCount { among: AnyNumber, total: Fixed(4) }))), Atom(Tap, Target(Permanent(All), Exactly(2))), Atom(CreateToken(TokenDef { name: None, colors: [Blue, Red], types: [Creature], subtypes: [Creature(Elemental)], supertypes: [], power: Some(4), toughness: Some(4), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller), Atom(DrawCards(Fixed(2)), Controller)])
 
-=== Mana Geyser (body, gap)
+=== Mana Geyser (face, gap)
 unwritten: Add {R} for each tapped land your opponents control.
 
-=== Manaform Hellkite (body, gap)
+=== Manaform Hellkite (face, gap)
 unwritten: Whenever you cast a noncreature spell, create an X/X red Dragon Illusion creature token with flying and haste, where X is the amount of mana spent to cast that spell. Exile that token at the beginning of the next end step.
 
-=== Mangara, the Diplomat (body, gap)
+=== Mangara, the Diplomat (face, gap)
 unwritten: Whenever an opponent attacks with creatures, if two or more of those creatures are attacking you and/or planeswalkers you control, draw a card.
 unwritten: Whenever an opponent casts their second spell each turn, draw a card.
 
@@ -728,15 +728,15 @@ unwritten: {2}{B}, {T}, Sacrifice this land: Return target creature card from yo
 [static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
 [mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
 
-=== Meren of Clan Nel Toth (body, gap)
+=== Meren of Clan Nel Toth (face, gap)
 unwritten: Whenever another creature you control dies, you get an experience counter.
 unwritten: At the beginning of your end step, choose target creature card in your graveyard. If that card's mana value is less than or equal to the number of experience counters you have, return it to the battlefield. Otherwise, put it into your hand.
 
-=== Migration Path (body, blocked)
+=== Migration Path (face, blocked)
 unwritten: Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.
 unwritten: Cycling {2}
 
-=== Millikin (body, blocked)
+=== Millikin (face, blocked)
 unwritten: {T}, Mill a card: Add {C}.
 
 === Mindblade Render (whole, writable)
@@ -752,13 +752,13 @@ unwritten: {T}, Mill a card: Add {C}.
 === Mossfire Valley (whole, blocked)
 [mana] "{1}, {T}: Add {R}{G}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1)), (Green, Fixed(1))], special: [] }), Implicit)
 
-=== Mosswort Bridge (body, blocked)
+=== Mosswort Bridge (face, blocked)
 unwritten: Hideaway 4
 unwritten: This land enters tapped.
 unwritten: {T}: Add {G}.
 unwritten: {G}, {T}: You may play the exiled card without paying its mana cost if creatures you control have total power 10 or greater.
 
-=== Multani, Yavimaya's Avatar (body, gap)
+=== Multani, Yavimaya's Avatar (face, gap)
 unwritten: Multani gets +1/+1 for each land you control and each land card in your graveyard.
 unwritten: {1}{G}, Return two lands you control to their owner's hand: Return this card from your graveyard to your hand.
 
@@ -777,13 +777,13 @@ unwritten: {2}, {T}, Sacrifice this land: Search your library for up to two basi
 [mana] "{T}: Add {U}, {R}, or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {U}, {R}, or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 
-=== Narset's Reversal (body, blocked)
+=== Narset's Reversal (face, blocked)
 unwritten: Copy target instant or sorcery spell, then return it to its owner's hand. You may choose new targets for the copy.
 
-=== Necromantic Selection (body, blocked)
+=== Necromantic Selection (face, blocked)
 unwritten: Destroy all creatures, then return a creature card put into a graveyard this way to the battlefield under your control. It's a black Zombie in addition to its other colors and types. Exile Necromantic Selection.
 
-=== Necropolis Fiend (body, blocked)
+=== Necropolis Fiend (face, blocked)
 unwritten: Delve
 unwritten: {X}, {T}, Exile X cards from your graveyard: Target creature gets -X/-X until end of turn.
 
@@ -823,7 +823,7 @@ unwritten: {1}{B}{G}, Exile this creature: Return target card from your graveyar
 === Ophiomancer (whole, writable)
 [triggered] "At the beginning of each upkeep, if you control no Snakes, create a 1/1 black Snake creature token with deathtouch." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: Upkeep, whose: None }), intervening_if: Some(Not(Player { players: You, fact: ControlsPermanent(BySubtype(Creature(Snake))) })), limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Black], types: [Creature], subtypes: [Creature(Snake)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [Deathtouch], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Opportunistic Dragon (body, blocked)
+=== Opportunistic Dragon (face, blocked)
 unwritten: When this creature enters, choose target Human or artifact an opponent controls. For as long as this creature remains on the battlefield, gain control of that permanent, it loses all abilities, and it can't attack or block.
 
 === Opulent Palace (whole, writable)
@@ -835,7 +835,7 @@ unwritten: When this creature enters, choose target Human or artifact an opponen
 === Orzhov Signet (whole, blocked)
 [mana] "{1}, {T}: Add {W}{B}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1)), (Black, Fixed(1))], special: [] }), Implicit)
 
-=== Overgrown Battlement (body, gap)
+=== Overgrown Battlement (face, gap)
 unwritten: {T}: Add {G} for each creature you control with defender.
 
 === Overgrown Farmland (part, gap)
@@ -843,7 +843,7 @@ unwritten: This land enters tapped unless you control two or more other lands.
 [mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 
-=== Parapet Thrasher (body, blocked)
+=== Parapet Thrasher (face, blocked)
 unwritten: Whenever one or more Dragons you control deal combat damage to an opponent, choose one that hasn't been chosen this turn — • Destroy target artifact that opponent controls. • This creature deals 4 damage to each other opponent. • Exile the top card of your library. You may play it this turn.
 
 === Path of Ancestry (part, blocked)
@@ -855,17 +855,17 @@ unwritten: {T}, Sacrifice this land: Search your library for a basic Island, Mou
 unwritten: Cycling {U}{R}{W}
 [mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
 
-=== Phyrexian Reclamation (body, gap)
+=== Phyrexian Reclamation (face, gap)
 unwritten: {1}{B}, Pay 2 life: Return target creature card from your graveyard to your hand.
 
-=== Ponder (body, blocked)
+=== Ponder (face, blocked)
 unwritten: Look at the top three cards of your library, then put them back in any order. You may shuffle.
 unwritten: Draw a card.
 
 === Pongify (part, blocked)
 [spell] "Destroy target creature. It can't be regenerated. Its controller creates a 3/3 green Ape creature token." costs [] => Sequence([Atom(Destroy, Target(Creature, Exactly(1))), Atom(CreateToken(TokenDef { name: None, colors: [Green], types: [Creature], subtypes: [Creature(Ape)], supertypes: [], power: Some(3), toughness: Some(3), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), SameInstanceAs(0))])
 
-=== Prairie Stream (body, gap)
+=== Prairie Stream (face, gap)
 unwritten: This land enters tapped unless you control two or more basic lands.
 [mana] "{T}: Add {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {U}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1))], special: [] }), Implicit)
@@ -888,43 +888,43 @@ unwritten: {4}{W}: Monstrosity 3.
 [mana] "{T}: Add {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 
-=== Rampant Growth (body, blocked)
+=== Rampant Growth (face, blocked)
 unwritten: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.
 
 === Rampart Architect (part, gap)
 unwritten: Whenever a creature you control with defender dies, you may search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.
 [triggered] "Whenever this creature enters or attacks, create a 1/3 white Wall creature token with defender." costs [] => Triggered(TriggerDef { condition: AnyOf([EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }, Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }]), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Wall)], supertypes: [], power: Some(1), toughness: Some(3), keyword_flags: [Defender], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Rapacious Dragon (body, blocked)
+=== Rapacious Dragon (face, blocked)
 unwritten: When this creature enters, create two Treasure tokens.
 
 === Rapid Hybridization (part, blocked)
 [spell] "Destroy target creature. It can't be regenerated. That creature's controller creates a 3/3 green Frog Lizard creature token." costs [] => Atom(Destroy, Target(Creature, Exactly(1)))
 
-=== Reality Shift (body, blocked)
+=== Reality Shift (face, blocked)
 unwritten: Exile target creature. Its controller manifests the top card of their library.
 
-=== Reassembling Skeleton (body, blocked)
+=== Reassembling Skeleton (face, blocked)
 unwritten: {1}{B}: Return this card from your graveyard to the battlefield tapped.
 
-=== Redoubled Stormsinger (body, gap)
+=== Redoubled Stormsinger (face, gap)
 unwritten: Whenever this creature attacks, for each creature token you control that entered this turn, create a tapped and attacking token that's a copy of that token. At the beginning of the next end step, sacrifice those tokens.
 
-=== Reflections of Littjara (body, blocked)
+=== Reflections of Littjara (face, blocked)
 unwritten: As this enchantment enters, choose a creature type.
 unwritten: Whenever you cast a spell of the chosen type, copy that spell.
 
 === Release the Dogs (whole, writable)
 [spell] "Create four 1/1 white Dog creature tokens." costs [] => Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Dog)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(4)), Controller)
 
-=== Reliquary Tower (body, blocked)
+=== Reliquary Tower (face, blocked)
 unwritten: You have no maximum hand size.
 unwritten: {T}: Add {C}.
 
-=== Reunion of the House (body, gap)
+=== Reunion of the House (face, gap)
 unwritten: Return any number of target creature cards with total power 10 or less from your graveyard to the battlefield. Exile Reunion of the House.
 
-=== Rite of Replication (body, blocked)
+=== Rite of Replication (face, blocked)
 unwritten: Kicker {5}
 unwritten: Create a token that's a copy of target creature. If this spell was kicked, create five of those tokens instead.
 
@@ -947,7 +947,7 @@ unwritten: This land enters tapped unless you control two or more other lands.
 unwritten: {R/W}, {T}: Add {R}{R}, {R}{W}, or {W}{W}.
 [mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
 
-=== Sakura-Tribe Elder (body, blocked)
+=== Sakura-Tribe Elder (face, blocked)
 unwritten: Sacrifice this creature: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.
 
 === Sandsteppe Citadel (whole, writable)
@@ -960,14 +960,14 @@ unwritten: Sacrifice this creature: Search your library for a basic land card, p
 [static] "Dragon spells you cast cost {1} less to cast." costs [] => CostModification(CostModificationDef { applies_to: Spells(And(BySubtype(Creature(Dragon)), ByController(You))), change: Reduce(ManaCost { symbols: [Generic] }) })
 [triggered] "Whenever a Dragon you control enters, you may have Sarkhan become a copy of it until end of turn, except its name is Sarkhan, Soul Aflame and it's legendary in addition to its other types." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(BySubtype(Creature(Dragon)), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(Copy { roles: ThisObjectCopiesRecipient, except: [Modifies(Name("Sarkhan, Soul Aflame")), Modifies(Types(TypeChange { add_types: [], remove_types: [], set_types: None, add_subtypes: [], remove_subtypes: [], set_subtypes: None, add_supertypes: [Legendary], remove_supertypes: [], set_supertypes: None }))], duration: UntilEndOfTurn }, Triggering(Object)) } })
 
-=== Satyr Wayfinder (body, blocked)
+=== Satyr Wayfinder (face, blocked)
 unwritten: When this creature enters, reveal the top four cards of your library. You may put a land card from among them into your hand. Put the rest into your graveyard.
 
-=== Scourge of the Throne (body, gap)
+=== Scourge of the Throne (face, gap)
 unwritten: Dethrone
 unwritten: Whenever this creature attacks for the first time each turn, if it's attacking the player with the most life or tied for most life, untap all attacking creatures. After this phase, there is an additional combat phase.
 
-=== Seedborn Muse (body, gap)
+=== Seedborn Muse (face, gap)
 unwritten: Untap all permanents you control during each other player's untap step.
 
 === Selesnya Signet (whole, blocked)
@@ -976,7 +976,7 @@ unwritten: Untap all permanents you control during each other player's untap ste
 === Selfless Spirit (whole, writable)
 [activated] "Sacrifice this creature: Creatures you control gain indestructible until end of turn." costs [SacrificeSelf] => Atom(GrantKeywordFlag(Indestructible, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))
 
-=== Selvala's Stampede (body, blocked)
+=== Selvala's Stampede (face, blocked)
 unwritten: Council's dilemma — Starting with you, each player votes for wild or free. Reveal cards from the top of your library until you reveal a creature card for each wild vote. Put those creature cards onto the battlefield, then shuffle the rest into your library. You may put a permanent card from your hand onto the battlefield for each free vote.
 
 === Shadow Summoning (whole, writable)
@@ -1005,11 +1005,11 @@ unwritten: Cycling {2}
 [mana] "{T}: Add {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
 
-=== Shigeki, Jukai Visionary (body, gap)
+=== Shigeki, Jukai Visionary (face, gap)
 unwritten: {1}{G}, {T}, Return Shigeki to its owner's hand: Reveal the top four cards of your library. You may put a land card from among them onto the battlefield tapped. Put the rest into your graveyard.
 unwritten: Channel — {X}{X}{G}{G}, Discard this card: Return X target nonlegendary cards from your graveyard to your hand.
 
-=== Shiko and Narset, Unified (body, gap)
+=== Shiko and Narset, Unified (face, gap)
 unwritten: Flurry — Whenever you cast your second spell each turn, copy that spell if it targets a permanent or player, and you may choose new targets for the copy. If you don't copy a spell this way, draw a card.
 
 === Shiny Impetus (part, blocked)
@@ -1022,7 +1022,7 @@ unwritten: Whenever enchanted creature attacks, you create a Treasure token.
 [mana] "{T}: Add {U} or {R}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 [mana] "{T}: Add {U} or {R}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 
-=== Sidar Kondo of Jamuraa (body, gap)
+=== Sidar Kondo of Jamuraa (face, gap)
 unwritten: Flanking
 unwritten: Creatures your opponents control without flying or reach can't block creatures with power 2 or less.
 unwritten: Partner
@@ -1031,7 +1031,7 @@ unwritten: Partner
 [triggered] "When this creature enters, create three 1/1 red Goblin creature tokens." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Goblin)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(3)), Controller) })
 [activated] "{1}{R}, Sacrifice a Goblin: This creature deals 2 damage to any target." costs [Mana(ManaCost { symbols: [Generic, Colored(Red)] }), Sacrifice(BySubtype(Creature(Goblin)), 1)] => Atom(DealDamage { amount: Fixed(2), unpreventable: false }, Target(Any, Exactly(1)))
 
-=== Skarrgan Hellkite (body, gap)
+=== Skarrgan Hellkite (face, gap)
 unwritten: Riot
 unwritten: {3}{R}: This creature deals 2 damage divided as you choose among one or two targets. Activate only if this creature has a +1/+1 counter on it.
 
@@ -1048,10 +1048,10 @@ unwritten: Equipped creature gets +1/-1.
 === Skycloud Expanse (whole, blocked)
 [mana] "{1}, {T}: Add {W}{U}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1)), (Blue, Fixed(1))], special: [] }), Implicit)
 
-=== Slaughter the Strong (body, gap)
+=== Slaughter the Strong (face, gap)
 unwritten: Each player chooses any number of creatures they control with total power 4 or less, then sacrifices all other creatures they control.
 
-=== Smoldering Marsh (body, gap)
+=== Smoldering Marsh (face, gap)
 unwritten: This land enters tapped unless you control two or more basic lands.
 [mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
@@ -1064,7 +1064,7 @@ unwritten: When this creature enters, you may search your library for a basic la
 unwritten: Whenever a Dragon you control enters, you may pay {R}. If you do, return this card from your graveyard to your hand.
 [spell] "Spit Flame deals 4 damage to target creature." costs [] => Atom(DealDamage { amount: Fixed(4), unpreventable: false }, Target(Creature, Exactly(1)))
 
-=== Springbloom Druid (body, blocked)
+=== Springbloom Druid (face, blocked)
 unwritten: When this creature enters, you may sacrifice a land. If you do, search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.
 
 === Staff of Compleation (part, gap)
@@ -1074,11 +1074,11 @@ unwritten: {T}, Pay 3 life: Proliferate.
 [activated] "{T}, Pay 4 life: Draw a card." costs [TapSelf, PayLife(4)] => Atom(DrawCards(Fixed(1)), Controller)
 [activated] "{5}: Untap this artifact." costs [Mana(ManaCost { symbols: [Generic, Generic, Generic, Generic, Generic] })] => Atom(Untap, ThisObject)
 
-=== Steel Hellkite (body, gap)
+=== Steel Hellkite (face, gap)
 unwritten: {2}: This creature gets +1/+0 until end of turn.
 unwritten: {X}: Destroy each nonland permanent with mana value X whose controller was dealt combat damage by this creature this turn. Activate only once each turn.
 
-=== Steward of the Harvest (body, gap)
+=== Steward of the Harvest (face, gap)
 unwritten: When this creature enters, exile up to three target land cards from your graveyard.
 unwritten: Creatures you control have all activated abilities of all land cards exiled with this creature.
 
@@ -1092,12 +1092,12 @@ unwritten: Creatures you control have all activated abilities of all land cards 
 unwritten: Magecraft — Whenever you cast or copy an instant or sorcery spell, create a Treasure token.
 [static] "This creature gets +1/+0 for each artifact you control." costs [] => Atom(ModifyPowerToughness(CountOf(Filter { filter: And(ByType(Artifact), ByController(You)), zones: ZoneSet(4) }), Fixed(0), WhileSourceOnBattlefield), ThisObject)
 
-=== Stormbreath Dragon (body, gap)
+=== Stormbreath Dragon (face, gap)
 unwritten: Flying, haste, protection from white
 unwritten: {5}{R}{R}: Monstrosity 3.
 unwritten: When this creature becomes monstrous, it deals damage to each opponent equal to the number of cards in that player's hand.
 
-=== Stormshriek Feral // Flush Out (whole, blocked)
+=== Stormshriek Feral // Flush Out (part, blocked)
 [activated] "{1}{R}: This creature gets +1/+0 until end of turn." costs [Mana(ManaCost { symbols: [Generic, Colored(Red)] })] => Atom(ModifyPowerToughness(Fixed(1), Fixed(0), UntilEndOfTurn), ThisObject)
 
 === Stroke of Midnight (part, blocked)
@@ -1111,13 +1111,13 @@ unwritten: When this creature becomes monstrous, it deals damage to each opponen
 [mana] "{T}: Add {U} or {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {U} or {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 
-=== Sun Titan (body, gap)
+=== Sun Titan (face, gap)
 unwritten: Whenever this creature enters or attacks, you may return target permanent card with mana value 3 or less from your graveyard to the battlefield.
 
 === Sungrass Prairie (whole, blocked)
 [mana] "{1}, {T}: Add {G}{W}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1)), (White, Fixed(1))], special: [] }), Implicit)
 
-=== Sunken Hollow (body, gap)
+=== Sunken Hollow (face, gap)
 unwritten: This land enters tapped unless you control two or more basic lands.
 [mana] "{T}: Add {U}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
@@ -1134,7 +1134,7 @@ unwritten: This land enters tapped unless you control two or more basic lands.
 === Swords to Plowshares (part, blocked)
 [spell] "Exile target creature. Its controller gains life equal to its power." costs [] => Sequence([Atom(Exile, Target(Creature, Exactly(1))), Atom(GainLife(TargetPower), Controller)])
 
-=== Sylvan Caryatid (body, blocked)
+=== Sylvan Caryatid (face, blocked)
 unwritten: {T}: Add one mana of any color.
 
 === Talisman of Conviction (whole, blocked)
@@ -1162,7 +1162,7 @@ unwritten: {T}: Add one mana of any color.
 [mana] "{T}: Add {W} or {U}. This artifact deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 [mana] "{T}: Add {W} or {U}. This artifact deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Blue, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 
-=== Tasigur, the Golden Fang (body, blocked)
+=== Tasigur, the Golden Fang (face, blocked)
 unwritten: Delve
 unwritten: {2}{G/U}{G/U}: Mill two cards, then return a nonland card of an opponent's choice from your graveyard to your hand.
 
@@ -1170,7 +1170,7 @@ unwritten: {2}{G/U}{G/U}: Mill two cards, then return a nonland card of an oppon
 unwritten: Changeling
 [triggered] "Whenever an opponent casts a spell, you may put a +1/+1 counter on this creature." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(Opponent), spell: None }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(AddCounters { counter: PlusOnePlusOne, amount: Fixed(1), by: You }, ThisObject) } })
 
-=== Tear Asunder (body, gap)
+=== Tear Asunder (face, gap)
 unwritten: Kicker {1}{B}
 unwritten: Exile target artifact or enchantment. If this spell was kicked, exile target nonland permanent instead.
 
@@ -1227,32 +1227,32 @@ unwritten: Enchant creature you control
 [mana] "{T}: Add {R} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {R} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 
-=== Temple of the Dragon Queen (body, blocked)
+=== Temple of the Dragon Queen (face, blocked)
 unwritten: As this land enters, you may reveal a Dragon card from your hand. This land enters tapped unless you revealed a Dragon card this way or you control a Dragon.
 unwritten: As this land enters, choose a color.
 unwritten: {T}: Add one mana of the chosen color.
 
-=== Tempt with Vengeance (body, blocked)
+=== Tempt with Vengeance (face, blocked)
 unwritten: Tempting offer — Create X 1/1 red Elemental creature tokens with haste. Each opponent may create X 1/1 red Elemental creature tokens with haste. For each opponent who does, create X 1/1 red Elemental creature tokens with haste.
 
 === Temur Ascendancy (whole, writable)
 [static] "Creatures you control have haste." costs [] => Atom(GrantKeywordFlag(Haste, WhileSourceOnBattlefield), FilteredPermanents(And(ByType(Creature), ByController(You))))
 [triggered] "Whenever a creature you control with power 4 or greater enters, you may draw a card." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(And(ByType(Creature), ByController(You)), Not(PowerLE(3)))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(DrawCards(Fixed(1)), Controller) } })
 
-=== Terramorphic Expanse (body, blocked)
+=== Terramorphic Expanse (face, blocked)
 unwritten: {T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.
 
-=== Territorial Hellkite (body, gap)
+=== Territorial Hellkite (face, gap)
 unwritten: At the beginning of combat on your turn, choose an opponent at random that this creature didn't attack during your last combat. This creature attacks that player this combat if able. If you can't choose an opponent this way, tap this creature.
 
-=== Teval's Judgment (body, blocked)
+=== Teval's Judgment (face, blocked)
 unwritten: Whenever one or more cards leave your graveyard, choose one that hasn't been chosen this turn — • Draw a card. • Create a Treasure token. • Create a 2/2 black Zombie Druid creature token.
 
 === Teval, the Balanced Scale (part, blocked)
 [triggered] "Whenever Teval attacks, mill three cards. Then you may return a land card from your graveyard to the battlefield tapped." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(Mill(Fixed(3)), Controller) })
 [triggered] "Whenever one or more cards leave your graveyard, create a 2/2 black Zombie Druid creature token." costs [] => Triggered(TriggerDef { condition: Event(ZoneChange { subject: Any, change: ZoneChangePattern { from: Some(Graveyard), to: None, act: None }, by: None, owner: Some(You), multiplicity: OncePerEvent }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Black], types: [Creature], subtypes: [Creature(Zombie), Creature(Druid)], supertypes: [], power: Some(2), toughness: Some(2), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Thalisse, Reverent Medium (body, gap)
+=== Thalisse, Reverent Medium (face, gap)
 unwritten: At the beginning of each end step, create X 1/1 white Spirit creature tokens with flying, where X is the number of tokens you created this turn.
 
 === Think Twice (part, blocked)
@@ -1265,21 +1265,21 @@ unwritten: Flashback {2}{U}
 === Thunderbreak Regent (whole, writable)
 [triggered] "Whenever a Dragon you control becomes the target of a spell or ability an opponent controls, this creature deals 3 damage to that player." costs [] => Triggered(TriggerDef { condition: Event(BecomesTarget { target: Object(Filter(And(BySubtype(Creature(Dragon)), ByController(You)))), by: SpellOrAbility, controller: Some(Opponent), multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(DealDamage { amount: Fixed(3), unpreventable: false }, TriggeringPlayer) })
 
-=== Thundermane Dragon (body, blocked)
+=== Thundermane Dragon (face, blocked)
 unwritten: You may look at the top card of your library any time.
 unwritten: You may cast creature spells with power 4 or greater from the top of your library. If you cast a creature spell this way, it gains haste until end of turn.
 
 === Time Wipe (whole, writable)
 [spell] "Return a creature you control to its owner's hand, then destroy all creatures." costs [] => Sequence([Atom(ReturnToHand, ChosenBy(Choice { chooser: Controller, among: ChoosersPermanents, picks: [Pick { filter: ByType(Creature), count: Exactly(Fixed(1)) }], acts_on: Chosen })), Atom(Destroy, FilteredPermanents(ByType(Creature)))])
 
-=== Timeless Witness (body, gap)
+=== Timeless Witness (face, gap)
 unwritten: When this creature enters, return target card from your graveyard to your hand.
 unwritten: Eternalize {5}{G}{G}
 
 === Tip the Scales (part, blocked)
 [spell] "Sacrifice a creature. When you do, all creatures get -X/-X until end of turn, where X is the sacrificed creature's toughness." costs [] => Atom(Sacrifice, ChosenBy(Choice { chooser: Controller, among: ChoosersPermanents, picks: [Pick { filter: ByType(Creature), count: Exactly(Fixed(1)) }], acts_on: Chosen }))
 
-=== Tocasia's Welcome (body, gap)
+=== Tocasia's Welcome (face, gap)
 unwritten: Whenever one or more creatures you control with mana value 3 or less enter, draw a card. This ability triggers only once each turn.
 
 === Tower Defense (whole, writable)
@@ -1292,7 +1292,7 @@ unwritten: Sacrifice a creature with defender: All creatures gain trample until 
 === Transcendent Dragon (part, gap)
 [triggered] "When this creature enters, if you cast it, counter target spell. If that spell is countered this way, exile it instead of putting it into its owner's graveyard, then you may cast it without paying its mana cost." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: Some(true), multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CounterSpell, Target(Spell, Exactly(1))) })
 
-=== Transforming Flourish (body, blocked)
+=== Transforming Flourish (face, blocked)
 unwritten: Demonstrate
 unwritten: Destroy target artifact or creature you don't control. If that permanent is destroyed this way, its controller exiles cards from the top of their library until they exile a nonland card, then they may cast that card without paying its mana cost.
 
@@ -1300,7 +1300,7 @@ unwritten: Destroy target artifact or creature you don't control. If that perman
 unwritten: Delve
 [spell] "Draw three cards." costs [] => Atom(DrawCards(Fixed(3)), Controller)
 
-=== Tree of Redemption (body, gap)
+=== Tree of Redemption (face, gap)
 unwritten: {T}: Exchange your life total with this creature's toughness.
 
 === Twilight Drover (whole, blocked)
@@ -1311,7 +1311,7 @@ unwritten: {T}: Exchange your life total with this creature's toughness.
 unwritten: {B/G}, {T}: Add {B}{B}, {B}{G}, or {G}{G}.
 [mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
 
-=== Ureni of the Unwritten (body, blocked)
+=== Ureni of the Unwritten (face, blocked)
 unwritten: Whenever Ureni enters or attacks, look at the top eight cards of your library. You may put a Dragon creature card from among them onto the battlefield. Put the rest on the bottom of your library in a random order.
 
 === Vanquish the Horde (whole, writable)
@@ -1322,10 +1322,10 @@ unwritten: Whenever Ureni enters or attacks, look at the top eight cards of your
 [mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
 [activated] "{2}{W}{B}, {T}: Creatures you control gain deathtouch and lifelink until end of turn." costs [Mana(ManaCost { symbols: [Generic, Generic, Colored(White), Colored(Black)] }), TapSelf] => Sequence([Atom(GrantKeywordFlag(Deathtouch, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You)))), Atom(GrantKeywordFlag(Lifelink, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))])
 
-=== Velomachus Lorehold (body, blocked)
+=== Velomachus Lorehold (face, blocked)
 unwritten: Whenever Velomachus Lorehold attacks, look at the top seven cards of your library. You may cast an instant or sorcery spell with mana value less than or equal to Velomachus Lorehold's power from among them without paying its mana cost. Put the rest on the bottom of your library in a random order.
 
-=== Vengeful Ancestor (body, blocked)
+=== Vengeful Ancestor (face, blocked)
 unwritten: Whenever this creature enters or attacks, goad target creature.
 unwritten: Whenever a goaded creature attacks, it deals 1 damage to its controller.
 
@@ -1336,16 +1336,16 @@ unwritten: Whenever a goaded creature attacks, it deals 1 damage to its controll
 unwritten: If you casting or copying an instant or sorcery spell causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.
 [triggered] "Magecraft — Whenever you cast or copy an instant or sorcery spell, Veyran gets +1/+1 until end of turn." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(You), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Atom(ModifyPowerToughness(Fixed(1), Fixed(1), UntilEndOfTurn), ThisObject) })
 
-=== Victimize (body, gap)
+=== Victimize (face, gap)
 unwritten: Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.
 
-=== Voracious Bibliophile (body, gap)
+=== Voracious Bibliophile (face, gap)
 unwritten: Whenever you cast a spell with one or more targets, draw that many cards.
 
-=== Wakestone Gargoyle (body, gap)
+=== Wakestone Gargoyle (face, gap)
 unwritten: {1}{W}: Creatures you control with defender can attack this turn as though they didn't have defender.
 
-=== Walking Bulwark (body, gap)
+=== Walking Bulwark (face, gap)
 unwritten: {2}: Until end of turn, target creature with defender gains haste, can attack as though it didn't have defender, and assigns combat damage equal to its toughness rather than its power. Activate only as a sorcery.
 
 === Wall of Blossoms (whole, writable)
@@ -1361,17 +1361,17 @@ unwritten: {2}: Until end of turn, target creature with defender gains haste, ca
 === Wall of Reverence (part, blocked)
 [triggered] "At the beginning of your end step, you may gain life equal to the power of target creature you control." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: End, whose: Some(You) }), intervening_if: None, limit: None, effect: Sequence([Atom(ModifyPowerToughness(Fixed(0), Fixed(0), UntilEndOfTurn), Target(Permanent(And(ByType(Creature), ByController(You))), Exactly(1))), Atom(GainLife(TargetPower), Controller)]) })
 
-=== Wall of Roots (body, blocked)
+=== Wall of Roots (face, blocked)
 unwritten: Put a -0/-1 counter on this creature: Add {G}. Activate only once each turn.
 
-=== Wayfarer's Bauble (body, blocked)
+=== Wayfarer's Bauble (face, blocked)
 unwritten: {2}, {T}, Sacrifice this artifact: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.
 
 === Weathered Sentinels (part, gap)
 unwritten: This creature can attack players who attacked you during their last turn as though it didn't have defender.
 [triggered] "Whenever this creature attacks, it gets +3/+3 and gains indestructible until end of turn." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Sequence([Atom(ModifyPowerToughness(Fixed(3), Fixed(3), UntilEndOfTurn), ThisObject), Atom(GrantKeywordFlag(Indestructible, UntilEndOfTurn), ThisObject)]) })
 
-=== Welcome the Dead (body, gap)
+=== Welcome the Dead (face, gap)
 unwritten: Draw two cards, then discard a card and you lose 2 life. Create X tapped 2/2 black Zombie Druid creature tokens, where X is the number of cards that were put into your graveyard from your hand or library this turn.
 unwritten: Flashback {5}{B}
 
@@ -1381,7 +1381,7 @@ unwritten: Flashback {5}{B}
 === Whirlwind of Thought (whole, writable)
 [triggered] "Whenever you cast a noncreature spell, draw a card." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(You), spell: Some(Not(ByType(Creature))) }), intervening_if: None, limit: None, effect: Atom(DrawCards(Fixed(1)), Controller) })
 
-=== Whirlwing Stormbrood // Dynamic Soar (body, blocked)
+=== Whirlwing Stormbrood // Dynamic Soar (face, blocked)
 unwritten: You may cast sorcery spells and Dragon spells as though they had flash.
 
 === Will of the Abzan (part, gap)
@@ -1390,16 +1390,16 @@ unwritten: You may cast sorcery spells and Dragon spells as though they had flas
 === Will of the Jeskai (part, blocked)
 [spell] "Choose one. If you control a commander as you cast this spell, you may choose both instead.\n• Each player may discard their hand and draw five cards.\n• Each instant and sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost." costs [] => Modal { count: Exactly(1), modes: [Atom(DrawCards(Fixed(5)), EachOf(PlayerGroup { relation: Everyone, named: Nobody })), Atom(DrawCards(Fixed(1)), Controller)] }
 
-=== Will of the Mardu (body, blocked)
+=== Will of the Mardu (face, blocked)
 unwritten: Choose one. If you control a commander as you cast this spell, you may choose both instead. • Create a number of 1/1 red Warrior creature tokens equal to the number of creatures target player controls. • Will of the Mardu deals damage to target creature equal to the number of creatures you control.
 
-=== Will of the Sultai (body, blocked)
+=== Will of the Sultai (face, blocked)
 unwritten: Choose one. If you control a commander as you cast this spell, you may choose both instead. • Target player mills three cards. Return all land cards from your graveyard to the battlefield tapped. • Put X +1/+1 counters on target creature, where X is the number of lands you control. It gains trample until end of turn.
 
-=== Will of the Temur (body, gap)
+=== Will of the Temur (face, gap)
 unwritten: Choose one. If you control a commander as you cast this spell, you may choose both instead. • Create a token that's a copy of target permanent, except it's a 4/4 Dragon creature with flying in addition to its other types. • Target player draws cards equal to the greatest mana value among permanents you control.
 
-=== Windbrisk Heights (body, blocked)
+=== Windbrisk Heights (face, blocked)
 unwritten: Hideaway 4
 unwritten: This land enters tapped.
 unwritten: {T}: Add {W}.
@@ -1436,7 +1436,7 @@ unwritten: This creature escapes with two +1/+1 counters on it.
 === Young Pyromancer (whole, writable)
 [triggered] "Whenever you cast an instant or sorcery spell, create a 1/1 red Elemental creature token." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(You), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Elemental)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Zenith Festival (body, blocked)
+=== Zenith Festival (face, blocked)
 unwritten: Exile the top X cards of your library. You may play them until the end of your next turn.
 unwritten: Harmonize {X}{R}{R}
 

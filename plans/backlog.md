@@ -329,7 +329,8 @@ record, corrected where it was wrong.*
   card census) are `tarkir-dragonstorm-decks`'; cloak and manifest dread go
   with the rest of `face-down-and-morph`, after v0.5; unattach, P/T doubling
   (`codebase-state.md` Deferred Migrations item 5) and the replaced events
-  above are after v0.5, wider card work, no `tdc` card printing one.
+  above are after v0.5, wider card work, no `tdc` card printing one but Leyline
+  Tyrant's mana emptying, `codebase-state.md` item 403's.
 
 ### 2.6 CR 702 keyword abilities
 

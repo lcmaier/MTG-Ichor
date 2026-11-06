@@ -59,9 +59,9 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 14 | `chosen-color-plus-could-produce` and 3 more | to come | 6–9 |
 | 15 | `casting-from-other-zones` and 3 more | to come | 6–10 |
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
-| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 17–41 |
+| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 16–40 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **43 rows to come** | **74–138** |
+| | **To v0.5** | **43 rows to come** | **73–137** |
 
 **Deck cards registered: 7 of 385**,
 the five lists' distinct cards less basics.
