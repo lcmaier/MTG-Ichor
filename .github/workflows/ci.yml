@@ -41,6 +41,13 @@ jobs:
         working-directory: mtgsim
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so the next step can diff against the base.
+          fetch-depth: 0
+
+      - name: Changed outside the docs?
+        id: changes
+        uses: ./.github/actions/changed-outside-docs
 
       # Pinned rather than `stable`, because an unpinned toolchain turns a
       # GitHub image bump into a build break with no commit to blame.
@@ -55,10 +62,12 @@ jobs:
       # and a lint gate is only meaningful on the toolchain it was sized
       # against. Re-measure the floor when this pin moves.
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+        if: steps.changes.outputs.code == 'true'
         with:
           components: clippy
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: steps.changes.outputs.code == 'true'
         with:
           workspaces: mtgsim
 
@@ -68,6 +77,7 @@ jobs:
       # compile error reads as one rather than as a test run that never
       # started.
       - name: Build (zero warnings is the bar)
+        if: steps.changes.outputs.code == 'true'
         run: cargo build --all-targets --locked
 
       # Debug, on purpose: every `debug_assert!` runs, and with them the layer
@@ -75,6 +85,7 @@ jobs:
       # those is release-only (`cfg_attr(debug_assertions, ignore)`) and has
       # a release step below.
       - name: Test
+        if: steps.changes.outputs.code == 'true'
         run: cargo test --locked
 
       # Adopted 2026-09-15 (the post-RE audit, pass 2) the way handoff §6
@@ -97,12 +108,14 @@ jobs:
       # the reformat is its own PR and this step is
       # `run: cargo fmt --check` beside the clippy one.
       - name: Clippy (the default lint set is a bar)
+        if: steps.changes.outputs.code == 'true'
         run: cargo clippy --all-targets --locked -- -D warnings
 
       # The release build every step below shares, made once so its minutes
       # are this step's and not the first sitting's, and so a harness that
       # does not compile fails here rather than inside a fuzz step.
       - name: Build the fuzz harness
+        if: steps.changes.outputs.code == 'true'
         run: cargo build --locked --release --bin fuzz_games
 
       # Floors 2 and 3 (`plans/engineering-practices.md#the-floors`): what one
@@ -114,6 +127,7 @@ jobs:
       # 675 s there against about a second here, and about 15 s of build beside
       # the harness's.
       - name: Clone bound — allocations and bytes per clone
+        if: steps.changes.outputs.code == 'true'
         run: cargo test --locked --release --test clone_bound_test --test clone_fixture_test --test fork_copies_test
 
       # The memory a game's history log holds, which no clone copies: at most
@@ -121,6 +135,7 @@ jobs:
       # (`history_held_test.rs`'s own doc). Release-only for the same reason,
       # and it ran nowhere until 2026-10-22; 0.7 s here.
       - name: History bound — what a game's log holds per turn
+        if: steps.changes.outputs.code == 'true'
         run: cargo test --locked --release --test history_held_test
 
       # The scenario writer's round trip over played boards
@@ -128,6 +143,7 @@ jobs:
       # 40 s in debug, for the same reason as the step above. Two games run
       # in the debug `cargo test`.
       - name: Scenario round trip — boards written, loaded and compared
+        if: steps.changes.outputs.code == 'true'
         run: cargo test --locked --release --test scenario_round_trip_test
 
       # `fuzz_games` exits 1 on panics or errors, so the exit code is the gate
@@ -141,6 +157,7 @@ jobs:
       # watch it, and promote it to a failure if it ever moves off zero for a
       # reason anyone can name.
       - name: Fuzz — performance pool
+        if: steps.changes.outputs.code == 'true'
         run: cargo run --locked --release --bin fuzz_games -- --games 200 --seed 12345
 
       # The same sweep over every registered card, so a card no `performance`
@@ -149,6 +166,7 @@ jobs:
       # (`engineering-practices.md#cards-and-pools`), and this one is where a
       # new card's paths are met.
       - name: Fuzz — stress pool (every registered card)
+        if: steps.changes.outputs.code == 'true'
         run: cargo run --locked --release --bin fuzz_games -- --games 200 --seed 12345 --pool stress
 
       # Everything outside `=== Timing ===` is byte-identical across runs at one
@@ -167,6 +185,7 @@ jobs:
       # whose setup action casts a Bolt first, so the scenario loader and the
       # setup driver are under the same check (`setup-architecture.md` §8).
       - name: Determinism — three runs at one seed, three hasher seeds
+        if: steps.changes.outputs.code == 'true'
         run: |
           for i in 1 2 3; do
             { MTGSIM_HASH_SEED="$i" cargo run --locked --release --bin fuzz_games -- --games 50 --seed 12345
@@ -312,22 +331,33 @@ jobs:
         working-directory: mtgsim
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so the next step can diff against the base.
+          fetch-depth: 0
+
+      - name: Changed outside the docs?
+        id: changes
+        uses: ./.github/actions/changed-outside-docs
 
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+        if: steps.changes.outputs.code == 'true'
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: steps.changes.outputs.code == 'true'
         with:
           workspaces: mtgsim
 
       # `release-checked` is Cargo.toml's profile for this: release's
       # optimization with debug assertions and overflow checks back on.
       - name: Fuzz — stress pool, debug assertions on
+        if: steps.changes.outputs.code == 'true'
         run: cargo run --locked --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool stress
 
       # Every card and the castable fixtures
       # (`engineering-practices.md#cards-and-pools`), played only here, where
       # the debug checks their builds carry fire.
       - name: Fuzz — fixture pool, debug assertions on
+        if: steps.changes.outputs.code == 'true'
         run: cargo run --locked --profile release-checked --bin fuzz_games -- --games 50 --seed 12345 --pool fixtures
 
   # The dev GUI (`devgui/`), a crate beside the engine with its own lockfile
@@ -349,21 +379,9 @@ jobs:
           # The whole history, so the next step can diff against the base.
           fetch-depth: 0
 
-      # A change only to the docs cannot break the window, so the steps after
-      # this run only when a file outside `plans/`, `MTG-Rules/` and Markdown
-      # changed, against the PR's base or a push's previous tip. With no base
-      # to diff against, a branch's first push, everything runs.
       - name: Changed outside the docs?
         id: changes
-        run: |
-          base="${{ github.event.pull_request.base.sha || github.event.before }}"
-          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$base" HEAD | grep -qvE '^(plans|MTG-Rules)/|\.md$'; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
+        uses: ./.github/actions/changed-outside-docs
 
       # The engine's pin, for the engine's reasons above; the GUI's own floor
       # is eframe 0.36's, 1.95.

@@ -1,0 +1,30 @@
+# Whether a job's Rust steps have anything to check. No file under `mtgsim/` or
+# `devgui/` reads `plans/`, `MTG-Rules/` or Markdown, so a pull request touching
+# only those cannot change what they would answer. The Python gates read exactly
+# those files, so they never ask this.
+#
+# A push to main has no pull request's base, and with no base everything runs:
+# nobody waits on that run, and it is the commit's record.
+#
+# The job's checkout needs `fetch-depth: 0`, or the base is not there to diff
+# against and this answers true.
+name: Changed outside the docs?
+description: Whether a pull request changed anything but `plans/`, `MTG-Rules/` and Markdown.
+outputs:
+  code:
+    description: The string `true` when the Rust steps should run.
+    value: ${{ steps.changes.outputs.code }}
+runs:
+  using: composite
+  steps:
+    - id: changes
+      shell: bash
+      run: |
+        base="${{ github.event.pull_request.base.sha }}"
+        if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+          echo "code=true" >> "$GITHUB_OUTPUT"
+        elif git diff --name-only "$base" HEAD | grep -qvE '^(plans|MTG-Rules)/|\.md$'; then
+          echo "code=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "code=false" >> "$GITHUB_OUTPUT"
+        fi
