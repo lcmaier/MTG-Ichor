@@ -121,7 +121,7 @@ pub struct LkiCapture {
 
 /// The open batches' captures, each batch's after the batch around it, found
 /// by existence: a wipe frames every creature, and each asks for its own.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(crate) struct LkiCaptures {
     list: Vec<LkiCapture>,
     place_of: IdMap<ObjectRef, usize>,
@@ -129,7 +129,7 @@ pub(crate) struct LkiCaptures {
 
 impl LkiCaptures {
     pub(crate) fn new() -> Self {
-        Self::default()
+        Self { list: Vec::new(), place_of: IdMap::new() }
     }
 
     pub(crate) fn len(&self) -> usize {

@@ -177,11 +177,6 @@ impl<T: ForkCopy> Clone for ObjectTable<T> {
 }
 
 
-impl<T: ForkCopy> Default for ObjectTable<T> {
-    fn default() -> Self {
-        ObjectTable { chunks: Vec::new(), len: 0 }
-    }
-}
 
 /// Where `id` sits: its chunk and its slot.
 fn place(id: ObjectId) -> (usize, usize) {
@@ -189,9 +184,15 @@ fn place(id: ObjectId) -> (usize, usize) {
     (raw / CHUNK, raw % CHUNK)
 }
 
+impl<T: ForkCopy> Default for ObjectTable<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: ForkCopy> ObjectTable<T> {
     pub fn new() -> Self {
-        Self::default()
+        ObjectTable { chunks: Vec::new(), len: 0 }
     }
 
     pub fn len(&self) -> usize {
@@ -410,15 +411,16 @@ impl<T: ForkCopy> Clone for SharedList<T> {
 }
 
 
+
 impl<T: ForkCopy> Default for SharedList<T> {
     fn default() -> Self {
-        SharedList { chunks: Vec::new(), len: 0 }
+        Self::new()
     }
 }
 
 impl<T: ForkCopy> SharedList<T> {
     pub fn new() -> Self {
-        Self::default()
+        SharedList { chunks: Vec::new(), len: 0 }
     }
 
     pub fn len(&self) -> usize {

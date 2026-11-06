@@ -140,12 +140,12 @@ fn write_line(out: &mut impl Write, seq: u64, branch: u64, body: &str) -> io::Re
 
 /// A writer for a sink whose lines a reader in the same process reads: the
 /// sink owns one clone, the reader keeps another, and both share the bytes.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct TraceMemory(Arc<Mutex<Vec<u8>>>);
 
 impl TraceMemory {
     pub fn new() -> Self {
-        Self::default()
+        Self(Arc::new(Mutex::new(Vec::new())))
     }
 
     /// What the sink has written so far. Flush the sink first: it buffers.

@@ -269,7 +269,7 @@ pub enum CombatSpan {
 }
 
 /// The game's rows, newest first.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct HistoryLog {
     newest: Option<Arc<Chunk>>,
     rows: usize,
@@ -310,7 +310,7 @@ impl Drop for Chunk {
 
 impl HistoryLog {
     pub fn new() -> Self {
-        Self::default()
+        Self { newest: None, rows: 0, combats_this_turn: 0 }
     }
 
     /// Append `row`, the newest event: `GameHistory::push_row`'s, which keeps

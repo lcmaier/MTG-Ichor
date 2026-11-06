@@ -31,14 +31,14 @@ pub struct EndedExistences(Vec<Lki>);
 /// The LKI store: each ended existence's last known information, by object,
 /// so a lookup is the object's slot and that object's few existences. Kept
 /// for the game; nothing in play iterates it.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LkiStore {
     ended: ObjectTable<EndedExistences>,
 }
 
 impl LkiStore {
     pub fn new() -> Self {
-        Self::default()
+        Self { ended: ObjectTable::new() }
     }
 
     /// `existence`'s last known information, once it has ended and its move
