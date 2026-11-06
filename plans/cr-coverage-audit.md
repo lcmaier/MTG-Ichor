@@ -904,6 +904,8 @@ field's name says which; a damage record's is `recipient`.
   when CR 601.2d divided it.
 - `RegisteredReplacementEffect` — hand-over: the targets of the resolution
   that made the row, which its rider reads once the stack object is gone.
+- `ResolvingObject` — hand-over: the entry's, while the resolution has taken
+  that entry off the game, so a resolving object still says what it announced.
 - `GameEvent` — moment: the record's.
 - `TriggeringEventObjects` — moment: a waiting trigger's event's, which
   the merge brought under the query.
