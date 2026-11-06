@@ -1443,7 +1443,9 @@ fn run_games(
 
 /// The boards of `--ladder`. No bot's play shapes a fixed board, so what is
 /// read moves when the engine does, and never when the bot's games do. Its one
-/// answer is a death's target, and a drain costs the same whoever it names.
+/// answer is a death's target, and a drain costs the same whoever it names. A
+/// shape is here because it reads a path no other does whose cost could outgrow
+/// the board (`fuzz-record.md#the-ladder`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LadderShape {
     /// 1/1 Goblins.

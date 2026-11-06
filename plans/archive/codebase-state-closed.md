@@ -10105,11 +10105,14 @@ The item as it stood:
      the engine and the dev GUI, and each other engine collection whose blank
      value means empty, counted at the build.
      **Slotted:** `board-scale`, its last commit, since it moves no game.
-     **Closed:** 52 calls, every one through `plans/replace_exact.py`: `IdMap` 19,
-     `IdSet` 12, `HistoryLog` 10, `ObjectTable` 5, `SharedList` 3, `TraceMemory` 2,
-     `LkiStore` 1. The dev GUI held no id collection: its one call is
-     `TraceMemory`'s. `ManaTypes`, a bitset, took a constant (`ManaTypes::EMPTY`),
-     as the other bitsets have.
+     **Closed:** as `new()`, at the owner's review, since a function reads as a verb
+     and `empty()` as emptying: 52 calls, every one through
+     `plans/replace_exact.py`: `IdMap` 19, `IdSet` 12, `HistoryLog` 10,
+     `ObjectTable` 5, `SharedList` 3, `TraceMemory` 2, `LkiStore` 1. `IdMap` and
+     `IdSet` take it from a trait, `IdCollection`, since std's `new` is for its
+     default hasher; the engine's collections have it inherent. The dev GUI held no
+     id collection: its one call is `TraceMemory`'s. `ManaTypes`, a bitset, took a
+     constant (`ManaTypes::EMPTY`), as the other bitsets have.
 
 ### Item 377
 
@@ -10165,4 +10168,21 @@ The item as it stood:
      definitions. Four seats' events: 1,600 a seat in 0.03 s bare and 0.04 s
      under an anthem; 51,200 a seat in 1.3 s and 1.6 s. The look-ahead's sharing
      is in `replacement-architecture.md#5d-the-overlay-as-built-rc-4-2026-09-02`
-     and `elisions.md`. Items 380 and 381 are what this does not reach.
+     and `elisions.md`. Item 380 closed with it; items 381 to 385 are what this does
+     not reach.
+
+### Item 380
+
+380. **A board with a static "can't" sweeps the battlefield for every event.**
+     `prohibition_sweeping` walks `battlefield_ids_ordered` for each proposed
+     event once one permanent prints a restriction, whatever that restriction
+     watches. Sigarda, Host of Herons, who says nothing about an entry, makes
+     one event of tokens quadratic: 400 a seat in 0.02 s, 3,200 a seat in 0.92 s,
+     four times the cost for each doubling, where an anthem, Blood Moon and
+     Containment Priest stay linear.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~15 lines of code, its audit already `Sweep::Everything`.
+     **Closed:** by source and not by kind (`permanents_to_sweep`), at the owner's
+     word, since every game with such a card on the board paid it: `Memo hits` fell
+     3.3% at four seats.

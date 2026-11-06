@@ -10447,8 +10447,9 @@ slips are the planned card phases', not items.
 ### Found at #310's review (2026-11-05)
 
 376. **`::default()` says too little at a call site.** — ✅ closed.
-     A collection says `empty()` (`EmptyCollection`, `types/ids.rs`): 52 calls
-     over seven collections, and rule 9 takes the spelling as its example.
+     A collection says `new()`, at review, since a call reads as a verb: 52 calls
+     over seven collections, the id aliases through `IdCollection`, and rule 9
+     takes the spelling as its example.
      **Reachability (2026-11-05):** closed — PR #313.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 376".
 
@@ -10466,19 +10467,11 @@ slips are the planned card phases', not items.
 
 ### Found by `board-scale` (2026-11-05)
 
-380. **A board with a static "can't" sweeps the battlefield for every event.**
-     `prohibition_sweeping` walks `battlefield_ids_ordered` for each proposed
-     event once one permanent prints a restriction, whatever that restriction
-     watches. Sigarda, Host of Herons, who says nothing about an entry, makes
-     one event of tokens quadratic: 400 a seat in 0.02 s, 3,200 a seat in 0.92 s,
-     four times the cost for each doubling, where an anthem, Blood Moon and
-     Containment Priest stay linear. `replacement::gather` already files its
-     sources by the kind of action they can answer (`battlefield_candidates`),
-     and the same filing is what this sweep lacks.
-
-     **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
-     **Sized:** ~15 lines of code, its audit already `Sweep::Everything`.
-     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+380. **A board with a static "can't" sweeps the battlefield for every event.** — ✅ closed.
+     The sweep asks the permanents that entered with a restriction, or every
+     permanent once a row can grant or copy one.
+     **Reachability (2026-11-06):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 380".
 
 381. **A run of tokens holding an ability derived on its object walks per token.**
      `shared_entering_frame` keeps such a frame its token's own, since the
@@ -10489,4 +10482,45 @@ slips are the planned card phases', not items.
 
      **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
      **Sized:** ~20 lines of code, with a test on each kind of derived ability.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+382. **An entering copy captures its donor with a pass of its own.** Under Essence
+     of the Wild each token asks `copiable_values`, a pass over the board to the
+     end of layer 1, so a run's cost is tokens times board: one Essence's 1,600
+     tokens take 8 ms on an empty board and 0.43 s beside 1,600 others, and 6,400
+     beside 6,400 take 16 s. One capture a run at one epoch has one answer, as the
+     frame has (`shared_entering_frame`).
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~30 lines of code: a slot in the layer memo, with its gated reads
+     and its audit.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+383. **A granted replacement opens the gather to every permanent.** A `Filter` row
+     granting a replacement ability puts the battlefield in
+     `unattributed_zones`, so each proposal walks every permanent's effective
+     list: tokens in one event read 6 ms at 400 and 1.3 s at 6,400, the sweep item
+     380 closed for a restriction's printed leg, on the replacement's granted one.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** a design first: which permanents a filter row reaches has to be
+     known without resolving the filter per permanent per proposal.
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+384. **A counting CDA counts the board for each creature that has it.** A board of
+     N creatures with Keldon Warlord's ability pays N counts of N in every pass:
+     8 ms a step at 400 and 2.5 s at 6,400. A count of one question at one layer
+     has one answer for each member that asks it.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~40 lines: a per-pass cache keyed on the count's filter and "you".
+     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+
+385. **A wipe grows faster than its board.** The ladder's `a wipe` row reads 1.4 µs
+     a permanent at 100 and 15.7 at 51,200, three and a half times the cost for the
+     last doubling, where the other rows read a little over two. Nothing has
+     looked at why; at 12,800 permanents it is 73 ms.
+
+     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** a profile first.
      **Slotted:** Phase 10, profile-driven performance, with item 138's levers.

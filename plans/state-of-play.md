@@ -176,7 +176,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 218 |
 | …of them in `PERFORMANCE_POOL` | 125 |
-| `#[test]` functions | 2964 |
+| `#[test]` functions | 2970 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -188,7 +188,7 @@ with less than 20% room is bolded.
 
 | Floor | Limit | Latest | Room | Read on |
 |---|---:|---:|---:|---|
-| 1. Decisions per loaded physical core-second | ≥ 10000 | 14610 | 46% | 2026-11-05 |
+| 1. Decisions per loaded physical core-second | ≥ 10000 | 13842 | 38% | 2026-11-06 |
 | 2. Allocations per clone | ≤ 64 | 39 | 64% | 2026-10-29 |
 | 2. Microseconds per clone | ≤ 10 | 5.6 | 79% | 2026-10-29 |
 | 3. Kilobytes per clone | ≤ 128 | 8.7 | 1371% | 2026-10-29 |
@@ -197,14 +197,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 431 |
-| …closed, still recorded | 271 |
+| Numbered items | 435 |
+| …closed, still recorded | 272 |
 | …open — unreachable, and says why | 106 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 31 |
+| …open — reachable, not wrong (perf, a name, a harness) | 34 |
 | …open — nothing to build, a record for a later phase | 18 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 154 of 160 |
+| …open, carrying an explicit `**Sized:**` | 157 of 163 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -218,7 +218,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 147 |
+| …slotted to a phase or roadmap row still to come | 150 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
