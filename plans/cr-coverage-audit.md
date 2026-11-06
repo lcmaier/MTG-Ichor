@@ -624,6 +624,9 @@ is derivable; where each name was read is not, and the gate needs the names.
     "put into that zone since the last time state-based actions were
     checked" is the list's own window. A rule that reads another arrival is
     a new filter at the doors (`clone-architecture.md` decision 5).
+  - `tokens_off_the_battlefield` (`board-scale`): CR 108.2b's token isn't a card, so a
+    zone's lists hold none and every list reader is a card reader; this is how
+    `zone_ids_ordered` still finds one in its zone until CR 704.5d ends it.
     `last_sba_check_epoch` stays, in a debug build only, as the window the
     old walk's assertion reads.
 - **Added by `last-known-information-store` (2026-10-24)**:

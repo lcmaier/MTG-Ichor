@@ -10190,3 +10190,19 @@ The item as it stood:
      **Closed:** by source and not by kind (`permanents_to_sweep`), at the owner's
      word, since every game with such a card on the board paid it: `Memo hits` fell
      3.3% at four seats.
+
+385. **A token leaving a graveyard shifts the graveyard.** CR 704.5d's tokens cease
+     to exist one member at a time, and `remove_from_zone_collection` took each out
+     of an ordered `Vec`, so a wipe of N tokens moved N²/2 entries: ×4.82 in the
+     growth gate, where linear reads ×4, and the gate's one named exception.
+
+     **Reachability (2026-11-06):** reachable — wrong today: the same lists held a
+     token where a card was asked for. A token on top of a library took the draw and
+     CR 111.8 kept it there, so the hand grew by nothing.
+     **Sized:** two chokepoints, one list for the objects, and an audit of every list
+     reader: each counts, draws or chooses cards, but `zone_ids_ordered` and a
+     departing player's sweep, which read objects.
+     **Closed:** at the owner's word, from asking why a token needs a place in a zone
+     it is about to leave. A token off the battlefield joins no list of cards, and its
+     own `zone` says where it is, in PR #313. The gate's exception went with it: a wipe
+     reads ×3.97, and the draw takes the card beneath.

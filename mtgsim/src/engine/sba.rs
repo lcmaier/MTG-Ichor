@@ -559,6 +559,8 @@ impl GameState {
         // Read: the next check's window starts here, since nothing moved
         // between this check's top and its performance.
         self.arrivals_since_last_sba_check.clear();
+        let tokens = std::mem::take(&mut self.tokens_off_the_battlefield);
+        self.tokens_off_the_battlefield = tokens.into_iter().filter(|&token| self.find(token).is_some()).collect();
         if !batch.is_empty() {
             // **What the game recorded, not the proposal**: CR 704.3 repeats only "if
             // any state-based actions are performed", and an indestructible creature's

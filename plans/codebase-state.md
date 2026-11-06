@@ -10519,16 +10519,11 @@ slips are the planned card phases', not items.
      **Sized:** ~40 lines: a per-pass cache keyed on the count's filter and "you".
      **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
 
-385. **A token leaving a graveyard shifts the graveyard.** CR 704.5d's tokens cease
-     to exist one member at a time, and `remove_from_zone_collection` takes each out
-     of an ordered `Vec`, so a wipe of N tokens moves N²/2 entries: ×4.82 in the
-     growth gate, where linear reads ×4, and the gate's one named exception. The
-     captures beside it are fixed. At 51,200 permanents a wipe takes 191 ms.
-
-     **Reachability (2026-11-06):** reachable — not wrong: a cost, and no game moves.
-     **Sized:** a design: a graveyard's order is observable, so it is a removal the
-     batch does once, or a zone that takes one without a shift.
-     **Slotted:** Phase 10, profile-driven performance, with item 138's levers.
+385. **A token leaving a graveyard shifts the graveyard.** — ✅ closed.
+     A token off the battlefield sits in no list of cards (CR 108.2b), so nothing
+     shifts; `zone_ids_ordered` finds it through `tokens_off_the_battlefield`.
+     **Reachability (2026-11-06):** closed — PR #313.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 385".
 
 386. **Each trigger resolving pays a pass over the board.** A stack entry is a layer
      walk input, so taking one moves the epoch and the next read walks everything:
@@ -10554,3 +10549,16 @@ slips are the planned card phases', not items.
      **Sized:** ~150 lines and the fixture files. Whether a scenario restores every
      mid-turn position is unchecked, and `pausing-at-a-decision`'s work may decide it.
      **Slotted:** Phase 10, the AI harness, where the limit is re-derived.
+
+388. **A row over "cards in graveyards" reaches a token there.** A zone's lists hold
+     cards now, but a layer row reaches by zone, and `ObjectFilter::All` matches a
+     token as it matches a card. Cards in graveyards being red colors a white token
+     in a graveyard, until the next check ends it (a probe, 2026-11-06), where CR
+     108.2b says it is no card. `zone_ids_ordered` keeps such a token in the pass on
+     purpose, since it is an object in the zone.
+
+     **Reachability (2026-11-06):** reachable — not wrong: Yixlid Jailer's row takes
+     such a token's abilities, and no registered token has one that works there.
+     **Sized:** a filter for "is a card" on the rows that say "cards", about 20 lines
+     and the audit of which rows do. 19 printed cards say "cards in graveyards".
+     **Slotted:** `token-copies`, whose copy of a graveyard ability is the first to show it.

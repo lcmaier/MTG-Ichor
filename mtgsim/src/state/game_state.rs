@@ -729,6 +729,13 @@ pub struct GameState {
     /// (`clone-architecture.md` decision 5).
     pub(crate) arrivals_since_last_sba_check: Vec<ObjectRef>,
 
+    /// Every token off the battlefield, which only this finds: a zone's lists
+    /// hold cards and a token isn't one (CR 108.2b), so a token's own `zone`
+    /// says where it is. Nothing is taken out as a token ends, since CR 704.5d
+    /// ends them all at once and each search would pay for the rest; a check
+    /// drops what has gone. Empty at every grant of priority, like the arrivals.
+    pub(crate) tokens_off_the_battlefield: Vec<ObjectRef>,
+
     /// The tick as of the start of the previous check: the window the debug
     /// walk asserts `arrivals_since_last_sba_check` against.
     #[cfg(debug_assertions)]
@@ -1093,6 +1100,7 @@ impl GameState {
             lethal_damage_left: Vec::new(),
             next_zone_change_epoch: 1,
             arrivals_since_last_sba_check: Vec::new(),
+            tokens_off_the_battlefield: Vec::new(),
             #[cfg(debug_assertions)]
             last_sba_check_epoch: 1,
             pending_triggers: SharedList::new(),
@@ -1438,10 +1446,12 @@ impl GameState {
     /// `Zone::Battlefield` answers `battlefield_ids_ordered` — CR 613.7
     /// timestamp order — so a caller sweeping a `ZoneSet` that happens to
     /// include it still gets the one order counts agree with.
+    ///
+    /// Every object in the zone, so a token there comes after its cards.
     pub fn zone_ids_ordered(&self, zone: Zone) -> Vec<ObjectId> {
-        match zone {
-            Zone::Battlefield => self.battlefield_ids_ordered(),
-            Zone::Stack => self.stack.iter().copied().collect(),
+        let mut ids = match zone {
+            Zone::Battlefield => return self.battlefield_ids_ordered(),
+            Zone::Stack => return self.stack.iter().copied().collect(),
             Zone::Exile => self.exile.clone(),
             Zone::Command => self.command.clone(),
             Zone::Library | Zone::Hand | Zone::Graveyard => {
@@ -1455,7 +1465,11 @@ impl GameState {
                 }
                 ids
             }
-        }
+        };
+        ids.extend(self.tokens_off_the_battlefield.iter().filter(|&&token| {
+            self.find(token).is_some_and(|object| object.zone == zone)
+        }).map(|token| token.id));
+        ids
     }
 
     /// Allocate and return the next timestamp value.

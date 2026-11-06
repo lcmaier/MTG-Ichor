@@ -8,20 +8,21 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::fixtures::essence_of_the_wild_fixture;
-use mtgsim::cards::printings::{blood_moon, glorious_anthem, sigarda_host_of_herons};
-use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::cards::fixtures::{essence_of_the_wild_fixture, graveyard_painter};
+use mtgsim::cards::printings::{blood_moon, glorious_anthem, lightning_bolt, sigarda_host_of_herons};
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_on_battlefield, setup_game, test_ctx, textless_static};
+use mtgsim::test_support::{put_in_library, put_on_battlefield, setup_game, test_ctx, textless_static};
 use mtgsim::types::card_types::{CardType, CreatureType};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, PlayerRef, TokenDef};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -337,4 +338,86 @@ fn the_tokens_of_a_shared_frame_are_each_a_permanent_of_their_own() {
     let goblins = tokens_owned_by(&game, 0);
     assert_eq!(goblins.len(), 3);
     assert!(goblins.iter().all(|id| get_effective_power(&game, *id) == Some(2)));
+}
+
+// --- A token off the battlefield isn't a card (CR 108.2b) --------------------
+
+/// A token of seat 0's, moved off the battlefield and left there, as a
+/// resolution leaves one until the next state-based check.
+fn token_moved_to(game: &mut GameState, zone: Zone) -> ObjectId {
+    create(game, vec![goblin()], 0);
+    let token = *tokens_owned_by(game, 0).last().expect("the token was created");
+    let moved = GameAction::ZoneChange { object: token, from: Zone::Battlefield, to: zone, act: ZoneChangeAct::Put };
+    game.execute_action(moved, &test_ctx()).expect("the move performs");
+    assert_eq!(game.objects[&token].zone, zone, "in the zone until the next check");
+    token
+}
+
+/// The top card of a library is a card, so a token put on top lies over
+/// nothing: a draw between the move and the next check takes the card.
+// COVERS-PARTIAL: ATOM-108.2b-001
+#[test]
+fn a_draw_takes_the_top_card_from_under_a_token() {
+    let mut game = setup_game(2);
+    let card = put_in_library(&mut game, lightning_bolt(), 0);
+    token_moved_to(&mut game, Zone::Library);
+
+    game.execute_action(GameAction::DrawCard { player: 0 }, &test_ctx()).expect("the draw performs");
+
+    assert_eq!(game.players[0].hand, [card]);
+    assert!(game.players[0].library.is_empty());
+}
+
+/// No zone that counts cards counts it, and it is still an object in its zone
+/// for whatever reads objects.
+// COVERS-PARTIAL: ATOM-108.2b-001
+#[test]
+fn a_token_in_a_zone_is_an_object_there_and_no_card() {
+    for zone in [Zone::Library, Zone::Hand, Zone::Graveyard, Zone::Exile, Zone::Command] {
+        let mut game = setup_game(2);
+        let token = token_moved_to(&mut game, zone);
+
+        let seat = &game.players[0];
+        assert!(seat.library.is_empty() && seat.hand.is_empty() && seat.graveyard.is_empty(), "{zone:?}");
+        assert!(game.exile.is_empty() && game.command.is_empty(), "{zone:?}");
+        assert_eq!(game.zone_ids_ordered(zone), [token]);
+    }
+}
+
+/// A row reaching the graveyard makes a token there a member of the pass, so
+/// the pass has to find it for a frame to come out (`pass_membership`).
+#[test]
+fn a_token_in_a_zone_a_row_reaches_is_in_the_pass() {
+    let mut game = setup_game(2);
+    put_on_battlefield(&mut game, graveyard_painter(), 0);
+    let token = token_moved_to(&mut game, Zone::Graveyard);
+
+    assert!(compute_characteristics(&game, token).is_some());
+}
+
+/// CR 800.4a: what a player owns leaves with them, a token waiting on the next
+/// check too.
+#[test]
+fn a_token_off_the_battlefield_leaves_the_game_with_its_owner() {
+    let mut game = setup_game(3);
+    let token = token_moved_to(&mut game, Zone::Graveyard);
+
+    game.execute_action(GameAction::PlayerLoses { player: 0 }, &test_ctx()).expect("the loss performs");
+
+    assert!(!game.objects.contains_key(&token));
+}
+
+/// CR 704.5d ends every token off the battlefield in one check, leaving the
+/// cards beside them where they were.
+#[test]
+fn a_check_ends_the_tokens_and_keeps_the_cards() {
+    let mut game = setup_game(2);
+    let card = put_in_library(&mut game, lightning_bolt(), 0);
+    let tokens = [Zone::Graveyard, Zone::Exile, Zone::Library].map(|zone| token_moved_to(&mut game, zone));
+
+    game.check_state_based_actions_loop(&ScriptedDecisionProvider::new()).expect("the check performs");
+
+    assert!(tokens.iter().all(|token| !game.objects.contains_key(token)));
+    assert_eq!(game.players[0].library, [card]);
+    assert!(game.zone_ids_ordered(Zone::Graveyard).is_empty());
 }
