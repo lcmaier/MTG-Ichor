@@ -19,7 +19,7 @@ use crate::state::layer_memo::GatedWalkInput;
 use crate::types::card_types::CardType;
 use crate::types::counted_enum;
 use crate::types::history::TurnFact;
-use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
+use crate::types::ids::{EmptyCollection, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::zones::{Zone, ZoneChangeAct};
 
@@ -276,6 +276,8 @@ pub struct HistoryLog {
     /// The combat phases begun this turn, which CR 500.8 can add to.
     combats_this_turn: u32,
 }
+
+impl EmptyCollection for HistoryLog {}
 
 #[derive(Debug)]
 struct Chunk {
@@ -583,7 +585,7 @@ mod tests {
 
     #[test]
     fn rows_read_newest_first_across_chunks() {
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         for seq in 0..(2 * CHUNK_ROWS + 3) {
             log.push(drew(seq, 1));
         }
@@ -593,7 +595,7 @@ mod tests {
 
     #[test]
     fn a_fork_writes_its_own_rows_and_shares_the_rest() {
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         for seq in 0..(CHUNK_ROWS + 2) {
             log.push(drew(seq, 1));
         }
@@ -620,7 +622,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
         let frame = compute_characteristics(&game, bears);
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         for seq in 0..(CHUNK_ROWS + 2) {
             log.push(drew(seq, 1));
         }
@@ -674,7 +676,7 @@ mod tests {
 
     #[test]
     fn a_long_chain_drops_without_recursing() {
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         for seq in 0..(CHUNK_ROWS * 20_000) {
             log.push(drew(seq, 1));
         }
@@ -699,7 +701,7 @@ mod tests {
     /// neither.
     #[test]
     fn the_rows_tell_combats_and_existences_apart() {
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         let (bears, after_a_flicker) = (object_ref(7, 1), object_ref(7, 2));
         let player_1 = AttackTarget::Player(1);
         log.combat_began();
@@ -719,7 +721,7 @@ mod tests {
     /// attacker was blocked; and "this combat" is the latest combat's.
     #[test]
     fn a_block_row_answers_both_sides_in_its_combat() {
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         let (wall, bears) = (object_ref(7, 1), object_ref(8, 1));
         log.combat_began();
         row(&mut log, wall, 3, RowFact::Blocked(bears));
@@ -737,7 +739,7 @@ mod tests {
     /// count, so a walk that asked is invalidated by exactly those writes.
     #[test]
     fn a_lookup_notes_what_it_scans() {
-        let log = HistoryLog::default();
+        let log = HistoryLog::empty();
         let noted = std::cell::RefCell::new(Vec::new());
         let note = |input| noted.borrow_mut().push(input);
         log.attacked(object_ref(7, 1), 1, CombatSpan::ThisTurn, &note);
@@ -753,7 +755,7 @@ mod tests {
     /// A row from an earlier turn is kept: the log answers "this game" too.
     #[test]
     fn earlier_turns_stay_and_a_turn_reads_its_own() {
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         row(&mut log, object_ref(7, 1), 1, RowFact::Attacked(AttackTarget::Player(1)));
         row(&mut log, object_ref(8, 1), 2, RowFact::Attacked(AttackTarget::Player(1)));
         row(&mut log, object_ref(9, 1), 3, RowFact::Attacked(AttackTarget::Player(1)));
@@ -764,7 +766,7 @@ mod tests {
 
     #[test]
     fn a_turn_starts_with_no_combat() {
-        let mut log = HistoryLog::default();
+        let mut log = HistoryLog::empty();
         log.combat_began();
         log.combat_began();
         assert_eq!(log.combats_this_turn(), 2);

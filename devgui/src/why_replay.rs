@@ -18,7 +18,7 @@ use mtgsim::state::decision_log::{AnswerLine, GameStart};
 use mtgsim::state::game::Halt;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceMemory, TraceRecord, TraceSink};
-use mtgsim::types::ids::PlayerId;
+use mtgsim::types::ids::{EmptyCollection, PlayerId};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode, Stop};
 use mtgsim::ui::replay::{Replay, ReplayControl};
@@ -77,7 +77,7 @@ fn read(start: &GameStart, line: Vec<AnswerLine>, about: WhyAbout, stop: Arc<Rep
         Ok(built) => built,
         Err(refusal) => return Some(trouble(about, "The game did not build again", &refusal)),
     };
-    let memory = TraceMemory::default();
+    let memory = TraceMemory::empty();
     let state = &mut built.game_mut().state;
     state.install_trace(TraceHandle::new(&TraceSink::to_writer(memory.clone())));
     // This build checked every answer on the line as it was given.

@@ -14,7 +14,7 @@ use crate::events::cause::EventCause;
 use crate::events::event::UnattachRoute;
 use crate::state::game_state::GameState;
 use crate::state::shared_stores::ObjectTable;
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{EmptyCollection, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
 
@@ -35,6 +35,8 @@ pub struct EndedExistences(Vec<Lki>);
 pub struct LkiStore {
     ended: ObjectTable<EndedExistences>,
 }
+
+impl EmptyCollection for LkiStore {}
 
 impl LkiStore {
     /// `existence`'s last known information, once it has ended and its move

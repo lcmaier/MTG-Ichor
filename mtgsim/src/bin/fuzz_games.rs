@@ -127,7 +127,7 @@ use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::card_types::CreatureType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, TokenDef};
-use mtgsim::types::ids::{IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::ids::{EmptyCollection, IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneSet};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
@@ -712,7 +712,7 @@ fn uncast_resolutions<'a>(
     records: impl Iterator<Item = &'a mtgsim::events::event::EventRecord>,
     game: &mtgsim::state::game_state::GameState,
 ) -> Vec<String> {
-    let mut casts: IdMap<ObjectId, u32> = IdMap::default();
+    let mut casts: IdMap<ObjectId, u32> = IdMap::empty();
     let mut violations = Vec::new();
     for (index, record) in records.enumerate() {
         match &record.event {

@@ -558,6 +558,19 @@ pub type IdMap<K, V> = HashMap<K, V, IdHash>;
 /// A `HashSet` of ids or id pairs.
 pub type IdSet<K> = HashSet<K, IdHash>;
 
+/// How a collection says it starts with nothing in it, which `default()` leaves
+/// for the reader to work out. A trait, because [`IdMap`] and [`IdSet`] are
+/// aliases of std's types, and no constant, because their hasher reads a seed
+/// at run time.
+pub trait EmptyCollection: Default {
+    fn empty() -> Self {
+        Self::default()
+    }
+}
+
+impl<K, V> EmptyCollection for IdMap<K, V> {}
+impl<K> EmptyCollection for IdSet<K> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -91,9 +91,9 @@ it is, rename it. Every name a PR adds is read against this list:
 6. **Name a type by its contents**: a set of objects alone is `ObjectSet`, not `AffectedSet`, which names the objects and players an effect affects.
 7. **Where the card's text has a phrase, use it**: `DoThisOnlyOnceEachTurn`.
 8. **Name the players**: a condition about a player says which ones.
-9. **A call names the type it builds**: `IdMap::default()`, never a bare
-   `Default::default()`, whose type only the compiler can see. An empty value that
-   means something is a named constant (`ObjectSet::NO_OBJECTS`). Clippy's `default_trait_access` gates the first half.
+9. **A call names the type it builds**: `IdMap::empty()`, never a bare
+   `Default::default()`, whose type only the compiler can see. A collection says `empty()` (`EmptyCollection`); an empty
+   value that means something is a named constant (`ObjectSet::NO_OBJECTS`). Clippy's `default_trait_access` gates the first half.
 10. **A return names its parts**: a tuple only for a pair that is one thing;
     otherwise a struct with named fields, or two functions.
 
@@ -434,14 +434,10 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 | 3. Kilobytes per clone | ≤ 128 | deep clone size, bounded by the board's high-water mark and never by the turn count | the same tests, exact bytes with the hash seed pinned |
 <!-- floors: end -->
 
-- **Floor 1 has no agent in it**: its boards are fixed, so it moves when the
-  engine does. The rungs above the limit's are read for their shape: `ns/permanent`
-  stays flat where a decision's cost grows with the board and no faster. Phase 10
-  re-derives the limit (`plans/references/ai-performance-floors.md`).
-- **A bot's games are read beside it** (`fuzz_games --census` at Commander scale,
-  under `backlog.md` §2.22's default stack: `ManaWindowStop` on, the tap-solver
-  decorator off). That rate moves with the bot, and a dropped prompt is judged
-  by games per loaded core-second.
+- **Floor 1 has no agent in it**: its boards are fixed, so it moves when the engine does, and the
+  rungs above the limit's are read for their shape. Phase 10 re-derives the limit.
+- **A bot's games are read beside it** (`--census`, under `backlog.md` §2.22's default stack). That
+  rate moves with the bot, and a dropped prompt is judged by games per loaded core-second.
 - **A reading is replaced in place when it is taken again**; every reading's
   dated record stays in `fuzz-record.md`.
 

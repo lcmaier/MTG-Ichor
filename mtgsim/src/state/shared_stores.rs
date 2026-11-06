@@ -41,7 +41,7 @@ use std::fmt;
 use std::ops::Index;
 use std::sync::Arc;
 
-use crate::types::ids::ObjectId;
+use crate::types::ids::{EmptyCollection, ObjectId};
 
 /// How many ids a table's chunk spans, and how many items a list's chunk holds.
 const CHUNK: usize = 32;
@@ -175,6 +175,8 @@ impl<T: ForkCopy> Clone for ObjectTable<T> {
         ObjectTable { chunks: self.chunks.clone(), len: self.len }
     }
 }
+
+impl<T: ForkCopy> EmptyCollection for ObjectTable<T> {}
 
 impl<T: ForkCopy> Default for ObjectTable<T> {
     fn default() -> Self {
@@ -404,6 +406,8 @@ impl<T: ForkCopy> Clone for SharedList<T> {
     }
 }
 
+impl<T: ForkCopy> EmptyCollection for SharedList<T> {}
+
 impl<T: ForkCopy> Default for SharedList<T> {
     fn default() -> Self {
         SharedList { chunks: Vec::new(), len: 0 }
@@ -516,7 +520,7 @@ impl<T: ForkCopy> Extend<T> for SharedList<T> {
 
 impl<T: ForkCopy> FromIterator<T> for SharedList<T> {
     fn from_iter<I: IntoIterator<Item = T>>(items: I) -> Self {
-        let mut list = SharedList::default();
+        let mut list = SharedList::empty();
         list.extend(items);
         list
     }
@@ -572,7 +576,7 @@ mod tests {
     }
 
     fn table(ids: impl IntoIterator<Item = u64>) -> ObjectTable<u64> {
-        let mut table = ObjectTable::default();
+        let mut table = ObjectTable::empty();
         for raw in ids {
             table.insert(id(raw), raw);
         }
