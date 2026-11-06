@@ -10087,6 +10087,4 @@ The item as it stood:
      **Slotted:** `modes-plus-choice-kinds`, the dev GUI PR after
      `divided-among-targets`; the owner's cadence puts it next.
      **Closed:** the dev GUI reads both, a resolving spell's row among them
-     (`GameState::stack_object_facts`). The CLI reads neither, and that half
-     waits on `information-model-design` (`backlog.md`'s "What a client is
-     handed").
+     (`GameState::stack_object_facts`).
