@@ -1,4 +1,4 @@
-"""Each deck card's printed face as a Rust builder, for the gap census's crate.
+"""Each deck card's front face as a Rust builder, for the gap census's crate.
 
     python -I plans/references/card-census/gap_skeletons.py <cards.json> <out.rs>
 

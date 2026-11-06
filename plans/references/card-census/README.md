@@ -87,8 +87,8 @@ costs to attack were renamed to their rows after the run (`route-review`,
 **Every unregistered card of the five lists, written against the tree at #314's
 merge and played, 2026-11-06.** It replaced `pilot-2026-11-06.md`. Where the census
 above reads Forge's scripts and matches a need's name, this one writes each card, so
-it sees parameters and refusals. `gap_census.py`'s docstring says what each record
-holds and what proves a card writable.
+it sees parameters and refusals. `gap_census.py`'s docstring lists a record's fields
+and what proves a card writable.
 
 - `results/gap-census.md`: the rating, each deck's cards by step, each row's
   cards, each gap and each card, generated.
@@ -113,11 +113,12 @@ holds and what proves a card writable.
 - **Loops:** none of the 378 can close a mandatory loop alone (CR 104.4b), judged by
   reading and not by play. The nearest is Colossal Grave-Reaver with Stitcher's
   Supplier, which ends when the library does. Two cards from two decks at one table
-  were not read for this.
+  were not read for this: `decks-in-fuzz-games` is the first to play that table.
 
 **Re-running it.** `report` needs only the records, so a row landing clears its
-cards with `python plans/references/card-census/gap_census.py report`. `ingest` needs
-a crate: `pilot_fetch.py` fetches the cards, `gap_skeletons.py` writes each printed
-face, and each card is written beside its board and its needs. The crate is not
-kept, since no card lands in the tree: each card's written tree stays in
-`gap-census-composition.txt`.
+cards with `python plans/references/card-census/gap_census.py report`, and a row's
+hunt records a new blocker with `amend`. A gap built ahead of its row joins
+`BUILT_GAPS`. `ingest` needs a crate: `pilot_fetch.py` fetches the cards,
+`gap_skeletons.py` writes each card's front face, and each card is written beside its
+board and its needs. The crate is not kept, since no card lands in the tree: each
+card's written tree stays in `gap-census-composition.txt`.
