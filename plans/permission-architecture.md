@@ -13,8 +13,8 @@
 > (functioning zones and activation restrictions), §2.11 (loyalty abilities),
 > `codebase-state.md` "Before card breadth" item 2 (who may activate). It is
 > also the first consumer of §2.15's effective-value query, through the land
-> count `can_play_land` reads (CR 305.2). The PR that builds the land count
-> builds that query, and §2.15's other values reuse it (`cost-architecture.md`
+> count `can_play_land` reads (CR 305.2). `player-scoped-values` builds the land count
+> and that query, and §2.15's other values reuse it (`cost-architecture.md`
 > §3.9: one surface for three values).
 > **Companions:**
 > - `cant-effects-architecture.md`: `cant-cast-play-or-activate` builds the prohibition half at the

@@ -3335,7 +3335,9 @@ the two effect arms, the typed matcher with its cost parser, and the 33
 the band. Its consumer is the decision log: a replay of a game with Bridge
 from Below's two triggers, both orders.
 
-**After v0.5, with the AI harness** (decisions 1–3):
+**After v0.5, with the AI harness** (decisions 1–3), but for the fork test, which
+goes ahead of the choice kinds still to come as `fork-test-at-every-decision`
+(#312) if its brief finds the fork separates from the paused game:
 
 | PR | Piece | Code | Tests |
 |---|---|---:|---:|

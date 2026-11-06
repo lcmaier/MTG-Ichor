@@ -137,10 +137,10 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5b. "Can't" effects (CR 101.2/614.17/613.11) and 5c. copy effects (CR 707/712/708/729 + Layer 1): the phases their docs name, at their steps below
 6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
-`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
-`permission-design` with `card-and-object-model` beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`; `cant-be-targeted`; `cant-cast-play-or-activate`;
+`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `modes-plus-choice-kinds`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`, `information-model`;
+`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
-then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
+then `tarkir-dragonstorm-decks`: its gap census; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
 `casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks; `mana-payment-solver`.
 **v0.5 is Tarkir: Dragonstorm Commander's five decks at one five-seat table**, in the dev GUI and over the CLI (owner, 2026-10-29).
 After it, ordered at its close: the rest of the route's rows, wider card work and Phase 9's remainder; then Phase 10.

@@ -828,7 +828,9 @@ card-by-card hunt runs in each PR's brief.
   the Ironworks loop (TR-7's until 2026-10-13), which needs any-color mana, a
   draw inside a mana ability, and a window inside a mana ability's activation.
 - **`hybrid-and-phyrexian-payment` after MA-1**: its gate half is §3.2's arms.
-- **Item 33's design pass after MA-1**: its seam is §3.6.
+- **Item 33's design pass after MA-1**: its seam is §3.6. **Its build right after
+  `mana-ability-costs`** (the owner, 2026-11-05, #312): the source axis reshapes the
+  generic split, which every payment row after it would otherwise build first.
 
 ---
 

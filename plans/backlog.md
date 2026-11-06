@@ -436,19 +436,46 @@ Two more rules matter and both make life easier:
   payment side (`hybrid-and-phyrexian-payment`), not cost *determination*, and it must not touch the
   locked total. CR 118.14's "mana of any type can be spent" is the same rule.
 
-**The population, counted 2026-09-09.** Scryfall `o:"as though" -is:funny`:
-**287** cards. Not an edge case, and not one mechanic either — the shapes
-split by *which question* they re-answer:
+**The population, by clause (2026-11-05).** `plans/references/as-though-census.py`
+reads every Commander-legal card by the clause that does it: **305** cards, among
+them CR 118.14's "mana of any type can be spent" and "any time you could cast an
+instant", which never say "as though". Every family under 40 was read card by
+card. Five more are banned in Commander, Prophet of Kruphix among them; digital-only
+cards are not counted. Sixteen families, and each re-answers **one named question at
+one named read**:
 
-| Shape | Question re-answered | Examples | Rough count |
-|---|---|---|---|
-| Timing | may this be cast now (CR 601.3b–d, which the CR spells out for flash specifically) | Vedalken Orrery, Leyline of Anticipation | part of the **117** that pair "as though" with "you may cast"/"may play" |
-| Zone | may this be played from here | Shaman's Trance, Yawgmoth's Will, Wildfire Devils | the rest of that 117 |
-| Payment | may this mana pay that pip (609.4b) | Chromatic Lantern's cousins, Cascading Cataracts | **62** on `o:"spend mana as though"` |
-| Attack / block legality | may this attack or block | Masako the Humorless, **49** on `o:"as though it didn't have defender"` | ~50+ |
-| A value inside a check | what number does this rule read | "crew as though its power were 2 greater", "adapt as though it had no +1/+1 counters" (Biomancer's Familiar), Elvish Refueler's exhaust | **41** on `o:"as though" o:"power"`, plus the counter-fiction ones |
+| Question | Cards | The read | Lands with |
+|---|---:|---|---|
+| May this mana pay that pip (609.4b) | 85 | the check's edges and the payment; 60 ride one cast another effect allowed | `hybrid-and-phyrexian-payment` |
+| May this be cast now | 71 | `can_begin_to_cast` | `as-though-effects`' permission half |
+| The same, on a choice made casting ("if you pay {2} more", "if X is 3 or less", CR 601.3c–d) | 15 | offered at the gate, CR 601.2's rewind refuses it after, as `permission-architecture.md` already does | the same |
+| The same, stated outright ("any time you could cast an instant") | 9 | seven are activation timing, CR 606.3's | `permission-design` |
+| May this attack: defender, haste | 54, 3 | `can_attack`; Frenzied Saddlebrute's haste is per attack target | the permission half |
+| May this block: evasion, tapped | 15, 1 | `can_block`'s pair checks, `can_be_a_blocker` | the permission half |
+| May this be targeted: hexproof, shroud | 5 | `validate_targets`, and CR 608.2b's re-check | the permission half, its seam cut by `cant-be-targeted` |
+| May this be activated: haste, a use limit | 4, 2 | `has_summoning_sickness` at the tap and untap costs and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half, its seam cut by `cant-pay-costs` |
+| How is this creature's damage assigned | 19 | a "may" at CR 510.1c, a choice kind no census has counted | the permission half, with its `ChoiceKind` |
+| What does this source's damage do | 2 | wither's and infect's reads (Everlasting Torment, Phyrexian Unlife) | those keywords' first cards |
+| What number does this rule read | 19, 1 | crew and saddle's power sum (18), Loot's assignment, adapt's counter check | `remaining-costs` for crew and saddle; each other with its mechanic |
+| Is this card where the rule says | 1 | Shaman's Trance's cast from a graveyard | `casting-from-other-zones` |
 
-**Why the first four are one mechanism and the fifth is the interesting one.**
+**What the census changes.** The family is no longer an unknown. The value "half"
+that had no date is 20 cards, 18 of them one sentence on crew and saddle, and each
+is a number one rule reads at one site, so **none needs a frame**. Rough cost
+beyond the mechanism below, from each site's shape and unbuilt: 20–60 lines a
+question, and about 100–150 for the damage assignment's choice kind. Two reads
+were guarded by nothing before this count, and `cant-effects-architecture.md` §3.7
+now says so: hexproof's, and summoning sickness's, which one accessor answers for
+two different questions.
+
+**Open, the owner's: how open is the list of questions?** A printed "as though"
+names one question, but the form could name any rule, and custom cards are a
+post-v1 goal (§2.37). A closed list of questions with any condition and any subject
+on each is what the 305 need, and a new question is one arm at its read. Every read
+consultable is what a total fiction needs, and it is the frame below at every
+read. Not decided; `as-though-effects`' design takes it.
+
+**Why the waivers are one mechanism, and what a value is.**
 Waiving a check ("as though it didn't have defender", "as though it were
 untapped", "as though it had flash") is a *permission* consulted where a
 legality predicate is asked — the exact mirror of `Restriction`, which is
@@ -458,31 +485,28 @@ an `is_permitted(Query)` beside it is a known shape done twice already
 (restrictions, cost modification), and CR 609.4a's union is `is_prohibited`'s
 union with the sign flipped.
 
-The fifth shape substitutes a **value** rather than waiving a check, and it is
-where the design question actually lives. The engine has the machinery: RC-4's
+A value substitutes rather than waives. The census found every printed one reads a
+single number, so a read at its site answers it. Only an open list of questions
+would want more, and the engine has the machinery for that: RC-4's
 `EntryFrame` already answers "what would this object's characteristics be
 under a hypothesis" for one bounded question, with `frame_of` returning the
 hypothetical for the object under test and the real board for everything else
 — which is CR 609.4's "for that effect / for all other purposes" split,
-built. So the likely shape is a **question-scoped frame**, not a new layer:
+built. That would be a **question-scoped frame**, not a new layer:
 the decision site names the question, the sweep supplies the fictions that
-apply to it, and the check runs against the overlay. What must be written
-down first, in the doc: **the fiction never reaches `compute_characteristics`
+apply to it, and the check runs against the overlay. What holds on either
+shape: **the fiction never reaches `compute_characteristics`
 and never reaches the layer walk** — the day it does, Masako's creature is
 untapped for the untap step and the whole rule inverts.
 
-**What it blocks.** Nothing on the critical path, and it is not a Phase 8
-breadth item either: it is a mechanism, and 287 cards is enough that Phase 8
-will hit it immediately. The three sub-shapes are separable and only the
-first is cheap.
+**What it blocks.** It is not a Phase 8 breadth item: it is a mechanism, and 305
+cards is enough that Phase 8 will hit it immediately.
 
 **Rough size.** The permission half (timing, zone, attack/block legality):
 ~600–900, a `PermissionDef` mirroring `RestrictionDef`, `is_permitted` with
 one `Query` arm per site, the sweep, and 3–4 cards. The payment half
 (609.4b): ~200–300 on top of `hybrid-and-phyrexian-payment`'s payment, and it belongs with it. The
-value-substitution half: **unknown until scoped** — it needs the frame
-generalized past entries, which is RC-4's machinery pointed at a new
-question, and the sizing has to count the decision sites first. Graduates to
+values: a read each, with their mechanics, per the census above. Graduates to
 `as-though-architecture.md` when scheduled; it is a sibling of
 `cant-effects-architecture.md` and should be written against it, because the
 two share the sweep, the union and the decision-site vocabulary and differ
@@ -498,8 +522,8 @@ and no slot is not scheduled, it is merely recorded.
 
 1. **The back-stop lives on the route**: `roadmap-v2.md` §3a row **`as-though-effects`**, which
    puts the permission half after the combat phases and before Phase 8, gates Phase 8's start
-   on it beside `merging-and-meld` and `information-model`, rides the payment half with `hybrid-and-phyrexian-payment`, and says why the
-   value-substitution half deliberately has no date. A back-stop is what turns
+   on it beside `merging-and-meld` and `information-model`, rides the payment half with `hybrid-and-phyrexian-payment`, and gives each
+   value a home. A back-stop is what turns
    "recorded" into "scheduled", and it could not go in this file: §0 allows six
    fields and no seventh, and "nothing here has a date" is the sentence that
    makes the inventory trustworthy.
@@ -1034,7 +1058,8 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   count (CR 305.2), its first consumer and the card family item 212's census
   counted (36 cards that play additional lands). Max hand size and player
   hexproof reuse it, as `cost-architecture.md` §3.9's one surface asks.
-  Slotted with that document's land-count PR, before C (2026-10-05).
+  Slotted: `player-scoped-values`, before `cant-be-targeted`, which must read
+  it (#312, 2026-11-05).
 
 ### 2.16 Counters on players (CR 122.1) — ✅ graduated 2026-09-13 (RE-5)
 

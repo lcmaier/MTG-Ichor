@@ -1633,8 +1633,8 @@ section never asked.
     ticketed in the ledger: **T12c**, restricted mana in the casting pipeline;
     **T12d**, the cards and the grants (Cavern of Souls, Boseiju). Grant
     delivery to the cast spell rides item 30's `StackEntry` rail, which landed
-    without it (2026-09-23). **Trigger: `roadmap-v2.md` §3a row `mana-provenance`, after
-    v0.5 since `route-review` (2026-10-29) — see "mana provenance" below.**
+    without it (2026-09-23). **Trigger: `roadmap-v2.md` §3a row `mana-provenance`, before
+    the payment rows since #312 (2026-11-05) — see "mana provenance" below.**
     → `plans/cards-unlocked-ledger.md` T12 rows; `roadmap-v2.md` §4;
     `cr-coverage-audit.md` §4's `ManaPool` row.
 
@@ -7880,9 +7880,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** by its design, written first in `layers-architecture.md`. The
      word swaps over a structured ability are the unknown; the renames, the
      gate legs and the record's names are each small.
-     **Slotted:** Phase 8, its own line item (`roadmap-v2.md` §C, `text-changing-effects`; the
-     owner, 2026-09-30, since the card pool is small): its design, then its
-     build.
+     **Slotted:** `text-changing-effects`, its own line item (`roadmap-v2.md` §C; the owner,
+     2026-09-30, since the card pool is small): its design beside
+     `card-and-object-model`'s (#312), its build after v0.5.
 
 ### Found by the first-draw PR (2026-10-01)
 

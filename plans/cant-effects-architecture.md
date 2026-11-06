@@ -655,12 +655,11 @@ compose in one fixed order — fiction, then rule, then prohibition — and
 design**, which is the thing that makes this a constraint on a seam rather than
 a second subsystem inside this one.
 
-**Measured 2026-09-09.** `backlog.md` §2.24 carries the census, the five
-shapes and the sizing; the numbers that matter here are that Scryfall's
-`o:"as though" -is:funny` is **287** cards, that **49** of them are
-"as though it didn't have defender", and that **62** are "spend mana as
-though". Combat and costs are the two biggest slices, and both are Tier 1a's
-and Tier 1e's sites.
+**Measured 2026-11-05.** `backlog.md` §2.24 carries the census by clause and
+the sizing; the numbers that matter here are that **305** cards re-answer one
+named question each, that **54** of them are "as though it didn't have
+defender", and that **85** pay with mana as though it were another. Combat and
+costs are the two biggest slices, and both are Tier 1a's and Tier 1e's sites.
 
 **Why it lands on this document rather than on a later one.** Combat legality
 has **zero** restriction consults today: `is_prohibited` and `prohibition` are
@@ -674,7 +673,7 @@ filter, and from nowhere in combat. `oracle/legality.rs::can_attack` reads
 that seam — those two helpers, `can_block`'s pair checks and the two
 set-level checks — and re-expresses Defender as data. `cant-pay-costs` and
 `cost-architecture.md`'s `hybrid-and-phyrexian-payment` do the same for the payment sites. **The seam an
-"as though" effect needs is cut once, by `combat-restrictions` and `cant-pay-costs`, and by nothing else
+"as though" effect needs is cut once, by `combat-restrictions`, `cant-pay-costs` and `cant-be-targeted`, and by nothing else
 between now and then.** Cut it one-sided and the same functions are
 rewritten twice.
 
@@ -701,6 +700,16 @@ both checkable at `combat-restrictions`'s review.**
    is one line of discipline: when the seam is rewritten, each base clause
    reads through an accessor rather than a field.
 
+**Two more sites, found by the census (2026-11-05), the same asks at each.**
+- **`cant-be-targeted`**: Glaring Spotlight and Detection Tower target "as though
+  they didn't have hexproof". Hexproof is a keyword-derived restriction like
+  Defender, so the consult must see past it to the next, and only for the
+  source's controller the fiction names. CR 608.2b's re-check asks the same.
+- **`cant-pay-costs`**: "activate abilities as though those creatures had haste"
+  reaches the tap and untap costs and `mana_supply`'s recheck, and not the attack,
+  though `has_summoning_sickness` answers both. The accessor takes the question,
+  or the fiction leaks from one to the other, which is CR 609.4's whole point.
+
 **What this section does not ask for.** No `PermissionDef`, no `Query` arm, no
 card, no schedule change, and no sizing pass. CR 609.4's mechanism is
 `backlog.md` §2.24's and is sized there when it is scheduled; the argument for
@@ -710,11 +719,10 @@ shape constraint alone, recorded before `combat-restrictions` so that it costs n
 
 **The other half's constraint, for completeness.** Value substitution beyond
 combat — "crew as though its power were 2 greater", "adapt as though it had no
-+1/+1 counters" — wants RC-4's look-ahead frame generalised past entries, and
-its own invariant is in §2.24: **the fiction never reaches
++1/+1 counters" — is a read at each mechanic's own site (the census, `backlog.md`
+§2.24), with one invariant: **the fiction never reaches
 `compute_characteristics`**. The day it does, Masako's creature is untapped for
-the untap step and the rule inverts. That half neither cheapens nor dears with
-time, so it is not this document's problem.
+the untap step and the rule inverts.
 
 ---
 
