@@ -2,13 +2,13 @@
 
 # The gap census's tables
 
-80 of 378 unregistered cards read.
+378 of 378 unregistered cards read.
 
 | | Cards |
 |---|---:|
-| Writable today | 23 |
-| Blocked by a named row | 25 |
-| A gap no row owned | 32 |
+| Writable today | 90 |
+| Blocked by a named row | 174 |
+| A gap no row owned | 114 |
 
 ## The decks, closest first
 
@@ -16,11 +16,11 @@ A card in several lists counts in each. A deck's last step is where its last car
 
 | Deck | Registered | Writable | Left | Read | Last step | Route PRs before it | Rows it needs |
 |---|---:|---:|---:|---:|---:|---:|---|
-| Sultai Arisen | 2 | 2 | 3 | 5 | 14 | 46–76 | 3 |
-| Temur Roar | 1 | 0 | 5 | 5 | 14 | 46–76 | 5 |
-| Jeskai Striker | 3 | 0 | 6 | 6 | 14 | 46–76 | 6 |
-| Mardu Surge | 3 | 2 | 6 | 8 | 17 | 71–134 | 5 |
 | Abzan Armor | 2 | 23 | 57 | 80 | 17 | 71–134 | 22 |
+| Mardu Surge | 3 | 24 | 58 | 82 | 17 | 71–134 | 22 |
+| Temur Roar | 1 | 21 | 64 | 85 | 17 | 71–134 | 22 |
+| Jeskai Striker | 3 | 17 | 66 | 83 | 17 | 71–134 | 22 |
+| Sultai Arisen | 2 | 13 | 70 | 83 | 17 | 71–134 | 19 |
 
 ## Each row's cards
 
@@ -28,139 +28,481 @@ A card in several lists counts in each. A deck's last step is where its last car
 
 | Step | Row | Needs | Unlocks | The cards it unlocks |
 |---:|---|---:|---:|---|
-| 5 | `costs-and-choices-at-resolution` | 1 | 0 |  |
-| 5 | `modal-spells-and-abilities` | 2 | 0 |  |
+| 5 | `costs-and-choices-at-resolution` | 9 | 4 | Angel of Invention, Compulsive Research, Myr Battlesphere, Spit Flame |
+| 5 | `modal-spells-and-abilities` | 15 | 2 | Abrade, Casualties of War |
 | 5 | `values-chosen-at-resolution` | 1 | 0 |  |
-| 6 | `linked-abilities` | 1 | 1 | Colfenor's Urn |
-| 7 | `any-color-plus-painlands-plus-signets` | 12 | 3 | Orzhov Signet, Selesnya Signet, Sungrass Prairie |
-| 7 | `mana-ability-costs` | 1 | 0 |  |
-| 7 | `mana-provenance` | 1 | 0 |  |
-| 7 | `resolution-recipients-and-amounts` | 9 | 6 | Arboreal Grazer, Feed the Swarm, Swords to Plowshares, Tip the Scales, Wall of Limbs, Wall of Reverence |
-| 8 | `information-model` | 4 | 2 | Evolving Wilds, Fortified Village |
-| 9 | `command-zone-casting` | 1 | 0 |  |
-| 9 | `game-formats` | 6 | 3 | Arcane Signet, Command Tower, Path of Ancestry |
-| 9 | `multiplayer-rules` | 2 | 0 |  |
-| 9 | `permission-design` | 1 | 0 |  |
-| 10 | `cant-be-targeted` | 3 | 2 | Swiftfoot Boots, Sylvan Caryatid |
-| 10 | `cant-cast-play-or-activate` | 1 | 1 | Dragonlord Dromoka |
-| 10 | `player-scoped-values` | 1 | 1 | Shalai, Voice of Plenty |
-| 11 | `as-though-effects` | 5 | 0 |  |
-| 11 | `combat-restrictions` | 4 | 2 | Access Tunnel, Ikra Shidiqi, the Usurper |
-| 11 | `layers-combat-and-counters` | 1 | 1 | Wall of Roots |
-| 14 | `chosen-color-plus-could-produce` | 1 | 1 | Exotic Orchard |
-| 14 | `hybrid-and-phyrexian-payment` | 1 | 1 | Twilight Mire |
-| 14 | `remaining-costs` | 1 | 1 | Deceptive Landscape |
+| 6 | `linked-abilities` | 8 | 1 | Colfenor's Urn |
+| 7 | `any-color-plus-painlands-plus-signets` | 51 | 26 | Adarkar Wastes, Azorius Signet, Battlefield Forge, Boros Signet, Caves of Koilos, Darkwater Catacombs, Deadly Dispute, Ferrous Lake, Izzet Signet, Karplusan Forest, Llanowar Wastes, Mossfire Valley, Orzhov Signet, Prismari Command, Rapacious Dragon, Selesnya Signet, Shivan Reef, Skycloud Expanse, Sungrass Prairie, Talisman of Conviction, Talisman of Creativity, Talisman of Hierarchy, Talisman of Impulse, Talisman of Progress, Teval's Judgment, Yavimaya Coast |
+| 7 | `mana-ability-costs` | 2 | 0 |  |
+| 7 | `mana-provenance` | 3 | 0 |  |
+| 7 | `resolution-recipients-and-amounts` | 41 | 15 | Arboreal Grazer, Beast Within, Colossal Grave-Reaver, Disciple of Bolas, Feed the Swarm, Grapple with the Past, Pongify, Rapid Hybridization, Skullclamp, Stroke of Midnight, Swords to Plowshares, Teval, the Balanced Scale, Tip the Scales, Wall of Limbs, Wall of Reverence |
+| 8 | `information-model` | 39 | 20 | Chaos Warp, Cultivate, Encroaching Dragonstorm, Evolving Wilds, Farseek, Fortified Village, Grisly Salvage, Harrow, Kodama's Reach, Myriad Landscape, Ponder, Rampant Growth, Sakura-Tribe Elder, Satyr Wayfinder, Solemn Simulacrum, Springbloom Druid, Temple of the Dragon Queen, Terramorphic Expanse, Ureni of the Unwritten, Wayfarer's Bauble |
+| 9 | `command-zone-casting` | 6 | 1 | Cephalid Coliseum |
+| 9 | `game-formats` | 17 | 10 | Ainok Strike Leader, Arcane Signet, Command Beacon, Command Tower, Commander's Insignia, Hellkite Courser, Loyal Apprentice, Path of Ancestry, Will of the Mardu, Will of the Sultai |
+| 9 | `multiplayer-rules` | 7 | 2 | Caldera Pyremaw, Tempt with Vengeance |
+| 9 | `permission-design` | 21 | 2 | Drownyard Temple, Reassembling Skeleton |
+| 10 | `cant-be-targeted` | 4 | 3 | Lightning Greaves, Swiftfoot Boots, Sylvan Caryatid |
+| 10 | `cant-cast-play-or-activate` | 2 | 1 | Dragonlord Dromoka |
+| 10 | `player-scoped-values` | 2 | 2 | Reliquary Tower, Shalai, Voice of Plenty |
+| 11 | `as-though-effects` | 7 | 0 |  |
+| 11 | `combat-requirements` | 6 | 3 | Ghostly Prison, Shiny Impetus, Vengeful Ancestor |
+| 11 | `combat-restrictions` | 13 | 7 | Access Tunnel, Aron, Benalia's Ruin, Gadrak, the Crown-Scourge, Ikra Shidiqi, the Usurper, Infantry Shield, Noxious Gearhulk, Opportunistic Dragon |
+| 11 | `layers-combat-and-counters` | 9 | 3 | Adeline, Resplendent Cathar, Taurean Mauler, Wall of Roots |
+| 14 | `chosen-color-plus-could-produce` | 2 | 2 | Exotic Orchard, Fellwar Stone |
+| 14 | `convoke-delve-improvise` | 6 | 4 | Hour of Reckoning, Necropolis Fiend, Tasigur, the Golden Fang, Treasure Cruise |
+| 14 | `hybrid-and-phyrexian-payment` | 10 | 7 | Cascade Bluffs, Fetid Heath, Flooded Grove, Kessig Wolf Run, Magma Opus, Rugged Prairie, Twilight Mire |
+| 14 | `remaining-costs` | 27 | 17 | Ash Barrens, Big Score, Bitter Triumph, Bountiful Landscape, Canyon Slough, Deceptive Landscape, Dragon's Hoard, Eliminate the Competition, Fetid Pools, Foreboding Landscape, Irrigated Farmland, Migration Path, Millikin, Perilous Landscape, Shattered Landscape, Sheltered Thicket, Twilight Drover |
+| 15 | `casting-from-other-zones` | 34 | 27 | Ancestral Vision, Atsushi, the Blazing Sky, Baral's Expertise, Breaching Dragonstorm, Dauthi Voidwalker, Deep Analysis, Diviner of Mist, Electrodominance, Expressive Iteration, Faithless Looting, Forbidden Alchemy, Gix, Yawgmoth Praetor, Gravecrawler, Grenzo, Havoc Raiser, Kotis, Sibsig Champion, Lier, Disciple of the Drowned, Lingering Souls, Lord of the Forsaken, Mosswort Bridge, Parapet Thrasher, River Kelpie, Think Twice, Thundermane Dragon, Velomachus Lorehold, Will of the Jeskai, Windbrisk Heights, Woe Strider |
+| 15 | `spell-copies` | 10 | 8 | Adaptive Training Post, Archmage Emeritus, Narset's Reversal, Reflections of Littjara, Storm-Kiln Artist, Tempest Technique, Transforming Flourish, Veyran, Voice of Duality |
+| 15 | `token-copies` | 10 | 2 | Amphin Mutineer, Rite of Replication |
+| 16 | `card-and-object-model` | 1 | 1 | Curse of Opulence |
+| 16 | `face-down-and-morph` | 1 | 1 | Reality Shift |
+| 16 | `split-and-adventure-style-cards` | 3 | 3 | Expansion // Explosion, Stormshriek Feral // Flush Out, Whirlwing Stormbrood // Dynamic Soar |
 
 ## Each gap no row owned
 
 | Gap | Cards | Which |
 |---|---:|---|
-| filter-by-keyword | 10 | Assault Formation, Axebane Guardian, Blight Pile, Overgrown Battlement, Rampart Architect, Sidar Kondo of Jamuraa, Towering Titan, Wakestone Gargoyle, Walking Bulwark, Wingmantle Chaplain |
+| target-card-in-a-zone | 18 | Afterlife from the Loam, Betor, Ancestor's Voice, Conduit of Worlds, Floral Evoker, Haven of the Spirit Dragon, Junji, the Midnight Sky, Life from the Loam, Memorial to Folly, Meren of Clan Nel Toth, Nyx Weaver, Phyrexian Reclamation, Reunion of the House, Shigeki, Jukai Visionary, Steward of the Harvest, Sun Titan, Timeless Witness, Victimize, Will of the Abzan |
+| filter-by-keyword | 13 | Assault Formation, Axebane Guardian, Blight Pile, Dragon Tempest, Frontier Siege, Harbinger of the Hunt, Overgrown Battlement, Rampart Architect, Sidar Kondo of Jamuraa, Towering Titan, Wakestone Gargoyle, Walking Bulwark, Wingmantle Chaplain |
+| condition-counts-permanents | 11 | Canopy Vista, Cinder Glade, Dragonmaster Outcast, Dreamroot Cascade, Nogi, Draco-Zealot, Overgrown Farmland, Prairie Stream, Rockfall Vale, Shattered Sanctum, Smoldering Marsh, Sunken Hollow |
+| count-off-the-battlefield | 6 | Consuming Aberration, Crypt of Agadeem, Haughty Djinn, Jarad, Golgari Lich Lord, Lord of Extinction, Multani, Yavimaya's Avatar |
 | assigns-damage-by-toughness | 4 | Assault Formation, Baldin, Century Herdmaster, Felothar the Steadfast, Walking Bulwark |
-| target-card-in-a-zone | 3 | Betor, Ancestor's Voice, Reunion of the House, Will of the Abzan |
-| value-over-a-set | 3 | Arbor Adherent, Towering Titan, Will of the Abzan |
-| condition-counts-permanents | 2 | Canopy Vista, Overgrown Farmland |
+| filter-mana-value-against-amount | 4 | Betor, Ancestor's Voice, Broodcaller Scourge, Hammerhead Tyrant, Steel Hellkite |
+| for-each-object | 4 | Canopy Gargantuan, Curse of the Swine, Kaya, Geist Hunter, Redoubled Stormsinger |
+| myriad | 4 | Blade of Selves, Goldlust Triad, Ironwill Forger, Legion Loyalty |
+| nth-spell-each-turn | 4 | Aligned Heart, Baral and Kari Zev, Mangara, the Diplomat, Shiko and Narset, Unified |
+| value-over-a-set | 4 | Arbor Adherent, Towering Titan, Will of the Abzan, Will of the Temur |
+| filter-mana-value | 3 | Despark, Sun Titan, Tocasia's Welcome |
+| amount-attacking-that-player | 2 | Stormbreath Dragon, Within Range |
+| cards-exiled-this-way | 2 | Living Death, Necromantic Selection |
+| entry-counters-amount | 2 | Bone Devourer, Towering Titan |
+| monstrosity | 2 | Protector of the Wastes, Stormbreath Dragon |
+| surveil | 2 | Consider, Essence Anchor |
+| tokens-created-this-turn | 2 | Idol of Oblivion, Thalisse, Reverent Medium |
 | a-named-players-zone | 1 | Bojuka Bog |
+| amount-cards-put-in-graveyard | 1 | Welcome the Dead |
 | amount-difference | 1 | Jaws of Defeat |
+| amount-differently-named-tokens | 1 | Neriv, Crackling Vanguard |
+| amount-opponents | 1 | Chittering Witch |
+| amount-spells-targets | 1 | Voracious Bibliophile |
 | attacked-you-last-turn | 1 | Weathered Sentinels |
+| become-a-copy-until | 1 | Sarkhan, Soul Aflame |
 | choose-with-a-total-the-rest-acts | 1 | Slaughter the Strong |
+| condition-most-life | 1 | Scourge of the Throne |
+| condition-on-the-triggering-object | 1 | Eshki, Temur's Roar |
+| connive | 1 | Lethal Scheme |
 | count-colors-among | 1 | Faeburrow Elder |
-| entry-counters-amount | 1 | Towering Titan |
+| count-of-attackers-at-you | 1 | Mangara, the Diplomat |
+| counter-then-exile | 1 | Transcendent Dragon |
+| dethrone | 1 | Scourge of the Throne |
+| dredge | 1 | Life from the Loam |
+| during-your-turn | 1 | Kishla Skimmer |
 | exchange-life-and-toughness | 1 | Tree of Redemption |
+| exert | 1 | Glorybringer |
 | filter-against-chosen-number | 1 | Expel the Interlopers |
-| filter-mana-value | 1 | Despark |
-| filter-mana-value-against-amount | 1 | Betor, Ancestor's Voice |
+| filter-tapped | 1 | Mana Geyser |
+| first-time-each-turn-on-a-zone-change | 1 | Crawling Sensation |
 | flanking | 1 | Sidar Kondo of Jamuraa |
-| for-each-object | 1 | Canopy Gargantuan |
+| harmonize | 1 | Zenith Festival |
+| has-activated-abilities-of-cards | 1 | Steward of the Harvest |
+| mana-keeps-between-steps | 1 | Leyline Tyrant |
+| mentor | 1 | Legion Warboss |
 | modes-target-different-players | 1 | Shadrix Silverquill |
-| monstrosity | 1 | Protector of the Wastes |
 | proliferate | 1 | Staff of Compleation |
+| protection | 1 | Stormbreath Dragon |
+| random-opponent | 1 | Territorial Hellkite |
+| riot | 1 | Skarrgan Hellkite |
 | skulk | 1 | Behind the Scenes |
+| target-an-ability | 1 | Sublime Epiphany |
+| target-by-kicker | 1 | Tear Asunder |
 | targets-controlled-by-different-players | 1 | Protector of the Wastes |
 | targets-with-a-total | 1 | Reunion of the House |
+| token-with-an-amount | 1 | Manaform Hellkite |
 | untap-on-another-players-untap-step | 1 | Seedborn Muse |
+| voting | 1 | Selvala's Stampede |
+| was-attacking-as-it-left | 1 | Zurgo Stormrender |
+| when-you-cycle | 1 | Dismantling Wave |
 
 ## Every card
 
 | Card | Written | Today | Needs | Reshaped by | Loop | Board | Reached play | Note |
 |---|---|---|---|---|---|---|---:|---|
-| Access Tunnel | part | blocked | combat-restrictions | any-color-plus-painlands-plus-signets | no | — | 12 | The filter on power is there; "can't be blocked" isn't. |
-| Anguished Unmaking | whole | writable | — | — | no | passed | 11 |  |
-| Arasta of the Endless Web | whole | writable | — | — | no | passed | 17 |  |
-| Arbor Adherent | body | gap | any-color-plus-painlands-plus-signets, gap:value-over-a-set | — | no | — | 19 | X mana of one color, X the greatest toughness among others. |
-| Arboreal Grazer | body | blocked | resolution-recipients-and-amounts | — | no | — | 18 | A hand onto the battlefield, backlog 2.59. |
-| Arcane Signet | body | blocked | any-color-plus-painlands-plus-signets, game-formats | — | no | — | 18 |  |
-| Assault Formation | part | gap | gap:assigns-damage-by-toughness, as-though-effects, gap:filter-by-keyword | — | no | — | 8 | The third ability plays. |
-| Axebane Guardian | body | gap | any-color-plus-painlands-plus-signets, gap:filter-by-keyword | — | no | — | 18 |  |
-| Baldin, Century Herdmaster | part | gap | gap:assigns-damage-by-toughness | — | no | — | 18 | The attack trigger plays, its hundred targets and its count of a hand included. |
-| Behind the Scenes | part | gap | gap:skulk, combat-restrictions | — | no | — | 13 |  |
-| Betor, Ancestor's Voice | part | gap | gap:target-card-in-a-zone, gap:filter-mana-value-against-amount | — | no | passed | 19 | The counters clause plays; the return needs a target in a graveyard and a mana value compared to an amount. |
-| Blight Pile | part | gap | gap:filter-by-keyword | — | no | — | 9 |  |
-| Bojuka Bog | part | gap | resolution-recipients-and-amounts, gap:a-named-players-zone | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 12 | Item 350: a resolution cannot sweep another zone, and "target player's" names no zone. |
-| Canopy Gargantuan | body | gap | costs-and-choices-at-resolution, gap:for-each-object | — | no | — | 15 | Ward; a number read off each creature: ForEach over objects stays refused, filed for this census by the recipients note. |
-| Canopy Vista | body | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 12 | Its land types' mana plays; "two or more" has no condition. |
-| Carven Caryatid | whole | writable | — | — | no | passed | 15 |  |
-| Colfenor's Urn | part | blocked | linked-abilities | — | no | — | 19 | Exiled with this artifact, and returned from it. |
-| Command Tower | body | blocked | any-color-plus-painlands-plus-signets, game-formats | — | no | — | 12 |  |
-| Crashing Drawbridge | whole | writable | — | — | no | passed | 19 |  |
-| Deceptive Landscape | part | blocked | information-model, permission-design, remaining-costs | any-color-plus-painlands-plus-signets | no | — | 12 |  |
+| Abrade | whole | blocked | modal-spells-and-abilities | modal-spells-and-abilities | no | — | 0 |  Refused: Modal effects not yet implemented |
+| Access Tunnel | part | blocked | combat-restrictions | any-color-plus-painlands-plus-signets | no | — | 18 | The filter on power is there; "can't be blocked" isn't. |
+| Adaptive Training Post | part | blocked | spell-copies | — | no | — | 34 |  |
+| Adarkar Wastes | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | failed | 18 |  |
+| Adeline, Resplendent Cathar | part | blocked | layers-combat-and-counters, resolution-recipients-and-amounts | — | no | — | 30 | Item 190's one side; item 272's token per opponent. |
+| Afterlife from the Loam | body | gap | convoke-delve-improvise, multiplayer-rules, gap:target-card-in-a-zone | — | no | — | 0 | A target per player, in each graveyard. |
+| Ainok Strike Leader | part | blocked | game-formats, resolution-recipients-and-amounts | — | no | — | 34 | Item 272's token per opponent. |
+| Aligned Heart | body | gap | gap:nth-spell-each-turn, layers-combat-and-counters | — | no | — | 32 | A rally counter is a named counter. |
+| Amphin Mutineer | body | blocked | resolution-recipients-and-amounts, token-copies, permission-design | — | no | — | 29 | Its controller; encore. |
+| Ancestral Vision | part | blocked | casting-from-other-zones, layers-combat-and-counters | — | no | — | 67 | Suspend; time counters on an exiled card are item 23. |
+| Angel of Invention | part | blocked | costs-and-choices-at-resolution | — | no | — | 29 | Fabricate is "you may ... if you don't", that row's "if you don't". The anthem plays. |
+| Anguished Unmaking | whole | writable | — | — | no | passed | 26 |  |
+| Arasta of the Endless Web | whole | writable | — | — | no | passed | 27 |  |
+| Arbor Adherent | body | gap | any-color-plus-painlands-plus-signets, gap:value-over-a-set | — | no | — | 34 | X mana of one color, X the greatest toughness among others. |
+| Arboreal Grazer | body | blocked | resolution-recipients-and-amounts | — | no | — | 33 | A hand onto the battlefield, backlog 2.59. |
+| Arcane Signet | body | blocked | any-color-plus-painlands-plus-signets, game-formats | — | no | — | 31 |  |
+| Archmage Emeritus | part | blocked | spell-copies | — | no | — | 31 | Magecraft's cast half plays; "or copy" waits. |
+| Aron, Benalia's Ruin | whole | blocked | combat-restrictions | — | no | — | 25 | Menace. |
+| Ash Barrens | part | blocked | permission-design, remaining-costs, information-model | any-color-plus-painlands-plus-signets | no | — | 18 | Basic landcycling. |
+| Assault Formation | part | gap | gap:assigns-damage-by-toughness, as-though-effects, gap:filter-by-keyword | — | no | — | 17 | The third ability plays. |
+| Atarka, World Render | whole | writable | — | — | no | passed | 31 |  |
+| Atsushi, the Blazing Sky | body | blocked | modal-spells-and-abilities, casting-from-other-zones, any-color-plus-painlands-plus-signets | — | no | — | 27 |  |
+| Avenger of Zendikar | whole | writable | — | — | no | passed | 27 |  |
+| Axebane Guardian | body | gap | any-color-plus-painlands-plus-signets, gap:filter-by-keyword | — | no | — | 33 |  |
+| Azorius Signet | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 33 |  |
+| Baldin, Century Herdmaster | part | gap | gap:assigns-damage-by-toughness | — | no | — | 33 | The attack trigger plays, its hundred targets and its count of a hand included. |
+| Baral and Kari Zev | body | gap | combat-restrictions, casting-from-other-zones, gap:nth-spell-each-turn | — | no | — | 31 |  |
+| Baral's Expertise | part | blocked | casting-from-other-zones | — | no | — | 28 |  |
+| Bastion of Remembrance | whole | writable | — | — | no | passed | 32 |  |
+| Battlefield Forge | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Beast Within | part | blocked | resolution-recipients-and-amounts | — | no | — | 34 | Its controller, of a moved target. |
+| Become the Avalanche | whole | writable | — | — | no | passed | 24 |  |
+| Beetleback Chief | whole | writable | — | — | no | passed | 28 |  |
+| Behind the Scenes | part | gap | gap:skulk, combat-restrictions | — | no | — | 23 |  |
+| Betor, Ancestor's Voice | part | gap | gap:target-card-in-a-zone, gap:filter-mana-value-against-amount | — | no | passed | 32 | The counters clause plays; the return needs a target in a graveyard and a mana value compared to an amount. |
+| Big Score | part | blocked | remaining-costs, any-color-plus-painlands-plus-signets | permission-design | no | — | 0 |  |
+| Bitter Triumph | part | blocked | remaining-costs | — | no | — | 23 | An additional cost of two choices, one a discard. |
+| Blade of Selves | part | gap | gap:myriad, token-copies | — | no | — | 32 |  |
+| Blasphemous Act | whole | writable | — | — | no | passed | 30 |  |
+| Blight Pile | part | gap | gap:filter-by-keyword | — | no | — | 21 |  |
+| Bojuka Bog | part | gap | resolution-recipients-and-amounts, gap:a-named-players-zone | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 | Item 350: a resolution cannot sweep another zone, and "target player's" names no zone. |
+| Bone Devourer | body | gap | gap:entry-counters-amount | linked-abilities | no | — | 0 | Item 389, as the pilot found. Refused: an entry replacement on #9 gives counters with amount History(ThisTurn, HistoryC; an entry replacement on #12 gives counters with amount History(ThisTurn, History; an entry replacement on #46 gives counters with amount History(ThisTurn, History; an entry replacement on #10 gives counters with amount History(ThisTurn, History |
+| Boros Signet | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 33 |  |
+| Bountiful Landscape | part | blocked | information-model, permission-design, remaining-costs | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Breaching Dragonstorm | body | blocked | information-model, casting-from-other-zones | — | no | — | 33 |  |
+| Broodcaller Scourge | body | gap | resolution-recipients-and-amounts, gap:filter-mana-value-against-amount | — | no | — | 27 | A hand onto the battlefield, backlog 2.59. |
+| Caldera Pyremaw | part | blocked | multiplayer-rules, resolution-recipients-and-amounts | resolution-recipients-and-amounts | no | — | 8 | Target opponent, and SourcePower at resolution. Refused: SourcePower has no meaning at resolution time; it is evaluated against the CR 61 |
+| Canopy Gargantuan | body | gap | costs-and-choices-at-resolution, gap:for-each-object | — | no | — | 23 | Ward; a number read off each creature: ForEach over objects stays refused, filed for this census by the recipients note. |
+| Canopy Vista | body | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 | Its land types' mana plays; "two or more" has no condition. |
+| Canyon Slough | part | blocked | permission-design, remaining-costs | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
+| Carven Caryatid | whole | writable | — | — | no | passed | 30 |  |
+| Cascade Bluffs | part | blocked | any-color-plus-painlands-plus-signets, hybrid-and-phyrexian-payment | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Castle Ardenvale | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 20 |  |
+| Castle Embereth | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Casualties of War | part | blocked | modal-spells-and-abilities | modal-spells-and-abilities | no | — | 0 |  Refused: Modal effects not yet implemented |
+| Caves of Koilos | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Cephalid Coliseum | body | blocked | any-color-plus-painlands-plus-signets, command-zone-casting | — | no | — | 18 | A mana ability that does more; threshold as a condition on activation. |
+| Chaos Warp | body | blocked | information-model | — | no | — | 0 | As the pilot found. |
+| Chittering Witch | body | gap | gap:amount-opponents, resolution-recipients-and-amounts | — | no | — | 31 | No amount counts your opponents; -2/-2 is backlog 2.57. |
+| Cinder Glade | body | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Clifftop Retreat | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Colfenor's Urn | part | blocked | linked-abilities | — | no | — | 34 | Exiled with this artifact, and returned from it. |
+| Colossal Grave-Reaver | part | blocked | resolution-recipients-and-amounts | — | no | — | 85 | Mill plays. "Put one of them onto the battlefield" chooses among what triggered it. |
+| Command Beacon | body | blocked | game-formats | — | no | — | 18 |  |
+| Command Tower | body | blocked | any-color-plus-painlands-plus-signets, game-formats | — | no | — | 18 |  |
+| Commander's Insignia | body | blocked | game-formats | — | no | — | 30 |  |
+| Compulsive Research | part | blocked | costs-and-choices-at-resolution | — | no | — | 77 | "Unless they discard a land card." |
+| Conduit of Worlds | body | gap | casting-from-other-zones, gap:target-card-in-a-zone | — | no | — | 31 |  |
+| Consider | whole | gap | gap:surveil | — | no | failed | 0 | Primitive::Surveil compiles and is refused at resolution. Refused: Primitive Surveil(Fixed(1)) not yet implemented |
+| Consuming Aberration | body | gap | gap:count-off-the-battlefield, information-model | — | no | — | 34 |  |
+| Contaminated Aquifer | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Crashing Drawbridge | whole | writable | — | — | no | passed | 34 |  |
+| Crawling Sensation | whole | gap | gap:first-time-each-turn-on-a-zone-change | — | no | failed | 66 | The tree's event-roles check refuses it: "for the first time each turn" on an arm with no place in its turn. |
+| Crypt of Agadeem | part | gap | any-color-plus-painlands-plus-signets, gap:count-off-the-battlefield | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
+| Cultivate | body | blocked | information-model | — | no | — | 0 |  |
+| Curse of Opulence | body | blocked | card-and-object-model, any-color-plus-painlands-plus-signets | — | no | — | 0 | An Aura on a player, and Gold. Refused: Aura #3 resolved from stack with no Object target: the fizzle check should have ; Aura #12 resolved from stack with no Object target: the fizzle check should have; Aura #2 resolved from stack with no Object target: the fizzle check should have ; Aura #10 resolved from stack with no Object target: the fizzle check should have |
+| Curse of the Swine | part | gap | gap:for-each-object, resolution-recipients-and-amounts | — | no | — | 16 | For each creature exiled this way, its controller creates. |
+| Darkwater Catacombs | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Dauthi Voidwalker | body | blocked | combat-restrictions, layers-combat-and-counters, casting-from-other-zones | — | no | — | 30 | Shadow; a void counter on an exiled card is item 23. |
+| Deadly Dispute | part | blocked | any-color-plus-painlands-plus-signets | permission-design | no | — | 39 | As the pilot found. |
+| Deceptive Frostkite | whole | writable | — | — | no | passed | 30 | As the pilot found. |
+| Deceptive Landscape | part | blocked | information-model, permission-design, remaining-costs | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Deep Analysis | part | blocked | casting-from-other-zones | — | no | — | 61 |  |
 | Despark | body | gap | gap:filter-mana-value | — | no | — | 0 |  |
-| Dragonlord Dromoka | body | blocked | cant-cast-play-or-activate | — | no | — | 19 | Both clauses are that row: item 146's zone leg and its casting read. |
-| Evolving Wilds | part | blocked | information-model | — | no | — | 15 |  |
-| Exotic Orchard | body | blocked | chosen-color-plus-could-produce | — | no | — | 12 |  |
+| Disciple of Bolas | body | blocked | resolution-recipients-and-amounts, linked-abilities | — | no | — | 31 | That creature's power, of one an instruction sacrificed. |
+| Dismantling Wave | body | gap | multiplayer-rules, permission-design, remaining-costs, gap:when-you-cycle | — | no | — | 0 | A target per opponent, cycling, and a trigger on cycling. |
+| Diviner of Mist | part | blocked | casting-from-other-zones | — | no | — | 87 |  |
+| Draconic Lore | whole | writable | — | — | no | passed | 92 |  |
+| Dragon Tempest | body | gap | gap:filter-by-keyword, resolution-recipients-and-amounts | — | no | — | 32 | "It deals X damage": the entering Dragon, not this. |
+| Dragon's Hoard | body | blocked | layers-combat-and-counters, any-color-plus-painlands-plus-signets, remaining-costs | — | no | — | 33 | A gold counter is a named one. |
+| Dragonlord Atarka | whole | writable | — | — | no | passed | 31 |  |
+| Dragonlord Dromoka | body | blocked | cant-cast-play-or-activate | — | no | — | 34 | Both clauses are that row: item 146's zone leg and its casting read. |
+| Dragonlord's Servant | whole | writable | — | — | no | passed | 32 |  |
+| Dragonmaster Outcast | body | gap | gap:condition-counts-permanents | — | no | — | 33 |  |
+| Dragonskull Summit | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Dreamroot Cascade | part | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Drownyard Temple | part | blocked | permission-design | any-color-plus-painlands-plus-signets | no | — | 18 | An ability that works from a graveyard. |
+| Electrodominance | part | blocked | casting-from-other-zones | — | no | — | 27 |  |
+| Elemental Bond | whole | writable | — | — | no | passed | 40 |  |
+| Eliminate the Competition | body | blocked | remaining-costs | — | no | — | 0 | Sacrifice X creatures as an additional cost, read back as a target count. |
+| Elsha, Threefold Master | whole | writable | — | resolution-recipients-and-amounts | no | passed | 33 | Prowess is written as a triggered ability, like persist; a token holds it through TokenDef.abilities. |
+| Emeria Angel | whole | writable | — | — | no | passed | 31 |  |
+| Encroaching Dragonstorm | body | blocked | information-model | — | no | — | 32 |  |
+| Eshki, Temur's Roar | body | gap | gap:condition-on-the-triggering-object, resolution-recipients-and-amounts | — | no | — | 33 | "If that spell's power is 4 or greater" has no condition, and SourcePower at resolution. |
+| Essence Anchor | part | gap | gap:surveil, command-zone-casting | — | no | — | 34 | CR 602.5b's conditions. |
+| Evolving Wilds | part | blocked | information-model | — | no | — | 24 |  |
+| Exotic Orchard | body | blocked | chosen-color-plus-could-produce | — | no | — | 18 |  |
+| Expansion // Explosion | body | blocked | split-and-adventure-style-cards, spell-copies, hybrid-and-phyrexian-payment | — | no | — | 0 | One face written; the other is step 16's. |
 | Expel the Interlopers | body | gap | values-chosen-at-resolution, gap:filter-against-chosen-number | — | no | — | 0 | A number chosen as it resolves, and a filter that compares power to it. |
-| Faeburrow Elder | body | gap | any-color-plus-painlands-plus-signets, gap:count-colors-among | — | no | — | 19 | No amount counts colors among permanents. |
-| Feed the Swarm | part | blocked | resolution-recipients-and-amounts | — | no | — | 7 | That permanent's mana value is the grid's target row. |
-| Felothar the Steadfast | part | gap | gap:assigns-damage-by-toughness, as-though-effects, resolution-recipients-and-amounts | — | no | — | 21 | Sacrificed creature's toughness and power is an object a cost used, item 30; "another" in the cost compiles. |
-| Fortified Village | body | blocked | information-model | — | no | — | 12 | A reveal as it enters. |
-| Hornet Nest | whole | writable | — | resolution-recipients-and-amounts | no | passed | 19 | Item 391's word. |
-| Ikra Shidiqi, the Usurper | part | blocked | combat-restrictions, game-formats | resolution-recipients-and-amounts | no | — | 19 | The life trigger plays; menace is unenforced and partner is deck construction. |
-| Indomitable Ancients | whole | writable | — | — | no | passed | 17 |  |
-| Indulging Patrician | whole | writable | — | — | no | passed | 18 |  |
-| Infernal Grasp | whole | writable | — | — | no | passed | 9 |  |
-| Isolated Chapel | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 | A condition around the replacement works: tapped alone, untapped with a Plains. |
-| Jaddi Offshoot | whole | writable | — | — | no | passed | 19 |  |
-| Jaws of Defeat | body | gap | multiplayer-rules, gap:amount-difference | — | no | — | 19 | Target opponent is item 345; no amount is a difference of two values. |
-| Nyx-Fleece Ram | whole | writable | — | — | no | passed | 18 |  |
-| Orzhov Signet | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
-| Overgrown Battlement | body | gap | gap:filter-by-keyword | — | no | — | 19 |  |
-| Overgrown Farmland | part | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 12 |  |
-| Path of Ancestry | part | blocked | any-color-plus-painlands-plus-signets, game-formats, mana-provenance | linked-abilities | no | — | 12 |  |
-| Protector of the Wastes | part | gap | gap:monstrosity, gap:targets-controlled-by-different-players | — | no | — | 15 | Only the flying body. |
-| Radiant Grove | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 |  |
-| Rampart Architect | part | gap | information-model, gap:filter-by-keyword | — | no | — | 17 | As the pilot found; the filter is backlog 2.43, the decks'. |
+| Expressive Iteration | body | blocked | information-model, casting-from-other-zones | — | no | — | 0 |  |
+| Faeburrow Elder | body | gap | any-color-plus-painlands-plus-signets, gap:count-colors-among | — | no | — | 33 | No amount counts colors among permanents. |
+| Faithless Looting | part | blocked | casting-from-other-zones | — | no | — | 65 |  |
+| Farseek | body | blocked | information-model | — | no | — | 0 |  |
+| Feed the Swarm | part | blocked | resolution-recipients-and-amounts | — | no | — | 18 | That permanent's mana value is the grid's target row. |
+| Fellwar Stone | body | blocked | chosen-color-plus-could-produce | — | no | — | 31 |  |
+| Felothar the Steadfast | part | gap | gap:assigns-damage-by-toughness, as-though-effects, resolution-recipients-and-amounts | — | no | — | 35 | Sacrificed creature's toughness and power is an object a cost used, item 30; "another" in the cost compiles. |
+| Ferrous Lake | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Fetid Heath | part | blocked | any-color-plus-painlands-plus-signets, hybrid-and-phyrexian-payment | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Fetid Pools | part | blocked | permission-design, remaining-costs | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
+| Flooded Grove | part | blocked | any-color-plus-painlands-plus-signets, hybrid-and-phyrexian-payment | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Floral Evoker | part | gap | remaining-costs, gap:target-card-in-a-zone | — | no | — | 33 | Landfall plays; a discard cost, and a land in a graveyard. |
+| Forbidden Alchemy | body | blocked | information-model, casting-from-other-zones | — | no | — | 0 |  |
+| Foreboding Landscape | part | blocked | information-model, permission-design, remaining-costs | any-color-plus-painlands-plus-signets | no | — | 18 | As the pilot found. |
+| Fortified Village | body | blocked | information-model | — | no | — | 18 | A reveal as it enters. |
+| Frantic Search | whole | writable | — | — | no | passed | 69 |  |
+| Frontier Bivouac | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 | As the pilot found. |
+| Frontier Siege | body | gap | linked-abilities, gap:filter-by-keyword | — | no | — | 32 | A choice as it enters. |
+| Gadrak, the Crown-Scourge | body | blocked | combat-restrictions, any-color-plus-painlands-plus-signets | — | no | — | 33 |  |
+| Ghostly Prison | body | blocked | combat-requirements | — | no | — | 32 | Costs to attack, CR 508.1g-h. |
+| Gix, Yawgmoth Praetor | body | blocked | costs-and-choices-at-resolution, remaining-costs, casting-from-other-zones, multiplayer-rules | — | no | — | 30 | As the pilot found. |
+| Glacial Fortress | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Glorybringer | body | gap | gap:exert | — | no | — | 30 | Backlog 2.14, owned by the decks. |
+| Goldlust Triad | body | gap | gap:myriad, token-copies, any-color-plus-painlands-plus-signets | — | no | — | 34 |  |
+| Goldnight Commander | whole | writable | — | — | no | passed | 32 |  |
+| Golgari Rot Farm | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Grand Crescendo | whole | writable | — | — | no | passed | 33 |  |
+| Grapple with the Past | part | blocked | resolution-recipients-and-amounts | — | no | — | 83 | A choice among a graveyard. |
+| Gravecrawler | body | blocked | combat-restrictions, casting-from-other-zones | — | no | — | 34 |  |
+| Grenzo, Havoc Raiser | body | blocked | modal-spells-and-abilities, combat-requirements, casting-from-other-zones, as-though-effects | — | no | — | 32 |  |
+| Grisly Salvage | body | blocked | information-model | — | no | — | 0 |  |
+| Guttersnipe | whole | writable | — | — | no | passed | 32 |  |
+| Hammerhead Tyrant | body | gap | gap:filter-mana-value-against-amount | — | no | — | 27 |  |
+| Harbinger of the Hunt | body | gap | gap:filter-by-keyword | — | no | — | 31 | "Without flying", backlog 2.43. |
+| Harrow | body | blocked | information-model | — | no | — | 0 | As the pilot found. |
+| Haughty Djinn | part | gap | layers-combat-and-counters, gap:count-off-the-battlefield | — | no | failed | 0 | Item 190: a CDA cannot define one side. A static count of a graveyard panics as it lowers. |
+| Haunted Mire | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Haven of the Spirit Dragon | body | gap | any-color-plus-painlands-plus-signets, mana-provenance, gap:target-card-in-a-zone | — | no | — | 18 |  |
+| Hedron Crab | whole | writable | — | — | no | passed | 75 |  |
+| Hellkite Courser | body | blocked | game-formats | — | no | — | 24 |  |
+| Hero of Bladehold | whole | writable | — | — | no | passed | 28 | Battle cry spelled out. |
+| Hinterland Harbor | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Hornet Nest | whole | writable | — | resolution-recipients-and-amounts | no | passed | 33 | Item 391's word. |
+| Hour of Reckoning | part | blocked | convoke-delve-improvise | — | no | — | 4 |  |
+| Idol of Oblivion | part | gap | command-zone-casting, gap:tokens-created-this-turn | — | no | — | 32 | CR 602.5b's condition, and no history counts tokens. |
+| Ikra Shidiqi, the Usurper | part | blocked | combat-restrictions, game-formats | resolution-recipients-and-amounts | no | — | 33 | The life trigger plays; menace is unenforced and partner is deck construction. |
+| Indomitable Ancients | whole | writable | — | — | no | passed | 32 |  |
+| Indulging Patrician | whole | writable | — | — | no | passed | 32 |  |
+| Infantry Shield | body | blocked | combat-restrictions, resolution-recipients-and-amounts | — | no | — | 33 | Granted menace, and mobilize X read off the host. |
+| Infernal Grasp | whole | writable | — | — | no | passed | 23 |  |
+| Ironwill Forger | body | gap | game-formats, token-copies, gap:myriad | — | no | — | 31 | Lieutenant and a granted myriad. |
+| Irrigated Farmland | part | blocked | permission-design, remaining-costs | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 | Cycling. |
+| Isolated Chapel | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 | A condition around the replacement works: tapped alone, untapped with a Plains. |
+| Izzet Signet | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 33 |  |
+| Jaddi Offshoot | whole | writable | — | — | no | passed | 33 |  |
+| Jarad, Golgari Lich Lord | body | gap | gap:count-off-the-battlefield, resolution-recipients-and-amounts, permission-design | — | no | — | 29 |  |
+| Jaws of Defeat | body | gap | multiplayer-rules, gap:amount-difference | — | no | — | 32 | Target opponent is item 345; no amount is a difference of two values. |
+| Junji, the Midnight Sky | body | gap | modal-spells-and-abilities, combat-restrictions, gap:target-card-in-a-zone | — | no | — | 31 |  |
+| Karplusan Forest | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Kaya, Geist Hunter | body | gap | remaining-costs, permission-design, resolution-recipients-and-amounts, gap:for-each-object | — | no | — | 32 | Loyalty abilities, and a sweep of every graveyard counted back. |
+| Keiga, the Tide Star | whole | writable | — | — | no | passed | 29 |  |
+| Kessig Wolf Run | part | blocked | hybrid-and-phyrexian-payment | any-color-plus-painlands-plus-signets | no | — | 18 | An activation's {X}. |
+| Kishla Skimmer | part | gap | gap:during-your-turn | — | no | — | 32 | No condition asks whose turn it is. |
+| Kodama's Reach | body | blocked | information-model | — | no | — | 0 |  |
+| Kotis, Sibsig Champion | body | blocked | casting-from-other-zones, remaining-costs | — | no | — | 33 |  |
+| Lathliss, Dragon Queen | whole | writable | — | — | no | passed | 16 |  |
+| Legion Loyalty | body | gap | gap:myriad, token-copies | — | no | — | 29 |  |
+| Legion Warboss | part | gap | combat-requirements, gap:mentor | — | no | — | 33 | Mentor, and attacks this combat if able. |
+| Lethal Scheme | body | gap | convoke-delve-improvise, gap:connive | — | no | — | 0 | Each creature that convoked it connives. |
+| Leyline Tyrant | body | gap | gap:mana-keeps-between-steps, costs-and-choices-at-resolution | — | no | — | 29 | Backlog 2.5 said no `tdc` card prints the mana-emptying event; this one does. |
+| Lier, Disciple of the Drowned | body | blocked | cant-cast-play-or-activate, casting-from-other-zones | — | no | — | 32 |  |
+| Life from the Loam | body | gap | gap:target-card-in-a-zone, gap:dredge | — | no | — | 0 | Backlog 2.49, owned by the decks. |
+| Lightning Greaves | whole | blocked | cant-be-targeted | — | no | — | 31 | Shroud is a flag nothing enforces, item 15. |
+| Lingering Souls | part | blocked | casting-from-other-zones | — | no | — | 33 |  |
+| Living Death | body | gap | resolution-recipients-and-amounts, gap:cards-exiled-this-way | — | no | — | 0 | Item 350's sweep, and the cards it exiled back. |
+| Llanowar Wastes | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Lord of Extinction | body | gap | gap:count-off-the-battlefield | — | no | — | 33 |  |
+| Lord of the Forsaken | part | blocked | mana-provenance, casting-from-other-zones | — | no | — | 52 | The mill plays. Mana only for a spell from a graveyard. |
+| Loyal Apprentice | body | blocked | game-formats | — | no | — | 33 | Lieutenant. |
+| Magma Opus | part | blocked | hybrid-and-phyrexian-payment, remaining-costs, any-color-plus-painlands-plus-signets, permission-design | — | no | — | 44 | As the pilot found. |
+| Mana Geyser | body | gap | gap:filter-tapped | — | no | — | 0 | No filter asks whether a permanent is tapped. |
+| Manaform Hellkite | body | gap | gap:token-with-an-amount, resolution-recipients-and-amounts | — | no | — | 29 | An X/X token, X the mana spent on the spell that triggered it. |
+| Mangara, the Diplomat | body | gap | gap:nth-spell-each-turn, gap:count-of-attackers-at-you | — | no | — | 32 |  |
+| Memorial to Folly | part | gap | gap:target-card-in-a-zone | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
+| Meren of Clan Nel Toth | body | gap | layers-combat-and-counters, gap:target-card-in-a-zone | — | no | — | 34 | Experience counters are a kind CounterType lacks. |
+| Migration Path | body | blocked | information-model, permission-design, remaining-costs | — | no | — | 0 |  |
+| Millikin | body | blocked | mana-ability-costs, remaining-costs | — | no | — | 34 | Mill a card as a cost. |
+| Mindblade Render | whole | writable | — | — | no | passed | 48 |  |
+| Monastery Mentor | whole | writable | — | — | no | passed | 33 |  |
+| Morbid Opportunist | whole | writable | — | — | no | passed | 65 |  |
+| Mossfire Valley | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Mosswort Bridge | body | blocked | information-model, linked-abilities, casting-from-other-zones | — | no | — | 18 | Hideaway. |
+| Multani, Yavimaya's Avatar | body | gap | gap:count-off-the-battlefield, remaining-costs, permission-design | — | no | — | 29 |  |
+| Myr Battlesphere | part | blocked | costs-and-choices-at-resolution | — | no | — | 29 | "You may tap X untapped Myr": a cost at resolution with a chosen X. |
+| Myriad Landscape | part | blocked | information-model | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
+| Mystic Monastery | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Narset's Reversal | body | blocked | spell-copies | — | no | — | 0 |  |
+| Necromantic Selection | body | gap | resolution-recipients-and-amounts, gap:cards-exiled-this-way | — | no | — | 0 | A card put into a graveyard this way. |
+| Necropolis Fiend | body | blocked | convoke-delve-improvise, remaining-costs, resolution-recipients-and-amounts | — | no | — | 29 | Delve; exile X from a graveyard; -X/-X. |
+| Neriv, Crackling Vanguard | part | gap | casting-from-other-zones, gap:amount-differently-named-tokens, game-formats | — | no | — | 33 | Item 390. |
+| Nesting Dragon | whole | writable | — | — | no | passed | 28 | The tree's text check reads a quoted ability in double quotes; this one nests in single, so registering it widens that check by a word. |
+| Nogi, Draco-Zealot | part | gap | gap:condition-counts-permanents | — | no | — | 31 | The cost reduction plays. |
+| Nomad Outpost | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Noxious Gearhulk | whole | blocked | resolution-recipients-and-amounts, combat-restrictions | resolution-recipients-and-amounts | no | — | 0 | As the pilot found: TargetToughness refused. Refused: TargetToughness amount resolution not yet implemented |
+| Nyx Weaver | part | gap | remaining-costs, gap:target-card-in-a-zone | — | no | — | 74 | The upkeep mill plays; exile itself as a cost has no arm. |
+| Nyx-Fleece Ram | whole | writable | — | — | no | passed | 33 |  |
+| Ob Nixilis, the Fallen | whole | writable | — | — | no | passed | 28 |  |
+| Ogre Battledriver | whole | writable | — | — | no | passed | 27 |  |
+| Ophiomancer | whole | writable | — | — | no | passed | 33 |  |
+| Opportunistic Dragon | body | blocked | combat-restrictions | — | no | — | 30 |  |
+| Opulent Palace | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Orzhov Signet | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 33 |  |
+| Overgrown Battlement | body | gap | gap:filter-by-keyword | — | no | — | 33 |  |
+| Overgrown Farmland | part | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Parapet Thrasher | body | blocked | modal-spells-and-abilities, casting-from-other-zones, resolution-recipients-and-amounts | — | no | — | 30 | A mode per turn; that opponent's artifact. |
+| Path of Ancestry | part | blocked | any-color-plus-painlands-plus-signets, game-formats, mana-provenance | linked-abilities | no | — | 18 |  |
+| Perilous Landscape | part | blocked | information-model, permission-design, remaining-costs | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Phyrexian Reclamation | body | gap | gap:target-card-in-a-zone | — | no | — | 33 |  |
+| Ponder | body | blocked | information-model | — | no | — | 0 |  |
+| Pongify | part | blocked | resolution-recipients-and-amounts | — | no | failed | 34 | Its controller, of a target an earlier instruction moved: the board shows no Ape for that player. |
+| Prairie Stream | body | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Preordain | whole | writable | — | — | no | passed | 50 |  |
+| Prismari Command | part | blocked | modal-spells-and-abilities, any-color-plus-painlands-plus-signets | modal-spells-and-abilities | no | — | 0 |  Refused: Modal effects not yet implemented |
+| Protector of the Wastes | part | gap | gap:monstrosity, gap:targets-controlled-by-different-players | — | no | — | 28 | Only the flying body. |
+| Putrefy | whole | writable | — | — | no | passed | 29 |  |
+| Radiant Grove | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Rampant Growth | body | blocked | information-model | — | no | — | 0 |  |
+| Rampart Architect | part | gap | information-model, gap:filter-by-keyword | — | no | — | 30 | As the pilot found; the filter is backlog 2.43, the decks'. |
+| Rapacious Dragon | body | blocked | any-color-plus-painlands-plus-signets | — | no | — | 33 | Treasures. |
+| Rapid Hybridization | part | blocked | resolution-recipients-and-amounts | — | no | — | 28 | That creature's controller, of a moved target. |
+| Reality Shift | body | blocked | face-down-and-morph, resolution-recipients-and-amounts | — | no | — | 0 |  |
+| Reassembling Skeleton | body | blocked | permission-design | — | no | — | 33 |  |
+| Redoubled Stormsinger | body | gap | token-copies, gap:for-each-object | — | no | — | 31 |  |
+| Reflections of Littjara | body | blocked | spell-copies, linked-abilities | — | no | — | 33 | As the pilot found. |
+| Release the Dogs | whole | writable | — | — | no | passed | 33 |  |
+| Reliquary Tower | body | blocked | player-scoped-values | — | no | — | 18 |  |
 | Reunion of the House | body | gap | gap:target-card-in-a-zone, gap:targets-with-a-total | — | no | — | 0 | Any number of graveyard targets with total power 10 or less. |
-| Sandsteppe Citadel | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 |  |
-| Seedborn Muse | body | gap | gap:untap-on-another-players-untap-step | — | no | — | 16 | CR 502.3's sweep reads only the active player. |
-| Selesnya Signet | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | passed | 18 |  |
+| Rite of Replication | body | blocked | token-copies | — | no | — | 0 |  |
+| River Kelpie | part | blocked | casting-from-other-zones | — | no | — | 40 | The entering trigger and persist play. A spell cast from a graveyard waits on that cast. |
+| Rockfall Vale | part | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Rootbound Crag | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Rugged Prairie | part | blocked | any-color-plus-painlands-plus-signets, hybrid-and-phyrexian-payment | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Sakura-Tribe Elder | body | blocked | information-model | — | no | — | 31 |  |
+| Sandsteppe Citadel | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Sarkhan, Soul Aflame | part | gap | gap:become-a-copy-until | — | no | — | 31 | The cost reduction plays. |
+| Satyr Wayfinder | body | blocked | information-model | — | no | — | 31 |  |
+| Scourge of the Throne | body | gap | gap:dethrone, gap:condition-most-life | — | no | — | 29 |  |
+| Seedborn Muse | body | gap | gap:untap-on-another-players-untap-step | — | no | — | 29 | CR 502.3's sweep reads only the active player. |
+| Selesnya Signet | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | passed | 33 |  |
+| Selfless Spirit | whole | writable | — | — | no | passed | 34 |  |
+| Selvala's Stampede | body | gap | information-model, resolution-recipients-and-amounts, gap:voting | — | no | — | 0 | Backlog 2.4. |
+| Shadow Summoning | whole | writable | — | linked-abilities | no | passed | 33 |  |
 | Shadrix Silverquill | part | gap | modal-spells-and-abilities, gap:modes-target-different-players | modal-spells-and-abilities | no | — | 0 | Modes whose targets must differ. Refused: Modal effects not yet implemented |
-| Shalai, Voice of Plenty | part | blocked | player-scoped-values, cant-be-targeted | — | no | — | 18 | The counters ability plays. "You have hexproof" is player-scoped. |
-| Sidar Kondo of Jamuraa | body | gap | gap:flanking, combat-restrictions, game-formats, resolution-recipients-and-amounts, gap:filter-by-keyword | — | no | — | 19 | Flanking is -1/-1 on a filter by keyword; "without flying or reach" is that filter too. |
+| Shalai, Voice of Plenty | part | blocked | player-scoped-values, cant-be-targeted | — | no | — | 32 | The counters ability plays. "You have hexproof" is player-scoped. |
+| Shattered Landscape | part | blocked | information-model, permission-design, remaining-costs | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Shattered Sanctum | part | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Sheltered Thicket | part | blocked | permission-design, remaining-costs | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
+| Shigeki, Jukai Visionary | body | gap | information-model, remaining-costs, permission-design, gap:target-card-in-a-zone | — | no | — | 33 | Return it as a cost; channel from a hand. |
+| Shiko and Narset, Unified | body | gap | spell-copies, gap:nth-spell-each-turn | — | no | — | 32 | A second spell's trigger, and its copy. |
+| Shiny Impetus | part | blocked | combat-requirements, any-color-plus-painlands-plus-signets | — | no | — | 28 | Goad, and a Treasure. |
+| Shivan Reef | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Sidar Kondo of Jamuraa | body | gap | gap:flanking, combat-restrictions, game-formats, resolution-recipients-and-amounts, gap:filter-by-keyword | — | no | — | 34 | Flanking is -1/-1 on a filter by keyword; "without flying or reach" is that filter too. |
+| Siege-Gang Commander | whole | writable | — | — | no | passed | 22 |  |
+| Skarrgan Hellkite | body | gap | gap:riot, command-zone-casting | — | no | — | 31 |  |
+| Skull Prophet | whole | writable | — | any-color-plus-painlands-plus-signets | no | passed | 85 |  |
+| Skullclamp | part | blocked | resolution-recipients-and-amounts | — | no | — | 47 | +1/-1 is backlog 2.57. |
+| Skycloud Expanse | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
 | Slaughter the Strong | body | gap | gap:choose-with-a-total-the-rest-acts | — | no | — | 0 | ChoiceSide has one arm, and a pick has no total. |
-| Staff of Compleation | part | gap | any-color-plus-painlands-plus-signets, gap:proliferate | — | no | — | 13 | Three of five abilities play. |
-| Sungrass Prairie | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 12 | As the pilot found for a Signet: it filters a floating pool and refuses to tap a land for its own {1}. |
-| Sunpetal Grove | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 |  |
-| Swiftfoot Boots | whole | blocked | cant-be-targeted | — | no | — | 18 | Hexproof is a flag nothing enforces, item 15. |
+| Smoldering Marsh | body | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Solemn Simulacrum | part | blocked | information-model | — | no | — | 36 |  |
+| Spit Flame | part | blocked | costs-and-choices-at-resolution | — | no | — | 26 | The spell plays; "you may pay {R}" from a graveyard. |
+| Springbloom Druid | body | blocked | information-model | — | no | — | 34 |  |
+| Staff of Compleation | part | gap | any-color-plus-painlands-plus-signets, gap:proliferate | — | no | — | 25 | Three of five abilities play. |
+| Steel Hellkite | body | gap | hybrid-and-phyrexian-payment, command-zone-casting, gap:filter-mana-value-against-amount | — | no | — | 34 | An activation's {X}, and once each turn. |
+| Steward of the Harvest | body | gap | linked-abilities, gap:target-card-in-a-zone, gap:has-activated-abilities-of-cards | — | no | — | 30 |  |
+| Stitcher's Supplier | whole | writable | — | — | no | passed | 91 |  |
+| Storm's Wrath | whole | writable | — | — | no | passed | 29 |  |
+| Storm-Kiln Artist | part | blocked | spell-copies, any-color-plus-painlands-plus-signets | — | no | — | 31 |  |
+| Stormbreath Dragon | body | gap | gap:protection, gap:monstrosity, gap:amount-attacking-that-player | — | no | — | 30 | Each opponent's own hand. |
+| Stormshriek Feral // Flush Out | whole | blocked | split-and-adventure-style-cards | — | no | — | 27 | The creature plays; the Omen is step 16's. |
+| Stroke of Midnight | part | blocked | resolution-recipients-and-amounts | — | no | — | 29 | Its controller, of a moved target. |
+| Sublime Epiphany | part | gap | modal-spells-and-abilities, token-copies, gap:target-an-ability | modal-spells-and-abilities | no | — | 0 | "Target activated or triggered ability" has no SelectionFilter. Refused: Modal effects not yet implemented |
+| Sulfur Falls | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Sun Titan | body | gap | gap:target-card-in-a-zone, gap:filter-mana-value | — | no | — | 31 |  |
+| Sungrass Prairie | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 | As the pilot found for a Signet: it filters a floating pool and refuses to tap a land for its own {1}. |
+| Sunken Hollow | body | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Sunpetal Grove | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Swiftfoot Boots | whole | blocked | cant-be-targeted | — | no | — | 33 | Hexproof is a flag nothing enforces, item 15. |
 | Swords to Plowshares | part | blocked | resolution-recipients-and-amounts | resolution-recipients-and-amounts | no | — | 0 | Its controller, and TargetPower, as a moved target. Refused: TargetPower amount resolution not yet implemented |
-| Sylvan Caryatid | body | blocked | any-color-plus-painlands-plus-signets, cant-be-targeted | — | no | — | 19 |  |
-| Temple of Malady | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 |  |
-| Temple of Plenty | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 |  |
-| Temple of Silence | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 |  |
-| Tip the Scales | part | blocked | resolution-recipients-and-amounts | — | no | — | 19 | The sacrifice plays. -X/-X is backlog 2.57, its X an object an earlier instruction moved, which the handoff's grid files beside it. |
-| Tower Defense | whole | writable | — | — | no | passed | 19 |  |
-| Towering Titan | part | gap | gap:entry-counters-amount, gap:filter-by-keyword, gap:value-over-a-set | linked-abilities | no | — | 0 | Item 389: an entry's amount is refused. The toughness total is a sum over a set. Refused: an entry replacement on #3 gives counters with amount CountOf(Filter { filter: A; an entry replacement on #12 gives counters with amount CountOf(Filter { filter:  |
-| Tree of Redemption | body | gap | gap:exchange-life-and-toughness | — | no | — | 18 | CR 701.12 has no primitive. |
-| Twilight Mire | part | blocked | any-color-plus-painlands-plus-signets, hybrid-and-phyrexian-payment | any-color-plus-painlands-plus-signets | no | — | 12 | A hybrid cost on a mana ability and a choice of three outputs. |
-| Wakestone Gargoyle | body | gap | as-though-effects, gap:filter-by-keyword | — | no | — | 19 |  |
-| Walking Bulwark | body | gap | as-though-effects, gap:assigns-damage-by-toughness, gap:filter-by-keyword | — | no | — | 19 |  |
-| Wall of Blossoms | whole | writable | — | — | no | passed | 23 |  |
+| Sylvan Caryatid | body | blocked | any-color-plus-painlands-plus-signets, cant-be-targeted | — | no | — | 32 |  |
+| Talisman of Conviction | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 32 |  |
+| Talisman of Creativity | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 32 |  |
+| Talisman of Hierarchy | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 32 |  |
+| Talisman of Impulse | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 32 |  |
+| Talisman of Progress | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 32 |  |
+| Tasigur, the Golden Fang | body | blocked | convoke-delve-improvise, hybrid-and-phyrexian-payment, resolution-recipients-and-amounts | — | no | — | 33 | An opponent's choice among your graveyard. |
+| Taurean Mauler | part | blocked | layers-combat-and-counters | — | no | — | 34 | Changeling, item 205. |
+| Tear Asunder | body | gap | gap:target-by-kicker | — | no | — | 0 | A target whose legality turns on the kicker. |
+| Tempest Technique | part | blocked | spell-copies | — | no | — | 21 | Storm's copies become tokens. |
+| Temple of Abandon | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of Enlightenment | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of Epiphany | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of Malady | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of Mystery | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of Plenty | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of Silence | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of Triumph | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
+| Temple of the Dragon Queen | body | blocked | information-model, linked-abilities | — | no | — | 18 |  |
+| Tempt with Vengeance | body | blocked | costs-and-choices-at-resolution, multiplayer-rules | — | no | — | 0 | A count of opponents who did. |
+| Temur Ascendancy | whole | writable | — | — | no | passed | 33 |  |
+| Terramorphic Expanse | body | blocked | information-model | — | no | — | 18 |  |
+| Territorial Hellkite | body | gap | combat-requirements, gap:random-opponent | — | no | — | 22 |  |
+| Teval's Judgment | body | blocked | modal-spells-and-abilities, any-color-plus-painlands-plus-signets | — | no | — | 33 | One that hasn't been chosen this turn. |
+| Teval, the Balanced Scale | part | blocked | resolution-recipients-and-amounts | — | no | — | 47 | "You may return a land card from your graveyard": a choice among a graveyard, ChoiceScope's other arm. The graveyard trigger plays. |
+| Thalisse, Reverent Medium | body | gap | gap:tokens-created-this-turn | — | no | — | 34 |  |
+| Think Twice | part | blocked | casting-from-other-zones | — | no | — | 56 |  |
+| Third Path Iconoclast | whole | writable | — | — | no | passed | 33 |  |
+| Thunderbreak Regent | whole | writable | — | resolution-recipients-and-amounts | no | passed | 29 |  |
+| Thundermane Dragon | body | blocked | information-model, casting-from-other-zones | — | no | — | 32 |  |
+| Time Wipe | whole | writable | — | — | no | passed | 29 |  |
+| Timeless Witness | body | gap | gap:target-card-in-a-zone, token-copies, permission-design | — | no | — | 25 | Eternalize. |
+| Tip the Scales | part | blocked | resolution-recipients-and-amounts | — | no | — | 34 | The sacrifice plays. -X/-X is backlog 2.57, its X an object an earlier instruction moved, which the handoff's grid files beside it. |
+| Tocasia's Welcome | body | gap | gap:filter-mana-value | — | no | — | 32 |  |
+| Tower Defense | whole | writable | — | — | no | passed | 34 |  |
+| Towering Titan | part | gap | gap:entry-counters-amount, gap:filter-by-keyword, gap:value-over-a-set | linked-abilities | no | — | 0 | Item 389: an entry's amount is refused. The toughness total is a sum over a set. Refused: an entry replacement on #3 gives counters with amount CountOf(Filter { filter: A; an entry replacement on #12 gives counters with amount CountOf(Filter { filter: ; an entry replacement on #2 gives counters with amount CountOf(Filter { filter: A; an entry replacement on #10 gives counters with amount CountOf(Filter { filter:  |
+| Transcendent Dragon | part | gap | casting-from-other-zones, gap:counter-then-exile | — | no | — | 31 | "If countered this way, exile it instead" has no word. |
+| Transforming Flourish | body | blocked | spell-copies, casting-from-other-zones, information-model | — | no | — | 0 | Demonstrate is a copy with a chooser; the exile-until is backlog 2.46. |
+| Treasure Cruise | part | blocked | convoke-delve-improvise | — | no | — | 53 |  |
+| Tree of Redemption | body | gap | gap:exchange-life-and-toughness | — | no | — | 32 | CR 701.12 has no primitive. |
+| Twilight Drover | whole | blocked | remaining-costs | — | no | failed | 33 | The trigger plays; removing a counter as a cost is refused as unchecked. |
+| Twilight Mire | part | blocked | any-color-plus-painlands-plus-signets, hybrid-and-phyrexian-payment | any-color-plus-painlands-plus-signets | no | — | 18 | A hybrid cost on a mana ability and a choice of three outputs. |
+| Ureni of the Unwritten | body | blocked | information-model | — | no | — | 31 |  |
+| Vanquish the Horde | whole | writable | — | — | no | passed | 30 |  |
+| Vault of the Archangel | whole | writable | — | any-color-plus-painlands-plus-signets | no | passed | 20 |  |
+| Velomachus Lorehold | body | blocked | information-model, casting-from-other-zones | — | no | — | 30 |  |
+| Vengeful Ancestor | body | blocked | combat-requirements | — | no | — | 30 | Goad. |
+| Verix Bladewing | whole | writable | — | permission-design | no | passed | 26 |  |
+| Veyran, Voice of Duality | part | blocked | spell-copies | — | no | — | 33 | The multiplier reads "casting or copying". |
+| Victimize | body | gap | gap:target-card-in-a-zone | — | no | — | 0 |  |
+| Voracious Bibliophile | body | gap | gap:amount-spells-targets | — | no | — | 33 | No amount counts a spell's targets, and no filter asks that it has one. |
+| Wakestone Gargoyle | body | gap | as-though-effects, gap:filter-by-keyword | — | no | — | 32 |  |
+| Walking Bulwark | body | gap | as-though-effects, gap:assigns-damage-by-toughness, gap:filter-by-keyword | — | no | — | 34 |  |
+| Wall of Blossoms | whole | writable | — | — | no | passed | 45 |  |
 | Wall of Limbs | whole | blocked | resolution-recipients-and-amounts | resolution-recipients-and-amounts | no | — | 0 | SourcePower at resolution, item 299. Refused: SourcePower has no meaning at resolution time; it is evaluated against the CR 61 |
-| Wall of Omens | whole | writable | — | — | no | passed | 28 |  |
+| Wall of Omens | whole | writable | — | — | no | passed | 47 |  |
 | Wall of Reverence | part | blocked | resolution-recipients-and-amounts | resolution-recipients-and-amounts | no | — | 0 | TargetPower compiles and is refused at resolution, item 269. The body written targets through a no-op. Refused: TargetPower amount resolution not yet implemented |
-| Wall of Roots | body | blocked | mana-ability-costs, layers-combat-and-counters, command-zone-casting | — | no | — | 19 | A -0/-1 counter, a cost that adds one, and once each turn. |
-| Weathered Sentinels | part | gap | as-though-effects, gap:attacked-you-last-turn | — | no | — | 19 | The attack trigger plays. It can attack only players who attacked you. |
-| Welcoming Vampire | whole | writable | — | — | no | passed | 34 |  |
+| Wall of Roots | body | blocked | mana-ability-costs, layers-combat-and-counters, command-zone-casting | — | no | — | 33 | A -0/-1 counter, a cost that adds one, and once each turn. |
+| Wayfarer's Bauble | body | blocked | information-model | — | no | — | 32 |  |
+| Weathered Sentinels | part | gap | as-though-effects, gap:attacked-you-last-turn | — | no | — | 34 | The attack trigger plays. It can attack only players who attacked you. |
+| Welcome the Dead | body | gap | casting-from-other-zones, gap:amount-cards-put-in-graveyard | — | no | — | 0 |  |
+| Welcoming Vampire | whole | writable | — | — | no | passed | 57 |  |
+| Whirlwind of Thought | whole | writable | — | — | no | passed | 62 |  |
+| Whirlwing Stormbrood // Dynamic Soar | body | blocked | split-and-adventure-style-cards, as-though-effects | — | no | — | 32 |  |
 | Will of the Abzan | part | gap | modal-spells-and-abilities, game-formats, multiplayer-rules, gap:target-card-in-a-zone, gap:value-over-a-set | modal-spells-and-abilities | no | — | 0 | "Greatest power among" is an amount over a set and a choice restricted by it. Refused: Modal effects not yet implemented |
-| Wingmantle Chaplain | part | gap | gap:filter-by-keyword | — | no | — | 19 |  |
-| Woodland Cemetery | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 12 |  |
-| Zetalpa, Primal Dawn | whole | writable | — | — | no | passed | 16 |  |
+| Will of the Jeskai | part | blocked | modal-spells-and-abilities, game-formats, costs-and-choices-at-resolution, casting-from-other-zones | modal-spells-and-abilities | no | — | 0 | As the pilot found. Refused: Modal effects not yet implemented |
+| Will of the Mardu | body | blocked | modal-spells-and-abilities, game-formats, resolution-recipients-and-amounts | — | no | — | 0 | A count of a target player's creatures. |
+| Will of the Sultai | body | blocked | modal-spells-and-abilities, game-formats, resolution-recipients-and-amounts | — | no | — | 0 | As the pilot found; a graveyard swept back, item 350. |
+| Will of the Temur | body | gap | modal-spells-and-abilities, game-formats, token-copies, gap:value-over-a-set | — | no | — | 0 |  |
+| Windbrisk Heights | body | blocked | information-model, linked-abilities, casting-from-other-zones | — | no | — | 18 | Hideaway. |
+| Wingmantle Chaplain | part | gap | gap:filter-by-keyword | — | no | — | 34 |  |
+| Within Range | part | gap | gap:amount-attacking-that-player | — | no | — | 34 | Each opponent's own count. |
+| Woe Strider | part | blocked | casting-from-other-zones | — | no | — | 33 | Its first two abilities play; escape, and enters with counters from it. |
+| Woodland Cemetery | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
+| Yahenni, Undying Partisan | whole | writable | — | — | no | passed | 31 |  |
+| Yavimaya Coast | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
+| Young Pyromancer | whole | writable | — | — | no | passed | 33 |  |
+| Zenith Festival | body | gap | casting-from-other-zones, gap:harmonize | — | no | — | 0 |  |
+| Zetalpa, Primal Dawn | whole | writable | — | — | no | passed | 29 |  |
+| Zurgo Stormrender | part | gap | gap:was-attacking-as-it-left | — | no | passed | 34 | Mobilize writes itself and plays; "if it was attacking" reads a token that left. |
