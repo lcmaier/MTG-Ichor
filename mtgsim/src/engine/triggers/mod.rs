@@ -44,4 +44,5 @@ pub mod placement;
 pub mod state;
 
 pub use audit::DispatchAudit;
+pub(crate) use dispatch::LkiCaptures;
 pub use dispatch::{could_be_a_mana_ability, is_mana_ability, visible_to_all, LkiCapture, LookBackSnapshot, DISPATCH_NESTING_LIMIT};

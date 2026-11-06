@@ -119,6 +119,45 @@ pub struct LkiCapture {
     lki: Option<Lki>,
 }
 
+/// The open batches' captures, each batch's after the batch around it, found
+/// by existence: a wipe frames every creature, and each asks for its own.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LkiCaptures {
+    list: Vec<LkiCapture>,
+    place_of: IdMap<ObjectRef, usize>,
+}
+
+impl LkiCaptures {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.list.len()
+    }
+
+    fn push(&mut self, capture: LkiCapture) {
+        self.place_of.insert(capture.object, self.list.len());
+        self.list.push(capture);
+    }
+
+    fn of(&self, object: ObjectRef) -> Option<&LkiCapture> {
+        self.list.get(*self.place_of.get(&object)?)
+    }
+
+    fn of_mut(&mut self, object: ObjectRef) -> Option<&mut LkiCapture> {
+        self.list.get_mut(*self.place_of.get(&object)?)
+    }
+
+    /// Drop the captures past `len`, which a batch's close leaves to the batch
+    /// around it.
+    pub(crate) fn truncate(&mut self, len: usize) {
+        for capture in self.list.drain(len..) {
+            self.place_of.remove(&capture.object);
+        }
+    }
+}
+
 /// A keeper (CR 113.7a, 608.2h): a triggered ability waiting to be put on the
 /// stack, a stack entry, the resolving object, or a delayed trigger waiting for
 /// its event. Each reads its source later, and a trigger the objects of its one
@@ -1282,12 +1321,12 @@ impl GameState {
     /// Whether a batch in progress framed `object` and has yet to move it:
     /// `object` leaves later in the event being performed.
     pub(crate) fn leaves_later_in_this_batch(&self, object: ObjectRef) -> bool {
-        self.lki_captures.iter().find(|capture| capture.object == object).is_some_and(|capture| capture.lki.is_some())
+        self.lki_captures.of(object).is_some_and(|capture| capture.lki.is_some())
     }
 
     /// The capture its batch took of `object`, if one did.
     fn capture_of(&mut self, object: ObjectRef) -> Option<&mut LkiCapture> {
-        self.lki_captures.iter_mut().find(|d| d.object == object)
+        self.lki_captures.of_mut(object)
     }
 
     /// The last known information a kept-for mover's batch took for it, if any:

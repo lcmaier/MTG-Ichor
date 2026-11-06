@@ -810,7 +810,7 @@ pub struct GameState {
     /// take off the battlefield, taken before each batch performs so no
     /// member's frame sees an earlier member leave (item 174). A move takes its own;
     /// each batch drops the rest once it has performed.
-    pub(crate) lki_captures: Vec<crate::engine::triggers::LkiCapture>,
+    pub(crate) lki_captures: crate::engine::triggers::LkiCaptures,
     /// The LKI store: how each existence that has ended last existed, written
     /// by the move that ends it and kept for the game (CR 113.7a, 608.2h;
     /// `engine::last_known`).
@@ -1108,7 +1108,7 @@ impl GameState {
             look_back_snapshots: Vec::new(),
             control_effects_at_last_sweep: false,
             settled_layer_epoch: u64::MAX,
-            lki_captures: Vec::new(),
+            lki_captures: crate::engine::triggers::LkiCaptures::new(),
             lki_store: crate::engine::last_known::LkiStore::new(),
             dispatch_audit: None,
             events: EventWindow::new(),
