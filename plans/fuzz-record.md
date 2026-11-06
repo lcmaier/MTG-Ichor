@@ -98,7 +98,7 @@ one means the engine's cost model moved
 
 **Re-recorded 2026-11-05 for the hunt's small fixes** (`rules/hunt-small-fixes`,
 PR #310: items 366 to 371). No pool changed. One `close_out.py` sitting against
-**main** `c73c1ba4`: **engine** `4ceaff7a`, the last engine commit.
+**main** `a0ebab44`: **engine** `fe85f7fc`, the last engine commit.
 
 **Predictions, before any arm ran**:
 - two seats: every gameplay row nearly unmoved. Only the cleanup order, the clock
