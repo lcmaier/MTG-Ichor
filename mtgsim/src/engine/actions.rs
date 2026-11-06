@@ -2448,16 +2448,9 @@ impl GameState {
         Ok(())
     }
 
-    /// CR 614.1c's entry as a proposal, or `None` where a rule refuses it
-    /// ahead of any event — built here for [`Self::propose_entry`]'s one
-    /// entry and [`Self::create_tokens`]' batch of them alike.
-    ///
-    /// CR 800.4b — "if an object would be put onto the battlefield ... under
-    /// the control of a player who has left the game, that object remains in
-    /// its current zone". A rule, checked at the site like CR 508.8's and
-    /// CR 800.4k's: there is no event here for a replacement effect to see.
-    /// CR 304.4 and 307.4 are two more: an instant or a sorcery remains in its
-    /// previous zone, and a token copy of one is never created (CR 111.5).
+    /// CR 614.1c's entry of a card as a proposal, or `None` where a rule
+    /// refuses it ([`Self::entry_is_refused_by_a_rule`]). A token's is
+    /// [`Self::create_tokens`]', which asks the rules once a run.
     ///
     /// It carries CR 110.5b's default and nothing else. What the rules give an
     /// object as it enters beyond that is an ability of the object (CR 306.5b's
@@ -2475,8 +2468,15 @@ impl GameState {
         Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, act })
     }
 
-    /// Whether [`Self::entry_proposal`]'s rules refuse `object` entering
-    /// under `controller`.
+    /// Whether a rule refuses `object` entering under `controller`, ahead of
+    /// any event.
+    ///
+    /// CR 800.4b — "if an object would be put onto the battlefield ... under
+    /// the control of a player who has left the game, that object remains in
+    /// its current zone". A rule, checked at the site like CR 508.8's and
+    /// CR 800.4k's: there is no event here for a replacement effect to see.
+    /// CR 304.4 and 307.4 are two more: an instant or a sorcery remains in its
+    /// previous zone, and a token copy of one is never created (CR 111.5).
     fn entry_is_refused_by_a_rule(&self, object: ObjectId, controller: PlayerId) -> bool {
         use crate::types::card_types::CardType;
         if self.left_a_multiplayer_game(controller) {
@@ -2625,17 +2625,15 @@ impl GameState {
                 assert_shortcut_agrees("a run's token entry", || format!("{id:?}"), vec![run_is_refused.to_string()], vec![walked.to_string()]);
             }
             if !run_is_refused {
-                let mut entry = GameAction::EnterBattlefield { object: id, from: None, controller, mods: EnterMods::NONE, act: None };
+                let mut mods = EnterMods::NONE;
                 // "Create a tapped …" is the creating effect's own word on
                 // how the token enters, so it joins what the rules give the
                 // entry, ahead of any replacement (CR 614.1c).
-                if def.enters_tapped
-                    && let GameAction::EnterBattlefield { mods, .. } = &mut entry {
+                if def.enters_tapped {
                     mods.merge(&EnterMods::tapped());
                 }
                 // "... and attacking" is its word too (CR 508.4).
-                if let Some(word) = &def.enters_attacking
-                    && let GameAction::EnterBattlefield { mods, .. } = &mut entry {
+                if let Some(word) = &def.enters_attacking {
                     let candidates = match (attacking, word) {
                         (Some(read), _) => read.candidates.clone(),
                         (None, EntersAttacking::Chosen) => self.what_can_be_attacked(),
@@ -2643,7 +2641,7 @@ impl GameState {
                     };
                     mods.merge(&EnterMods { attacking: Some(Box::new(EntersAttackingCandidates { candidates })), ..EnterMods::NONE });
                 }
-                entries.push(entry);
+                entries.push(GameAction::EnterBattlefield { object: id, from: None, controller, mods, act: None });
             }
         }
         let outer = std::mem::replace(&mut self.tokens_being_created, definitions);

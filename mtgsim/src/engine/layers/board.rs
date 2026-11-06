@@ -1369,9 +1369,15 @@ fn write_affected(
 }
 
 /// Apply `app` to every member it affects — for real, or under a `journal`
-/// that lets it be taken back — and tell `reached`, when a caller asks, each
-/// member it affected, once.
-fn perform(
+/// that lets it be taken back. The narrow half of
+/// [`perform_telling_reached`]: a game's pass reads nothing of what it reached.
+fn perform(game: &GameState, board: &mut Board<'_>, layer_index: usize, app: &Application<'_>, journal: &mut Option<Journal>) {
+    perform_telling_reached(game, board, layer_index, app, journal, None);
+}
+
+/// [`perform`], telling `reached`, when a caller asks, each member it
+/// affected, once.
+fn perform_telling_reached(
     game: &GameState,
     board: &mut Board<'_>,
     layer_index: usize,
@@ -1457,7 +1463,7 @@ fn perform_recorded(
         Some((id, before, missed(game, board, layer_index, app, id)))
     });
     let mut affected = Vec::new();
-    perform(game, board, layer_index, app, &mut None, Some(&mut affected));
+    perform_telling_reached(game, board, layer_index, app, &mut None, Some(&mut affected));
     let watched = seen.map(|(id, before, missed)| match board.frames.get(&id) {
         Some(after) if affected.contains(&id) => StepResult::Applied { before, after: after.clone() },
         _ => missed,
@@ -1605,7 +1611,7 @@ fn depends_on(
     game.diagnostics.record_dependency_check();
     let before = observe(game, board, layer_index, a);
     let mut journal = Some(Journal::default());
-    perform(game, board, layer_index, b, &mut journal, None);
+    perform(game, board, layer_index, b, &mut journal);
     let after = observe(game, board, layer_index, a);
     journal.expect("the journal was handed in").restore(board);
     before != after
@@ -1716,7 +1722,7 @@ fn resolve_order_within_layer(
         let index = pending.remove(next);
         match recorder.as_deref_mut() {
             None => {
-                perform(game, board, layer_index, &apps[index], &mut None, None);
+                perform(game, board, layer_index, &apps[index], &mut None);
             }
             Some(recorder) => {
                 let waited_for = waits[index].iter().map(|&j| apps[j].source_object()).collect();

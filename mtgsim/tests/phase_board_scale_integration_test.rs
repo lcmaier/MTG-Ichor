@@ -31,7 +31,9 @@ fn enchantment_with(name: &str, ability: AbilityDef) -> Arc<CardData> {
 }
 
 /// "Each permanent with power `at_least` or greater enters ...": a replacement
-/// whose reach is the entering object's frame, so it reads CR 614.12.
+/// whose reach is the entering object's frame, so it reads CR 614.12. No card
+/// prints one by power (two searches, 2026-11-05: Slinza, the Spiked Stampede's
+/// reads a subtype); power is what an anthem writes.
 fn entry_at_power(at_least: i32, template: EnterModsTemplate) -> ReplacementDef {
     let reaches = ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(at_least - 1)));
     ReplacementDef::new(
@@ -43,7 +45,7 @@ fn entry_at_power(at_least: i32, template: EnterModsTemplate) -> ReplacementDef 
 
 fn put_replacement(game: &mut GameState, def: ReplacementDef) -> ObjectId {
     let ability = textless_static(Effect::Replacement(Box::new(def)));
-    put_on_battlefield(game, enchantment_with("Fixture Welcome", ability), 0)
+    put_on_battlefield(game, enchantment_with("Entry Replacement Fixture", ability), 0)
 }
 
 fn plus_one_counter() -> EnterModsTemplate {
@@ -61,11 +63,16 @@ fn audited_game() -> GameState {
     game
 }
 
-/// The tokens `controller` has, oldest first.
-fn tokens_of(game: &GameState, controller: PlayerId) -> Vec<ObjectId> {
+/// A noncreature token of one type, with nothing else to it.
+fn token_of_type(card_type: CardType) -> TokenDef {
+    TokenDef { colors: Vec::new(), types: vec![card_type], subtypes: Vec::new(), power: None, toughness: None, ..goblin() }
+}
+
+/// The tokens `owner` owns, whoever controls them, oldest first.
+fn tokens_owned_by(game: &GameState, owner: PlayerId) -> Vec<ObjectId> {
     game.battlefield_ids_ordered()
         .into_iter()
-        .filter(|id| game.objects[id].is_token && game.objects[id].owner == controller)
+        .filter(|id| game.objects[id].is_token && game.objects[id].owner == owner)
         .collect()
 }
 
@@ -110,8 +117,8 @@ fn every_token_of_a_run_is_read_with_the_anthem_it_enters_under() {
     create(&mut game, vec![goblin(); 5], 0);
     create(&mut game, vec![goblin(); 5], 1);
 
-    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 0)), vec![1; 5]);
-    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 1)), vec![0; 5]);
+    assert_eq!(plus_one_counters(&game, &tokens_owned_by(&game, 0)), vec![1; 5]);
+    assert_eq!(plus_one_counters(&game, &tokens_owned_by(&game, 1)), vec![0; 5]);
 }
 
 /// CR 614.12's first clause, for each token in turn: the counter the first
@@ -126,7 +133,7 @@ fn a_replacement_already_applied_is_in_every_tokens_next_frame() {
 
     create(&mut game, vec![goblin(); 4], 0);
 
-    let goblins = tokens_of(&game, 0);
+    let goblins = tokens_owned_by(&game, 0);
     assert_eq!(plus_one_counters(&game, &goblins), vec![1; 4]);
     assert!(goblins.iter().all(|id| game.battlefield[id].tapped), "each read 3 power, its counter in the frame");
 }
@@ -149,7 +156,7 @@ fn a_token_whose_proposal_differs_is_not_served_its_runs_frame() {
     let create = GameAction::CreateTokens { defs: vec![goblin(); 3], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&dp)).expect("the creation performs");
 
-    let goblins = tokens_of(&game, 0);
+    let goblins = tokens_owned_by(&game, 0);
     assert_eq!(plus_one_counters(&game, &goblins), vec![0, 1, 0]);
     let tapped: Vec<bool> = goblins.iter().map(|id| game.battlefield[id].tapped).collect();
     assert_eq!(tapped, vec![false, true, false]);
@@ -179,7 +186,7 @@ fn a_token_entering_under_another_player_is_read_under_that_player() {
     let create = GameAction::CreateTokens { defs: vec![goblin(); 3], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&dp)).expect("the creation performs");
 
-    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 0)), vec![1, 0, 1]);
+    assert_eq!(plus_one_counters(&game, &tokens_owned_by(&game, 0)), vec![1, 0, 1]);
 }
 
 /// Three runs, the last equal to the first: a run's frame goes with its card,
@@ -193,7 +200,7 @@ fn each_run_of_a_creation_is_read_as_its_own_definition() {
 
     create(&mut game, vec![goblin(), goblin(), plant.clone(), plant, goblin()], 0);
 
-    assert_eq!(plus_one_counters(&game, &tokens_of(&game, 0)), vec![1, 1, 0, 0, 1]);
+    assert_eq!(plus_one_counters(&game, &tokens_owned_by(&game, 0)), vec![1, 1, 0, 0, 1]);
 }
 
 /// A Mountain's mana ability, given by Blood Moon (CR 305.7), is derived on
@@ -201,40 +208,51 @@ fn each_run_of_a_creation_is_read_as_its_own_definition() {
 /// audit panics.
 #[test]
 fn a_frame_holding_an_ability_of_its_object_stays_that_objects() {
-    let land = TokenDef { types: vec![CardType::Land], power: None, toughness: None, ..goblin() };
     let mut game = audited_game();
     put_on_battlefield(&mut game, blood_moon(), 0);
 
-    create(&mut game, vec![land; 3], 0);
+    create(&mut game, vec![token_of_type(CardType::Land); 3], 0);
 
-    let lands = tokens_of(&game, 0);
+    let lands = tokens_owned_by(&game, 0);
     let mut ids: Vec<_> = lands.iter().map(|id| get_effective_abilities(&game, *id)[0].id).collect();
     ids.dedup();
     assert_eq!(ids.len(), 3, "each has an instance of its own");
 }
 
 /// CR 306.5b's "enters with" ability is derived on its object too, and it is
-/// the frame that hands it to the pipeline.
+/// the frame that hands it to the pipeline. The audit is this test's proof,
+/// since a frame served whole would still enter two planeswalkers. Their
+/// loyalty is CR 704.5i's to read, and no check runs here.
 #[test]
-fn each_planeswalker_token_of_a_run_has_its_own_entry_ability() {
-    let walker = TokenDef { types: vec![CardType::Planeswalker], power: None, toughness: None, ..goblin() };
+fn a_run_of_planeswalker_tokens_is_walked_token_by_token() {
     let mut game = audited_game();
 
-    create(&mut game, vec![walker; 2], 0);
+    create(&mut game, vec![token_of_type(CardType::Planeswalker); 2], 0);
 
-    assert_eq!(tokens_of(&game, 0).len(), 2);
+    assert_eq!(tokens_owned_by(&game, 0).len(), 2);
 }
 
 /// CR 304.4 and 111.5, asked once of a run and true of each token of it.
 #[test]
 fn a_run_of_instants_is_refused_whole() {
-    let instant = TokenDef { types: vec![CardType::Instant], power: None, toughness: None, ..goblin() };
     let mut game = audited_game();
     let objects_before = game.objects.len();
 
-    create(&mut game, vec![instant; 3], 0);
+    create(&mut game, vec![token_of_type(CardType::Instant); 3], 0);
 
     assert_eq!(game.objects.len(), objects_before, "CR 111.5: none is created");
+}
+
+/// A run's answer ends with the run, either way round.
+#[test]
+fn the_run_after_a_refused_one_asks_for_itself() {
+    let mut game = audited_game();
+
+    create(&mut game, vec![token_of_type(CardType::Instant), goblin(), goblin()], 0);
+    assert_eq!(tokens_owned_by(&game, 0).len(), 2);
+
+    create(&mut game, vec![goblin(), token_of_type(CardType::Instant)], 0);
+    assert_eq!(tokens_owned_by(&game, 0).len(), 3);
 }
 
 /// The run's tokens are the anthem's creatures once they have entered.
@@ -245,7 +263,7 @@ fn the_tokens_of_a_shared_frame_are_each_a_permanent_of_their_own() {
 
     create(&mut game, vec![goblin(); 3], 0);
 
-    let goblins = tokens_of(&game, 0);
+    let goblins = tokens_owned_by(&game, 0);
     assert_eq!(goblins.len(), 3);
     assert!(goblins.iter().all(|id| get_effective_power(&game, *id) == Some(2)));
 }

@@ -21,10 +21,10 @@ use std::sync::Arc;
 
 use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::objects::card_data::CardData;
 use crate::oracle::mana_supply::ManaProductionWatchers;
 use crate::state::history_log::RowKind;
 use crate::state::shared_stores::ObjectTable;
+use crate::types::effects::TokenDef;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
 
@@ -63,7 +63,7 @@ pub struct LayerMemo {
     /// the epoch they were walked at (`layers::lookahead::shared_entering_frame`):
     /// one walk for a run, whatever its length. Shared, so a fork copies
     /// nothing for it.
-    entering_tokens: RefCell<Option<(u64, Arc<Vec<EnteringToken>>)>>,
+    run_frames: RefCell<Option<(u64, Arc<Vec<StoredRunFrame>>)>>,
     /// What the frames stored at the latest epoch read of the gated inputs:
     /// what a write to one asks before it moves the epoch.
     gated_reads: Cell<GatedReadsAt>,
@@ -84,12 +84,12 @@ pub(crate) struct StoredFrame {
     frame: Arc<EffectiveCharacteristics>,
 }
 
-/// One token's CR 614.12 frame, and what a second token must match to be
-/// served it: the printed card a run of equal tokens shares (`create_tokens`),
-/// and the proposal's controller and `EnterMods`, the frame's other inputs.
+/// A run of tokens' CR 614.12 frame, and what a token must match to be served
+/// it: the definition `create_tokens` made the run from, one `Arc` a run, and
+/// the proposal's controller and `EnterMods`, the frame's other inputs.
 #[derive(Debug, Clone)]
-pub(crate) struct EnteringToken {
-    pub(crate) card: Arc<CardData>,
+pub(crate) struct StoredRunFrame {
+    pub(crate) run: Arc<TokenDef>,
     pub(crate) controller: PlayerId,
     pub(crate) mods: EnterMods,
     pub(crate) frame: Arc<EffectiveCharacteristics>,
@@ -238,7 +238,7 @@ impl LayerMemo {
             frames,
             notes,
             mana_production_watchers,
-            entering_tokens,
+            run_frames,
             gated_reads,
             #[cfg(debug_assertions)]
             audit_paused,
@@ -248,7 +248,7 @@ impl LayerMemo {
         self.frames.replace(frames.into_inner());
         self.notes.replace(notes.into_inner());
         self.mana_production_watchers.replace(mana_production_watchers.into_inner());
-        self.entering_tokens.replace(entering_tokens.into_inner());
+        self.run_frames.replace(run_frames.into_inner());
         self.gated_reads.set(gated_reads.get());
         #[cfg(debug_assertions)]
         {
@@ -346,34 +346,34 @@ impl LayerMemo {
         *self.mana_production_watchers.borrow_mut() = Some((epoch, found));
     }
 
-    /// The CR 614.12 frame stored at `epoch` for a token of `card`'s run,
-    /// entering under `controller` with `mods`.
-    pub(crate) fn entering_token(
+    /// The CR 614.12 frame stored at `epoch` for a token of `run`, entering
+    /// under `controller` with `mods`.
+    pub(crate) fn run_frame(
         &self,
         epoch: u64,
-        card: &Arc<CardData>,
+        run: &Arc<TokenDef>,
         controller: PlayerId,
         mods: &EnterMods,
     ) -> Option<Arc<EffectiveCharacteristics>> {
-        let stored = self.entering_tokens.borrow();
-        let (_, tokens) = stored.as_ref().filter(|(at, _)| *at == epoch)?;
-        tokens
+        let stored = self.run_frames.borrow();
+        let (_, frames) = stored.as_ref().filter(|(at, _)| *at == epoch)?;
+        frames
             .iter()
-            .find(|token| Arc::ptr_eq(&token.card, card) && token.controller == controller && token.mods == *mods)
-            .map(|token| Arc::clone(&token.frame))
+            .find(|stored| Arc::ptr_eq(&stored.run, run) && stored.controller == controller && stored.mods == *mods)
+            .map(|stored| Arc::clone(&stored.frame))
     }
 
     /// Store one more frame of the run being decided. A run's members are
-    /// decided in a row, so a new card ends the last run and the list stays as
+    /// decided in a row, so a new run ends the last and the list stays as
     /// long as one run has distinct proposals: one, and one more for each
     /// way a replacement effect rewrote them.
-    pub(crate) fn insert_entering_token(&self, epoch: u64, token: EnteringToken) {
-        let mut stored = self.entering_tokens.borrow_mut();
+    pub(crate) fn insert_run_frame(&self, epoch: u64, frame: StoredRunFrame) {
+        let mut stored = self.run_frames.borrow_mut();
         match stored.as_mut() {
-            Some((at, tokens)) if *at == epoch && tokens.iter().all(|t| Arc::ptr_eq(&t.card, &token.card)) => {
-                Arc::make_mut(tokens).push(token);
+            Some((at, frames)) if *at == epoch && frames.iter().all(|f| Arc::ptr_eq(&f.run, &frame.run)) => {
+                Arc::make_mut(frames).push(frame);
             }
-            _ => *stored = Some((epoch, Arc::new(vec![token]))),
+            _ => *stored = Some((epoch, Arc::new(vec![frame]))),
         }
     }
 

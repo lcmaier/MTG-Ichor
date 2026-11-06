@@ -2542,7 +2542,7 @@ item 4), which is not the overlay's but the two-event entry it sits on.
 
 **A run of equal tokens walks once** (`board-scale`, 2026-11-05). CR 614.12's
 inputs are the board, the proposal and the object, and the tokens of one
-`create_tokens` run hold one printed card and one owner, with nothing on the
+`create_tokens` run are one definition of one creation, with nothing on the
 board able to name an id just minted. So at one layer epoch two proposals with
 one controller and one `EnterMods` have one frame, and the second is served
 the first's out of the layer memo (`shared_entering_frame`). Keyed on all three

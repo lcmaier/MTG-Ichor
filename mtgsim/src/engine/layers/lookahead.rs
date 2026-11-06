@@ -23,11 +23,10 @@ use crate::objects::card_data::AbilityType;
 use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::RegistryScopeSummary;
 use crate::state::game_state::GameState;
-use crate::state::layer_memo::{EnteringToken, GatedInputs};
+use crate::state::layer_memo::{GatedInputs, StoredRunFrame};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
-use crate::types::zones::Zone;
 
 /// The look-ahead for one entering object — see the module docs.
 ///
@@ -194,11 +193,12 @@ fn walk_as_entering(
 /// tokens: the frame CR 614.12 asks of one token is the frame of every token
 /// of its run decided at this epoch, under the same controller and `EnterMods`.
 ///
-/// Nothing the walk reads tells two of them apart. They hold one printed card
-/// and one owner, nothing on the board names an id just minted, and no entity
-/// exists for a count or a filter to find (`Board::seed`). One thing it writes
-/// does: an ability derived on the object, a planeswalker's loyalty or a basic
-/// land type's mana, so a frame holding one stays that token's own.
+/// Nothing the walk reads tells two of them apart. A run is one definition of
+/// one creation (`tokens_being_created`), so one printed text and one owner;
+/// nothing on the board names an id just minted, and no entity exists for a
+/// count or a filter to find (`Board::seed`). One thing it writes does: an
+/// ability derived on the object, a planeswalker's loyalty or a basic land
+/// type's mana, so a frame holding one stays that token's own, at a walk each.
 ///
 /// Stored with what the walk read of the gated inputs, as the memo stores a
 /// frame, so a write to one moves the epoch and ends the sharing.
@@ -208,14 +208,12 @@ pub(crate) fn shared_entering_frame(
     controller: PlayerId,
     pending: &EnterMods,
 ) -> Option<Arc<EffectiveCharacteristics>> {
-    let obj = game.objects.get(&id)?;
-    let being_created = obj.is_token && obj.zone == Zone::Battlefield && !game.battlefield.contains_key(&id);
-    if !being_created {
+    let Some(run) = game.tokens_being_created.get(&id) else {
         return compute_as_entering(game, id, controller, pending).map(Arc::new);
-    }
+    };
     let epoch = game.layer_epoch();
-    if let Some(frame) = game.layer_memo.entering_token(epoch, &obj.card_data, controller, pending) {
-        if cfg!(debug_assertions) || game.audit_on() {
+    if let Some(frame) = game.layer_memo.run_frame(epoch, run, controller, pending) {
+        if audits_a_served_frame(game) {
             let walked = game.unobserved(|| compute_as_entering(game, id, controller, pending));
             assert!(
                 walked.as_ref() == Some(&*frame),
@@ -229,8 +227,8 @@ pub(crate) fn shared_entering_frame(
     let frame = Arc::new(frame);
     if !frame.abilities.iter().any(|ability| ability.id.is_derived_on_an_object()) {
         game.layer_memo.insert_gated_reads(epoch, read);
-        game.layer_memo.insert_entering_token(epoch, EnteringToken {
-            card: Arc::clone(&obj.card_data),
+        game.layer_memo.insert_run_frame(epoch, StoredRunFrame {
+            run: Arc::clone(run),
             controller,
             mods: pending.clone(),
             frame: Arc::clone(&frame),
@@ -239,33 +237,48 @@ pub(crate) fn shared_entering_frame(
     Some(frame)
 }
 
+/// Whether a served frame is walked again: under `--audit`, and in a debug
+/// build while the layer memo's audit is not paused, as a memo hit is.
+fn audits_a_served_frame(game: &GameState) -> bool {
+    #[cfg(debug_assertions)]
+    if game.layer_memo.audited() {
+        return true;
+    }
+    game.audit_on()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::test_support::place_on_battlefield;
     use std::sync::Arc;
 
-    use super::{compute_as_entering, shared_entering_frame, EnteringToken, Lookahead};
+    use super::{compute_as_entering, shared_entering_frame, Lookahead, StoredRunFrame};
     use crate::cards::printings::grizzly_bears;
     use crate::engine::layers::copiable_values;
-    use crate::objects::card_data::CardData;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::{CastFacts, CostChoices};
     use crate::state::game_state::{GameState, ResolvingObject};
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
     use crate::types::card_types::{CreatureType, Subtype};
     use crate::types::costs::AdditionalCost;
-    use crate::types::effects::{CharacteristicEdit, CounterType, TypeChange};
+    use crate::types::effects::{CharacteristicEdit, CounterType, TokenDef, TypeChange};
     use crate::types::ids::ObjectId;
     use crate::types::mana::ManaSpent;
     use crate::types::replacement::{CopyAdditions, EnterMods, EntryCopy, EntryCounters, TapStatus};
     use crate::types::zones::Zone;
 
-    /// A token being created, as `create_tokens` leaves it: in the zone, with
-    /// no entity. Each call makes one of the same run, on `card`.
-    fn token_of_run(game: &mut GameState, card: &Arc<CardData>) -> ObjectId {
-        let mut token = GameObject::new(Arc::clone(card), 0, Zone::Battlefield);
+    /// A token being created, as `create_tokens` leaves it: in the zone with no
+    /// entity, its creation naming it. Each call makes one more of `run`.
+    fn token_of_run(game: &mut GameState, run: &Arc<TokenDef>) -> ObjectId {
+        let mut token = GameObject::new(run.card_data(), 0, Zone::Battlefield);
         token.is_token = true;
-        game.add_object(token)
+        let id = game.add_object(token);
+        game.tokens_being_created.insert(id, Arc::clone(run));
+        id
+    }
+
+    fn bears_run() -> Arc<TokenDef> {
+        Arc::new(TokenDef::creature(2, 2, &[], &[CreatureType::Bear]))
     }
 
     /// The share's audit is the walk it saved: a frame no walk would find is a
@@ -274,12 +287,13 @@ mod tests {
     #[should_panic(expected = "something the walk reads tells two equal tokens apart")]
     fn a_shared_frame_the_walk_disagrees_with_panics() {
         let mut game = setup_two_player_game();
-        let card = grizzly_bears();
-        let first = token_of_run(&mut game, &card);
+        game.enable_audit();
+        let run = bears_run();
+        let first = token_of_run(&mut game, &run);
         let mut lie = compute_as_entering(&game, first, 0, &EnterMods::NONE).unwrap();
         lie.power = Some(99);
-        game.layer_memo.insert_entering_token(game.layer_epoch(), EnteringToken {
-            card: Arc::clone(&card),
+        game.layer_memo.insert_run_frame(game.layer_epoch(), StoredRunFrame {
+            run: Arc::clone(&run),
             controller: 0,
             mods: EnterMods::NONE,
             frame: Arc::new(lie),
@@ -302,13 +316,13 @@ mod tests {
 
         let mut game = setup_two_player_game();
         let while_hale = as_long_as(you_have(PlayerFact::LifeAtLeast(AmountExpr::Fixed(20))), gets(each(creatures_you_control()), 1, 1));
-        let anthem = CardDataBuilder::new("Fixture Hale Anthem")
+        let anthem = CardDataBuilder::new("Path of Bravery Fixture")
             .card_type(CardType::Enchantment)
             .ability(static_ability("As long as you have 20 or more life, creatures you control get +1/+1.", while_hale))
             .build();
         put_on_battlefield(&mut game, anthem, 0);
-        let card = grizzly_bears();
-        let (first, second) = (token_of_run(&mut game, &card), token_of_run(&mut game, &card));
+        let run = bears_run();
+        let (first, second) = (token_of_run(&mut game, &run), token_of_run(&mut game, &run));
 
         let hale = shared_entering_frame(&game, first, 0, &EnterMods::NONE).unwrap();
         assert_eq!(hale.power, Some(3));
