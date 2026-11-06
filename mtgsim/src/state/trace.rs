@@ -951,16 +951,18 @@ impl GameState {
     /// ([`EffectModification::writes_name`]: a copy, or a text-changing rename,
     /// which can reach a card off the battlefield, CR 612.9) or by a permanent's
     /// own state (the copy it entered as, a face-down status). While no row
-    /// writes one, anything without that state costs a lookup. Read as the
-    /// dispatch audit reads, off the memo or inside the bracket that puts the
-    /// memo, the diagnostics and the trace back: naming is not engine work.
+    /// writes one, the copy it entered as names it, and anything else that is
+    /// not face down has its card's: a lookup, where a walk would be a pass over
+    /// the board for each copy entering. Otherwise read as the dispatch audit
+    /// reads, off the memo or inside the bracket that puts the memo, the
+    /// diagnostics and the trace back: naming is not engine work.
     ///
     /// [`EffectModification::writes_name`]: crate::engine::layers::types::EffectModification::writes_name
     fn name_unless_printed(&mut self, id: ObjectId) -> Option<String> {
-        let may_differ = self.continuous_effects.summary().any_name_writing_row
-            || self.battlefield.get(&id).is_some_and(|p| p.entered_as.copy.is_some() || p.face_down);
-        if !may_differ {
-            return None;
+        let permanent = self.battlefield.get(&id);
+        if !self.continuous_effects.summary().any_name_writing_row && !permanent.is_some_and(|p| p.face_down) {
+            let name = permanent.and_then(|p| p.entered_as.copy.as_ref()).map(|copy| copy.name.clone())?;
+            return (self.objects.get(&id)?.card_data.name != name).then_some(name);
         }
         let name = match self.layer_memo.get(id, self.layer_epoch()) {
             Some(frame) => frame.name.clone(),

@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use mtgsim::cards::printings::{blood_moon, glorious_anthem, sigarda_host_of_herons};
 use mtgsim::engine::actions::{ActionContext, GameAction};
+use mtgsim::engine::layers::compute_characteristics;
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
 use mtgsim::state::game_state::GameState;
@@ -17,8 +19,8 @@ use mtgsim::test_support::{put_on_battlefield, setup_game, test_ctx, textless_st
 use mtgsim::types::card_types::{CardType, CreatureType};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, PlayerRef, TokenDef};
-use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::replacement::{CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -134,6 +136,59 @@ fn a_cant_is_found_with_the_sweep_narrowed_to_its_sources() {
     create(&mut game, vec![goblin(); 3], 1);
 
     assert_eq!(tokens_owned_by(&game, 1).len(), 3, "she says nothing of an entry");
+}
+
+/// "Creatures you control enter as a copy of this creature": Essence of the
+/// Wild, its 6/6 and its one ability.
+fn essence_of_the_wild_fixture() -> Arc<CardData> {
+    let yours = ObjectFilter::And(Box::new(ObjectFilter::ByType(CardType::Creature)), Box::new(ObjectFilter::ByController(PlayerRef::You)));
+    let def = ReplacementDef::new(
+        EventPattern::EnterBattlefield { cast: None },
+        ObjectSet::battlefield_filter(yours),
+        Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
+    );
+    CardDataBuilder::new("Essence of the Wild Fixture")
+        .card_type(CardType::Creature)
+        .power_toughness(6, 6)
+        .ability(textless_static(Effect::Replacement(Box::new(def))))
+        .build()
+}
+
+/// With no row to write a name, the copy a permanent entered as names it, read
+/// off the entity and not off a pass: what the record says, and what a walk
+/// would have said.
+#[test]
+fn a_token_that_entered_as_a_copy_is_announced_under_the_copys_name() {
+    let mut game = audited_game();
+    game.record_events();
+    put_on_battlefield(&mut game, essence_of_the_wild_fixture(), 0);
+
+    create(&mut game, vec![goblin(); 3], 0);
+
+    for token in tokens_owned_by(&game, 0) {
+        assert_eq!(compute_characteristics(&game, token).unwrap().name, "Essence of the Wild Fixture");
+        let announced = game.recorded_events().records().iter().rev().find_map(|record| match &record.event {
+            GameEvent::PermanentEnteredBattlefield { object, .. } if object.id == token => record.names.clone(),
+            _ => None,
+        });
+        assert_eq!(announced.as_deref(), Some(&vec![(token, "Essence of the Wild Fixture".to_string())]));
+    }
+    assert_eq!(get_effective_power(&game, tokens_owned_by(&game, 0)[0]), Some(6));
+}
+
+/// An application that reads nothing is next without a check, in the key's
+/// order: an anthem still lands on creatures that hold counters, whichever
+/// came first.
+#[test]
+fn counters_and_an_anthem_apply_to_every_creature_of_a_board_of_counters() {
+    let mut game = audited_game();
+    create(&mut game, vec![goblin(); 5], 0);
+    let goblins = tokens_owned_by(&game, 0);
+    let put_on = |&id| GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 };
+    game.execute_actions(goblins.iter().map(put_on).collect(), &test_ctx()).expect("the counters go on");
+    put_on_battlefield(&mut game, glorious_anthem(), 0);
+
+    assert!(goblins.iter().all(|id| get_effective_power(&game, *id) == Some(3)));
 }
 
 /// CR 614.12's third clause: the continuous effects that exist are in the
