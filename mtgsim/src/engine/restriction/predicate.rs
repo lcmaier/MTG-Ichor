@@ -7,7 +7,7 @@
 //! candidate list, and any notion of order; see [`is_prohibited`] for why the
 //! last one is a property of CR 101.2 rather than a simplification.
 
-use crate::engine::actions::GameAction;
+use crate::engine::actions::{GameAction, GameActionKind};
 use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::object_filter::TextReferents;
@@ -133,7 +133,7 @@ fn prohibition_sweeping(game: &GameState, query: &Query, sweep: Sweep) -> Option
     // is found and the gate would skip it (§3.5 commitment 2).
     if let Query::EventHappens { action, cause, .. } = query
         && let Some(ObjectOrPlayerId::Object(id)) = subject_of(action)
-        && let Some(keyword) = keyword_prohibits(game, id, action, *cause) {
+        && let Some(keyword) = keyword_prohibits(game, id, action, *cause, sweep) {
         return Some(Prohibition { source: id, by: ProhibitedBy::Keyword(keyword) });
     }
 
@@ -315,8 +315,8 @@ fn cause_matches(by: Option<&SourceFilter>, cause: &EventCause, referents: &mut 
 /// `debug_assert` is what keeps the argument true as the list grows: a keyword
 /// restriction that is *not* `SourceOnly` needs the sweep, and it must not be
 /// able to arrive here quietly.
-fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause: EventCause) -> Option<KeywordFlag> {
-    let defs = keyword_restrictions(game, id);
+fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause: EventCause, sweep: Sweep) -> Option<KeywordFlag> {
+    let defs = keyword_restrictions(game, id, action, sweep);
     if defs.is_empty() {
         return None;
     }
@@ -360,21 +360,27 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction, cause:
 /// and intimidate are the next four (`codebase-state.md` item 15) and are Tier
 /// 1a/1d — `cant-be-targeted`'s and `combat-restrictions`'s, because they forbid a *choice* rather than an
 /// event, so none of them belongs in this function.
-fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<(KeywordFlag, RestrictionDef)> {
+///
+/// Each keyword is asked only of an event its pattern can watch: the pattern
+/// reads the action, and `has_keyword` is a walk of the board for an object
+/// the memo cannot hold, as a token whose entry is being decided.
+fn keyword_restrictions(game: &GameState, id: ObjectId, action: &GameAction, sweep: Sweep) -> Vec<(KeywordFlag, RestrictionDef)> {
     use crate::oracle::characteristics::has_keyword;
 
     let mut out = Vec::new();
+    let could_watch = |pattern: &EventPattern| sweep == Sweep::Everything || pattern.action_kinds().contains(GameActionKind::of(action));
 
     // > 702.12b. A permanent with indestructible can't be destroyed. Such
     // > permanents aren't destroyed by lethal damage, and they ignore the
     // > state-based action that checks for lethal damage (see rule 704.5g).
     //
     // No `DestructionSourcePattern`: 702.12b names both of CR 701.8b's ways.
-    if has_keyword(game, id, KeywordFlag::Indestructible) {
+    let destruction = EventPattern::Destroy { source: None };
+    if could_watch(&destruction) && has_keyword(game, id, KeywordFlag::Indestructible) {
         out.push((
             KeywordFlag::Indestructible,
             RestrictionDef::new(Restriction::Event {
-                pattern: EventPattern::Destroy { source: None },
+                pattern: destruction,
                 affected: AffectedSet::objects(ObjectSet::SourceOnly),
                 by: None,
             }),
