@@ -10167,6 +10167,8 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      decision at 50 a seat and 7,840 loaded, against 126.3 µs and 7,030 for
      #299's merge on the same idle machine (item 138's table). Still under
      the floor; the two parts left are the ones this entry sizes.
+     **Read 2026-11-05:** these readings hold bulk token creation, which item
+     378 removes, so `board-scale` re-reads them before this entry's design.
      **Slotted:** Phase 10, profile-driven performance, with item 138's
      levers re-ranked on both boards (2026-10-29).
 
@@ -10456,8 +10458,7 @@ slips are the planned card phases', not items.
      **Sized:** ~20 lines of code, then a counted sweep: 29 id-collection calls in
      the engine and the dev GUI, and each other engine collection whose blank
      value means empty, counted at the build.
-     **Slotted:** `orders-the-cr-hands-a-player`, riding with its work and not a
-     PR of its own.
+     **Slotted:** `board-scale`, its last commit, since it moves no game.
 
 377. **Floor 1 reads the bot's games, so it moves when the bot does.** A counting
      change, a dropped prompt and a bound on attacks each moved it with the
@@ -10478,5 +10479,24 @@ slips are the planned card phases', not items.
 
      **Reachability (2026-11-05):** reachable — not wrong: a measurement.
      **Sized:** ~100–150 lines in `fuzz_games` and the floor's rows, no engine code.
-     **Slotted:** `orders-the-cr-hands-a-player`, riding with its work and not a
-     PR of its own.
+     **Slotted:** `board-scale`.
+
+378. **Making tokens walks the whole board three times a token.** Each question
+     about a token not yet on the battlefield runs a pass over the board, and
+     nothing keeps the answer for the next token, so one event making N tokens
+     costs N passes three times over:
+     - `keyword_prohibits` asks every event's object about indestructible, which
+       only a destruction can read: 34% of a 400-a-seat board;
+     - `entry_proposal` asks each token whether it is an instant or a sorcery
+       (CR 111.5), where `create_tokens` already holds runs of equal definitions;
+     - CR 614.12's look-ahead runs per entry, though a run of equal entries
+       decided against one board has one answer.
+
+     A throwaway build with all three gone, on a board with no continuous
+     effects: 1,600 a seat from 24.6 s to 0.13 s, 25,600 a seat in 2.9 s, near
+     linear. Its look-ahead shortcut holds only on such a board, so an anthem's
+     board is unread until the real fix.
+
+     **Reachability (2026-11-05):** reachable — not wrong: a cost, and no game moves.
+     **Sized:** ~30–50 lines of code; the look-ahead's sharing needs the most care.
+     **Slotted:** `board-scale`.
