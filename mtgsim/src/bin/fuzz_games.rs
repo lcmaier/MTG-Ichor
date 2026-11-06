@@ -190,13 +190,13 @@ struct Args {
     /// (CR 903.7), and it changes no RNG draw, only how long a game runs.
     life: i64,
     /// 1/1 Goblin creature tokens each seat starts with, `--tokens`: the token
-    /// board the readiness pass reads the floors on (`spine-phase-audit.md`).
+    /// board the readiness pass reads beside the floors (`spine-phase-audit.md`).
     /// Created after setup, one event per seat, so they are on the
     /// battlefield before the first turn. None by default.
     tokens_per_seat: usize,
     /// Count the decisions that reach the agent, by prompt kind, `--census`:
-    /// floor 1's count (`engineering-practices.md#the-floors`). Off by
-    /// default; on, it changes no game.
+    /// a bot's games, read beside floor 1 (`engineering-practices.md#the-floors`).
+    /// Off by default; on, it changes no game.
     census: bool,
     /// Build a naive observation for the seat at each decision that reaches
     /// the agent, and time it against the engine, `--observe`: k, floor 1's
@@ -1441,8 +1441,9 @@ fn run_games(
     collected.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
-/// The boards of `--ladder`. A fixed board has no agent in it, so what is read
-/// moves when the engine does, and never when the bot's games do.
+/// The boards of `--ladder`. No bot's play shapes a fixed board, so what is
+/// read moves when the engine does, and never when the bot's games do. Its one
+/// answer is a death's target, and a drain costs the same whoever it names.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LadderShape {
     /// 1/1 Goblins.
@@ -2081,7 +2082,7 @@ fn main() {
         println!("  Decisions:        {:>8.0}", agg_stats.avg(agg_stats.total_decisions));
         println!("  Priority decisions: {:>6.0}", agg_stats.avg(agg_stats.total_priority_decisions));
         // `--census`: the first row less the prompts a decorator answered,
-        // which is what an agent is handed and floor 1 counts.
+        // which is what an agent is handed and `--census` counts.
         if args.census {
             let at_the_agent = agg_stats.total_agent_decisions.values().sum();
             println!("  Decisions at the agent: {:.1}", agg_stats.avg(at_the_agent));
@@ -2184,6 +2185,7 @@ fn main() {
 #[cfg(test)]
 mod ladder_tests {
     use super::{ladder_board, ladder_step, LadderShape};
+    use mtgsim::oracle::characteristics::get_effective_power;
     use mtgsim::types::effects::CounterType;
     use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -2201,6 +2203,18 @@ mod ladder_tests {
             assert_eq!(state.battlefield.len(), 100);
             assert!(creatures.iter().all(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 0));
         }
+    }
+
+    /// The row is live: each seat's carrier reaches a plain Goblin beside it.
+    #[test]
+    fn the_anthem_shape_has_an_anthem() {
+        let dp = RandomDecisionProvider::seeded(1);
+        let plain_goblin = |shape| {
+            let (state, creatures) = ladder_board(shape, 100, &dp).unwrap();
+            get_effective_power(&state, creatures[1])
+        };
+        assert_eq!(plain_goblin(LadderShape::BareCreatures), Some(1));
+        assert_eq!(plain_goblin(LadderShape::Anthem), Some(2));
     }
 
     #[test]
