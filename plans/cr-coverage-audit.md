@@ -756,6 +756,8 @@ controller when it was created. **Query:** type `PlayerId` named `controller`
   only while an entry's moves are decided (#294).
 - `GameAction` ×2 — hand-over: the controller an entering permanent or token
   enters under, until the entry writes it.
+- `EnteringToken` — none: the layer memo's key on a run's frame, a proposal's
+  controller, read at its epoch and never past it.
 - `ResolutionStamp` — moment: the resolving object's controller, as the event
   it caused happened.
 - `RowFact` — moment: the controller of what targeted, as it targeted.
@@ -768,6 +770,7 @@ walk, which computes an object's characteristics now and keeps no history.
 **Query:** type `EffectiveCharacteristics`
 - `StoredFrame` — none: the layer memo's cache of a frame now, keyed by the
   epoch it was computed at and never read past it.
+- `EnteringToken` — none: the same, a run of tokens' CR 614.12 frame.
 - `LkiBody` — moment: an ended existence's, or a survivor's before an event.
 - `RowFrame` — moment: a history row's object as the event left it.
 - `AnnouncedControl` — hand-over: `Frame`, the frame as the last control
