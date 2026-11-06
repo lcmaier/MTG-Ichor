@@ -270,15 +270,16 @@ fn permanent(game: &GameState, lines: &TypeLines, id: ObjectId) -> Option<Perman
 fn stack_item(game: &GameState, id: ObjectId) -> StackItem {
     let chars = compute_characteristics(game, id);
     let entry = game.stack_entries.get(&id);
+    let facts = game.stack_object_facts(id);
     StackItem {
         id,
         name: chars.as_ref().map_or_else(|| id.to_string(), |c| c.name.clone()),
-        is_spell: entry.map(|e| e.is_spell),
+        is_spell: facts.map(|f| f.is_spell),
         controller: chars.as_ref().map(|c| c.controller).or(entry.map(|e| e.controller)).unwrap_or_default(),
-        targets: entry
-            .map(|e| e.chosen_targets.iter().flat_map(|instance| stack_targets(game, instance)).collect())
+        targets: facts
+            .map(|f| f.chosen_targets.iter().flat_map(|instance| stack_targets(game, instance)).collect())
             .unwrap_or_default(),
-        x: entry.and_then(|e| e.x_value),
+        x: facts.and_then(|f| f.x_value),
     }
 }
 

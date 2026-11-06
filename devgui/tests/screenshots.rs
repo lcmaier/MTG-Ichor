@@ -23,7 +23,7 @@ use devgui::boards::Folders;
 use devgui::bridge::{EngineHandle, GameSetup, ToWindow};
 use devgui::editor::EditorInput;
 use devgui::launch::Start;
-use devgui::prompt::{Answer, BoardRef, Reply};
+use devgui::prompt::{Answer, BoardRef, Prompt, Reply};
 use devgui::save::{Destination, Tools};
 use devgui::session::Session;
 use devgui::view_model::{Input, Mode, Progress, WindowState};
@@ -112,6 +112,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     results.add(clicked_picture(&waiting, &header("waiting.scenario"), "Waiting (4)", "waiting"));
     results.add(hovered_picture(&waiting, &header("waiting.scenario"), "Flickerwisp", "hover"));
     results.add(picture(&partway(divided_on_the_stack()), &header("division.scenario"), None, "division_on_stack"));
+    results.add(picture(&partway(division_resolving()), &header("division-resolving.scenario"), None, "division_resolving"));
     results.add(picture(&partway(finality_counter_row()), &header("finality-counter.scenario"), None, "finality_counter_words"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
@@ -409,22 +410,40 @@ fn waiting() -> WindowState {
     state
 }
 
-/// The click script's board, `division.scenario`: Arc Lightning cast at the
-/// Bears for 2 and player 1 for 1, the window stopped at player 1's priority
-/// over it, the question the split is for.
+/// The click script's board, `division.scenario`: the window stopped at
+/// player 1's priority over the spell, the question the split is for.
 fn divided_on_the_stack() -> WindowState {
-    let engine = spawn(from_board("division.scenario"));
+    let state = arc_lightning_until("division.scenario", |prompt| prompt.player == 1);
+    let stack = state.board_view().map(|board| board.stack).expect("a board at the question");
+    assert!(stack[0].detail.ends_with(" for 2, Player 1 for 1"), "{}", stack[0].detail);
+    state
+}
+
+/// The click script's board, `division-resolving.scenario`: the question its
+/// damage asks as it resolves, with the spell's row whole.
+fn division_resolving() -> WindowState {
+    let state = arc_lightning_until("division-resolving.scenario", |prompt| prompt.kind == "ChooseReplacementEffect");
+    let stack = state.board_view().map(|board| board.stack).expect("a board at the question");
+    assert!(stack[0].title.starts_with("Arc Lightning") && !stack[0].title.contains("being cast"), "{}", stack[0].title);
+    assert!(stack[0].detail.ends_with(" for 2, Player 1 for 1"), "{}", stack[0].detail);
+    state
+}
+
+/// `board` played to the first question `stop` takes, with Arc Lightning cast
+/// at the Bears for 2 and player 1 for 1 and every other priority passed.
+fn arc_lightning_until(board: &str, stop: fn(&Prompt) -> bool) -> WindowState {
+    let engine = spawn(from_board(board));
     let mut state = WindowState::default();
     loop {
         state.receive(next(&engine));
         let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
-        if prompt.player == 1 {
+        if stop(prompt) {
             break;
         }
         let labeled = |label: &str| prompt.options.iter().position(|option| option.label.contains(label));
         let (bears, player) = (labeled("Grizzly Bears"), labeled("Player 1"));
         let input = match prompt.kind.as_str() {
-            "PriorityAction" => labeled("Arc Lightning").map(Input::OptionButton),
+            "PriorityAction" => labeled("Arc Lightning").or(prompt.pass).map(Input::OptionButton),
             "ManaAbilityWindow" => labeled("Mountain").map(Input::OptionButton),
             "SelectRecipients" => {
                 state.input(Input::OptionButton(bears.expect("the Bears are offered")));
@@ -440,8 +459,6 @@ fn divided_on_the_stack() -> WindowState {
         let input = input.unwrap_or_else(|| panic!("nothing to take at {}", state.status()));
         engine.answers.send(state.input(input).expect("one input answers")).unwrap();
     }
-    let stack = state.board_view().map(|board| board.stack).expect("a board at the question");
-    assert!(stack[0].detail.ends_with(" for 2, Player 1 for 1"), "{}", stack[0].detail);
     finish(engine);
     state
 }

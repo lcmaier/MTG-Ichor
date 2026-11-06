@@ -1,0 +1,20 @@
+# A question asked while a spell resolves. Mending Hands' shield waits on
+# player 0's Grizzly Bears beside their shield counter. Player 0 casts Arc
+# Lightning at the Bears for 2 and player 1 for 1, and as it resolves chooses
+# which prevents the Bears' damage (CR 616.1). The spell is on the stack until
+# it finishes (CR 608.2n), so its row keeps its targets and shares.
+turn 3
+active 0
+step precombat main
+
+hand 0: Arc Lightning
+hand 0: Mending Hands
+library 0: Mountain | x8
+library 1: Mountain | x8
+
+battlefield: Plains | controller 0
+battlefield: Mountain | controller 0
+battlefield: Mountain | controller 0
+battlefield: Mountain | controller 0
+battlefield: Grizzly Bears | controller 0, shield 1
+then: player 0 casts Mending Hands | targeting Grizzly Bears
