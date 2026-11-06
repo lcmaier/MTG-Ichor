@@ -1,0 +1,295 @@
+=== Access Tunnel (part, blocked)
+unwritten: {3}, {T}: Target creature with power 3 or less can't be blocked this turn.
+[mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
+
+=== Anguished Unmaking (whole, writable)
+[spell] "Exile target nonland permanent. You lose 3 life." costs [] => Sequence([Atom(Exile, Target(Permanent(Not(ByType(Land))), Exactly(1))), Atom(LoseLife(Fixed(3)), Controller)])
+
+=== Arasta of the Endless Web (whole, writable)
+[triggered] "Whenever an opponent casts an instant or sorcery spell, create a 1/2 green Spider creature token with reach." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(Opponent), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Green], types: [Creature], subtypes: [Creature(Spider)], supertypes: [], power: Some(1), toughness: Some(2), keyword_flags: [Reach], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
+
+=== Arbor Adherent (body, gap)
+unwritten: {T}: Add one mana of any color.
+unwritten: {T}: Add X mana of any one color, where X is the greatest toughness among other creatures you control.
+
+=== Arboreal Grazer (body, blocked)
+unwritten: When this creature enters, you may put a land card from your hand onto the battlefield tapped.
+
+=== Arcane Signet (body, blocked)
+unwritten: {T}: Add one mana of any color in your commander's color identity.
+
+=== Assault Formation (part, gap)
+unwritten: Each creature you control assigns combat damage equal to its toughness rather than its power.
+unwritten: {G}: Target creature with defender can attack this turn as though it didn't have defender.
+[activated] "{2}{G}: Creatures you control get +0/+1 until end of turn." costs [Mana(ManaCost { symbols: [Generic, Generic, Colored(Green)] })] => Atom(ModifyPowerToughness(Fixed(0), Fixed(1), UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))
+
+=== Axebane Guardian (body, gap)
+unwritten: {T}: Add X mana in any combination of colors, where X is the number of creatures you control with defender.
+
+=== Baldin, Century Herdmaster (part, gap)
+unwritten: During your turn, each creature assigns combat damage equal to its toughness rather than its power.
+[triggered] "Whenever Baldin attacks, up to one hundred target creatures each get +0/+X until end of turn, where X is the number of cards in your hand." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(ModifyPowerToughness(Fixed(0), CountOf(Filter { filter: ByOwner(You), zones: ZoneSet(2) }), UntilEndOfTurn), Target(Creature, UpTo(100))) })
+
+=== Behind the Scenes (part, gap)
+unwritten: Creatures you control have skulk.
+[activated] "{4}{W}: Creatures you control get +1/+1 until end of turn." costs [Mana(ManaCost { symbols: [Generic, Generic, Generic, Generic, Colored(White)] })] => Atom(ModifyPowerToughness(Fixed(1), Fixed(1), UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))
+
+=== Betor, Ancestor's Voice (part, gap)
+[triggered] "At the beginning of your end step, put a number of +1/+1 counters on up to one other target creature you control equal to the amount of life you gained this turn. Return up to one target creature card with mana value less than or equal to the amount of life you lost this turn from your graveyard to the battlefield." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: End, whose: Some(You) }), intervening_if: None, limit: None, effect: Atom(AddCounters { counter: PlusOnePlusOne, amount: History(ThisTurn, HistoryCount { players: You, fact: LifeGained, of: None }), by: You }, Target(Permanent(And(And(ByType(Creature), ByController(You)), NotSource)), UpTo(1))) })
+
+=== Blight Pile (part, gap)
+[activated] "{2}{B}, {T}: Each opponent loses X life, where X is the number of creatures with defender you control." costs [Mana(ManaCost { symbols: [Generic, Generic, Colored(Black)] }), TapSelf] => Atom(LoseLife(Fixed(1)), EachOf(PlayerGroup { relation: Opponents, named: Nobody }))
+
+=== Bojuka Bog (part, gap)
+unwritten: When this land enters, exile target player's graveyard.
+[static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+[mana] "{T}: Add {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
+
+=== Canopy Gargantuan (body, gap)
+unwritten: Flying, ward {2}
+unwritten: At the beginning of your upkeep, put a number of +1/+1 counters on each other creature you control equal to that creature's toughness.
+
+=== Canopy Vista (body, gap)
+unwritten: This land enters tapped unless you control two or more basic lands.
+[mana] "{T}: Add {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+
+=== Carven Caryatid (whole, writable)
+[triggered] "When this creature enters, draw a card." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(DrawCards(Fixed(1)), Controller) })
+
+=== Colfenor's Urn (part, blocked)
+unwritten: At the beginning of the end step, if three or more cards have been exiled with this artifact, sacrifice it. If you do, return those cards to the battlefield under their owner's control.
+[triggered] "Whenever a creature with toughness 4 or greater is put into your graveyard from the battlefield, you may exile it." costs [] => Triggered(TriggerDef { condition: Event(ZoneChange { subject: Filter(And(ByType(Creature), ByOwner(You))), change: ZoneChangePattern { from: Some(Battlefield), to: Some(Graveyard), act: None }, by: None, owner: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(Exile, Triggering(Object)) } })
+
+=== Command Tower (body, blocked)
+unwritten: {T}: Add one mana of any color in your commander's color identity.
+
+=== Crashing Drawbridge (whole, writable)
+[activated] "{T}: Creatures you control gain haste until end of turn." costs [TapSelf] => Atom(GrantKeywordFlag(Haste, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))
+
+=== Deceptive Landscape (part, blocked)
+unwritten: {T}, Sacrifice this land: Search your library for a basic Plains, Swamp, or Forest card, put it onto the battlefield tapped, then shuffle.
+unwritten: Cycling {W}{B}{G}
+[mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
+
+=== Despark (body, gap)
+unwritten: Exile target permanent with mana value 4 or greater.
+
+=== Dragonlord Dromoka (body, blocked)
+unwritten: This spell can't be countered.
+unwritten: Your opponents can't cast spells during your turn.
+
+=== Evolving Wilds (part, blocked)
+[activated] "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle." costs [TapSelf, SacrificeSelf] => Atom(ShuffleLibrary, Controller)
+
+=== Exotic Orchard (body, blocked)
+unwritten: {T}: Add one mana of any color that a land an opponent controls could produce.
+
+=== Expel the Interlopers (body, gap)
+unwritten: Choose a number between 0 and 10. Destroy all creatures with power greater than or equal to the chosen number.
+
+=== Faeburrow Elder (body, gap)
+unwritten: This creature gets +1/+1 for each color among permanents you control.
+unwritten: {T}: For each color among permanents you control, add one mana of that color.
+
+=== Feed the Swarm (part, blocked)
+[spell] "Destroy target creature or enchantment an opponent controls. You lose life equal to that permanent's mana value." costs [] => Atom(Destroy, Target(Permanent(And(Or(ByType(Creature), ByType(Enchantment)), ByController(Opponent))), Exactly(1)))
+
+=== Felothar the Steadfast (part, gap)
+unwritten: Each creature you control assigns combat damage equal to its toughness rather than its power.
+unwritten: Creatures you control can attack as though they didn't have defender.
+[activated] "{3}, {T}, Sacrifice another creature: Draw cards equal to the sacrificed creature's toughness, then discard cards equal to its power." costs [Mana(ManaCost { symbols: [Generic, Generic, Generic] }), TapSelf, Sacrifice(And(ByType(Creature), NotSource), 1)] => Atom(DrawCards(Fixed(1)), Controller)
+
+=== Fortified Village (body, blocked)
+unwritten: As this land enters, you may reveal a Forest or Plains card from your hand. If you don't, this land enters tapped.
+unwritten: {T}: Add {G} or {W}.
+
+=== Hornet Nest (whole, writable)
+[triggered] "Whenever this creature is dealt damage, create that many 1/1 green Insect creature tokens with flying and deathtouch." costs [] => Triggered(TriggerDef { condition: Event(DamageDealt { source: Any, recipient: Object(Some(Not(NotSource))), combat: None, excess: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Green], types: [Creature], subtypes: [Creature(Insect)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [Flying, Deathtouch], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, TriggeringAmount), Controller) })
+
+=== Ikra Shidiqi, the Usurper (part, blocked)
+unwritten: Partner
+[triggered] "Whenever a creature you control deals combat damage to a player, you gain life equal to that creature's toughness." costs [] => Triggered(TriggerDef { condition: Event(DamageDealt { source: Filter(And(ByType(Creature), ByController(You))), recipient: Player(None), combat: Some(true), excess: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(GainLife(TriggeringToughness(DamageSource)), Controller) })
+
+=== Indomitable Ancients (whole, writable)
+
+=== Indulging Patrician (whole, writable)
+[triggered] "At the beginning of your end step, if you gained 3 or more life this turn, each opponent loses 3 life." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: End, whose: Some(You) }), intervening_if: Some(ThisTurn(HistoryCount { players: You, fact: LifeGained, of: None }, AtLeast(3))), limit: None, effect: Atom(LoseLife(Fixed(3)), EachOf(PlayerGroup { relation: Opponents, named: Nobody })) })
+
+=== Infernal Grasp (whole, writable)
+[spell] "Destroy target creature. You lose 2 life." costs [] => Sequence([Atom(Destroy, Target(Creature, Exactly(1))), Atom(LoseLife(Fixed(2)), Controller)])
+
+=== Isolated Chapel (whole, writable)
+[static] "This land enters tapped unless you control a Plains or a Swamp." costs [] => Conditional(Not(Player { players: You, fact: ControlsPermanent(Or(BySubtype(Land(Plains)), BySubtype(Land(Swamp)))) }), Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false }))
+[mana] "{T}: Add {W} or {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {W} or {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
+
+=== Jaddi Offshoot (whole, writable)
+[triggered] "Landfall — Whenever a land you control enters, you gain 1 life." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(ByType(Land), ByController(You))), controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(GainLife(Fixed(1)), Controller) })
+
+=== Jaws of Defeat (body, gap)
+unwritten: Whenever a creature you control enters, target opponent loses life equal to the difference between that creature's power and its toughness.
+
+=== Nyx-Fleece Ram (whole, writable)
+[triggered] "At the beginning of your upkeep, you gain 1 life." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: Upkeep, whose: Some(You) }), intervening_if: None, limit: None, effect: Atom(GainLife(Fixed(1)), Controller) })
+
+=== Orzhov Signet (whole, blocked)
+[mana] "{1}, {T}: Add {W}{B}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1)), (Black, Fixed(1))], special: [] }), Implicit)
+
+=== Overgrown Battlement (body, gap)
+unwritten: {T}: Add {G} for each creature you control with defender.
+
+=== Overgrown Farmland (part, gap)
+unwritten: This land enters tapped unless you control two or more other lands.
+[mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+
+=== Path of Ancestry (part, blocked)
+unwritten: {T}: Add one mana of any color in your commander's color identity. When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1.
+[static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+
+=== Protector of the Wastes (part, gap)
+unwritten: {4}{W}: Monstrosity 3.
+[triggered] "When this creature enters or becomes monstrous, exile up to two target artifacts and/or enchantments controlled by different players." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(Exile, Target(Permanent(Or(ByType(Artifact), ByType(Enchantment))), UpTo(2))) })
+
+=== Radiant Grove (whole, writable)
+[static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+[mana] "{T}: Add {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+
+=== Rampart Architect (part, gap)
+unwritten: Whenever a creature you control with defender dies, you may search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.
+[triggered] "Whenever this creature enters or attacks, create a 1/3 white Wall creature token with defender." costs [] => Triggered(TriggerDef { condition: AnyOf([EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }, Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }]), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Wall)], supertypes: [], power: Some(1), toughness: Some(3), keyword_flags: [Defender], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
+
+=== Reunion of the House (body, gap)
+unwritten: Return any number of target creature cards with total power 10 or less from your graveyard to the battlefield. Exile Reunion of the House.
+
+=== Sandsteppe Citadel (whole, writable)
+[static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+[mana] "{T}: Add {W}, {B}, or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {W}, {B}, or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {W}, {B}, or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+
+=== Seedborn Muse (body, gap)
+unwritten: Untap all permanents you control during each other player's untap step.
+
+=== Selesnya Signet (whole, blocked)
+[mana] "{1}, {T}: Add {G}{W}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1)), (White, Fixed(1))], special: [] }), Implicit)
+
+=== Shadrix Silverquill (part, gap)
+[triggered] "At the beginning of combat on your turn, you may choose two. Each mode must target a different player.\n• Target player creates a 2/1 white and black Inkling creature token with flying.\n• Target player draws a card and loses 1 life.\n• Target player puts a +1/+1 counter on each creature they control." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: BeginCombat, whose: Some(You) }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Modal { count: Exactly(2), modes: [Atom(CreateToken(TokenDef { name: None, colors: [White, Black], types: [Creature], subtypes: [Creature(Inkling)], supertypes: [], power: Some(2), toughness: Some(1), keyword_flags: [Flying], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Target(Player, Exactly(1))), Sequence([Atom(DrawCards(Fixed(1)), Target(Player, Exactly(1))), Atom(LoseLife(Fixed(1)), SameInstanceAs(0))])] } } })
+
+=== Shalai, Voice of Plenty (part, blocked)
+unwritten: You, planeswalkers you control, and other creatures you control have hexproof.
+[activated] "{4}{G}{G}: Put a +1/+1 counter on each creature you control." costs [Mana(ManaCost { symbols: [Generic, Generic, Generic, Generic, Colored(Green), Colored(Green)] })] => Atom(AddCounters { counter: PlusOnePlusOne, amount: Fixed(1), by: You }, FilteredPermanents(And(ByType(Creature), ByController(You))))
+
+=== Sidar Kondo of Jamuraa (body, gap)
+unwritten: Flanking
+unwritten: Creatures your opponents control without flying or reach can't block creatures with power 2 or less.
+unwritten: Partner
+
+=== Slaughter the Strong (body, gap)
+unwritten: Each player chooses any number of creatures they control with total power 4 or less, then sacrifices all other creatures they control.
+
+=== Staff of Compleation (part, gap)
+unwritten: {T}, Pay 2 life: Add one mana of any color.
+unwritten: {T}, Pay 3 life: Proliferate.
+[activated] "{T}, Pay 1 life: Destroy target permanent you own." costs [TapSelf, PayLife(1)] => Atom(Destroy, Target(Permanent(ByOwner(You)), Exactly(1)))
+[activated] "{T}, Pay 4 life: Draw a card." costs [TapSelf, PayLife(4)] => Atom(DrawCards(Fixed(1)), Controller)
+[activated] "{5}: Untap this artifact." costs [Mana(ManaCost { symbols: [Generic, Generic, Generic, Generic, Generic] })] => Atom(Untap, ThisObject)
+
+=== Sungrass Prairie (whole, blocked)
+[mana] "{1}, {T}: Add {G}{W}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1)), (White, Fixed(1))], special: [] }), Implicit)
+
+=== Sunpetal Grove (whole, writable)
+[static] "This land enters tapped unless you control a Forest or a Plains." costs [] => Conditional(Not(Player { players: You, fact: ControlsPermanent(Or(BySubtype(Land(Forest)), BySubtype(Land(Plains)))) }), Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false }))
+[mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+
+=== Swiftfoot Boots (whole, blocked)
+[static] "Equipped creature has hexproof and haste." costs [] => Sequence([Atom(GrantKeywordFlag(Hexproof, WhileSourceOnBattlefield), Host), Atom(GrantKeywordFlag(Haste, WhileSourceOnBattlefield), Host)])
+[activated] "Equip {1}" costs [Mana(ManaCost { symbols: [Generic] })] => Atom(Attach, Target(Permanent(And(ByType(Creature), ByController(You))), Exactly(1)))
+
+=== Swords to Plowshares (part, blocked)
+[spell] "Exile target creature. Its controller gains life equal to its power." costs [] => Sequence([Atom(Exile, Target(Creature, Exactly(1))), Atom(GainLife(TargetPower), Controller)])
+
+=== Sylvan Caryatid (body, blocked)
+unwritten: {T}: Add one mana of any color.
+
+=== Temple of Malady (whole, writable)
+[static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+[triggered] "When this land enters, scry 1." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(Scry(Fixed(1)), Controller) })
+[mana] "{T}: Add {B} or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {B} or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+
+=== Temple of Plenty (whole, writable)
+[static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+[triggered] "When this land enters, scry 1." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(Scry(Fixed(1)), Controller) })
+[mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+
+=== Temple of Silence (whole, writable)
+[static] "This land enters tapped." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+[triggered] "When this land enters, scry 1." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(Scry(Fixed(1)), Controller) })
+[mana] "{T}: Add {W} or {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {W} or {B}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
+
+=== Tip the Scales (part, blocked)
+[spell] "Sacrifice a creature. When you do, all creatures get -X/-X until end of turn, where X is the sacrificed creature's toughness." costs [] => Atom(Sacrifice, ChosenBy(Choice { chooser: Controller, among: ChoosersPermanents, picks: [Pick { filter: ByType(Creature), count: Exactly(Fixed(1)) }], acts_on: Chosen }))
+
+=== Tower Defense (whole, writable)
+[spell] "Creatures you control get +0/+5 and gain reach until end of turn." costs [] => Sequence([Atom(ModifyPowerToughness(Fixed(0), Fixed(5), UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You)))), Atom(GrantKeywordFlag(Reach, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))])
+
+=== Towering Titan (part, gap)
+unwritten: Sacrifice a creature with defender: All creatures gain trample until end of turn.
+[static] "This creature enters with X +1/+1 counters on it, where X is the total toughness of other creatures you control." costs [] => Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: None, counters: [EntryCountersTemplate { counter: PlusOnePlusOne, amount: CountOf(Filter { filter: And(ByType(Creature), ByController(You)), zones: ZoneSet(4) }), by: None, optional: false }], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false })
+
+=== Tree of Redemption (body, gap)
+unwritten: {T}: Exchange your life total with this creature's toughness.
+
+=== Twilight Mire (part, blocked)
+unwritten: {B/G}, {T}: Add {B}{B}, {B}{G}, or {G}{G}.
+[mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
+
+=== Wakestone Gargoyle (body, gap)
+unwritten: {1}{W}: Creatures you control with defender can attack this turn as though they didn't have defender.
+
+=== Walking Bulwark (body, gap)
+unwritten: {2}: Until end of turn, target creature with defender gains haste, can attack as though it didn't have defender, and assigns combat damage equal to its toughness rather than its power. Activate only as a sorcery.
+
+=== Wall of Blossoms (whole, writable)
+[triggered] "When this creature enters, draw a card." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(DrawCards(Fixed(1)), Controller) })
+
+=== Wall of Limbs (whole, blocked)
+[triggered] "Whenever you gain life, put a +1/+1 counter on this creature." costs [] => Triggered(TriggerDef { condition: Event(GainsLife { player: Some(You), multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(AddCounters { counter: PlusOnePlusOne, amount: Fixed(1), by: You }, ThisObject) })
+[activated] "{5}{B}{B}, Sacrifice this creature: Target player loses X life, where X is this creature's power." costs [Mana(ManaCost { symbols: [Generic, Generic, Generic, Generic, Generic, Colored(Black), Colored(Black)] }), SacrificeSelf] => Atom(LoseLife(SourcePower), Target(Player, Exactly(1)))
+
+=== Wall of Omens (whole, writable)
+[triggered] "When this creature enters, draw a card." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(DrawCards(Fixed(1)), Controller) })
+
+=== Wall of Reverence (part, blocked)
+[triggered] "At the beginning of your end step, you may gain life equal to the power of target creature you control." costs [] => Triggered(TriggerDef { condition: Event(StepBegins { step: End, whose: Some(You) }), intervening_if: None, limit: None, effect: Sequence([Atom(ModifyPowerToughness(Fixed(0), Fixed(0), UntilEndOfTurn), Target(Permanent(And(ByType(Creature), ByController(You))), Exactly(1))), Atom(GainLife(TargetPower), Controller)]) })
+
+=== Wall of Roots (body, blocked)
+unwritten: Put a -0/-1 counter on this creature: Add {G}. Activate only once each turn.
+
+=== Weathered Sentinels (part, gap)
+unwritten: This creature can attack players who attacked you during their last turn as though it didn't have defender.
+[triggered] "Whenever this creature attacks, it gets +3/+3 and gains indestructible until end of turn." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: ThisObject, defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Sequence([Atom(ModifyPowerToughness(Fixed(3), Fixed(3), UntilEndOfTurn), ThisObject), Atom(GrantKeywordFlag(Indestructible, UntilEndOfTurn), ThisObject)]) })
+
+=== Welcoming Vampire (whole, writable)
+[triggered] "Whenever one or more other creatures you control with power 2 or less enter, draw a card. This ability triggers only once each turn." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: Filter(And(And(And(ByType(Creature), ByController(You)), PowerLE(2)), NotSource)), controller: None, from: None, was_cast: None, multiplicity: OncePerEvent }), intervening_if: None, limit: Some(TriggersOnlyOnceEachTurn), effect: Atom(DrawCards(Fixed(1)), Controller) })
+
+=== Will of the Abzan (part, gap)
+[spell] "Choose one. If you control a commander as you cast this spell, you may choose both instead.\n• Any number of target opponents each sacrifice a creature with the greatest power among creatures that player controls and lose 3 life.\n• Return target creature card from your graveyard to the battlefield." costs [] => Modal { count: Exactly(1), modes: [Atom(LoseLife(Fixed(3)), EachOf(PlayerGroup { relation: Opponents, named: Nobody })), Atom(DrawCards(Fixed(1)), Controller)] }
+
+=== Wingmantle Chaplain (part, gap)
+unwritten: Whenever another creature you control with defender enters, create a 1/1 white Bird creature token with flying.
+[triggered] "When this creature enters, create a 1/1 white Bird creature token with flying for each creature with defender you control." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [White], types: [Creature], subtypes: [Creature(Bird)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [Flying], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
+
+=== Woodland Cemetery (whole, writable)
+[static] "This land enters tapped unless you control a Swamp or a Forest." costs [] => Conditional(Not(Player { players: You, fact: ControlsPermanent(Or(BySubtype(Land(Swamp)), BySubtype(Land(Forest)))) }), Replacement(ReplacementDef { pattern: EnterBattlefield { cast: None }, affected: AffectedSet { objects: SourceOnly, players: Nobody }, by: None, rewrite: EnterWith(EnterModsTemplate { status: Some(Tapped), counters: [], edits: [], unless_paid: None }), then: None, class: Other, uses: Static, is_regeneration: false, exempt_from_614_5: false, optional: false }))
+[mana] "{T}: Add {B} or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit)
+[mana] "{T}: Add {B} or {G}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
+
+=== Zetalpa, Primal Dawn (whole, writable)
