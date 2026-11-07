@@ -316,7 +316,8 @@ record, corrected where it was wrong.*
   explore (2 cards, Topography Tracker), a connive, a learn and a proliferate
   (1 each); a spell's copy (Twinning Staff); a die roll or coin flip (8,
   §2.31) and a search (Aven Mindcensor) as above; mana emptying from a pool
-  (CR 500.4, 5 cards, Kruphix, God of Horizons); and a life total reduced,
+  (CR 500.5, 5 cards, Kruphix, God of Horizons, Leyline Tyrant among them,
+  `codebase-state.md` item 403); and a life total reduced,
   damage and life loss in one pattern (9, Enduring Angel), the one family
   whose events exist but no arm pairs them. Each arrives with its event and
   its kind; `plans/references/replacement-kinds-census.py --names` lists the
@@ -328,7 +329,8 @@ record, corrected where it was wrong.*
   card census) are `tarkir-dragonstorm-decks`'; cloak and manifest dread go
   with the rest of `face-down-and-morph`, after v0.5; unattach, P/T doubling
   (`codebase-state.md` Deferred Migrations item 5) and the replaced events
-  above are after v0.5, wider card work, no `tdc` card printing one.
+  above are after v0.5, wider card work, no `tdc` card printing one but Leyline
+  Tyrant's mana emptying, `codebase-state.md` item 403's.
 
 ### 2.6 CR 702 keyword abilities
 
@@ -2925,7 +2927,7 @@ reaches nothing once Humility has removed it. No `ObjectFilter` leaf can say
 | **Size** | a leaf, ~100–150 lines with tests. Besides its arm in `object_filter::evaluate`, the compiler asks for two: `filter_reads`, on the abilities and keywords channels, and `EntryWrites::unmatches`, where keyword counters and CV-2b's "has flying" exceptions start to unmatch it. The test is Kwende beside a first-strike grant, then under Humility |
 | **Blocks** | the census's `ability-filter` class, 7 cards in Commander; the 7c anthems that name a keyword ("creatures you control with flying get +1/+1") need the same leaf, and close no loop, since they read the layer before theirs |
 | **Atoms** | none filed |
-| **Owner** | `tarkir-dragonstorm-decks`: four `tdc` cards filter by flying (Dragon Tempest, Frontier Siege, Harbinger of the Hunt, Will of the Temur; Scryfall, 2026-11-01). The leaf's CR 613.8a(b) dependency is `layers-architecture.md`'s |
+| **Owner** | `tarkir-dragonstorm-decks`, its cheap gaps at step 9's close: 13 deck cards by the gap census, four of them filtering by flying (Dragon Tempest, Frontier Siege, Harbinger of the Hunt, Will of the Temur; Scryfall, 2026-11-01). The leaf's CR 613.8a(b) dependency is `layers-architecture.md`'s |
 
 ### 2.44 Sagas and dungeons, the state-based actions that wait on a trigger
 

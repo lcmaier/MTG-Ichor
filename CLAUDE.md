@@ -138,7 +138,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
 `route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `tarkir-dragonstorm-decks`' gap census; `modes-plus-choice-kinds`, `mana-provenance`'s design before its `costs-and-choices-at-resolution`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`; `information-model-design`, `information-model`;
-`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
+`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; the decks' cheap gaps; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
 then `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
 `casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks, `decks-in-fuzz-games`; `devgui-at-five-seats`, `mana-payment-solver`.
