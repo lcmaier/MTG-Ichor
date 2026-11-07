@@ -79,6 +79,7 @@ impl<'a> ConditionReferents<'a> {
         match word {
             Antecedent::ThisObject => Some(ObjectInformation::of(source, self.source_lki)),
             Antecedent::Triggering(role) => self.triggering_event.object(role),
+            Antecedent::PaidWith(_) => None,
         }
     }
 }

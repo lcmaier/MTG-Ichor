@@ -2296,6 +2296,7 @@ impl GameState {
                 for atom in &special {
                     pool.add_special(atom.clone());
                 }
+                self.bump_layer_epoch_if_read(GatedWalkInput::ManaPools);
                 let mut announced: Vec<(ManaType, u64)> = Vec::with_capacity(mana.len());
                 let units = mana.iter().copied().chain(special.iter().map(|a| (a.mana_type, 1)));
                 for (mana_type, n) in units {

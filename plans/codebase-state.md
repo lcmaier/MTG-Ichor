@@ -1546,6 +1546,16 @@ section never asked.
 
     **Reachability (2026-09-03):** unreachable — nothing reads it: no sunburst,
     no spell copy (`spell-copies`) and no CR 700.14 card is registered.
+
+    **Landed 2026-11-06 for the sacrifice, at `orders-the-cr-hands-a-player`**,
+    whose Omnath board reads Momentous Fall's "the sacrificed creature's power":
+    `CostChoices.paid_with`, `PaymentAct::Sacrificed`, `Antecedent::PaidWith` and
+    `AmountExpr::ValueOf`, in the shape #295's decisions 2 and 3 settled, on a
+    spell or an activated ability. A mana ability has no stack entry to hold it
+    (Phyrexian Altar's shape reads nothing back), and `ValueOf` reads no other
+    word yet. What stays open is that fold, the other `PaymentAct` arms with their
+    costs, a payment's players, and CR 707.10's copy reading the list.
+
     **Slotted:** `resolution-recipients-and-amounts`
     (re-slotted 2026-10-24 by the concept census, which found the concept
     keyed and unowned, `cr-coverage-audit.md#4c-concepts-and-their-owners`):

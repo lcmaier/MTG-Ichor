@@ -441,7 +441,7 @@ impl FilterReferents for TriggerReferents<'_> {
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
             Antecedent::ThisObject => ObjectInformation::Current(self.this.id()).defending_player(game, &|_| {}),
-            Antecedent::Triggering(_) => None,
+            Antecedent::Triggering(_) | Antecedent::PaidWith(_) => None,
         }
     }
 }

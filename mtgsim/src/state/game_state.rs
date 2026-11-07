@@ -1563,10 +1563,10 @@ impl GameState {
     /// condition names only players still in the game; the registry's rows through its own
     /// `mutating`, including the re-stamp `attach` asks of it (CR 613.7e) —
     /// the entity's own `timestamp` is not a walk input, only registration
-    /// reads it. Four inputs a static's condition or filter can read move it
-    /// only when a frame valid now read them ([`GatedWalkInput`]): life
-    /// totals, `tapped`, combat and the histories. What no walk reads, damage
-    /// and the mana pool, has no bump, and must not get one: every bump costs
+    /// reads it. Five inputs a static's condition, filter or amount can read
+    /// move it only when a frame valid now read them ([`GatedWalkInput`]): life
+    /// totals, `tapped`, combat, the mana pools and the histories. What no walk
+    /// reads, damage, has no bump, and must not get one: every bump costs
     /// one walk per queried object. `&mut self` on purpose, so a read path
     /// cannot call this.
     pub fn bump_layer_epoch(&mut self) {

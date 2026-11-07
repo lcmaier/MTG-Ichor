@@ -995,7 +995,7 @@ residual rather than in advance.
     `stack_entries` and `resolving` in `stack.rs` and `put_on_stack.rs`, because a stack
     object's controller is read off its entry; the base controller, set at placement;
   - the `// CAST-ROLLBACK:` exemption, which moves a card without a zone change.
-  Status the walk does not read — `tapped`, damage, the mana pool — does not bump. LH's
+  Status the walk does not read — damage — does not bump. LH's
   `attached_to` and mutable timestamps join the list when they land; conditional
   statics are registry rows and are covered already. **A row's condition reads
   more than the row** (found 2026-10-01 by A6g's random-click games): whether a
@@ -1010,6 +1010,8 @@ residual rather than in advance.
   it. A walk with no such read costs nothing, and a write costs a compare. The note rather than items 187 and 199's registry bit,
   because a note covers every route to the read: a row's condition, a
   filter (`ObjectFilter::ThisTurn`, whose `ObjectFact` names the history) and a CDA alike.
+  The mana pools joined them at `orders-the-cr-hands-a-player`, whose fixture is the
+  first amount to read one.
 - **Bypasses.** The CR 614.12 look-ahead overlay (`lookahead.rs`) computes a hypothetical
   and the CR 603.10a LKI frame computes the past; neither consults or fills the memo.
   §5.2's per-pass cache of non-member frames is untouched: it bounds only the non-member

@@ -18,12 +18,14 @@
 use std::collections::HashMap;
 
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use crate::types::costs::Cost;
+use crate::state::battlefield::PaidWith;
+use crate::types::costs::{Cost, PaymentAct};
 use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
+use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::oracle::characteristics::ObjectInformation;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayer, PlayerId};
 use crate::types::mana::{ManaSpent, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
 use crate::types::zones::Zone;
@@ -53,6 +55,16 @@ impl PaymentPlan {
         keys.sort();
         keys.into_iter().flat_map(|k| self.sacrifices[k].iter().copied()).collect()
     }
+}
+
+/// What a payment leaves behind for the spell or ability it paid for.
+#[derive(Debug, Clone)]
+pub struct Payment {
+    /// The mana spent (CR 601.2h), which only the pool knows once it has been
+    /// paid and CR 400.7d's facts keep.
+    pub mana_spent: ManaSpent,
+    /// What it used, in the order it was paid (`CostChoices::paid_with`).
+    pub paid_with: Vec<PaidWith>,
 }
 
 /// Why a cost can't be paid now: the resource it needs is missing (CR 118.3).
@@ -352,22 +364,21 @@ impl GameState {
     /// cancellation because [`payment_order_rank`] makes it unreachable — see
     /// the debug assertion below, which is where that claim is enforced.
     ///
-    /// Returns the mana spent (CR 601.2h), which only the pool knows once it
-    /// has been paid and CR 400.7d's facts keep. A cost that moved an object
-    /// left that object's last known information in the LKI store, framed by
-    /// the cost's own batch (CR 113.7a).
+    /// A cost that moved an object left that object's last known information
+    /// in the LKI store, framed by the cost's own batch (CR 113.7a), and the
+    /// [`Payment`] names the object as it left.
     pub fn pay_costs(
         &mut self,
         plan: &PaymentPlan,
         player_id: PlayerId,
         source_id: ObjectId,
         ctx: &ActionContext,
-    ) -> Result<ManaSpent, String> {
+    ) -> Result<Payment, String> {
         let mut moved_an_object = false;
-        let mut spent = ManaSpent::NONE;
+        let mut payment = Payment { mana_spent: ManaSpent::NONE, paid_with: Vec::new() };
         for (idx, cost) in plan.ordered.iter().enumerate() {
             let result = self.pay_single_cost(
-                cost, player_id, source_id, plan, idx, &mut spent, ctx,
+                cost, player_id, source_id, plan, idx, &mut payment, ctx,
             );
             if let Err(e) = result {
                 // CR 732.1: "the entire action is reversed and any payments
@@ -388,7 +399,7 @@ impl GameState {
                 moved_an_object = true;
             }
         }
-        Ok(spent)
+        Ok(payment)
     }
 
     /// Pay a single cost from the plan. Internal helper.
@@ -402,7 +413,7 @@ impl GameState {
         source_id: ObjectId,
         plan: &PaymentPlan,
         idx: usize,
-        spent: &mut ManaSpent,
+        payment: &mut Payment,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         match cost {
@@ -425,7 +436,8 @@ impl GameState {
                 } else {
                     player.mana_pool.pay(mana_cost, &plan.generic_allocation)
                 }?;
-                spent.absorb(paid);
+                payment.mana_spent.absorb(paid);
+                self.bump_layer_epoch_if_read(GatedWalkInput::ManaPools);
                 Ok(())
             }
             Cost::PayLife(amount) => {
@@ -452,6 +464,7 @@ impl GameState {
                 )
             }
             Cost::SacrificeSelf => {
+                self.note_sacrificed(source_id, payment)?;
                 self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Sacrificed, ctx)
             }
             Cost::Sacrifice(_, n) => {
@@ -463,6 +476,9 @@ impl GameState {
                         "Planned {} sacrifice(s) for a cost of {}",
                         chosen.len(), n
                     ));
+                }
+                for &object in chosen {
+                    self.note_sacrificed(object, payment)?;
                 }
                 // One batch, not a loop: the permanents paying one cost leave
                 // the battlefield together, so a "whenever one or more
@@ -486,6 +502,14 @@ impl GameState {
                 Err(format!("Cost {:?} payment not yet implemented", cost))
             }
         }
+    }
+
+    /// `object`, about to be sacrificed, as the existence the payment used:
+    /// taken before it moves, since the move ends that existence (CR 400.7).
+    fn note_sacrificed(&self, object: ObjectId, payment: &mut Payment) -> Result<(), String> {
+        let used = ObjectOrPlayer::Object(self.existence_for_record(object)?);
+        payment.paid_with.push(PaidWith { used, act: PaymentAct::Sacrificed });
+        Ok(())
     }
 }
 
@@ -516,7 +540,7 @@ mod tests {
         ctx: &crate::engine::actions::ActionContext,
     ) -> Result<ManaSpent, String> {
         let plan = game.plan_payment(costs, player, source, ctx)?;
-        game.pay_costs(&plan, player, source, ctx)
+        game.pay_costs(&plan, player, source, ctx).map(|payment| payment.mana_spent)
     }
 
     fn setup_with_forest() -> (GameState, crate::types::ids::ObjectId) {

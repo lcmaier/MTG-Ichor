@@ -2141,7 +2141,7 @@ fn a_spell_that_was_not_cast_keeps_its_kicker() {
         x_value: None,
         effect: Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,
-        cost_choices: mtgsim::state::battlefield::CostChoices { additional: vec![kicker_red()], alternative: None },
+        cost_choices: mtgsim::state::battlefield::CostChoices { additional: vec![kicker_red()], ..mtgsim::state::battlefield::CostChoices::NONE },
         mana_spent: ManaSpent::NONE,
         cast_from: None,
         ability_identity: None,
