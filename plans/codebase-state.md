@@ -2858,6 +2858,12 @@ one, so nothing was wrong in practice and nothing moved.
     does. `payment_order_rank` does not help here: both costs are rank 2, and
     the failure is in the pre-check rather than in the order.
 
+    **One payment's half landed 2026-11-06, at `orders-the-cr-hands-a-player`:**
+    two parts that chose one object are refused as the plan is made, ahead of any
+    move (`settle_payment_order`), so the first is never paid and CR 732.1's
+    cancellation stays unreachable. What stays open is the offer: such a payment
+    is still offered and rewound, where a pre-check would never offer it.
+
     **Sized:** the honest fix is a set-cover pre-check — filters can overlap
     without being equal ("an artifact" and "a creature" over one artifact
     creature), so summing counts per filter is wrong. ~80 lines and a
@@ -2866,31 +2872,12 @@ one, so nothing was wrong in practice and nothing moved.
     118.3) is where a set-cover pre-check over two object-moving costs is
     designed.
 
-79. **CR 601.2h's payment order is the player's and the engine takes it.**
-    "First, they pay all costs that don't involve random elements or moving
-    objects from the library to a public zone, **in any order**" — the engine
-    picks one order for everyone (`payment_order_rank`). `ATOM-601.2h-003`
-    is the atom: Omnath, Locus of Mana plus Momentous Fall, where sacrificing
-    before paying and paying before sacrificing give different draws, because
-    Omnath's power is read off the pool.
-
-    **Reachability (2026-10-23):** reachable — not wrong; a forced choice. No
-    registered card makes the two orders differ; Omnath and Momentous Fall are
-    unregistered.
-
-    **Sized:** a `ChoiceKind` over the orderings of one rank, ~70 lines. **The
-    constraint it must keep:** only orders that complete may be offered, which
-    is CR 601.2h's own "unpayable costs can't be paid" applied to the order.
-    Offering an order that bricks the payment is what would make 732.1's
-    cancellation load-bearing, and building the cancellation is the
-    alternative to that constraint rather than a companion to it.
-    **Slotted:** `modes-plus-choice-kinds` (`route-review`, 2026-10-29), with
-    "Before card breadth" item 4's CR 613.7m: each is an order the CR hands a
-    player ("in any order", "in the order of that player's choice") that the
-    engine takes today, and when one is asked is one design, asked only where
-    the orders' outcomes differ, and here only among orders that complete. Its
-    board stays Omnath, Locus of Mana beside Momentous Fall
-    (`ATOM-601.2h-003`).
+79. **~~CR 601.2h's payment order is the player's and the engine takes it.~~ — ✅ CLOSED
+    2026-11-06 (`orders-the-cr-hands-a-player`).** — archived. Asked where the orders'
+    outcomes differ and only among orders that complete (`engine::payment_order`), on
+    Omnath's board from hand.
+    **Reachability (2026-11-06):** closed — `orders-the-cr-hands-a-player`.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 79".
 
 80. **CR 601.2h's second payment group is not modelled, and nothing was
     scheduled to model it.** "First, they pay all costs that don't involve
@@ -4662,42 +4649,12 @@ card-homed triage, 2026-10-23): `CounterType::Named` with `Charge` and
 arms at the two catch-alls above, with a fixture that puts a named counter and
 one that puts a +1/+0 counter. The newtype question is decided there.
 
-4. **CR 613.7e re-timestamping on attachment is unimplemented — and it collides with the determinism doctrine (recorded 2026-08-24).** "An Aura, Equipment, or Fortification receives a new timestamp each time it becomes attached to an object or player." Nothing in the tree ever reassigns `PermanentState.timestamp`, and both CLAUDE.md and `battlefield_ordered`'s docs now state "allocated once per `place_on_battlefield`, never reassigned" as the *determinism* guarantee. `layers-architecture.md` §8 point 3 lists 613.7e as designed, so that doc currently claims more than the code does.
-
-   Unreachable today — Equip is unimplemented and Auras attach only at ETB — but the day any reattachment path lands, every equip silently re-orders Layers 6 and 7. **Corrected and scheduled 2026-09-01 -- "unreachable today" was the wrong frame, and so was "restate the contract".** Reattachment is not exotic: Aura Finesse (`{U}` Instant, "Attach target Aura you control to target creature") and Equip both do it with no new subsystem behind them. And the field is doing **two jobs** -- `battlefield_ordered` and `battlefield_ids_ordered` read it as *determinism / decision order*, `static_effect_timestamp` reads it as CR 613.7a. Four production readers, counted. Reassigning it makes a reattached Aura jump to the end of every ordered sweep, so the work is a **field split** -- a stable entry timestamp and a CR 613.7 timestamp -- not a reassignment plus a doc edit. Bounded by an in-tree precedent: CR 613.7c already reassigns `CounterStack.timestamp` from the same monotonic counter (`state/battlefield.rs:144`). Now **Phase LH-2**, `layers-architecture.md` §13a, scheduled before critical-path item 7. Original entry: **Do these together:** reassign from the same monotonic counter (still deterministic — that is the point), restate the contract as "never reassigned *except by CR 613.7e*" in CLAUDE.md and in `battlefield_ordered`, and re-audit every site that reads `timestamp` as a proxy for ETB order. Caught by audit before it had a reproducer; the two before it were found by their reproducers.
-
-   **CR 613.7m is the same rule family and is also unimplemented (recorded 2026-09-01, RC-2 review).** "If two or more objects would receive a timestamp simultaneously, such as by entering a zone simultaneously or becoming attached simultaneously, their relative timestamps are determined in APNAP order." `allocate_timestamp` hands out a strict sequence one call at a time, so the engine can only ever produce a total order in *allocation* order — which is the caller's loop order, not APNAP. It is exact today because every entry is its own singleton batch: `propose_entry` is called once per zone change, and nothing puts two permanents onto the battlefield as one event. **The one thing that changes that is `GameAction::CreateTokens` (Phase RE)**, plus the mass-return primitive item 46 now sizes. **Corrected 2026-09-03, by RC-5's re-size:** this row also named "CR 614.13's auxiliary zone changes (RC-4)", and they are not one of them. An object receives a timestamp in one production place — `place_on_battlefield` (`game_state.rs:671`; `:789` is CR 613.7c's per-counter-kind stack, not an object) — and 614.13's auxiliary moves are battlefield → graveyard and graveyard → exile. Neither destination allocates a timestamp and neither is an entry, so RC-5 produces no simultaneous entries and 613.7m stays with `CreateTokens` in RE, beside item 52's token residual. Note the shape of the fix is *not* "sort the batch": 613.7m gives the active player's objects the earlier timestamps **in the order of that player's choice**, so it is a decision point, not a sort. Related and separate: CR 613.7n's rule that an object's own static ability out-timestamps a resolving spell's effect on it is also unimplemented, and is the same batch of work.
-
-   **Reachability (2026-10-23):** unreachable — `CreateTokens` makes
-   simultaneous entries, but every registered creation's tokens are identical
-   under one controller, a choice with one outcome, and no registered card
-   creates distinguishable tokens at once (Academy Manufactor is
-   unregistered); 613.7e's half is LH-2's, landed.
-
-   **Re-dated 2026-09-13 (RE-4) — 613.7m's half now has simultaneous entries
-   and is still not asked, on RC-4's rule.** `GameAction::CreateTokens`
-   proposes every token's entry as one batch, so objects *do* receive
-   timestamps simultaneously now, in every Raise the Alarm the pool casts.
-   But the tokens one effect creates are identical and enter under one
-   controller, so "in the order of that player's choice" is a choice with one
-   outcome, and "never prompt for a choice with one outcome" applies
-   (`replacement-architecture.md` §9, RE decision 3): the batch order is the
-   creation's, and the log, the timestamps and `battlefield_ids_ordered`
-   agree with it (`a_plural_creation_is_one_event_and_its_entries_join_it`).
-   The prompt's customer is the first creation with *distinguishable*
-   members — Academy Manufactor's "one of each", Bestial Menace — or the
-   mass return item 46 used to size, and none is in reach. 613.7e's half is
-   unchanged.
-
-   **Sized:** 613.7e is LH-2, ~900 additions
-   (`layers-architecture.md` §13a); 613.7m is a decision point (the active
-   player orders their own), ~60 lines inside `CreateTokens`' performer, with
-   the first distinguishable creation; 613.7n rides LH-2.
-   **Slotted:** `modes-plus-choice-kinds` (`route-review`, 2026-10-29), with
-   item 79: CR 613.7m's "in the order of that player's choice" is an order the
-   engine takes today, and asking it only where the orders' outcomes differ is
-   the same design as CR 601.2h's payment order. Its APNAP half, across
-   players, needs no choice.
+4. **~~CR 613.7e and 613.7m: timestamps on attachment, and received at once.~~ — ✅ CLOSED
+   2026-11-06 (`orders-the-cr-hands-a-player`).** — archived. 613.7e landed at LH-2; 613.7m
+   deals a batch's stamps in APNAP order, each player's in the order of their choice where
+   a timestamp is read (`engine::simultaneous_timestamps`).
+   **Reachability (2026-11-06):** closed — `orders-the-cr-hands-a-player`.
+   Full entry: `plans/archive/codebase-state-closed.md`, "'Before card breadth' item 4".
 
 5. **Layer 7c is not order-independent in Magic, and 19 cards say so (recorded 2026-08-24).** `compute.rs` applies ±1/±1 counters after the 7c registry slice without a timestamp merge. That is correct while every 7c modification is an addition — but CR 701.10a makes "double [a creature's] power" a 7c continuous effect whose addend depends on what already applied, so two doublings, or a doubling and a pump, are order-dependent by timestamp. Scryfall: **19 cards** match the doubling shape (Bulk Up, Epic Fight, Exponential Growth, Unnatural Growth…), before looser wordings. Inexpressible today — `AmountExpr` has no affected-power leaf — so nothing is wrong now. The first doubling card needs that leaf **and** the timestamp merge Layer 6's keyword counters already use. The comment at the code site was corrected 2026-08-24; it used to claim order-independence as a property of the layer.
 
@@ -10765,3 +10722,26 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Reachability (2026-11-06):** unreachable — no registered card asks it.
      **Sized:** ~30–50 lines: a source on the primitive, from an event role.
      **Slotted:** `tarkir-dragonstorm-decks`.
+
+407. **CR 613.7m's "becoming attached simultaneously" has no event to read.** The
+     order is built for objects arriving in a zone together. Two Auras or Equipment
+     attached to objects at once would each take `attach`'s own stamp in the order
+     they performed, with no APNAP and no choice, since no batch holds two `Attach`
+     proposals: an entry's attachment rides on its entry, and is dealt with it.
+
+     **Reachability (2026-11-06):** unreachable — no registered card attaches two
+     objects at once.
+     **Sized:** ~20–30 lines: `object_stamped` reading the attach proposal, with its
+     first card.
+     **Slotted:** `card-and-object-model`, whose attachment to a player reshapes `attach`.
+
+408. **A mana ability's payment keeps nothing of what it used.** `activate_mana_ability`
+     drops `Payment::paid_with`, having no stack entry to hold it, so Soldevi Adnate's
+     "Add an amount of {B} equal to the sacrificed creature's mana value" has no word
+     to read. A mana ability resolves as it is activated (CR 605.3b), so the list can
+     be handed to it directly.
+
+     **Reachability (2026-11-06):** unreachable — no registered mana ability reads a
+     cost's object.
+     **Sized:** ~15–25 lines, with `ResolutionContext` carrying the list.
+     **Slotted:** `mana-ability-costs`, which widens what a mana ability's cost can be.

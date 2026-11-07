@@ -539,6 +539,8 @@ asked (the "mana with {X}" cost row, `hybrid-and-phyrexian-payment`'s).
 | `SelectRecipients` | the objects or players a target or choice may name | yes | `validate_selection`'s reasons, typed | `cant-effects-architecture.md` `cant-be-targeted` | `cant-be-targeted` |
 | `GenericManaAllocation` | a split of the generic part across the pool | bounds | the clamp that keeps each pip's mana, `ui::ask::generic_split_caps` (MA-2) | built (MA-2) | -- |
 | `OrderCostReductions` | an order of every reduction that applies | no | -- | what it ranges over (SU-8) | -- |
+| `OrderCostPayments` | an order of the payment's parts that can change the game | no | -- | what it ranges over (SU-8) | -- |
+| `OrderSimultaneousEntries` | an order of one player's objects a timestamp is read for | no | -- | what it ranges over (SU-8) | -- |
 | `ManaAbilityWindow` | the mana abilities that can pay now | yes | `can_pay_costs`'s `CannotPay`, per ability | built (MA-1) | -- |
 | `ChooseSacrificeForCost` | the permanents that can pay the cost | yes | CR 701.21a and the cost's filter | the cost phase that pays the cost | the cost phase |
 | `ChooseReplacementEffect` | the replacement effects that apply | yes | what the batch's earlier iterations applied, from the trace | built (SU-8) | -- |

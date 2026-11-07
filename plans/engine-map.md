@@ -148,6 +148,7 @@ not (§3); `mod.rs` files declare and re-export only
 | `engine/combat/` | CR 506–511: `steps.rs` the combat steps; `validation.rs` attack and block legality; `resolution.rs` damage assignment; `keywords.rs` first strike, double strike, trample |
 | `engine/targeting.rs` | CR 115 and 601.2c: target instances, validation, the selection-side `object_matches_filter` |
 | `engine/costs.rs`, `engine/mana.rs` | CR 601.2h/602.2b payment; CR 605 mana abilities |
+| `engine/payment_order.rs`, `engine/simultaneous_timestamps.rs` | the two orders the CR hands a player: CR 601.2h's payment, CR 613.7m's timestamps, each asked only where the orders' outcomes differ, and each's audit |
 | `engine/zone_function.rs`, `engine/keywords.rs`, `engine/trace_records.rs` | CR 113.6's `functions_in`; lifelink and deathtouch on damage; every trace record's shape |
 | `state/game_state.rs` | `GameState` and `StackEntry`; timestamps and `battlefield_ids_ordered`; `perform_entry`, `register_static_effects` and the printed-source sets |
 | `state/battlefield.rs`, `state/player.rs` | `PermanentState` and its one constructor for an entry; `PlayerState` |

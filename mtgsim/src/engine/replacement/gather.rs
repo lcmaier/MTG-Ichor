@@ -237,8 +237,8 @@ fn gather_sweeping(
     // The entering permanent is not on the battlefield sweep, so this is the
     // gate leg `CLAUDE.md` demands, ahead of the fast path (exact, one walk).
     // Spliced in after the sweep: oldest-first (CR 613.7) puts it last, having
-    // no timestamp yet; simultaneous entries (CR 613.7m) are `codebase-state.md`
-    // item 4.
+    // no timestamp yet; CR 613.7m settles a batch's once it has performed
+    // (`engine::simultaneous_timestamps`).
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
         // Its abilities as it would exist on the battlefield (CR 614.12's frame,

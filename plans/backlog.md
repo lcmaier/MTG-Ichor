@@ -1947,7 +1947,7 @@ mechanic rather than a migration, which is why it is here and not in
   | `commander_to_command_zone` | `CommanderToCommandZoneSba` | the commander's owner | **C**, and **residual** — an SBA's question to whichever seat owns the commander, mid-batch | 0 / 0 / 0 — `fuzz_games` seats no commander |
   | `discard` | `Discard` | the affected player | **C** for CR 514.1's cleanup (the active player); **residual** for "target player discards" — Mind Rot's target chooses | 3.6 / 4.0 / 8.6 |
   | `scry` | `Scry` | the controller | **C** or the agent's | 0.84 / 0.44 / 0.36 |
-  | `scry`, the ordering | `ScryOrder` | the controller | **C** | 0 / 0 / 0 — every registered scry is scry 1 |
+  | `scry`, the ordering | `OrderLibraryCards` | the controller | **C** | 0 / 0 / 0 — every registered scry is scry 1 |
   | `choose_replacement` | `ChooseReplacementEffect` | the affected object's controller, or the affected player (CR 616.1) | **C**, and the **residual** §4 names — it lands on whoever is affected, mid-resolution, and often not on the actor | 1.8 / 4.0 / 12.0 |
   | `apply_optional_replacement` | `ApplyOptionalReplacement` | same (CR 614.1a's "you may") | **C**, residual | 0 / 0.01 / 0.09 |
   | `allocate_next_damage` | `AllocateNextDamage` | the affected player (CR 615.7) | **C**, residual | 0.01 / 0.04 / 0.04 |

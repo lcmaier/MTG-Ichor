@@ -1047,7 +1047,7 @@ isolates 6b and should differ from `main` only in games that met two
 reductions; the branch), through `fuzz_ab --require`, which runs every arm on
 the new cards. Decision 6's new questions should be asked by no registered
 card, which the build checks first by running the test over every registered
-cost and every registered entry batch. Each later PR registers cards, and its
+cost and reading `--census` over the stress pool. Each later PR registers cards, and its
 stream moves with them, measured the same way.
 
 ### `options-named-by-what-they-are` — every option named by what it is — ✅ landed 2026-11-02
@@ -1124,6 +1124,45 @@ Three places it differs from decision 5's words:
 **CR 115.7f has no test**, since the engine rewrites no target (item 363).
 What the card text can't state yet is `backlog.md`'s "2.52 A division the
 announcement cannot state". The dev GUI PR after it, #312, reads the shares.
+
+### `orders-the-cr-hands-a-player` — the orders the CR hands a player — ✅ landed 2026-11-06
+
+One PR, and past the band's top (`fuzz-record.md`'s block has the sizes): what it took from later rows is below.
+- **CR 601.2h's order** (`engine::payment_order`): every `Cost`, `AmountExpr`,
+  `Condition`, `ObjectFilter` and `EffectModification` arm states what it reads
+  or changes in a match with no wildcard. Asked after every other choice of the
+  payment, of the parts that do not commute; the rest keep `payment_order_rank`'s
+  place, merged around the answer.
+- **CR 613.7m's order** (`engine::simultaneous_timestamps`): a batch's stamps dealt
+  back out once it has performed, in APNAP order, each player's in the order of
+  their choice where a timestamp is read.
+- **6b**: the prompt elided, the match over `CostChange` the guard, `AutoPayer`
+  deleted (item 165, ahead of its slot). `ScryOrder` is `OrderLibraryCards`.
+- **The audits**: `audit_payment_orders` and `audit_entry_orders`, each with a test
+  that it fails on a false premise. The fixtures are in `CASTABLE`, so CI's
+  fixture sitting plays the question under random answers.
+
+Six places it differs from decision 6's words:
+- **Parts are read by more than parts.** The decision's reader is a moved object's
+  characteristics. Two more are built, since each changes a game no part reads:
+  an ability watching a part's event whose "if" reads what another part changed,
+  and an ability of a moved object, which sees an event only if it came first.
+- **What it took from later rows.** Omnath needed the pool as a walk input, and
+  Momentous Fall needed item 30's sacrifice with `ValueOf`'s `PaidWith` word, in
+  #295's shape. Neither was in this row's sizing.
+- **"The orders that complete" over `choose_ordering`** cannot be offered as a list
+  where a forced edge falls among the parts asked, so such an answer is refused,
+  naming the part it leaves unpaid, and asked again
+  (`Rejection::OrderLeavesACostUnpaid`).
+- **Asked after the batch performs, not before.** The rows an object registered are
+  the effects it generates, so the question is exact, and no record, zone or
+  graveyard moves. Narrower than the decision, too: objects whose rows reach only
+  themselves never meet, so they are not asked.
+- **Roles have no arm.** Every printed Role generates a continuous effect, so the
+  row check asks for them, and CR 303.7a's state-based action is not built.
+- **No test over every entry batch.** `Primitive::CreateToken` is one definition,
+  alike by construction, so the only registered route to distinct arrivals is the
+  until-returns batch: the census reads it, and asked nothing over 600 audited games of every registered card.
 
 ## 6. Found while designing
 

@@ -823,7 +823,7 @@ a start ── build ──▶ Game ── run ── each prompt ──▶ the 
   `prompt_subject_test.rs:48`). Two in `test_support.rs` keep the whole text
   and match its start: `RecordingDecisionProvider::kinds`, whose 27 uses in 8
   files compare with `starts_with`, and `RejectionRecorder::rejected_at`. A
-  prefix is looser than a name, since `Scry` begins `ScryOrder`, though no
+  prefix is looser than a name, since `Scry` began `ScryOrder` (`OrderLibraryCards` since 2026-11-06), though no
   test matches `Scry` today. `ChoiceKind::as_str` replaces all eight: not
   `name`, which the CR uses for a card's name (CR 201) and for choosing one
   (201.4), the owner at #216's review.
