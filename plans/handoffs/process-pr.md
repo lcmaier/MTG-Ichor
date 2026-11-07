@@ -46,19 +46,21 @@ an hour. The brief's intake read `--slotted`, which reads items and no backlog
 entry, so a backlog Owner line naming a row never reached it. The intake should read
 both.
 
+**Three rules from #315's close** (the owner, 2026-11-06):
+
+- **A deck card places a finding, never excuses one.** Every finding is filed and
+  slotted, and a deck card decides only when in v0.5's order. The unbuild test comes
+  first, and a design reads the mechanic's whole CR family whichever card brought it.
+- **A held-out draw at each step's close:** 30 seeded cards from outside the lists,
+  read for a need with no home, so overfitting to the decks is a number. The first,
+  at #315's close, found 4–5 of 30.
+- **`backlog.md` §2.37's slot matrix moves to v0.5's close,** ahead of card breadth
+  and custom cards, as a measure and not a fill. That entry's Owner line and the
+  route's "After v0.5" list need saying so.
+
 ## Open, for the owner
 
 1. **Whether a new gate or rule raised in review defaults to the next PR.**
-0. **Whether deck cards place a finding on the route.** Proposed at #315 and not
-   yet answered, reworded so it cannot read as "no deck card, no work": every finding
-   is filed and slotted, and a deck card decides only when in v0.5's order, never
-   whether. The unbuild test comes first, and a design reads the mechanic's whole CR
-   family whichever card brought it.
-0. **Whether a held-out draw joins each step's close:** 30 seeded cards from outside
-   the lists, read for a need with no home, so overfitting to the decks is a number.
-   The first, at #315's close, found 4–5 of 30.
-0. **Whether `backlog.md` §2.37's slot matrix moves to v0.5's close,** ahead of card
-   breadth and custom cards, as a measure and not a fill.
 2. **When the next audit runs:** the hunt at each subsystem's close and one full
    audit at v0.5, each with a PR budget, or another cadence. `roadmap-v2.md`'s
    Sizing section assumes a budget for its low case: 1.5 merged PRs for each route
