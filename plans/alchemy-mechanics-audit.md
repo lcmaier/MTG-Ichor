@@ -2,6 +2,8 @@
 
 > Produced against: `implementation-plan-final.md`, `roadmap.md`, `pass0-dependency-map.md`, engine source (Phase 4.5 codebase), and the 12 Alchemy-Derived-Rules files.
 
+> **Superseded in part (2026-11-07):** its perpetual and conjure recommendations below (a `PerpetualMod` list applied before the layer loop, a registry reached at resolution) are inputs to `card-and-object-model`'s design, which owns perpetual changes, conjure and spellbook (`roadmap-v2.md`'s row). This audit predates the layer system and the event stream it now reads.
+
 ---
 
 ## Per-Mechanic Audit
