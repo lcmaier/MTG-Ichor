@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    an_opponent_controls, choose_two, counter_spell, creature, draw_cards, each, put_counters, return_to_hand, spell_ability, tap,
-    target_creature, target_permanent, target_spell, you,
+    choose_two, counter_spell, creature, draw_cards, each, put_counters, return_to_hand, spell_ability, tap, target_creature,
+    target_permanent, target_spell, you, your_opponents_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -121,7 +121,7 @@ pub fn cryptic_command() -> Arc<CardData> {
             choose_two([
                 counter_spell(target_spell()),
                 return_to_hand(target_permanent(ObjectFilter::All)),
-                tap(each(creature().and(an_opponent_controls()))),
+                tap(each(creature().and(your_opponents_control()))),
                 draw_cards(you(), 1),
             ]),
         ))

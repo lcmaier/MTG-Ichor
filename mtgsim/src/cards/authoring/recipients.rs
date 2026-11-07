@@ -176,6 +176,14 @@ pub fn an_opponent_controls() -> ObjectFilter {
     ObjectFilter::ByController(PlayerRef::Opponent)
 }
 
+/// "Your opponents control" (CR 110.2): the objects every opponent of the
+/// effect's controller controls (CR 102.1), which in a filter is the same
+/// set as [`an_opponent_controls`]. A teammate's are not among them (CR
+/// 102.3), though today's reader takes every other player as an opponent.
+pub fn your_opponents_control() -> ObjectFilter {
+    ObjectFilter::ByController(PlayerRef::Opponent)
+}
+
 /// "Spells you cast", for a cost effect (CR 601.2f), read while the spell is
 /// being cast, when its controller is its caster (CR 601.2a). Once control of
 /// a spell changes the two differ (CR 108.4), and a reader after casting asks

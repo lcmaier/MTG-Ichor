@@ -44,10 +44,9 @@ pub use instructions::{
 pub use modes::{choose, choose_one, choose_one_or_both_if, choose_one_or_more, choose_two, choose_up_to};
 pub use recipients::{
     an_opponent_controls, any_target, artifact, attacked_by, basic, chosen_by, color, creature, creatures_you_control, divided_among, each, each_in,
-    enchantment,
-    each_opponent, each_player, host, land, non, nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_permanent,
-    target_player, target_spell, targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
-    you_control,
+    each_opponent, each_player, enchantment, host, land, non, nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature,
+    target_permanent, target_player, target_spell, targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player,
+    you_cast, you_control, your_opponents_control,
 };
 pub use replacements::{
     all_damage_to_you, draw_two_instead, every_permanent_and_player, shuffles_into_library_from_anywhere, skip, tapped_for_mana,
