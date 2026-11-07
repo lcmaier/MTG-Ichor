@@ -209,7 +209,13 @@ fn momentous_fall_sacrifices_exactly_one_creature_and_needs_one() {
     let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
     let answers = ScriptedDecisionProvider::new();
     sacrifices(&answers, lions);
-    game.cast_spell(0, fall, &ManaWindowStop::new(answers)).expect("one of two creatures pays it");
+    let stop = ManaWindowStop::new(answers);
+    game.cast_spell(0, fall, &stop).expect("one of two creatures pays it");
+    let asked = stop.inner().asked();
+    assert!(
+        matches!(asked.as_slice(), [ChoiceKind::ChooseSacrificeForCost { count: 1, .. }]),
+        "the payment asks for exactly one creature: {asked:?}"
+    );
     assert_eq!(game.get_object(lions).unwrap().zone, Zone::Graveyard);
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield, "exactly one");
 }

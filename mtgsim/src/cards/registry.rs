@@ -1473,7 +1473,8 @@ mod tests {
             assert_eq!(nodes(effect), at_the_root, "{what}: a modal node below its ability's root");
         }
 
-        let registry = CardRegistry::default_registry();
+        // The castable fixtures too, which hold the modal trigger and activation.
+        let registry = CardRegistry::fixture_pool();
         let mut names: Vec<String> = registry.cards.keys().cloned().collect();
         names.sort();
         for name in names {
@@ -1655,7 +1656,8 @@ mod instance_references {
             });
         }
 
-        let registry = CardRegistry::default_registry();
+        // The castable fixtures too, whose modes refer back inside themselves.
+        let registry = CardRegistry::fixture_pool();
         let mut names: Vec<String> = registry.cards.keys().cloned().collect();
         names.sort();
         for name in names {
@@ -1829,7 +1831,8 @@ mod instance_references {
             }
         }
 
-        let registry = CardRegistry::default_registry();
+        // The castable fixtures too, which hold the modal trigger and activation.
+        let registry = CardRegistry::fixture_pool();
         let mut names: Vec<String> = registry.cards.keys().cloned().collect();
         names.sort();
         for name in names {
