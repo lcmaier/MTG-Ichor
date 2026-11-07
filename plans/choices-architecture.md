@@ -1198,9 +1198,10 @@ Where it differs from decisions 2 and 3's words:
   kicker, so a count can read either; decision 2b had only a count of X wait.
   A mode's own cost moves them ahead of X in `mode-rules-and-costs`, where a
   node carries one.
-- **A modal node is all of its ability.** "The chosen modes' lists after the
-  node's own" reads as the effect's own list, empty on every printed modal
-  card, and the registry refuses a node anywhere but an ability's root.
+- **A modal node is all of its ability**, and the registry refuses one anywhere
+  else, over the fixtures too; no card or fixture written has one elsewhere,
+  so "after the node's own" list is after an empty one. Each mode's list is
+  read as the mode is made, not by the builder.
 - **A mode's scope holds "another target" too**: a mode's earlier instances,
   never another mode's, at the announcement, castability and the re-check.
 - **Prismari Command waits for `any-color-plus-painlands-plus-signets`**: its

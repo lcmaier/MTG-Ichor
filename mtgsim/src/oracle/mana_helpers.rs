@@ -376,7 +376,8 @@ fn can_activate_as_its_controller(
         return Err(CannotActivate::NoLegalTarget);
     }
     // CR 700.2a's modes, as a spell's are: the announcement's list, asked for
-    // its first. An activation announces no X (`activate_ability`).
+    // its first, with the X `activate_ability` passes, none: an activation's X
+    // (CR 602.2b) is `hybrid-and-phyrexian-payment`'s.
     if let Some(node) = ability.effect.modal() {
         let ask = ModeAsk { game, player: player_id, this_object: source_id, named: ConditionReferents::NONE, x_value: None };
         if !has_a_legal_mode_set(ask, node) {

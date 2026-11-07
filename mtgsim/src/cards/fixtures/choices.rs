@@ -334,9 +334,9 @@ pub fn meteor_swarm_fixture() -> Arc<CardData> {
 
 /// Branching Beacon — {2}, an artifact.
 ///
-/// ATOM-603.3c-001's board: a modal trigger whose first mode targets a
-/// creature and whose second targets nothing, on a source that is no creature
-/// itself, so an empty battlefield leaves the second mode alone.
+/// ATOM-603.3c-001's board, which names no card: a modal trigger whose first
+/// mode targets a creature and whose second targets nothing, on a source that
+/// is no creature itself, so an empty battlefield leaves the second mode alone.
 pub fn branching_beacon() -> Arc<CardData> {
     let text = "When this artifact enters, choose one —\n• This artifact deals 2 damage to target creature.\n• You gain 3 life.";
     CardDataBuilder::new("Branching Beacon")
@@ -352,9 +352,9 @@ pub fn branching_beacon() -> Arc<CardData> {
 
 /// Forked Omen — {1}{B}, an enchantment.
 ///
-/// ATOM-603.3c-002's board: a modal trigger every mode of which targets, so
-/// with no artifact or creature on the battlefield no mode can be chosen and
-/// the ability is removed from the stack.
+/// ATOM-603.3c-002's board, which names no card: a modal trigger every mode
+/// of which targets, so with no artifact or creature on the battlefield no
+/// mode can be chosen and the ability is removed from the stack.
 pub fn forked_omen() -> Arc<CardData> {
     let text = "When this enchantment enters, choose one —\n• Destroy target artifact.\n• Destroy target creature.";
     CardDataBuilder::new("Forked Omen")
@@ -371,8 +371,10 @@ pub fn forked_omen() -> Arc<CardData> {
 
 /// Hesitant Omen — {1}{W}, an enchantment.
 ///
-/// "Choose up to one" on a trigger (Hullbreaker Horror's count): no mode is a
-/// legal choice, and CR 603.3c removes an ability whose controller chose none.
+/// "Choose up to one" on a trigger, Hullbreaker Horror's count: choosing no
+/// mode is legal, and CR 603.3c removes an ability whose controller chose
+/// none. Hullbreaker's trigger is a spell cast and its first mode targets a
+/// spell; this one enters, so a test says when it triggers.
 pub fn hesitant_omen() -> Arc<CardData> {
     let text = "When this enchantment enters, choose up to one —\n• Destroy target artifact.\n• You gain 2 life.";
     CardDataBuilder::new("Hesitant Omen")
@@ -389,8 +391,9 @@ pub fn hesitant_omen() -> Arc<CardData> {
 
 /// Mode Lever — {1}, an artifact.
 ///
-/// A modal activated ability (CR 700.2a, 602.2b; Bow of Nylea's shape): its
-/// modes are announced as it is activated, before its targets.
+/// A modal activated ability (CR 700.2a, 602.2b): its modes are announced as
+/// it is activated, before its targets. Bow of Nylea's shape; the Bow's fourth
+/// mode targets cards in a graveyard, which no clause can announce yet.
 pub fn mode_lever() -> Arc<CardData> {
     let text = "{1}, {T}: Choose one —\n• Target creature gets +1/+1 until end of turn.\n• You gain 1 life.";
     CardDataBuilder::new("Mode Lever")
@@ -407,10 +410,10 @@ pub fn mode_lever() -> Arc<CardData> {
 
 /// Tally of Choices — {X}{U}, a sorcery.
 ///
-/// "Choose X" (Doomsday Confluence's count, without its repeats): X is asked
-/// before the modes, which are the sets of that many (`choices-architecture.md`,
-/// decision 2b). Past three, no set of three modes is that large, and the cast
-/// rewinds.
+/// "Choose X" (Doomsday Confluence's count, without its repeats, which
+/// `mode-rules-and-costs` builds): X is asked before the modes, which are the
+/// sets of that many (`choices-architecture.md`, decision 2b). Past three, no
+/// set of modes is that large, and the cast rewinds.
 pub fn tally_of_choices() -> Arc<CardData> {
     let text = "Choose X —\n• Draw a card.\n• You gain 2 life.\n• Target player mills two cards.";
     CardDataBuilder::new("Tally of Choices")
@@ -429,8 +432,11 @@ pub fn tally_of_choices() -> Arc<CardData> {
 ///
 /// The Will of the [clan] cycle's count on a condition the engine reads: one
 /// mode, or either or both while its caster controls an artifact as the modes
-/// are chosen. Its second mode's "then discards" names the mode's own first
-/// instance of "target", which is the spell's second when both are chosen.
+/// are chosen. Soul Transfer prints the count on "an artifact and an
+/// enchantment", and its second mode targets a card in a graveyard, which no
+/// clause can announce yet. Its second mode is Prismari Command's, whose
+/// "then discards" names the mode's own first instance of "target": the
+/// spell's second when both are chosen.
 pub fn kindled_option() -> Arc<CardData> {
     let text = "Choose one. If you control an artifact as you cast this spell, you may choose both instead.\n• This spell deals 2 damage to target creature.\n• Target player draws a card, then discards a card.";
     let draws_then_discards =

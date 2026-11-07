@@ -227,12 +227,11 @@ impl GameState {
         self.set_stack_entry(entry);
 
         // --- 601.2e: post-proposal legality ---
-        // Vacuous today: every choice above is drawn from an enumerated legal list,
-        // the modes among them (a set is listed only if each of its modes' targets
-        // can be chosen), so nothing chosen can make the proposal illegal. It stops
-        // being vacuous when a later choice can invalidate an earlier one, several
-        // target clauses (§2.20), and the rewind it needs is the one 601.2h
-        // already uses.
+        // Every choice above is drawn from an enumerated legal list, the modes
+        // among them, so none makes the proposal illegal on its own. An earlier
+        // choice can leave a later one with no legal answer: an X past the modes
+        // a count of X can take, a target clause with no candidate. That
+        // announcement fails above, and its rewind is the one 601.2h uses.
 
         // --- 601.2f: Assemble total cost ---
         let total_costs = determine_total_cost(

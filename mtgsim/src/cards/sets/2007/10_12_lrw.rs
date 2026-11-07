@@ -101,9 +101,7 @@ pub fn knight_of_meadowgrain() -> Arc<CardData> {
 /// (Oracle text verified on Scryfall, 2026-11-07.)
 ///
 /// CR 700.2's "choose two": two different modes, each pair a choice, of four
-/// modes two of which target and two of which do not. It stands in for
-/// Prismari Command, whose third mode makes a Treasure, which can't be
-/// written until "add one mana of any color" can (`backlog.md` §2.19).
+/// modes two of which target and two of which do not.
 ///
 /// # The rulings, and where each is tested
 ///

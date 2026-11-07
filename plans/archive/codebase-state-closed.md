@@ -10354,8 +10354,8 @@ and by CR 608.2b's re-check, which finds each mode's instances from it.
 ### Item 153 — closed 2026-11-07 by `modes-chosen-and-resolved`
 
 Closed by decision 3's A: the walk stops at the modal node as it did, and each
-`Mode` keeps its own instance list, filled by `CardDataBuilder::build` in the
-pass that fills `AbilityDef::instances`. The announcement reads the chosen
+`Mode` keeps its own instance list, read off its effect as the mode is made
+(`Mode::new`). The announcement reads the chosen
 modes' lists after the effect's own, so nothing walks the tree at a cast, and
 a mode is its own instance scope.
 

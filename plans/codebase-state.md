@@ -6832,8 +6832,8 @@ place.
 153. **~~`effect_instances` walks `Atom` and `Sequence` and nothing else, so a
      modal spell would announce the targets of modes nobody chose.~~ — ✅
      CLOSED 2026-11-07 (`modes-chosen-and-resolved`).** — archived. Each `Mode`
-     keeps its own instance list, filled with `AbilityDef::instances`, and the
-     announcement reads the chosen modes' after the effect's own.
+     keeps its own instance list, read off its effect as the mode is made, and
+     the announcement reads the chosen modes' after the effect's own.
      **Reachability (2026-11-07):** closed — `modes-chosen-and-resolved`.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 153".
 
@@ -10758,3 +10758,19 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      and an enum set moves only where `bitflags` keeps its `of(kind)` as plain.
      **Slotted:** its own PR, ahead of `fork-test-at-every-decision`, never inside
      an engine PR.
+
+### Found by `modes-chosen-and-resolved` (2026-11-07)
+
+412. **A count of X offers every payable X, past the modes it can take.** "Choose
+     X" announces X first (decision 2b), from MA-2's payable values, and the node
+     does not narrow them: with modes that may not repeat, an X past the number of
+     legal modes lists no set, and the cast rewinds (CR 601.2e). The cast is
+     offered and refused in the same priority window, `Actions reversed`'s class.
+
+     **Reachability (2026-11-07):** unreachable from a printed card — Doomsday
+     Confluence, the count's one card, repeats its modes, so every X has a set.
+     Reached by Tally of Choices, a fixture in `CASTABLE`.
+     **Sized:** ~20–40 lines: the X offer capped by the most a count of X can take
+     where modes don't repeat, read beside the repeats.
+     **Slotted:** `mode-rules-and-costs`, whose repeats decide what a count of X
+     can take.
