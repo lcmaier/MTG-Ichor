@@ -533,7 +533,8 @@ fn the_creature_chosen_is_the_creature_read() {
 /// alternative cost. Paid on a board with something for each part to take,
 /// each way its sacrifice can go: no order is asked, and the audit pays every
 /// order on a clone and finds one game. A question here would be a new
-/// question in every game that pays it.
+/// question in every game that pays it. Its time grows with the registry;
+/// `codebase-state.md` files what to do once that binds.
 #[test]
 fn no_registered_cost_asks_its_order() {
     let registry = CardRegistry::default_registry();

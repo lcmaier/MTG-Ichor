@@ -4318,6 +4318,11 @@ The layer system's designated single-point change site is `oracle/characteristic
    sites, with Upwelling's and Omnath's shapes as fixtures (31 printed cards
    keep unspent mana, `o:"lose unspent"`) (the owner, at #293's review,
    2026-10-25: a filed gap with printed customers takes a route row).
+   **Yurlok of Scorch Thrash rides with it** (the owner, at #316's review,
+   2026-11-07): "A player losing unspent mana causes that player to lose that
+   much life" changes the same two expiry sites, as life lost at the moment the
+   mana is (its 2020-11-10 ruling: no stack, one loss however many Yurloks).
+   The only printed card that says it (Scryfall, `o:"losing unspent mana"`).
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
@@ -10762,3 +10767,34 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~30–40 lines: an arm in the state-based sweep, with a fixture of two
      Roles on one creature in both timestamp orders.
      **Slotted:** Phase 9, with the first card that makes a Role.
+
+410. **`no_registered_cost_asks_its_order` grows with the registry.** It pays every
+     registered cost of two or more parts on a board, twice, with the audit paying
+     each in every order, so its time is linear in the registered cards with such
+     costs. Measured 2026-11-07 at 218 cards: 54 ms in release, about 85 ms in
+     debug, run alone.
+
+     **Reachability (2026-11-07):** a lever, not a fault: it binds once the
+     registry nears 10,000 cards, about a second in debug.
+     **Sized:** move it to run in release only, as the whole-game tests do, or
+     sample the registry by a seeded draw; ~10 lines either way.
+     **Slotted:** when `cargo test`'s slowest test is this one, or with card
+     breadth past 5,000 registered cards, whichever comes first.
+
+411. **Nine hand-rolled bit sets, one shape.** Three vocabularies of named flags
+     (`engine::layers::board`'s `Channels`, `PaymentChannels`,
+     `TriggerBindingReads`) and six sets over an enum (`ZoneSet`, `CardTypes`,
+     `EventKindMask`, `GameActionKindMask`, the layer memo's `GatedInputs`, the mana
+     supply's `ManaTypes`), each repeating empty, union, `intersects` and
+     `contains` at 15 to 60 lines. The owner chose the `bitflags` crate at #316's
+     review (2026-11-07): one vocabulary, and a panic prints `POOL | LIFE` where it
+     now prints `PaymentChannels(3)`. It is the crate's second dependency: no
+     RustSec advisory, no required dependency of its own, one publisher, a release
+     every one to three months, pinned by `Cargo.lock` under CI's `--locked`.
+
+     **Reachability (2026-11-07):** no game, log or test moves; panics and `Debug`
+     strings read differently.
+     **Sized:** about 770 lines name the nine types; the named-flag sets first,
+     and an enum set moves only where `bitflags` keeps its `of(kind)` as plain.
+     **Slotted:** its own PR, after `orders-the-cr-hands-a-player`, never inside an
+     engine PR.
