@@ -178,7 +178,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::AssignTrampleDamage { .. }
         | ChoiceKind::Discard { .. }
         | ChoiceKind::Scry { .. }
-        | ChoiceKind::ScryOrder { .. }
+        | ChoiceKind::OrderLibraryCards { .. }
         | ChoiceKind::ApplyOptionalEffect { .. }
         | ChoiceKind::AllocateNextDamage { .. }
         | ChoiceKind::ChooseDamageSource { .. }

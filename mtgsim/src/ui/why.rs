@@ -362,7 +362,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::CommanderToCommandZoneSba { .. }
             | ChoiceKind::Discard { .. }
             | ChoiceKind::Scry { .. }
-            | ChoiceKind::ScryOrder { .. }
+            | ChoiceKind::OrderLibraryCards { .. }
             | ChoiceKind::LegendRule { .. },
             _,
         ) => Vec::new(),
@@ -513,7 +513,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::Discard { .. } => (format!("the cards in {who}'s hand"), Some("701.9b")),
         ChoiceKind::Scry { .. } => (format!("the cards {who} is looking at, any of which go to the bottom"), Some("701.22a")),
-        ChoiceKind::ScryOrder { bottom, .. } => {
+        ChoiceKind::OrderLibraryCards { bottom, .. } => {
             let pile = if *bottom { "bottom" } else { "top" };
             (format!("the order of the cards going on the {pile}"), Some("701.22a"))
         }

@@ -679,7 +679,7 @@ fn scry(game: &mut GameState, player: PlayerId, n: u64) {
     }
     if looked_at > 1 {
         let top_down = game.players[player].library.iter().rev().take(looked_at).map(|&card| ChoiceOption::Object(card)).collect();
-        dp.expect_order(ChoiceKind::ScryOrder { source: None, bottom: false }, top_down);
+        dp.expect_order(ChoiceKind::OrderLibraryCards { source: None, bottom: false }, top_down);
     }
     game.execute_action(GameAction::Scry { player, n }, &ActionContext::new(&dp)).expect("the scry is performed");
 }

@@ -316,14 +316,15 @@ pub enum ChoiceKind {
     /// number on the prompt and the options are the truth.
     Scry { source: Option<ObjectId>, n: u64 },
 
-    /// CR 701.22a's "in any order", asked once per group that has two or more
-    /// cards in it — with one there is no order to choose, which is
-    /// every Scry 1 and so every prompt Opt makes.
+    /// The order cards go into a library "in any order": CR 701.22a's scry
+    /// today, and a card's own words (Ponder) when one asks. Asked once per
+    /// group that has two or more cards in it — with one there is no order to
+    /// choose, which is every Scry 1 and so every prompt Opt makes.
     ///
     /// `bottom` says which group: the cards going to the bottom, or the ones
     /// staying on top. Two prompts and not two kinds, because it is one
     /// question about two piles and a UI renders it once.
-    ScryOrder { source: Option<ObjectId>, bottom: bool },
+    OrderLibraryCards { source: Option<ObjectId>, bottom: bool },
 
     // --- State-Based & Cleanup ---
     /// CR 704.5j — which of two or more legendary permanents named
@@ -373,7 +374,7 @@ impl ChoiceKind {
     ///   spell or ability causes carries it.
     /// - `ChooseReplacementEffect { affected_object: None }` — the event is
     ///   about the choosing player, not an object.
-    /// - `Scry`/`ScryOrder { source: None }` — only a test builds one; every
+    /// - `Scry`/`OrderLibraryCards { source: None }` — only a test builds one; every
     ///   scry a game asks comes from a resolving spell or ability.
     ///
     /// Where a prompt carries both an effect's source and the object it
@@ -415,7 +416,7 @@ impl ChoiceKind {
             ChoiceKind::CommanderToCommandZoneSba { commander } => Some(*commander),
             ChoiceKind::Discard { source } => *source,
             ChoiceKind::Scry { source, .. } => *source,
-            ChoiceKind::ScryOrder { source, .. } => *source,
+            ChoiceKind::OrderLibraryCards { source, .. } => *source,
             ChoiceKind::LegendRule { .. } => None,
             // Several objects at once, like `DeclareAttackers`: no one subject.
             ChoiceKind::OrderTriggers { .. } => None,
@@ -457,7 +458,7 @@ impl ChoiceKind {
             ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",
             ChoiceKind::Discard { .. } => "Discard",
             ChoiceKind::Scry { .. } => "Scry",
-            ChoiceKind::ScryOrder { .. } => "ScryOrder",
+            ChoiceKind::OrderLibraryCards { .. } => "OrderLibraryCards",
             ChoiceKind::LegendRule { .. } => "LegendRule",
             ChoiceKind::OrderTriggers { .. } => "OrderTriggers",
         }
@@ -1011,7 +1012,7 @@ mod tests {
         let seats = ScriptedDecisionProvider::new();
         let damage = ChoiceKind::AssignCombatDamage { attacker_id: bears };
         seats.expect_allocation(damage.clone(), vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(wall), 1)]);
-        let order = ChoiceKind::ScryOrder { source: None, bottom: false };
+        let order = ChoiceKind::OrderLibraryCards { source: None, bottom: false };
         seats.expect_order(order.clone(), vec![ChoiceOption::Object(bears), ChoiceOption::Object(wall)]);
 
         assert_eq!(seats.allocate(&game, 0, &ChoiceContext::new(damage), 3, &listed, &[0, 0], None), vec![1, 2]);
@@ -1042,7 +1043,7 @@ mod tests {
         let seats = ScriptedDecisionProvider::new();
         let which = ChoiceKind::ChooseReplacementEffect { affected_object: None };
         seats.expect_choice(which.clone(), vec![ChoiceOption::Number(2), ChoiceOption::Number(2)]);
-        let order = ChoiceKind::ScryOrder { source: None, bottom: false };
+        let order = ChoiceKind::OrderLibraryCards { source: None, bottom: false };
         seats.expect_order(order.clone(), vec![ChoiceOption::Number(2), ChoiceOption::Number(2)]);
 
         assert_eq!(seats.pick_n(&game, 0, &ChoiceContext::new(which.clone()), &twins, (2, 2)), vec![0, 1]);

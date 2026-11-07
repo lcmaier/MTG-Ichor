@@ -123,7 +123,7 @@ mod tests {
     fn every_other_prompt_reaches_the_person() {
         let game = setup_two_player_game();
         let person = ScriptedDecisionProvider::new();
-        let scry_order = ChoiceContext::new(ChoiceKind::ScryOrder { source: None, bottom: true });
+        let scry_order = ChoiceContext::new(ChoiceKind::OrderLibraryCards { source: None, bottom: true });
         let cards = [ChoiceOption::Object(new_object_id()), ChoiceOption::Object(new_object_id())];
         person.expect_order(scry_order.kind.clone(), vec![cards[1].clone(), cards[0].clone()]);
         let seat = AutoOrderTriggers::new(person);

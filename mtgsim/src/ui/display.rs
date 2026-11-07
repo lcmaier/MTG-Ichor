@@ -492,7 +492,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             None => "Discard down to your maximum hand size".to_string(),
         },
         ChoiceKind::Scry { n: count, .. } => format!("Scry {count}: choose the cards that go on the bottom"),
-        ChoiceKind::ScryOrder { bottom, .. } => {
+        ChoiceKind::OrderLibraryCards { bottom, .. } => {
             format!("Order the cards going on the {}, top-most first", if *bottom { "bottom" } else { "top" })
         }
         ChoiceKind::LegendRule { legend_name } => format!("Legend rule: choose the {legend_name} to keep"),

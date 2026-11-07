@@ -1090,7 +1090,7 @@ fn order_scry_group(
         return group;
     }
     let options: Vec<ChoiceOption> = group.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ScryOrder { source, bottom });
+    let ctx = ChoiceContext::new(ChoiceKind::OrderLibraryCards { source, bottom });
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "scry_order", game, player, &ctx);
     order.into_iter().map(|i| group[i]).collect()
