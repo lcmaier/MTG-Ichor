@@ -1127,7 +1127,7 @@ announcement cannot state". The dev GUI PR after it, #312, reads the shares.
 
 ### `orders-the-cr-hands-a-player` — the orders the CR hands a player — ✅ landed 2026-11-06
 
-One PR, past the band's top (`fuzz-record.md`'s block), for what it took from later rows.
+One PR, #316, past the band's top (`fuzz-record.md`'s block), for what it took from later rows.
 - **CR 601.2h's order** (`engine::payment_order`): every `Cost`, `AmountExpr`, `Condition`,
   `ObjectFilter` and `EffectModification` arm states what it reads or changes in a match
   with no wildcard. Asked after the payment's other choices, of the parts that do not

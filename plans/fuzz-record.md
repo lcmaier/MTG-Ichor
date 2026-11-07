@@ -203,7 +203,7 @@ one means the engine's cost model moved
 ## The records, newest first
 
 **Re-recorded 2026-11-06 for `orders-the-cr-hands-a-player`, the orders the rules hand a player**
-(`choices/orders-the-cr-hands-a-player`: items 30, 79 and 165). No registered card
+(`choices/orders-the-cr-hands-a-player`, PR #316: items 30, 79 and 165). No registered card
 changed and neither table's pool moved; ten fixtures joined `CASTABLE`. One
 `close_out.py` sitting of three arms, because dropping `OrderCostReductions`' prompt
 moves the random stream on purpose: **sixb** `b421453b`, the commit that drops it and
@@ -258,7 +258,7 @@ fixes refusing every cost below 0 life under Platinum Angel, seeds 12366 and 125
 table above is after that fix, and it is also the first run of `assert_frames_agree`
 once its bite test had shown it could fail.
 
-**Size**: 2,538 added and 484 deleted in `mtgsim/src` and `mtgsim/tests`, 3,022 touched,
+**Size**: 2,543 added and 487 deleted in `mtgsim/src` and `mtgsim/tests`, 3,030 touched,
 past the band's top. The design sized 600–1,100. What it did not size: the pool as a walk
 input, the paid record and `ValueOf` with item 30's sacrifice, three watchers' readers in
 the commute check, and the exhaustive `Quantities` matches over every `Cost`, `AmountExpr`,
