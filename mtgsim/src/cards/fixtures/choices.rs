@@ -521,7 +521,7 @@ pub fn divided_envoy() -> Arc<CardData> {
 /// additional cost when chosen and both when both are. Spree's shape (CR
 /// 702.172a); a printed spree card's costs are mana.
 pub fn tithed_ultimatum() -> Arc<CardData> {
-    let text = "Spree (Choose one or more additional costs.)\n+ Pay 2 life — This spell deals 3 damage to any target.\n+ Sacrifice a creature — Destroy target creature.";
+    let text = "Spree\n+ Pay 2 life — This spell deals 3 damage to any target.\n+ Sacrifice a creature — Destroy target creature.";
     CardDataBuilder::new("Tithed Ultimatum")
         .mana_cost(ManaCost::build(&[ManaType::Black], 1))
         .color(Color::Black)

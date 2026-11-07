@@ -14,7 +14,14 @@ use mtgsim::cards::authoring::{
     you,
 };
 use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tithed_ultimatum, tribute_offering};
-use mtgsim::cards::printings::{grizzly_bears, hill_giant};
+use mtgsim::cards::authoring::{dies, enchantment, gain_control_of, target_permanent, triggered_ability, whenever};
+use mtgsim::cards::printings::{arc_trail, demonic_pact, explosive_derailment, grizzly_bears, hill_giant, mind_stone, vindictive_lich};
+use mtgsim::engine::layers::compute::compute_characteristics;
+use mtgsim::state::game_state::{AbilityIdentity, StepType};
+use mtgsim::state::history::ModesChosen;
+use mtgsim::test_support::{pending_triggers_of, test_ctx};
+use mtgsim::types::triggers::{TriggerSubject, TriggerTier};
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::engine::object_filter::EarlierTargets;
 use mtgsim::engine::targeting::{ChosenTargets, FilterIdentity};
 use mtgsim::events::event::GameEvent;
@@ -527,4 +534,386 @@ fn a_later_mode_is_not_offered_the_player_an_earlier_mode_took() {
         .expect("the second mode was asked");
     assert_eq!(second_offer, [ChoiceOption::Player(0), ChoiceOption::Player(1)], "player 2 is the first mode's");
     assert_eq!(game.stack_entries[game.stack.last().unwrap()].this_object(), trigger_source);
+}
+
+// ---------------------------------------------------------------------------
+// The cards
+// ---------------------------------------------------------------------------
+
+/// Arc Trail cast from hand: 2 to player 1, and 1 to the creature, the one
+/// other target there is once player 1 is taken and player 0 is not chosen.
+#[test]
+fn arc_trail_deals_its_two_amounts_to_two_different_targets() {
+    let mut game = setup_two_player_game();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let spell = put_in_hand(&mut game, arc_trail(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 2);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears)]);
+    let (showing, shown) = Showing::new(answers);
+    game.cast_spell(0, spell, &ManaWindowStop::new(showing)).expect("castable");
+    let second: Vec<ChoiceOption> = shown.prompts.borrow()[1].2.clone();
+    assert_eq!(second, [ChoiceOption::Player(0), ChoiceOption::Object(bears)], "any other target: player 1 is the first's");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[1].life_total, 18);
+    assert_eq!(game.battlefield[&bears].damage_marked, 1);
+}
+
+/// A board for Explosive Derailment: a creature and an artifact of player
+/// 1's, and five red mana for player 0, its {R} and both modes' {2}.
+fn derailment_board() -> (GameState, ObjectId, ObjectId, ObjectId) {
+    let mut game = setup_two_player_game();
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    let stone = put_on_battlefield(&mut game, mind_stone(), 1);
+    let spell = put_in_hand(&mut game, explosive_derailment(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 5);
+    (game, giant, stone, spell)
+}
+
+/// Spree's "one or more": the empty set is never offered, and both modes
+/// chosen pay {R} and each mode's {2}, every mana floating spent. The modes
+/// are on the spell as it was cast (CR 702.172a).
+// RULING: Explosive Derailment #3 - "You must choose at least one of the listed modes and pay its associated additional cost in order to cast a spell with spree."
+// RULING: Explosive Derailment #4 - "You choose the modes as you cast the spell with spree. Once modes are chosen, they can't be changed."
+// COVERS: ATOM-702.172a-002
+#[test]
+fn explosive_derailment_needs_a_mode_and_pays_each_chosen_modes_cost() {
+    // One creature and one artifact, so each target is taken unasked.
+    let (mut game, _, _, spell) = derailment_board();
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2]);
+    let (showing, shown) = Showing::new(answers);
+    game.cast_spell(0, spell, &ManaWindowStop::new(showing)).expect("castable with both modes");
+
+    assert_eq!(shown.mode_offers(&game), [["mode 1", "mode 2", "modes 1, 2"]], "no choice of none");
+    assert_eq!(chosen_modes(&game, spell), modes(&[1, 2]));
+    assert_eq!(game.players[0].mana_pool.total(), 0, "{{R}}, then {{2}} and {{2}}");
+}
+
+/// A mode whose target has no legal choice is not offered (CR 700.2a): with
+/// no artifact, only the damage mode, taken unasked, and the spell costs {R}
+/// and its {2}. Neither offer repeats a mode.
+// RULING: Explosive Derailment #5 - "If a mode requires a target, you can select that mode only if there's a legal target available. Ignore the targeting requirements for modes you don't choose."
+// RULING: Explosive Derailment #7 - "You can't choose the same mode more than once."
+// COVERS-PARTIAL: ATOM-702.172a-001
+#[test]
+fn explosive_derailment_offers_only_the_modes_with_a_legal_target() {
+    let mut game = setup_two_player_game();
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    let spell = put_in_hand(&mut game, explosive_derailment(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 3);
+    let (showing, shown) = Showing::new(test_dp());
+    game.cast_spell(0, spell, &ManaWindowStop::new(showing)).expect("castable with the one mode it can take");
+
+    assert!(shown.mode_offers(&game).is_empty(), "one legal set, announced unasked");
+    assert_eq!(chosen_modes(&game, spell), modes(&[1]));
+    assert_eq!(game.players[0].mana_pool.total(), 0, "{{R}} and the first mode's {{2}}, not the second's");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.battlefield[&giant].damage_marked, 4, "the chosen mode applies, and no other");
+}
+
+/// An artifact creature of player 1's that gains its controller 1 life as
+/// it dies.
+fn mourning_engine() -> Arc<CardData> {
+    let text = "When this creature dies, you gain 1 life.";
+    CardDataBuilder::new("Mourning Engine")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .card_type(CardType::Creature)
+        .power_toughness(1, 1)
+        .rules_text(text)
+        .ability(triggered_ability(text, whenever(dies(TriggerSubject::ThisObject), gain_life(you(), 1))))
+        .build()
+}
+
+/// Both modes, in printed order: the damage, then the destruction. The
+/// artifact creature's dies trigger waits until the spell has finished: it
+/// is pending, not on the stack, once the spell is gone.
+// RULING: Explosive Derailment #6 - "No matter which modes you choose, you always follow the instructions in the order they are written."
+// RULING: Explosive Derailment #9 - "No player can cast spells or activate abilities in between the modes of a resolving spell. Any abilities that trigger won't be put onto the stack until the spell is done resolving."
+#[test]
+fn explosive_derailment_resolves_its_modes_in_printed_order() {
+    let (mut game, giant, _, spell) = derailment_board();
+    let engine = put_on_battlefield(&mut game, mourning_engine(), 1);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2]);
+    names_targets(&answers, vec![ChoiceOption::Object(giant)]);
+    names_targets(&answers, vec![ChoiceOption::Object(engine)]);
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
+    let mark = game.recorded_events().records().len();
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    let order: Vec<&str> = game.recorded_events().records()[mark..]
+        .iter()
+        .filter_map(|record| match &record.event {
+            GameEvent::DamageDealt { .. } => Some("damage"),
+            GameEvent::ZoneChange { from: Zone::Battlefield, to: Zone::Graveyard, .. } => Some("destroyed"),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(order.first(), Some(&"damage"));
+    assert!(order.contains(&"destroyed"));
+    assert!(game.stack.is_empty() && game.pending_triggers.len() == 1, "the dies trigger waited for the spell to finish");
+}
+
+/// Its mana value is its mana cost's, 1, whatever its modes' costs added.
+// RULING: Explosive Derailment #8 - "The mana value of a spell with spree is determined only by its mana cost (in the upper right corner of the card). It doesn't matter which modes you choose or which additional costs you pay, including any additional costs imposed by other effects."
+#[test]
+fn explosive_derailment_has_mana_value_one_whatever_was_paid() {
+    let (mut game, _, _, spell) = derailment_board();
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2]);
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
+    let chars = compute_characteristics(&game, spell).expect("on the stack");
+    assert_eq!(chars.mana_cost.as_ref().map(ManaCost::mana_value), Some(1));
+}
+
+/// With the artifact gone before it resolves, the spell still resolves
+/// against the creature, and with both targets gone it does not resolve at
+/// all (CR 608.2b).
+// RULING: Explosive Derailment #11 - "If all targets for the chosen modes become illegal before a spell with spree resolves, the spell won't resolve and none of its effects will happen. If at least one target is still legal, the spell will resolve but will have no effect on any illegal targets."
+#[test]
+fn explosive_derailment_resolves_against_whichever_target_is_left() {
+    for both_gone in [false, true] {
+        let (mut game, giant, stone, spell) = derailment_board();
+        let answers = ScriptedDecisionProvider::new();
+        chooses_modes(&answers, &[1, 2]);
+        game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
+        game.change_zone(stone, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the artifact leaves");
+        if both_gone {
+            game.change_zone(giant, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the creature leaves");
+        }
+        game.resolve_top_of_stack(&test_dp()).expect("it resolves or does not");
+        let resolved = game.recorded_events().records().iter().any(|record| matches!(record.event, GameEvent::DamageDealt { .. }));
+        assert_eq!(resolved, !both_gone, "both gone: {both_gone}");
+    }
+}
+
+/// Walk `game` to `player`'s next upkeep, where its "beginning of your
+/// upkeep" abilities have triggered and wait to be placed.
+fn to_upkeep(game: &mut GameState, player: PlayerId) {
+    for seat in 0..game.num_players() {
+        if game.players[seat].library.len() < 10 {
+            fill_library(game, seat, 20);
+        }
+    }
+    for _ in 0..200 {
+        game.advance_turn(&test_dp()).expect("advancing");
+        if game.phase.step == Some(StepType::Upkeep) && game.active_player == player {
+            return;
+        }
+    }
+    panic!("player {player}'s upkeep never began");
+}
+
+/// Demonic Pact's trigger placed at player 0's upkeep with `answers`, and
+/// what it was offered.
+fn place_pact(game: &mut GameState, answers: ScriptedDecisionProvider) -> (ObjectId, Rc<Shown>) {
+    let (showing, shown) = Showing::new(answers);
+    assert!(game.place_pending_triggers(&showing).expect("the trigger is placed"));
+    (*game.stack.last().expect("on the stack"), shown)
+}
+
+/// The modes are chosen as the trigger goes on the stack, among the ones
+/// left: all four the first time, and once the third is chosen, the others.
+// RULING: Demonic Pact #1 - "You choose the mode as the triggered ability goes on the stack. You can choose a mode that requires targets only if there are legal targets available."
+#[test]
+fn demonic_pact_chooses_as_it_triggers_among_the_modes_left() {
+    let mut game = setup_two_player_game();
+    let _ = put_on_battlefield(&mut game, demonic_pact(), 0);
+    to_upkeep(&mut game, 0);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[3]);
+    let hand = game.players[0].hand.len();
+    let (ability, shown) = place_pact(&mut game, answers);
+    assert_eq!(shown.mode_offers(&game), [["mode 1", "mode 2", "mode 3", "mode 4"]]);
+    assert_eq!(chosen_modes(&game, ability), modes(&[3]));
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[0].hand.len(), hand + 2);
+
+    to_upkeep(&mut game, 0);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[2]);
+    let (_, shown) = place_pact(&mut game, answers);
+    assert_eq!(shown.mode_offers(&game), [["mode 1", "mode 2", "mode 4"]]);
+}
+
+/// A mode whose ability did not resolve was still chosen: the damage mode at
+/// a creature that leaves first does nothing, and is not offered again.
+// RULING: Demonic Pact #2 - "If the ability doesn't resolve (either for having its target become illegal or because a spell or ability counters it), the mode chosen for that instance of the ability still counts as being chosen."
+#[test]
+fn demonic_pact_counts_a_mode_whose_ability_did_not_resolve() {
+    let mut game = setup_two_player_game();
+    let _ = put_on_battlefield(&mut game, demonic_pact(), 0);
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    to_upkeep(&mut game, 0);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1]);
+    names_targets(&answers, vec![ChoiceOption::Object(giant)]);
+    let _ = place_pact(&mut game, answers);
+    game.change_zone(giant, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the creature leaves");
+    game.resolve_top_of_stack(&test_dp()).expect("it does not resolve");
+    assert_eq!(game.players[0].life_total, 20, "no life gained: it did not resolve");
+
+    to_upkeep(&mut game, 0);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[3]);
+    let (_, shown) = place_pact(&mut game, answers);
+    assert_eq!(shown.mode_offers(&game), [["mode 2", "mode 3", "mode 4"]]);
+}
+
+/// A second Demonic Pact's record is its own: the first chose the third
+/// mode, and the second is offered all four.
+// RULING: Demonic Pact #3 - "The phrase \"that hasn't been chosen\" refers only to that specific Demonic Pact. If you control one and cast another one, you can choose any mode for the second one the first time its ability triggers."
+#[test]
+fn a_second_demonic_pact_chooses_any_mode() {
+    let mut game = setup_two_player_game();
+    let first = put_on_battlefield(&mut game, demonic_pact(), 0);
+    to_upkeep(&mut game, 0);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[3]);
+    let _ = place_pact(&mut game, answers);
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    let second = put_on_battlefield(&mut game, demonic_pact(), 0);
+    to_upkeep(&mut game, 0);
+    let answers = ScriptedDecisionProvider::new();
+    let order: Vec<ChoiceOption> = [first, second].iter().flat_map(|&pact| pending_triggers_of(&game, pact)).collect();
+    answers.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
+    chooses_modes(&answers, &[4]);
+    chooses_modes(&answers, &[3]);
+    let (showing, shown) = Showing::new(answers);
+    assert!(game.place_pending_triggers(&showing).expect("both are placed"));
+    assert_eq!(shown.mode_offers(&game), [vec!["mode 1", "mode 2", "mode 4"], vec!["mode 1", "mode 2", "mode 3", "mode 4"]]);
+}
+
+/// A Demonic Pact taken by an opponent keeps what it chose: player 0 chose
+/// the second and third modes, and player 1, controlling it at their upkeep,
+/// is offered the first and fourth.
+// RULING: Demonic Pact #4 - "It doesn't matter who has chosen any particular mode. For example, say you control Demonic Pact and have chosen the first two modes. If an opponent gains control of Demonic Pact, that player can choose only the third or fourth mode."
+#[test]
+fn demonic_pact_under_a_new_controller_offers_only_the_modes_left() {
+    let mut game = setup_two_player_game();
+    let pact = put_on_battlefield(&mut game, demonic_pact(), 0);
+    for mode in [2, 3] {
+        to_upkeep(&mut game, 0);
+        let answers = ScriptedDecisionProvider::new();
+        chooses_modes(&answers, &[mode]);
+        let _ = place_pact(&mut game, answers);
+        game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    }
+
+    let text = "Gain control of target enchantment.";
+    let theft = CardDataBuilder::new("Invented Theft")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(text, gain_control_of(target_permanent(enchantment())).until_end_of_game()))
+        .build();
+    let steal = put_in_hand(&mut game, theft, 1);
+    game.players[1].mana_pool.add(ManaType::Blue, 1);
+    game.cast_spell(1, steal, &ManaWindowStop::new(test_dp())).expect("one enchantment to take");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    to_upkeep(&mut game, 1);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1]);
+    names_targets(&answers, vec![ChoiceOption::Player(0)]);
+    let (showing, shown) = Showing::new(answers);
+    assert!(game.place_pending_triggers(&showing).expect("the trigger is placed"));
+    assert_eq!(game.stack_entries[game.stack.last().unwrap()].controller, 1, "its new controller's upkeep");
+    assert_eq!(shown.mode_offers(&game), [["mode 1", "mode 4"]]);
+    assert_eq!(game.stack_entries[game.stack.last().unwrap()].this_object(), pact);
+}
+
+/// With every mode chosen, none is left, and the ability is removed from the
+/// stack with no effect (CR 603.3c). The record holds what a player who took
+/// the Pact and was made to choose the fourth mode would leave.
+// RULING: Demonic Pact #5 - "In some very unusual situations, you may not be able to choose a mode, either because all modes have previously been chosen or the only remaining modes require targets and there are no legal targets available. In this case, the ability is simply removed from the stack with no effect."
+#[test]
+fn demonic_pact_with_no_mode_left_is_removed() {
+    let mut game = setup_two_player_game();
+    let pact = put_on_battlefield(&mut game, demonic_pact(), 0);
+    let ability = get_effective_abilities(&game, pact)[0].id;
+    let identity = AbilityIdentity { source: game.object_ref(pact).expect("on the battlefield"), ability };
+    game.history.modes_chosen.insert(identity, ModesChosen { turn: game.turn_number, modes: modes(&[1, 2, 3, 4]) });
+    to_upkeep(&mut game, 0);
+
+    assert_eq!(game.pending_triggers.len(), 1, "it triggered");
+    assert!(!game.place_pending_triggers(&test_dp()).expect("the placement runs"), "nothing was placed");
+    assert!(game.stack.is_empty() && !game.player_lost[0]);
+}
+
+/// The fourth upkeep: the first three modes chosen, the fourth is the one
+/// left, taken unasked, and its controller loses the game.
+// RULING: Demonic Pact #6 - "Yes, if the fourth mode is the only one remaining, you must choose it. You read the whole contract, right?"
+#[test]
+fn demonic_pact_with_only_the_fourth_mode_left_loses_the_game() {
+    let mut game = setup_two_player_game();
+    let _ = put_on_battlefield(&mut game, demonic_pact(), 0);
+    for mode in [1, 2, 3] {
+        to_upkeep(&mut game, 0);
+        let answers = ScriptedDecisionProvider::new();
+        chooses_modes(&answers, &[mode]);
+        // "Any target" has both players; "target opponent", one.
+        if mode == 1 {
+            names_targets(&answers, vec![ChoiceOption::Player(1)]);
+        }
+        let _ = place_pact(&mut game, answers);
+        game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    }
+
+    to_upkeep(&mut game, 0);
+    let (ability, shown) = place_pact(&mut game, test_dp());
+    assert!(shown.mode_offers(&game).is_empty(), "the one mode left, taken unasked");
+    assert_eq!(chosen_modes(&game, ability), modes(&[4]));
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert!(game.player_lost[0]);
+}
+
+/// Vindictive Lich dies, and its trigger waits to be placed.
+fn lich_dies(seats: usize) -> GameState {
+    let mut game = setup_game(seats);
+    for seat in 1..seats {
+        fill_library(&mut game, seat, 2);
+        let _ = put_on_battlefield(&mut game, grizzly_bears(), seat);
+    }
+    let lich = put_on_battlefield(&mut game, vindictive_lich(), 0);
+    game.change_zone(lich, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).expect("it dies");
+    assert_eq!(game.pending_triggers.len(), 1, "it triggered");
+    game
+}
+
+/// At two seats there is one opponent, and each mode must target a different
+/// player, so one mode is chosen: the three are offered alone, never two.
+// RULING: Vindictive Lich #1 - "You can't choose more modes for Vindictive Lich's triggered ability than you have opponents, but you need to choose at least one target if you can."
+#[test]
+fn vindictive_lich_at_two_seats_takes_one_mode() {
+    let mut game = lich_dies(2);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[3]);
+    let (showing, shown) = Showing::new(answers);
+    assert!(game.place_pending_triggers(&showing).expect("the trigger is placed"));
+    assert_eq!(shown.mode_offers(&game), [["mode 1", "mode 2", "mode 3"]]);
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[1].life_total, 15);
+}
+
+/// At three seats a mode for each opponent is allowed and not required: one
+/// mode or two, never three, and two modes take one opponent each.
+// RULING: Vindictive Lich #2 - "You don't have to choose a mode for each opponent. For example, you could make one opponent lose 5 life and spare each other opponent. They might not repay your kindness."
+#[test]
+fn vindictive_lich_at_three_seats_offers_one_mode_or_two() {
+    let mut game = lich_dies(3);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[2, 3]);
+    names_targets(&answers, vec![ChoiceOption::Player(2)]);
+    let (showing, shown) = Showing::new(answers);
+    assert!(game.place_pending_triggers(&showing).expect("the trigger is placed"));
+    assert_eq!(shown.mode_offers(&game), [["mode 1", "mode 2", "mode 3", "modes 1, 2", "modes 1, 3", "modes 2, 3"]]);
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[2].hand.len(), 0, "player 2 discarded");
+    assert_eq!(game.players[1].life_total, 15, "player 1, the one opponent left for the third mode, lost 5");
 }

@@ -2,10 +2,38 @@
 
 use std::sync::Arc;
 
+use crate::cards::authoring::{any_other_target, any_target, deal_damage, spell_ability};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
+use crate::types::colors::Color;
+use crate::types::effects::Effect;
 use crate::types::keywords::KeywordFlag;
-use crate::types::mana::ManaCost;
+use crate::types::mana::{ManaCost, ManaType};
+
+/// Arc Trail — {1}{R}
+/// Sorcery
+/// Arc Trail deals 2 damage to any target and 1 damage to any other target.
+///
+/// (Oracle text verified on Scryfall, 2026-11-07.)
+///
+/// CR 115.4's "any other target": the second instance is any target but the
+/// first's, a player as much as a creature, which an exclusion on a
+/// permanent's filter could not say (item 154).
+///
+/// # The rulings, and where each is tested
+///
+/// Scryfall lists none for this card (2026-11-07). Cast from hand in
+/// `arc_trail_deals_its_two_amounts_to_two_different_targets`.
+pub fn arc_trail() -> Arc<CardData> {
+    let text = "Arc Trail deals 2 damage to any target and 1 damage to any other target.";
+    CardDataBuilder::new("Arc Trail")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 1))
+        .color(Color::Red)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, Effect::Sequence(vec![deal_damage(any_target(), 2), deal_damage(any_other_target(0), 1)])))
+        .build()
+}
 
 /// Darksteel Myr — {3}
 /// Artifact Creature — Myr

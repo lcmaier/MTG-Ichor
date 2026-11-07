@@ -7,7 +7,7 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mom, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg,
+    mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg,
     usg,
     vis, war, wth, wwk, zen, znr,
 };
@@ -1201,6 +1201,13 @@ impl CardRegistry {
         // CR 601.2h's sacrifice read back as it last existed, a fixture until
         // here: its cost's two parts commute on every registered board.
         registry.register("Momentous Fall", roe::momentous_fall);
+        // The rest of CR 700.2: "any other target" over a player, a mode's own
+        // cost (spree), a mode not chosen before, and each mode targeting a
+        // different player, the last two on triggers.
+        registry.register("Arc Trail", som::arc_trail);
+        registry.register("Explosive Derailment", otj::explosive_derailment);
+        registry.register("Demonic Pact", ori::demonic_pact);
+        registry.register("Vindictive Lich", c17::vindictive_lich);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);

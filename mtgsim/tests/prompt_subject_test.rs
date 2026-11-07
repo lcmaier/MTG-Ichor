@@ -179,13 +179,15 @@ fn walk(seed: u64, players: usize, turns: usize, window: usize) -> Vec<Raised> {
 fn every_prompt_a_game_raises_says_what_it_is_about() {
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     let mut total = 0;
-    let games = [(0xA4_0001u64, 2), (0xA4_0009, 2), (0xA4_0004, 4), (0xA4_0005, 4)];
+    let games = [(0xA4_0001u64, 2), (0xA4_0039, 2), (0xA4_0004, 4), (0xA4_0005, 4)];
     // The decks are windows of the sorted registry, so a card registered
     // ahead of a window changes it; fifty turns raise every kind below on
     // the registry as TR-3b left it, where forty raised no blockers. TR-5c's
     // Loyal Sentry moved the last window's game to one that blocked nothing,
     // so its seed moved too, and the five-color land's name, sorting three
-    // cards later than Everywhere's, moved the second window's.
+    // cards later than Everywhere's, moved the second window's. The four
+    // cards `mode-rules-and-costs` registered moved it again, to a game of 45
+    // prompts, and 0xA4_0039's, of 170 with blockers, took its place.
     for (window, (seed, players)) in games.into_iter().enumerate() {
         for raised in walk(seed, players, 50, window) {
             raised.check();
