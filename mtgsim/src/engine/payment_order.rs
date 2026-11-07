@@ -637,14 +637,14 @@ impl GameState {
         plan.pay_in(order);
         let answers = FirstLegalAnswer;
         match fork.pay_costs(&plan, player, source, &ActionContext::paying_cost(&answers, player, source)) {
-            Ok(payment) => (fork.board_written_out(), fork.characteristics_after(&payment)),
+            Ok(payment) => (fork.board_written_out(), fork.characteristics_after_payment(&payment)),
             Err(refused) => (vec![refused], Frames::new()),
         }
     }
 
     /// Each permanent's characteristics now, and those of each object
     /// `payment` used as it last existed: every characteristic, by id.
-    fn characteristics_after(&self, payment: &Payment) -> Frames {
+    fn characteristics_after_payment(&self, payment: &Payment) -> Frames {
         let mut frames = permanents_as_they_are(self);
         for existence in payment.paid_with.iter().filter_map(|paid| paid.used.object()) {
             if let Some(lki) = self.lki(existence) {
