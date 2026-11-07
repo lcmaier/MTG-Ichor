@@ -1013,7 +1013,8 @@ division.
 | **`options-named-by-what-they-are` — every option named by what it is** | #306's decision 4: the trigger and replacement arms, the typed matcher with its cost names, and in its first commit item 361's order-dependent `picking(n)` uses | the log's replay of Bridge from Below's two triggers, both orders; the order-dependent tests, each passing with every list reversed | 907 measured | 772 measured |
 | **`divided-among-targets` — an effect divided among its targets** | decision 5's division at cast, activation and placement, targeted only; ahead of it #307's two label commits (a row's targets on its label, a counter's words beside its label); item 92's record | Arc Lightning pooled; fixtures for an activation and a trigger | ~1,200–1,650 with its tests | |
 | **`orders-the-cr-hands-a-player` — the orders the CR hands a player** | decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | Omnath beside Momentous Fall as a fixture board | ~350–650 with its tests, by the item sizings | |
-| **`modal-spells-and-abilities` — CR 700.2 whole** | decisions 2 and 3: CR 700.2 whole, 603.3c's removal, the node's count, chooser and rules, the per-mode instance lists, both halves of item 154, a mode's own cost (item 81), `ModeIndex`, the record of what an ability chose before, castability through the enumerator | Abrade, Prismari Command, Casualties of War, a Will of the [clan], Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost (700.2h) | ~760–1,150 | ~600–920 |
+| **`modes-chosen-and-resolved` — a mode chosen, targeted and resolved**, the first of `modal-spells-and-abilities`' two | decisions 2 and 3's core: the node's count (fixed, a range, X asked first, a count a condition raises) and its chooser as a field, the enumerator over the legal sets and castability that reads it, `ModeIndex`, `chosen_modes` written under decision 3's A (items 31 and 153), each mode's own instance list, the resolution of the chosen modes, CR 603.3c's removal | Abrade, Prismari Command, Casualties of War; fixtures for a modal trigger, a modal activation, a count of X and a raised count; Momentous Fall registered, its fixture removed | ~1,500–2,300 with its tests, by the brief | |
+| **`mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost**, the second | CR 700.2e's opponent choosing, a mode repeated past the number of modes (700.2d), pawprints (700.2i), the record of what an ability chose before, a mode's own cost (item 81, 700.2h), both halves of item 154 | Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost | the row's rest, ~700–1,200 by the first's ratio | |
 | **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
 | **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
@@ -1030,6 +1031,19 @@ what the pair's ~850–1,350 by the item sizings leaves, before any ratio;
 `costs-and-choices-at-resolution` read ~1,150–2,070 and may land past its
 top, and `values-chosen-at-resolution` ~1,010–1,570. Each is re-sized
 against the measured ratio at its brief, and a split goes in this table.
+
+**`modal-spells-and-abilities` split at its brief** (the owner, 2026-11-07),
+since the row read 2,300–3,500 at the table's 1.7×. The first PR is where the
+chosen modes live, which the second, `costs-and-choices-at-resolution` and the
+decks' modal cards all build on; the second holds every rule a plain "choose
+one" leaves off. Re-counted at the first's intake against `dade3822`: items 31
+and 153 are the first's, items 81 and 154 (and item 158's modal axis) the
+second's, and the slotted list for `modal-spells-and-abilities` reads none.
+**The Will of the [clan] cycle waits for `game-formats`**: "if you control a
+commander as you cast this spell" needs CR 903.3's designation, which no
+filter reads and nothing outside tests sets (`GameObject.is_commander`), so
+the first PR builds the raised count with a fixture whose condition the engine
+reads.
 
 **`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
 (the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's

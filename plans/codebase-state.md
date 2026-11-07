@@ -1588,9 +1588,10 @@ section never asked.
 
     **Sized:** owned by `backlog.md` §2.7, one phase; the field
     costs nothing until then.
-    **Slotted:** `modes-plus-choice-kinds`, whose modes are the field's first
+    **Slotted:** `modes-chosen-and-resolved`, whose modes are the field's first
     writer and reader, named by identity rather than position (`route-review`,
-    2026-10-29); it was `breadth-features`' `backlog.md` §2.7.
+    2026-10-29; re-slotted at that PR's intake, 2026-11-07); it was
+    `breadth-features`' `backlog.md` §2.7.
 
 32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
     D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
@@ -2928,10 +2929,12 @@ one, so nothing was wrong in practice and nothing moved.
     **Sized:** with modal spells (`backlog.md` §2.3's neighbourhood), not
     before. Nothing here changes until then; the note exists so that "keyword
     means optional" is not inferred from the variant list.
-    **Slotted:** `modes-plus-choice-kinds`' modes, then the first spree card
-    (Scryfall: `keyword:spree`), whose per-mode costs are a `Mandatory`
-    additional cost (`route-review`, 2026-10-29); it was `breadth-features`'
-    `backlog.md` §2.7.
+    **Slotted:** `mode-rules-and-costs`, the second of the modal row's two PRs,
+    whose CR 700.2h builds a mode's own cost as a `Mandatory` additional cost
+    assembled from the chosen modes, then the first spree card (Scryfall:
+    `keyword:spree`) (`route-review`, 2026-10-29; split from the first PR's
+    modes at its intake, 2026-11-07); it was `breadth-features`' `backlog.md`
+    §2.7.
 
 82. **CR 704.5p's first sentence is not implemented: an Equipment that becomes
     a creature stays attached.** — ✅ closed, archived.
@@ -6875,9 +6878,9 @@ place.
      `StackEntry.chosen_modes` — once per cast, which is the rate the stored
      list was built to take castability *off*. The stored list stays the
      pre-601.2b one, and today a `Modal` node declares nothing in it.
-     **Slotted:** `modes-plus-choice-kinds`, whose modes make the cast walk
-     only the chosen modes (`route-review`, 2026-10-29); it was
-     `breadth-features`' `backlog.md` §2.7.
+     **Slotted:** `modes-chosen-and-resolved`, whose modes make the cast walk
+     only the chosen modes (`route-review`, 2026-10-29; re-slotted at that
+     PR's intake, 2026-11-07); it was `breadth-features`' `backlog.md` §2.7.
 
 154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
      filter, so "another target" over `SelectionFilter::Any` or `Player` is
@@ -6905,10 +6908,12 @@ place.
      it. That is the shape CR 601.2c actually describes, so it is a
      simplification as well as a widening; it was not done here because it
      touches `EffectRecipient`, which 146 sites construct.
-     **Slotted:** `modes-plus-choice-kinds`, eight of whose modal cards print
-     "each mode must target a different player": the exclusion moves to the
-     clause (`route-review`, 2026-10-29); it was `breadth-features`'
-     `backlog.md` §2.7.
+     **Slotted:** `mode-rules-and-costs`, the second of the modal row's two
+     PRs, with Shadrix Silverquill and Arc Trail: seven printed modal cards say
+     "each mode must target a different player", a rule of the modal node, and
+     the exclusion moves to `SelectionFilter` (`route-review`, 2026-10-29; left
+     to the second PR at the first's intake, 2026-11-07); it was
+     `breadth-features`' `backlog.md` §2.7.
 
 155. **`every_instance_has_a_choice` feeds instances forward greedily, which
      is exact for the shapes that print and not in general.** An "another
@@ -7018,7 +7023,7 @@ place.
      the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
      carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
      **Slotted:** `spell-copies`, whose CR 707.10d/e per-target copies carry the copy
-     axis; the modal axis is item 154's, at `modes-plus-choice-kinds`.
+     axis; the modal axis is item 154's, at `mode-rules-and-costs`.
 
 159. **~~`SelectionFilter::Spell` accepts an activated ability on the stack,
      and `Primitive::CounterSpell` then puts the ephemeral ability object into

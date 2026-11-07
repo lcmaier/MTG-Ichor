@@ -48,7 +48,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | — |
 | 3 | `card-layer-cleanup` | landed | — |
 | 4 | `pausing-at-a-decision`, the design | landed | — |
-| 5 | `modal-spells-and-abilities` and 4 more | 4 of 9 landed | 5–9 |
+| 5 | `modes-chosen-and-resolved`, the first of `modal-spells-and-abilities` and 5 more | 4 of 10 landed | 6–9 |
 | 6 | `linked-abilities` | to come | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 4–7 |
@@ -61,7 +61,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **43 rows to come** | **72–137** |
+| | **To v0.5** | **44 rows to come** | **73–137** |
 
 **Deck cards registered: 7 of 385**,
 the five lists' distinct cards less basics.
@@ -182,7 +182,8 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| CR 700.2 whole | `modal-spells-and-abilities` | `choices-architecture.md` |
+| A mode chosen, targeted and resolved | `modes-chosen-and-resolved` | `choices-architecture.md` |
+| The node's rules, its other choosers and a mode's own cost | `mode-rules-and-costs` | `choices-architecture.md` |
 | A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
 | A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
 | Token copies | `token-copies` | `copy-effects-architecture.md` |
