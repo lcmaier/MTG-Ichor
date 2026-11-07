@@ -38,5 +38,6 @@ merges.
   first PR, `modes-chosen-and-resolved` (#318), is handed over, its as-built in
   `choices-architecture.md`, items 31 and 153 closed. Prismari Command waits for
   any-color mana, Cryptic Command in its place; the Will cycle for `game-formats`.
-- Next: `mode-rules-and-costs` (items 81 and 154), on its own branch; then the
+- Next: `mode-rules-and-costs` (items 81, 154, 412 and 413, the last each
+  chosen mode holding its own targets), on its own branch; then the
   dev GUI PR with the mode picker (decision 2's "For the GUIs").

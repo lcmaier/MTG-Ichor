@@ -10774,3 +10774,23 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      where modes don't repeat, read beside the repeats.
      **Slotted:** `mode-rules-and-costs`, whose repeats decide what a count of X
      can take.
+
+413. **A chosen mode's targets are told apart by count, not held by the mode.**
+     `StackEntry` keeps `chosen_modes` and one flat `chosen_targets`, and each
+     mode's slice is recomputed from the modes' instance counts
+     (`ModalNode::mode_scope_starts`), which the resolution's `Modal` arm and
+     CR 608.2b's re-check both read. Today the two are written together, once,
+     by `announce_modes_and_targets`, and a count that disagrees is refused. A
+     later writer that edits the targets and keeps their number, CR 115.7's
+     change of target (Redirect) or a copy choosing new targets (CR 707.10c),
+     could put one in another mode's place and pass every check. Found at
+     #318's review (the owner, 2026-11-07).
+
+     **Reachability (2026-11-07):** unreachable — nothing but the three
+     announcements writes `chosen_targets`.
+     **Sized:** ~150–250 lines: each chosen mode holds its own targets, the
+     40 readers of `chosen_targets` in 10 files read them through one
+     flattening accessor, and `mode_scope_start(s)` and the count checks go.
+     No game or test should move.
+     **Slotted:** `mode-rules-and-costs`, which reshapes the same stack entry
+     (the owner, 2026-11-07).
