@@ -314,21 +314,6 @@ impl PaymentPart<'_> {
                 && !game.a_moved_object_watches(self, other)
                 && !game.a_moved_object_watches(other, self))
     }
-
-    /// Whether it is a {T} or a {Q}, which summoning sickness can refuse.
-    fn taps_or_untaps(&self) -> bool {
-        match self.cost {
-            Cost::TapSelf | Cost::UntapSelf => true,
-            Cost::Mana(_)
-            | Cost::PayLife(_)
-            | Cost::SacrificeSelf
-            | Cost::Sacrifice(..)
-            | Cost::Discard(..)
-            | Cost::ExileFromGraveyard(..)
-            | Cost::RemoveCounters(..)
-            | Cost::AddCounters(..) => false,
-        }
-    }
 }
 
 /// The orders that complete, as what must come before what: `precedes[a][b]`
@@ -596,7 +581,7 @@ impl GameState {
         for a in 0..n {
             for b in (0..n).filter(|&b| b != a) {
                 let needs_what_b_moves = parts[a].needs.iter().any(|object| parts[b].moves.contains(object));
-                precedes[a][b] = needs_what_b_moves || (parts[a].taps_or_untaps() && self.haste_leaves_with(source, &parts[b].moves));
+                precedes[a][b] = needs_what_b_moves || (parts[a].cost.is_tap_or_untap_symbol() && self.haste_leaves_with(source, &parts[b].moves));
             }
         }
         precedes

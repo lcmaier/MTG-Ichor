@@ -58,6 +58,22 @@ impl Cost {
         }
     }
 
+    /// Whether it is the tap or the untap symbol, {T} or {Q}: the costs the
+    /// summoning sickness rule is about (CR 302.6).
+    pub fn is_tap_or_untap_symbol(&self) -> bool {
+        match self {
+            Cost::TapSelf | Cost::UntapSelf => true,
+            Cost::Mana(_)
+            | Cost::PayLife(_)
+            | Cost::SacrificeSelf
+            | Cost::Sacrifice(..)
+            | Cost::Discard(..)
+            | Cost::ExileFromGraveyard(..)
+            | Cost::RemoveCounters(..)
+            | Cost::AddCounters(..) => false,
+        }
+    }
+
     /// The mana a cost list asks for: every `Mana` cost's symbols in order,
     /// {0} for a list with none. What CR 601.2g's window offers mana toward
     /// and CR 601.2h's plan pays. A spell's total has one (CR 601.2f merges
