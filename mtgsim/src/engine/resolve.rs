@@ -2689,9 +2689,6 @@ impl GameState {
                     format!("{:?} carries no amount for TriggeringAmount to read", binding.event())
                 })
             }
-            // "Its power", "its toughness" (CR 608.2h). A negative value is
-            // no amount: Paladin of Atonement's ruling gains nothing, and
-            // loses nothing, for toughness below 0.
             // "The sacrificed creature's power": the one object its payment
             // used by that act, as it last existed (CR 608.2h), since the move
             // that paid the cost ended that existence.
@@ -2713,6 +2710,9 @@ impl GameState {
                 };
                 Ok(read.unwrap_or(0).max(0) as u64)
             }
+            // "Its power", "its toughness" (CR 608.2h). A negative value is
+            // no amount: Paladin of Atonement's ruling gains nothing, and
+            // loses nothing, for toughness below 0.
             AmountExpr::TriggeringPower(role) | AmountExpr::TriggeringToughness(role) => {
                 let binding = _ctx.trigger.as_ref().ok_or_else(|| {
                     format!("{:?} has no meaning outside a triggered ability's resolution", expr)

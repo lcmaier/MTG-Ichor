@@ -319,6 +319,21 @@ mod tests {
         assert_eq!(answer, vec![1, 0]);
     }
 
+    /// Two parts whose costs read alike are told apart by what pays them,
+    /// since the replay finds an answer by its words: an order of "sacrifice 1"
+    /// and "sacrifice 1" comes back the way it was given.
+    #[test]
+    fn an_order_of_two_sacrifices_finds_each_by_what_pays_it() {
+        let mut game = setup_two_player_game();
+        let (bears, lions) = (put_on_battlefield(&mut game, grizzly_bears(), 0), put_on_battlefield(&mut game, savannah_lions(), 0));
+        let sacrificing = |filter, paid_by| ChoiceOption::CostPart(CostPart { cost: Cost::Sacrifice(filter, 1), paid_with: vec![paid_by] });
+        let options = [sacrificing(ObjectFilter::All, bears), sacrificing(ObjectFilter::Token, lions)];
+        let kind = ChoiceKind::OrderCostPayments { spell_or_ability_id: ObjectId::UNASSIGNED };
+        let ordered = Chosen::Order(vec![options[1].as_logged(&game), options[0].as_logged(&game)]);
+        let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &ChoiceContext::new(kind), &options);
+        assert_eq!(answer, vec![1, 0]);
+    }
+
     /// The audits paused for a replay's lines come back on as it hands the
     /// game to the seats, whose answers nothing has checked.
     #[cfg(debug_assertions)]

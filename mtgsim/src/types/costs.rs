@@ -34,7 +34,7 @@ pub enum Cost {
 
 /// What a payment did with something it used, as a card's text names the
 /// cost by its verb: "the sacrificed creature". Each other verb lands with its
-/// cost (`plans/handoffs/resolution-recipients-and-amounts.md`'s decision 3).
+/// cost.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaymentAct {
     Sacrificed,

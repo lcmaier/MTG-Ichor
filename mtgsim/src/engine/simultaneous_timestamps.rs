@@ -22,8 +22,7 @@
 use std::collections::HashMap;
 
 use crate::engine::actions::ActionContext;
-use crate::engine::audit::assert_shortcut_agrees;
-use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::audit::{assert_frames_agree, permanents_as_they_are, Frames};
 use crate::engine::layers::types::ContinuousEffect;
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::oracle::characteristics::controller_or_owner;
@@ -63,8 +62,7 @@ impl GameState {
     }
 
     /// Each of `stamped` that generates a continuous effect from a static
-    /// ability, with the rows it registered. An object a row reaches nothing
-    /// else through reads no timestamp, so it has none here.
+    /// ability, with the rows it registered.
     fn rows_generated_by(&self, stamped: &[ObjectId]) -> HashMap<ObjectId, Vec<&ContinuousEffect>> {
         let stamped: IdSet<ObjectId> = stamped.iter().copied().collect();
         let mut generating: HashMap<ObjectId, Vec<&ContinuousEffect>> = HashMap::new();
@@ -86,12 +84,13 @@ impl GameState {
         generating: &HashMap<ObjectId, Vec<&ContinuousEffect>>,
         ctx: &ActionContext,
     ) -> Vec<ObjectId> {
+        let rows: Vec<&Vec<&ContinuousEffect>> = theirs.iter().filter_map(|id| generating.get(id)).collect();
         let read: Vec<ObjectId> = theirs.iter().copied().filter(|id| generating.contains_key(id)).collect();
         if read.len() < 2 {
             return theirs;
         }
-        let reach_others = read.iter().any(|id| generating[id].iter().any(|row| !matches!(row.affected_objects, ObjectSet::SourceOnly)));
-        let alike = read.windows(2).all(|pair| alike_rows(&generating[&pair[0]], &generating[&pair[1]]));
+        let reach_others = rows.iter().any(|rows| rows.iter().any(|row| !matches!(row.affected_objects, ObjectSet::SourceOnly)));
+        let alike = rows.windows(2).all(|pair| alike_rows(pair[0], pair[1]));
         if !reach_others || alike {
             self.note_unasked(player, Unasked::OneGame(Elision::EntryOrder), || {
                 let objects = read.iter().map(|id| ChoiceOption::Object(*id)).collect();
@@ -115,6 +114,8 @@ impl GameState {
         let mut moved = false;
         for (&id, stamp) in order.iter().zip(stamps) {
             if self.object_timestamp(id) != stamp {
+                // NOT REPLACEABLE: which of a batch's stamps an object holds,
+                // no event, and no replacement effect can watch for it.
                 self.set_object_timestamp(id, stamp);
                 self.continuous_effects.retime_static_rows(id, stamp);
                 moved = true;
@@ -125,33 +126,30 @@ impl GameState {
         }
     }
 
-    /// Decision 6's check with the shortcut off: `objects` dealt their
+    /// The shortcut's check with the shortcut off: `objects` dealt their
     /// timestamps in other orders on a clone, and every permanent read
-    /// after. A difference is a timestamp read where this module says none
-    /// is.
+    /// after, whole. A difference is a timestamp read where this module says
+    /// none is.
     fn audit_entry_orders(&self, objects: &[ObjectId]) {
         let orders: Vec<Vec<ObjectId>> = if objects.len() <= MOST_AUDITED_OBJECTS {
             crate::engine::payment_order::orders_of(objects.len()).into_iter().map(|order| order.into_iter().map(|at| objects[at]).collect()).collect()
         } else {
             vec![objects.iter().rev().copied().collect()]
         };
-        let (written, others) = self.unobserved(|| {
-            let others: Vec<_> = orders.iter().map(|order| (order, self.characteristics_after_dealing(order))).collect();
-            (self.characteristics_after_dealing(objects), others)
+        let (dealt, others) = self.unobserved(|| {
+            let others: Vec<_> = orders.iter().map(|order| (order, self.permanents_after_dealing(order))).collect();
+            (self.permanents_after_dealing(objects), others)
         });
-        for (order, board) in others {
-            assert_shortcut_agrees("CR 613.7m's order", || format!("{order:?}"), written.clone(), board);
+        for (order, frames) in others {
+            assert_frames_agree("CR 613.7m's order", || format!("{order:?}"), &dealt, &frames);
         }
     }
 
-    /// Every permanent's characteristics, on a clone with `order`'s objects
-    /// dealt their stamps. The audit compares them as sets, so which came
-    /// first on the board is no difference.
-    fn characteristics_after_dealing(&self, order: &[ObjectId]) -> Vec<String> {
+    /// Every permanent, on a clone with `order`'s objects dealt their stamps.
+    fn permanents_after_dealing(&self, order: &[ObjectId]) -> Frames {
         let mut fork = self.clone();
         fork.deal_timestamps(order);
-        let what_it_is = |id| compute_characteristics(&fork, id).map(|chars| format!("{id}: {:?}", (chars.power, chars.toughness, &chars.keyword_flags, &chars.types, chars.controller)));
-        fork.battlefield_ids_ordered().into_iter().filter_map(what_it_is).collect()
+        permanents_as_they_are(&fork)
     }
 }
 

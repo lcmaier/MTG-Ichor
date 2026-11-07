@@ -10745,3 +10745,16 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      cost's object.
      **Sized:** ~15–25 lines, with `ResolutionContext` carrying the list.
      **Slotted:** `mana-ability-costs`, which widens what a mana ability's cost can be.
+
+409. **CR 303.7a's Role rule is no state-based action yet.** "If a permanent has more
+     than one Role controlled by the same player attached to it, each of those Roles
+     except the one with the most recent timestamp is put into its owner's graveyard."
+     It is one of the three readers of a timestamp decision 6 names, and the only one
+     with a rule the engine has nowhere. CR 613.7m needs no arm for it: all seven Role
+     tokens generate a continuous effect from a static ability (Scryfall, `t:role`,
+     2026-11-06), so the row check asks for them already.
+
+     **Reachability (2026-11-06):** unreachable — no registered card makes a Role.
+     **Sized:** ~30–40 lines: an arm in the state-based sweep, with a fixture of two
+     Roles on one creature in both timestamp orders.
+     **Slotted:** Phase 9, with the first card that makes a Role.

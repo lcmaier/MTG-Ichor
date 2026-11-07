@@ -262,8 +262,8 @@ impl CostChoices {
 /// One thing a payment used, and what the payment did with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PaidWith {
-    /// As the payment left it, so an object's last known information answers
-    /// once it has moved (CR 608.2h).
+    /// The existence the payment used, whose last known information answers
+    /// once the move has ended it (CR 400.7, 608.2h).
     pub used: ObjectOrPlayer,
     pub act: crate::types::costs::PaymentAct,
 }

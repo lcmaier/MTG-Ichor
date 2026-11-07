@@ -1142,27 +1142,36 @@ One PR, and past the band's top (`fuzz-record.md`'s block has the sizes): what i
   that it fails on a false premise. The fixtures are in `CASTABLE`, so CI's
   fixture sitting plays the question under random answers.
 
-Six places it differs from decision 6's words:
+Seven places it differs from decision 6's words:
 - **Parts are read by more than parts.** The decision's reader is a moved object's
   characteristics. Two more are built, since each changes a game no part reads:
   an ability watching a part's event whose "if" reads what another part changed,
   and an ability of a moved object, which sees an event only if it came first.
+- **A part names what pays it.** The decision named a part by its kind and whole
+  cost, which leaves its filter out, so "sacrifice an artifact" and "sacrifice a
+  creature" read alike and a replay by words could swap them. The order is asked
+  after the sacrifice is chosen, so `CostPart` carries the objects that pay it.
+- **No order completing is a refusal, not a question.** Two parts that chose one
+  object, or life payments together past the player's total, fail as the plan is
+  made, with nothing paid. So what the plan forces ahead of a move is only what
+  needs its object there, and a {T} hasty by the permanent sacrificed.
 - **What it took from later rows.** Omnath needed the pool as a walk input, and
   Momentous Fall needed item 30's sacrifice with `ValueOf`'s `PaidWith` word, in
   #295's shape. Neither was in this row's sizing.
 - **"The orders that complete" over `choose_ordering`** cannot be offered as a list
   where a forced edge falls among the parts asked, so such an answer is refused,
   naming the part it leaves unpaid, and asked again
-  (`Rejection::OrderLeavesACostUnpaid`).
+  (`Rejection::OrderLeavesACostUnpaid`). Forked Reliquary is that board.
 - **Asked after the batch performs, not before.** The rows an object registered are
   the effects it generates, so the question is exact, and no record, zone or
   graveyard moves. Narrower than the decision, too: objects whose rows reach only
   themselves never meet, so they are not asked.
 - **Roles have no arm.** Every printed Role generates a continuous effect, so the
-  row check asks for them, and CR 303.7a's state-based action is not built.
+  row check asks for them (item 409 owns CR 303.7a's state-based action).
 - **No test over every entry batch.** `Primitive::CreateToken` is one definition,
   alike by construction, so the only registered route to distinct arrivals is the
-  until-returns batch: the census reads it, and asked nothing over 600 audited games of every registered card.
+  until-returns batch: `--census` read it, and asked nothing over 600 audited games
+  of every registered card.
 
 ## 6. Found while designing
 

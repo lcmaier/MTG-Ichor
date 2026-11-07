@@ -22,7 +22,6 @@
 //! after the window would be payable from the same pool and would leave a
 //! different amount of mana behind.
 
-
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::actions::ZoneChangeAct;
@@ -273,7 +272,7 @@ fn assert_no_order_was_asked(dp: &RecordingDecisionProvider) {
 /// Red Reducer's {R} on {1}{R}{R}: both apply and the cast costs {R}. The
 /// order was the caster's, and the log says why nobody was asked, the sources
 /// oldest first. That every order agrees is `reductions_commute_under_118_7a_to_d`.
-// COVERS: ATOM-601.2f-004
+// COVERS-PARTIAL: ATOM-601.2f-004
 #[test]
 fn test_two_reductions_both_apply_and_their_order_is_not_asked() {
     let mut game = setup_two_player_game();

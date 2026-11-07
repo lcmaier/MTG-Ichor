@@ -125,8 +125,8 @@ fn modify(
     }
 
     // Step 4 — reductions, in the order the player chooses. A dynamic amount
-    // adds no third expiry to §3.4's two: nothing in this step touches the
-    // board, so every `ReduceGeneric` reads the same board whenever it is
+    // adds no third way for the order to matter: nothing in this step touches
+    // the board, so every `ReduceGeneric` reads the same board whenever it is
     // applied.
     let reductions: Vec<&CostModificationInstance> = instances.iter().filter(|inst| is_reduction(inst)).collect();
     let order: Vec<usize> = if reductions.len() >= 2 {
@@ -381,10 +381,11 @@ fn is_reduction(inst: &CostModificationInstance) -> bool {
 }
 
 /// Whether the order of `reductions` can change the total, which is where
-/// `cost-architecture.md` §3.4's theorem expires. Every arm says, so no new
-/// reduction inherits the theorem unread. The theorem's second expiry, a
-/// `not_below` floor, is an arm this match gains with it; a `ReduceGeneric`
-/// is generic alone, so it is a term of the theorem's sum.
+/// `cost-architecture.md#34-in-any-order-they-choose--the-prompt-the-theorem-and-the-middleware`'s
+/// theorem expires. Every arm says, so no new reduction inherits the theorem
+/// unread. Its second expiry, a `not_below` floor, is an arm this match gains
+/// with it; a `ReduceGeneric` is generic alone, so it is a term of the
+/// theorem's sum.
 fn reduction_order_can_change_total(reductions: &[&CostModificationInstance]) -> bool {
     reductions.iter().any(|inst| match &inst.def.change {
         CostChange::Reduce(amount) => amount.symbols.iter().copied().any(player_picks_a_half_as_it_applies),
@@ -460,6 +461,7 @@ mod tests {
         vanilla_creature,
     };
     use crate::types::card_types::CardType;
+    use crate::types::cost_modification::CostModificationDef;
     use crate::types::effects::ObjectFilter;
 
     fn cost(s: &[ManaSymbol]) -> ManaCost {
@@ -576,6 +578,19 @@ mod tests {
 
     /// §3.4's theorem, checked the other way: for every pair of reductions
     /// the engine can represent, both orders give one answer.
+    #[test]
+    fn a_hybrid_reduction_is_where_the_order_can_change_the_total() {
+        let reduces = |amount: &[ManaSymbol]| CostModificationInstance {
+            source: ObjectId::UNASSIGNED,
+            controller: 0,
+            def: CostModificationDef::spells(ObjectFilter::All, CostChange::Reduce(cost(amount))),
+        };
+        let hybrid = ManaSymbol::Hybrid(ManaType::White, ManaType::Blue);
+        let (plain, half) = (reduces(&[G, R]), reduces(&[hybrid]));
+        assert!(!reduction_order_can_change_total(&[&plain, &plain]), "the theorem's sums");
+        assert!(reduction_order_can_change_total(&[&plain, &half]), "CR 118.7e: a half is chosen as it applies");
+    }
+
     #[test]
     fn reductions_commute_under_118_7a_to_d() {
         let bases: [&[ManaSymbol]; 5] = [&[G, R, R], &[G, G, GR], &[R], &[G, C], &[G, G, G, W, R]];

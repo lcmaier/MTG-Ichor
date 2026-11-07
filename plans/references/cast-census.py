@@ -842,7 +842,7 @@ QUESTIONS = {
     "CommanderToCommandZoneSba": ("yes or no", "no", "", "range", ""),
     "Discard": ("the cards in the hand", "no", "", "range", ""),
     "Scry": ("the cards looked at", "no", "", "range", ""),
-    "ScryOrder": ("an order of one pile", "no", "", "range", ""),
+    "OrderLibraryCards": ("an order of one pile", "no", "", "range", ""),
     "LegendRule": ("the legendary permanents sharing the name", "no", "", "range", ""),
 }
 

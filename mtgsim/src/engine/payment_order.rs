@@ -22,10 +22,9 @@
 use std::ops::{BitOr, BitOrAssign};
 
 use crate::engine::actions::{ActionContext, GameActionKind, GameActionKindMask};
-use crate::engine::audit::assert_shortcut_agrees;
+use crate::engine::audit::{assert_frames_agree, assert_shortcut_agrees, permanents_as_they_are, Frames};
 use crate::engine::costs::{Payment, PaymentPlan};
 use crate::engine::layers::cda::pt_amounts;
-use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, PtValue};
 use crate::engine::replacement::replacement_watchers;
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
@@ -35,14 +34,15 @@ use crate::state::history_log::RowKind;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Condition, ObjectFilter, ObjectSet, PlayerFact};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{EventKind, EventKindMask};
 use crate::types::zones::{Zone, ZoneSet};
 use crate::ui::ask::ask_order_cost_payments;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, CostPart, Rejection};
 use crate::ui::decision::FirstLegalAnswer;
 
-/// The most parts `audit_payment_orders` pays in every order of: 120 clones.
-/// No printed cost comes near it.
+/// The most parts `audit_payment_orders` pays in every order of, 120 clones.
+/// Past it the audit tries the plan's order and its reverse.
 const MOST_AUDITED_PARTS: usize = 5;
 
 /// What the parts of a payment can change, and so all a reader is asked about
@@ -56,6 +56,9 @@ impl Quantities {
     const POOL: Quantities = Quantities(1 << 0);
     const LIFE: Quantities = Quantities(1 << 1);
     const TAPPED: Quantities = Quantities(1 << 2);
+    /// A reader's own tapped status, "as long as this is untapped": no part
+    /// changes it unless the reader is what a part taps (`as_read_by`).
+    const ITS_OWN_TAPPED_STATUS: Quantities = Quantities(1 << 9);
     const COUNTERS: Quantities = Quantities(1 << 3);
     const BATTLEFIELD: Quantities = Quantities(1 << 4);
     const GRAVEYARD: Quantities = Quantities(1 << 5);
@@ -97,23 +100,23 @@ impl BitOrAssign for Quantities {
 }
 
 /// What paying `cost` reads, changes and adds to, whatever it is paid with.
-struct CostReach {
+struct CostFootprint {
     reads: Quantities,
     changes: Quantities,
     /// The ordered things it adds to (a graveyard, CR 404.2; the history
     /// log's rows of one kind, since "the first … each turn" reads which came
     /// first). Two parts adding to one have an order that shows.
     appends: Quantities,
-    /// What its event is, to whatever watches for it. Paying mana is no
-    /// event: the pool changes and nothing is announced.
+    /// What its event is, to whatever watches for it. Paying mana announces
+    /// nothing, until CR 700.14's "expend" gives it an event of its own.
     events: EventKindMask,
     actions: GameActionKindMask,
 }
 
-fn reach_of(cost: &Cost) -> CostReach {
+fn footprint_of(cost: &Cost) -> CostFootprint {
     use Quantities as Q;
     let (no_events, no_actions) = (EventKindMask::EMPTY, GameActionKindMask::EMPTY);
-    let moves = |from: Q, to: Q, reads: Q| CostReach {
+    let moves = |from: Q, to: Q, reads: Q| CostFootprint {
         reads,
         changes: from | to | Q::HISTORY,
         appends: to,
@@ -121,22 +124,22 @@ fn reach_of(cost: &Cost) -> CostReach {
         actions: GameActionKindMask::of(GameActionKind::ZoneChange),
     };
     match cost {
-        Cost::Mana(_) => CostReach { reads: Q::NONE, changes: Q::POOL, appends: Q::NONE, events: no_events, actions: no_actions },
-        Cost::TapSelf => CostReach {
+        Cost::Mana(_) => CostFootprint { reads: Q::NONE, changes: Q::POOL, appends: Q::NONE, events: no_events, actions: no_actions },
+        Cost::TapSelf => CostFootprint {
             reads: Q::NONE,
             changes: Q::TAPPED,
             appends: Q::NONE,
             events: EventKindMask::of(EventKind::Tapped),
             actions: GameActionKindMask::of(GameActionKind::Tap),
         },
-        Cost::UntapSelf => CostReach {
+        Cost::UntapSelf => CostFootprint {
             reads: Q::NONE,
             changes: Q::TAPPED,
             appends: Q::NONE,
             events: EventKindMask::of(EventKind::Untapped),
             actions: GameActionKindMask::of(GameActionKind::Untap),
         },
-        Cost::PayLife(_) => CostReach {
+        Cost::PayLife(_) => CostFootprint {
             reads: Q::NONE,
             changes: Q::LIFE | Q::HISTORY,
             appends: Q::LIFE,
@@ -148,14 +151,14 @@ fn reach_of(cost: &Cost) -> CostReach {
         // reads the zone its cards are chosen in.
         Cost::Discard(..) => moves(Q::HAND, Q::GRAVEYARD, Q::HAND),
         Cost::ExileFromGraveyard(..) => moves(Q::GRAVEYARD, Q::EXILE, Q::GRAVEYARD),
-        Cost::RemoveCounters(..) => CostReach {
+        Cost::RemoveCounters(..) => CostFootprint {
             reads: Q::NONE,
             changes: Q::COUNTERS,
             appends: Q::COUNTERS,
             events: EventKindMask::of(EventKind::CountersRemovedFrom),
             actions: GameActionKindMask::of(GameActionKind::RemoveCounters),
         },
-        Cost::AddCounters(..) => CostReach {
+        Cost::AddCounters(..) => CostFootprint {
             reads: Q::NONE,
             changes: Q::COUNTERS,
             appends: Q::COUNTERS,
@@ -238,7 +241,7 @@ fn condition_reads(condition: &Condition) -> Quantities {
         Condition::All(clauses) => clauses.iter().fold(Q::NONE, |read, clause| read | condition_reads(clause)),
         Condition::Not(clause) => condition_reads(clause),
         Condition::HostMatches(filter) => filter_reads(filter),
-        Condition::SourceUntapped | Condition::SourceTapped => Q::TAPPED,
+        Condition::SourceUntapped | Condition::SourceTapped => Q::ITS_OWN_TAPPED_STATUS,
         Condition::CounterCount { .. } => Q::COUNTERS,
         Condition::ThisTurn(..) | Condition::LastTurn(..) | Condition::SinceYourLastTurn(..) | Condition::ThisGame(..) => Q::HISTORY,
         Condition::SpellWasKicked
@@ -269,9 +272,20 @@ fn modification_reads(modification: &EffectModification) -> Quantities {
     }
 }
 
-/// One part of a payment on this board: its cost's reach, with what the
+/// What `reads`, read by `reader`, amount to in a payment for `source`: a
+/// part taps only its source, so another object's own tapped status is not
+/// among what the payment changes.
+fn as_read_by(reads: Quantities, reader: ObjectId, source: ObjectId) -> Quantities {
+    match reads.meets(Quantities::ITS_OWN_TAPPED_STATUS) && reader == source {
+        true => reads | Quantities::TAPPED,
+        false => reads,
+    }
+}
+
+/// One part of a payment on this board: what its cost touches, with what the
 /// objects it uses and what watches its event add.
-struct Part {
+struct Part<'a> {
+    cost: &'a Cost,
     reads: Quantities,
     changes: Quantities,
     appends: Quantities,
@@ -281,21 +295,35 @@ struct Part {
     moves: Vec<ObjectId>,
     /// What must still be where it is when it is paid.
     needs: Vec<ObjectId>,
-    /// Whether a move ahead of it could leave it unpayable, as a creature
-    /// hasty only by the permanent sacrificed beside its {T}.
-    fails_after_a_move: bool,
 }
 
-impl Part {
-    /// Whether `self` and `other` commute: decision 6's argument, as far as
-    /// the two can state it. Two parts alike in every word and using nothing
-    /// are one cost twice, either order the same game.
+impl Part<'_> {
+    /// Whether `self` and `other` commute, as far as the two can state it.
+    /// Two parts alike in every word and using nothing are one cost twice,
+    /// either order the same game.
     fn commutes_with(&self, other: &Part, game: &GameState) -> bool {
-        !self.reads.meets(other.changes)
-            && !other.reads.meets(self.changes)
-            && !self.appends.meets(other.appends)
-            && !game.a_moved_object_watches(self, other)
-            && !game.a_moved_object_watches(other, self)
+        let one_cost_twice = self.cost == other.cost && self.moves.is_empty() && other.moves.is_empty();
+        one_cost_twice
+            || (!self.reads.meets(other.changes)
+                && !other.reads.meets(self.changes)
+                && !self.appends.meets(other.appends)
+                && !game.a_moved_object_watches(self, other)
+                && !game.a_moved_object_watches(other, self))
+    }
+
+    /// Whether it is a {T} or a {Q}, which summoning sickness can refuse.
+    fn taps_or_untaps(&self) -> bool {
+        match self.cost {
+            Cost::TapSelf | Cost::UntapSelf => true,
+            Cost::Mana(_)
+            | Cost::PayLife(_)
+            | Cost::SacrificeSelf
+            | Cost::Sacrifice(..)
+            | Cost::Discard(..)
+            | Cost::ExileFromGraveyard(..)
+            | Cost::RemoveCounters(..)
+            | Cost::AddCounters(..) => false,
+        }
     }
 }
 
@@ -306,7 +334,7 @@ pub(crate) struct MustPrecede {
 }
 
 impl MustPrecede {
-    /// Every edge `direct` implies, or `None` when two parts each need the
+    /// Every edge `precedes` implies, or `None` when two parts each need the
     /// other first, so that no order completes.
     fn closed(mut precedes: Vec<Vec<bool>>) -> Option<MustPrecede> {
         let n = precedes.len();
@@ -361,17 +389,21 @@ impl GameState {
     /// own, recorded as not asked. Taken after the plan's other choices, since
     /// which permanent pays a sacrifice decides whether an order matters.
     ///
-    /// Refused when no order completes: two parts have chosen one object, so
-    /// whichever is paid first leaves the other unpayable, and "unpayable costs
-    /// can't be paid". Refused here, before anything has moved, so that the
-    /// failure comes ahead of every payment that cannot be taken back.
+    /// Refused when no order completes: two parts have chosen one object, or
+    /// life payments each passing CR 118.3's check are together more than the
+    /// player has. "Unpayable costs can't be paid", and "partial payments are
+    /// not allowed", so it is refused here, with nothing paid.
     pub(super) fn settle_payment_order(&self, plan: &mut PaymentPlan, player: PlayerId, source: ObjectId, ctx: &ActionContext) -> Result<(), String> {
         if plan.ordered.len() < 2 {
             return Ok(());
         }
+        let life: u64 = plan.ordered.iter().map(|cost| if let Cost::PayLife(n) = cost { *n } else { 0 }).sum();
+        if self.players[player].life_total < life as i64 {
+            return Err(format!("No order pays {:?}: {life} life in all", plan.ordered));
+        }
         let parts: Vec<Part> =
             plan.ordered.iter().enumerate().map(|(place, cost)| self.part_of(cost, plan.sacrifices.get(&place).map(Vec::as_slice), source)).collect();
-        let must = MustPrecede::closed(self.direct_edges(plan, &parts, player))
+        let must = MustPrecede::closed(self.direct_edges(&parts, source))
             .ok_or_else(|| format!("No order pays {:?}: two parts use one object", plan.ordered))?;
 
         let n = parts.len();
@@ -390,7 +422,7 @@ impl GameState {
                 false => Unasked::OneGame(Elision::PaymentOrder),
             };
             self.note_unasked(player, why, || {
-                let order = plan.ordered.iter().cloned().map(ChoiceOption::CostPart).collect();
+                let order = (0..n).map(|part| ChoiceOption::CostPart(plan.part(part))).collect();
                 (ChoiceKind::OrderCostPayments { spell_or_ability_id: source }, UnaskedAnswer::Order(order))
             });
             if self.audit_on() {
@@ -419,10 +451,10 @@ impl GameState {
         source: ObjectId,
         ctx: &ActionContext,
     ) -> Vec<usize> {
-        let costs: Vec<Cost> = items.iter().map(|&part| plan.ordered[part].clone()).collect();
+        let parts: Vec<CostPart> = items.iter().map(|&part| plan.part(part)).collect();
         let mut rejected = None;
         loop {
-            let answer = ask_order_cost_payments(ctx.dp, self, player, source, &costs, rejected.take());
+            let answer = ask_order_cost_payments(ctx.dp, self, player, source, &parts, rejected.take());
             let chosen: Vec<usize> = answer.into_iter().map(|at| items[at]).collect();
             match must.broken_by(&chosen) {
                 None => return chosen,
@@ -432,13 +464,13 @@ impl GameState {
     }
 
     /// `cost` as this board pays it, `chosen` being what pays a sacrifice.
-    fn part_of(&self, cost: &Cost, chosen: Option<&[ObjectId]>, source: ObjectId) -> Part {
-        let CostReach { mut reads, changes, appends, events, actions } = reach_of(cost);
+    fn part_of<'a>(&self, cost: &'a Cost, chosen: Option<&[ObjectId]>, source: ObjectId) -> Part<'a> {
+        let CostFootprint { mut reads, changes, appends, events, actions } = footprint_of(cost);
         let chosen = chosen.unwrap_or_default();
-        let (moves, needs, needs_haste): (&[ObjectId], &[ObjectId], bool) = match cost {
-            Cost::TapSelf | Cost::UntapSelf => (&[], std::slice::from_ref(&source), needs_haste_to_tap(self, source)),
-            Cost::SacrificeSelf => (std::slice::from_ref(&source), std::slice::from_ref(&source), false),
-            Cost::Sacrifice(..) => (chosen, chosen, false),
+        let (moves, needs): (&[ObjectId], &[ObjectId]) = match cost {
+            Cost::TapSelf | Cost::UntapSelf => (&[], std::slice::from_ref(&source)),
+            Cost::SacrificeSelf => (std::slice::from_ref(&source), std::slice::from_ref(&source)),
+            Cost::Sacrifice(..) => (chosen, chosen),
             // A discard, an exile and a counter are refused by `can_pay_costs`
             // until `remaining-costs` plans what each uses.
             Cost::Mana(_)
@@ -446,19 +478,19 @@ impl GameState {
             | Cost::Discard(..)
             | Cost::ExileFromGraveyard(..)
             | Cost::RemoveCounters(..)
-            | Cost::AddCounters(..) => (&[], &[], false),
+            | Cost::AddCounters(..) => (&[], &[]),
         };
         for &object in moves {
-            reads |= self.characteristics_read(object);
+            reads |= self.characteristics_read(object, source);
         }
-        reads |= self.what_its_watchers_read(events, actions);
-        Part { reads, changes, appends, events, actions, moves: moves.to_vec(), needs: needs.to_vec(), fails_after_a_move: needs_haste }
+        reads |= self.what_its_watchers_read(events, actions, source);
+        Part { cost, reads, changes, appends, events, actions, moves: moves.to_vec(), needs: needs.to_vec() }
     }
 
     /// What `object`'s characteristics read now, which is what it last
     /// existed as if a part moves it: its own CDAs, and each row that reaches
     /// it (`engine::layers`' walk, read rather than run).
-    fn characteristics_read(&self, object: ObjectId) -> Quantities {
+    fn characteristics_read(&self, object: ObjectId, source: ObjectId) -> Quantities {
         let own = get_effective_abilities(self, object);
         let mut reads = own
             .iter()
@@ -466,7 +498,7 @@ impl GameState {
             .flat_map(|ability| pt_amounts(ability))
             .fold(Quantities::NONE, |read, amount| read | amount_reads(amount));
         for row in self.continuous_effects.iter() {
-            let row_reads = self.row_reads(row);
+            let row_reads = as_read_by(self.row_reads(row), row.source, source);
             if row_reads != Quantities::NONE && self.row_reaches(row, object) {
                 reads |= row_reads;
             }
@@ -509,7 +541,7 @@ impl GameState {
     /// triggered ability's intervening "if" (CR 603.4) and a replacement's
     /// "as long as". The event comes when its part is paid, so another part
     /// changing what they read decides whether they react.
-    fn what_its_watchers_read(&self, events: EventKindMask, actions: GameActionKindMask) -> Quantities {
+    fn what_its_watchers_read(&self, events: EventKindMask, actions: GameActionKindMask, source: ObjectId) -> Quantities {
         let mut reads = Quantities::NONE;
         if events == EventKindMask::EMPTY {
             return reads;
@@ -520,7 +552,7 @@ impl GameState {
                     && def.record_kinds().intersects(events)
                     && let Some(condition) = &def.intervening_if
                 {
-                    reads |= condition_reads(condition);
+                    reads |= as_read_by(condition_reads(condition), watcher, source);
                 }
             }
         }
@@ -530,7 +562,7 @@ impl GameState {
                     if def.pattern.action_kinds().intersects(actions)
                         && let Some(condition) = condition
                     {
-                        reads |= condition_reads(condition);
+                        reads |= as_read_by(condition_reads(condition), watcher, source);
                     }
                 }
             }
@@ -550,48 +582,33 @@ impl GameState {
     }
 
     /// What the plan forces, before closing it: a part ahead of whatever moves
-    /// what it needs, and anything that could fail ahead of every move, so
-    /// that nothing fails after a payment that cannot be taken back (CR 732.1,
-    /// `engine::costs`).
-    fn direct_edges(&self, plan: &PaymentPlan, parts: &[Part], player: PlayerId) -> Vec<Vec<bool>> {
+    /// what it needs, so that nothing fails after a payment that cannot be
+    /// taken back (CR 732.1, `engine::costs`).
+    fn direct_edges(&self, parts: &[Part], source: ObjectId) -> Vec<Vec<bool>> {
         let n = parts.len();
         let mut precedes = vec![vec![false; n]; n];
-        if parts.iter().all(|part| part.moves.is_empty()) {
-            return precedes;
-        }
-        let (mana_pays, life_pays) = self.what_pays_in_any_order(plan, player);
         for a in 0..n {
-            let could_fail = parts[a].fails_after_a_move
-                || match &plan.ordered[a] {
-                    Cost::Mana(_) => !mana_pays,
-                    Cost::PayLife(_) => !life_pays,
-                    Cost::TapSelf
-                    | Cost::UntapSelf
-                    | Cost::SacrificeSelf
-                    | Cost::Sacrifice(..)
-                    | Cost::Discard(..)
-                    | Cost::ExileFromGraveyard(..)
-                    | Cost::RemoveCounters(..)
-                    | Cost::AddCounters(..) => false,
-                };
             for b in (0..n).filter(|&b| b != a) {
                 let needs_what_b_moves = parts[a].needs.iter().any(|object| parts[b].moves.contains(object));
-                precedes[a][b] = needs_what_b_moves || (could_fail && !parts[b].moves.is_empty());
+                precedes[a][b] = needs_what_b_moves || (parts[a].taps_or_untaps() && self.haste_leaves_with(source, &parts[b].moves));
             }
         }
         precedes
     }
 
-    /// Whether `plan`'s mana, and its life, are shown to be paid whenever they
-    /// are paid: a split can spend what a pip needs, and two life payments
-    /// that each pass CR 118.3's check can together be more than the player has.
-    fn what_pays_in_any_order(&self, plan: &PaymentPlan, player: PlayerId) -> (bool, bool) {
-        let mana_pays = plan.mana_can_be_paid_by(&self.players[player].mana_pool);
-        let life: u64 = plan.ordered.iter().map(|cost| if let Cost::PayLife(n) = cost { *n } else { 0 }).sum();
-        (mana_pays, self.players[player].life_total >= life as i64)
+    /// Whether `source` pays {T} or {Q} only by a haste that `moved` gives it
+    /// (CR 302.6). Haste of its own stays, so that order completes.
+    fn haste_leaves_with(&self, source: ObjectId, moved: &[ObjectId]) -> bool {
+        !moved.is_empty()
+            && needs_haste_to_tap(self, source)
+            && self.continuous_effects.iter().any(|row| {
+                moved.contains(&row.source)
+                    && row.modification == EffectModification::GrantKeywordFlag(KeywordFlag::Haste)
+                    && self.row_reaches(row, source)
+            })
     }
 
-    /// Decision 6's check, with the shortcut off: `plan` paid in every order
+    /// The shortcut's check, with the shortcut off: `plan` paid in every order
     /// that completes and keeps `chosen`, each on a clone of the board, and
     /// the boards compared whole. CR 601.2h's order is closed, since all a
     /// payment changes exists when it ends, so this is complete for every
@@ -605,41 +622,54 @@ impl GameState {
         source: ObjectId,
     ) {
         let n = plan.ordered.len();
-        if n > MOST_AUDITED_PARTS {
-            return;
-        }
+        let every_order = if n <= MOST_AUDITED_PARTS { orders_of(n) } else { vec![(0..n).collect(), (0..n).rev().collect()] };
         let keeps_chosen = |order: &[usize]| order.iter().filter(|part| chosen.contains(part)).eq(chosen.iter());
-        let orders: Vec<Vec<usize>> = orders_of(n).into_iter().filter(|order| must.broken_by(order).is_none() && keeps_chosen(order)).collect();
+        let orders: Vec<Vec<usize>> = every_order.into_iter().filter(|order| must.broken_by(order).is_none() && keeps_chosen(order)).collect();
         let Some((first, others)) = orders.split_first() else { return };
-        let boards = self.unobserved(|| {
+        let (first, others) = self.unobserved(|| {
             let first = self.board_after_paying(plan, first, player, source);
             let others: Vec<_> = others.iter().map(|order| (order, self.board_after_paying(plan, order, player, source))).collect();
             (first, others)
         });
-        for (order, board) in boards.1 {
-            assert_shortcut_agrees("CR 601.2h's payment order", || format!("{:?} in the order {order:?}", plan.ordered), boards.0.clone(), board);
+        for (order, (written, frames)) in others {
+            let question = || format!("{:?} in the order {order:?}", plan.ordered);
+            assert_shortcut_agrees("CR 601.2h's payment order", question, first.0.clone(), written);
+            assert_frames_agree("CR 601.2h's payment order", question, &first.1, &frames);
         }
     }
 
     /// The board a clone of this game is left with by paying `plan` in
-    /// `order`, written out whole.
-    fn board_after_paying(&self, plan: &PaymentPlan, order: &[usize], player: PlayerId, source: ObjectId) -> Vec<String> {
+    /// `order`: everything but what objects are, written out, and what they
+    /// are, whole.
+    fn board_after_paying(&self, plan: &PaymentPlan, order: &[usize], player: PlayerId, source: ObjectId) -> (Vec<String>, Frames) {
         let mut fork = self.clone();
         let mut plan = plan.clone();
         plan.pay_in(order);
         let answers = FirstLegalAnswer;
         match fork.pay_costs(&plan, player, source, &ActionContext::paying_cost(&answers, player, source)) {
-            Ok(payment) => fork.board_written_out(&payment),
-            Err(refused) => vec![refused],
+            Ok(payment) => (fork.board_written_out(), fork.what_objects_are_after(&payment)),
+            Err(refused) => (vec![refused], Frames::new()),
         }
     }
 
-    /// Everything a payment can change, a line a thing: zones and their
-    /// order, the permanents and what each now is, the objects the payment
-    /// used as they last existed, the triggers waiting, which their controller
-    /// orders as they go on the stack, and the turn's history rows, each
-    /// kind's in order and the kinds apart, since only a kind's order is read.
-    fn board_written_out(&self, payment: &Payment) -> Vec<String> {
+    /// Every permanent as it now is, and each object `payment` used as it
+    /// last existed, each by id, whole.
+    fn what_objects_are_after(&self, payment: &Payment) -> Frames {
+        let mut frames = permanents_as_they_are(self);
+        for existence in payment.paid_with.iter().filter_map(|paid| paid.used.object()) {
+            if let Some(lki) = self.lki(existence) {
+                frames.insert(existence.id, std::sync::Arc::clone(lki.frame()));
+            }
+        }
+        frames
+    }
+
+    /// Everything a payment can change but what objects are, a line a thing:
+    /// zones and their order, each permanent's status, the triggers waiting,
+    /// which their controller orders as they go on the stack, and the turn's
+    /// history rows, each kind's in order and the kinds apart, since only a
+    /// kind's order is read.
+    fn board_written_out(&self) -> Vec<String> {
         let mut lines = Vec::new();
         for (seat, player) in self.players.iter().enumerate() {
             let mut pool: Vec<(u8, u64)> = player.mana_pool.available().iter().map(|(kind, n)| (*kind as u8, *n)).filter(|(_, n)| *n > 0).collect();
@@ -657,12 +687,7 @@ impl GameState {
         for id in self.battlefield_ids_ordered() {
             let tapped = self.battlefield.get(&id).is_some_and(|entry| entry.tapped);
             let counters = self.battlefield.get(&id).map_or(0, |entry| entry.counters_of(None));
-            let what = compute_characteristics(self, id).map(|chars| (chars.power, chars.toughness, chars.controller));
-            lines.push(format!("{id}: tapped {tapped}, {counters} counters, {what:?}"));
-        }
-        for paid in &payment.paid_with {
-            let last = paid.used.object().and_then(|existence| self.lki(existence)).map(|lki| lki.characteristics());
-            lines.push(format!("{:?} last existed as {:?}", paid.used, last.map(|chars| (chars.power, chars.toughness))));
+            lines.push(format!("{id}: tapped {tapped}, {counters} counters"));
         }
         lines.extend(self.pending_triggers.iter().map(|waiting| format!("waiting: P{} {}", waiting.controller, waiting.source_card.name)));
         for kind in RowKind::ALL {
@@ -718,10 +743,8 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Green, 6);
         let costs = [Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Green], 2)), Cost::Sacrifice(creature(), 1)];
         let answers = ScriptedDecisionProvider::new();
-        answers.expect_order(
-            ChoiceKind::OrderCostPayments { spell_or_ability_id: omnath },
-            costs.iter().cloned().map(ChoiceOption::CostPart).collect(),
-        );
+        let part = |cost: &Cost, paid_with: Vec<ObjectId>| ChoiceOption::CostPart(CostPart { cost: cost.clone(), paid_with });
+        answers.expect_order(ChoiceKind::OrderCostPayments { spell_or_ability_id: omnath }, vec![part(&costs[0], Vec::new()), part(&costs[1], vec![omnath])]);
         let plan = game.plan_payment(&costs, 0, omnath, &ActionContext::paying_cost(&answers, 0, omnath)).expect("payable");
         let nothing_forced = MustPrecede::closed(vec![vec![false; 2]; 2]).expect("no edges, no cycle");
         game.audit_payment_orders(&plan, &nothing_forced, &[], 0, omnath);

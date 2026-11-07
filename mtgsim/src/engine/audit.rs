@@ -12,7 +12,11 @@
 //! back after each read and the trace is paused through it, so an audited
 //! game's counters and trace are an unaudited one's.
 
-use crate::engine::layers::compute::no_row_reaches;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::GameState;
 use crate::types::effects::Effect;
 use crate::types::ids::ObjectId;
@@ -76,6 +80,24 @@ impl GameState {
         }
         ids
     }
+}
+
+/// What objects are, by id, whole: what an audit that replays an order
+/// compares. Keyed, since which came first is no difference.
+pub(crate) type Frames = HashMap<ObjectId, Arc<EffectiveCharacteristics>>;
+
+/// Every permanent as it now is.
+pub(crate) fn permanents_as_they_are(game: &GameState) -> Frames {
+    game.battlefield_ids_ordered().into_iter().filter_map(|id| compute_characteristics(game, id).map(|frame| (id, frame))).collect()
+}
+
+/// Panic unless each object is one thing in `gated` and in `everything`,
+/// [`assert_shortcut_agrees`]' check for what objects are, which reads every
+/// characteristic an object has.
+pub(crate) fn assert_frames_agree(site: &str, question: impl FnOnce() -> String, gated: &Frames, everything: &Frames) {
+    // ORDER-FREE: `assert_shortcut_agrees` sorts what it is handed.
+    let differ = |one: &Frames, other: &Frames| one.iter().filter(|(id, frame)| other.get(id) != Some(frame)).map(|(id, _)| id.to_string()).collect::<Vec<_>>();
+    assert_shortcut_agrees(site, question, differ(gated, everything), differ(everything, gated));
 }
 
 /// Panic unless a shortcut's answer is the one with the shortcut off: at

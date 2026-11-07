@@ -36,12 +36,12 @@ pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 22] = [
     ("Momentous Fall Fixture", super::momentous_fall_fixture),
     ("Tithing Engine", super::tithing_engine),
     ("Reckoner of Debts", super::reckoner_of_debts),
-    ("Vengeful Warchief Fixture", super::vengeful_warchief_fixture),
+    ("Grudge Clerk", super::grudge_clerk),
     ("Forked Reliquary", super::forked_reliquary),
     ("Sentry of the Tapped Gate", super::sentry_of_the_tapped_gate),
     ("Kudo, King Among Bears Fixture", super::kudo_king_among_bears_fixture),
     ("Godhead of Awe Fixture", super::godhead_of_awe_fixture),
-    ("Ghostly Flicker Fixture", super::ghostly_flicker_fixture),
+    ("Scattering Flicker", super::scattering_flicker),
 ];
 
 /// Fixture Curtain — {W}, instant: "Target creature becomes blocked." CR

@@ -1550,8 +1550,9 @@ mechanic rather than a migration, which is why it is here and not in
   `put_on_stack.rs` asks from one. A loose grep reads 28 today because two
   test-function names in `tests/phase_rd_integration_test.rs` match `ask_…(`; count calls.
   `ChoiceKind` has **25 variants**, every one answering `subject()` since A4j
-  (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring:
-  the dev GUI runs `AutoPayer(ManaWindowStop(seat))` for a person,
+  (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring, as
+  this census read it (`AutoPayer` went at `orders-the-cr-hands-a-player`):
+  the dev GUI ran `AutoPayer(ManaWindowStop(seat))` for a person,
   `fuzz_games` runs `ManaWindowStop(Random)` behind a `MiddlewareConfig` with
   one field, and `--no-auto-pay` drops the stack. **`AutoPayer` has one
   client**, a person's seat — no test stacks it and the harness never has — so

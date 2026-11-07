@@ -557,7 +557,7 @@ asked (the "mana with {X}" cost row, `hybrid-and-phyrexian-payment`'s).
 | `CommanderToCommandZoneSba` | yes or no | no | -- | what it ranges over (SU-8) | -- |
 | `Discard` | the cards in the hand | no | -- | what it ranges over (SU-8) | -- |
 | `Scry` | the cards looked at | no | -- | what it ranges over (SU-8) | -- |
-| `ScryOrder` | an order of one pile | no | -- | what it ranges over (SU-8) | -- |
+| `OrderLibraryCards` | an order of one pile | no | -- | what it ranges over (SU-8) | -- |
 | `LegendRule` | the legendary permanents sharing the name | no | -- | what it ranges over (SU-8) | -- |
 <!-- cast-census: end QUESTIONS -->
 

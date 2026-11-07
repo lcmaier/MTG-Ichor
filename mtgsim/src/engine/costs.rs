@@ -26,8 +26,9 @@ use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, PlayerId};
-use crate::types::mana::{ManaPool, ManaSpent, ManaType};
+use crate::types::mana::{ManaSpent, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
+use crate::ui::choice_types::CostPart;
 use crate::types::zones::Zone;
 
 /// The decisions CR 601.2h's payment needs, taken against one board.
@@ -50,6 +51,11 @@ pub struct PaymentPlan {
 }
 
 impl PaymentPlan {
+    /// The part at `place`, as an option names it.
+    pub(super) fn part(&self, place: usize) -> CostPart {
+        CostPart { cost: self.ordered[place].clone(), paid_with: self.sacrifices.get(&place).cloned().unwrap_or_default() }
+    }
+
     /// Pay the parts in `order`, each by its place in `ordered` now.
     pub(super) fn pay_in(&mut self, order: &[usize]) {
         let mut sacrifices = HashMap::with_capacity(self.sacrifices.len());
@@ -62,17 +68,6 @@ impl PaymentPlan {
         self.sacrifices = sacrifices;
     }
 
-    /// Whether every mana cost here pays out of `pool` under this plan's
-    /// split, tried on a copy of it. What a move ahead of the mana leans on:
-    /// a split can spend a color a pip still needs.
-    pub(super) fn mana_can_be_paid_by(&self, pool: &ManaPool) -> bool {
-        let mut pool = pool.clone();
-        self.ordered.iter().all(|cost| match cost {
-            Cost::Mana(mana) if mana.generic_count() == 0 => pool.pay_specific_only(mana).is_ok(),
-            Cost::Mana(mana) => pool.pay(mana, &self.generic_allocation).is_ok(),
-            _ => true,
-        })
-    }
 
     /// The permanents this plan will sacrifice, in payment order.
     #[cfg(test)]

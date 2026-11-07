@@ -362,8 +362,7 @@ impl GameState {
 
     /// Mana pools empty at the end of each step and phase (CR 106.4). A pool
     /// that does not empty (Upwelling's class) is a `BlanketPersistenceSet` read
-    /// off the registry, and nothing builds one yet — `codebase-state.md`,
-    /// "Before Layers" item 4.
+    /// off the registry, which `mana-provenance` builds.
     fn empty_mana_pools(&mut self) {
         let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {

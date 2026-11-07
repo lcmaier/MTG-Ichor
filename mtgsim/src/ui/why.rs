@@ -233,13 +233,13 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
         ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
         ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id).chain(trigger.triggered_by.iter().copied()).collect(),
         ChoiceOption::Replacement(_) => option.effect_source().into_iter().collect(),
+        ChoiceOption::CostPart(part) => part.paid_with.clone(),
         // No object on the board: the existence has left.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::Action(PriorityAction::Pass)
         | ChoiceOption::Player(_)
         | ChoiceOption::NormalCost
         | ChoiceOption::AlternativeCost(_)
-        | ChoiceOption::CostPart(_)
         | ChoiceOption::AdditionalCost(_)
         | ChoiceOption::Number(_)
         | ChoiceOption::Color(_)

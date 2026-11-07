@@ -26,7 +26,6 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
-
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};

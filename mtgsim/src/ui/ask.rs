@@ -35,13 +35,13 @@ use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
 use crate::engine::trace_records;
 use crate::events::unasked::{Unasked, UnaskedAnswer};
-use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
+use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
@@ -859,10 +859,22 @@ pub fn ask_order_cost_reductions(
     sources: &[ObjectId],
 ) -> Vec<usize> {
     debug_assert!(sources.len() >= 2, "CR 601.2f: one reduction has no order to choose");
-    let options: Vec<ChoiceOption> = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::OrderCostReductions { spell_id });
+    ask_order_of_objects(dp, game, player, ChoiceKind::OrderCostReductions { spell_id }, sources, "order_cost_reductions")
+}
+
+/// An order of `objects`, each by what it is: the three orders over objects.
+fn ask_order_of_objects(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    kind: ChoiceKind,
+    objects: &[ObjectId],
+    context_desc: &str,
+) -> Vec<usize> {
+    let options: Vec<ChoiceOption> = objects.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext::new(kind);
     let order = dp.choose_ordering(game, player, &ctx, &options);
-    validate_ordering(&order, &options, "order_cost_reductions", game, player, &ctx);
+    validate_ordering(&order, &options, context_desc, game, player, &ctx);
     order
 }
 
@@ -874,7 +886,7 @@ pub fn ask_order_cost_payments(
     game: &GameState,
     player: PlayerId,
     spell_or_ability_id: ObjectId,
-    parts: &[Cost],
+    parts: &[CostPart],
     rejected: Option<Rejection>,
 ) -> Vec<usize> {
     debug_assert!(parts.len() >= 2, "CR 601.2h: one part has no order to choose");
@@ -890,11 +902,7 @@ pub fn ask_order_cost_payments(
 /// `engine::simultaneous_timestamps` cannot show that every order agrees.
 pub fn ask_order_simultaneous_entries(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId, objects: &[ObjectId]) -> Vec<usize> {
     debug_assert!(objects.len() >= 2, "CR 613.7m: one object has no order to choose");
-    let options: Vec<ChoiceOption> = objects.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::OrderSimultaneousEntries { player });
-    let order = dp.choose_ordering(game, player, &ctx, &options);
-    validate_ordering(&order, &options, "order_simultaneous_entries", game, player, &ctx);
-    order
+    ask_order_of_objects(dp, game, player, ChoiceKind::OrderSimultaneousEntries { player }, objects, "order_simultaneous_entries")
 }
 
 /// CR 603.3b — the order a player puts their simultaneously triggered
@@ -1120,10 +1128,7 @@ fn order_scry_group(
     if group.len() < 2 {
         return group;
     }
-    let options: Vec<ChoiceOption> = group.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::OrderLibraryCards { source, bottom });
-    let order = dp.choose_ordering(game, player, &ctx, &options);
-    validate_ordering(&order, &options, "scry_order", game, player, &ctx);
+    let order = ask_order_of_objects(dp, game, player, ChoiceKind::OrderLibraryCards { source, bottom }, &group, "scry_order");
     order.into_iter().map(|i| group[i]).collect()
 }
 

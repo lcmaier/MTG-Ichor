@@ -33,7 +33,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
 use crate::ui::choice_types::{
-    AbilityAsRead, ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
+    AbilityAsRead, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
 use crate::ui::decision::PriorityAction;
 
@@ -526,7 +526,8 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", n(blocker), n(attacker)),
         ChoiceOption::NormalCost => "Its mana cost".to_string(),
         ChoiceOption::AlternativeCost(cost) => alternative_cost_label(cost),
-        ChoiceOption::CostPart(cost) => cost_part_label(cost),
+        ChoiceOption::CostPart(CostPart { cost, paid_with }) if paid_with.is_empty() => cost_words(cost),
+        ChoiceOption::CostPart(CostPart { cost, paid_with }) => format!("{}: {}", cost_words(cost), listed(game, paid_with)),
         ChoiceOption::AdditionalCost(cost) => additional_cost_label(cost),
         ChoiceOption::Number(number) => number.to_string(),
         ChoiceOption::Color(color) => color_name(*color).to_string(),
@@ -653,7 +654,7 @@ pub fn rejection_words(game: &GameState, rejected: &Rejection) -> (String, Optio
             Some("732.1"),
         ),
         Rejection::OrderLeavesACostUnpaid(cost) => {
-            (format!("That order leaves \"{}\" unpaid, and unpayable costs can't be paid", cost_part_label(cost)), Some("601.2h"))
+            (format!("That order leaves \"{}\" unpaid, and unpayable costs can't be paid", cost_words(cost)), Some("601.2h"))
         }
         Rejection::IllegalBlocks { why, .. } => {
             let (words, rule) = combat_refusal(game, why, Declaring::Blockers);
@@ -862,9 +863,9 @@ pub(crate) fn alternative_cost_label(cost: &AlternativeCost) -> String {
     }
 }
 
-/// One part of a total cost: "{2}{G}{G}", "sacrifice a creature".
-pub(crate) fn cost_part_label(cost: &Cost) -> String {
-    keyword_and_cost("Pay", std::slice::from_ref(cost))
+/// One cost as a sentence says it: "pay {2}{G}{G}", "sacrifice 1".
+pub(crate) fn cost_words(cost: &Cost) -> String {
+    entry_offer_words(&EntryOffer::Pay(cost.clone()))
 }
 
 pub(crate) fn additional_cost_label(cost: &AdditionalCost) -> String {

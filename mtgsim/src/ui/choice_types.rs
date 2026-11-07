@@ -13,7 +13,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
 use super::decision::PriorityAction;
-use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_part_label, printed_name};
+use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_words, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -83,16 +83,16 @@ pub enum ChoiceKind {
     /// them in any order." Asked only with two or more, and only where the
     /// order can change the total: the options are the reductions' *sources*,
     /// in battlefield timestamp order, and the answer is a permutation of
-    /// them. With the symbols the engine pays today no order can
-    /// (`cost-architecture.md` §3.4), so no game reaches it until one of that
-    /// section's two expiry conditions lands.
+    /// them. Every order gives one total
+    /// (`cost-architecture.md#34-in-any-order-they-choose--the-prompt-the-theorem-and-the-middleware`)
+    /// until a reduction is a hybrid symbol or has a floor.
     OrderCostReductions { spell_id: ObjectId },
     /// CR 601.2h — "they pay all costs … in any order." Asked only where the
     /// order can change the game, after every other choice the payment needs,
     /// and only of the parts it can change it for: the options are those
-    /// parts, each by what it costs, and the answer is the order to pay them
-    /// in, the first first (`engine::payment_order`). Two parts alike in every
-    /// word are taken in turn. An order that leaves a part unpayable is
+    /// parts, each by what it costs and what pays it, and the answer is the
+    /// order to pay them in, the first first (`engine::payment_order`). Two
+    /// parts alike in every word are taken in turn. An order that leaves a part unpayable is
     /// refused, and the rejection names that part. `spell_or_ability_id` is
     /// what is being paid for.
     OrderCostPayments { spell_or_ability_id: ObjectId },
@@ -332,10 +332,10 @@ pub enum ChoiceKind {
     /// number on the prompt and the options are the truth.
     Scry { source: Option<ObjectId>, n: u64 },
 
-    /// The order cards go into a library "in any order": CR 701.22a's scry
-    /// today, and a card's own words (Ponder) when one asks. Asked once per
-    /// group that has two or more cards in it — with one there is no order to
-    /// choose, which is every Scry 1 and so every prompt Opt makes.
+    /// The order cards go into a library "in any order": CR 701.22a's scry,
+    /// and a card's own words (Ponder). Asked once per group that has two or
+    /// more cards in it — with one there is no order to choose, which is
+    /// every Scry 1 and so every prompt Opt makes.
     ///
     /// `bottom` says which group: the cards going to the bottom, or the ones
     /// staying on top. Two prompts and not two kinds, because it is one
@@ -550,7 +550,7 @@ pub enum ChoiceOption {
     /// An additional cost option
     AdditionalCost(AdditionalCost),
     /// One part of a total cost (CR 601.2h), for the order they are paid in.
-    CostPart(Cost),
+    CostPart(CostPart),
     /// A number (for X value ranges presented as discrete options)
     Number(u64),
     /// A color
@@ -567,6 +567,16 @@ pub enum ChoiceOption {
     /// A replacement or prevention effect CR 616.1 offers, named by where it
     /// comes from.
     Replacement(ReplacementOption),
+}
+
+/// One part of a total cost, named by what it costs and, where the payment
+/// has chosen, by the objects that pay it. A cost's words leave its filter out,
+/// so "sacrifice an artifact" and "sacrifice a creature" read alike: what pays
+/// each tells them apart, and it is what a player is deciding about.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CostPart {
+    pub cost: Cost,
+    pub paid_with: Vec<ObjectId>,
 }
 
 /// One of the triggers CR 603.3b's question asks a player to order, named by
@@ -709,7 +719,8 @@ impl ChoiceOption {
             ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", object(blocker), object(attacker)),
             ChoiceOption::NormalCost => "mana cost".to_string(),
             ChoiceOption::AlternativeCost(cost) => format!("alternative {}", alternative_cost_label(cost)),
-            ChoiceOption::CostPart(cost) => format!("cost {}", cost_part_label(cost)),
+            ChoiceOption::CostPart(CostPart { cost, paid_with }) if paid_with.is_empty() => format!("cost {}", cost_words(cost)),
+            ChoiceOption::CostPart(CostPart { cost, paid_with }) => format!("cost {}: {}", cost_words(cost), objects(paid_with)),
             ChoiceOption::AdditionalCost(cost) => format!("additional {}", additional_cost_label(cost)),
             ChoiceOption::Number(number) => format!("number {number}"),
             ChoiceOption::Color(color) => format!("color {}", color_name(*color).to_lowercase()),
