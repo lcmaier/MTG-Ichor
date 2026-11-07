@@ -108,7 +108,8 @@ struct CostFootprint {
     /// first). Two parts adding to one have an order that shows.
     appends: Quantities,
     /// What its event is, to whatever watches for it. Paying mana announces
-    /// nothing, until CR 700.14's "expend" gives it an event of its own.
+    /// nothing: CR 700.14's "expend" reads the whole cost once it is paid, so
+    /// it puts no order among the parts.
     events: EventKindMask,
     actions: GameActionKindMask,
 }

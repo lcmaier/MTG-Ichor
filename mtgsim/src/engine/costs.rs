@@ -153,9 +153,10 @@ const RANK_MOVES_AN_OBJECT: u8 = 2;
 /// taken back**, which is what makes CR 732.1's "any payments already made
 /// are canceled" unreachable rather than unimplemented:
 ///
-/// - rank 0, `Mana` — the only cost whose payment can fail on a choice the
-///   player made (a generic split that spends a color a pip still needs), so
-///   it is paid while nothing else has been. `cost_determination::total`
+/// - rank 0, `Mana` — the one payment resting on a choice the player made, the
+///   generic split, which `generic_split_caps` holds to what leaves every pip
+///   its mana. It is paid while nothing else has been, so that holding is not
+///   all that stands before CR 732.1. `cost_determination::total`
 ///   already merges every mana entry into one component ahead of this
 ///   (`cost-architecture.md` §3.3); this extends the same argument to an
 ///   ability's cost list, which is its *printed* one and never merged.
