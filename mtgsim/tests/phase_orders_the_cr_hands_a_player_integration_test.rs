@@ -17,10 +17,10 @@ use mtgsim::cards::authoring::{
     has_base_power_and_toughness, static_ability, this_object, you,
 };
 use mtgsim::cards::fixtures::{
-    forked_reliquary, godhead_of_awe_fixture, grudge_clerk, kudo_king_among_bears_fixture, momentous_fall_fixture,
-    omnath_locus_of_mana_fixture, reckoner_of_debts, scattering_flicker, self_eating_engine, sentry_of_the_tapped_gate, tithing_engine,
+    forked_reliquary, godhead_of_awe_fixture, grudge_clerk, kudo_king_among_bears_fixture, omnath_locus_of_mana_fixture, reckoner_of_debts,
+    scattering_flicker, self_eating_engine, sentry_of_the_tapped_gate, tithing_engine,
 };
-use mtgsim::cards::printings::{grizzly_bears, myr_enforcer, savannah_lions};
+use mtgsim::cards::printings::{grizzly_bears, momentous_fall, myr_enforcer, savannah_lions};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::costs::CannotPay;
@@ -101,7 +101,7 @@ fn cast_the_fall_paying(board: impl Fn(&mut GameState) -> ObjectId, parts: impl 
     game.enable_audit();
     fill_library(&mut game, 0, 10);
     let creature = board(&mut game);
-    let fall = put_in_hand(&mut game, momentous_fall_fixture(), 0);
+    let fall = put_in_hand(&mut game, momentous_fall(), 0);
     float_green(&mut game, 6);
 
     let answers = ScriptedDecisionProvider::new();
@@ -165,14 +165,18 @@ fn another_players_pool_is_not_yours() {
 
 /// The spell reads the creature its cost sacrificed, as it last existed: two
 /// cards and 2 life for Grizzly Bears, and the record names the existence the
-/// payment ended (CR 400.7), not the card now in the graveyard.
+/// payment ended (CR 400.7), not the card now in the graveyard. The sacrifice
+/// is paid as the spell is cast, so the creature is gone before anyone gets
+/// priority to answer it.
+// RULING: Momentous Fall #2 - "Players can only respond once this spell has been cast and all its costs have been paid."
+// RULING: Momentous Fall #3 - "The sacrificed creature's last known existence on the battlefield is checked to determine its power and its toughness."
 // COVERS-PARTIAL: ATOM-601.2h-003
 #[test]
 fn the_spell_reads_the_creature_its_cost_sacrificed() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 5);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    let fall = put_in_hand(&mut game, momentous_fall_fixture(), 0);
+    let fall = put_in_hand(&mut game, momentous_fall(), 0);
     float_green(&mut game, 4);
     let existence = game.object_ref(bears).expect("on the battlefield");
 
@@ -188,6 +192,28 @@ fn the_spell_reads_the_creature_its_cost_sacrificed() {
     assert_eq!(game.players[0].life_total, 22, "its toughness");
 }
 
+/// With no creature it is not offered and a cast is refused before anything
+/// is paid; with two, its controller picks the one, and the other stays.
+// RULING: Momentous Fall #1 - "You must sacrifice exactly one creature to cast this spell; you cannot cast it without sacrificing a creature, and you cannot sacrifice additional creatures."
+#[test]
+fn momentous_fall_sacrifices_exactly_one_creature_and_needs_one() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 5);
+    let fall = put_in_hand(&mut game, momentous_fall(), 0);
+    float_green(&mut game, 4);
+    assert!(matches!(mtgsim::oracle::mana_helpers::can_cast(&game, 0, fall), Err(mtgsim::oracle::mana_helpers::CannotCast::AdditionalCost(_))));
+    assert!(game.cast_spell(0, fall, &ManaWindowStop::new(test_dp())).is_err());
+    assert_eq!(game.get_object(fall).unwrap().zone, Zone::Hand);
+
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
+    let answers = ScriptedDecisionProvider::new();
+    sacrifices(&answers, lions);
+    game.cast_spell(0, fall, &ManaWindowStop::new(answers)).expect("one of two creatures pays it");
+    assert_eq!(game.get_object(lions).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield, "exactly one");
+}
+
 // ---------------------------------------------------------------------------
 // CR 601.2h: the order, asked where it changes the game
 // ---------------------------------------------------------------------------
@@ -195,6 +221,7 @@ fn the_spell_reads_the_creature_its_cost_sacrificed() {
 /// `ATOM-601.2h-003`'s board, from hand. Sacrificed before the mana is paid,
 /// Omnath last existed with six green unspent, a 7/7; after, with two, a 3/3.
 /// One board, two games, and the choice was the player's.
+// RULING: Momentous Fall #3 - "The sacrificed creature's last known existence on the battlefield is checked to determine its power and its toughness."
 // COVERS: ATOM-601.2h-003
 #[test]
 fn sacrificing_omnath_before_or_after_the_mana_draws_a_different_number() {
@@ -286,7 +313,7 @@ fn sacrificing_a_creature_that_reads_no_pool_asks_no_order() {
     fill_library(&mut game, 0, 5);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     put_on_battlefield(&mut game, omnath_locus_of_mana_fixture(), 0);
-    let fall = put_in_hand(&mut game, momentous_fall_fixture(), 0);
+    let fall = put_in_hand(&mut game, momentous_fall(), 0);
     float_green(&mut game, 4);
 
     let answers = ScriptedDecisionProvider::new();
@@ -528,7 +555,7 @@ fn the_creature_chosen_is_the_creature_read() {
     fill_library(&mut game, 0, 5);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let omnath = put_on_battlefield(&mut game, omnath_locus_of_mana_fixture(), 0);
-    let fall = put_in_hand(&mut game, momentous_fall_fixture(), 0);
+    let fall = put_in_hand(&mut game, momentous_fall(), 0);
     float_green(&mut game, 4);
 
     let answers = ScriptedDecisionProvider::new();

@@ -95,6 +95,8 @@ pub mod m10;
 pub mod zen;
 #[path = "2010/02_05_wwk.rs"]
 pub mod wwk;
+#[path = "2010/04_23_roe.rs"]
+pub mod roe;
 #[path = "2010/07_16_m11.rs"]
 pub mod m11;
 #[path = "2010/10_01_som.rs"]

@@ -15,10 +15,10 @@ use crate::cards::authoring::{
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::costs::{AdditionalCost, Cost, PaymentAct};
+use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, ObjectValue, PlayerFact,
-    PlayerRef, PlayerSet, ReturnUnder, SelectionFilter, TargetCount,
+    AmountExpr, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
+    ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
@@ -43,29 +43,6 @@ pub fn omnath_locus_of_mana_fixture() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text(text)
         .ability(static_ability(text, gets(this_object(), per_green(), per_green())))
-        .build()
-}
-
-/// Momentous Fall Fixture — {2}{G}{G}
-/// Instant.
-///
-/// Momentous Fall's words, on its shape: a mandatory sacrifice whose object
-/// the resolution reads back as it last existed (the card's 2010-06-15
-/// ruling). Beside [`omnath_locus_of_mana_fixture`] it is `ATOM-601.2h-003`'s
-/// board.
-pub fn momentous_fall_fixture() -> Arc<CardData> {
-    let text = "As an additional cost to cast this spell, sacrifice a creature.\nYou draw cards equal to the sacrificed creature's power, then you gain life equal to its toughness.";
-    let sacrificed = |value| AmountExpr::ValueOf(Antecedent::PaidWith(PaymentAct::Sacrificed), value);
-    CardDataBuilder::new("Momentous Fall Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green], 2))
-        .color(Color::Green)
-        .card_type(CardType::Instant)
-        .rules_text(text)
-        .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(creature(), 1)]))
-        .ability(spell_ability(
-            text,
-            Effect::Sequence(vec![draw_cards(you(), sacrificed(ObjectValue::Power)), gain_life(you(), sacrificed(ObjectValue::Toughness))]),
-        ))
         .build()
 }
 

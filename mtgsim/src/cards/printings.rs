@@ -47,6 +47,7 @@ pub use super::sets::ala::*;
 pub use super::sets::m10::*;
 pub use super::sets::zen::*;
 pub use super::sets::wwk::*;
+pub use super::sets::roe::*;
 pub use super::sets::m11::*;
 pub use super::sets::som::*;
 pub use super::sets::mbs::*;
