@@ -255,8 +255,15 @@ sitting under `--audit` (50 games, release-checked) read 0 errors, panics and tu
 | **Dependency checks** | **11** | **29** |
 | Decisions | 189 | 228 |
 
-**Size**: 1,667 added and 140 removed in `mtgsim/src` and `mtgsim/tests`, 1,807 touched,
-against the brief's 1,500–2,300. The pool change moved `priority_fork_test`'s two seeds,
+**Rerun after the pre-review (2026-11-07), on `63d2d6ed`** against shipped: one count for a
+mode's scope, a node nothing announced refused, a mode's list read as it is made,
+`ModeChosen` answered. Predicted `IDENTICAL`, since each refuses only what no game reaches.
+Every gameplay row **IDENTICAL** on both pools at both seats; instructions a decision
+0.7055 M → 0.7040 M, **-0.21%**, the functions past half a point drop glue and a clone of
+`EffectiveCharacteristics` inlined elsewhere; growth unchanged.
+
+**Size**: 1,882 added and 153 removed in `mtgsim/src` and `mtgsim/tests`, 2,035 touched,
+1,807 before the pre-review's tests and fixes, against the brief's 1,500–2,300. The pool change moved `priority_fork_test`'s two seeds,
 re-picked from the sweep (0 of 13,020 branches diverging), and dealt `phase_tr1b`'s audited
 game Bone Splinters, whose payment-order audit traced its fork: fixed ahead of the cards.
 
