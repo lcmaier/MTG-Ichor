@@ -626,10 +626,11 @@ impl ManaAbilityWindowOffer {
 }
 
 /// Whether a mana ability whose cost is `costs` can be activated now as far
-/// as its cost goes: begun, which the summoning sickness rule can forbid (CR
-/// 602.5a), and then paid (CR 118.3).
+/// as its cost goes: paid (CR 118.3), and begun, which the summoning sickness
+/// rule can forbid (CR 602.5a). Either refuses it, so the resources go first:
+/// a tapped source is refused without its characteristics being read.
 fn can_begin_and_pay(game: &GameState, costs: &[Cost], player: PlayerId, source: ObjectId) -> bool {
-    !summoning_sickness_forbids(game, source, costs) && game.can_pay_costs(costs, player, source).is_ok()
+    game.can_pay_costs(costs, player, source).is_ok() && !summoning_sickness_forbids(game, source, costs)
 }
 
 /// An ability the window offers: what it has always offered, one that makes
