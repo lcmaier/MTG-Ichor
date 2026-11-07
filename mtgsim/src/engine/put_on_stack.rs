@@ -21,7 +21,7 @@ use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::TargetInstance;
-use crate::oracle::modes::{legal_mode_sets, ModeAsk};
+use crate::oracle::modes::legal_mode_sets;
 use crate::types::effects::{EffectRecipient, ModeChooser, ModeIndex, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
@@ -410,8 +410,7 @@ impl GameState {
             let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
             return Ok((Vec::new(), targets));
         };
-        let ask = ModeAsk { game: self, player: player_id, this_object, named: named_objects, x_value };
-        let sets = legal_mode_sets(ask, node);
+        let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value);
         if sets.is_empty() {
             return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
         }

@@ -9,26 +9,24 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{ModalCount, ModalNode, ModeIndex};
 use crate::types::ids::{ObjectId, PlayerId};
 
-/// What an offer of modes is read against: the board, the player announcing
-/// (whose "you" the targets and the count's condition read), the object whose
-/// text it is (CR 113.7a), what a trigger's targets name, and the X announced
-/// before the modes, which a count of X reads.
-#[derive(Clone, Copy)]
-pub(crate) struct ModeAsk<'a> {
-    pub game: &'a GameState,
-    pub player: PlayerId,
-    pub this_object: ObjectId,
-    pub named: ConditionReferents<'a>,
-    pub x_value: Option<u64>,
-}
-
 /// Every set of modes `node` lets its chooser announce now, in printed order
 /// within a set, the smaller sets first. A mode whose instances of "target"
 /// cannot all be chosen is in none (CR 700.2a), and a mode is never in a set
-/// twice (CR 700.2d's default).
-pub(crate) fn legal_mode_sets(ask: ModeAsk<'_>, node: &ModalNode) -> Vec<Vec<ModeIndex>> {
+/// twice (CR 700.2d's default). Read as `every_instance_has_a_choice` reads a
+/// spell's targets: `player` is the one announcing, whose "you" the targets
+/// and the count's condition read; `this_object` the object whose text it is
+/// (CR 113.7a); `named` what a trigger's event names; and `x_value` the X
+/// announced before the modes, which a count of X reads.
+pub(crate) fn legal_mode_sets(
+    game: &GameState,
+    node: &ModalNode,
+    player: PlayerId,
+    this_object: ObjectId,
+    named: ConditionReferents<'_>,
+    x_value: Option<u64>,
+) -> Vec<Vec<ModeIndex>> {
     let mut sets = Vec::new();
-    walk_legal_sets(ask, node, &mut |set| {
+    walk_legal_sets(game, node, player, this_object, named, x_value, &mut |set| {
         sets.push(set.to_vec());
         true
     });
@@ -36,9 +34,16 @@ pub(crate) fn legal_mode_sets(ask: ModeAsk<'_>, node: &ModalNode) -> Vec<Vec<Mod
 }
 
 /// Whether [`legal_mode_sets`] lists any: the same walk, stopped at the first.
-pub(crate) fn has_a_legal_mode_set(ask: ModeAsk<'_>, node: &ModalNode) -> bool {
+pub(crate) fn has_a_legal_mode_set(
+    game: &GameState,
+    node: &ModalNode,
+    player: PlayerId,
+    this_object: ObjectId,
+    named: ConditionReferents<'_>,
+    x_value: Option<u64>,
+) -> bool {
     let mut found = false;
-    walk_legal_sets(ask, node, &mut |_| {
+    walk_legal_sets(game, node, player, this_object, named, x_value, &mut |_| {
         found = true;
         false
     });
@@ -46,15 +51,23 @@ pub(crate) fn has_a_legal_mode_set(ask: ModeAsk<'_>, node: &ModalNode) -> bool {
 }
 
 /// Each legal set in [`legal_mode_sets`]' order, until `f` returns `false`.
-fn walk_legal_sets(ask: ModeAsk<'_>, node: &ModalNode, f: &mut impl FnMut(&[ModeIndex]) -> bool) {
-    let Some((fewest, most)) = set_sizes(ask, &node.count) else { return };
+fn walk_legal_sets(
+    game: &GameState,
+    node: &ModalNode,
+    player: PlayerId,
+    this_object: ObjectId,
+    named: ConditionReferents<'_>,
+    x_value: Option<u64>,
+    f: &mut impl FnMut(&[ModeIndex]) -> bool,
+) {
+    let Some((fewest, most)) = set_sizes(game, &node.count, player, this_object, named, x_value) else { return };
     // A size past the modes left is no set: a mode is chosen once.
     if fewest > node.modes.len() {
         return;
     }
     let legal: Vec<ModeIndex> = node
         .indexed_modes()
-        .filter(|(_, mode)| every_instance_has_a_choice(ask.game, &mode.instances, ask.player, ask.this_object, ask.named))
+        .filter(|(_, mode)| every_instance_has_a_choice(game, &mode.instances, player, this_object, named))
         .map(|(place, _)| place)
         .collect();
     for size in fewest..=most.min(legal.len()) {
@@ -67,20 +80,27 @@ fn walk_legal_sets(ask: ModeAsk<'_>, node: &ModalNode, f: &mut impl FnMut(&[Mode
 /// The fewest and most modes `count` allows, read now: `None` for a count of
 /// X with no X announced. The most may pass the modes printed, which the walk
 /// caps.
-fn set_sizes(ask: ModeAsk<'_>, count: &ModalCount) -> Option<(usize, usize)> {
+fn set_sizes(
+    game: &GameState,
+    count: &ModalCount,
+    player: PlayerId,
+    this_object: ObjectId,
+    named: ConditionReferents<'_>,
+    x_value: Option<u64>,
+) -> Option<(usize, usize)> {
     let size = |n: u32| usize::try_from(n).unwrap_or(usize::MAX);
     match count {
         ModalCount::Exactly(n) => Some((size(*n), size(*n))),
         ModalCount::Range { fewest, most } => Some((size(*fewest), size(*most))),
         ModalCount::X => {
-            let x = usize::try_from(ask.x_value?).unwrap_or(usize::MAX);
+            let x = usize::try_from(x_value?).unwrap_or(usize::MAX);
             Some((x, x))
         }
         // Read once as the modes are chosen, against the board then (Will of
         // the Abzan's ruling).
         ModalCount::RaisedIf { usual, raised, condition } => {
-            let holds = settled_holds(condition, ask.game, ask.this_object, Some(ask.player), ask.named);
-            set_sizes(ask, if holds { raised } else { usual })
+            let holds = settled_holds(condition, game, this_object, Some(player), named);
+            set_sizes(game, if holds { raised } else { usual }, player, this_object, named, x_value)
         }
     }
 }
