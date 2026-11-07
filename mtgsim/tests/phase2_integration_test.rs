@@ -25,20 +25,20 @@ fn test_cast_and_resolve_lightning_bolt() {
     let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
-    decisions.expect_choice(ChoiceKind::SelectRecipients {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    dp.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![ChoiceOption::Player(1)]);
     // Round 1: Cast (returns ActionTaken immediately)
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
     assert!(game.stack.contains(&bolt_id));
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
 
     // Round 2: Both pass → resolve
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert_eq!(game.players[1].life_total, 17);
     assert!(game.stack.is_empty());
@@ -59,18 +59,18 @@ fn test_cast_and_resolve_ancestral_recall() {
     let recall_id = put_in_hand(&mut game, printings::ancestral_recall(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(recall_id))]);
-    decisions.expect_choice(ChoiceKind::SelectRecipients {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(recall_id))]);
+    dp.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
         spell_id: recall_id,
     }, vec![ChoiceOption::Player(0)]);
     // Cast (returns ActionTaken immediately)
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
     assert!(game.stack.contains(&recall_id));
 
     // Resolve: both pass
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
     assert_eq!(game.players[0].hand.len(), 3); // drew 3 cards
     assert_eq!(game.players[0].library.len(), 7);
 }
@@ -87,30 +87,30 @@ fn test_counterspell_counters_bolt() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[1].mana_pool.add(ManaType::Blue, 2);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Player 0 casts bolt targeting player 1
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
-    decisions.expect_choice(ChoiceKind::SelectRecipients {
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    dp.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![ChoiceOption::Player(1)]);
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
     assert!(game.stack.contains(&bolt_id));
 
     // Player 1 responds with Counterspell targeting the bolt
     // After ActionTaken, priority returns to caster (player 0) who passes
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(cs_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(cs_id))]);
     // The bolt is the only spell on the stack — a forced target, not asked.
 
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
     assert!(game.stack.contains(&cs_id)); // counterspell on stack
     assert!(game.stack.contains(&bolt_id)); // bolt still on stack below it
 
     // Both pass — Counterspell resolves
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
     // Bolt should have been countered (removed from stack, in graveyard)
@@ -135,14 +135,14 @@ fn test_volcanic_upheaval_destroys_land() {
     let upheaval_id = put_in_hand(&mut game, printings::volcanic_upheaval(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 4); // {3}{R}
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval_id))]);
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
     // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
     // Cast (returns ActionTaken immediately)
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
     // Both answered unasked, and the game's log says so.
     mtgsim::test_support::assert_not_asked(&game, 0, "SelectRecipients", "its one legal answer");
@@ -151,7 +151,7 @@ fn test_volcanic_upheaval_destroys_land() {
     assert!(game.battlefield.contains_key(&target_land));
 
     // Resolve: both pass
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
     // Land should be destroyed (in graveyard)
@@ -175,14 +175,14 @@ fn test_burst_of_energy_untaps_land() {
     let burst_id = put_in_hand(&mut game, printings::burst_of_energy(), 0);
     game.players[0].mana_pool.add(ManaType::White, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(burst_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(burst_id))]);
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // Cast (returns ActionTaken immediately)
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
     // Resolve: both pass
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Land should be untapped
     assert!(!game.battlefield.get(&land_id).unwrap().tapped);
@@ -202,7 +202,7 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
     let upheaval2_id = put_in_hand(&mut game, printings::volcanic_upheaval(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 8); // enough for both
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     let _upheaval_recipient = EffectRecipient::Target(
         SelectionFilter::Permanent(ObjectFilter::ByType(mtgsim::types::card_types::CardType::Land)),
@@ -210,29 +210,29 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
     );
 
     // Cast first upheaval targeting the land
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval1_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval1_id))]);
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
     // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Cast second upheaval targeting the same land
     // After ActionTaken, priority returns to caster (player 0)
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval2_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval2_id))]);
     // Same forced target and forced split as the cast above.
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Stack: [upheaval1, upheaval2] — upheaval2 on top (LIFO)
     assert_eq!(game.stack.len(), 2);
 
     // Both pass — upheaval2 resolves, destroying the land
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert!(!game.battlefield.contains_key(&target_land));
 
     // Both pass again — upheaval1 resolves but should fizzle (target gone)
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
     // upheaval1 fizzled but still goes to graveyard
@@ -257,34 +257,34 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     game.players[1].mana_pool.add(ManaType::Red, 4); // {3}{R} for Upheaval
     game.players[0].mana_pool.add(ManaType::White, 1); // {W} for Burst
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Player 0 casts Burst of Energy targeting their own tapped land
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(burst_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(burst_id))]);
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Player 1 responds with Volcanic Upheaval targeting the same land
     // After ActionTaken, priority returns to caster (player 0) who passes
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(upheaval_id))]);
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
     // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Stack: [Burst of Energy, Volcanic Upheaval] — Upheaval on top (LIFO)
     assert_eq!(game.stack.len(), 2);
 
     // Both pass — Upheaval resolves, destroying the land
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert!(!game.battlefield.contains_key(&target_land));
     assert_eq!(game.get_object(target_land).unwrap().zone, Zone::Graveyard);
 
     // Both pass — Burst of Energy resolves but fizzles (target gone)
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
     // Burst fizzled — it's in the graveyard, stack is empty
@@ -306,34 +306,34 @@ fn test_stack_lifo_order_bolt_then_recall() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast bolt first (goes on stack first = bottom)
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
-    decisions.expect_choice(ChoiceKind::SelectRecipients {
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    dp.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![ChoiceOption::Player(1)]);
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Cast recall second (goes on top)
     // After ActionTaken, priority returns to caster (player 0)
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(recall_id))]);
-    decisions.expect_choice(ChoiceKind::SelectRecipients {
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(recall_id))]);
+    dp.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
         spell_id: recall_id,
     }, vec![ChoiceOption::Player(1)]);
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     assert_eq!(game.stack.len(), 2);
 
     // Resolve top: Recall draws 3 for player 1 (both pass)
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
     assert_eq!(game.players[1].hand.len(), 3);
     assert_eq!(game.players[1].life_total, 20); // bolt hasn't resolved yet
 
     // Resolve next: Bolt deals 3 to player 1 (both pass)
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
     assert_eq!(game.players[1].life_total, 17);
 }
 
@@ -366,16 +366,16 @@ fn test_priority_loop_cast_and_resolve() {
     let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
     // Player 0 casts bolt
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
-    decisions.expect_choice(ChoiceKind::SelectRecipients {
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    dp.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![ChoiceOption::Player(1)]);
     // Rounds 2 and 3 offer both players `Pass` alone, which the engine takes:
     // cast → pass pass → resolve → pass pass → phase ends
-    game.run_priority_loop(&decisions).unwrap();
+    game.run_priority_loop(&dp).unwrap();
 
     assert_eq!(game.players[1].life_total, 17);
     assert!(game.stack.is_empty());

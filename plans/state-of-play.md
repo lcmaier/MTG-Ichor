@@ -48,7 +48,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | — |
 | 3 | `card-layer-cleanup` | landed | — |
 | 4 | `pausing-at-a-decision`, the design | landed | — |
-| 5 | `modal-spells-and-abilities` and 4 more | 4 of 9 landed | 5–9 |
+| 5 | `mode-rules-and-costs`, the second and 4 more | 5 of 10 landed | 5–8 |
 | 6 | `linked-abilities` | to come | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 4–7 |
@@ -61,9 +61,9 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **43 rows to come** | **72–137** |
+| | **To v0.5** | **43 rows to come** | **72–136** |
 
-**Deck cards registered: 7 of 385**,
+**Deck cards registered: 9 of 385**,
 the five lists' distinct cards less basics.
 
 ## Phases by name
@@ -169,6 +169,7 @@ is derived.
 | 2026-11-02 | Every option named by what it is | `options-named-by-what-they-are` | `choices-architecture.md` |
 | 2026-11-03 | An effect divided among its targets | `divided-among-targets` | `choices-architecture.md` |
 | 2026-11-06 | The orders the CR hands a player | `orders-the-cr-hands-a-player` | `choices-architecture.md` |
+| 2026-11-07 | A mode chosen, targeted and resolved | `modes-chosen-and-resolved` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -182,7 +183,7 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| CR 700.2 whole | `modal-spells-and-abilities` | `choices-architecture.md` |
+| The node's rules, its other choosers and a mode's own cost | `mode-rules-and-costs` | `choices-architecture.md` |
 | A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
 | A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
 | Token copies | `token-copies` | `copy-effects-architecture.md` |
@@ -206,9 +207,9 @@ cell, and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 218 |
-| …of them in `PERFORMANCE_POOL` | 125 |
-| `#[test]` functions | 3005 |
+| Cards registered | 222 |
+| …of them in `PERFORMANCE_POOL` | 126 |
+| `#[test]` functions | 3033 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -229,8 +230,8 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 461 |
-| …closed, still recorded | 276 |
+| Numbered items | 463 |
+| …closed, still recorded | 278 |
 | …open — unreachable, and says why | 126 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 33 |

@@ -263,8 +263,8 @@ fn lethal_damage_to_a_planeswalker_reaches_cr_704_5i() {
     .unwrap();
     assert_eq!(game.battlefield[&probe].counter_count(CounterType::Loyalty), 0);
 
-    let decisions = ScriptedDecisionProvider::new();
-    assert!(game.check_state_based_actions(&decisions).unwrap());
+    let dp = ScriptedDecisionProvider::new();
+    assert!(game.check_state_based_actions(&dp).unwrap());
     assert!(!game.battlefield.contains_key(&probe));
     assert!(game.players[1].graveyard.contains(&probe));
 }

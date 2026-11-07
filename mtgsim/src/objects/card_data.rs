@@ -554,6 +554,19 @@ pub fn spell_effect(abilities: &[AbilityDef]) -> Option<Effect> {
     }
 }
 
+/// A spell's modes (CR 700.2): the modal node of its one spell ability. A
+/// spell of several paragraphs is their `Sequence`, which carries no node at
+/// its root (`Effect::modal`), so it has none. Read without building
+/// [`spell_effect`]'s copy, since castability asks it of every card in hand.
+pub fn spell_modes(abilities: &[AbilityDef]) -> Option<&crate::types::effects::ModalNode> {
+    let mut spell_abilities = abilities.iter().filter(|ability| ability.ability_type == AbilityType::Spell);
+    let only = spell_abilities.next()?;
+    if spell_abilities.next().is_some() {
+        return None;
+    }
+    only.effect.modal()
+}
+
 /// A card's rules text cut into paragraphs, each one ability (CR 113.2c): a
 /// line, with the bullet lines after it, since a modal ability's modes are
 /// part of its paragraph (CR 700.2).

@@ -36,7 +36,7 @@ use crate::state::game_state::GameState;
 use crate::engine::trace_records;
 use crate::events::unasked::{Unasked, UnaskedAnswer};
 use crate::types::costs::{AdditionalCost, AlternativeCost};
-use crate::types::effects::EffectRecipient;
+use crate::types::effects::{EffectRecipient, ModeIndex};
 use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
@@ -655,6 +655,23 @@ pub fn ask_choose_trample_damage_assignment(
 // ===========================================================================
 // Casting Pipeline (601.2)
 // ===========================================================================
+
+/// CR 601.2b, 603.3c — the modes of `source`, one of `sets`, the legal
+/// choices `oracle::modes` listed (CR 700.2a). One legal set is announced
+/// without asking, and recorded. `sets` is never empty: no legal choice is
+/// the caller's rewind or removal, not a question.
+pub fn ask_choose_modes(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    source: ObjectId,
+    mut sets: Vec<Vec<ModeIndex>>,
+) -> Vec<ModeIndex> {
+    let options: Vec<ChoiceOption> = sets.iter().cloned().map(ChoiceOption::Modes).collect();
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseModes { source });
+    let picked = pick_unless_forced(dp, game, player, ctx, &options, (1, 1), "choose_modes");
+    sets.swap_remove(picked[0])
+}
 
 /// CR 601.2b — choose the value of X for `spell_id` from `values`, which
 /// `oracle::x_values::legal_x_values` read, so every X offered is one the

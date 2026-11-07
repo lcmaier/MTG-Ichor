@@ -189,6 +189,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         | ChoiceOption::AlternativeCost(_)
         | ChoiceOption::AdditionalCost(_)
         | ChoiceOption::Number(_)
+        | ChoiceOption::Modes(_)
         | ChoiceOption::Color(_)
         | ChoiceOption::CounterType(_)
         | ChoiceOption::ManaType(_) => vec![],

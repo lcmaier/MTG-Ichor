@@ -15,7 +15,9 @@ use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::engine::costs::CannotPay;
+use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::put_on_stack::SorceryTiming;
+use crate::oracle::modes::has_a_legal_mode_set;
 
 /// Whether `player_id` can pay the mana `cost` asks, for `payment`: from the
 /// pool alone, or from all they can make, the inventory `supply` holds once
@@ -54,6 +56,9 @@ pub enum CannotCast {
     Timing(SorceryTiming),
     /// An instance of "target" with no legal choice (CR 601.2c).
     NoLegalTarget,
+    /// A modal spell with no set of modes its count allows whose targets can
+    /// all be chosen (CR 700.2a).
+    NoLegalModes,
     /// A mandatory additional cost that can't be paid (CR 601.2h).
     AdditionalCost(CannotPay),
     /// The mana its caster's pool and untapped sources can make does not
@@ -70,6 +75,7 @@ impl std::fmt::Display for CannotCast {
             CannotCast::NoSpellAbility => f.write_str("Card has no spell ability"),
             CannotCast::Timing(timing) => timing.fmt(f),
             CannotCast::NoLegalTarget => f.write_str("No legal choice for one of its targets"),
+            CannotCast::NoLegalModes => f.write_str("No legal choice of its modes"),
             CannotCast::AdditionalCost(cost) => cost.fmt(f),
             CannotCast::ManaShort => f.write_str("Not enough mana"),
         }
@@ -123,8 +129,19 @@ fn can_cast_with(
     // requires targets if no legal target exists. Asked of the card, not
     // the spell ability — an Aura's target is its enchant ability
     // (CR 303.4a) and it has no spell ability to ask.
-    if !every_instance_has_a_choice(game, obj.card_data.spell_instances(), player_id, card_id) {
+    if !every_instance_has_a_choice(game, obj.card_data.spell_instances(), player_id, card_id, ConditionReferents::NONE) {
         return Err(CannotCast::NoLegalTarget);
+    }
+    // CR 700.2a: a modal spell needs a legal set of modes, each mode's targets
+    // among what makes one legal; the announcement's own list, asked for its
+    // first. At the least X, as the mana below is asked.
+    // PRE-LAYER ZONE: printed abilities on purpose, the card still in hand, as
+    // `cast_spell` reads them.
+    if let Some(node) = crate::objects::card_data::spell_modes(&obj.card_data.abilities) {
+        let least_x = obj.card_data.mana_cost.as_ref().filter(|cost| cost.x_count() > 0).map(|_| u64::from(obj.card_data.x_cant_be_zero));
+        if !has_a_legal_mode_set(game, node, player_id, card_id, ConditionReferents::NONE, least_x) {
+            return Err(CannotCast::NoLegalModes);
+        }
     }
 
     // An unpayable mandatory cost makes the spell uncastable (CR 601.2h), and
@@ -254,6 +271,8 @@ pub enum CannotActivate {
     ManaShort,
     /// An instance of "target" with no legal choice (CR 602.2b, 601.2c).
     NoLegalTarget,
+    /// A modal ability with no legal set of modes (CR 700.2a).
+    NoLegalModes,
 }
 
 /// The engine's own words, for an error a caller returns as text.
@@ -271,6 +290,7 @@ impl std::fmt::Display for CannotActivate {
             CannotActivate::Cost(cost) => cost.fmt(f),
             CannotActivate::ManaShort => f.write_str("Not enough mana"),
             CannotActivate::NoLegalTarget => f.write_str("No legal choice for one of its targets"),
+            CannotActivate::NoLegalModes => f.write_str("No legal choice of its modes"),
         }
     }
 }
@@ -351,8 +371,16 @@ fn can_activate_as_its_controller(
     // and has none is not activatable, `can_cast`'s check. `UpTo` stays, zero
     // targets being legal; the oracle filters only what a static read proves
     // illegal (`dp-middleware-and-candidate-enumeration.md` §2).
-    if !every_instance_has_a_choice(game, ability.instances(), player_id, source_id) {
+    if !every_instance_has_a_choice(game, ability.instances(), player_id, source_id, ConditionReferents::NONE) {
         return Err(CannotActivate::NoLegalTarget);
+    }
+    // CR 700.2a's modes, as a spell's are: the announcement's list, asked for
+    // its first, with the X `activate_ability` passes, none: an activation's X
+    // (CR 602.2b) is `hybrid-and-phyrexian-payment`'s.
+    if let Some(node) = ability.effect.modal()
+        && !has_a_legal_mode_set(game, node, player_id, source_id, ConditionReferents::NONE, None)
+    {
+        return Err(CannotActivate::NoLegalModes);
     }
 
     let symbols = symbols.unwrap_or_default();
@@ -421,11 +449,16 @@ pub(crate) fn activatable_abilities_with(
 /// board does not make such a spell uncastable. An over-approximation here is
 /// `codebase-state.md` item 139's class — the engine offers a cast it then
 /// rewinds — so the checks that can be made statically are made.
-fn every_instance_has_a_choice(
+///
+/// `named` is what a trigger's text names (its triggering event), which a
+/// mode's targets read as its placement does; nothing for a spell or an
+/// activation.
+pub(crate) fn every_instance_has_a_choice(
     game: &GameState,
     instances: &[EffectRecipient],
     player_id: PlayerId,
     this_object: ObjectId,
+    named: crate::engine::layers::condition::ConditionReferents<'_>,
 ) -> bool {
     // The last clause whose criteria read an earlier instance. Everything after
     // it has nothing to feed forward to, and for every spell but the "another
@@ -456,7 +489,8 @@ fn every_instance_has_a_choice(
             let view = crate::engine::targeting::FilterIdentity::for_text_of(
                 this_object,
                 crate::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
-            );
+            )
+            .naming(named);
             // **One pass, not two**: when a later clause reads this one, a bounded
             // enumeration answers the check and the feed-forward together. Any `n`
             // distinct legal choices exclude the same number, which is all the next

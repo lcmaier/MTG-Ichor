@@ -274,15 +274,15 @@ fn test_a_failed_cast_announces_nothing() {
     let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     // No mana, so CR 601.2h cannot be completed and the whole proposal rewinds.
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
         vec![ChoiceOption::Player(1)],
     );
-    assert!(game.cast_spell(0, bolt, &decisions).is_err());
+    assert!(game.cast_spell(0, bolt, &dp).is_err());
 
     assert_eq!(game.get_object(bolt).unwrap().zone, Zone::Hand, "rewound");
     assert!(
@@ -327,9 +327,9 @@ fn test_the_only_payable_split_is_taken_and_never_offered() {
     // Nothing scripted, and nothing asked: `ScriptedDecisionProvider` panics on
     // any call it has no response for, so reaching the assertions below is
     // itself the statement that the prompt is gone.
-    let decisions = ScriptedDecisionProvider::new();
-    game.cast_spell(0, bear, &decisions).expect("the only legal split pays");
-    assert!(decisions.is_empty(), "no question was asked, and none was scripted");
+    let dp = ScriptedDecisionProvider::new();
+    game.cast_spell(0, bear, &dp).expect("the only legal split pays");
+    assert!(dp.is_empty(), "no question was asked, and none was scripted");
 
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Stack);
     assert!(game.stack.contains(&bear));
@@ -362,8 +362,8 @@ fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_allocation(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_allocation(
         ChoiceKind::GenericManaAllocation {
             spell_or_ability_id: ObjectId::UNASSIGNED,
             mana_cost: ManaCost::zero(),
@@ -376,7 +376,7 @@ fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
             (ChoiceOption::ManaType(ManaType::Green), 1),
         ],
     );
-    let _ = game.cast_spell(0, bear, &decisions);
+    let _ = game.cast_spell(0, bear, &dp);
 }
 
 // ---------------------------------------------------------------------------
@@ -389,16 +389,16 @@ fn test_an_event_names_the_resolution_that_proposed_it() {
     let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
         vec![ChoiceOption::Player(1)],
     );
-    game.cast_spell(0, bolt, &decisions).unwrap();
-    game.resolve_top_of_stack(&decisions).unwrap();
+    game.cast_spell(0, bolt, &dp).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
 
     let recorded = game.recorded_events();
     let damage = recorded
@@ -447,8 +447,8 @@ fn test_a_board_wipe_of_state_based_deaths_is_one_batch() {
     game.battlefield.get_mut(&a).unwrap().damage_marked = 9;
     game.battlefield.get_mut(&b).unwrap().damage_marked = 9;
 
-    let decisions = ScriptedDecisionProvider::new();
-    assert!(game.check_state_based_actions(&decisions).unwrap());
+    let dp = ScriptedDecisionProvider::new();
+    assert!(game.check_state_based_actions(&dp).unwrap());
 
     let batches: Vec<Option<BatchId>> = game
         .recorded_events()
@@ -502,9 +502,9 @@ fn test_a_resolving_permanent_spell_moves_through_the_chokepoint() {
     let id = put_in_hand(&mut game, self_anthem_creature(), 0);
     game.players[0].mana_pool.add(ManaType::White, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    game.cast_spell(0, id, &decisions).unwrap();
-    game.resolve_top_of_stack(&decisions).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.cast_spell(0, id, &dp).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
 
     assert!(game.battlefield.contains_key(&id));
     assert_eq!(
@@ -523,16 +523,16 @@ fn test_a_resolving_instant_moves_through_the_chokepoint() {
     let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
         vec![ChoiceOption::Player(1)],
     );
-    game.cast_spell(0, bolt, &decisions).unwrap();
-    game.resolve_top_of_stack(&decisions).unwrap();
+    game.cast_spell(0, bolt, &dp).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
 
     assert_eq!(
         zone_changes(&game).last().copied(),
@@ -569,20 +569,20 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
     let bolt = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
         vec![ChoiceOption::Object(victim)],
     );
-    game.cast_spell(0, bolt, &decisions).unwrap();
+    game.cast_spell(0, bolt, &dp).unwrap();
 
     // The target leaves before the spell resolves, so all its targets are
     // illegal and CR 608.2b counters it by game rules.
     game.change_zone(victim, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
-    game.resolve_top_of_stack(&decisions).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
 
     assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { .. })));
     assert_eq!(
@@ -642,8 +642,8 @@ fn test_one_death_carries_every_type_that_died() {
     let id = put_on_battlefield(&mut game, creature_planeswalker(), 0);
     game.battlefield.get_mut(&id).unwrap().damage_marked = 2;
 
-    let decisions = ScriptedDecisionProvider::new();
-    assert!(game.check_state_based_actions(&decisions).unwrap());
+    let dp = ScriptedDecisionProvider::new();
+    assert!(game.check_state_based_actions(&dp).unwrap());
 
     assert_eq!(
         zone_changes(&game),
@@ -668,12 +668,12 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
     let doomed = put_on_battlefield(&mut game, printings::isamaru_hound_of_konda(), 1);
     let other = put_on_battlefield(&mut game, printings::isamaru_hound_of_konda(), 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
         ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
         vec![ChoiceOption::Object(doomed)],
     );
-    assert!(game.check_state_based_actions(&decisions).unwrap());
+    assert!(game.check_state_based_actions(&dp).unwrap());
 
     let kept = game.battlefield_ids_ordered()[0];
     let died = if kept == doomed { other } else { doomed };
@@ -723,7 +723,7 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
         0,
     );
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, thaum);
@@ -731,8 +731,8 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
         .iter()
         .position(|a| matches!(a.ability_type, mtgsim::objects::card_data::AbilityType::Activated(_)))
         .unwrap();
-    game.activate_ability(0, thaum, idx, &decisions).unwrap();
-    game.resolve_top_of_stack(&decisions).unwrap();
+    game.activate_ability(0, thaum, idx, &dp).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
 
     assert!(
         game.recorded_events().events().any(|e| matches!(e, GameEvent::AbilityResolved { .. })),
@@ -755,8 +755,8 @@ fn test_the_log_line_still_says_what_died() {
     let id = put_on_battlefield(&mut game, creature_planeswalker(), 0);
     game.battlefield.get_mut(&id).unwrap().damage_marked = 2;
 
-    let decisions = ScriptedDecisionProvider::new();
-    assert!(game.check_state_based_actions(&decisions).unwrap());
+    let dp = ScriptedDecisionProvider::new();
+    assert!(game.check_state_based_actions(&dp).unwrap());
 
     let line = mtgsim::ui::display::format_event_log(&game)
         .into_iter()

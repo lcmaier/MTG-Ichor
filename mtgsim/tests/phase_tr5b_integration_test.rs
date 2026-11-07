@@ -824,11 +824,11 @@ fn cast_with_x_answering(
 /// Cast the card `id` in `player`'s hand with X = `x`, and resolve it.
 fn cast_from_hand(game: &mut GameState, player: PlayerId, id: ObjectId, x: u64, script: impl Fn(&ScriptedDecisionProvider, ObjectId)) {
     game.players[player].mana_pool.add(ManaType::Green, x + 1);
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
-    script(&decisions, id);
-    game.cast_spell(player, id, &decisions).expect("it is castable");
-    game.resolve_top_of_stack(&decisions).expect("it resolves");
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
+    script(&dp, id);
+    game.cast_spell(player, id, &dp).expect("it is castable");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
 }
 
 // COVERS: ATOM-107.3m-001
@@ -1003,8 +1003,8 @@ fn protean_hydra_enters_with_x_counters_and_none_put_onto_the_battlefield() {
     let mut game = setup_two_player_game();
     let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
     // Two entry effects, so CR 616.1e asks its controller which first.
-    let hydra = cast_with_x_answering(&mut game, 0, protean_hydra(), 2, |decisions, id| {
-        decisions.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![ChoiceOption::Object(biomancer)]);
+    let hydra = cast_with_x_answering(&mut game, 0, protean_hydra(), 2, |dp, id| {
+        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![ChoiceOption::Object(biomancer)]);
     });
     assert_eq!(plus_counters(&game, hydra), 4, "X and the Biomancer's power");
 

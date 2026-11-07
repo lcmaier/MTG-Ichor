@@ -26,7 +26,7 @@ pub struct CombatDamageAssignment {
 /// responsible for calling `apply_combat_damage` afterward with the result.
 ///
 /// For attackers blocked by 2+ creatures, the damage division is delegated
-/// to `decisions.choose_attacker_damage_assignment()` — under 2025 rules
+/// to `dp.choose_attacker_damage_assignment()` — under 2025 rules
 /// (510.1c), the attacking player freely divides damage among blockers with
 /// no ordering or lethal-first constraint.
 ///
@@ -34,7 +34,7 @@ pub struct CombatDamageAssignment {
 /// strike assign damage.
 pub fn assign_combat_damage(
     game: &GameState,
-    decisions: &dyn DecisionProvider,
+    dp: &dyn DecisionProvider,
     active_player: PlayerId,
     first_strike_only: bool,
 ) -> Vec<CombatDamageAssignment> {
@@ -78,7 +78,7 @@ pub fn assign_combat_damage(
                 // (creature was blocked, blockers left combat, no trample)
             } else if has_trample {
                 let mut trample = assign_trample_damage(
-                    game, decisions, active_player, id,
+                    game, dp, active_player, id,
                     &attacking_info.blocked_by, &attacking_info.target, damage, &assignments,
                 );
                 assignments.append(&mut trample);
@@ -97,7 +97,7 @@ pub fn assign_combat_damage(
                 // (rule 510.1c). Under 2025 rules, the player freely divides
                 // damage among blockers with no ordering constraint.
                 let division = ask_choose_attacker_damage_assignment(
-                    decisions, game, active_player, id, &attacking_info.blocked_by, damage,
+                    dp, game, active_player, id, &attacking_info.blocked_by, damage,
                 );
 
                 for (blocker_id, amount) in division {

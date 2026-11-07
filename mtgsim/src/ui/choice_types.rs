@@ -6,7 +6,7 @@ use crate::oracle::x_values::LegalXValues;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::effects::{CounterType, EffectRecipient};
+use crate::types::effects::{CounterType, EffectRecipient, ModeIndex};
 use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::state::game_state::GameState;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -50,6 +50,15 @@ pub enum ChoiceKind {
     AssignTrampleDamage { attacker_id: ObjectId, defending_target: ObjectOrPlayerId },
 
     // --- Casting Pipeline (601.2) ---
+    /// CR 601.2b, 603.3c — the modes of `source`, the modal spell or ability
+    /// on the stack (CR 700.2). One pick of exactly one
+    /// `ChoiceOption::Modes`, each option one whole legal choice: the sets the
+    /// count allows of the modes whose targets can all be chosen (CR 700.2a),
+    /// in printed order within a set, the smaller sets first. Not asked when
+    /// one set is legal. A client may draw it a mode at a time, each mode
+    /// enabled while some offered set still holds the picks so far
+    /// (`choices-architecture.md`, decision 2).
+    ChooseModes { source: ObjectId },
     /// CR 601.2b — the value of X for `spell_id`. `values` is what the
     /// engine offers and why (`oracle::x_values`), how many times the cost
     /// pays X among it:
@@ -404,6 +413,7 @@ impl ChoiceKind {
             ChoiceKind::DeclareBlockers => None,
             ChoiceKind::AssignCombatDamage { attacker_id } => Some(*attacker_id),
             ChoiceKind::AssignTrampleDamage { attacker_id, .. } => Some(*attacker_id),
+            ChoiceKind::ChooseModes { source } => Some(*source),
             ChoiceKind::ChooseXValue { spell_id, .. } => Some(*spell_id),
             ChoiceKind::ChooseAlternativeCost { spell_id } => Some(*spell_id),
             ChoiceKind::ChooseAdditionalCosts { spell_id } => Some(*spell_id),
@@ -453,6 +463,7 @@ impl ChoiceKind {
             ChoiceKind::DeclareBlockers => "DeclareBlockers",
             ChoiceKind::AssignCombatDamage { .. } => "AssignCombatDamage",
             ChoiceKind::AssignTrampleDamage { .. } => "AssignTrampleDamage",
+            ChoiceKind::ChooseModes { .. } => "ChooseModes",
             ChoiceKind::ChooseXValue { .. } => "ChooseXValue",
             ChoiceKind::ChooseAlternativeCost { .. } => "ChooseAlternativeCost",
             ChoiceKind::ChooseAdditionalCosts { .. } => "ChooseAdditionalCosts",
@@ -553,6 +564,10 @@ pub enum ChoiceOption {
     CostPart(CostPart),
     /// A number (for X value ranges presented as discrete options)
     Number(u64),
+    /// One whole choice of a modal ability's modes (CR 700.2), each by its
+    /// printed place, in printed order; empty for a choice of none, where the
+    /// count allows it. A script names one as `ChoiceOption::modes(&[1, 3])`.
+    Modes(Vec<ModeIndex>),
     /// A color
     Color(Color),
     /// A counter type
@@ -723,6 +738,7 @@ impl ChoiceOption {
             ChoiceOption::CostPart(CostPart { cost, paid_with }) => format!("cost {}: {}", cost_words(cost), objects(paid_with)),
             ChoiceOption::AdditionalCost(cost) => format!("additional {}", additional_cost_label(cost)),
             ChoiceOption::Number(number) => format!("number {number}"),
+            ChoiceOption::Modes(modes) => modes_as_logged(modes),
             ChoiceOption::Color(color) => format!("color {}", color_name(*color).to_lowercase()),
             ChoiceOption::CounterType(counter) => format!("counter {}", counter.name()),
             ChoiceOption::ManaType(mana) => format!("mana {}", ManaSymbol::Colored(*mana)),
@@ -882,7 +898,23 @@ fn named_by_script(options: &[ChoiceOption], named: &ChoiceOption) -> Vec<usize>
     }
 }
 
+/// A choice of modes as the log writes it: "mode 2", "modes 1, 3", or "no
+/// modes" for a choice of none.
+pub fn modes_as_logged(modes: &[ModeIndex]) -> String {
+    match modes {
+        [] => "no modes".to_string(),
+        [one] => format!("mode {one}"),
+        several => format!("modes {}", several.iter().map(ModeIndex::to_string).collect::<Vec<_>>().join(", ")),
+    }
+}
+
 impl ChoiceOption {
+    /// The choice of the modes printed at `places`, counting from 1, as a
+    /// script names it.
+    pub fn modes(places: &[u8]) -> ChoiceOption {
+        ChoiceOption::Modes(places.iter().map(|&place| ModeIndex::printed(place)).collect())
+    }
+
     /// The object an effect's option comes from: a trigger's source, a
     /// replacement ability's or counter's object, a row's source.
     pub fn effect_source(&self) -> Option<ObjectId> {

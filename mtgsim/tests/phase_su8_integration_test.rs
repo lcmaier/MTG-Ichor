@@ -235,6 +235,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::DivideAmong { source: object },
         ChoiceKind::OrderCostPayments { spell_or_ability_id: object },
         ChoiceKind::OrderSimultaneousEntries { player: 0 },
+        ChoiceKind::ChooseModes { source: object },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -271,9 +272,10 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::DivideAmong { .. } => 31,
         ChoiceKind::OrderCostPayments { .. } => 32,
         ChoiceKind::OrderSimultaneousEntries { .. } => 33,
+        ChoiceKind::ChooseModes { .. } => 34,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..34).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..35).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

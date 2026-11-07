@@ -155,6 +155,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         // state-based actions checked before and after it. A board that needs
         // one adds the word.
         ChoiceKind::ChooseAlternativeCost { .. }
+        | ChoiceKind::ChooseModes { .. }
         | ChoiceKind::ChooseAdditionalCosts { .. }
         | ChoiceKind::OrderCostReductions { .. }
         | ChoiceKind::OrderCostPayments { .. }

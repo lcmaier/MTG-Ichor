@@ -95,7 +95,7 @@ pub fn lethal_damage_owed(
 /// the creatures before this one assign this step, which lethal counts.
 pub fn assign_trample_damage(
     game: &GameState,
-    decisions: &dyn DecisionProvider,
+    dp: &dyn DecisionProvider,
     active_player: PlayerId,
     attacker_id: ObjectId,
     blocked_by: &[ObjectId],
@@ -133,7 +133,7 @@ pub fn assign_trample_damage(
     };
 
     let (blocker_assignments, overflow) = ask_choose_trample_damage_assignment(
-        decisions,
+        dp,
         game,
         active_player,
         attacker_id,

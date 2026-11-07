@@ -237,6 +237,7 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
         // No object on the board: the existence has left.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::Action(PriorityAction::Pass)
+        | ChoiceOption::Modes(_)
         | ChoiceOption::Player(_)
         | ChoiceOption::NormalCost
         | ChoiceOption::AlternativeCost(_)
@@ -339,6 +340,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::DeclareBlockers
             | ChoiceKind::AssignCombatDamage { .. }
             | ChoiceKind::AssignTrampleDamage { .. }
+            | ChoiceKind::ChooseModes { .. }
             | ChoiceKind::ChooseXValue { .. }
             | ChoiceKind::ChooseAlternativeCost { .. }
             | ChoiceKind::ChooseAdditionalCosts { .. }
@@ -449,6 +451,10 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::AssignTrampleDamage { attacker_id, .. } => (
             format!("how {}'s combat damage is divided among the creatures blocking it and what it attacks", n(attacker_id)),
             Some("702.19b"),
+        ),
+        ChoiceKind::ChooseModes { source } => (
+            format!("the sets of {}'s modes its count allows, leaving out a mode whose targets have no legal choice", n(source)),
+            Some("700.2a"),
         ),
         ChoiceKind::ChooseXValue { spell_id, .. } => (format!("the value of X for {}", n(spell_id)), Some("601.2b")),
         ChoiceKind::ChooseAlternativeCost { spell_id } => {

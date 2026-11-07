@@ -106,7 +106,7 @@ impl Game {
     ///
     /// Mulligan handling is stubbed — players always keep their first hand
     /// (CR 103.5; `backlog.md` §2.32).
-    pub fn setup(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
+    pub fn setup(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         self.state.refuse_if_stopped()?;
         for player_id in 0..self.state.num_players() {
             self.state.shuffle_library(player_id);
@@ -120,7 +120,7 @@ impl Game {
         // battlefield is empty and the registry has no rows, so no replacement
         // can be gathered and no choice can arise, and Leylines (CR 103.6)
         // arrive after this point.
-        let actx = ActionContext::game_rule(decisions, GameRule::OpeningHand);
+        let actx = ActionContext::game_rule(dp, GameRule::OpeningHand);
         // No turn has begun while the game is set up (CR 103), so the opening
         // hands are drawn in turn 0, which has no history row.
         self.state.turn_number = 0;
@@ -136,7 +136,7 @@ impl Game {
         // CR 103.8 — the first turn begins, and it begins the way every later
         // one does: a `BeginTurn` proposal, its beginning phase, its untap step,
         // so the first untap step runs its turn-based action like any other.
-        self.state.start_first_turn(decisions)?;
+        self.state.start_first_turn(dp)?;
 
         Ok(())
     }
@@ -148,9 +148,9 @@ impl Game {
     /// 2. Priority round (if the step grants priority)
     /// 3. Game-over check
     /// 4. Advance to next step/phase
-    pub fn run_turn(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
+    pub fn run_turn(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         let starting_turn = self.state.turn_number;
-        self.run_turn_steps(decisions, starting_turn, false)
+        self.run_turn_steps(dp, starting_turn, false)
     }
 
     /// Finish the turn from a priority prompt a fork was taken at.
@@ -170,18 +170,18 @@ impl Game {
     /// own cleanup branch and is not re-enterable at all. Item 140 owns both.
     pub fn resume_turn_at_priority(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let starting_turn = self.state.turn_number;
-        self.run_turn_steps(decisions, starting_turn, true)
+        self.run_turn_steps(dp, starting_turn, true)
     }
 
     /// Play a game built at the start of a priority round, as a scenario
     /// builds one (`setup-architecture.md` §1): finish this turn from that
     /// round, then run it to its end.
-    pub fn resume(&mut self, decisions: &dyn DecisionProvider) -> Result<GameResult, String> {
-        self.resume_turn_at_priority(decisions)?;
-        self.run(decisions)
+    pub fn resume(&mut self, dp: &dyn DecisionProvider) -> Result<GameResult, String> {
+        self.resume_turn_at_priority(dp)?;
+        self.run(dp)
     }
 
     /// The step drainer behind [`Game::run_turn`] and
@@ -190,7 +190,7 @@ impl Game {
     /// actions, for a caller that re-enters after them.
     fn run_turn_steps(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
         starting_turn: u32,
         mut resuming: bool,
     ) -> Result<(), String> {
@@ -207,7 +207,7 @@ impl Game {
             if resuming {
                 resuming = false;
             } else {
-                self.process_turn_based_actions(phase_type, step, decisions)?;
+                self.process_turn_based_actions(phase_type, step, dp)?;
             }
 
             // 2. Priority round (most steps grant priority)
@@ -227,7 +227,7 @@ impl Game {
                 // waiting to be put onto the stack"). A trigger from the
                 // step's own discard or damage removal is the reachable case.
                 loop {
-                    let performed = self.state.check_state_based_actions(decisions)?;
+                    let performed = self.state.check_state_based_actions(dp)?;
                     // A state trigger is waiting too once the check finds it
                     // true (CR 603.8), as "at the beginning of the next
                     // cleanup step" is once its step begins.
@@ -235,8 +235,8 @@ impl Game {
                     if !performed && self.state.pending_triggers.is_empty() {
                         break;
                     }
-                    self.state.check_state_based_actions_loop(decisions)?;
-                    self.state.run_priority_loop(decisions)?;
+                    self.state.check_state_based_actions_loop(dp)?;
+                    self.state.run_priority_loop(dp)?;
 
                     if self.is_over() {
                         return Ok(());
@@ -245,7 +245,7 @@ impl Game {
                     // "Another cleanup step begins": proposed like the first, so
                     // CR 614.10 can skip it, and one that begins does what the
                     // first did (CR 514.2, 800.4c, and the discard with 800.4j's gate).
-                    if !self.state.begin_step(StepType::Cleanup, decisions)? {
+                    if !self.state.begin_step(StepType::Cleanup, dp)? {
                         break;
                     }
                 }
@@ -256,7 +256,7 @@ impl Game {
                 );
 
                 if gets_priority {
-                    self.state.run_priority_loop(decisions)?;
+                    self.state.run_priority_loop(dp)?;
 
                     // 3. Game-over check after each priority round
                     if self.is_over() {
@@ -266,7 +266,7 @@ impl Game {
             }
 
             // 4. Advance to next step/phase
-            self.state.advance_turn(decisions)?;
+            self.state.advance_turn(dp)?;
 
             // **A skipped turn advances no turn number** (CR 614.10a), so this
             // is not "the number went up" — it is "the drainer produced a
@@ -295,7 +295,7 @@ impl Game {
         &mut self,
         phase_type: PhaseType,
         step: Option<StepType>,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // CR 800.4j — a turn whose active player has left "continues to its
         // completion without an active player". Declaring attackers (508.1)
@@ -307,19 +307,19 @@ impl Game {
             // --- Combat phase ---
             (PhaseType::Combat, Some(StepType::DeclareAttackers)) if no_active_player => {}
             (PhaseType::Combat, Some(StepType::DeclareAttackers)) => {
-                self.state.process_declare_attackers(decisions)?;
+                self.state.process_declare_attackers(dp)?;
             }
             // No `combat_had_attackers` guard on these three: CR 508.8 refuses
             // the *step* when nothing attacked (`GameState::begin_step`), so
             // reaching them at all means attackers were declared.
             (PhaseType::Combat, Some(StepType::DeclareBlockers)) => {
-                self.state.process_declare_blockers(decisions)?;
+                self.state.process_declare_blockers(dp)?;
             }
             (PhaseType::Combat, Some(StepType::FirstStrikeDamage)) => {
-                self.state.process_combat_damage(decisions, true)?;
+                self.state.process_combat_damage(dp, true)?;
             }
             (PhaseType::Combat, Some(StepType::CombatDamage)) => {
-                self.state.process_combat_damage(decisions, false)?;
+                self.state.process_combat_damage(dp, false)?;
             }
             _ => {}
         }
@@ -334,10 +334,10 @@ impl Game {
     /// AI, network client, etc.) based on who is being asked.
     pub fn run(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<GameResult, String> {
         while !self.is_over() {
-            self.run_turn(decisions)?;
+            self.run_turn(dp)?;
         }
         self.result().ok_or_else(|| "Game ended without a result".to_string())
     }
@@ -439,8 +439,8 @@ mod tests {
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        let decisions = ScriptedDecisionProvider::new();
-        game.setup(&decisions).unwrap();
+        let dp = ScriptedDecisionProvider::new();
+        game.setup(&dp).unwrap();
 
         assert_eq!(game.state.players[0].hand.len(), 7);
         assert_eq!(game.state.players[1].hand.len(), 7);
@@ -469,9 +469,9 @@ mod tests {
         config.max_hand_size = 8;
         let mut game = Game::new(config, vec![make_test_decklist(20); seats]).unwrap();
         game.state.record_events();
-        let decisions = ScriptedDecisionProvider::new();
-        game.setup(&decisions).unwrap();
-        (game, decisions)
+        let dp = ScriptedDecisionProvider::new();
+        game.setup(&dp).unwrap();
+        (game, dp)
     }
 
     fn draw_steps_begun(game: &Game) -> usize {
@@ -483,10 +483,10 @@ mod tests {
     }
 
     /// Plays the next turn, passing in its main phases: did `player` draw in it?
-    fn drew_in_next_turn(game: &mut Game, decisions: &ScriptedDecisionProvider, player: usize) -> bool {
+    fn drew_in_next_turn(game: &mut Game, dp: &ScriptedDecisionProvider, player: usize) -> bool {
         let library = game.state.players[player].library.len();
-        decisions.queue_main_phase_passes();
-        game.run_turn(decisions).unwrap();
+        dp.queue_main_phase_passes();
+        game.run_turn(dp).unwrap();
         game.state.players[player].library.len() < library
     }
 
@@ -494,12 +494,12 @@ mod tests {
     #[test]
     fn test_two_seats_skip_the_first_draw() {
         for config in configs_without_an_override() {
-            let (mut game, decisions) = first_draw_game(config, 2);
-            assert!(!drew_in_next_turn(&mut game, &decisions, 0), "CR 103.8a: the starting player skips it");
+            let (mut game, dp) = first_draw_game(config, 2);
+            assert!(!drew_in_next_turn(&mut game, &dp, 0), "CR 103.8a: the starting player skips it");
             assert_eq!(draw_steps_begun(&game), 0, "CR 500.11: as though it didn't exist");
             assert!(!game.state.skip_first_draw);
-            assert!(drew_in_next_turn(&mut game, &decisions, 1));
-            assert!(drew_in_next_turn(&mut game, &decisions, 0), "their second turn draws");
+            assert!(drew_in_next_turn(&mut game, &dp, 1));
+            assert!(drew_in_next_turn(&mut game, &dp, 0), "their second turn draws");
             assert_eq!(draw_steps_begun(&game), 2);
         }
     }
@@ -509,16 +509,16 @@ mod tests {
     fn test_three_and_four_seats_do_not_skip_it() {
         for seats in [3, 4] {
             for config in configs_without_an_override() {
-                let (mut game, decisions) = first_draw_game(config, seats);
-                assert!(drew_in_next_turn(&mut game, &decisions, 0), "CR 103.8c at {seats} seats");
+                let (mut game, dp) = first_draw_game(config, seats);
+                assert!(drew_in_next_turn(&mut game, &dp, 0), "CR 103.8c at {seats} seats");
             }
         }
     }
 
     #[test]
     fn test_the_test_configs_override_still_draws() {
-        let (mut game, decisions) = first_draw_game(GameConfig::test(), 2);
-        assert!(drew_in_next_turn(&mut game, &decisions, 0));
+        let (mut game, dp) = first_draw_game(GameConfig::test(), 2);
+        assert!(drew_in_next_turn(&mut game, &dp, 0));
     }
 
     /// A loss proposed the way `Primitive::LoseGame` proposes one, in its own
@@ -585,14 +585,14 @@ mod tests {
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        let decisions = ScriptedDecisionProvider::new();
-        game.setup(&decisions).unwrap();
+        let dp = ScriptedDecisionProvider::new();
+        game.setup(&dp).unwrap();
         game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
 
         // Turn completes normally with no SBAs during cleanup
         let starting_turn = game.state.turn_number;
-        decisions.queue_main_phase_passes();
-        game.run_turn(&decisions).unwrap();
+        dp.queue_main_phase_passes();
+        game.run_turn(&dp).unwrap();
         assert_eq!(game.state.turn_number, starting_turn + 1);
 
         // Set poison to 10; the SBA check ahead of the upkeep's first priority
@@ -615,13 +615,13 @@ mod tests {
             vec![make_test_decklist(20), make_test_decklist(20)],
         ).unwrap();
 
-        let decisions = ScriptedDecisionProvider::new();
-        game.setup(&decisions).unwrap();
+        let dp = ScriptedDecisionProvider::new();
+        game.setup(&dp).unwrap();
         game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
 
         let starting_turn = game.state.turn_number;
-        decisions.queue_main_phase_passes();
-        game.run_turn(&decisions).unwrap();
+        dp.queue_main_phase_passes();
+        game.run_turn(&dp).unwrap();
 
         assert_eq!(game.state.turn_number, starting_turn + 1);
         assert!(!game.is_over());

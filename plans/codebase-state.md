@@ -1566,31 +1566,12 @@ section never asked.
     it replaces, "`spell-copies` or the first Fling-shaped card", waited on a
     card.
 
-31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
-    (found 2026-08-31 by the D3b slice-1 triage).** Declared at
-    `state/game_state.rs:33` as `Vec<usize>`, constructed `Vec::new()` at all
-    twelve sites (`put_on_stack.rs` ×2, `stack.rs` ×5, `game_state.rs`, `ui/display.rs`
-    ×3, one test), and **read nowhere in the tree.**
-
-    Exactly the shape of `CardData.color_indicator` in `cr-coverage-audit.md`
-    §5.2: a field that represents its fact correctly, with nothing on either
-    side of it. So this is **debt, not a fact** — the type is already right, and
-    whoever builds modal spells inherits it rather than designing it.
-
-    **Nothing chooses a mode, so nothing can be modal**, which is why CR 700.2's
-    seven atoms sit under a shipped phase with no test. The reader arrives with
-    that work; CR 700.2h's per-mode additional costs and 700.2c's
-    mode-conditional targeting both reach into the cost pipeline, so it wants
-    doing near it. → `backlog.md` §2.7.
-
-    **Reachability (2026-09-03):** unreachable — nothing is modal; the field is
-    still `Vec::new()` at every construction site and read nowhere.
-
-    **Sized:** owned by `backlog.md` §2.7, one phase; the field
-    costs nothing until then.
-    **Slotted:** `modes-plus-choice-kinds`, whose modes are the field's first
-    writer and reader, named by identity rather than position (`route-review`,
-    2026-10-29); it was `breadth-features`' `backlog.md` §2.7.
+31. **~~`StackEntry.chosen_modes` is dead scaffolding — no writer, no
+    reader~~ — ✅ CLOSED 2026-11-07 (`modes-chosen-and-resolved`).** — archived.
+    A `ModeIndex` per chosen mode, written as the modes are announced and read
+    by the resolution and CR 608.2b's re-check.
+    **Reachability (2026-11-07):** closed — `modes-chosen-and-resolved`.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 31".
 
 32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
     D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
@@ -2928,10 +2909,12 @@ one, so nothing was wrong in practice and nothing moved.
     **Sized:** with modal spells (`backlog.md` §2.3's neighbourhood), not
     before. Nothing here changes until then; the note exists so that "keyword
     means optional" is not inferred from the variant list.
-    **Slotted:** `modes-plus-choice-kinds`' modes, then the first spree card
-    (Scryfall: `keyword:spree`), whose per-mode costs are a `Mandatory`
-    additional cost (`route-review`, 2026-10-29); it was `breadth-features`'
-    `backlog.md` §2.7.
+    **Slotted:** `mode-rules-and-costs`, the second of the modal row's two PRs,
+    whose CR 700.2h builds a mode's own cost as a `Mandatory` additional cost
+    assembled from the chosen modes, then the first spree card (Scryfall:
+    `keyword:spree`) (`route-review`, 2026-10-29; split from the first PR's
+    modes at its intake, 2026-11-07); it was `breadth-features`' `backlog.md`
+    §2.7.
 
 82. **CR 704.5p's first sentence is not implemented: an Equipment that becomes
     a creature stays attached.** — ✅ closed, archived.
@@ -6846,38 +6829,13 @@ place.
      is not: any card whose targeting atom is not the first in its sequence had
      the same defect, and the probe says Skullcrack was the only one registered.
 
-153. **`effect_instances` walks `Atom` and `Sequence` and nothing else, so a
-     modal spell would announce the targets of modes nobody chose.**
-     CR 601.2b chooses modes *before* CR 601.2c announces targets, so a walk
-     that descended into every branch of `Effect::Modal` would declare an
-     instance per mode and ask for all of them. The walk therefore stops at the
-     nodes it understands — the same scope the one-recipient rule it replaced
-     had.
-
-     **Reachability (2026-09-17):** unreachable. `Effect::Modal`,
-     `Conditional`, `Optional`, `ForEach` and `Repeat` all resolve to an error
-     today (`resolve_effect`), so no card can carry one and be played. It bites
-     the moment modal spells land — `backlog.md` §2.7 — and that phase owns it.
-
-     **Sized:** small, and it is a design choice rather than a sweep. The walk
-     takes the chosen modes as an argument and descends only into those, which
-     means `effect_instances` grows a second spelling for the post-601.2b call
-     and `StackEntry.chosen_modes` becomes an input to it rather than a record.
-     Under fifty lines; the cost is deciding where the two spellings live.
-
-     **Amended 2026-09-18 (A4n):** the walk is `Effect::instances` now, run
-     once per card by `CardDataBuilder::build` and stored on every def
-     (`AbilityDef::instances`) and on the card (`CardData::spell_instances`);
-     the engine reads the stored lists and never walks at cast time. That
-     settles where the second spelling lives: a modal spell's post-601.2b list
-     depends on the modes chosen at that cast, so it cannot be a stored
-     constant, and the mode-aware walk runs at cast time from
-     `StackEntry.chosen_modes` — once per cast, which is the rate the stored
-     list was built to take castability *off*. The stored list stays the
-     pre-601.2b one, and today a `Modal` node declares nothing in it.
-     **Slotted:** `modes-plus-choice-kinds`, whose modes make the cast walk
-     only the chosen modes (`route-review`, 2026-10-29); it was
-     `breadth-features`' `backlog.md` §2.7.
+153. **~~`effect_instances` walks `Atom` and `Sequence` and nothing else, so a
+     modal spell would announce the targets of modes nobody chose.~~ — ✅
+     CLOSED 2026-11-07 (`modes-chosen-and-resolved`).** — archived. Each `Mode`
+     keeps its own instance list, read off its effect as the mode is made, and
+     the announcement reads the chosen modes' after the effect's own.
+     **Reachability (2026-11-07):** closed — `modes-chosen-and-resolved`.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 153".
 
 154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
      filter, so "another target" over `SelectionFilter::Any` or `Player` is
@@ -6905,10 +6863,12 @@ place.
      it. That is the shape CR 601.2c actually describes, so it is a
      simplification as well as a widening; it was not done here because it
      touches `EffectRecipient`, which 146 sites construct.
-     **Slotted:** `modes-plus-choice-kinds`, eight of whose modal cards print
-     "each mode must target a different player": the exclusion moves to the
-     clause (`route-review`, 2026-10-29); it was `breadth-features`'
-     `backlog.md` §2.7.
+     **Slotted:** `mode-rules-and-costs`, the second of the modal row's two
+     PRs, with Shadrix Silverquill and Arc Trail: seven printed modal cards say
+     "each mode must target a different player", a rule of the modal node, and
+     the exclusion moves to `SelectionFilter` (`route-review`, 2026-10-29; left
+     to the second PR at the first's intake, 2026-11-07); it was
+     `breadth-features`' `backlog.md` §2.7.
 
 155. **`every_instance_has_a_choice` feeds instances forward greedily, which
      is exact for the shapes that print and not in general.** An "another
@@ -7018,7 +6978,7 @@ place.
      the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
      carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
      **Slotted:** `spell-copies`, whose CR 707.10d/e per-target copies carry the copy
-     axis; the modal axis is item 154's, at `modes-plus-choice-kinds`.
+     axis; the modal axis is item 154's, at `mode-rules-and-costs`.
 
 159. **~~`SelectionFilter::Spell` accepts an activated ability on the stack,
      and `Primitive::CounterSpell` then puts the ephemeral ability object into
@@ -10798,3 +10758,39 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      and an enum set moves only where `bitflags` keeps its `of(kind)` as plain.
      **Slotted:** its own PR, ahead of `fork-test-at-every-decision`, never inside
      an engine PR.
+
+### Found by `modes-chosen-and-resolved` (2026-11-07)
+
+412. **A count of X offers every payable X, past the modes it can take.** "Choose
+     X" announces X first (decision 2b), from MA-2's payable values, and the node
+     does not narrow them: with modes that may not repeat, an X past the number of
+     legal modes lists no set, and the cast rewinds (CR 601.2e). The cast is
+     offered and refused in the same priority window, `Actions reversed`'s class.
+
+     **Reachability (2026-11-07):** unreachable from a printed card — Doomsday
+     Confluence, the count's one card, repeats its modes, so every X has a set.
+     Reached by Tally of Choices, a fixture in `CASTABLE`.
+     **Sized:** ~20–40 lines: the X offer capped by the most a count of X can take
+     where modes don't repeat, read beside the repeats.
+     **Slotted:** `mode-rules-and-costs`, whose repeats decide what a count of X
+     can take.
+
+413. **A chosen mode's targets are told apart by count, not held by the mode.**
+     `StackEntry` keeps `chosen_modes` and one flat `chosen_targets`, and each
+     mode's slice is recomputed from the modes' instance counts
+     (`ModalNode::mode_scope_starts`), which the resolution's `Modal` arm and
+     CR 608.2b's re-check both read. Today the two are written together, once,
+     by `announce_modes_and_targets`, and a count that disagrees is refused. A
+     later writer that edits the targets and keeps their number, CR 115.7's
+     change of target (Redirect) or a copy choosing new targets (CR 707.10c),
+     could put one in another mode's place and pass every check. Found at
+     #318's review (the owner, 2026-11-07).
+
+     **Reachability (2026-11-07):** unreachable — nothing but the three
+     announcements writes `chosen_targets`.
+     **Sized:** ~150–250 lines: each chosen mode holds its own targets, the
+     40 readers of `chosen_targets` in 10 files read them through one
+     flattening accessor, and `mode_scope_start(s)` and the count checks go.
+     No game or test should move.
+     **Slotted:** `mode-rules-and-costs`, which reshapes the same stack entry
+     (the owner, 2026-11-07).

@@ -80,8 +80,12 @@ pub struct StackEntry {
     /// show. The resolution reads its clauses off this record too
     /// (`targeting::DeclaredInstances`).
     pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
-    /// Modes chosen at cast time (for modal spells, future-proofed)
-    pub chosen_modes: Vec<usize>,
+    /// The modes CR 601.2b chose for a modal `effect` (603.3c for a trigger),
+    /// in printed order, beside the effect it does not replace: the
+    /// resolution walks these and no others (CR 700.2c), each mode's instances
+    /// of "target" following the last's in `chosen_targets`. Empty for an
+    /// effect with no modes, and for a choice of none.
+    pub chosen_modes: Vec<crate::types::effects::ModeIndex>,
     /// X value if the spell has a variable cost
     pub x_value: Option<u64>,
     /// The effect to resolve, copied off its def when the entry is pushed.
@@ -145,6 +149,26 @@ impl StackEntry {
     /// source, or the spell itself.
     pub fn this_object(&self) -> ObjectId {
         self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
+    }
+
+    /// Where each chosen mode's targets begin in `chosen_targets`
+    /// (`ModalNode::mode_scope_starts`), empty for an effect with no modes. `Err`
+    /// for an entry whose chosen modes are not what its effect prints, or
+    /// whose announcement holds another number of instances than they declare.
+    pub fn mode_scope_starts(&self) -> Result<Vec<usize>, String> {
+        let Some(node) = self.effect.modal() else { return Ok(Vec::new()) };
+        let starts = node
+            .mode_scope_starts(&self.chosen_modes)
+            .ok_or_else(|| format!("{} chose a mode its effect does not print", self.object_id))?;
+        let declared: usize = self.chosen_modes.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.instances.len()).sum();
+        if declared != self.chosen_targets.len() {
+            return Err(format!(
+                "{}'s chosen modes declare {declared} instances of \"target\", and its announcement holds {}",
+                self.object_id,
+                self.chosen_targets.len()
+            ));
+        }
+        Ok(starts)
     }
 
     /// The player who cast this spell: the controller it was put on the stack
@@ -2750,7 +2774,7 @@ mod tests {
         use super::*;
         use crate::types::card_types::CardType;
         use crate::types::effects::{
-            AmountExpr, Condition, Duration, Effect, EffectRecipient, ModalCount,
+            AmountExpr, Condition, Duration, Effect, EffectRecipient, ModalCount, ModalNode, Mode, ModeChooser,
             ObjectFilter, Primitive, SelectionFilter, TargetCount,
         };
         use crate::test_support::textless_static;
@@ -2831,10 +2855,11 @@ mod tests {
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_modal_static_body_is_loud() {
-            let ability = textless_static(Effect::Modal {
+            let ability = textless_static(Effect::Modal(Box::new(ModalNode {
                 count: ModalCount::Exactly(1),
-                modes: vec![anthem_atom()],
-            });
+                chooser: ModeChooser::Controller,
+                modes: vec![Mode::new(anthem_atom())],
+            })));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }
 
@@ -3007,6 +3032,38 @@ mod tests {
 };
         assert!(entry.cost_choices.alternative.is_none());
         assert!(entry.cost_choices.additional.is_empty());
+    }
+
+    /// Each chosen mode's scope begins where the last's instances end, and
+    /// an announcement holding another number of instances than the chosen
+    /// modes declare, or a mode the effect does not print, is refused rather
+    /// than read.
+    #[test]
+    fn a_stack_entrys_mode_scopes_are_the_chosen_modes_instances() {
+        use crate::engine::targeting::TargetInstance;
+        use crate::types::effects::ModeIndex;
+
+        let effect = crate::objects::card_data::spell_effect(&crate::cards::fixtures::kindled_option().abilities).unwrap();
+        let mut entry = StackEntry {
+            object_id: crate::types::ids::new_object_id(),
+            controller: 0,
+            chosen_targets: Vec::new(),
+            chosen_modes: vec![ModeIndex::printed(1), ModeIndex::printed(2)],
+            x_value: None,
+            effect: Arc::new(effect),
+            is_spell: true,
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
+            mana_spent: ManaSpent::NONE,
+            cast_from: Some(Zone::Hand),
+            ability_identity: None,
+            trigger: None,
+        };
+        assert!(entry.mode_scope_starts().is_err(), "two modes of one instance each, and none announced");
+        let player = crate::types::effects::EffectRecipient::Target(crate::types::effects::SelectionFilter::Player, crate::types::effects::TargetCount::Exactly(1));
+        entry.chosen_targets = vec![TargetInstance::new(player.clone(), Vec::new()), TargetInstance::new(player, Vec::new())];
+        assert_eq!(entry.mode_scope_starts(), Ok(vec![0, 1]));
+        entry.chosen_modes = vec![ModeIndex::printed(0), ModeIndex::printed(2)];
+        assert!(entry.mode_scope_starts().is_err(), "a place of 0 names no mode");
     }
 
     /// Each layer card lowered to the rows its text describes.

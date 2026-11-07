@@ -1,21 +1,24 @@
 //! Fixtures for the choices a card asks for (`choices-architecture.md`). A
 //! division is announced on a cast, an activation and a trigger alike (CR
-//! 601.2d, 602.2b, 603.3d), and divides damage, counters and shields.
+//! 601.2d, 602.2b, 603.3d), and divides damage, counters and shields; so are
+//! modes (CR 700.2a, 700.2b), whose counts the last fixtures cover.
 
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_controls, another, as_long_as, creature, creatures_you_control, deal_damage_divided, dies, distribute_counters, draw_cards,
-    each, enters, exile, gain_life, gets, has_base_power_and_toughness, planeswalker, prevent_the_next_damage_divided,
-    return_to_the_battlefield, spell_ability, static_ability, tap, targets, that_target, this_object, triggered_ability, whenever, you,
+    activated_ability, an_opponent_controls, another, artifact, as_long_as, choose, choose_one, choose_one_or_both_if, choose_up_to, creature,
+    creatures_you_control, deal_damage, deal_damage_divided, destroy, dies, discard, distribute_counters, draw_cards, each, enters, exile, gain_life,
+    gets, has_base_power_and_toughness, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield, spell_ability,
+    static_ability, tap, target_creature, target_permanent, target_player, targets, that_target, this_object, triggered_ability, whenever, you,
+    you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::costs::{AdditionalCost, Cost, PaymentAct};
+use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, ObjectValue, PlayerFact, PlayerRef, PlayerSet, ReturnUnder,
-    SelectionFilter, TargetCount,
+    AmountExpr, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
+    ReturnUnder, SelectionFilter, TargetCount,
 };
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
@@ -40,29 +43,6 @@ pub fn omnath_locus_of_mana_fixture() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text(text)
         .ability(static_ability(text, gets(this_object(), per_green(), per_green())))
-        .build()
-}
-
-/// Momentous Fall Fixture — {2}{G}{G}
-/// Instant.
-///
-/// Momentous Fall's words, on its shape: a mandatory sacrifice whose object
-/// the resolution reads back as it last existed (the card's 2010-06-15
-/// ruling). Beside [`omnath_locus_of_mana_fixture`] it is `ATOM-601.2h-003`'s
-/// board.
-pub fn momentous_fall_fixture() -> Arc<CardData> {
-    let text = "As an additional cost to cast this spell, sacrifice a creature.\nYou draw cards equal to the sacrificed creature's power, then you gain life equal to its toughness.";
-    let sacrificed = |value| AmountExpr::ValueOf(Antecedent::PaidWith(PaymentAct::Sacrificed), value);
-    CardDataBuilder::new("Momentous Fall Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green], 2))
-        .color(Color::Green)
-        .card_type(CardType::Instant)
-        .rules_text(text)
-        .additional_cost(AdditionalCost::Mandatory(vec![Cost::Sacrifice(creature(), 1)]))
-        .ability(spell_ability(
-            text,
-            Effect::Sequence(vec![draw_cards(you(), sacrificed(ObjectValue::Power)), gain_life(you(), sacrificed(ObjectValue::Toughness))]),
-        ))
         .build()
 }
 
@@ -344,6 +324,131 @@ pub fn meteor_swarm_fixture() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             deal_damage_divided(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X), 8),
+        ))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// CR 700.2's modes
+// ---------------------------------------------------------------------------
+
+/// Branching Beacon — {2}, an artifact.
+///
+/// ATOM-603.3c-001's board, which names no card: a modal trigger whose first
+/// mode targets a creature and whose second targets nothing, on a source that
+/// is no creature itself, so an empty battlefield leaves the second mode alone.
+pub fn branching_beacon() -> Arc<CardData> {
+    let text = "When this artifact enters, choose one —\n• This artifact deals 2 damage to target creature.\n• You gain 3 life.";
+    CardDataBuilder::new("Branching Beacon")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(enters(TriggerSubject::ThisObject), choose_one([deal_damage(target_creature(), 2), gain_life(you(), 3)])),
+        ))
+        .build()
+}
+
+/// Forked Omen — {1}{B}, an enchantment.
+///
+/// ATOM-603.3c-002's board, which names no card: a modal trigger every mode
+/// of which targets, so with no artifact or creature on the battlefield no
+/// mode can be chosen and the ability is removed from the stack.
+pub fn forked_omen() -> Arc<CardData> {
+    let text = "When this enchantment enters, choose one —\n• Destroy target artifact.\n• Destroy target creature.";
+    CardDataBuilder::new("Forked Omen")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 1))
+        .color(Color::Black)
+        .card_type(CardType::Enchantment)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(enters(TriggerSubject::ThisObject), choose_one([destroy(target_permanent(artifact())), destroy(target_creature())])),
+        ))
+        .build()
+}
+
+/// Hesitant Omen — {1}{W}, an enchantment.
+///
+/// "Choose up to one" on a trigger, Hullbreaker Horror's count: choosing no
+/// mode is legal, and CR 603.3c removes an ability whose controller chose
+/// none. Hullbreaker's trigger is a spell cast and its first mode targets a
+/// spell; this one enters, so a test says when it triggers.
+pub fn hesitant_omen() -> Arc<CardData> {
+    let text = "When this enchantment enters, choose up to one —\n• Destroy target artifact.\n• You gain 2 life.";
+    CardDataBuilder::new("Hesitant Omen")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(enters(TriggerSubject::ThisObject), choose_up_to(1, [destroy(target_permanent(artifact())), gain_life(you(), 2)])),
+        ))
+        .build()
+}
+
+/// Mode Lever — {1}, an artifact.
+///
+/// A modal activated ability (CR 700.2a, 602.2b): its modes are announced as
+/// it is activated, before its targets. Bow of Nylea's shape; the Bow's fourth
+/// mode targets cards in a graveyard, which no clause can announce yet.
+pub fn mode_lever() -> Arc<CardData> {
+    let text = "{1}, {T}: Choose one —\n• Target creature gets +1/+1 until end of turn.\n• You gain 1 life.";
+    CardDataBuilder::new("Mode Lever")
+        .mana_cost(ManaCost::build(&[], 1))
+        .card_type(CardType::Artifact)
+        .rules_text(text)
+        .ability(activated_ability(
+            text,
+            vec![Cost::Mana(ManaCost::build(&[], 1)), Cost::TapSelf],
+            choose_one([gets(target_creature(), 1, 1).until_end_of_turn(), gain_life(you(), 1)]),
+        ))
+        .build()
+}
+
+/// Tally of Choices — {X}{U}, a sorcery.
+///
+/// "Choose X" (Doomsday Confluence's count, without its repeats, which
+/// `mode-rules-and-costs` builds): X is asked before the modes, which are the
+/// sets of that many (`choices-architecture.md`, decision 2b). Past three, no
+/// set of modes is that large, and the cast rewinds.
+pub fn tally_of_choices() -> Arc<CardData> {
+    let text = "Choose X —\n• Draw a card.\n• You gain 2 life.\n• Target player mills two cards.";
+    CardDataBuilder::new("Tally of Choices")
+        .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Blue)]))
+        .color(Color::Blue)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            choose(ModalCount::X, [draw_cards(you(), 1), gain_life(you(), 2), mill(target_player(), 2)]),
+        ))
+        .build()
+}
+
+/// Kindled Option — {1}{R}, an instant.
+///
+/// The Will of the [clan] cycle's count on a condition the engine reads: one
+/// mode, or either or both while its caster controls an artifact as the modes
+/// are chosen. Soul Transfer prints the count on "an artifact and an
+/// enchantment", and its second mode targets a card in a graveyard, which no
+/// clause can announce yet. Its second mode is Prismari Command's, whose
+/// "then discards" names the mode's own first instance of "target": the
+/// spell's second when both are chosen.
+pub fn kindled_option() -> Arc<CardData> {
+    let text = "Choose one. If you control an artifact as you cast this spell, you may choose both instead.\n• This spell deals 2 damage to target creature.\n• Target player draws a card, then discards a card.";
+    let draws_then_discards =
+        Effect::Sequence(vec![draw_cards(target_player(), 1), discard(that_target(0), 1, DiscardChooser::Affected)]);
+    CardDataBuilder::new("Kindled Option")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 1))
+        .color(Color::Red)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            choose_one_or_both_if(you_have(PlayerFact::ControlsPermanent(artifact())), [deal_damage(target_creature(), 2), draws_then_discards]),
         ))
         .build()
 }

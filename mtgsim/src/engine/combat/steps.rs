@@ -32,7 +32,7 @@ impl GameState {
     /// Returns `true` if any attackers were declared.
     pub fn process_declare_attackers(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<bool, String> {
         let active = self.active_player;
         // The option list is every legal attacker × every legal target, and it
@@ -45,7 +45,7 @@ impl GameState {
             .into_iter()
             .flat_map(|id| attackable.iter().map(move |&target| (id, target)))
             .collect();
-        let proposed = ask_choose_attackers(decisions, self, active, &legal_pairs);
+        let proposed = ask_choose_attackers(dp, self, active, &legal_pairs);
 
         if proposed.is_empty() {
             return Ok(false);
@@ -64,7 +64,7 @@ impl GameState {
             .collect();
 
         // Apply: tap each attacker and set attacking info (rule 508.1f)
-        let actx = ActionContext::turn_based(decisions, TurnBasedAction::DeclareAttackers);
+        let actx = ActionContext::turn_based(dp, TurnBasedAction::DeclareAttackers);
         for (creature_id, target) in &proposed {
             if self.battlefield.contains_key(creature_id) {
                 // Rule 702.20b: Vigilance prevents tapping from attacking
@@ -102,7 +102,7 @@ impl GameState {
     /// `DecisionProvider`, validates, and updates battlefield state.
     pub fn process_declare_blockers(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let defending_players: Vec<PlayerId> = self.get_defending_players();
         // Every defending player's, in the order they declared (CR 802.4).
@@ -132,7 +132,7 @@ impl GameState {
             let mut rejections: usize = 0;
             let proposed = loop {
                 let candidate = ask_choose_blockers(
-                    decisions, self, defender, &legal_block_pairs, rejected.take(),
+                    dp, self, defender, &legal_block_pairs, rejected.take(),
                 );
                 match validate_blockers(
                     self, defender, &candidate, &BlockConstraints::none(),
@@ -193,7 +193,7 @@ impl GameState {
             .collect::<Result<Vec<_>, String>>()?;
         // With the step's provider, as the attack declaration's: one record can
         // hold two triggering events of one arm, which CR 603.7b asks between.
-        let actx = ActionContext::turn_based(decisions, TurnBasedAction::DeclareBlockers);
+        let actx = ActionContext::turn_based(dp, TurnBasedAction::DeclareBlockers);
         self.emit_event_with_provider(GameEvent::BlockersDeclared { blocks, unblocked }, &actx)?;
 
         Ok(())
@@ -223,7 +223,7 @@ impl GameState {
     /// that step then (`begin_step`), but a test may call this directly.
     pub fn process_combat_damage(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
         first_strike_only: bool,
     ) -> Result<(), String> {
         if first_strike_only && !self.a_combatant_strikes_first() {
@@ -234,14 +234,14 @@ impl GameState {
 
         let assignments = assign_combat_damage(
             self,
-            decisions,
+            dp,
             active,
             first_strike_only,
         );
 
         // Apply damage (mutating). Combat damage is a turn-based action, not
         // part of any resolution (CR 510.2).
-        let actx = ActionContext::turn_based(decisions, TurnBasedAction::CombatDamage);
+        let actx = ActionContext::turn_based(dp, TurnBasedAction::CombatDamage);
         self.apply_combat_damage(assignments, &actx)?;
 
         if first_strike_only {

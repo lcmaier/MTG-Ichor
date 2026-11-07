@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{creature, put_counters, spell_ability, target_creature, target_permanent};
+use crate::cards::authoring::{
+    choose_two, counter_spell, creature, draw_cards, each, put_counters, return_to_hand, spell_ability, tap, target_creature,
+    target_permanent, target_spell, you, your_opponents_control,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
@@ -84,5 +87,43 @@ pub fn knight_of_meadowgrain() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::FirstStrike)
         .keyword_flag(KeywordFlag::Lifelink)
         .rules_text("First strike\nLifelink")
+        .build()
+}
+
+/// Cryptic Command — {1}{U}{U}{U}
+/// Instant
+/// Choose two —
+/// • Counter target spell.
+/// • Return target permanent to its owner's hand.
+/// • Tap all creatures your opponents control.
+/// • Draw a card.
+///
+/// (Oracle text verified on Scryfall, 2026-11-07.)
+///
+/// CR 700.2's "choose two": two different modes, each pair a choice, of four
+/// modes two of which target and two of which do not.
+///
+/// # The rulings, and where each is tested
+///
+/// - #1, both modes chosen as it is cast, and two different ones:
+///   `cryptic_command_offers_each_pair_of_different_modes`.
+/// - #2, its targets are its chosen modes', and with every one illegal none
+///   of its effects happens: `cryptic_command_whose_one_target_left_draws_nothing`.
+pub fn cryptic_command() -> Arc<CardData> {
+    let text = "Choose two —\n• Counter target spell.\n• Return target permanent to its owner's hand.\n• Tap all creatures your opponents control.\n• Draw a card.";
+    CardDataBuilder::new("Cryptic Command")
+        .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue, ManaType::Blue], 1))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            choose_two([
+                counter_spell(target_spell()),
+                return_to_hand(target_permanent(ObjectFilter::All)),
+                tap(each(creature().and(your_opponents_control()))),
+                draw_cards(you(), 1),
+            ]),
+        ))
         .build()
 }

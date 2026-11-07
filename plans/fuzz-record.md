@@ -202,6 +202,71 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-07 for `modes-chosen-and-resolved`, a mode chosen, targeted and resolved**
+(`choices/modes-chosen-and-resolved`, PR #318: CR 700.2 and 603.3c, items 31 and 153). Abrade
+joins the performance pool (125 → 126), and Abrade, Cryptic Command, Casualties of War
+and Momentous Fall the registry, so both §3 columns are new baselines; six fixtures join
+`CASTABLE` and one leaves it. One `close_out.py` sitting against **main** `dade3822`:
+**engine** `1404e7c7`, the last commit before the cards, and **shipped** `8328e1fb`.
+
+**Predictions, before any arm ran**:
+- engine vs `main`: every gameplay row and cost counter `IDENTICAL` on both pools at both
+  seats, no registered card being modal and a card with none costing castability one look
+  at its spell abilities;
+- shipped: both pools move; `ChooseModes` asked on both, `OrderCostPayments` on neither,
+  Momentous Fall's two parts commuting on every registered board; 0 errors, panics and
+  turn limits;
+- instructions per decision, engine vs `main`, within 0.3 points; no growth shape past ×4.35.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 178,133 / 173,622 | 411,795 / 435,798 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 176,672 / 182,558 | 428,501 / 435,728 |
+| `Memo hits`, `main` → shipped, performance / stress | 51,433 → 51,488 / 57,572 → 61,432 | 221,374 → 235,348 / 250,038 → 262,256 |
+| `ChooseModes` reaching the agent a game, shipped, 50 games, performance / stress | 0.08 / 0.12 | |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.8456 M → 0.8455 M, **-0.02%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**Every prediction held**; `OrderCostPayments` read zero in `--census` on both shipped
+pools. The functions past half a point are an inlining that moved: `advance_turn` to
+`run_turn_steps`, `ChosenTargets::push`'s monomorphs, and `announce_modes_and_targets`
+(+1.7 points), which is `announce_targets` reached through it. Reachability, shipped, 200
+games at two seats: Abrade cast 191 and resolved 191 in 65% of games, Cryptic Command 145
+in 58%, Casualties of War 105 (103 resolved) in 40%, Momentous Fall 134 in 46%. **No ladder
+shape is added**: a modal offer is one castability check per mode, each linear in the board,
+and a card's modes are a constant, so its cost cannot outgrow the board. The CI fixtures
+sitting under `--audit` (50 games, release-checked) read 0 errors, panics and turn limits.
+
+**§3, shipped, 50 games at seed 12345**, the new baseline:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 19 / 29 | 26 / 24 |
+| Wins by effect | 2 | 0 |
+| Avg turns | 28.5 | 23.7 |
+| Spells cast | 22.5 | 18.7 |
+| Creatures died | 8.1 | 4.6 |
+| Total damage | 61.0 | 48.8 |
+| **Layer walks** | **338** | **386** |
+| **Memo hits** | **51,637** | **58,019** |
+| **Frames/walk** | **11.24** | **11.60** |
+| **Dependency checks** | **11** | **29** |
+| Decisions | 189 | 228 |
+
+**Rerun after the pre-review (2026-11-07), on `63d2d6ed`** against shipped: one count for a
+mode's scope, a node nothing announced refused, a mode's list read as it is made,
+`ModeChosen` answered. Predicted `IDENTICAL`, since each refuses only what no game reaches.
+Every gameplay row **IDENTICAL** on both pools at both seats; instructions a decision
+0.7055 M → 0.7040 M, **-0.21%**, the functions past half a point drop glue and a clone of
+`EffectiveCharacteristics` inlined elsewhere; growth unchanged.
+
+**Size**: 1,882 added and 153 removed in `mtgsim/src` and `mtgsim/tests`, 2,035 touched,
+1,807 before the pre-review's tests and fixes, against the brief's 1,500–2,300. The pool change moved `priority_fork_test`'s two seeds,
+re-picked from the sweep (0 of 13,020 branches diverging), and dealt `phase_tr1b`'s audited
+game Bone Splinters, whose payment-order audit traced its fork: fixed ahead of the cards.
+
 **Re-recorded 2026-11-06 for `orders-the-cr-hands-a-player`, the orders the rules hand a player**
 (`choices/orders-the-cr-hands-a-player`, PR #316: items 30, 79 and 165). No registered card
 changed and neither table's pool moved; ten fixtures joined `CASTABLE`. One

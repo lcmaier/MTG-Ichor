@@ -240,11 +240,11 @@ fn holy_strength_in_hand(game: &mut GameState, player: PlayerId) -> ObjectId {
 /// Cast `aura` at index 0 of the legal targets, which each caller makes
 /// unambiguous by leaving exactly one creature on the battlefield.
 fn cast_at_the_only_creature(game: &mut GameState, player: PlayerId, aura: ObjectId) {
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
     // One creature, so CR 601.2c's target is forced and nothing is asked.
-    game.cast_spell(player, aura, &decisions).expect("it is castable");
-    assert!(decisions.is_empty(), "no question was asked, and none was scripted");
-    game.resolve_top_of_stack(&decisions).expect("it resolves");
+    game.cast_spell(player, aura, &dp).expect("it is castable");
+    assert!(dp.is_empty(), "no question was asked, and none was scripted");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
 }
 
 /// The whole cast path: the target is chosen at CR 601.2c from the enchant
@@ -343,12 +343,12 @@ fn equip(
     target: Option<ObjectId>,
 ) -> Result<(), String> {
     game.players[player].mana_pool.add(ManaType::White, 1);
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
     // `None` is a board with one legal creature: the target is
     // forced and nothing is asked. The {1} is never a question either — the
     // White is the only mana in the pool, so the split is forced too.
     if let Some(target) = target {
-        decisions.expect_choice(
+        dp.expect_choice(
             ChoiceKind::SelectRecipients {
                 recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 spell_id: equipment,
@@ -357,13 +357,13 @@ fn equip(
         );
     }
     let idx = equip_ability_index(game, equipment);
-    if let Err(e) = game.activate_ability(player, equipment, idx, &decisions) {
+    if let Err(e) = game.activate_ability(player, equipment, idx, &dp) {
         // Refused before any question was asked; the provider asserts on drop
         // that every expectation was consumed, and here none should be.
-        std::mem::forget(decisions);
+        std::mem::forget(dp);
         return Err(e);
     }
-    game.resolve_top_of_stack(&decisions).expect("an activated equip resolves");
+    game.resolve_top_of_stack(&dp).expect("an activated equip resolves");
     Ok(())
 }
 
@@ -413,8 +413,8 @@ fn test_equip_is_offered_and_legal_only_at_sorcery_speed_and_then_attaches() {
     assert!(!offered_to(&game, 0, splitter));
     assert!(equip(&mut game, 0, splitter, None).is_err());
     assert_eq!(game.battlefield[&splitter].attached_to, None, "nothing attached on the way");
-    let decisions = ScriptedDecisionProvider::new();
-    game.resolve_top_of_stack(&decisions).expect("the Aura resolves");
+    let dp = ScriptedDecisionProvider::new();
+    game.resolve_top_of_stack(&dp).expect("the Aura resolves");
     assert_eq!(game.battlefield[&on_stack].attached_to, Some(bears));
 
     // Sorcery speed.
@@ -610,14 +610,14 @@ fn test_an_equipment_spell_enters_unattached() {
     let splitter = put_in_hand(&mut game, bonesplitter(), 0);
     game.players[0].mana_pool.add(ManaType::White, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
     // White is the only mana in the pool, so the {1} split is forced.
-    game.cast_spell(0, splitter, &decisions).expect("castable");
-    game.resolve_top_of_stack(&decisions).expect("resolves");
+    game.cast_spell(0, splitter, &dp).expect("castable");
+    game.resolve_top_of_stack(&dp).expect("resolves");
 
     assert!(game.battlefield.contains_key(&splitter));
     assert_eq!(game.battlefield[&splitter].attached_to, None);
-    assert!(decisions.is_empty());
+    assert!(dp.is_empty());
 }
 
 /// Registered, so `fuzz_games --pool stress` can draw it, and pooled, so the

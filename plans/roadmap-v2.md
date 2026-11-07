@@ -744,7 +744,8 @@ name for, and a phase of the critical path that no Row cell names.
 | 5 | `divided-among-targets` | | 1 | | | |
 | 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 | 1 | | | |
 | 5 | `orders-the-cr-hands-a-player` | ✅ 2026-11-06 (PR #316) | 1 | no | no | Design: 350–650 at its table's 1.7× is 600–1,100; measured at 3,030 touched, past the band's top, in `fuzz-record.md`'s block, with the pool as a walk input and item 30's sacrifice pulled forward |
-| 5 | `modal-spells-and-abilities` | | 1–2 | no | likely | Design: 1,360–2,070 at 1.7× is 2,300–3,500. Eleven consumers against TR-5c's 2,630 |
+| 5 | `modes-chosen-and-resolved`, the first of `modal-spells-and-abilities` | ✅ 2026-11-07 (PR #318) | 1 | no | split | Design: the row's 1,360–2,070 at 1.7× was 2,300–3,500, split at the brief (2026-11-07); this half 1,500–2,300 by it, measured at 2,035 touched in `fuzz-record.md`'s block |
+| 5 | `mode-rules-and-costs`, the second | | 1 | no | no | Design: the row's rest, 700–1,200, with Shadrix Silverquill, Arc Trail, Demonic Pact and four fixtures |
 | 5 | `mana-provenance`, the design | | 1 | it is one | no | Nearest: #306 and #224, one PR each. It says whether `Primitive::Pay` needs the build first, which would bring `mana-ability-costs` and the build ahead of the next row |
 | 5 | `costs-and-choices-at-resolution` | | 1–2 | no | likely | Design: 1,150–1,800 at 1.7× is 2,000–3,050 |
 | 5 | `values-chosen-at-resolution` | | 1–2 | no | may | Design: 1,010–1,570 at 1.7× is 1,700–2,700 |

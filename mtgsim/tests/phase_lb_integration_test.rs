@@ -48,17 +48,17 @@ fn test_giant_growth_pumps_creature() {
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
     assert!(game.stack.contains(&growth_id));
 
     // Both players pass → resolve Giant Growth
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
     // Giant Growth is now in graveyard
@@ -84,15 +84,15 @@ fn test_giant_growth_expires_at_cleanup() {
     let growth_id = put_in_hand(&mut game, printings::giant_growth(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast and resolve Giant Growth (same as test 1)
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Creature is 5/5
     assert_eq!(get_effective_power(&game, bears_id), Some(5));
@@ -140,24 +140,24 @@ fn test_two_giant_growths_stack() {
     let growth2_id = put_in_hand(&mut game, printings::giant_growth(), 0);
     game.players[0].mana_pool.add(ManaType::Green, 2);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast and resolve first Giant Growth
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth1_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth1_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
-    game.run_priority_round(&decisions).unwrap();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+    game.run_priority_round(&dp).unwrap();
 
     assert_eq!(get_effective_power(&game, bears_id), Some(5));
 
     // Cast and resolve second Giant Growth
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth2_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth2_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
-    game.run_priority_round(&decisions).unwrap();
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Should be 2 + 3 + 3 = 8/8
     assert_eq!(get_effective_power(&game, bears_id), Some(8));
@@ -326,16 +326,16 @@ fn test_anthem_plus_pump_spell() {
     // Base 2/2 + anthem +1/+1 = 3/3
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast Giant Growth targeting the creature
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Resolve
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // 2 base + 1 anthem + 3 growth = 6/6
     assert_eq!(get_effective_power(&game, bears_id), Some(6));
@@ -364,17 +364,17 @@ fn test_zhalfirin_shapecraft_sets_base_pt() {
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast Zhalfirin Shapecraft targeting the creature
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
     // Resolve
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Creature should be 4/3, and we drew a card
     assert_eq!(get_effective_power(&game, bears_id), Some(4));
@@ -409,17 +409,17 @@ fn zhalfirin_shapecraft_and_another_setter_apply_in_timestamp_order() {
     let last = put_in_hand(&mut game, one_one_setter(), 0);
     fill_library(&mut game, 0, 5);
     game.players[0].mana_pool.add(ManaType::Blue, 4);
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
-    cast_and_resolve_targeted_spell(&mut game, &decisions, first, None);
+    cast_and_resolve_targeted_spell(&mut game, &dp, first, None);
     assert_eq!((get_effective_power(&game, bears_id), get_effective_toughness(&game, bears_id)), (Some(1), Some(1)));
-    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft, None);
+    cast_and_resolve_targeted_spell(&mut game, &dp, shapecraft, None);
     assert_eq!(
         (get_effective_power(&game, bears_id), get_effective_toughness(&game, bears_id)),
         (Some(4), Some(3)),
         "the Shapecraft overwrites the earlier setter"
     );
-    cast_and_resolve_targeted_spell(&mut game, &decisions, last, None);
+    cast_and_resolve_targeted_spell(&mut game, &dp, last, None);
     assert_eq!(
         (get_effective_power(&game, bears_id), get_effective_toughness(&game, bears_id)),
         (Some(1), Some(1)),
@@ -468,16 +468,16 @@ fn test_inside_out_switches_pt() {
     assert_eq!(get_effective_power(&game, creature_id), Some(4));
     assert_eq!(get_effective_toughness(&game, creature_id), Some(5));
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast Inside Out targeting the creature
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Resolve
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Creature should be 5/4 (swapped), and we drew a card
     assert_eq!(get_effective_power(&game, creature_id), Some(5));
@@ -497,16 +497,16 @@ fn test_bull_rush_pumps_power() {
     let spell_id = put_in_hand(&mut game, printings::bull_rush(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast Bull Rush
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // Resolve
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     // 2+2 = 4 power, toughness stays 2
     assert_eq!(get_effective_power(&game, bears_id), Some(4));
@@ -522,15 +522,15 @@ fn test_bull_rush_pumps_power() {
 /// spell's generic mana, how much each pays.
 fn cast_and_resolve_targeted_spell(
     game: &mut mtgsim::state::game_state::GameState,
-    decisions: &ScriptedDecisionProvider,
+    dp: &ScriptedDecisionProvider,
     spell_id: mtgsim::types::ids::ObjectId,
     generic_split: Option<Vec<(ChoiceOption, u64)>>,
 ) {
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
     // No target to script: every board here holds one creature, so the choice
     // is forced and `ask_select_recipients` does not prompt.
     if let Some(split) = generic_split {
-        decisions.expect_allocation(
+        dp.expect_allocation(
             ChoiceKind::GenericManaAllocation {
                 spell_or_ability_id: mtgsim::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: mtgsim::types::mana::ManaCost::zero(),
@@ -538,15 +538,15 @@ fn cast_and_resolve_targeted_spell(
             split,
         );
     }
-    let result = game.run_priority_round(decisions).unwrap();
+    let result = game.run_priority_round(dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
     // Both pass → resolve. The caster is asked while another spell in hand is
     // castable; the opponent has `Pass` alone, which the engine takes.
     if candidate_priority_actions(game, game.active_player).len() > 1 {
-        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
     }
-    game.run_priority_round(decisions).unwrap();
+    game.run_priority_round(dp).unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -566,23 +566,23 @@ fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Shapecraft {1}{U}: available [Blue(10), Red(1)] → allocate 1 generic from Blue
     let from_blue = vec![(ChoiceOption::ManaType(ManaType::Blue), 1), (ChoiceOption::ManaType(ManaType::Red), 0)];
-    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, Some(from_blue));
+    cast_and_resolve_targeted_spell(&mut game, &dp, shapecraft_id, Some(from_blue));
     // After 7b: base set to 4/3
     assert_eq!(get_effective_power(&game, bears_id), Some(4));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(3));
 
     // Bull Rush {R}: no generic cost
-    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, None);
+    cast_and_resolve_targeted_spell(&mut game, &dp, bull_rush_id, None);
     // After 7b+7c: 4+2=6, 3+0=3
     assert_eq!(get_effective_power(&game, bears_id), Some(6));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(3));
 
     // Inside Out {1}{U}: available [Blue(8)] (Red spent) → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, None);  // one bucket: the split is forced
+    cast_and_resolve_targeted_spell(&mut game, &dp, inside_out_id, None);  // one bucket: the split is forced
     // After 7b+7c+7d: swap(6,3) = 3/6
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
@@ -617,23 +617,23 @@ fn test_layer_ordering_cast_in_reverse_order() {
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Inside Out {1}{U}: available [Blue(10), Red(1)] → allocate 1 from Blue
     let from_blue = vec![(ChoiceOption::ManaType(ManaType::Blue), 1), (ChoiceOption::ManaType(ManaType::Red), 0)];
-    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, Some(from_blue));
+    cast_and_resolve_targeted_spell(&mut game, &dp, inside_out_id, Some(from_blue));
     // Only 7d active: swap base 2/2 → still 2/2 (symmetric!)
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
 
     // Bull Rush {R}: no generic
-    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, None);
+    cast_and_resolve_targeted_spell(&mut game, &dp, bull_rush_id, None);
     // 7c: 2+2=4, 2+0=2; then 7d: swap → 2/4
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(4));
 
     // Shapecraft {1}{U}: available [Blue(8)] (Red spent) → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, None);  // one bucket: the split is forced
+    cast_and_resolve_targeted_spell(&mut game, &dp, shapecraft_id, None);  // one bucket: the split is forced
     // 7b: set 4/3; 7c: +2/+0 → 6/3; 7d: swap → 3/6
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
@@ -654,22 +654,22 @@ fn test_layer_ordering_cast_7c_7d_7b() {
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Bull Rush {R}: no generic
-    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, None);
+    cast_and_resolve_targeted_spell(&mut game, &dp, bull_rush_id, None);
     // Only 7c: 2+2=4, 2+0=2
     assert_eq!(get_effective_power(&game, bears_id), Some(4));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(2));
 
     // Inside Out {1}{U}: available [Blue(10)] (Red spent) → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, None);  // one bucket: the split is forced
+    cast_and_resolve_targeted_spell(&mut game, &dp, inside_out_id, None);  // one bucket: the split is forced
     // 7c: 4/2; 7d: swap → 2/4
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(4));
 
     // Shapecraft {1}{U}: available [Blue(8)] → allocate 1 from Blue
-    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, None);  // one bucket: the split is forced
+    cast_and_resolve_targeted_spell(&mut game, &dp, shapecraft_id, None);  // one bucket: the split is forced
     // 7b: 4/3; 7c: +2/+0 → 6/3; 7d: swap → 3/6
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
     assert_eq!(get_effective_toughness(&game, bears_id), Some(6));
@@ -690,13 +690,13 @@ fn test_layer_effects_expire_at_cleanup() {
     game.players[0].mana_pool.add(ManaType::Blue, 10);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
     // Cast all three
     let from_blue = vec![(ChoiceOption::ManaType(ManaType::Blue), 1), (ChoiceOption::ManaType(ManaType::Red), 0)];
-    cast_and_resolve_targeted_spell(&mut game, &decisions, shapecraft_id, Some(from_blue));
-    cast_and_resolve_targeted_spell(&mut game, &decisions, bull_rush_id, None);
-    cast_and_resolve_targeted_spell(&mut game, &decisions, inside_out_id, None);  // one bucket: the split is forced
+    cast_and_resolve_targeted_spell(&mut game, &dp, shapecraft_id, Some(from_blue));
+    cast_and_resolve_targeted_spell(&mut game, &dp, bull_rush_id, None);
+    cast_and_resolve_targeted_spell(&mut game, &dp, inside_out_id, None);  // one bucket: the split is forced
 
     // 3/6 as expected
     assert_eq!(get_effective_power(&game, bears_id), Some(3));
@@ -744,20 +744,20 @@ fn test_merfolk_thaumaturgist_switches_pt_from_an_activated_ability() {
     assert_eq!(get_effective_power(&game, elemental), Some(4));
     assert_eq!(get_effective_toughness(&game, elemental), Some(5));
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
-    decisions.expect_choice(
+    dp.expect_choice(
         ChoiceKind::PriorityAction,
         vec![ChoiceOption::Action(PriorityAction::ActivateAbility(thaumaturgist, switch))],
     );
-    decisions.expect_choice(
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             spell_id: thaumaturgist,
         },
         vec![ChoiceOption::Object(elemental)],
     );
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
     assert!(
@@ -770,7 +770,7 @@ fn test_merfolk_thaumaturgist_switches_pt_from_an_activated_ability() {
         "and nothing has happened yet — the ability is still on the stack"
     );
 
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 
     assert_eq!(get_effective_power(&game, elemental), Some(5), "Layer 7d");
     assert_eq!(get_effective_toughness(&game, elemental), Some(4));

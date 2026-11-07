@@ -253,11 +253,11 @@ pub(super) fn holds(
             false
         }
 
-        // An answer a *resolution* had and a static ability never does:
-        // CR 700.2's modes are chosen as a spell is cast, and nothing carries
-        // them past it. A card author reaching for one on a static ability is
-        // making the `evaluate_amount` mistake and gets the same treatment —
-        // stopped in debug, declining in release, never inventing an answer.
+        // An answer a *resolution* has, which the resolver's walk gives off
+        // `StackEntry::chosen_modes`, and a static ability never does. A card
+        // author reaching for one on a static ability is making the
+        // `evaluate_amount` mistake and gets the same treatment — stopped in
+        // debug, declining in release, never inventing an answer.
         Condition::ModeChosen(_) => {
             debug_assert!(
                 false,
@@ -659,6 +659,7 @@ mod tests {
     fn mode_chosen_on_a_static_is_loud() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-        let _ = settled_holds(&Condition::ModeChosen(0), &game, bears, None, ConditionReferents::NONE);
+        let first = crate::types::effects::ModeIndex::printed(1);
+        let _ = settled_holds(&Condition::ModeChosen(first), &game, bears, None, ConditionReferents::NONE);
     }
 }

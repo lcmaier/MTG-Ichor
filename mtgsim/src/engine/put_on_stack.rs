@@ -21,7 +21,8 @@ use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::TargetInstance;
-use crate::types::effects::{EffectRecipient, TargetCount};
+use crate::oracle::modes::legal_mode_sets;
+use crate::types::effects::{EffectRecipient, ModeChooser, ModeIndex, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
@@ -35,7 +36,7 @@ use crate::engine::cost_determination::total_cost_in_x;
 use crate::oracle::x_values::legal_x_values;
 use crate::ui::ask::{
     ask_activate_mana_ability,
-    ask_choose_alternative_cost, ask_choose_additional_costs,
+    ask_choose_alternative_cost, ask_choose_additional_costs, ask_choose_modes,
     ask_choose_x_value, ask_divide_among, ask_select_recipients,
 };
 use crate::ui::decision::DecisionProvider;
@@ -66,8 +67,8 @@ impl GameState {
     /// Steps follow CR 601.2a–i:
     /// 1. Pre-proposal legality check (rule 601.3)
     /// 2. Move to stack (601.2a) — silently; the move is announced at 601.2i
-    /// 3. Choose alternative cost, additional costs, X value (601.2b)
-    /// 4. Choose targets (601.2c)
+    /// 3. Choose alternative cost, additional costs, X value, modes (601.2b)
+    /// 4. Choose targets (601.2c), the chosen modes' after the spell's own
     /// 5. Division among targets (601.2d) — not asked, `backlog.md` §2.20
     /// 6. Post-proposal legality check with rollback (601.2e)
     /// 7. Assemble total cost (601.2f)
@@ -78,14 +79,14 @@ impl GameState {
         &mut self,
         player_id: PlayerId,
         card_id: ObjectId,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // --- Pre-proposal legality check (rule 601.3) ---
         // The check the enumeration asks, so the two agree.
         can_begin_to_cast(self, player_id, card_id).map_err(|reason| reason.to_string())?;
 
         // What the payment proposes, it causes as a cost (CR 601.2h).
-        let actx = ActionContext::paying_cost(decisions, player_id, card_id);
+        let actx = ActionContext::paying_cost(dp, player_id, card_id);
 
         // Snapshot data we need before moving the card
         let card_data = self.get_object(card_id)?.card_data.clone();
@@ -118,7 +119,7 @@ impl GameState {
         self.move_object(card_id, Zone::Stack)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
-        let chosen_alt = ask_choose_alternative_cost(decisions, self, player_id, card_id, &card_data.alternative_costs);
+        let chosen_alt = ask_choose_alternative_cost(dp, self, player_id, card_id, &card_data.alternative_costs);
 
         // CR 601.2b announces "their intentions to pay any or all of those
         // costs" — of the *optional* ones. A mandatory additional cost
@@ -137,7 +138,7 @@ impl GameState {
                 .iter()
                 .map(|&i| card_data.additional_costs[i].clone())
                 .collect();
-            ask_choose_additional_costs(decisions, self, player_id, card_id, &offered)
+            ask_choose_additional_costs(dp, self, player_id, card_id, &offered)
         } else {
             Vec::new()
         };
@@ -175,7 +176,7 @@ impl GameState {
         let has_x = base_mana_cost.x_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
         let x_value = if has_x {
             match legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero) {
-                Some(values) => ask_choose_x_value(decisions, self, player_id, card_id, values),
+                Some(values) => ask_choose_x_value(dp, self, player_id, card_id, values),
                 // The 601.2h failure, found before a window opens for it.
                 None => {
                     self.rollback_cast_to_hand(card_id)?;
@@ -186,15 +187,17 @@ impl GameState {
             0
         };
 
-        // --- 601.2c: Choose targets, one instance of "target" at a time ---
-        // "The player announces their choice of an appropriate object or player
-        // for **each** target the spell requires." In printed order, because an
+        // --- 601.2b's modes, then 601.2c: targets, one instance at a time ---
+        // The modes last of 601.2b's announcements, which is one step, so a
+        // count can read the X and a kicker announced before them. "The player
+        // announces their choice of an appropriate object or player for
+        // **each** target the spell requires", in printed order, because an
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
-        let targets = match self.announce_targets(
-            player_id, card_id, card_id, instances, ConditionReferents::NONE, has_x.then_some(x_value), decisions,
+        let (chosen_modes, targets) = match self.announce_modes_and_targets(
+            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), dp,
         ) {
-            Ok(targets) => targets,
+            Ok(announced) => announced,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
@@ -207,7 +210,7 @@ impl GameState {
             object_id: card_id,
             controller: player_id,
             chosen_targets: targets,
-            chosen_modes: Vec::new(),
+            chosen_modes,
             x_value: has_x.then_some(x_value),
             effect: Arc::new(effect),
             is_spell: true,
@@ -224,11 +227,11 @@ impl GameState {
         self.set_stack_entry(entry);
 
         // --- 601.2e: post-proposal legality ---
-        // Vacuous today: every choice above is drawn from an enumerated legal list,
-        // so nothing chosen can make the proposal illegal. It stops being vacuous
-        // when a later choice can invalidate an earlier one — modes (`backlog.md`
-        // §2.7), several target clauses (§2.20) — and the rewind it needs is the
-        // one 601.2h already uses.
+        // Every choice above is drawn from an enumerated legal list, the modes
+        // among them, so none makes the proposal illegal on its own. An earlier
+        // choice can leave a later one with no legal answer: an X past the modes
+        // a count of X can take, a target clause with no candidate. That
+        // announcement fails above, and its rewind is the one 601.2h uses.
 
         // --- 601.2f: Assemble total cost ---
         let total_costs = determine_total_cost(
@@ -239,7 +242,7 @@ impl GameState {
             chosen_alt,
             &chosen_additional,
             x_value,
-            decisions,
+            dp,
         );
 
         // --- 601.2g: Mana ability window ---
@@ -248,7 +251,7 @@ impl GameState {
         // runs until the player declines or no activatable ability remains
         // (`run_mana_ability_window`); 601.2h then checks the pool and rolls the
         // cast back if it does not cover the cost.
-        self.run_mana_ability_window(player_id, card_id, &total_costs, decisions);
+        self.run_mana_ability_window(player_id, card_id, &total_costs, dp);
 
         // --- 601.2h: Pay total cost ---
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
@@ -295,7 +298,7 @@ impl GameState {
         let card_before_cast = card_before_cast.ok_or_else(|| format!("{card_id} was cast from no zone"))?;
         let casting = EventCause::Casting(player_id);
         self.announce_zone_change(card_before_cast, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
-        self.announce_targeted_records(card_id, casting, decisions)?;
+        self.announce_targeted_records(card_id, casting, dp)?;
         self.emit_event(GameEvent::SpellCast { spell: self.existence_for_record(card_id)?, caster: player_id }, casting)?;
 
         Ok(())
@@ -331,7 +334,7 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
         x_value: Option<u64>,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
         let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
@@ -356,7 +359,7 @@ impl GameState {
             // spell's text", and once determined it does not change.
             let bounds = count.bounds(&|amount| self.amount_as_announced(amount, player_id, this_object, named_objects, x_value))?;
             let chosen = ask_select_recipients(
-                decisions, self, player_id, recipient, source_id,
+                dp, self, player_id, recipient, source_id,
                 &legal, bounds.fewest, bounds.most,
             );
             self.validate_targets(recipient, &chosen, bounds, player_id, identity)?;
@@ -375,10 +378,52 @@ impl GameState {
             // CR 115.6: "any number" may be none, which divides nothing.
             if !targets.is_empty() {
                 let total = self.amount_as_announced(&divided.total, player_id, this_object, named_objects, x_value)?;
-                instance.divide(&ask_divide_among(decisions, self, player_id, source_id, &targets, total));
+                instance.divide(&ask_divide_among(dp, self, player_id, source_id, &targets, total));
             }
         }
         Ok(announced)
+    }
+
+    /// CR 601.2b's modes, then 601.2c's targets, for `effect` on the stack
+    /// object `source_id`: what [`Self::announce_targets`] announces for an
+    /// effect with no modes. A modal one's chooser picks one of the legal
+    /// sets (`oracle::modes`, CR 700.2a), and each chosen mode's instances
+    /// follow `instances`, the effect's own, in printed order: a mode is its
+    /// own instance scope, so its "another target" reads only its own earlier
+    /// instances, and a division is announced inside it. The modes are in
+    /// printed order, which is the order they resolve in.
+    ///
+    /// `Err` when no set of modes is legal, which the caller rewinds or, for
+    /// a trigger, removes (CR 603.3c).
+    pub(crate) fn announce_modes_and_targets(
+        &self,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        this_object: ObjectId,
+        effect: &crate::types::effects::Effect,
+        instances: &[EffectRecipient],
+        named_objects: ConditionReferents<'_>,
+        x_value: Option<u64>,
+        dp: &dyn DecisionProvider,
+    ) -> Result<(Vec<ModeIndex>, Vec<TargetInstance>), String> {
+        let Some(node) = effect.modal() else {
+            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
+            return Ok((Vec::new(), targets));
+        };
+        let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value);
+        if sets.is_empty() {
+            return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
+        }
+        let chooser = match node.chooser {
+            ModeChooser::Controller => player_id,
+        };
+        let modes = ask_choose_modes(dp, self, chooser, source_id, sets);
+        let mut targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
+        for &mode in &modes {
+            let mode = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
+            targets.extend(self.announce_targets(player_id, source_id, this_object, &mode.instances, named_objects, x_value, dp)?);
+        }
+        Ok((modes, targets))
     }
 
     /// An amount the text defines, read as the announcement starts: a count
@@ -482,7 +527,7 @@ impl GameState {
         player_id: PlayerId,
         source_id: ObjectId,
         ability_index: usize,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // On the battlefield, and this player's: activating from another zone is
         // `backlog.md` §2.8's. The checks the enumeration asks, so the two agree.
@@ -522,12 +567,12 @@ impl GameState {
         // From here on, any Err path must call `rollback_ability_activation`
         // to keep game state clean: `run_priority_round`'s retry loop relies on it.
 
-        // CR 602.2b routes an activation through 601.2c, so an ability
-        // announces its instances exactly as a spell does.
-        let targets = match self.announce_targets(
-            player_id, ability_obj_id, source_id, instances, ConditionReferents::NONE, None, decisions,
+        // CR 602.2b routes an activation through 601.2b–c, so an ability
+        // announces its modes and instances exactly as a spell does.
+        let (chosen_modes, targets) = match self.announce_modes_and_targets(
+            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, dp,
         ) {
-            Ok(targets) => targets,
+            Ok(announced) => announced,
             Err(e) => {
                 self.rollback_ability_activation(ability_obj_id);
                 return Err(e);
@@ -538,7 +583,7 @@ impl GameState {
             object_id: ability_obj_id,
             controller: player_id,
             chosen_targets: targets,
-            chosen_modes: Vec::new(),
+            chosen_modes,
             x_value: None,
             effect: Arc::new(effect),
             is_spell: false,
@@ -557,7 +602,7 @@ impl GameState {
         // mana abilities as needed to pay the activated-ability cost. Pool is
         // filled in-place; caller's pay_costs below detects insufficiency and
         // triggers rollback.
-        self.run_mana_ability_window(player_id, source_id, &ability_costs, decisions);
+        self.run_mana_ability_window(player_id, source_id, &ability_costs, dp);
 
         // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's: check,
         // ask how the generic part is split, then pay.
@@ -566,7 +611,7 @@ impl GameState {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e.to_string());
         }
-        let actx = ActionContext::paying_cost(decisions, player_id, source_id);
+        let actx = ActionContext::paying_cost(dp, player_id, source_id);
         let plan = match self.plan_payment(&ability_costs, player_id, source_id, &actx) {
             Ok(plan) => plan,
             Err(e) => {
@@ -589,10 +634,10 @@ impl GameState {
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
-        self.announce_targeted_records(ability_obj_id, activating, decisions)?;
+        self.announce_targeted_records(ability_obj_id, activating, dp)?;
         // Where its cost moved it, as it left (CR 608.2h).
         let source_lki = self.lki(identity.source).cloned();
-        self.announce_activation(identity, player_id, false, from, source_lki, decisions)?;
+        self.announce_activation(identity, player_id, false, from, source_lki, dp)?;
 
         Ok(())
     }
@@ -651,7 +696,7 @@ impl GameState {
         player_id: PlayerId,
         spell_or_ability_id: ObjectId,
         total_costs: &[Cost],
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) {
         let mana_cost_for_window = Cost::mana_part(total_costs);
 
@@ -682,10 +727,10 @@ impl GameState {
             let remaining = remaining_cost_after_pool(&mana_cost_for_window, pool);
 
             match ask_activate_mana_ability(
-                decisions, self, player_id, spell_or_ability_id, &remaining, &legal,
+                dp, self, player_id, spell_or_ability_id, &remaining, &legal,
             ) {
                 Some((perm_id, ability_id)) => {
-                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, decisions) {
+                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, dp) {
                         // Enumeration said this was legal but activation
                         // failed: likely staleness, or a cost the window's
                         // offer re-asked wrongly (`can_pay_costs`). Blacklist
@@ -791,19 +836,19 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 
-        (game, card_id, decisions)
+        (game, card_id, dp)
     }
 
     #[test]
     fn test_cast_records_origin_zone() {
-        let (mut game, card_id, decisions) = setup_for_casting();
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        let (mut game, card_id, dp) = setup_for_casting();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // CR 601.2a's origin, captured before the card moved. Unrecoverable
         // afterward — the object's own `zone` now says Stack, which is the
@@ -824,7 +869,7 @@ mod tests {
             0,
         );
 
-        let decisions = ScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         // No target to script: the Thaumaturgist is the only creature on the
         // board and the ability takes exactly one, so the
         // choice is forced and `ask_select_recipients` does not prompt.
@@ -835,8 +880,8 @@ mod tests {
             .unwrap();
         let ability_id = abilities[idx].id;
 
-        game.activate_ability(0, thaum, idx, &decisions).unwrap();
-        game.resolve_top_of_stack(&decisions).unwrap();
+        game.activate_ability(0, thaum, idx, &dp).unwrap();
+        game.resolve_top_of_stack(&dp).unwrap();
 
         let activated: Vec<_> = game.recorded_events().events().filter_map(|e| match e {
             GameEvent::AbilityActivated { identity, .. } => Some(*identity),
@@ -877,7 +922,7 @@ mod tests {
             0,
         );
 
-        let decisions = ScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let ability_id = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
             .iter()
             .find(|a| matches!(a.ability_type, AbilityType::Activated(_)))
@@ -889,7 +934,7 @@ mod tests {
             .iter()
             .position(|a| a.id == ability_id)
             .unwrap();
-        game.activate_ability(0, thaum, idx, &decisions).unwrap();
+        game.activate_ability(0, thaum, idx, &dp).unwrap();
 
         // There is an ability on the stack, and it records no origin zone.
         // ORDER-FREE: one, asserted.
@@ -911,8 +956,8 @@ mod tests {
 
     #[test]
     fn test_cast_instant_spell() {
-        let (mut game, card_id, decisions) = setup_for_casting();
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        let (mut game, card_id, dp) = setup_for_casting();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // Card should be on the stack
         assert!(game.stack.contains(&card_id));
@@ -943,17 +988,17 @@ mod tests {
         let card_id = game.add_object(obj);
         game.players[0].graveyard.push(card_id);
 
-        let decisions = ScriptedDecisionProvider::new();
-        assert!(game.cast_spell(0, card_id, &decisions).is_err());
+        let dp = ScriptedDecisionProvider::new();
+        assert!(game.cast_spell(0, card_id, &dp).is_err());
     }
 
     #[test]
     fn test_cast_not_enough_mana() {
-        let (mut game, card_id, decisions) = setup_for_casting();
+        let (mut game, card_id, dp) = setup_for_casting();
         // Drain the mana pool
         let _ = game.players[0].mana_pool.remove(ManaType::Red, 1);
 
-        assert!(game.cast_spell(0, card_id, &decisions).is_err());
+        assert!(game.cast_spell(0, card_id, &dp).is_err());
     }
 
     #[test]
@@ -977,16 +1022,16 @@ mod tests {
         // Set to combat phase — sorceries can't be cast here
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Combat));
 
-        let decisions = ScriptedDecisionProvider::new();
-        assert!(game.cast_spell(0, card_id, &decisions).is_err());
+        let dp = ScriptedDecisionProvider::new();
+        assert!(game.cast_spell(0, card_id, &dp).is_err());
     }
 
     #[test]
     fn test_cast_instant_during_combat() {
-        let (mut game, card_id, decisions) = setup_for_casting();
+        let (mut game, card_id, dp) = setup_for_casting();
         // Instants can be cast during any phase
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Combat));
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
         assert!(game.stack.contains(&card_id));
     }
 
@@ -1004,9 +1049,9 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
@@ -1014,7 +1059,7 @@ mod tests {
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // Card on stack
         assert!(game.stack.contains(&card_id));
@@ -1039,13 +1084,13 @@ mod tests {
 
         // X = 0 is the one value `{R}` pays, so it is announced without a
         // prompt (`backlog.md` §2.22's rule 1): nothing is scripted for it.
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.x_value, Some(0));
@@ -1066,16 +1111,16 @@ mod tests {
         game.active_player = 0;
 
         use crate::oracle::x_values::{LegalXValues, XOffer};
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
-        let ChoiceKind::ChooseXValue { values, .. } = &decisions.asked()[0] else { panic!("X is asked first") };
+        let ChoiceKind::ChooseXValue { values, .. } = &dp.asked()[0] else { panic!("X is asked first") };
         assert_eq!(values.offered, XOffer::Interval { at_least: 0, at_most: 1 });
         assert_eq!(game.stack_entries[&card_id].x_value, Some(1));
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
@@ -1099,12 +1144,12 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
 
-        let result = game.cast_spell(0, card_id, &decisions);
+        let result = game.cast_spell(0, card_id, &dp);
         assert!(result.is_err());
-        assert!(decisions.is_empty(), "no X and no target was asked");
+        assert!(dp.is_empty(), "no X and no target was asked");
         assert_eq!(game.get_object(card_id).unwrap().zone, Zone::Hand);
         assert!(game.players[0].hand.contains(&card_id));
         assert!(!game.stack.contains(&card_id));
@@ -1136,10 +1181,10 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![ChoiceOption::AlternativeCost(pay_life)]);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![ChoiceOption::AlternativeCost(pay_life)]);
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // Card on stack
         assert!(game.stack.contains(&card_id));
@@ -1172,13 +1217,13 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         assert!(game.stack.contains(&card_id));
         let entry = game.stack_entries.get(&card_id).unwrap();
@@ -1191,8 +1236,8 @@ mod tests {
     #[test]
     fn test_cast_normal_cost_no_x_no_alt() {
         // Verify the normal path still sets x_value=None and no alt/additional
-        let (mut game, card_id, decisions) = setup_for_casting();
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        let (mut game, card_id, dp) = setup_for_casting();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.x_value, None);
