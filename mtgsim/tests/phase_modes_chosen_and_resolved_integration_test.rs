@@ -272,8 +272,10 @@ fn a_count_raised_by_a_condition_reads_it_as_the_modes_are_chosen() {
     }
 }
 
-/// "Choose X": X is announced first, then the sets of that many modes, each
-/// mode at most once.
+/// "Choose X": X is announced first, then the sets of that many modes. A mode
+/// is offered at most once because the fixture does not say it may repeat
+/// (CR 700.2d); Doomsday Confluence, the one printed "choose X", does, and its
+/// repeats are `mode-rules-and-costs`'.
 // COVERS: ATOM-700.2d-001
 #[test]
 fn a_count_of_x_asks_x_then_the_sets_of_that_many() {
