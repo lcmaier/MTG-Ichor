@@ -9905,9 +9905,12 @@ folds and 345–347 the gaps the duplicates hid.
      an opponent, since none can be written.
      **Sized:** ~40–60 lines and a fixture "target opponent loses 2 life"
      at three seats, cast from hand.
-     **Slotted:** `multiplayer-rules`, with item 342, whose `PlayerSet` is the
-     arm's new payload (`route-review`, 2026-10-29); four Tarkir: Dragonstorm
-     Commander cards say "target opponent". #297's version is `fd07d50b`, about
+     **Slotted:** `mode-rules-and-costs`, for Demonic Pact's "target opponent"
+     (pulled forward at its intake, 2026-11-07: `PlayerSet` exists, and nothing
+     here reads "an opponent" two ways, so item 342 stays at
+     `multiplayer-rules`); it was `multiplayer-rules`', with item 342
+     (`route-review`, 2026-10-29). Four Tarkir: Dragonstorm Commander cards say
+     "target opponent". #297's version is `fd07d50b`, about
      150 lines with its fixture, and needs none of the other folds.
 
 346. **"Enchanted player" can't be written.** CR 303.4m's "enchanted [object
