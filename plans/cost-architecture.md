@@ -397,6 +397,13 @@ matters.
 
 ### 3.4 "In any order they choose" — the prompt, the theorem, and the middleware
 
+**Elided since `orders-the-cr-hands-a-player` (2026-11-06,
+`choices-architecture.md`'s decision 6b).** Two or more reductions apply and
+none meets an expiry condition below: the engine applies them in gather order
+and records that it did not ask (`reduction_order_can_change_total`), and the
+last bullet's middleware is gone with item 165. What this section says of a
+prompt is the rule for the day a condition lands.
+
 **Two or more reductions apply → `ask_order_cost_reductions` asks the caster
 to order them** (`ChoiceKind::OrderCostReductions`), and the pipeline applies
 them in the order returned. One reduction has no order to choose and asks

@@ -20,19 +20,22 @@
 
 use super::gather::{cost_modifications_for, CostModificationInstance};
 use crate::engine::layers::compute::settled_amount;
+use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::state::game_state::GameState;
 use crate::types::cost_modification::CostChange;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::ask_order_cost_reductions;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
 
 /// CR 601.2f, whole: from the choices CR 601.2b recorded to the locked total.
 ///
 /// `spell` is the object whose cost this is, on the stack since CR 601.2a;
 /// `caster` is who answers the reduction-order prompt, through `dp`, when two
-/// or more reductions apply (CR 601.2f, "in any order"); one asks nothing.
+/// or more reductions apply (CR 601.2f, "in any order") and their order can
+/// change the total; anything else asks nothing.
 /// The non-mana costs come back in their order behind **one** mana component
 /// — CR 601.2f's "the mana component of the total cost" is singular and
 /// CR 118.8 pays additional costs "at the same time".
@@ -48,7 +51,16 @@ pub fn determine_total_cost(
 ) -> Vec<Cost> {
     let mut total = assemble_total_cost(base_costs(base_mana_cost, chosen_alt_cost), chosen_additional_costs);
     let instances = cost_modifications_for(game, spell);
-    modify(game, &mut total.mana, &instances, |sources| ask_order_cost_reductions(dp, game, caster, spell, sources));
+    modify(game, &mut total.mana, &instances, |sources, order_can_change_total| {
+        if order_can_change_total {
+            return ask_order_cost_reductions(dp, game, caster, spell, sources);
+        }
+        game.note_unasked(caster, Unasked::OneGame(Elision::CostReductionOrder), || {
+            let reductions = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
+            (ChoiceKind::OrderCostReductions { spell_id: spell }, UnaskedAnswer::Order(reductions))
+        });
+        gather_order(sources)
+    });
     // Step 6 — locked in: this value is paid, and nothing re-reads the board.
     total.locked_at(x_value)
 }
@@ -91,12 +103,19 @@ fn assemble_total_cost(base: Vec<Cost>, additional: &[&AdditionalCost]) -> Total
     total
 }
 
-/// Steps 3–5: the modifications, the reductions in `order`'s.
+/// The reductions as they were gathered: what a preview applies, and the
+/// order taken when every order gives one total.
+fn gather_order(sources: &[ObjectId]) -> Vec<usize> {
+    (0..sources.len()).collect()
+}
+
+/// Steps 3–5: the modifications, the reductions in `order`'s, which is told
+/// whether the order can change the total.
 fn modify(
     game: &GameState,
     mana: &mut ManaComponent,
     instances: &[CostModificationInstance],
-    order: impl FnOnce(&[ObjectId]) -> Vec<usize>,
+    order: impl FnOnce(&[ObjectId], bool) -> Vec<usize>,
 ) {
     // Step 3 — increases. Addition commutes; the gather order is for the log.
     for inst in instances {
@@ -105,18 +124,14 @@ fn modify(
         }
     }
 
-    // Step 4 — reductions, in the order the player chooses. With the symbols
-    // the engine pays today the order never changes the answer (§3.4's
-    // theorem), and the prompt is asked anyway because CR 601.2f makes it
-    // the player's; the two conditions under which it would matter — a
-    // hybrid reduction symbol, a floored reduction — are refused below and
-    // not yet representable, respectively. A dynamic amount does not add a
-    // third: nothing in this step touches the board, so every `ReduceGeneric`
-    // reads the same board whenever it is applied.
+    // Step 4 — reductions, in the order the player chooses. A dynamic amount
+    // adds no third expiry to §3.4's two: nothing in this step touches the
+    // board, so every `ReduceGeneric` reads the same board whenever it is
+    // applied.
     let reductions: Vec<&CostModificationInstance> = instances.iter().filter(|inst| is_reduction(inst)).collect();
     let order: Vec<usize> = if reductions.len() >= 2 {
         let sources: Vec<ObjectId> = reductions.iter().map(|inst| inst.source).collect();
-        order(&sources)
+        order(&sources, reduction_order_can_change_total(&reductions))
     } else {
         (0..reductions.len()).collect()
     };
@@ -151,7 +166,7 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
     }
     let mut mana = ManaComponent::EMPTY;
     mana.add(printed);
-    modify(game, &mut mana, &instances, |sources| (0..sources.len()).collect());
+    modify(game, &mut mana, &instances, |sources, _| gather_order(sources));
     mana.at(0)
 }
 
@@ -167,7 +182,7 @@ pub fn total_cost_in_x(
 ) -> TotalCostInX {
     let mut total = assemble_total_cost(base_costs(base_mana_cost, chosen_alt_cost), chosen_additional_costs);
     let instances = cost_modifications_for(game, spell);
-    modify(game, &mut total.mana, &instances, |sources| (0..sources.len()).collect());
+    modify(game, &mut total.mana, &instances, |sources, _| gather_order(sources));
     total
 }
 
@@ -363,6 +378,32 @@ fn pip_type(symbol: &ManaSymbol) -> Option<ManaType> {
 /// that would change the answer.
 fn is_reduction(inst: &CostModificationInstance) -> bool {
     matches!(inst.def.change, CostChange::Reduce(_) | CostChange::ReduceGeneric(_))
+}
+
+/// Whether the order of `reductions` can change the total, which is where
+/// `cost-architecture.md` §3.4's theorem expires. Every arm says, so no new
+/// reduction inherits the theorem unread. The theorem's second expiry, a
+/// `not_below` floor, is an arm this match gains with it; a `ReduceGeneric`
+/// is generic alone, so it is a term of the theorem's sum.
+fn reduction_order_can_change_total(reductions: &[&CostModificationInstance]) -> bool {
+    reductions.iter().any(|inst| match &inst.def.change {
+        CostChange::Reduce(amount) => amount.symbols.iter().copied().any(player_picks_a_half_as_it_applies),
+        CostChange::ReduceGeneric(_) | CostChange::Increase(_) | CostChange::TotalAtLeast(_) => false,
+    })
+}
+
+/// CR 118.7e: a reduction by a hybrid symbol has its half chosen as it
+/// applies, which the theorem's sums cannot state.
+fn player_picks_a_half_as_it_applies(symbol: ManaSymbol) -> bool {
+    match symbol {
+        ManaSymbol::Hybrid(..) | ManaSymbol::MonoHybrid(_) | ManaSymbol::HybridPhyrexian(..) => true,
+        ManaSymbol::Generic
+        | ManaSymbol::Colored(_)
+        | ManaSymbol::Colorless
+        | ManaSymbol::Snow
+        | ManaSymbol::Phyrexian(_)
+        | ManaSymbol::X => false,
+    }
 }
 
 /// One reduction, at its position in the player's order.

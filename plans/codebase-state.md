@@ -7289,36 +7289,17 @@ the file.
      **Reachability (2026-09-30):** closed — A6j.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 164".
 
-165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
-     should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
-     order because, by `cost-architecture.md` §3.4's theorem, every order gives
-     the identical total — which makes the prompt §2.22's rule 1, second case:
-     an answer that cannot change the game is the engine's to elide, as item
-     47's `pipeline::ordering_cannot_change_outcome` already does for CR
-     616.1's. §3.4 kept the prompt "until it shows in a profile"; the owner's
-     review of the census (2026-09-18) read that as a timing call and struck
-     the "answer-preserving" decorator kind, so the elision is owed and the
-     module goes with it.
-
-     **Reachability (2026-09-18):** reachable — not wrong; a cost, and a
-     second home for one fact. 0 / 0.07 / 0.02 prompts a game.
-
-     **Sized:** ~20 lines — one guard at the call site in
-     `cost_determination/total.rs`, false the day either expiry condition
-     lands (a reduction whose amount is a hybrid symbol, CR 118.7e; a
-     `not_below` reduction), the two conditions §3.4 already names;
-     ATOM-601.2f-004's test restated from "the prompt is asked" to "both
-     reductions apply and every order gives the CR's answer"; `ui/auto_payer.rs`
-     deleted and a person's stack `ManaWindowStop` alone. It moves the
-     random agent's stream by the prompts it removes, so a `differ` A/B and its
-     own PR — §2.22's sequence step 2, first after this one.
+165. **~~CR 601.2f's ordering prompt is answered by a decorator where the engine
+     should not ask.~~ — ✅ CLOSED 2026-11-06 (`orders-the-cr-hands-a-player`).** — archived.
+     The guard is `reduction_order_can_change_total`, `ui/auto_payer.rs` is gone,
+     and a person's stack is `ManaWindowStop` alone.
+     **Reachability (2026-11-06):** closed — `orders-the-cr-hands-a-player`.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 165".
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.
-     **Slotted:** `hybrid-and-phyrexian-payment`, as a `differ` PR of its own ahead of the payment work,
-     since `hybrid-and-phyrexian-payment` next touches `cost_determination/total.rs`, where the guard
-     sits.
+
 
 ### Found by A4c — the trace sink (2026-09-18)
 

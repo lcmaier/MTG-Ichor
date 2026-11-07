@@ -8,7 +8,7 @@ use super::board::{SetupAction, SetupVerb};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::ManaCost;
-use crate::ui::auto_payer::AutoPayer;
+
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode, Stop};
 use crate::ui::mana_window_stop::ManaWindowStop;
@@ -52,23 +52,23 @@ pub(super) struct ResolvedSetupAction {
 /// at every priority point, so none is passed over unseen. The seat holding
 /// priority passes until the line's seat holds it, which picks the line's
 /// action by id; the action's questions are answered from the line, and its
-/// costs paid from the untapped lands, `AutoPayer` over `ManaWindowStop` as a
-/// seat stacks them. Anything else is refused, naming the line: an action
+/// costs paid from the untapped lands, `ManaWindowStop` over the lines as a
+/// seat stacks it. Anything else is refused, naming the line: an action
 /// the engine does not offer when its seat holds priority, one it rewinds
 /// once picked, and a question no line answers. A refusal in play raises a
 /// [`Stop`], which `Game::until_stopped` returns naming the line.
 pub struct SetupDriver<'a> {
-    lines: AutoPayer<ManaWindowStop<LineAnswers<'a>>>,
+    lines: ManaWindowStop<LineAnswers<'a>>,
 }
 
 impl<'a> SetupDriver<'a> {
     pub fn new(setup: SetupActions, inner: &'a dyn DecisionProvider) -> SetupDriver<'a> {
         let answers = LineAnswers { lines: setup.lines, next: Cell::new(0), picked_at: Cell::new(None), taken: RefCell::new(Vec::new()), inner };
-        SetupDriver { lines: AutoPayer::new(ManaWindowStop::new(answers)) }
+        SetupDriver { lines: ManaWindowStop::new(answers) }
     }
 
     fn answers(&self) -> &LineAnswers<'a> {
-        self.lines.inner().inner()
+        self.lines.inner()
     }
 
     /// Who answers now: the lines while one is left, the seats after.
@@ -149,8 +149,6 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         ChoiceKind::SelectRecipients { spell_id, .. } => LineAnswer::Targets(*spell_id),
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => LineAnswer::Window(*spell_or_ability_id, remaining_cost),
         ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } => LineAnswer::Split(*spell_or_ability_id),
-        // CR 601.2f's order is `AutoPayer`'s, answered before a line is asked.
-        ChoiceKind::OrderCostReductions { .. } => LineAnswer::Unanswered,
         ChoiceKind::ChooseXValue { spell_id, .. } => LineAnswer::X(*spell_id),
         // Asked while a line plays, with no word to answer them yet: the
         // line's own costs, CR 601.2d's division past the one split, the order
@@ -159,6 +157,7 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         // one adds the word.
         ChoiceKind::ChooseAlternativeCost { .. }
         | ChoiceKind::ChooseAdditionalCosts { .. }
+        | ChoiceKind::OrderCostReductions { .. }
         | ChoiceKind::DivideAmong { .. }
         | ChoiceKind::ChooseSacrificeForCost { .. }
         | ChoiceKind::OrderTriggers { .. }

@@ -1376,6 +1376,7 @@ pub fn format_unasked(game: &GameState, question: &UnaskedChoice) -> String {
         Unasked::OneGame(Elision::ReplacementOrder) => "every order leaves one game (CR 616.1)",
         Unasked::OneGame(Elision::TriggerOrder) => "every order leaves one game (CR 603.3b)",
         Unasked::OneGame(Elision::DelayedTriggerCause) => "every event leaves one game (CR 603.7b)",
+        Unasked::OneGame(Elision::CostReductionOrder) => "every order leaves one game (CR 601.2f)",
     };
     format!("NotAsked: {} {}{subject}: {answered}, {reason}", player_in_log(*player), kind.as_str())
 }

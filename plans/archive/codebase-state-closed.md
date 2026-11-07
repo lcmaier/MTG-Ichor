@@ -10206,3 +10206,36 @@ The item as it stood:
      it is about to leave. A token off the battlefield joins no list of cards, and its
      own `zone` says where it is, in PR #313. The gate's exception went with it: a wipe
      reads ×3.97, and the draw takes the card beneath.
+
+### Item 165 — closed 2026-11-06 by `orders-the-cr-hands-a-player`
+
+Closed as sized, ahead of its slot: `choices-architecture.md`'s decision 6b folded it into the row that states one rule for every order the CR hands a player, so it did not wait for `hybrid-and-phyrexian-payment`. The guard is `reduction_order_can_change_total`, the record is `Elision::CostReductionOrder`, and ATOM-601.2f-004's test is restated.
+
+*Original entry:*
+
+165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
+     should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
+     order because, by `cost-architecture.md` §3.4's theorem, every order gives
+     the identical total — which makes the prompt §2.22's rule 1, second case:
+     an answer that cannot change the game is the engine's to elide, as item
+     47's `pipeline::ordering_cannot_change_outcome` already does for CR
+     616.1's. §3.4 kept the prompt "until it shows in a profile"; the owner's
+     review of the census (2026-09-18) read that as a timing call and struck
+     the "answer-preserving" decorator kind, so the elision is owed and the
+     module goes with it.
+
+     **Reachability (2026-09-18):** reachable — not wrong; a cost, and a
+     second home for one fact. 0 / 0.07 / 0.02 prompts a game.
+
+     **Sized:** ~20 lines — one guard at the call site in
+     `cost_determination/total.rs`, false the day either expiry condition
+     lands (a reduction whose amount is a hybrid symbol, CR 118.7e; a
+     `not_below` reduction), the two conditions §3.4 already names;
+     ATOM-601.2f-004's test restated from "the prompt is asked" to "both
+     reductions apply and every order gives the CR's answer"; `ui/auto_payer.rs`
+     deleted and a person's stack `ManaWindowStop` alone. It moves the
+     random agent's stream by the prompts it removes, so a `differ` A/B and its
+     own PR — §2.22's sequence step 2, first after this one.
+     **Slotted:** `hybrid-and-phyrexian-payment`, as a `differ` PR of its own ahead of the payment work,
+     since `hybrid-and-phyrexian-payment` next touches `cost_determination/total.rs`, where the guard
+     sits.

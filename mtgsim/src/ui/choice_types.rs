@@ -80,12 +80,12 @@ pub enum ChoiceKind {
     /// paid for.
     GenericManaAllocation { spell_or_ability_id: ObjectId, mana_cost: ManaCost },
     /// CR 601.2f — "if multiple cost reductions apply, the player may apply
-    /// them in any order." Asked only with two or more; the options are the
-    /// reductions' *sources*, in battlefield timestamp order, and the answer
-    /// is a permutation of them. With the symbols the engine pays today the
-    /// order never changes the total (`cost-architecture.md` §3.4), and it is
-    /// asked anyway because the CR makes it the player's; a payer
-    /// `DecisionProvider` may answer it without asking anyone.
+    /// them in any order." Asked only with two or more, and only where the
+    /// order can change the total: the options are the reductions' *sources*,
+    /// in battlefield timestamp order, and the answer is a permutation of
+    /// them. With the symbols the engine pays today no order can
+    /// (`cost-architecture.md` §3.4), so no game reaches it until one of that
+    /// section's two expiry conditions lands.
     OrderCostReductions { spell_id: ObjectId },
     /// 601.2g / 602.1b — "mana ability window" inside spell cast or ability
     /// activation. The player may activate mana abilities (rule 605) to cover

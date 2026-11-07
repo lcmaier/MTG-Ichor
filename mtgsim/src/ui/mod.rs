@@ -4,7 +4,7 @@ pub mod decision;
 pub mod display;
 pub mod random;
 pub mod mana_window_stop;
-pub mod auto_payer;
+
 pub mod full_control;
 pub mod auto_yield;
 pub mod auto_order_triggers;

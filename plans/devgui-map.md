@@ -50,8 +50,8 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 2. **The seat's decorators may answer first.** Each seat is the bridge's
    `GuiSeat` wrapped in decorators, helpers that answer
    some questions for you: `AutoYield` passes while a yield you set runs,
-   `AutoPayer` pays what a cost leaves no choice in, and `ManaWindowStop`
-   closes the mana window once a cost is paid (CR 601.2g). Full control
+   and `ManaWindowStop` closes the mana window once a cost is paid (CR
+   601.2g). Full control
    turns them off, so every question reaches you.
 3. **The bridge sends it.** `GuiSeat` copies the board (`Snapshot::build`)
    and the question (`Prompt`), sends both as `ToWindow::Prompt`, wakes the
