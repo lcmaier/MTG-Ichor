@@ -261,7 +261,7 @@ once its bite test had shown it could fail.
 **Size**: 2,543 added and 487 deleted in `mtgsim/src` and `mtgsim/tests`, 3,030 touched,
 past the band's top. The design sized 600–1,100. What it did not size: the pool as a walk
 input, the paid record and `ValueOf` with item 30's sacrifice, three watchers' readers in
-the commute check, and the exhaustive `Quantities` matches over every `Cost`, `AmountExpr`,
+the commute check, and the exhaustive `PaymentChannels` matches over every `Cost`, `AmountExpr`,
 `Condition`, `ObjectFilter` and `EffectModification` arm.
 
 **Re-recorded 2026-11-05 for `board-scale`, what a board can hold**

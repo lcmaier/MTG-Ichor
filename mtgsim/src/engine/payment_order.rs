@@ -9,8 +9,8 @@
 //! here is an exhaustive match: a new `Cost`, `AmountExpr`, `Condition`,
 //! `ObjectFilter` or `EffectModification` arm does not compile until it says
 //! what it reads or changes, and one that cannot say reads
-//! [`Quantities::EVERYTHING`], which meets every other part and is always
-//! asked. `fuzz_games --audit` pays every order on a clone wherever this
+//! [`PaymentChannels::EVERYTHING`], which intersects what every other part
+//! changes, so it is always asked. `fuzz_games --audit` pays every order on a clone wherever this
 //! says the parts commute (`GameState::audit_payment_orders`).
 //!
 //! **What reads a part** is three things, each below: an object another part
@@ -45,68 +45,71 @@ use crate::ui::decision::FirstLegalAnswer;
 /// Past it the audit tries the plan's order and its reverse.
 const MOST_AUDITED_PARTS: usize = 5;
 
-/// What the parts of a payment can change, and so all a reader is asked about
-/// here. Mana and life are amounts, so two parts that each take some commute;
+/// The channels a payment's parts can change, and so all a reader is asked
+/// about here, as `engine::layers::board`'s `Channels` are what a layer can
+/// write. Mana and life are amounts, so two parts that each take some commute;
 /// what they leave is a sum. A library is absent: no `Cost` arm touches one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Quantities(u16);
+pub(crate) struct PaymentChannels(u16);
 
-impl Quantities {
-    pub(crate) const NONE: Quantities = Quantities(0);
-    const POOL: Quantities = Quantities(1 << 0);
-    const LIFE: Quantities = Quantities(1 << 1);
-    const TAPPED: Quantities = Quantities(1 << 2);
+impl PaymentChannels {
+    pub(crate) const NONE: PaymentChannels = PaymentChannels(0);
+    const POOL: PaymentChannels = PaymentChannels(1 << 0);
+    const LIFE: PaymentChannels = PaymentChannels(1 << 1);
+    const TAPPED: PaymentChannels = PaymentChannels(1 << 2);
+    const COUNTERS: PaymentChannels = PaymentChannels(1 << 3);
+    const BATTLEFIELD: PaymentChannels = PaymentChannels(1 << 4);
+    const GRAVEYARD: PaymentChannels = PaymentChannels(1 << 5);
+    const HAND: PaymentChannels = PaymentChannels(1 << 6);
+    const EXILE: PaymentChannels = PaymentChannels(1 << 7);
+    const HISTORY: PaymentChannels = PaymentChannels(1 << 8);
     /// A reader's own tapped status, "as long as this is untapped": no part
     /// changes it unless the reader is what a part taps (`as_read_by`).
-    const ITS_OWN_TAPPED_STATUS: Quantities = Quantities(1 << 9);
-    const COUNTERS: Quantities = Quantities(1 << 3);
-    const BATTLEFIELD: Quantities = Quantities(1 << 4);
-    const GRAVEYARD: Quantities = Quantities(1 << 5);
-    const HAND: Quantities = Quantities(1 << 6);
-    const EXILE: Quantities = Quantities(1 << 7);
-    const HISTORY: Quantities = Quantities(1 << 8);
-    /// What a reader that cannot say states: it meets every other part.
-    const EVERYTHING: Quantities = Quantities(u16::MAX);
+    const ITS_OWN_TAPPED_STATUS: PaymentChannels = PaymentChannels(1 << 9);
+    /// What a reader that cannot say states: it intersects what every other
+    /// part changes.
+    const EVERYTHING: PaymentChannels = PaymentChannels(u16::MAX);
 
-    fn meets(self, other: Quantities) -> bool {
+    /// Whether the two share a channel.
+    fn intersects(self, other: PaymentChannels) -> bool {
         self.0 & other.0 != 0
     }
 
     /// What counting `zones` reads: their contents.
-    fn of_zones(zones: ZoneSet) -> Quantities {
+    fn of_zones(zones: ZoneSet) -> PaymentChannels {
         [
-            (Zone::Battlefield, Quantities::BATTLEFIELD),
-            (Zone::Graveyard, Quantities::GRAVEYARD),
-            (Zone::Hand, Quantities::HAND),
-            (Zone::Exile, Quantities::EXILE),
+            (Zone::Battlefield, PaymentChannels::BATTLEFIELD),
+            (Zone::Graveyard, PaymentChannels::GRAVEYARD),
+            (Zone::Hand, PaymentChannels::HAND),
+            (Zone::Exile, PaymentChannels::EXILE),
         ]
         .into_iter()
         .filter(|(zone, _)| zones.contains(*zone))
-        .fold(Quantities::NONE, |read, (_, quantity)| read | quantity)
+        .fold(PaymentChannels::NONE, |read, (_, quantity)| read | quantity)
     }
 }
 
-impl BitOr for Quantities {
-    type Output = Quantities;
-    fn bitor(self, other: Quantities) -> Quantities {
-        Quantities(self.0 | other.0)
+impl BitOr for PaymentChannels {
+    type Output = PaymentChannels;
+    fn bitor(self, other: PaymentChannels) -> PaymentChannels {
+        PaymentChannels(self.0 | other.0)
     }
 }
 
-impl BitOrAssign for Quantities {
-    fn bitor_assign(&mut self, other: Quantities) {
+impl BitOrAssign for PaymentChannels {
+    fn bitor_assign(&mut self, other: PaymentChannels) {
         self.0 |= other.0;
     }
 }
 
 /// What paying `cost` reads, changes and adds to, whatever it is paid with.
 struct CostFootprint {
-    reads: Quantities,
-    changes: Quantities,
+    reads: PaymentChannels,
+    changes: PaymentChannels,
     /// The ordered things it adds to (a graveyard, CR 404.2; the history
     /// log's rows of one kind, since "the first … each turn" reads which came
     /// first). Two parts adding to one have an order that shows.
-    appends: Quantities,
+    appends: PaymentChannels,
     /// What its event is, to whatever watches for it. Paying mana announces
     /// nothing: CR 700.14's "expend" reads the whole cost once it is paid, so
     /// it puts no order among the parts.
@@ -115,7 +118,7 @@ struct CostFootprint {
 }
 
 fn footprint_of(cost: &Cost) -> CostFootprint {
-    use Quantities as Q;
+    use PaymentChannels as Q;
     let (no_events, no_actions) = (EventKindMask::EMPTY, GameActionKindMask::EMPTY);
     let moves = |from: Q, to: Q, reads: Q| CostFootprint {
         reads,
@@ -171,8 +174,8 @@ fn footprint_of(cost: &Cost) -> CostFootprint {
 
 /// What `amount` reads. A resolution's leaves read nothing here: a payment
 /// ends before anything resolves.
-fn amount_reads(amount: &AmountExpr) -> Quantities {
-    use Quantities as Q;
+fn amount_reads(amount: &AmountExpr) -> PaymentChannels {
+    use PaymentChannels as Q;
     match amount {
         AmountExpr::UnspentMana(_) => Q::POOL,
         AmountExpr::History(..) => Q::HISTORY,
@@ -201,8 +204,8 @@ fn amount_reads(amount: &AmountExpr) -> Quantities {
 }
 
 /// What matching `filter` reads, among what a payment can change.
-fn filter_reads(filter: &ObjectFilter) -> Quantities {
-    use Quantities as Q;
+fn filter_reads(filter: &ObjectFilter) -> PaymentChannels {
+    use PaymentChannels as Q;
     match filter {
         ObjectFilter::WithCounters { .. } => Q::COUNTERS,
         ObjectFilter::ThisTurn(_) | ObjectFilter::ThisCombat(_) => Q::HISTORY,
@@ -223,8 +226,8 @@ fn filter_reads(filter: &ObjectFilter) -> Quantities {
     }
 }
 
-fn player_fact_reads(fact: &PlayerFact) -> Quantities {
-    use Quantities as Q;
+fn player_fact_reads(fact: &PlayerFact) -> PaymentChannels {
+    use PaymentChannels as Q;
     match fact {
         PlayerFact::ControlsPermanent(filter) => Q::BATTLEFIELD | filter_reads(filter),
         PlayerFact::LifeAtLeast(threshold) | PlayerFact::LifeAtMost(threshold) => Q::LIFE | amount_reads(threshold),
@@ -235,8 +238,8 @@ fn player_fact_reads(fact: &PlayerFact) -> Quantities {
 }
 
 /// What holding `condition` reads.
-fn condition_reads(condition: &Condition) -> Quantities {
-    use Quantities as Q;
+fn condition_reads(condition: &Condition) -> PaymentChannels {
+    use PaymentChannels as Q;
     match condition {
         Condition::Player { fact, .. } | Condition::DefendingPlayer { fact, .. } => player_fact_reads(fact),
         Condition::All(clauses) => clauses.iter().fold(Q::NONE, |read, clause| read | condition_reads(clause)),
@@ -253,43 +256,43 @@ fn condition_reads(condition: &Condition) -> Quantities {
     }
 }
 
-fn pt_reads(value: &PtValue) -> Quantities {
+fn pt_reads(value: &PtValue) -> PaymentChannels {
     match value {
-        PtValue::Fixed(_) => Quantities::NONE,
+        PtValue::Fixed(_) => PaymentChannels::NONE,
         PtValue::Dynamic(amount) => amount_reads(amount),
     }
 }
 
 /// What applying `modification` reads: only a power or toughness can be an
 /// amount.
-fn modification_reads(modification: &EffectModification) -> Quantities {
+fn modification_reads(modification: &EffectModification) -> PaymentChannels {
     use EffectModification::*;
     match modification {
         SetPowerToughness { power, toughness } | ModifyPowerToughness { power, toughness } => pt_reads(power) | pt_reads(toughness),
         CopyFrom(_) | SetController(_) | AddType(_) | RemoveType(_) | SetTypes(_) | AddSubtype(_) | RemoveSubtype(_)
         | SetSubtypes(_) | AddSupertype(_) | RemoveSupertype(_) | SetSupertypes(_) | AddColor(_) | SetColors(_)
         | RemoveAllColors | GrantKeywordFlag(_) | RemoveKeywordFlag(_) | GrantAbility(_) | LoseAbility(_) | LoseAllAbilities
-        | SwitchPowerToughness => Quantities::NONE,
+        | SwitchPowerToughness => PaymentChannels::NONE,
     }
 }
 
 /// What `reads`, read by `reader`, amount to in a payment for `source`: a
 /// part taps only its source, so another object's own tapped status is not
 /// among what the payment changes.
-fn as_read_by(reads: Quantities, reader: ObjectId, source: ObjectId) -> Quantities {
-    match reads.meets(Quantities::ITS_OWN_TAPPED_STATUS) && reader == source {
-        true => reads | Quantities::TAPPED,
+fn as_read_by(reads: PaymentChannels, reader: ObjectId, source: ObjectId) -> PaymentChannels {
+    match reads.intersects(PaymentChannels::ITS_OWN_TAPPED_STATUS) && reader == source {
+        true => reads | PaymentChannels::TAPPED,
         false => reads,
     }
 }
 
 /// One part of a payment on this board: what its cost touches, with what the
 /// objects it uses and what watches its event add.
-struct Part<'a> {
+struct PaymentPart<'a> {
     cost: &'a Cost,
-    reads: Quantities,
-    changes: Quantities,
-    appends: Quantities,
+    reads: PaymentChannels,
+    changes: PaymentChannels,
+    appends: PaymentChannels,
     events: EventKindMask,
     actions: GameActionKindMask,
     /// What it takes out of its zone.
@@ -298,16 +301,16 @@ struct Part<'a> {
     needs: Vec<ObjectId>,
 }
 
-impl Part<'_> {
+impl PaymentPart<'_> {
     /// Whether `self` and `other` commute, as far as the two can state it.
     /// Two parts alike in every word and using nothing are one cost twice,
     /// either order the same game.
-    fn commutes_with(&self, other: &Part, game: &GameState) -> bool {
+    fn commutes_with(&self, other: &PaymentPart, game: &GameState) -> bool {
         let one_cost_twice = self.cost == other.cost && self.moves.is_empty() && other.moves.is_empty();
         one_cost_twice
-            || (!self.reads.meets(other.changes)
-                && !other.reads.meets(self.changes)
-                && !self.appends.meets(other.appends)
+            || (!self.reads.intersects(other.changes)
+                && !other.reads.intersects(self.changes)
+                && !self.appends.intersects(other.appends)
                 && !game.a_moved_object_watches(self, other)
                 && !game.a_moved_object_watches(other, self))
     }
@@ -355,31 +358,33 @@ impl MustPrecede {
 
     /// The part `order` leaves unpayable, if any, by paying what it needs
     /// gone first.
-    fn broken_by(&self, order: &[usize]) -> Option<usize> {
+    fn part_left_unpaid_by(&self, order: &[usize]) -> Option<usize> {
         order.iter().enumerate().find_map(|(place, &later)| {
             order[..place].iter().any(|&earlier| self.precedes[later][earlier]).then_some(later)
         })
     }
 
-    /// Every part in the order the engine would pay them, moved only as far
-    /// as `asked`, the order chosen among the parts asked about, needs.
-    fn merged(&self, asked: &[usize]) -> Vec<usize> {
+    /// The order every part is paid in: the parts the player was asked about
+    /// in `chosen`'s order, and each other part in the plan's own order
+    /// (`payment_order_rank`'s), paid as soon as what must precede it has
+    /// been. `chosen` is one `part_left_unpaid_by` accepted.
+    fn whole_order_with(&self, chosen: &[usize]) -> Vec<usize> {
         let n = self.precedes.len();
         let mut paid = vec![false; n];
-        let mut next_asked = 0;
+        let mut next_chosen = 0;
         let mut order = Vec::with_capacity(n);
         while order.len() < n {
             let ready = (0..n).find(|&part| {
                 !paid[part]
                     && (0..n).all(|other| paid[other] || !self.precedes[other][part])
-                    && asked.iter().position(|&p| p == part).is_none_or(|place| place == next_asked)
+                    && chosen.iter().position(|&p| p == part).is_none_or(|place| place == next_chosen)
             });
             let Some(part) = ready else { break };
             paid[part] = true;
-            next_asked += usize::from(asked.contains(&part));
+            next_chosen += usize::from(chosen.contains(&part));
             order.push(part);
         }
-        debug_assert!(order.len() == n, "an order `broken_by` accepted cannot be merged: {asked:?}");
+        debug_assert!(order.len() == n, "an order `part_left_unpaid_by` accepted has no whole order: {chosen:?}");
         order
     }
 }
@@ -402,7 +407,7 @@ impl GameState {
         if life > 0 && self.players[player].life_total < life as i64 {
             return Err(format!("No order pays {:?}: {life} life in all", plan.ordered));
         }
-        let parts: Vec<Part> =
+        let parts: Vec<PaymentPart> =
             plan.ordered.iter().enumerate().map(|(place, cost)| self.part_of(cost, plan.sacrifices.get(&place).map(Vec::as_slice), source)).collect();
         let must = MustPrecede::closed(self.direct_edges(&parts, source))
             .ok_or_else(|| format!("No order pays {:?}: two parts use one object", plan.ordered))?;
@@ -436,7 +441,7 @@ impl GameState {
         if self.audit_on() {
             self.audit_payment_orders(plan, &must, &chosen, player, source);
         }
-        plan.pay_in(&must.merged(&chosen));
+        plan.pay_in(&must.whole_order_with(&chosen));
         Ok(())
     }
 
@@ -457,7 +462,7 @@ impl GameState {
         loop {
             let answer = ask_order_cost_payments(ctx.dp, self, player, source, &parts, rejected.take());
             let chosen: Vec<usize> = answer.into_iter().map(|at| items[at]).collect();
-            match must.broken_by(&chosen) {
+            match must.part_left_unpaid_by(&chosen) {
                 None => return chosen,
                 Some(unpaid) => rejected = Some(Rejection::OrderLeavesACostUnpaid(plan.ordered[unpaid].clone())),
             }
@@ -465,7 +470,7 @@ impl GameState {
     }
 
     /// `cost` as this board pays it, `chosen` being what pays a sacrifice.
-    fn part_of<'a>(&self, cost: &'a Cost, chosen: Option<&[ObjectId]>, source: ObjectId) -> Part<'a> {
+    fn part_of<'a>(&self, cost: &'a Cost, chosen: Option<&[ObjectId]>, source: ObjectId) -> PaymentPart<'a> {
         let CostFootprint { mut reads, changes, appends, events, actions } = footprint_of(cost);
         let chosen = chosen.unwrap_or_default();
         let (moves, needs): (&[ObjectId], &[ObjectId]) = match cost {
@@ -485,22 +490,22 @@ impl GameState {
             reads |= self.characteristics_read(object, source);
         }
         reads |= self.what_its_watchers_read(events, actions, source);
-        Part { cost, reads, changes, appends, events, actions, moves: moves.to_vec(), needs: needs.to_vec() }
+        PaymentPart { cost, reads, changes, appends, events, actions, moves: moves.to_vec(), needs: needs.to_vec() }
     }
 
     /// What `object`'s characteristics read now, which is what it last
     /// existed as if a part moves it: its own CDAs, and each row that reaches
     /// it (`engine::layers`' walk, read rather than run).
-    fn characteristics_read(&self, object: ObjectId, source: ObjectId) -> Quantities {
+    fn characteristics_read(&self, object: ObjectId, source: ObjectId) -> PaymentChannels {
         let own = get_effective_abilities(self, object);
         let mut reads = own
             .iter()
             .filter(|ability| ability.is_characteristic_defining)
             .flat_map(|ability| pt_amounts(ability))
-            .fold(Quantities::NONE, |read, amount| read | amount_reads(amount));
+            .fold(PaymentChannels::NONE, |read, amount| read | amount_reads(amount));
         for row in self.continuous_effects.iter() {
             let row_reads = as_read_by(self.row_reads(row), row.source, source);
-            if row_reads != Quantities::NONE && self.row_reaches(row, object) {
+            if row_reads != PaymentChannels::NONE && self.row_reaches(row, object) {
                 reads |= row_reads;
             }
         }
@@ -509,18 +514,18 @@ impl GameState {
 
     /// What a row reads wherever it applies: its amounts, which objects it
     /// picks out, and its "as long as" (CR 604.2).
-    fn row_reads(&self, row: &ContinuousEffect) -> Quantities {
+    fn row_reads(&self, row: &ContinuousEffect) -> PaymentChannels {
         let filter = match &row.affected_objects {
             ObjectSet::Filter { filter, .. } => filter_reads(filter),
-            ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => Quantities::NONE,
+            ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => PaymentChannels::NONE,
         };
         let condition = match row.origin {
-            EffectOrigin::Resolution => Quantities::NONE,
+            EffectOrigin::Resolution => PaymentChannels::NONE,
             EffectOrigin::StaticAbility { ability, clause } => get_effective_abilities(self, row.source)
                 .iter()
                 .find(|def| def.id == ability)
                 .and_then(|def| clause.condition_in(&def.effect))
-                .map_or(Quantities::NONE, condition_reads),
+                .map_or(PaymentChannels::NONE, condition_reads),
         };
         modification_reads(&row.modification) | filter | condition
     }
@@ -542,8 +547,8 @@ impl GameState {
     /// triggered ability's intervening "if" (CR 603.4) and a replacement's
     /// "as long as". The event comes when its part is paid, so another part
     /// changing what they read decides whether they react.
-    fn what_its_watchers_read(&self, events: EventKindMask, actions: GameActionKindMask, source: ObjectId) -> Quantities {
-        let mut reads = Quantities::NONE;
+    fn what_its_watchers_read(&self, events: EventKindMask, actions: GameActionKindMask, source: ObjectId) -> PaymentChannels {
+        let mut reads = PaymentChannels::NONE;
         if events == EventKindMask::EMPTY {
             return reads;
         }
@@ -573,7 +578,7 @@ impl GameState {
 
     /// Whether an object `mover` moves has an ability watching `watched`'s
     /// event: it sees the event only if `watched` is paid first.
-    fn a_moved_object_watches(&self, mover: &Part, watched: &Part) -> bool {
+    fn a_moved_object_watches(&self, mover: &PaymentPart, watched: &PaymentPart) -> bool {
         mover.moves.iter().any(|&object| {
             get_effective_abilities(self, object).iter().any(|ability| {
                 ability.effect.as_trigger().is_some_and(|def| def.record_kinds().intersects(watched.events))
@@ -585,7 +590,7 @@ impl GameState {
     /// What the plan forces, before closing it: a part ahead of whatever moves
     /// what it needs, so that nothing fails after a payment that cannot be
     /// taken back (CR 732.1, `engine::costs`).
-    fn direct_edges(&self, parts: &[Part], source: ObjectId) -> Vec<Vec<bool>> {
+    fn direct_edges(&self, parts: &[PaymentPart], source: ObjectId) -> Vec<Vec<bool>> {
         let n = parts.len();
         let mut precedes = vec![vec![false; n]; n];
         for a in 0..n {
@@ -625,7 +630,7 @@ impl GameState {
         let n = plan.ordered.len();
         let every_order = if n <= MOST_AUDITED_PARTS { orders_of(n) } else { vec![(0..n).collect(), (0..n).rev().collect()] };
         let keeps_chosen = |order: &[usize]| order.iter().filter(|part| chosen.contains(part)).eq(chosen.iter());
-        let orders: Vec<Vec<usize>> = every_order.into_iter().filter(|order| must.broken_by(order).is_none() && keeps_chosen(order)).collect();
+        let orders: Vec<Vec<usize>> = every_order.into_iter().filter(|order| must.part_left_unpaid_by(order).is_none() && keeps_chosen(order)).collect();
         let Some((first, others)) = orders.split_first() else { return };
         let (first, others) = self.unobserved(|| {
             let first = self.board_after_paying(plan, first, player, source);
@@ -648,14 +653,14 @@ impl GameState {
         plan.pay_in(order);
         let answers = FirstLegalAnswer;
         match fork.pay_costs(&plan, player, source, &ActionContext::paying_cost(&answers, player, source)) {
-            Ok(payment) => (fork.board_written_out(), fork.what_objects_are_after(&payment)),
+            Ok(payment) => (fork.board_written_out(), fork.characteristics_after(&payment)),
             Err(refused) => (vec![refused], Frames::new()),
         }
     }
 
-    /// Every permanent as it now is, and each object `payment` used as it
-    /// last existed, each by id, whole.
-    fn what_objects_are_after(&self, payment: &Payment) -> Frames {
+    /// Each permanent's characteristics now, and those of each object
+    /// `payment` used as it last existed: every characteristic, by id.
+    fn characteristics_after(&self, payment: &Payment) -> Frames {
         let mut frames = permanents_as_they_are(self);
         for existence in payment.paid_with.iter().filter_map(|paid| paid.used.object()) {
             if let Some(lki) = self.lki(existence) {
@@ -761,8 +766,8 @@ mod tests {
     #[test]
     fn a_chosen_order_merges_around_what_it_does_not_name() {
         let must = MustPrecede::closed(vec![vec![false, true, false], vec![false; 3], vec![false; 3]]).expect("no cycle");
-        assert_eq!(must.broken_by(&[1, 0]), Some(0), "part 0 must come ahead of part 1");
-        assert_eq!(must.broken_by(&[0, 1]), None);
-        assert_eq!(must.merged(&[2, 1]), vec![0, 2, 1], "part 1 waits for part 0 and for part 2");
+        assert_eq!(must.part_left_unpaid_by(&[1, 0]), Some(0), "part 0 must come ahead of part 1");
+        assert_eq!(must.part_left_unpaid_by(&[0, 1]), None);
+        assert_eq!(must.whole_order_with(&[2, 1]), vec![0, 2, 1], "part 1 waits for part 0 and for part 2");
     }
 }

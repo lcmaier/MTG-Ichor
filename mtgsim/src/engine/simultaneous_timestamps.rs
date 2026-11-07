@@ -90,7 +90,7 @@ impl GameState {
             return theirs;
         }
         let reach_others = rows.iter().any(|rows| rows.iter().any(|row| !matches!(row.affected_objects, ObjectSet::SourceOnly)));
-        let alike = rows.windows(2).all(|pair| alike_rows(pair[0], pair[1]));
+        let alike = rows.windows(2).all(|pair| rows_functionally_identical(pair[0], pair[1]));
         if !reach_others || alike {
             self.note_unasked(player, Unasked::OneGame(Elision::EntryOrder), || {
                 let objects = read.iter().map(|id| ChoiceOption::Object(*id)).collect();
@@ -155,7 +155,7 @@ impl GameState {
 
 /// Whether two objects' effects are one effect on each other's board: the
 /// same rows, in the same layers, reaching the same objects.
-fn alike_rows(a: &[&ContinuousEffect], b: &[&ContinuousEffect]) -> bool {
+fn rows_functionally_identical(a: &[&ContinuousEffect], b: &[&ContinuousEffect]) -> bool {
     a.len() == b.len()
         && a.iter().zip(b).all(|(a, b)| a.layer == b.layer && a.modification == b.modification && a.affected_objects == b.affected_objects)
 }
