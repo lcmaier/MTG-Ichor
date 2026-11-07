@@ -9,7 +9,8 @@
 use std::cell::RefCell;
 
 use mtgsim::cards::fixtures::{branching_beacon, forked_omen, hesitant_omen, kindled_option, mode_lever, tally_of_choices};
-use mtgsim::cards::printings::{grizzly_bears, hill_giant};
+use mtgsim::cards::printings::{abrade, casualties_of_war, cryptic_command, forest, grizzly_bears, hill_giant, paladin_of_atonement};
+use mtgsim::oracle::mana_helpers::{can_cast, CannotCast};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp};
@@ -382,4 +383,131 @@ fn a_choice_of_modes_is_written_by_its_printed_places() {
     assert_eq!(ChoiceOption::modes(&[]).as_logged(&game), "no modes");
     assert_eq!(option_label(&game, &ChoiceOption::modes(&[1, 3])), "Modes 1 and 3");
     assert_eq!(option_label(&game, &ChoiceOption::modes(&[])), "No modes");
+}
+
+// ---------------------------------------------------------------------------
+// The cards, cast from hand
+// ---------------------------------------------------------------------------
+
+/// Abrade with neither a creature nor an artifact to target: no mode can be
+/// chosen, so it is not offered, and a cast is refused before anything is
+/// paid (CR 700.2a). With an artifact, its second mode is the one legal set.
+#[test]
+fn abrade_is_offered_only_while_one_of_its_modes_can_be_chosen() {
+    let mut game = setup_two_player_game();
+    let abrade = put_in_hand(&mut game, abrade(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 2);
+    assert_eq!(can_cast(&game, 0, abrade), Err(CannotCast::NoLegalModes));
+    assert!(game.cast_spell(0, abrade, &ManaWindowStop::new(test_dp())).is_err());
+    assert_eq!(game.get_object(abrade).unwrap().zone, Zone::Hand);
+    assert_eq!(game.players[0].mana_pool.unspent(ManaType::Red), 2, "nothing was paid");
+
+    let lever = put_on_battlefield(&mut game, mode_lever(), 1);
+    assert_eq!(can_cast(&game, 0, abrade), Ok(()));
+    game.cast_spell(0, abrade, &ManaWindowStop::new(test_dp())).expect("the second mode, unasked");
+    assert_eq!(game.stack_entries[&abrade].chosen_modes, modes(&[2]));
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.get_object(lever).unwrap().zone, Zone::Graveyard);
+}
+
+/// Cryptic Command with no spell on the stack: its first mode can't be
+/// chosen, so each pair of the other three is offered, two different modes
+/// each, and a pair that targets nothing announces nothing.
+// RULING: Cryptic Command #1 - "You choose both modes as you cast Cryptic Command. You must choose two different modes."
+#[test]
+fn cryptic_command_offers_each_pair_of_different_modes() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 3);
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    let command = put_in_hand(&mut game, cryptic_command(), 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 4);
+
+    let answers = ModesOffered::new(ScriptedDecisionProvider::new());
+    chooses_modes(&answers.inner, &[3, 4]);
+    let stop = ManaWindowStop::new(answers);
+    game.cast_spell(0, command, &stop).expect("castable");
+    assert_eq!(offered(&game, &stop.inner().offers()), vec![vec!["modes 2, 3", "modes 2, 4", "modes 3, 4"]]);
+    assert!(game.stack_entries[&command].chosen_targets.is_empty());
+
+    let hand = game.players[0].hand.len();
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert!(game.battlefield[&giant].tapped, "the opponent's creatures are tapped");
+    assert_eq!(game.players[0].hand.len(), hand + 1, "and a card drawn");
+}
+
+/// Its targets are its chosen modes': with the second and fourth modes, the
+/// permanent is its one target, and once that is illegal the spell does not
+/// resolve, so no card is drawn either (CR 608.2b).
+// RULING: Cryptic Command #2 - "Look at both chosen modes to determine how many targets Cryptic Command has, if any. If it has at least one target, and all its targets are illegal when it tries to resolve, then it won't resolve and none of its effects will happen."
+#[test]
+fn cryptic_command_whose_one_target_left_draws_nothing() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 3);
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    let command = put_in_hand(&mut game, cryptic_command(), 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 4);
+
+    // The giant is the one permanent, so its target is not asked.
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[2, 4]);
+    game.cast_spell(0, command, &ManaWindowStop::new(answers)).expect("castable");
+    game.change_zone(giant, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the giant leaves");
+
+    let hand = game.players[0].hand.len();
+    game.resolve_top_of_stack(&test_dp()).expect("it fails to resolve");
+    assert_eq!(game.players[0].hand.len(), hand, "no card drawn");
+    assert_eq!(game.get_object(command).unwrap().zone, Zone::Graveyard);
+}
+
+/// Casualties of War over an artifact, a creature and a land, with no
+/// enchantment or planeswalker: every nonempty set of the first, second and
+/// fourth modes, none twice, smallest first.
+// RULING: Casualties of War #2 - "You can choose any number of the modes for Casualties of War, but you can't choose a mode more than once."
+#[test]
+fn casualties_of_war_offers_every_set_of_its_legal_modes() {
+    let (game, offers) = cast_casualties_of_war(&[1, 2, 4]);
+    let expected = ["mode 1", "mode 2", "mode 4", "modes 1, 2", "modes 1, 4", "modes 2, 4", "modes 1, 2, 4"];
+    assert_eq!(offered(&game, &offers), vec![expected.to_vec()]);
+}
+
+/// The three are destroyed in the order the modes are printed, and the
+/// creature's dies trigger waits for the spell to finish (CR 608.2m, 603.3).
+// RULING: Casualties of War #1 - "Each target permanent is destroyed in the order specified. Abilities that trigger when one is destroyed won't be put onto the stack until Casualties of War has finished resolving."
+#[test]
+fn casualties_of_war_destroys_in_printed_order_and_its_triggers_wait() {
+    let (mut game, _) = cast_casualties_of_war(&[1, 2, 4]);
+    game.record_events();
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    let destroyed: Vec<String> = mtgsim::ui::display::format_event_log(&game)
+        .into_iter()
+        .filter(|line| line.contains("[Destroyed]"))
+        .map(|line| line.split(" (").next().unwrap_or_default().trim_start_matches("ZoneChange: ").to_string())
+        .collect();
+    assert_eq!(destroyed, ["Mode Lever", "Paladin of Atonement", "Forest"]);
+    assert!(game.stack.is_empty(), "nothing went on the stack while it resolved");
+    assert_eq!(game.pending_triggers.len(), 1, "the paladin's dies trigger waits to be placed");
+    assert_eq!(game.players[1].life_total, 20);
+}
+
+/// Casualties of War cast by player 0 at an opponent's artifact, creature
+/// (Paladin of Atonement, which triggers as it dies) and land, the modes at
+/// `places` chosen: the game, and the offer it was shown.
+fn cast_casualties_of_war(places: &[u8]) -> (GameState, Vec<Vec<ChoiceOption>>) {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, mode_lever(), 1);
+    put_on_battlefield(&mut game, paladin_of_atonement(), 1);
+    put_on_battlefield(&mut game, forest(), 1);
+    let casualties = put_in_hand(&mut game, casualties_of_war(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 3);
+    game.players[0].mana_pool.add(ManaType::Green, 3);
+
+    // One of each kind of permanent, so every target is announced unasked.
+    let answers = ModesOffered::new(ScriptedDecisionProvider::new());
+    chooses_modes(&answers.inner, places);
+    let stop = ManaWindowStop::new(answers);
+    game.cast_spell(0, casualties, &stop).expect("castable");
+    assert_eq!(game.stack_entries[&casualties].chosen_modes, modes(places));
+    let offers = stop.inner().offers();
+    (game, offers)
 }

@@ -6,7 +6,7 @@ use crate::objects::card_data::CardData;
 use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
-    fic, fut, gpt, grn, gtc, hob, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
+    fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
     mkm, mmq, mom, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg, usg,
     vis, war, wth, wwk, zen, znr,
 };
@@ -27,7 +27,7 @@ use super::sets::{
 /// seed-deterministic rows — turns, spells cast, creatures died — are what an
 /// addition invalidates and what still has to be re-measured. Registering a
 /// card is still not the same act as adding one here.
-const PERFORMANCE_POOL: [&str; 125] = [
+const PERFORMANCE_POOL: [&str; 126] = [
     "Plains",
     "Island",
     "Swamp",
@@ -551,6 +551,12 @@ const PERFORMANCE_POOL: [&str; 125] = [
     // member of its own size. Sorcery speed and three mana, so it comes up
     // on most boards without crowding out a turn.
     "Arc Lightning",
+    // CR 700.2's modes: the offer of legal sets and the castability walk
+    // that asks it for its first, at every priority question with it in
+    // hand, and the modes resolved. Two mana and an instant, and the board
+    // decides which of its two modes can be chosen. Cryptic Command and
+    // Casualties of War are registered and stay out: the same path.
+    "Abrade",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1186,6 +1192,11 @@ impl CardRegistry {
         registry.register("Jagged Lightning", p02::jagged_lightning);
         registry.register("Plague Spores", inv::plague_spores);
         registry.register("Seat of the Synod", mrd::seat_of_the_synod);
+        // CR 700.2's modes: a choice of one the board narrows, a choice of
+        // two, and one or more of five.
+        registry.register("Abrade", hou::abrade);
+        registry.register("Cryptic Command", lrw::cryptic_command);
+        registry.register("Casualties of War", war::casualties_of_war);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);

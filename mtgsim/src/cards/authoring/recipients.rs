@@ -215,6 +215,11 @@ pub fn creature() -> ObjectFilter {
     ObjectFilter::ByType(CardType::Creature)
 }
 
+/// "Enchantment" (CR 303).
+pub fn enchantment() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Enchantment)
+}
+
 /// "Land" (CR 305).
 pub fn land() -> ObjectFilter {
     ObjectFilter::ByType(CardType::Land)

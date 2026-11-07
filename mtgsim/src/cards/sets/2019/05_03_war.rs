@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{creature, planeswalker, static_replacement, you_control};
+use crate::cards::authoring::{
+    artifact, choose_one_or_more, creature, destroy, enchantment, land, planeswalker, spell_ability, static_replacement, target_creature,
+    target_permanent, you_control,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
@@ -80,6 +83,48 @@ pub fn spark_double() -> Arc<CardData> {
                     }),
                 )
             },
+        ))
+        .build()
+}
+
+/// Casualties of War — {2}{B}{B}{G}{G}
+/// Sorcery
+/// Choose one or more —
+/// • Destroy target artifact.
+/// • Destroy target creature.
+/// • Destroy target enchantment.
+/// • Destroy target land.
+/// • Destroy target planeswalker.
+///
+/// (Oracle text verified on Scryfall, 2026-11-07.)
+///
+/// CR 700.2's "one or more": every nonempty set of the modes whose targets
+/// can be chosen, 31 at most, each mode once.
+///
+/// # The rulings, and where each is tested
+///
+/// - #1, the permanents destroyed in the order specified, what that
+///   triggers waiting until it has resolved:
+///   `casualties_of_war_destroys_in_printed_order_and_its_triggers_wait`.
+/// - #2, any number of the modes, none twice:
+///   `casualties_of_war_offers_every_set_of_its_legal_modes`.
+pub fn casualties_of_war() -> Arc<CardData> {
+    let text = "Choose one or more —\n• Destroy target artifact.\n• Destroy target creature.\n• Destroy target enchantment.\n• Destroy target land.\n• Destroy target planeswalker.";
+    CardDataBuilder::new("Casualties of War")
+        .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black, ManaType::Green, ManaType::Green], 2))
+        .color(Color::Black)
+        .color(Color::Green)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            choose_one_or_more([
+                destroy(target_permanent(artifact())),
+                destroy(target_creature()),
+                destroy(target_permanent(enchantment())),
+                destroy(target_permanent(land())),
+                destroy(target_permanent(planeswalker())),
+            ]),
         ))
         .build()
 }

@@ -6,9 +6,13 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-11-03",
+  "fetched": "2026-11-07",
   "fixtures": ["Five-Color Land Fixture", "Loyalty Probe", "Moonlace Fixture"],
   "cards": {
+    "Abrade": {
+      "first_seen": "2026-11-07",
+      "rulings": []
+    },
     "Act of Treason": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -249,6 +253,13 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Casualties of War": {
+      "first_seen": "2026-11-07",
+      "rulings": [
+        {"n": 1, "published_at": "2019-05-03", "comment": "Each target permanent is destroyed in the order specified. Abilities that trigger when one is destroyed won't be put onto the stack until Casualties of War has finished resolving."},
+        {"n": 2, "published_at": "2019-05-03", "comment": "You can choose any number of the modes for Casualties of War, but you can't choose a mode more than once."}
+      ]
+    },
     "Cephalid Aristocrat": {
       "first_seen": "2026-10-18",
       "rulings": []
@@ -333,6 +344,13 @@
         {"n": 1, "published_at": "2008-05-01", "comment": "An effect that changes a permanent's colors overwrites all its old colors unless it specifically says \"in addition to its other colors.\" For example, after Cerulean Wisps resolves, the affected creature will just be blue. It doesn't matter what colors it used to be (even if, for example, it used to be blue and black)."},
         {"n": 2, "published_at": "2008-05-01", "comment": "Changing a permanent's color won't change its text. If you turn Wilt-Leaf Liege blue, it will still affect green creatures and white creatures."},
         {"n": 3, "published_at": "2008-05-01", "comment": "Colorless is not a color."}
+      ]
+    },
+    "Cryptic Command": {
+      "first_seen": "2026-11-07",
+      "rulings": [
+        {"n": 1, "published_at": "2017-11-17", "comment": "You choose both modes as you cast Cryptic Command. You must choose two different modes."},
+        {"n": 2, "published_at": "2017-11-17", "comment": "Look at both chosen modes to determine how many targets Cryptic Command has, if any. If it has at least one target, and all its targets are illegal when it tries to resolve, then it won’t resolve and none of its effects will happen. For example, if you choose the second and fourth modes, and the permanent is an illegal target when Cryptic Command tries to resolve, you won’t draw a card."}
       ]
     },
     "Cryptoplasm": {

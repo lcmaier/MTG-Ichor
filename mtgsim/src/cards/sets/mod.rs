@@ -141,6 +141,8 @@ pub mod kld;
 pub mod c16;
 #[path = "2017/01_20_aer.rs"]
 pub mod aer;
+#[path = "2017/07_14_hou.rs"]
+pub mod hou;
 #[path = "2017/08_25_c17.rs"]
 pub mod c17;
 #[path = "2018/01_19_rix.rs"]

@@ -70,6 +70,7 @@ pub use super::sets::emn::*;
 pub use super::sets::kld::*;
 pub use super::sets::c16::*;
 pub use super::sets::aer::*;
+pub use super::sets::hou::*;
 pub use super::sets::c17::*;
 pub use super::sets::rix::*;
 pub use super::sets::dom::*;
