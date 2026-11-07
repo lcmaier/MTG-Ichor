@@ -709,7 +709,7 @@ pub enum Condition {
     /// attacks nothing.
     DefendingPlayer { of: Antecedent, fact: PlayerFact },
     SpellWasKicked,
-    ModeChosen(usize),
+    ModeChosen(ModeIndex),
     /// Every clause holds — Wonder's "in your graveyard **and** you control an
     /// Island".
     ///
@@ -894,12 +894,106 @@ pub enum PlayerFact {
     CardInGraveyard(ObjectFilter),
 }
 
-/// How many modes to choose (rule 700.2)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A mode's printed place among its ability's modes, the first being 1 (CR
+/// 700.2): what a chosen mode is named by on the stack, in an answer and in
+/// the log. The card fixes it, so a mode the board makes illegal is left out
+/// of an offer without renumbering the others.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ModeIndex(u8);
+
+impl ModeIndex {
+    /// The mode printed `place`th, counting from 1.
+    pub const fn printed(place: u8) -> ModeIndex {
+        ModeIndex(place)
+    }
+
+    /// The mode at `position` in its node's list, counting from 0. `None`
+    /// past the 255th, which no ability prints.
+    pub fn at(position: usize) -> Option<ModeIndex> {
+        u8::try_from(position + 1).ok().map(ModeIndex)
+    }
+
+    /// Where the mode sits in its node's list, counting from 0.
+    pub fn position(self) -> usize {
+        usize::from(self.0).saturating_sub(1)
+    }
+}
+
+/// Its printed place, as a log and a client write it.
+impl std::fmt::Display for ModeIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// How many modes a modal ability's player chooses (CR 700.2), one arm a
+/// printed count rule. Where modes may not repeat (CR 700.2d), a count past
+/// the number of modes takes them all.
+#[derive(Debug, Clone, PartialEq)]
 pub enum ModalCount {
+    /// "Choose one", "choose two": that many different modes.
     Exactly(u32),
-    UpTo(u32),
-    Any,
+    /// "Choose one or both" (1 to 2), "one or more" (1 to every mode), "up to
+    /// N" (0 to N), "any number" (0 to every mode, Rankle's ruling).
+    Range { fewest: u32, most: u32 },
+    /// "Choose X": the X announced for the spell, which is asked first since
+    /// the sets of modes cannot be listed before it is known (CR 601.2b
+    /// announces both in one step).
+    X,
+    /// "Choose one. If [condition] as you cast this spell, you may choose both
+    /// instead": `raised` while the condition holds as the modes are chosen,
+    /// read once then (Will of the Abzan's ruling), and `usual` otherwise.
+    /// "You may choose both instead" raises `Exactly(1)` to `Range { 1, 2 }`,
+    /// and "choose both instead" to `Exactly(2)`.
+    RaisedIf { usual: Box<ModalCount>, raised: Box<ModalCount>, condition: Box<Condition> },
+}
+
+/// Who chooses a modal ability's modes: its controller (CR 700.2a, 700.2b).
+/// An opponent (700.2e) and a choice at random are `mode-rules-and-costs`'
+/// arms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModeChooser {
+    Controller,
+}
+
+/// "Choose one —" and the bulleted list under it (CR 700.2): how many modes,
+/// who chooses them, and the modes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModalNode {
+    pub count: ModalCount,
+    pub chooser: ModeChooser,
+    pub modes: Vec<Mode>,
+}
+
+/// One bulleted option of a modal ability (CR 700.2).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Mode {
+    pub effect: Effect,
+    /// The instances of "target" this mode declares, which only its choice
+    /// announces (CR 700.2c), counted from the mode's first: a back-reference
+    /// inside a mode names one of its own. Filled by `CardDataBuilder::build`
+    /// in the pass that fills `AbilityDef::instances`, so neither a cast nor
+    /// castability walks the tree.
+    pub instances: Vec<EffectRecipient>,
+}
+
+impl Mode {
+    /// A mode doing `effect`, its instances filled when its card is built.
+    pub fn new(effect: Effect) -> Mode {
+        Mode { effect, instances: Vec::new() }
+    }
+}
+
+impl ModalNode {
+    /// The mode printed at `mode`, if the node has one.
+    pub fn mode(&self, mode: ModeIndex) -> Option<&Mode> {
+        self.modes.get(mode.position())
+    }
+
+    /// Every mode with its printed place, in printed order.
+    pub fn indexed_modes(&self) -> impl Iterator<Item = (ModeIndex, &Mode)> {
+        self.modes.iter().enumerate().filter_map(|(at, mode)| Some((ModeIndex::at(at)?, mode)))
+    }
 }
 
 /// What an effect acts on.
@@ -2555,11 +2649,13 @@ pub enum Effect {
     /// resolution.
     Remember(Box<Effect>),
 
-    /// "Choose N mode(s):" (rule 700.2)
-    Modal {
-        count: ModalCount,
-        modes: Vec<Effect>,
-    },
+    /// "Choose one —" (CR 700.2). At an ability's root only, so its chosen
+    /// modes' targets are announced and resolved in one order
+    /// (`cards::registry`'s test refuses it anywhere else). The stack keeps
+    /// it whole and records the modes chosen beside it
+    /// (`StackEntry::chosen_modes`); resolution walks only those. Boxed, since
+    /// its count may carry a condition.
+    Modal(Box<ModalNode>),
 
     /// "For each [thing], [effect]"
     ForEach(ObjectSet, Box<Effect>),
@@ -2691,9 +2787,14 @@ impl Effect {
                 std::sync::Arc::make_mut(&mut template.def).effect.for_each_ability_def_mut(f);
             }
             Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) | Effect::TriggerMultiplier(_) => {}
-            Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {
+            Effect::Sequence(effects) => {
                 for effect in effects {
                     effect.for_each_ability_def_mut(f);
+                }
+            }
+            Effect::Modal(node) => {
+                for mode in &mut node.modes {
+                    mode.effect.for_each_ability_def_mut(f);
                 }
             }
             Effect::Conditional(_, effect)
@@ -2742,12 +2843,10 @@ impl Effect {
     /// allocates. `cards::registry`'s test checks the stored lists against this
     /// walk. CR 603.3d will want the same walk for a triggered ability.
     ///
-    /// **`Atom` and `Sequence` only** — the scope the one-recipient rule this
-    /// replaced also had. `Modal` is the one that will need more than a wider
-    /// walk: CR 601.2b chooses modes *before* 601.2c, so an unchosen mode
-    /// announces no targets, and a walk that descended into every branch would
-    /// announce all of them. It resolves to an error today (`resolve_effect`),
-    /// and `codebase-state.md` item 153 carries it.
+    /// **It stops at a `Modal` node**: CR 601.2b chooses modes before 601.2c,
+    /// and an unchosen mode announces no targets (CR 700.2c), so each mode
+    /// keeps its own list (`Mode::instances`) and the announcement reads the
+    /// chosen modes' lists after this one.
     pub fn instances(&self) -> Vec<EffectRecipient> {
         let mut out = Vec::new();
         self.for_each_instance(&mut |recipient| {
@@ -2809,6 +2908,36 @@ impl Effect {
             // what it targets.
             Effect::Remember(effect) => effect.for_each_instance(f),
             _ => true,
+        }
+    }
+
+    /// The modal node at this ability's root (CR 700.2), read through a
+    /// trigger's def and CR 113.6b's statement: what an announcement asks the
+    /// modes of. `None` for an effect with no modes.
+    pub fn modal(&self) -> Option<&ModalNode> {
+        match self {
+            Effect::Modal(node) => Some(node),
+            Effect::FunctionsIn(_, inner) => inner.modal(),
+            Effect::Triggered(def) => def.effect.modal(),
+            _ => None,
+        }
+    }
+
+    /// Fill each mode's instance list off its effect, at the root
+    /// [`Self::modal`] reads: `CardDataBuilder::build`'s, with
+    /// `AbilityDef::instances`.
+    pub(crate) fn fill_mode_instances(&mut self) {
+        match self {
+            Effect::Modal(node) => {
+                for mode in &mut node.modes {
+                    mode.instances = mode.effect.instances();
+                }
+            }
+            Effect::FunctionsIn(_, inner) => inner.fill_mode_instances(),
+            // A card's defs are built before anything shares them, so
+            // `make_mut` writes in place here.
+            Effect::Triggered(def) => std::sync::Arc::make_mut(def).effect.fill_mode_instances(),
+            _ => {}
         }
     }
 

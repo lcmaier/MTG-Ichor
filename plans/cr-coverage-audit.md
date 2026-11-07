@@ -918,10 +918,10 @@ field's name says which; a damage record's is `recipient`.
 
 #### A spell's or ability's choices
 CR 107.3, 601.2b, 700.2. **Key:** the stack object, and through CR 400.7d the
-permanent it became. **Query:** type `u64` named `x_value`; type `usize`
+permanent it became. **Query:** type `u64` named `x_value`; type `ModeIndex`
 named `chosen_modes`
-- `StackEntry` ×2 — owner of X; and `chosen_modes`, which has no writer and
-  no reader, item 31.
+- `StackEntry` ×2 — owner of X; and owner of the modes chosen, written as
+  they are announced and read as the effect resolves (`modes-chosen-and-resolved`).
 - `ResolvingObject` — hand-over of X, to the permanent.
 - `PermanentState` — owner: the X of the spell it was (CR 400.7d).
 - `PendingTrigger` — owner: a delayed trigger's X, its creator's (CR 107.3n).

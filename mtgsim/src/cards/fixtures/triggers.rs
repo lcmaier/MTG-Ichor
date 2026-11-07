@@ -19,7 +19,7 @@ use crate::types::zones::ZoneSet;
 
 /// Every castable fixture, by name, as `CardRegistry::fixture_pool` registers
 /// them.
-pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 22] = [
+pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 28] = [
     ("Fixture Curtain", fixture_curtain),
     ("Fixture Token Tally", fixture_token_tally),
     ("Fixture Mourning Ink", fixture_mourning_ink),
@@ -42,6 +42,12 @@ pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 22] = [
     ("Kudo, King Among Bears Fixture", super::kudo_king_among_bears_fixture),
     ("Godhead of Awe Fixture", super::godhead_of_awe_fixture),
     ("Scattering Flicker", super::scattering_flicker),
+    ("Branching Beacon", super::branching_beacon),
+    ("Forked Omen", super::forked_omen),
+    ("Hesitant Omen", super::hesitant_omen),
+    ("Mode Lever", super::mode_lever),
+    ("Tally of Choices", super::tally_of_choices),
+    ("Kindled Option", super::kindled_option),
 ];
 
 /// Fixture Curtain — {W}, instant: "Target creature becomes blocked." CR

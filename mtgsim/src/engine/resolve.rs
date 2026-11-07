@@ -16,8 +16,8 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
-    EffectRecipient, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-    SelectionFilter, TargetCount,
+    EffectRecipient, ModeIndex, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet,
+    Primitive, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
@@ -158,6 +158,13 @@ impl ResolutionContext {
 #[derive(Debug)]
 struct ResolutionWalk {
     instance_cursor: usize,
+    /// Where the instance scope the walk is in begins: 0, or the first
+    /// instance of the chosen mode it is resolving (`Mode::instances`).
+    scope_start: usize,
+    /// The modes CR 601.2b chose (`StackEntry::chosen_modes`), which the
+    /// `Modal` arm walks; `None` for an effect resolved with nothing
+    /// announced, which can have no modes chosen.
+    chosen_modes: Option<Vec<ModeIndex>>,
     last_cost_answer: Option<CostAnswer>,
     /// The extra turn this resolution's last `ExtraTurn` scheduled: what
     /// "that turn" names (Final Fortune; CR 500.7).
@@ -176,9 +183,12 @@ struct ResolutionWalk {
 
 impl ResolutionWalk {
     /// Before the effect's first atom: no instance used, no action taken.
-    fn start() -> Self {
+    /// `chosen_modes` as [`ResolutionWalk::chosen_modes`] holds them.
+    fn start(chosen_modes: Option<Vec<ModeIndex>>) -> Self {
         ResolutionWalk {
             instance_cursor: 0,
+            scope_start: 0,
+            chosen_modes,
             last_cost_answer: None,
             extra_turn: None,
             remembering: None,
@@ -214,7 +224,7 @@ impl GameState {
         // test that staged `ctx` by hand — so a `SameInstanceAs` atom reads its
         // clause off the tree (`DeclaredInstances::Effect`). The stack's path
         // is [`Self::resolve_effect_with_announced_targets`].
-        let mut walk = ResolutionWalk::start();
+        let mut walk = ResolutionWalk::start(None);
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Effect(effect), &mut walk)
     }
 
@@ -222,7 +232,8 @@ impl GameState {
     ///
     /// `announced` is the entry's CR 601.2c record, so an atom finds its own
     /// targets by the index the announcement filled and nothing is derived
-    /// from the tree — see `DeclaredInstances`.
+    /// from the tree — see `DeclaredInstances`. `chosen_modes` is its CR
+    /// 601.2b record, the modes a `Modal` node resolves.
     ///
     /// Returns CR 118.12's last answer, which CR 603.2h's writer reads: an
     /// action declined is not an action taken.
@@ -230,10 +241,11 @@ impl GameState {
         &mut self,
         effect: &Effect,
         announced: &[TargetInstance],
+        chosen_modes: &[ModeIndex],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<Option<CostAnswer>, String> {
-        let mut walk = ResolutionWalk::start();
+        let mut walk = ResolutionWalk::start(Some(chosen_modes.to_vec()));
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut walk)?;
         Ok(walk.last_cost_answer)
     }
@@ -377,7 +389,7 @@ impl GameState {
                 self.resolve_primitive(primitive, recipient, &chosen, ctx, dp, walk)
             }
             Effect::Atom(primitive, recipient) => {
-                match instance_of(recipient, declared, &mut walk.instance_cursor) {
+                match instance_of(recipient, declared, &mut walk.instance_cursor, walk.scope_start) {
                     // The atom that declared the division acts by the shares;
                     // a later one naming its instance ("each of those
                     // creatures") reads the targets alone, as `clause` does.
@@ -532,9 +544,26 @@ impl GameState {
                 Ok(())
             }
 
-            Effect::Modal { .. } => {
-                // Mode choice — `backlog.md` §2.7.
-                Err("Modal effects not yet implemented".to_string())
+            // CR 700.2: the chosen modes in printed order and no others, as
+            // though the spell were printed with only those (700.2c, 700.2d).
+            // A mode is its own instance scope, so its back-references count
+            // from its first instance; the instances run on across the modes
+            // as the announcement put them.
+            Effect::Modal(node) => {
+                let Some(modes) = walk.chosen_modes.clone() else {
+                    return Err(format!(
+                        "{:?} reached a modal effect with no modes chosen; a modal spell or ability resolves from the stack with its CR 601.2b record",
+                        ctx.source
+                    ));
+                };
+                for mode in modes {
+                    let mode = node.mode(mode).ok_or_else(|| format!("{:?} chose mode {mode}, which its effect does not print", ctx.source))?;
+                    let enclosing = std::mem::replace(&mut walk.scope_start, walk.instance_cursor);
+                    let resolved = self.resolve_effect_at(&mode.effect, ctx, dp, declared, walk);
+                    walk.scope_start = enclosing;
+                    resolved?;
+                }
+                Ok(())
             }
 
             Effect::ForEach(_, _) => {
@@ -2325,7 +2354,7 @@ impl GameState {
     ) -> Result<Vec<ObjectOrPlayerId>, String> {
         let choosers: Vec<PlayerId> = match &choice.chooser {
             chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
-                match instance_of(chooser, declared, &mut walk.instance_cursor) {
+                match instance_of(chooser, declared, &mut walk.instance_cursor, walk.scope_start) {
                     Some((ix, _)) => ctx
                         .targets
                         .instance(ix)

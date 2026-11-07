@@ -659,6 +659,7 @@ mod tests {
     fn mode_chosen_on_a_static_is_loud() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-        let _ = settled_holds(&Condition::ModeChosen(0), &game, bears, None, ConditionReferents::NONE);
+        let first = crate::types::effects::ModeIndex::printed(1);
+        let _ = settled_holds(&Condition::ModeChosen(first), &game, bears, None, ConditionReferents::NONE);
     }
 }

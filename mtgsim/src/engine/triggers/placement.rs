@@ -189,7 +189,9 @@ impl GameState {
     ///
     /// CR 603.3d's removal — "if a choice is required ... but no legal
     /// choices can be made ... the ability is simply removed from the stack"
-    /// — is the rule's own order, taken literally: the object is created,
+    /// — and 603.3c's for a modal ability none of whose modes can be chosen,
+    /// or whose controller chose none, are the rules' own order, taken
+    /// literally: the object is created,
     /// pushed onto the stack, announced against, and both the push and the
     /// object are undone when the announcement fails. It has to exist to be
     /// announced against, because targeting legality reads the source.
@@ -217,8 +219,19 @@ impl GameState {
             source_lki: None,
             triggering_event: TriggeringEventView::Resolving { game: self, binding: &pending.binding },
         };
-        let targets = match self.announce_targets(controller, id, identity.source.id, &pending.instances, named, pending.x_value, dp) {
-            Ok(targets) => targets,
+        // CR 603.3c's modes before 603.3d's targets, as a spell's (CR 601.2b–c).
+        let effect = &pending.binding.def.effect;
+        let announced =
+            self.announce_modes_and_targets(controller, id, identity.source.id, effect, &pending.instances, named, pending.x_value, dp);
+        let (chosen_modes, targets) = match announced {
+            // CR 603.3c: "if no mode is chosen, the ability is removed from the
+            // stack", where the count allows none.
+            Ok((modes, _)) if modes.is_empty() && effect.modal().is_some() => {
+                self.ability_leaves_the_stack(id);
+                self.trace(|| trace_records::pending(self, &pending, None, Some("no_mode_chosen"), &[]));
+                return Ok(false);
+            }
+            Ok(announced) => announced,
             Err(_) => {
                 self.ability_leaves_the_stack(id);
                 self.trace(|| trace_records::pending(self, &pending, None, Some("no_legal_choices"), &[]));
@@ -230,7 +243,7 @@ impl GameState {
             object_id: id,
             controller,
             chosen_targets: targets,
-            chosen_modes: Vec::new(),
+            chosen_modes,
             x_value: pending.x_value,
             effect: Arc::new(pending.binding.def.effect.clone()),
             is_spell: false,

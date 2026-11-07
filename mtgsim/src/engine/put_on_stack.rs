@@ -21,7 +21,8 @@ use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::TargetInstance;
-use crate::types::effects::{EffectRecipient, TargetCount};
+use crate::oracle::modes::{legal_mode_sets, ModeAsk};
+use crate::types::effects::{EffectRecipient, ModeChooser, ModeIndex, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
@@ -35,7 +36,7 @@ use crate::engine::cost_determination::total_cost_in_x;
 use crate::oracle::x_values::legal_x_values;
 use crate::ui::ask::{
     ask_activate_mana_ability,
-    ask_choose_alternative_cost, ask_choose_additional_costs,
+    ask_choose_alternative_cost, ask_choose_additional_costs, ask_choose_modes,
     ask_choose_x_value, ask_divide_among, ask_select_recipients,
 };
 use crate::ui::decision::DecisionProvider;
@@ -66,8 +67,8 @@ impl GameState {
     /// Steps follow CR 601.2a–i:
     /// 1. Pre-proposal legality check (rule 601.3)
     /// 2. Move to stack (601.2a) — silently; the move is announced at 601.2i
-    /// 3. Choose alternative cost, additional costs, X value (601.2b)
-    /// 4. Choose targets (601.2c)
+    /// 3. Choose alternative cost, additional costs, X value, modes (601.2b)
+    /// 4. Choose targets (601.2c), the chosen modes' after the spell's own
     /// 5. Division among targets (601.2d) — not asked, `backlog.md` §2.20
     /// 6. Post-proposal legality check with rollback (601.2e)
     /// 7. Assemble total cost (601.2f)
@@ -186,15 +187,17 @@ impl GameState {
             0
         };
 
-        // --- 601.2c: Choose targets, one instance of "target" at a time ---
-        // "The player announces their choice of an appropriate object or player
-        // for **each** target the spell requires." In printed order, because an
+        // --- 601.2b's modes, then 601.2c: targets, one instance at a time ---
+        // The modes last of 601.2b's announcements, which is one step, so a
+        // count can read the X and a kicker announced before them. "The player
+        // announces their choice of an appropriate object or player for
+        // **each** target the spell requires", in printed order, because an
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
-        let targets = match self.announce_targets(
-            player_id, card_id, card_id, instances, ConditionReferents::NONE, has_x.then_some(x_value), decisions,
+        let (chosen_modes, targets) = match self.announce_modes_and_targets(
+            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), decisions,
         ) {
-            Ok(targets) => targets,
+            Ok(announced) => announced,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
@@ -207,7 +210,7 @@ impl GameState {
             object_id: card_id,
             controller: player_id,
             chosen_targets: targets,
-            chosen_modes: Vec::new(),
+            chosen_modes,
             x_value: has_x.then_some(x_value),
             effect: Arc::new(effect),
             is_spell: true,
@@ -225,10 +228,11 @@ impl GameState {
 
         // --- 601.2e: post-proposal legality ---
         // Vacuous today: every choice above is drawn from an enumerated legal list,
-        // so nothing chosen can make the proposal illegal. It stops being vacuous
-        // when a later choice can invalidate an earlier one — modes (`backlog.md`
-        // §2.7), several target clauses (§2.20) — and the rewind it needs is the
-        // one 601.2h already uses.
+        // the modes among them (a set is listed only if each of its modes' targets
+        // can be chosen), so nothing chosen can make the proposal illegal. It stops
+        // being vacuous when a later choice can invalidate an earlier one, several
+        // target clauses (§2.20), and the rewind it needs is the one 601.2h
+        // already uses.
 
         // --- 601.2f: Assemble total cost ---
         let total_costs = determine_total_cost(
@@ -381,6 +385,49 @@ impl GameState {
         Ok(announced)
     }
 
+    /// CR 601.2b's modes, then 601.2c's targets, for `effect` on the stack
+    /// object `source_id`: what [`Self::announce_targets`] announces for an
+    /// effect with no modes. A modal one's chooser picks one of the legal
+    /// sets (`oracle::modes`, CR 700.2a), and each chosen mode's instances
+    /// follow `instances`, the effect's own, in printed order: a mode is its
+    /// own instance scope, so its "another target" reads only its own earlier
+    /// instances, and a division is announced inside it. The modes are in
+    /// printed order, which is the order they resolve in.
+    ///
+    /// `Err` when no set of modes is legal, which the caller rewinds or, for
+    /// a trigger, removes (CR 603.3c).
+    pub(crate) fn announce_modes_and_targets(
+        &self,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        this_object: ObjectId,
+        effect: &crate::types::effects::Effect,
+        instances: &[EffectRecipient],
+        named_objects: ConditionReferents<'_>,
+        x_value: Option<u64>,
+        decisions: &dyn DecisionProvider,
+    ) -> Result<(Vec<ModeIndex>, Vec<TargetInstance>), String> {
+        let Some(node) = effect.modal() else {
+            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, decisions)?;
+            return Ok((Vec::new(), targets));
+        };
+        let ask = ModeAsk { game: self, player: player_id, this_object, named: named_objects, x_value };
+        let sets = legal_mode_sets(ask, node);
+        if sets.is_empty() {
+            return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
+        }
+        let chooser = match node.chooser {
+            ModeChooser::Controller => player_id,
+        };
+        let modes = ask_choose_modes(decisions, self, chooser, source_id, sets);
+        let mut targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, decisions)?;
+        for &mode in &modes {
+            let mode = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
+            targets.extend(self.announce_targets(player_id, source_id, this_object, &mode.instances, named_objects, x_value, decisions)?);
+        }
+        Ok((modes, targets))
+    }
+
     /// An amount the text defines, read as the announcement starts: a count
     /// of targets, or what a clause divides. "Where X is" off the trigger's
     /// binding, or the X announced for the spell or ability (CR 601.2b), or
@@ -522,12 +569,12 @@ impl GameState {
         // From here on, any Err path must call `rollback_ability_activation`
         // to keep game state clean: `run_priority_round`'s retry loop relies on it.
 
-        // CR 602.2b routes an activation through 601.2c, so an ability
-        // announces its instances exactly as a spell does.
-        let targets = match self.announce_targets(
-            player_id, ability_obj_id, source_id, instances, ConditionReferents::NONE, None, decisions,
+        // CR 602.2b routes an activation through 601.2b–c, so an ability
+        // announces its modes and instances exactly as a spell does.
+        let (chosen_modes, targets) = match self.announce_modes_and_targets(
+            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, decisions,
         ) {
-            Ok(targets) => targets,
+            Ok(announced) => announced,
             Err(e) => {
                 self.rollback_ability_activation(ability_obj_id);
                 return Err(e);
@@ -538,7 +585,7 @@ impl GameState {
             object_id: ability_obj_id,
             controller: player_id,
             chosen_targets: targets,
-            chosen_modes: Vec::new(),
+            chosen_modes,
             x_value: None,
             effect: Arc::new(effect),
             is_spell: false,

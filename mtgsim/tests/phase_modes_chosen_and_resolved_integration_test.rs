@@ -1,0 +1,385 @@
+//! `modes-chosen-and-resolved`: CR 700.2's modes, chosen as a spell is cast,
+//! an ability activated or a trigger put on the stack, each chosen mode's
+//! targets announced after it, and only the chosen modes resolved
+//! (`choices-architecture.md`, decisions 2 and 3).
+//!
+//! **Every board is cast, activated or triggered, never staged**: the modes
+//! are a question asked on that path, and a staged entry cannot check it.
+
+use std::cell::RefCell;
+
+use mtgsim::cards::fixtures::{branching_beacon, forked_omen, hesitant_omen, kindled_option, mode_lever, tally_of_choices};
+use mtgsim::cards::printings::{grizzly_bears, hill_giant};
+use mtgsim::oracle::x_values::LegalXValues;
+use mtgsim::state::game_state::GameState;
+use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp};
+use mtgsim::types::effects::ModeIndex;
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::mana::ManaType;
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
+use mtgsim::ui::choice_types::{position_named, ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
+use mtgsim::ui::display::option_label;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
+
+/// A provider that keeps each `ChooseModes` offer it is shown and answers
+/// through `inner`. An offer of one set is answered unasked and never
+/// reaches it.
+struct ModesOffered<D> {
+    inner: D,
+    offers: RefCell<Vec<Vec<ChoiceOption>>>,
+}
+
+impl<D> ModesOffered<D> {
+    fn new(inner: D) -> Self {
+        ModesOffered { inner, offers: RefCell::new(Vec::new()) }
+    }
+
+    fn offers(&self) -> Vec<Vec<ChoiceOption>> {
+        self.offers.borrow().clone()
+    }
+}
+
+impl<D: DecisionProvider> DecisionProvider for ModesOffered<D> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        if matches!(context.kind, ChoiceKind::ChooseModes { .. }) {
+            self.offers.borrow_mut().push(options.to_vec());
+        }
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.inner.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
+    }
+}
+
+/// The script's next answer: the modes printed at `places`.
+fn chooses_modes(answers: &ScriptedDecisionProvider, places: &[u8]) {
+    answers.expect_choice(ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::modes(places)]);
+}
+
+/// The script's next answer: `chosen` for an instance of "target".
+fn names_targets(answers: &ScriptedDecisionProvider, chosen: Vec<ChoiceOption>) {
+    let kind = ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
+    answers.expect_choice(kind, chosen);
+}
+
+/// The X question, as a script matches it by kind.
+fn choose_x() -> ChoiceKind {
+    ChoiceKind::ChooseXValue { spell_id: ObjectId::UNASSIGNED, values: Box::new(LegalXValues::zero_through(0)) }
+}
+
+fn modes(places: &[u8]) -> Vec<ModeIndex> {
+    places.iter().map(|&place| ModeIndex::printed(place)).collect()
+}
+
+/// Each offer's options as the log writes them.
+fn offered(game: &GameState, offers: &[Vec<ChoiceOption>]) -> Vec<Vec<String>> {
+    offers.iter().map(|offer| offer.iter().map(|option| option.as_logged(game)).collect()).collect()
+}
+
+fn damage_on(game: &GameState, id: ObjectId) -> u32 {
+    game.battlefield[&id].damage_marked
+}
+
+/// `card` cast by player 0 from `mana` floating, and resolved: it enters,
+/// and what it triggered waits to be placed.
+fn cast_and_resolve(game: &mut GameState, card: std::sync::Arc<mtgsim::objects::card_data::CardData>, mana: &[(ManaType, u64)]) -> ObjectId {
+    let id = put_in_hand(game, card, 0);
+    for &(mana_type, n) in mana {
+        game.players[0].mana_pool.add(mana_type, n);
+    }
+    game.cast_spell(0, id, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    id
+}
+
+// ---------------------------------------------------------------------------
+// CR 603.3c: a modal trigger's modes, chosen as it is put on the stack
+// ---------------------------------------------------------------------------
+
+/// ATOM-603.3c-001's board: no creature anywhere, so the damage mode can't be
+/// chosen and the life mode is the one legal set, announced without asking.
+// COVERS: ATOM-603.3c-001
+#[test]
+fn a_modal_trigger_with_one_legal_mode_takes_it_unasked() {
+    let mut game = setup_two_player_game();
+    cast_and_resolve(&mut game, branching_beacon(), &[(ManaType::Green, 2)]);
+
+    // `test_dp` answers nothing, so a question would panic.
+    assert!(game.place_pending_triggers(&test_dp()).expect("the trigger is placed"));
+    let trigger = *game.stack.last().expect("on the stack");
+    assert_eq!(game.stack_entries[&trigger].chosen_modes, modes(&[2]));
+    assert!(game.stack_entries[&trigger].chosen_targets.is_empty(), "the unchosen mode announces nothing");
+    game.resolve_top_of_stack(&test_dp()).expect("the trigger resolves");
+    assert_eq!(game.players[0].life_total, 23);
+}
+
+/// ATOM-603.3c-002's board: every mode targets an artifact or a creature, and
+/// there is neither, so no mode can be chosen and the ability is removed.
+// COVERS: ATOM-603.3c-002, ATOM-700.2b-001
+#[test]
+fn a_modal_trigger_with_no_legal_mode_is_removed() {
+    let mut game = setup_two_player_game();
+    cast_and_resolve(&mut game, forked_omen(), &[(ManaType::Black, 2)]);
+
+    assert!(!game.place_pending_triggers(&test_dp()).expect("the placement runs"), "nothing was placed");
+    assert!(game.stack.is_empty());
+}
+
+/// CR 603.3c's other removal: "choose up to one" lets its controller choose
+/// none, and an ability with no mode chosen is removed from the stack.
+#[test]
+fn a_modal_trigger_whose_controller_chooses_none_is_removed() {
+    let mut game = setup_two_player_game();
+    let lever = put_on_battlefield(&mut game, mode_lever(), 1);
+    cast_and_resolve(&mut game, hesitant_omen(), &[(ManaType::White, 2)]);
+
+    let answers = ModesOffered::new(ScriptedDecisionProvider::new());
+    chooses_modes(&answers.inner, &[]);
+    assert!(!game.place_pending_triggers(&answers).expect("the placement runs"));
+    assert_eq!(offered(&game, &answers.offers()), vec![vec!["no modes", "mode 1", "mode 2"]]);
+    assert!(game.stack.is_empty());
+    assert_eq!(game.get_object(lever).unwrap().zone, Zone::Battlefield);
+    assert_eq!(game.players[0].life_total, 20);
+}
+
+// ---------------------------------------------------------------------------
+// CR 700.2a: a modal activation, and a mode that can't be chosen
+// ---------------------------------------------------------------------------
+
+/// CR 602.2b runs 601.2b–c: the modes first, then the chosen mode's target.
+#[test]
+fn a_modal_activation_announces_its_modes_before_its_targets() {
+    let mut game = setup_two_player_game();
+    let lever = put_on_battlefield(&mut game, mode_lever(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+
+    // The bears are the one creature, so the target is not asked.
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1]);
+    let stop = ManaWindowStop::new(answers);
+    game.activate_ability(0, lever, 0, &stop).expect("{1} and the tap pay it");
+    let kinds: Vec<&str> = stop.inner().asked().iter().map(ChoiceKind::as_str).collect();
+    assert_eq!(kinds, ["ChooseModes"]);
+
+    let ability = *game.stack.last().expect("on the stack");
+    assert_eq!(game.stack_entries[&ability].chosen_modes, modes(&[1]));
+    let targets: Vec<ObjectOrPlayerId> = game.stack_entries[&ability].chosen_targets.iter().flat_map(|i| i.as_resolved_targets()).collect();
+    assert_eq!(targets, vec![ObjectOrPlayerId::Object(bears)], "the chosen mode's target, announced after the mode");
+    game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
+    assert_eq!(mtgsim::oracle::characteristics::get_effective_power(&game, bears), Some(3));
+    assert_eq!(game.players[0].life_total, 20, "the other mode did nothing");
+}
+
+/// ATOM-700.2a-001: a mode whose target has no legal choice is not offered.
+/// Kindled Option's caster controls an artifact, so either mode or both may
+/// be chosen; with no creature, only the second mode is a legal set.
+// COVERS: ATOM-700.2a-001
+#[test]
+fn a_mode_whose_target_has_no_legal_choice_is_not_offered() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, mode_lever(), 0);
+    fill_library(&mut game, 1, 3);
+    let option = put_in_hand(&mut game, kindled_option(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 2);
+
+    // The one legal set is announced unasked, and the player is its target.
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    let stop = ManaWindowStop::new(answers);
+    game.cast_spell(0, option, &stop).expect("the second mode is legal");
+    assert_eq!(game.stack_entries[&option].chosen_modes, modes(&[2]));
+    assert!(!stop.inner().asked().iter().any(|kind| matches!(kind, ChoiceKind::ChooseModes { .. })));
+}
+
+// ---------------------------------------------------------------------------
+// The count: a condition raises it, X sets it, and no mode is chosen twice
+// ---------------------------------------------------------------------------
+
+/// "If you control an artifact as you cast this spell, you may choose both
+/// instead", read as the modes are chosen: one mode at a time without the
+/// artifact, and either or both with it.
+#[test]
+fn a_count_raised_by_a_condition_reads_it_as_the_modes_are_chosen() {
+    for with_an_artifact in [false, true] {
+        let mut game = setup_two_player_game();
+        if with_an_artifact {
+            put_on_battlefield(&mut game, mode_lever(), 0);
+        }
+        put_on_battlefield(&mut game, hill_giant(), 1);
+        let option = put_in_hand(&mut game, kindled_option(), 0);
+        game.players[0].mana_pool.add(ManaType::Red, 2);
+
+        // The giant is the one creature, so mode 1's target is not asked.
+        let answers = ModesOffered::new(ScriptedDecisionProvider::new());
+        chooses_modes(&answers.inner, &[1]);
+        let stop = ManaWindowStop::new(answers);
+        game.cast_spell(0, option, &stop).expect("castable");
+        let expected: Vec<&str> = if with_an_artifact { vec!["mode 1", "mode 2", "modes 1, 2"] } else { vec!["mode 1", "mode 2"] };
+        assert_eq!(offered(&game, &stop.inner().offers()), vec![expected]);
+    }
+}
+
+/// "Choose X": X is announced first, then the sets of that many modes, each
+/// mode at most once.
+// COVERS: ATOM-700.2d-001
+#[test]
+fn a_count_of_x_asks_x_then_the_sets_of_that_many() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 3);
+    fill_library(&mut game, 1, 3);
+    let tally = put_in_hand(&mut game, tally_of_choices(), 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 3);
+
+    let answers = ModesOffered::new(ScriptedDecisionProvider::new());
+    answers.inner.expect_number(choose_x(), 2);
+    chooses_modes(&answers.inner, &[1, 3]);
+    names_targets(&answers.inner, vec![ChoiceOption::Player(1)]);
+    let stop = ManaWindowStop::new(answers);
+    game.cast_spell(0, tally, &stop).expect("{2}{U} from three blue");
+    let kinds: Vec<&str> = stop.inner().inner.asked().iter().map(ChoiceKind::as_str).collect();
+    assert_eq!(kinds, ["ChooseXValue", "ChooseModes", "SelectRecipients"]);
+
+    // CR 700.2d: two different modes, never one mode twice.
+    let offers = stop.inner().offers();
+    assert_eq!(offered(&game, &offers), vec![vec!["modes 1, 2", "modes 1, 3", "modes 2, 3"]]);
+    assert_eq!(position_named(&offers[0], &game, &ChoiceOption::modes(&[1, 1]), &[]), None, "a mode twice is no choice");
+
+    let hand = game.players[0].hand.len();
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[0].hand.len(), hand + 1, "mode 1 drew");
+    assert_eq!(game.players[0].life_total, 20, "mode 2 was not chosen");
+    assert_eq!(game.players[1].graveyard.len(), 2, "mode 3 milled");
+}
+
+/// A count of X past the modes printed has no set of that size, so the
+/// announcement can't be completed and the cast is rewound (CR 601.2e).
+#[test]
+fn a_count_of_x_past_the_modes_rewinds_the_cast() {
+    let mut game = setup_two_player_game();
+    let tally = put_in_hand(&mut game, tally_of_choices(), 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 5);
+
+    let answers = ScriptedDecisionProvider::new();
+    answers.expect_number(choose_x(), 4);
+    assert!(game.cast_spell(0, tally, &ManaWindowStop::new(answers)).is_err());
+    assert_eq!(game.get_object(tally).unwrap().zone, Zone::Hand);
+    assert!(game.stack.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Decision 3: the chosen modes resolve, each its own instance scope
+// ---------------------------------------------------------------------------
+
+/// ATOM-700.2c-001: a mode not chosen announces no target, so the creature
+/// its target would have been is never asked about and is untouched.
+// COVERS: ATOM-700.2c-001
+#[test]
+fn an_unchosen_modes_target_is_never_announced() {
+    let mut game = setup_two_player_game();
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    fill_library(&mut game, 1, 3);
+    let option = put_in_hand(&mut game, kindled_option(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 2);
+
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[2]);
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
+    let entry = &game.stack_entries[&option];
+    assert_eq!(entry.chosen_targets.len(), 1, "the second mode's player alone");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(damage_on(&game, giant), 0);
+    assert_eq!(game.players[1].graveyard.len(), 1, "drew a card, then discarded it");
+}
+
+/// A mode is its own instance scope: the second mode's "then discards a
+/// card" names the mode's own first instance, which is the spell's second
+/// when both modes are chosen. Read from the spell's first, it would name the
+/// creature.
+#[test]
+fn a_modes_back_reference_names_its_own_first_instance() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, mode_lever(), 0);
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    fill_library(&mut game, 1, 3);
+    let option = put_in_hand(&mut game, kindled_option(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 2);
+
+    // The giant is the one creature, so only the player is asked.
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2]);
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
+    assert_eq!(game.stack_entries[&option].chosen_modes, modes(&[1, 2]));
+    let targets: Vec<Vec<ObjectOrPlayerId>> =
+        game.stack_entries[&option].chosen_targets.iter().map(|instance| instance.as_resolved_targets().collect()).collect();
+    assert_eq!(targets, vec![vec![ObjectOrPlayerId::Object(giant)], vec![ObjectOrPlayerId::Player(1)]], "mode 1's first");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(damage_on(&game, giant), 2);
+    assert!(game.players[1].hand.is_empty(), "the card drawn was discarded");
+    assert_eq!(game.players[1].graveyard.len(), 1);
+}
+
+/// CR 608.2b over modes: a chosen mode whose target went illegal does
+/// nothing, and the spell does as much as it can (Prismari Command's second
+/// ruling, on this shape).
+#[test]
+fn a_chosen_mode_whose_target_left_does_nothing_and_the_rest_resolves() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, mode_lever(), 0);
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    fill_library(&mut game, 1, 3);
+    let option = put_in_hand(&mut game, kindled_option(), 0);
+    game.players[0].mana_pool.add(ManaType::Red, 2);
+
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2]);
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
+    game.change_zone(giant, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the giant leaves");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[1].graveyard.len(), 1, "the second mode still drew and discarded");
+}
+
+// ---------------------------------------------------------------------------
+// The option's words
+// ---------------------------------------------------------------------------
+
+/// What the log and a client write for a choice of modes: by printed place,
+/// never by where the set sat in the offer.
+#[test]
+fn a_choice_of_modes_is_written_by_its_printed_places() {
+    let game = setup_two_player_game();
+    assert_eq!(ChoiceOption::modes(&[1, 3]).as_logged(&game), "modes 1, 3");
+    assert_eq!(ChoiceOption::modes(&[2]).as_logged(&game), "mode 2");
+    assert_eq!(ChoiceOption::modes(&[]).as_logged(&game), "no modes");
+    assert_eq!(option_label(&game, &ChoiceOption::modes(&[1, 3])), "Modes 1 and 3");
+    assert_eq!(option_label(&game, &ChoiceOption::modes(&[])), "No modes");
+}

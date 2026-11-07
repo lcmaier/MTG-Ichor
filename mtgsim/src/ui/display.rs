@@ -433,6 +433,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             n(attacker_id),
             damage_target_name(game, defending_target)
         ),
+        ChoiceKind::ChooseModes { source } => format!("Choose the modes of {}", n(source)),
         ChoiceKind::ChooseXValue { spell_id, .. } => format!("Choose X for {}", n(spell_id)),
         ChoiceKind::ChooseAlternativeCost { spell_id } => format!("Choose how to pay for {}", n(spell_id)),
         ChoiceKind::ChooseAdditionalCosts { spell_id } => format!("Choose additional costs for {}", n(spell_id)),
@@ -530,6 +531,11 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::CostPart(CostPart { cost, paid_with }) => format!("{}: {}", cost_words(cost), listed(game, paid_with)),
         ChoiceOption::AdditionalCost(cost) => additional_cost_label(cost),
         ChoiceOption::Number(number) => number.to_string(),
+        ChoiceOption::Modes(modes) => match modes.as_slice() {
+            [] => "No modes".to_string(),
+            [one] => format!("Mode {one}"),
+            several => format!("Modes {}", several.iter().map(ToString::to_string).collect::<Vec<_>>().join(" and ")),
+        },
         ChoiceOption::Color(color) => color_name(*color).to_string(),
         ChoiceOption::CounterType(counter) => counter.name().to_string(),
         ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
@@ -742,6 +748,7 @@ pub fn cannot_cast(game: &GameState, player: PlayerId, card: ObjectId, reason: &
             Some("117.1a"),
         ),
         CannotCast::NoLegalTarget => ("one of its targets has no legal choice".to_string(), Some("601.2c")),
+        CannotCast::NoLegalModes => (NO_LEGAL_MODES.to_string(), Some("700.2a")),
         CannotCast::AdditionalCost(cost) => {
             let (words, rule) = cannot_pay(player, cost);
             (format!("its additional cost can't be paid: {words}"), rule)
@@ -825,8 +832,13 @@ pub fn cannot_activate(
             (format!("the mana {who} can make now does not cover its cost{}", cost.unwrap_or_default()), Some("602.2b"))
         }
         CannotActivate::NoLegalTarget => ("one of its targets has no legal choice".to_string(), Some("601.2c")),
+        CannotActivate::NoLegalModes => (NO_LEGAL_MODES.to_string(), Some("700.2a")),
     }
 }
+
+/// Why a modal spell or ability is not offered: no set of modes its count
+/// allows has every target it needs.
+const NO_LEGAL_MODES: &str = "no choice of its modes can be made, since a mode whose targets have no legal choice can't be chosen";
 
 /// Why a cost can't be paid by `player`, and the rule.
 pub fn cannot_pay(player: PlayerId, reason: &CannotPay) -> (String, Option<&'static str>) {

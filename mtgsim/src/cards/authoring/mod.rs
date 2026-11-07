@@ -16,13 +16,15 @@
 //! One file per subsystem whose vocabulary has landed: [`abilities`], the
 //! kinds of ability every card is written in; [`instructions`], the verbs an
 //! ability's effect is made of; [`recipients`], who and what each verb acts
-//! on; [`replacements`], CR 614's events and what happens instead; and
-//! [`triggers`], CR 603's words. A word sits in its file by the CR
+//! on; [`modes`], CR 700.2's "choose one —"; [`replacements`], CR 614's
+//! events and what happens instead; and [`triggers`], CR 603's words. A word
+//! sits in its file by the CR
 //! rule it names, not by the card that brought it, so the file reads in the
 //! CR's order whichever card came first.
 
 pub mod abilities;
 pub mod instructions;
+pub mod modes;
 pub mod recipients;
 pub mod replacements;
 pub mod triggers;
@@ -39,6 +41,7 @@ pub use instructions::{
     remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
     shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
 };
+pub use modes::{choose, choose_one, choose_one_or_both_if, choose_one_or_more, choose_two, choose_up_to};
 pub use recipients::{
     an_opponent_controls, any_target, artifact, attacked_by, basic, chosen_by, color, creature, creatures_you_control, divided_among, each, each_in,
     each_opponent, each_player, host, land, non, nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_permanent,

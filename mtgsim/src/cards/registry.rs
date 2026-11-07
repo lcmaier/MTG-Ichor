@@ -1375,7 +1375,8 @@ mod tests {
                         found += 1;
                         stack.push(inner);
                     }
-                    Effect::Sequence(subs) | Effect::Modal { modes: subs, .. } => stack.extend(subs.iter()),
+                    Effect::Sequence(subs) => stack.extend(subs.iter()),
+                    Effect::Modal(node) => stack.extend(node.modes.iter().map(|mode| &mode.effect)),
                     Effect::Conditional(_, inner)
                     | Effect::Optional { effect: inner, .. }
                     | Effect::Remember(inner)
@@ -1416,6 +1417,67 @@ mod tests {
         }
     }
 
+    /// A modal node is all of its ability (`Effect::modal`): the announcement
+    /// asks its chosen modes' targets after the effect's own, and resolution
+    /// meets them where the node sits, so a node beside other instructions or
+    /// inside a mode would be announced in one order and resolved in another.
+    /// A spell is asked as a whole, since its paragraphs are one effect.
+    #[test]
+    fn every_modal_node_is_at_its_abilitys_root() {
+        use crate::objects::card_data::AbilityDef;
+        use crate::types::effects::Effect;
+
+        fn nodes(effect: &Effect) -> usize {
+            let mut found = 0;
+            let mut stack: Vec<&Effect> = vec![effect];
+            while let Some(effect) = stack.pop() {
+                match effect {
+                    Effect::Modal(node) => {
+                        found += 1;
+                        stack.extend(node.modes.iter().map(|mode| &mode.effect));
+                    }
+                    Effect::Sequence(subs) => stack.extend(subs.iter()),
+                    Effect::Conditional(_, inner)
+                    | Effect::FunctionsIn(_, inner)
+                    | Effect::Optional { effect: inner, .. }
+                    | Effect::Remember(inner)
+                    | Effect::ForEach(_, inner)
+                    | Effect::Repeat(_, inner) => stack.push(inner),
+                    Effect::Triggered(def) => stack.push(&def.effect),
+                    Effect::Atom(..)
+                    | Effect::Replacement(_)
+                    | Effect::Restriction(_)
+                    | Effect::CostModification(_)
+                    | Effect::TriggerMultiplier(_) => {}
+                }
+            }
+            found
+        }
+        fn check(what: &str, effect: &Effect) {
+            let at_the_root = usize::from(effect.modal().is_some());
+            assert_eq!(nodes(effect), at_the_root, "{what}: a modal node below its ability's root");
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            if let Some(effect) = crate::objects::card_data::spell_effect(&card.abilities) {
+                check(&format!("{name} as a spell"), &effect);
+            }
+            let mut copy = (*card).clone();
+            for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
+                check(&format!("{name} ability #{i}"), &ability.effect);
+                let mut nested = 0usize;
+                ability.effect.for_each_ability_def_mut(&mut |def: &mut AbilityDef| {
+                    check(&format!("{name} ability #{i}, nested def #{nested}"), &def.effect);
+                    nested += 1;
+                });
+            }
+        }
+    }
+
     /// Every event role a registered trigger names is one every arm of its
     /// condition has (TR-5a's decision 2): "that creature" after a dies
     /// trigger is the card that moved, and no dies record has a recipient. A
@@ -1449,9 +1511,8 @@ mod tests {
                     check(&format!("{what}, its delayed trigger"), &template.def);
                     walk(what, &template.def.effect);
                 }
-                Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {
-                    effects.iter().for_each(|e| walk(what, e));
-                }
+                Effect::Sequence(effects) => effects.iter().for_each(|e| walk(what, e)),
+                Effect::Modal(node) => node.modes.iter().for_each(|mode| walk(what, &mode.effect)),
                 Effect::Conditional(_, inner)
                 | Effect::FunctionsIn(_, inner)
                 | Effect::Optional { effect: inner, .. }
@@ -1563,6 +1624,14 @@ mod instance_references {
     #[test]
     fn every_instance_back_reference_names_a_declared_clause() {
         fn check(what: &str, effect: &Effect) {
+            // A mode is its own instance scope, and a modal node is all of its
+            // ability (`every_modal_node_is_at_its_abilitys_root`).
+            if let Some(node) = effect.modal() {
+                for (place, mode) in node.indexed_modes() {
+                    check(&format!("{what}, mode {place}"), &mode.effect);
+                }
+                return;
+            }
             let declared = effect.instances().len();
             for_each_atom(effect, &mut |_, recipient| {
                 if let EffectRecipient::SameInstanceAs(ix) = recipient {
@@ -1595,7 +1664,8 @@ mod instance_references {
         while let Some(e) = stack.pop() {
             match e {
                 Effect::Atom(primitive, recipient) => f(primitive, recipient),
-                Effect::Sequence(subs) | Effect::Modal { modes: subs, .. } => stack.extend(subs.iter()),
+                Effect::Sequence(subs) => stack.extend(subs.iter()),
+                Effect::Modal(node) => stack.extend(node.modes.iter().map(|mode| &mode.effect)),
                 Effect::Conditional(_, inner)
                 | Effect::FunctionsIn(_, inner)
                 | Effect::Optional { effect: inner, .. }
@@ -1739,6 +1809,9 @@ mod instance_references {
                 def.effect.instances(),
                 "{what}: the stored instance list is not the walk's"
             );
+            for (place, mode) in def.effect.modal().into_iter().flat_map(|node| node.indexed_modes()) {
+                assert_eq!(mode.instances, mode.effect.instances(), "{what}, mode {place}: the stored instance list is not the walk's");
+            }
         }
 
         let registry = CardRegistry::default_registry();

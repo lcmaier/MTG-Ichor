@@ -258,6 +258,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseDelayedTriggerEvent { source: id },
         ChoiceKind::ChooseEnteringDefender { object: id },
         ChoiceKind::DivideAmong { source: id },
+        ChoiceKind::ChooseModes { source: id },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();
@@ -304,7 +305,8 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::DivideAmong { .. } => 31,
         ChoiceKind::OrderCostPayments { .. } => 32,
         ChoiceKind::OrderSimultaneousEntries { .. } => 33,
+        ChoiceKind::ChooseModes { .. } => 34,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
-    assert_eq!(reached, (0..34).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
+    assert_eq!(reached, (0..35).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

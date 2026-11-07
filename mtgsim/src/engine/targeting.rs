@@ -324,13 +324,16 @@ impl<'a> DeclaredInstances<'a> {
 ///
 /// `cursor` is the count of instances *declared* so far by the walk, which is
 /// how a declaring atom learns its own index without the tree being numbered.
-/// Returns `None` for a recipient that names no instance — `Implicit`,
-/// `Controller`, the filtered sweeps and `Host`, none of which reads a
-/// chosen target.
+/// `scope_start` is where the instances a back-reference counts from begin:
+/// the effect's first, or a chosen mode's, since a mode is its own scope
+/// (`Mode::instances`). Returns `None` for a recipient that names no instance
+/// — `Implicit`, `Controller`, the filtered sweeps and `Host`, none of which
+/// reads a chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
     declared: DeclaredInstances<'a>,
     cursor: &mut usize,
+    scope_start: usize,
 ) -> Option<(usize, &'a EffectRecipient)> {
     match recipient {
         EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => {
@@ -340,7 +343,7 @@ pub(crate) fn instance_of<'a>(
         }
         // The declaring atom's clause, not this atom's: an `Instance` atom
         // behaves exactly as the atom that announced the instance did.
-        EffectRecipient::SameInstanceAs(ix) => declared.clause(*ix).map(|r| (*ix, r)),
+        EffectRecipient::SameInstanceAs(ix) => declared.clause(scope_start + ix).map(|r| (scope_start + ix, r)),
         _ => None,
     }
 }
@@ -750,19 +753,18 @@ impl GameState {
     /// A target that left and came back is illegal by 608.2b's own sentence:
     /// it is "no longer in the zone it was in when it was targeted", which
     /// its epoch says and its id cannot.
+    ///
+    /// `scope_starts` are where a chosen mode's instances begin
+    /// (`StackEntry::instance_scope_starts`), since a mode is its own scope
+    /// for "another target"; empty for an effect with no modes.
     pub fn surviving_targets(
         &self,
         instances: &[TargetInstance],
+        scope_starts: &[usize],
         you: PlayerId,
         this_object: ObjectId,
         named_objects: ConditionReferents<'_>,
     ) -> Option<ChosenTargets> {
-        // The announcement, unfiltered: "another target" was a criterion of
-        // CR 601.2c's announcement, and re-asking it against a half-filtered list
-        // would let one instance's fizzle legalize another's. Borrowed, not copied.
-        let announced_targets =
-            FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(instances)).naming(named_objects);
-
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
         // or more targets have been chosen for it." An `UpTo` clause the player
@@ -771,7 +773,14 @@ impl GameState {
         let mut announced = false;
         let mut survived = false;
         let mut survivors = ChosenTargets::NONE;
-        for inst in instances {
+        for (ix, inst) in instances.iter().enumerate() {
+            // The announcement, unfiltered, from the start of this instance's
+            // scope: "another target" was a criterion of CR 601.2c's
+            // announcement, and re-asking it against a half-filtered list would
+            // let one instance's fizzle legalize another's. Borrowed, not copied.
+            let scope = scope_starts.iter().copied().filter(|&start| start <= ix).max().unwrap_or(0);
+            let announced_targets =
+                FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(&instances[scope..])).naming(named_objects);
             let existing = inst.targets().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked against its
@@ -915,14 +924,14 @@ mod tests {
 
         // Target is legal while on battlefield
         let survivors = game
-            .surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
+            .surviving_targets(&instances, &[], 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
             .expect("a legal target resolves");
         assert_eq!(survivors.instance(0), &[ObjectOrPlayerId::Object(land_id)]);
 
         // Remove from battlefield — the one target is no longer legal, and
         // CR 608.2b's "all its targets" is therefore satisfied.
         game.battlefield.remove(&land_id);
-        assert!(game.surviving_targets(&instances, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE).is_none());
+        assert!(game.surviving_targets(&instances, &[], 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE).is_none());
     }
 }
 

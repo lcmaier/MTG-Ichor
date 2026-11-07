@@ -241,7 +241,7 @@ fn effect_reads(e: &Effect) -> TriggerBindingReads {
         // CR 603.3c's modes are chosen at placement, so a modal def is never
         // elided, and each mode's event roles are the def's. The other four
         // are static abilities' bodies.
-        Effect::Modal { modes, .. } => modes.iter().fold(TriggerBindingReads::EVERYTHING, |reads, e| reads | effect_reads(e)),
+        Effect::Modal(node) => node.modes.iter().fold(TriggerBindingReads::EVERYTHING, |reads, mode| reads | effect_reads(&mode.effect)),
         Effect::Replacement(_)
         | Effect::Restriction(_)
         | Effect::CostModification(_)

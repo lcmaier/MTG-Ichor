@@ -80,8 +80,12 @@ pub struct StackEntry {
     /// show. The resolution reads its clauses off this record too
     /// (`targeting::DeclaredInstances`).
     pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
-    /// Modes chosen at cast time (for modal spells, future-proofed)
-    pub chosen_modes: Vec<usize>,
+    /// The modes CR 601.2b chose for a modal `effect` (603.3c for a trigger),
+    /// in printed order, beside the effect it does not replace: the
+    /// resolution walks these and no others (CR 700.2c), each mode's instances
+    /// of "target" following the last's in `chosen_targets`. Empty for an
+    /// effect with no modes, and for a choice of none.
+    pub chosen_modes: Vec<crate::types::effects::ModeIndex>,
     /// X value if the spell has a variable cost
     pub x_value: Option<u64>,
     /// The effect to resolve, copied off its def when the entry is pushed.
@@ -145,6 +149,24 @@ impl StackEntry {
     /// source, or the spell itself.
     pub fn this_object(&self) -> ObjectId {
         self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
+    }
+
+    /// Where each chosen mode's instances begin in `chosen_targets`: after the
+    /// effect's own, each mode's following the last's, as the announcement put
+    /// them. Empty for an effect with no modes.
+    pub fn instance_scope_starts(&self) -> Vec<usize> {
+        let Some(node) = self.effect.modal() else { return Vec::new() };
+        let in_modes: usize = self.chosen_modes.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.instances.len()).sum();
+        let mut start = self.chosen_targets.len().saturating_sub(in_modes);
+        self.chosen_modes
+            .iter()
+            .filter_map(|&mode| node.mode(mode))
+            .map(|mode| {
+                let this = start;
+                start += mode.instances.len();
+                this
+            })
+            .collect()
     }
 
     /// The player who cast this spell: the controller it was put on the stack
@@ -2750,7 +2772,7 @@ mod tests {
         use super::*;
         use crate::types::card_types::CardType;
         use crate::types::effects::{
-            AmountExpr, Condition, Duration, Effect, EffectRecipient, ModalCount,
+            AmountExpr, Condition, Duration, Effect, EffectRecipient, ModalCount, ModalNode, Mode, ModeChooser,
             ObjectFilter, Primitive, SelectionFilter, TargetCount,
         };
         use crate::test_support::textless_static;
@@ -2831,10 +2853,11 @@ mod tests {
         #[test]
         #[should_panic(expected = "cannot express")]
         fn test_modal_static_body_is_loud() {
-            let ability = textless_static(Effect::Modal {
+            let ability = textless_static(Effect::Modal(Box::new(ModalNode {
                 count: ModalCount::Exactly(1),
-                modes: vec![anthem_atom()],
-            });
+                chooser: ModeChooser::Controller,
+                modes: vec![Mode::new(anthem_atom())],
+            })));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }
 
