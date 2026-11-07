@@ -471,6 +471,22 @@ fn two_parts_using_one_object_are_refused_before_anything_moves() {
     assert_eq!(game.get_object(enforcer).unwrap().zone, Zone::Battlefield, "nothing moved");
 }
 
+/// A player below 0 life, as Platinum Angel keeps one, still pays what costs no
+/// life: the check for life payments reads what the payment pays, so a total of
+/// nothing is never more than the player has.
+#[test]
+fn a_payment_of_no_life_is_payable_below_zero_life() {
+    let mut game = setup_two_player_game();
+    game.enable_audit();
+    game.players[0].life_total = -3;
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    let costs = [Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf];
+
+    let answers = test_dp();
+    game.plan_payment(&costs, 0, bears, &ActionContext::paying_cost(&answers, 0, bears)).expect("no life in it");
+}
+
 /// Two life payments each pass CR 118.3's check and together are more than
 /// the player has, so no order pays them. Refused as it is planned, since
 /// partial payments are not allowed: no question, no life lost, nothing moved.

@@ -398,7 +398,7 @@ impl GameState {
             return Ok(());
         }
         let life: u64 = plan.ordered.iter().map(|cost| if let Cost::PayLife(n) = cost { *n } else { 0 }).sum();
-        if self.players[player].life_total < life as i64 {
+        if life > 0 && self.players[player].life_total < life as i64 {
             return Err(format!("No order pays {:?}: {life} life in all", plan.ordered));
         }
         let parts: Vec<Part> =

@@ -274,10 +274,14 @@ impl DecisionProvider for Replay<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cards::printings::{grizzly_bears, savannah_lions};
     use crate::cards::registry::CardRegistry;
     use crate::engine::priority::PriorityResult;
-    use crate::test_support::{put_in_hand, setup_two_player_game};
+    use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
+    use crate::types::costs::Cost;
+    use crate::types::effects::ObjectFilter;
     use crate::types::ids::ObjectId;
+    use crate::ui::choice_types::CostPart;
     use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
     /// A replay of one line, player 0's answer to `kind` where `game` stands.

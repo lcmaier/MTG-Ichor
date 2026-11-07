@@ -1127,51 +1127,37 @@ announcement cannot state". The dev GUI PR after it, #312, reads the shares.
 
 ### `orders-the-cr-hands-a-player` — the orders the CR hands a player — ✅ landed 2026-11-06
 
-One PR, and past the band's top (`fuzz-record.md`'s block has the sizes): what it took from later rows is below.
-- **CR 601.2h's order** (`engine::payment_order`): every `Cost`, `AmountExpr`,
-  `Condition`, `ObjectFilter` and `EffectModification` arm states what it reads
-  or changes in a match with no wildcard. Asked after every other choice of the
-  payment, of the parts that do not commute; the rest keep `payment_order_rank`'s
-  place, merged around the answer.
-- **CR 613.7m's order** (`engine::simultaneous_timestamps`): a batch's stamps dealt
-  back out once it has performed, in APNAP order, each player's in the order of
-  their choice where a timestamp is read.
-- **6b**: the prompt elided, the match over `CostChange` the guard, `AutoPayer`
-  deleted (item 165, ahead of its slot). `ScryOrder` is `OrderLibraryCards`.
-- **The audits**: `audit_payment_orders` and `audit_entry_orders`, each with a test
-  that it fails on a false premise. The fixtures are in `CASTABLE`, so CI's
-  fixture sitting plays the question under random answers.
+One PR, past the band's top (`fuzz-record.md`'s block), for what it took from later rows.
+- **CR 601.2h's order** (`engine::payment_order`): every `Cost`, `AmountExpr`, `Condition`,
+  `ObjectFilter` and `EffectModification` arm states what it reads or changes in a match
+  with no wildcard. Asked after the payment's other choices, of the parts that do not
+  commute; the rest keep `payment_order_rank`'s place, merged around the answer.
+- **CR 613.7m's order** (`engine::simultaneous_timestamps`): a batch's stamps dealt back
+  out once it has performed, in APNAP order, each player's in the order of their choice
+  where a timestamp is read.
+- **6b**: the prompt elided, the match over `CostChange` its guard, `AutoPayer` deleted
+  (item 165, ahead of its slot). `ScryOrder` is `OrderLibraryCards`.
+- **The audits**: `audit_payment_orders` and `audit_entry_orders`, each with a test that
+  it fails on a false premise. The fixtures are in `CASTABLE`, so CI's fixture sitting
+  plays the question under random answers.
 
-Seven places it differs from decision 6's words:
-- **Parts are read by more than parts.** The decision's reader is a moved object's
-  characteristics. Two more are built, since each changes a game no part reads:
-  an ability watching a part's event whose "if" reads what another part changed,
-  and an ability of a moved object, which sees an event only if it came first.
-- **A part names what pays it.** The decision named a part by its kind and whole
-  cost, which leaves its filter out, so "sacrifice an artifact" and "sacrifice a
-  creature" read alike and a replay by words could swap them. The order is asked
-  after the sacrifice is chosen, so `CostPart` carries the objects that pay it.
-- **No order completing is a refusal, not a question.** Two parts that chose one
-  object, or life payments together past the player's total, fail as the plan is
-  made, with nothing paid. So what the plan forces ahead of a move is only what
-  needs its object there, and a {T} hasty by the permanent sacrificed.
-- **What it took from later rows.** Omnath needed the pool as a walk input, and
-  Momentous Fall needed item 30's sacrifice with `ValueOf`'s `PaidWith` word, in
-  #295's shape. Neither was in this row's sizing.
-- **"The orders that complete" over `choose_ordering`** cannot be offered as a list
-  where a forced edge falls among the parts asked, so such an answer is refused,
-  naming the part it leaves unpaid, and asked again
-  (`Rejection::OrderLeavesACostUnpaid`). Forked Reliquary is that board.
-- **Asked after the batch performs, not before.** The rows an object registered are
-  the effects it generates, so the question is exact, and no record, zone or
-  graveyard moves. Narrower than the decision, too: objects whose rows reach only
-  themselves never meet, so they are not asked.
-- **Roles have no arm.** Every printed Role generates a continuous effect, so the
-  row check asks for them (item 409 owns CR 303.7a's state-based action).
-- **No test over every entry batch.** `Primitive::CreateToken` is one definition,
-  alike by construction, so the only registered route to distinct arrivals is the
-  until-returns batch: `--census` read it, and asked nothing over 600 audited games
-  of every registered card.
+Where it differs from decision 6's words:
+- **Parts are read by more than parts.** Beside a moved object's characteristics: an
+  ability watching a part's event whose "if" reads what another part changed, and an
+  ability of a moved object, which sees an event only if it came first.
+- **A part names what pays it.** A cost's words leave its filter out, so two sacrifices
+  can read alike and a replay by words could swap them. `CostPart` carries the objects.
+- **No order completing is a refusal, not a question**: two parts that chose one object,
+  or life payments past the player's total, fail as the plan is made, with nothing paid.
+- **What it took from later rows**: the pool as a walk input, and item 30's sacrifice
+  with `ValueOf`'s `PaidWith` word, in #295's shape.
+- **A forced edge among the parts asked** cannot be offered through `choose_ordering`, so
+  such an answer is refused and asked again (`Rejection::OrderLeavesACostUnpaid`).
+- **Asked after the batch performs**, so a row an object registered is the effect it
+  generates, and no record or zone moves. Rows reaching only their object are not asked.
+- **Roles have no arm**: each generates a continuous effect, so the row check asks (item
+  409 owns CR 303.7a). **No test over every entry batch**: `CreateToken` is one definition,
+  so distinct arrivals come only from until-returns, and `--census` read none asked.
 
 ## 6. Found while designing
 

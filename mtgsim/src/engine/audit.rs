@@ -95,9 +95,11 @@ pub(crate) fn permanents_as_they_are(game: &GameState) -> Frames {
 /// [`assert_shortcut_agrees`]' check for what objects are, which reads every
 /// characteristic an object has.
 pub(crate) fn assert_frames_agree(site: &str, question: impl FnOnce() -> String, gated: &Frames, everything: &Frames) {
+    let differs = |one: &Frames, other: &Frames, id: &ObjectId| one.get(id) != other.get(id);
     // ORDER-FREE: `assert_shortcut_agrees` sorts what it is handed.
-    let differ = |one: &Frames, other: &Frames| one.iter().filter(|(id, frame)| other.get(id) != Some(frame)).map(|(id, _)| id.to_string()).collect::<Vec<_>>();
-    assert_shortcut_agrees(site, question, differ(gated, everything), differ(everything, gated));
+    let in_one_only_or_unlike: Vec<String> =
+        gated.keys().chain(everything.keys()).filter(|id| differs(gated, everything, id)).map(ObjectId::to_string).collect();
+    assert_shortcut_agrees(site, question, in_one_only_or_unlike, Vec::new());
 }
 
 /// Panic unless a shortcut's answer is the one with the shortcut off: at
