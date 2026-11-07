@@ -28,7 +28,7 @@
 //! that needs one — §11 item 3, and the reason
 //! `ReplacementClass::SelfReplacement` currently has a step and no producer.
 
-use crate::engine::actions::{ActionContext, GameAction, GameActionKind};
+use crate::engine::actions::{ActionContext, GameAction, GameActionKind, GameActionKindMask};
 use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -237,8 +237,8 @@ fn gather_sweeping(
     // The entering permanent is not on the battlefield sweep, so this is the
     // gate leg `CLAUDE.md` demands, ahead of the fast path (exact, one walk).
     // Spliced in after the sweep: oldest-first (CR 613.7) puts it last, having
-    // no timestamp yet; simultaneous entries (CR 613.7m) are `codebase-state.md`
-    // item 4.
+    // no timestamp yet; CR 613.7m settles a batch's once it has performed
+    // (`engine::simultaneous_timestamps`).
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
         // Its abilities as it would exist on the battlefield (CR 614.12's frame,
@@ -474,6 +474,17 @@ fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[O
     });
     debug_assert!(asked.windows(2).all(|pair| pair[0].0 < pair[1].0), "two permanents share a CR 613.7 timestamp");
     asked.into_iter().map(|(_, candidate)| candidate).collect()
+}
+
+/// The permanents that may have a replacement ability watching a proposal of
+/// any of `kinds`, by the gather's own legs, in CR 613.7 order.
+pub(crate) fn replacement_watchers(game: &GameState, kinds: GameActionKindMask) -> Vec<ObjectId> {
+    let mut watchers = Vec::new();
+    for kind in GameActionKind::ALL.iter().copied().filter(|kind| kinds.contains(*kind)) {
+        let named = named_replacement_carriers(game, kind);
+        watchers.extend(battlefield_candidates(game, kind, &named).into_iter().filter(|found| found.abilities_could_answer).map(|found| found.id));
+    }
+    watchers
 }
 
 /// The objects that have a replacement ability only because a continuous

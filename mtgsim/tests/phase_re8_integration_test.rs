@@ -51,7 +51,7 @@ const PICK_DISCARD: ChoiceKind = ChoiceKind::Discard { source: None };
 /// The scry's "which go on the bottom" prompt.
 const PICK_SCRY: ChoiceKind = ChoiceKind::Scry { source: None, n: 0 };
 /// CR 701.22a's "in any order", either group.
-const ORDER_SCRY: ChoiceKind = ChoiceKind::ScryOrder { source: None, bottom: false };
+const ORDER_SCRY: ChoiceKind = ChoiceKind::OrderLibraryCards { source: None, bottom: false };
 /// CR 616.1's choice between two applicable effects.
 const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
 /// CR 616.1's "you may … instead" prompt.

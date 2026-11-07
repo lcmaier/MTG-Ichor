@@ -44,6 +44,8 @@ const SUBJECT_LESS: &[(&str, &str)] = &[
     ("ChooseReplacementEffect", "CR 616.1"),
     // Several triggers' sources at once, as `DeclareAttackers` has attackers.
     ("OrderTriggers", "CR 603.3b"),
+    // Several objects at once, the same way.
+    ("OrderSimultaneousEntries", "CR 613.7m"),
 ];
 
 /// One prompt as the engine raised it: what `subject()` said, and whether the
@@ -232,6 +234,8 @@ fn every_variant_decides_its_subject() {
         },
         ChoiceKind::GenericManaAllocation { spell_or_ability_id: id, mana_cost: ManaCost::build(&[], 2) },
         ChoiceKind::OrderCostReductions { spell_id: id },
+        ChoiceKind::OrderCostPayments { spell_or_ability_id: id },
+        ChoiceKind::OrderSimultaneousEntries { player: 0 },
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id: id, remaining_cost: ManaCost::build(&[], 1) },
         ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: id, count: 1 },
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) },
@@ -247,7 +251,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::CommanderToCommandZoneSba { commander: id },
         ChoiceKind::Discard { source: Some(id) },
         ChoiceKind::Scry { source: Some(id), n: 2 },
-        ChoiceKind::ScryOrder { source: Some(id), bottom: true },
+        ChoiceKind::OrderLibraryCards { source: Some(id), bottom: true },
         ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
         ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::Second },
         ChoiceKind::AcceptAsObjectEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
@@ -294,11 +298,13 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::CommanderToCommandZoneSba { .. } => 25,
         ChoiceKind::Discard { .. } => 26,
         ChoiceKind::Scry { .. } => 27,
-        ChoiceKind::ScryOrder { .. } => 28,
+        ChoiceKind::OrderLibraryCards { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
         ChoiceKind::AcceptAsObjectEnters { .. } => 30,
         ChoiceKind::DivideAmong { .. } => 31,
+        ChoiceKind::OrderCostPayments { .. } => 32,
+        ChoiceKind::OrderSimultaneousEntries { .. } => 33,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
-    assert_eq!(reached, (0..32).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
+    assert_eq!(reached, (0..34).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

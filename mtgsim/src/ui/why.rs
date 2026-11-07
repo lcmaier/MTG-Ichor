@@ -21,9 +21,9 @@ use crate::state::game_state::NotAnOpponent;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{EventId, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{get_effective_abilities, is_creature};
+use crate::oracle::characteristics::{get_effective_abilities, is_creature, summoning_sickness_forbids};
 use crate::oracle::legality::{can_attack, can_play_land};
-use crate::oracle::mana_helpers::{can_activate, can_activate_its_abilities, can_cast};
+use crate::oracle::mana_helpers::{can_activate, can_activate_its_abilities, can_cast, CannotActivate};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::state::trace::{RecordKind, TraceRecord};
@@ -233,6 +233,7 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
         ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
         ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id).chain(trigger.triggered_by.iter().copied()).collect(),
         ChoiceOption::Replacement(_) => option.effect_source().into_iter().collect(),
+        ChoiceOption::CostPart(part) => part.paid_with.clone(),
         // No object on the board: the existence has left.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::Action(PriorityAction::Pass)
@@ -254,6 +255,7 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
         Rejection::IllegalBlocks { blocks, .. } => {
             blocks.iter().any(|&(blocker, attacker)| names(&ChoiceOption::BlockerAttacker(blocker, attacker), about))
         }
+        Rejection::OrderLeavesACostUnpaid(_) => false,
     }
 }
 
@@ -344,6 +346,8 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::DivideAmong { .. }
             | ChoiceKind::GenericManaAllocation { .. }
             | ChoiceKind::OrderCostReductions { .. }
+            | ChoiceKind::OrderCostPayments { .. }
+            | ChoiceKind::OrderSimultaneousEntries { .. }
             | ChoiceKind::ManaAbilityWindow { .. }
             | ChoiceKind::ChooseSacrificeForCost { .. }
             | ChoiceKind::ChooseReplacementEffect { .. }
@@ -362,7 +366,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::CommanderToCommandZoneSba { .. }
             | ChoiceKind::Discard { .. }
             | ChoiceKind::Scry { .. }
-            | ChoiceKind::ScryOrder { .. }
+            | ChoiceKind::OrderLibraryCards { .. }
             | ChoiceKind::LegendRule { .. },
             _,
         ) => Vec::new(),
@@ -462,6 +466,12 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::OrderCostReductions { spell_id } => {
             (format!("the order the cost reductions apply to {} in", n(spell_id)), Some("601.2f"))
         }
+        ChoiceKind::OrderCostPayments { spell_or_ability_id } => {
+            (format!("the order {who} pays the costs of {} in", n(spell_or_ability_id)), Some("601.2h"))
+        }
+        ChoiceKind::OrderSimultaneousEntries { .. } => {
+            (format!("the objects {who} controls that arrived together and whose timestamps can change the game"), Some("613.7m"))
+        }
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } => {
             (format!("the mana abilities {who} can activate to pay for {}", n(spell_or_ability_id)), Some("601.2g"))
         }
@@ -513,7 +523,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::Discard { .. } => (format!("the cards in {who}'s hand"), Some("701.9b")),
         ChoiceKind::Scry { .. } => (format!("the cards {who} is looking at, any of which go to the bottom"), Some("701.22a")),
-        ChoiceKind::ScryOrder { bottom, .. } => {
+        ChoiceKind::OrderLibraryCards { bottom, .. } => {
             let pile = if *bottom { "bottom" } else { "top" };
             (format!("the order of the cards going on the {pile}"), Some("701.22a"))
         }
@@ -723,9 +733,12 @@ fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> V
     mana.iter()
         .filter(|ability| !window_offers(question, id, ability.id))
         .filter_map(|ability| {
-            let reason = game.can_pay_costs(ability.costs(), player, id).err()?;
             let action = format!("To activate “{}”", ability.rules_text.words);
-            Some(refusal(action, cannot_pay(game, player, id, &reason)))
+            if summoning_sickness_forbids(game, id, ability.costs()) {
+                return Some(refusal(action, cannot_activate(game, player, id, ability, &CannotActivate::SummoningSick)));
+            }
+            let reason = game.can_pay_costs(ability.costs(), player, id).err()?;
+            Some(refusal(action, cannot_pay(player, &reason)))
         })
         .collect()
 }
@@ -778,9 +791,9 @@ pub fn not_offered_yet(game: &GameState, question: &OpenQuestion) -> Vec<NotOffe
             // the rest is asked on its own.
             let short = game.can_pay_costs(ability.costs(), player, source) == Err(CannotPay::PoolShort);
             let rest: Vec<Cost> = ability.costs().iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
-            if short && game.can_pay_costs(&rest, player, source).is_ok() {
+            if short && !summoning_sickness_forbids(game, source, ability.costs()) && game.can_pay_costs(&rest, player, source).is_ok() {
                 let option = ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability.id));
-                let (reason, rule) = cannot_pay(game, player, source, &CannotPay::PoolShort);
+                let (reason, rule) = cannot_pay(player, &CannotPay::PoolShort);
                 not_yet.push(NotOfferedYet { source, label: option_label(game, &option), reason, rule });
             }
         }

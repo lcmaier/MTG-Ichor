@@ -148,6 +148,7 @@ not (§3); `mod.rs` files declare and re-export only
 | `engine/combat/` | CR 506–511: `steps.rs` the combat steps; `validation.rs` attack and block legality; `resolution.rs` damage assignment; `keywords.rs` first strike, double strike, trample |
 | `engine/targeting.rs` | CR 115 and 601.2c: target instances, validation, the selection-side `object_matches_filter` |
 | `engine/costs.rs`, `engine/mana.rs` | CR 601.2h/602.2b payment; CR 605 mana abilities |
+| `engine/payment_order.rs`, `engine/simultaneous_timestamps.rs` | the two orders the CR hands a player: CR 601.2h's payment, CR 613.7m's timestamps, each asked only where the orders' outcomes differ, and each's audit |
 | `engine/zone_function.rs`, `engine/keywords.rs`, `engine/trace_records.rs` | CR 113.6's `functions_in`; lifelink and deathtouch on damage; every trace record's shape |
 | `state/game_state.rs` | `GameState` and `StackEntry`; timestamps and `battlefield_ids_ordered`; `perform_entry`, `register_static_effects` and the printed-source sets |
 | `state/battlefield.rs`, `state/player.rs` | `PermanentState` and its one constructor for an entry; `PlayerState` |
@@ -164,7 +165,7 @@ not (§3); `mod.rs` files declare and re-export only
 | `oracle/mana_supply.rs`, `oracle/x_values.rs` | the mana check: a player's `ManaSupply` and whether it pays a cost (CR 601.2g–h's existence half); the values of X a caster may announce (CR 107.3a, 601.2b) |
 | `types/` | the type surface: `effects.rs`, `replacement.rs`, `restriction.rs`, `triggers.rs`, `cost_modification.rs`, `costs.rs`, `zones.rs`, `ids.rs`, `card_types.rs`, `colors.rs`, `mana.rs`, `keywords.rs`, `keyword_actions.rs`, `history.rs`; `mod.rs` holds `counted_enum!` |
 | `ui/decision.rs`, `ui/ask.rs`, `ui/choice_types.rs` | the five-method `DecisionProvider` (`pick_n`, `pick_number`, `allocate`, `choose_ordering`, and the defaulted `seat_mode`); the typed `ask_*` bridge, where every prompt is validated and traced, and every forced one answered unasked and recorded; `ChoiceKind` |
-| `ui/random.rs`, `ui/replay.rs`, `ui/mana_window_stop.rs`, `ui/auto_payer.rs`, `ui/auto_yield.rs`, `ui/auto_order_triggers.rs`, `ui/full_control.rs`, `ui/display.rs` | two providers (random, a decision log's replay), four decorators, the full-control switch above a person's stack, the text formatters |
+| `ui/random.rs`, `ui/replay.rs`, `ui/mana_window_stop.rs`, `ui/auto_yield.rs`, `ui/auto_order_triggers.rs`, `ui/full_control.rs`, `ui/display.rs` | two providers (random, a decision log's replay), three decorators, the full-control switch above a person's stack, the text formatters |
 | `ui/why.rs`, `ui/what_happened.rs`, `ui/waiting.rs` | the engine's answers a client draws: why an object is the way it is or an option is not offered; an event's why, read from a replay's trace; what the game holds for a later event or turn |
 | `cards/registry.rs`, `cards/random_deck.rs`, `cards/authoring/` | the registry and the two pools; the fuzz harness's decks; the card-authoring words, `triggers.rs` today |
 | `cards/*.rs` | card definitions, filed by the phase that first needed them |

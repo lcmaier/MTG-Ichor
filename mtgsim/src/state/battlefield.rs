@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayer, PlayerId};
 use crate::types::effects::CounterType;
 
 /// The counters of one kind on a permanent, with the timestamp CR 613.7c gives
@@ -236,7 +236,9 @@ pub struct CastFacts {
 }
 
 /// The decisions about a spell's costs that CR 707.10 copies with it, the way
-/// it copies X: the additional costs paid and the alternative cost chosen.
+/// it copies X: the additional costs paid, the alternative cost chosen, and
+/// what the payment used ("it uses the objects used to pay the costs of the
+/// original").
 #[derive(Debug, Clone, PartialEq)]
 pub struct CostChoices {
     /// Kicked, bargained (CR 702.33d, 702.166b) — every additional cost paid,
@@ -244,10 +246,26 @@ pub struct CostChoices {
     pub additional: Vec<crate::types::costs::AdditionalCost>,
     /// Evoked, prowled, dashed (CR 118.9).
     pub alternative: Option<crate::types::costs::AlternativeCost>,
+    /// What CR 601.2h's payment used, in the order it was paid.
+    pub paid_with: Vec<PaidWith>,
 }
 
 impl CostChoices {
-    pub const NONE: CostChoices = CostChoices { additional: Vec::new(), alternative: None };
+    pub const NONE: CostChoices = CostChoices { additional: Vec::new(), alternative: None, paid_with: Vec::new() };
+
+    /// What the payment used by `act`.
+    pub fn used_by(&self, act: crate::types::costs::PaymentAct) -> impl Iterator<Item = ObjectOrPlayer> + '_ {
+        self.paid_with.iter().filter(move |paid| paid.act == act).map(|paid| paid.used)
+    }
+}
+
+/// One thing a payment used, and what the payment did with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaidWith {
+    /// The existence the payment used, whose last known information answers
+    /// once the move has ended it (CR 400.7, 608.2h).
+    pub used: ObjectOrPlayer,
+    pub act: crate::types::costs::PaymentAct,
 }
 
 #[derive(Debug, Clone)]

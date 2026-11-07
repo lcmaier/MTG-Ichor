@@ -105,8 +105,8 @@ fn on_the_review_board_one_five_color_land_does_not_pay_for_the_bears() {
 
 /// CR 601.2g's window offers the mana abilities whose costs can be paid, and
 /// says of the rest which cost cannot (`mana-architecture.md` §3.13): a
-/// tapped Mountain, and a creature the Hierophants' grant cannot tap the turn
-/// it arrived (CR 302.6).
+/// tapped Mountain, and a creature the Hierophants' grant cannot begin to
+/// activate the turn it arrived (CR 602.5a).
 // COVERS-PARTIAL: ATOM-118.3-002
 #[test]
 fn the_window_says_why_each_mana_ability_is_not_offered() {
@@ -131,8 +131,8 @@ fn the_window_says_why_each_mana_ability_is_not_offered() {
     assert!(has(&mountain, tapped, Some("118.3")), "{mountain:#?}");
     let hierophants = asked("Citanul Hierophants");
     let sick = "To activate “{T}: Add {G}.”: it has not been under Player 0's control since their most recent turn began, \
-                so it can't pay {T} or {Q}.";
-    assert!(has(&hierophants, sick, Some("302.6")), "{hierophants:#?}");
+                so an ability with {T} or {Q} can't begin to be activated.";
+    assert!(has(&hierophants, sick, Some("602.5a")), "{hierophants:#?}");
     let forest = asked("Forest");
     assert!(has(&forest, "Offered to Player 0:", None) && !has(&forest, "Never offered to Player 0:", None), "{forest:#?}");
 }
@@ -298,12 +298,12 @@ fn each_ability_says_why_it_is_not_offered() {
     };
     first("Five-Color Land Fixture", CannotActivate::ManaAbility);
     first("Temple Bell", CannotActivate::Cost(CannotPay::AlreadyTapped));
-    first("Merfolk Thaumaturgist", CannotActivate::Cost(CannotPay::SummoningSick));
+    first("Merfolk Thaumaturgist", CannotActivate::SummoningSick);
     first("Elvish Warmaster", CannotActivate::ManaShort);
     first("Words of Worship", CannotActivate::NotYours);
     let anthem = find(&game, "Glorious Anthem");
     let abilities = get_effective_abilities(&game, anthem);
-    assert_eq!(can_begin_to_activate(&game, 0, &abilities[0]), Err(CannotActivate::NotActivated));
+    assert_eq!(can_begin_to_activate(&game, 0, anthem, &abilities[0]), Err(CannotActivate::NotActivated));
 
     let bell = WhyAbout::Object(find(&game, "Temple Bell"));
     let words = "To activate “{T}: Each player draws a card.”: it is already tapped, so it can't be tapped to pay {T}.";

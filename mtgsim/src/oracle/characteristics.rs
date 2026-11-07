@@ -13,6 +13,7 @@ use crate::objects::card_data::AbilityDef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
+use crate::types::costs::Cost;
 use crate::types::effects::ObjectFilter;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
@@ -291,14 +292,29 @@ pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
 /// point — so an opening-hand Leyline is not sick, while anything that arrived
 /// after the game began is, until its controller's first turn.
 pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
+    under_the_summoning_sickness_rule(game, id).is_some_and(|chars| !chars.keyword_flags.contains(&KeywordFlag::Haste))
+}
+
+/// Whether the summoning sickness rule forbids beginning to activate an
+/// ability of `id`'s whose cost is `costs` (CR 602.5a): one with {T} or {Q}
+/// in it, on a creature with summoning sickness. A prohibition, asked as the
+/// activation begins (CR 602.5) and never again: the {T} itself needs only
+/// an untapped permanent (CR 118.3), so haste that leaves during the
+/// payment, sacrificed with what grants it, refuses nothing.
+pub fn summoning_sickness_forbids(game: &GameState, id: ObjectId, costs: &[Cost]) -> bool {
+    costs.iter().any(Cost::is_tap_or_untap_symbol) && has_summoning_sickness(game, id)
+}
+
+/// `id`'s characteristics, when it is a creature on the battlefield its
+/// controller has not controlled continuously since their most recent turn
+/// began (CR 302.6).
+fn under_the_summoning_sickness_rule(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
     if !game.battlefield.contains_key(&id) {
-        return false;
+        return None;
     }
-    let Some(chars) = compute_characteristics(game, id) else {
-        return false;
-    };
+    let chars = compute_characteristics(game, id)?;
     if !chars.types.contains(&CardType::Creature) {
-        return false;
+        return None;
     }
     let sick = match game.most_recent_turn_began(chars.controller) {
         // Control gained *during* that turn is not control since it began, so
@@ -306,7 +322,7 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
         Some(began) => chars.control_since_turn >= began,
         None => chars.control_since_turn > 0,
     };
-    sick && !chars.keyword_flags.contains(&KeywordFlag::Haste)
+    sick.then_some(chars)
 }
 
 /// Get the effective colors of a game object after applying Layer 5 effects.

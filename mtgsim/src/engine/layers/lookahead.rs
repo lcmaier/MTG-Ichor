@@ -363,7 +363,7 @@ mod tests {
             id: card,
             default_controller: 0,
             cast: Some(CastFacts { by: 0, from: Zone::Hand, mana_spent: ManaSpent::NONE }),
-            cost_choices: CostChoices { additional: vec![AdditionalCost::Bargain], alternative: None },
+            cost_choices: CostChoices { additional: vec![AdditionalCost::Bargain], ..CostChoices::NONE },
             x_value: Some(3),
             chosen_targets: Vec::new(),
             identity: None,

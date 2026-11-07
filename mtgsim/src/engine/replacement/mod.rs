@@ -32,7 +32,7 @@ mod pipeline;
 
 pub(crate) use gather::{
     applies_to_mana_production, chooser_for, functioning_replacements, gather, pattern_watches, replacement_exists,
-    replacements_of, set_affects, subject_of,
+    replacement_watchers, replacements_of, set_affects, subject_of,
 };
 pub use gather::CounterEffectKind;
 pub(crate) use instance::AppliedReplacements;

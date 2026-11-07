@@ -119,6 +119,9 @@ pub(crate) enum GatedWalkInput {
     TurnNumber,
     /// Which combat of the turn is the latest: "this combat".
     CombatCount,
+    /// What is in each player's mana pool (CR 106.4): "for each unspent green
+    /// mana you have".
+    ManaPools,
     /// The history log's rows of one kind (`state::history_log`), noted by
     /// the lookup that scans them: "creatures that attacked this turn".
     Rows(RowKind),
@@ -133,13 +136,14 @@ impl GatedWalkInput {
             GatedWalkInput::Combat => 2,
             GatedWalkInput::TurnNumber => 3,
             GatedWalkInput::CombatCount => 4,
-            GatedWalkInput::Rows(kind) => 5 + kind as u32,
+            GatedWalkInput::ManaPools => 5,
+            GatedWalkInput::Rows(kind) => 6 + kind as u32,
         };
         1 << place
     }
 }
 
-const _: () = assert!(5 + RowKind::COUNT <= u32::BITS as usize);
+const _: () = assert!(6 + RowKind::COUNT <= u32::BITS as usize);
 
 /// A set of [`GatedWalkInput`]s: what one walk read.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

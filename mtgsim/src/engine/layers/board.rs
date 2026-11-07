@@ -819,8 +819,9 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
         AmountExpr::CardTypesAmong(_) => out.members |= Channels::TYPES,
         AmountExpr::AffectedManaValue => out.members |= Channels::MANA_COST,
         AmountExpr::Plus(inner, _) => amount_reads(inner, out, you_channel),
-        // The counts are off `GameState`; "you" is the source's controller.
-        AmountExpr::History(..) => out.source |= you_channel,
+        // The counts and the pools are off `GameState`; "you" is the source's
+        // controller.
+        AmountExpr::History(..) | AmountExpr::UnspentMana(_) => out.source |= you_channel,
         // Every arm left is a number or one `evaluate_amount` refuses, and
         // each is listed so a new leaf is a compile error here, as a new
         // `Condition` is in `condition_reads`.
@@ -838,9 +839,9 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
         | AmountExpr::DiscardedThisWay
         | AmountExpr::ReplacedAmount
         | AmountExpr::Multiply(..)
-        | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
-        | AmountExpr::StartingLifeTotal => {}
+        | AmountExpr::StartingLifeTotal
+        | AmountExpr::ValueOf(..) => {}
     }
 }
 

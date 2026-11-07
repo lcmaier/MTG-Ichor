@@ -47,7 +47,7 @@ use crate::events::cause::GeneratedBy;
 use crate::engine::triggers::could_be_a_mana_ability;
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::board::permanents_controlled_by;
-use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities, has_summoning_sickness};
+use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities, has_summoning_sickness, summoning_sickness_forbids};
 use crate::state::game_state::GameState;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, ObjectFilter, Primitive};
@@ -243,7 +243,7 @@ impl ManaSupply {
             for ability in abilities.iter() {
                 match mana_ability_cost_of(ability) {
                     ManaAbilityCost::SpendsItsTapOrItself { taps, sacrifices } => {
-                        if game.can_pay_costs(ability.costs(), player, id).is_err() {
+                        if !can_begin_and_pay(game, ability.costs(), player, id) {
                             continue;
                         }
                         let Some(base) = mana_production_of(game, &ability.effect, id, player) else { continue };
@@ -270,7 +270,7 @@ impl ManaSupply {
                     }
                     ManaAbilityCost::MultipliesThePool { input } => {
                         let Some(input) = input.demand() else { continue };
-                        if game.can_pay_costs(&[Cost::TapSelf], player, id).is_err() {
+                        if !can_begin_and_pay(game, &[Cost::TapSelf], player, id) {
                             continue;
                         }
                         // One mana left in the pool, and what the ability adds for it,
@@ -499,7 +499,7 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
     let mut sources = Vec::new();
     for (id, abilities) in controlled_mana_abilities(game, player_id) {
         for ability in abilities.iter() {
-            if game.can_pay_costs(ability.costs(), player_id, id).is_err() {
+            if !can_begin_and_pay(game, ability.costs(), player_id, id) {
                 continue;
             }
             for produces in mana_types_made(game, &watchers, ability, id, player_id) {
@@ -524,7 +524,7 @@ pub fn is_pool_multiplier(game: &GameState, permanent: ObjectId, ability: Abilit
 pub fn controls_a_pool_multiplier(game: &GameState, player: PlayerId) -> bool {
     controlled_mana_abilities(game, player).any(|(id, abilities)| {
         abilities.iter().any(|a| matches!(mana_ability_cost_of(a), ManaAbilityCost::MultipliesThePool { .. }))
-            && game.can_pay_costs(&[Cost::TapSelf], player, id).is_ok()
+            && can_begin_and_pay(game, &[Cost::TapSelf], player, id)
     })
 }
 
@@ -618,11 +618,19 @@ impl ManaAbilityWindowOffer {
                 CostRecheck::WhileUntapped { sick } => {
                     !sick && game.battlefield.get(&offered.permanent).is_some_and(|entry| !entry.tapped)
                 }
-                CostRecheck::Costs(costs) => game.can_pay_costs(costs, self.player, offered.permanent).is_ok(),
+                CostRecheck::Costs(costs) => can_begin_and_pay(game, costs, self.player, offered.permanent),
             })
             .map(|offered| (offered.permanent, offered.ability))
             .collect()
     }
+}
+
+/// Whether a mana ability whose cost is `costs` can be activated now as far
+/// as its cost goes: paid (CR 118.3), and begun, which the summoning sickness
+/// rule can forbid (CR 602.5a). Either refuses it, so the resources go first:
+/// a tapped source is refused without its characteristics being read.
+fn can_begin_and_pay(game: &GameState, costs: &[Cost], player: PlayerId, source: ObjectId) -> bool {
+    game.can_pay_costs(costs, player, source).is_ok() && !summoning_sickness_forbids(game, source, costs)
 }
 
 /// An ability the window offers: what it has always offered, one that makes

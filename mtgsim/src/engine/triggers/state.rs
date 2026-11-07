@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::dispatch::{visible_to_all, OffBattlefieldLegs};
+use super::dispatch::visible_to_all;
 use super::audit::assert_agree;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
@@ -92,11 +92,7 @@ impl GameState {
     /// off it, the objects a row naming them puts one on, and the zones a
     /// `Filter` row does. In CR 613.7 order, as the dispatcher's candidates.
     fn state_trigger_candidates(&self) -> Vec<ObjectId> {
-        let gate = self.trigger_gate(EventKindMask::of(EventKind::BoardState), Vec::new(), OffBattlefieldLegs::FilteredByKind);
-        if gate.is_empty() {
-            return Vec::new();
-        }
-        gate.candidates()
+        self.objects_that_may_watch(EventKindMask::of(EventKind::BoardState))
     }
 
     /// Each of `id`'s state triggers that triggers now: one that functions

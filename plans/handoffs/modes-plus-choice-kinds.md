@@ -29,14 +29,9 @@ merges.
   a division's shares on the stack and a counter's words beside its row, item
   362 closed.
 - `board-scale`, off the route, is handed over (#313): items 376 to 378.
-- Next: `tarkir-dragonstorm-decks`' gap census (the owner, 2026-11-06, #314),
-  then `orders-the-cr-hands-a-player` (decision 6 and 6b), on its own branch.
+- `tarkir-dragonstorm-decks`' gap census landed (#315).
+- `orders-the-cr-hands-a-player` is handed over: its as-built is in
+  `choices-architecture.md`, items 79, 165 and "Before card breadth" 4 closed.
 - `mana-provenance`'s design comes before `costs-and-choices-at-resolution`
   (the owner, 2026-11-06, #314).
-
-**Traps, for `orders-the-cr-hands-a-player`:**
-- 6b drops `OrderCostReductions`' prompt: a fixture migration (9 lines in 8
-  test files) and a moved random stream, so the A/B runs three arms
-  (`choices-architecture.md`'s "Fuzz A/B, predicted per PR").
-- Decision 6's audit pays every order on a clone, so it is a `--audit` path
-  in `fuzz_games` and a test over every registered cost, never a default.
+- Next: `modal-spells-and-abilities`, on its own branch.

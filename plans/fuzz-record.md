@@ -202,6 +202,77 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-06 for `orders-the-cr-hands-a-player`, the orders the rules hand a player**
+(`choices/orders-the-cr-hands-a-player`, PR #316: items 30, 79 and 165). No registered card
+changed and neither table's pool moved; ten fixtures joined `CASTABLE`. One
+`close_out.py` sitting of three arms, because dropping `OrderCostReductions`' prompt
+moves the random stream on purpose: **sixb** `b421453b`, the commit that drops it and
+does nothing else, as the baseline; **main** `8744a32a`, to show what that commit
+moved; **shipped** `3a32b59d`, the last code commit, read against sixb. The budget
+reads shipped against sixb, whose counters agree. No card registers here, so the
+brief's middle arm, "the new cards alone", has nothing in it, and this one stands in.
+
+**Predictions, before any arm ran**:
+- main against sixb: only games that met two cost reductions differ, by the prompts
+  6b removed. `OrderCostReductions` falls to 0 on sixb;
+- shipped against sixb: every gameplay row identical, save a game where one batch
+  stamped two controllers' objects, whose battlefield order the APNAP deal changes.
+  Neither new question asked on either pool;
+- instructions per decision under 2.5 points;
+- no growth shape past ×4.35. All held.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, main vs sixb, performance / stress | **IDENTICAL** / differ: `Damage events`, `Total damage` | **IDENTICAL** / differ, most rows |
+| gameplay rows, shipped vs sixb, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `OrderCostReductions` a game on stress, main → sixb → shipped | 0.01 → 0 → 0 | 0.03 → 0 → 0 |
+| audit, shipped, dispatches agreed, performance / stress | 178,133 / 173,622 | 411,795 / 435,798 |
+| errors, panics, turn limits, every arm, performance / stress | 0 / 0 | 0 / 0 |
+| `Memo hits`, sixb → shipped, performance / stress | 51,402 → 51,403 / 57,533 → 57,535 | 221,246 → 221,248 / 249,843 → 249,849 |
+| instructions / decision, shipped vs sixb, callgrind, 20 games at seed 12345, performance | | 0.8437 M → 0.8449 M, **+0.13%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**`Memo hits` is the only counter to move**, by up to six a game, which is the size of
+the payment order's new reads of a multi-part cost. Those reads were not traced site by
+site. The function rows past half a point are `advance_turn` to `run_turn_steps`, 87.2 K
+and 87.8 K, and `random_deck` and a `drop_glue`, each appearing in one arm only: a
+different inlining of the same work, read from the sizes.
+
+**The question itself is played only by the fixtures.** No pooled card's cost has two
+parts that fail to commute, so both tables read zero of either new kind; 200 games of
+each stress arm confirm it. Under `--audit` in `release-checked`, 100 games a sitting:
+
+| `--pool fixtures` | Errors, panics | Turn limits | `OrderCostPayments` a game |
+|---|---|---|---|
+| 2 seats | 0, 0 | 0 | 0.17 |
+| 4 seats | 0, 0 | 1 | 0.46 |
+
+The turn limit is one long game under Godhead of Awe Fixture, whose creatures shrink to
+1/1 and which ends in decking; read turn by turn, and not a loop. `OrderSimultaneousEntries`
+read zero here too: a batch of distinct arrivals comes from until-returns alone, so
+that question is proved by the integration tests and not by play.
+
+**This close-out was the third.** The first read shipped IDENTICAL to sixb. The
+pre-review's fixes then moved four-seat stress, and game-by-game dumps found one of those
+fixes refusing every cost below 0 life under Platinum Angel, seeds 12366 and 12539. The
+table above is after that fix, and it is also the first run of `assert_frames_agree`
+once its bite test had shown it could fail.
+
+**Rerun after the owner's first review round (2026-11-07), on `165f71ef`:**
+summoning sickness moved from the {T} and {Q} costs to where an activation begins
+(CR 602.5a). Predicted IDENTICAL and a budget within 0.2 points of +0.13%. Gameplay
+held: shipped against sixb IDENTICAL on both pools at both seats, the checked sittings
+as above. The budget first read **+0.35%** with `Memo hits` up 3%: the mana supply read
+every tapped land's characteristics for a sickness its tapped status had settled.
+Asking the resources first took it to **+0.24%** (0.8437 M → 0.8457 M), `Memo hits`
+up 31 to 195 a game, the activation check reading sickness ahead of the costs.
+
+**Size**: 2,657 added and 550 deleted in `mtgsim/src` and `mtgsim/tests`, 3,207 touched,
+past the band's top. The design sized 600–1,100. What it did not size: the pool as a walk
+input, the paid record and `ValueOf` with item 30's sacrifice, three watchers' readers in
+the commute check, and the exhaustive `PaymentChannels` matches over every `Cost`, `AmountExpr`,
+`Condition`, `ObjectFilter` and `EffectModification` arm.
+
 **Re-recorded 2026-11-05 for `board-scale`, what a board can hold**
 (`engine/board-scale`, PR #313: items 376, 377 and 378). No pool changed. One
 `close_out.py` sitting against **main** `20b3ceb2`: **engine** `35deb5ec`, the

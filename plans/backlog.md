@@ -454,7 +454,7 @@ each re-answers **one named question at one named read**:
 | May this attack: defender, haste | 57, 3 | `can_attack`; Frenzied Saddlebrute's haste is per attack target | the permission half |
 | May this block: evasion, tapped | 15, 1 | `can_block`'s pair checks, `can_be_a_blocker` | the permission half |
 | May this be targeted: hexproof, shroud | 5 | `validate_targets`, and CR 608.2b's re-check | the permission half, its seam cut by `cant-be-targeted` |
-| May this be activated: haste, a use limit | 4, 2 | `has_summoning_sickness` at the tap and untap costs and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half, its seam cut by `cant-pay-costs` |
+| May this be activated: haste, a use limit | 4, 2 | `summoning_sickness_forbids`, once as an activation begins (CR 602.5a; never at the tap and untap costs, since #316) and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half |
 | How is this creature's damage assigned | 19 | a "may" at CR 510.1c, a choice kind no census has counted | the permission half, with its `ChoiceKind` |
 | What does this source's damage do | 2 | wither's and infect's reads (Everlasting Torment, Phyrexian Unlife) | those keywords' first cards |
 | What number does this rule read | 24, 1 | crew, saddle and station's power sum (22), Loot's and Zimone's assignment, adapt's counter check | `remaining-costs` for crew, saddle and station; each other with its mechanic |
@@ -1200,8 +1200,10 @@ mechanic rather than a migration, which is why it is here and not in
   mana component is covered — the stop that used to sit in the engine's loop
   (`codebase-state.md` main item 70) — and `ui::AutoPayer<D>` answers
   `GenericManaAllocation` (CR 601.2h) and `OrderCostReductions` (CR 601.2f).
-  Clients compose the stack they want; a person's seat takes both, `fuzz_games`
-  takes the stop alone, and `--no-auto-pay` drops it.
+  Clients compose the stack they want; `fuzz_games` takes the stop, and
+  `--no-auto-pay` dropped it. `AutoPayer` went at
+  `orders-the-cr-hands-a-player` (2026-11-06), the engine eliding the one
+  prompt it still answered.
   **The stack invariant is one decorator per `ChoiceKind`**, so composition
   commutes and stack order carries no meaning — that is what a third
   automation (priority passing, auto-block) extends rather than a scope enum
@@ -1548,8 +1550,9 @@ mechanic rather than a migration, which is why it is here and not in
   `put_on_stack.rs` asks from one. A loose grep reads 28 today because two
   test-function names in `tests/phase_rd_integration_test.rs` match `ask_…(`; count calls.
   `ChoiceKind` has **25 variants**, every one answering `subject()` since A4j
-  (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring:
-  the dev GUI runs `AutoPayer(ManaWindowStop(seat))` for a person,
+  (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring, as
+  this census read it (`AutoPayer` went at `orders-the-cr-hands-a-player`):
+  the dev GUI ran `AutoPayer(ManaWindowStop(seat))` for a person,
   `fuzz_games` runs `ManaWindowStop(Random)` behind a `MiddlewareConfig` with
   one field, and `--no-auto-pay` drops the stack. **`AutoPayer` has one
   client**, a person's seat — no test stacks it and the harness never has — so
@@ -1605,7 +1608,7 @@ mechanic rather than a migration, which is why it is here and not in
   | # | Middleware | Answers | Kind | Human / bot | Size | Status |
   |---|---|---|---|---|---:|---|
   | 1 | `ManaWindowStop` | `ManaAbilityWindow`, decline once covered | policy — declining forecloses CR 605.3a's float | toggle (`--no-auto-pay` today) / on by default | 0 | built, CM-4 |
-  | 2 | `AutoPayer` | `OrderCostReductions` (0 / 0.07 / 0.02 a game) | an elision the engine owes (rule 1, item 47's shape) | both, no toggle | −50 this PR; the decorator goes next | built, CM-4; **forced split retired here, the rest moves into the engine in the follow-up PR** |
+  | 2 | `AutoPayer` | `OrderCostReductions` (0 / 0.07 / 0.02 a game) | an elision the engine owes (rule 1, item 47's shape) | both, no toggle | −50 this PR; the decorator goes next | **retired**: forced split A4k, the rest `orders-the-cr-hands-a-player` (2026-11-06) |
   | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | **built 2026-09-30 (A6j)**, below |
   | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **built 2026-09-30 (A6j)**, with row 3 |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
@@ -1940,12 +1943,12 @@ mechanic rather than a migration, which is why it is here and not in
   | `select_recipients`, at resolution | `SelectRecipients` | the controller | **C** or the agent's — a non-targeting "choose" as the spell resolves | in the row above |
   | `activate_mana_ability` | `ManaAbilityWindow` | the payer | **P** by policy — the tap solver §2.18 still owes; `ManaWindowStop` is the half built | 194 / 332 / 476 |
   | `choose_generic_mana_allocation` | `GenericManaAllocation` | the payer | **P** — the engine when forced (A4e, item 145); otherwise the agent's, or §2.22 row 7's solver as policy | 41 / 88 / 136 |
-  | `order_cost_reductions` | `OrderCostReductions` | the payer | **P** by policy — `AutoPayer`, always (`cost-architecture.md` §3.4) | 0 / 0.07 / 0.02 |
+  | `order_cost_reductions` | `OrderCostReductions` | the payer | elided since `orders-the-cr-hands-a-player`, until an expiry condition lands (`cost-architecture.md` §3.4) | 0 / 0 / 0 |
   | `choose_sacrifice_for_cost` | `ChooseSacrificeForCost` | the payer | **P** — strategy; the agent's, or the auto-sacrifice row above | 0.22 / 0.38 / 0.62 |
   | `commander_to_command_zone` | `CommanderToCommandZoneSba` | the commander's owner | **C**, and **residual** — an SBA's question to whichever seat owns the commander, mid-batch | 0 / 0 / 0 — `fuzz_games` seats no commander |
   | `discard` | `Discard` | the affected player | **C** for CR 514.1's cleanup (the active player); **residual** for "target player discards" — Mind Rot's target chooses | 3.6 / 4.0 / 8.6 |
   | `scry` | `Scry` | the controller | **C** or the agent's | 0.84 / 0.44 / 0.36 |
-  | `scry`, the ordering | `ScryOrder` | the controller | **C** | 0 / 0 / 0 — every registered scry is scry 1 |
+  | `scry`, the ordering | `OrderLibraryCards` | the controller | **C** | 0 / 0 / 0 — every registered scry is scry 1 |
   | `choose_replacement` | `ChooseReplacementEffect` | the affected object's controller, or the affected player (CR 616.1) | **C**, and the **residual** §4 names — it lands on whoever is affected, mid-resolution, and often not on the actor | 1.8 / 4.0 / 12.0 |
   | `apply_optional_replacement` | `ApplyOptionalReplacement` | same (CR 614.1a's "you may") | **C**, residual | 0 / 0.01 / 0.09 |
   | `allocate_next_damage` | `AllocateNextDamage` | the affected player (CR 615.7) | **C**, residual | 0.01 / 0.04 / 0.04 |

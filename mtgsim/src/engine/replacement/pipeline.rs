@@ -161,6 +161,16 @@ pub(crate) struct BatchMember {
 }
 
 impl BatchMember {
+    /// The object it gives a timestamp (CR 613.7d), or that its destruction's
+    /// move does: it arrives in a zone, or is created in one.
+    pub(crate) fn object_stamped(&self) -> Option<ObjectId> {
+        match self.event.as_ref()? {
+            GameAction::EnterBattlefield { object, .. } | GameAction::CreateTokenIn { object, .. } => Some(*object),
+            GameAction::ZoneChange { object, from, to, .. } if from != to => Some(*object),
+            _ => self.inner_move.as_ref().and_then(|inner| inner.object_stamped()),
+        }
+    }
+
     pub(crate) fn proposed(place: usize, action: GameAction, cause: EventCause) -> Self {
         BatchMember {
             place,

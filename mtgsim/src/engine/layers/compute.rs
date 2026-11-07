@@ -712,7 +712,7 @@ impl FilterReferents for FilterPlayers<'_, '_> {
             Antecedent::ThisObject => {
                 ObjectInformation::Current(self.source).defending_player(game, &|input| self.board.note_gated_read(input))
             }
-            Antecedent::Triggering(_) => None,
+            Antecedent::Triggering(_) | Antecedent::PaidWith(_) => None,
         }
     }
 
@@ -790,7 +790,7 @@ fn resolve_set_controller(
                 .defending_player(game, &|input| board.note_gated_read(input))
                 .filter(|&p| still_playing(p))
         }
-        PlayerRef::DefendingPlayer(Antecedent::Triggering(_)) | PlayerRef::AnyDefendingPlayer => None,
+        PlayerRef::DefendingPlayer(Antecedent::Triggering(_) | Antecedent::PaidWith(_)) | PlayerRef::AnyDefendingPlayer => None,
         PlayerRef::Opponent => {
             match game.opponents_of(players.you()).as_slice() {
                 // Exactly one opponent, so nothing was ever chosen.
@@ -901,6 +901,16 @@ pub(super) fn evaluate_amount(
             let mut players = amount_players(origin, object_id, chars, game, board, layer_index);
             let total = super::condition::history_total(history, *span, game, board, layer_index, &mut players);
             Some(i32::try_from(total).unwrap_or(i32::MAX))
+        }
+
+        // "For each unspent green mana you have": what is in "your" pool now,
+        // restricted units included (CR 106.6). No layer writes a pool, so the
+        // walk notes that it read one.
+        AmountExpr::UnspentMana(mana_type) => {
+            board.note_gated_read(GatedWalkInput::ManaPools);
+            let you = amount_players(origin, object_id, chars, game, board, layer_index).you();
+            let unspent = game.players.get(you)?.mana_pool.unspent(*mana_type);
+            Some(i32::try_from(unspent).unwrap_or(i32::MAX))
         }
 
         // A count over the battlefield at this layer (Keldon Warlord). **The real

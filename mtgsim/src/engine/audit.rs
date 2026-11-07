@@ -12,7 +12,11 @@
 //! back after each read and the trace is paused through it, so an audited
 //! game's counters and trace are an unaudited one's.
 
-use crate::engine::layers::compute::no_row_reaches;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::GameState;
 use crate::types::effects::Effect;
 use crate::types::ids::ObjectId;
@@ -76,6 +80,55 @@ impl GameState {
         }
         ids
     }
+}
+
+/// The most things an audit tries in every order of, 120 orders, each a clone
+/// of the game played forward. Every order of n things is n! of them, and a
+/// fuzz run cannot pay that past here: 6 is 720 clones and 8 is 40,320, at
+/// every payment or batch that size.
+const MOST_AUDITED_IN_EVERY_ORDER: usize = 5;
+
+/// The orders of `n` things an audit of an order tries, as places in the
+/// order it was handed: every one up to [`MOST_AUDITED_IN_EVERY_ORDER`], and
+/// past it that order and its reverse.
+pub(crate) fn orders_to_audit(n: usize) -> Vec<Vec<usize>> {
+    if n > MOST_AUDITED_IN_EVERY_ORDER {
+        return vec![(0..n).collect(), (0..n).rev().collect()];
+    }
+    let mut orders = vec![Vec::new()];
+    for thing in 0..n {
+        orders = orders
+            .into_iter()
+            .flat_map(|order: Vec<usize>| {
+                (0..=order.len()).map(move |at| {
+                    let mut longer = order.clone();
+                    longer.insert(at, thing);
+                    longer
+                })
+            })
+            .collect();
+    }
+    orders
+}
+
+/// What objects are, by id, whole: what an audit that replays an order
+/// compares. Keyed, since which came first is no difference.
+pub(crate) type Frames = HashMap<ObjectId, Arc<EffectiveCharacteristics>>;
+
+/// Every permanent as it now is.
+pub(crate) fn permanents_as_they_are(game: &GameState) -> Frames {
+    game.battlefield_ids_ordered().into_iter().filter_map(|id| compute_characteristics(game, id).map(|frame| (id, frame))).collect()
+}
+
+/// Panic unless each object is one thing in `gated` and in `everything`,
+/// [`assert_shortcut_agrees`]' check for what objects are, which reads every
+/// characteristic an object has.
+pub(crate) fn assert_frames_agree(site: &str, question: impl FnOnce() -> String, gated: &Frames, everything: &Frames) {
+    let differs = |one: &Frames, other: &Frames, id: &ObjectId| one.get(id) != other.get(id);
+    // ORDER-FREE: `assert_shortcut_agrees` sorts what it is handed.
+    let in_one_only_or_unlike: Vec<String> =
+        gated.keys().chain(everything.keys()).filter(|id| differs(gated, everything, id)).map(ObjectId::to_string).collect();
+    assert_shortcut_agrees(site, question, in_one_only_or_unlike, Vec::new());
 }
 
 /// Panic unless a shortcut's answer is the one with the shortcut off: at

@@ -57,4 +57,11 @@ pub enum Elision {
     TriggerOrder,
     /// CR 603.7b: which simultaneous event triggers a delayed triggered ability.
     DelayedTriggerCause,
+    /// CR 601.2f: the order two or more cost reductions apply in.
+    CostReductionOrder,
+    /// CR 601.2h: the order a payment's parts are paid in.
+    PaymentOrder,
+    /// CR 613.7m: the order of one player's objects receiving a timestamp at
+    /// once.
+    EntryOrder,
 }

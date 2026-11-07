@@ -48,7 +48,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | — |
 | 3 | `card-layer-cleanup` | landed | — |
 | 4 | `pausing-at-a-decision`, the design | landed | — |
-| 5 | `orders-the-cr-hands-a-player` and 5 more | 3 of 9 landed | 6–10 |
+| 5 | `modal-spells-and-abilities` and 4 more | 4 of 9 landed | 5–9 |
 | 6 | `linked-abilities` | to come | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 4–7 |
@@ -61,7 +61,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **44 rows to come** | **73–138** |
+| | **To v0.5** | **43 rows to come** | **72–137** |
 
 **Deck cards registered: 7 of 385**,
 the five lists' distinct cards less basics.
@@ -168,6 +168,7 @@ is derived.
 | 2026-10-22 | The persist loop, the track's capstone | `TR-7` | `triggers-architecture.md` |
 | 2026-11-02 | Every option named by what it is | `options-named-by-what-they-are` | `choices-architecture.md` |
 | 2026-11-03 | An effect divided among its targets | `divided-among-targets` | `choices-architecture.md` |
+| 2026-11-06 | The orders the CR hands a player | `orders-the-cr-hands-a-player` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -181,7 +182,6 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| The orders the CR hands a player | `orders-the-cr-hands-a-player` | `choices-architecture.md` |
 | CR 700.2 whole | `modal-spells-and-abilities` | `choices-architecture.md` |
 | A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
 | A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
@@ -208,7 +208,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 218 |
 | …of them in `PERFORMANCE_POOL` | 125 |
-| `#[test]` functions | 2976 |
+| `#[test]` functions | 3005 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -229,14 +229,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 456 |
-| …closed, still recorded | 273 |
-| …open — unreachable, and says why | 124 |
+| Numbered items | 461 |
+| …closed, still recorded | 276 |
+| …open — unreachable, and says why | 126 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 35 |
+| …open — reachable, not wrong (perf, a name, a harness) | 33 |
 | …open — nothing to build, a record for a later phase | 19 |
-| **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 177 of 183 |
+| **…open — reachability *not* stated** | **2** |
+| …open, carrying an explicit `**Sized:**` | 179 of 185 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -250,7 +250,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 170 |
+| …slotted to a phase or roadmap row still to come | 172 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

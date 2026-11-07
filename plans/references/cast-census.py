@@ -816,6 +816,8 @@ QUESTIONS = {
     "GenericManaAllocation": ("a split of the generic part across the pool", "bounds",
                               "the clamp that keeps each pip's mana, `ui::ask::generic_split_caps` (MA-2)", "MA-2", ""),
     "OrderCostReductions": ("an order of every reduction that applies", "no", "", "range", ""),
+    "OrderCostPayments": ("an order of the payment's parts that can change the game", "no", "", "range", ""),
+    "OrderSimultaneousEntries": ("an order of one player's objects a timestamp is read for", "no", "", "range", ""),
     "ManaAbilityWindow": ("the mana abilities that can pay now", "yes",
                           "`can_pay_costs`'s `CannotPay`, per ability", "MA-1", ""),
     "ChooseSacrificeForCost": ("the permanents that can pay the cost", "yes",
@@ -840,7 +842,7 @@ QUESTIONS = {
     "CommanderToCommandZoneSba": ("yes or no", "no", "", "range", ""),
     "Discard": ("the cards in the hand", "no", "", "range", ""),
     "Scry": ("the cards looked at", "no", "", "range", ""),
-    "ScryOrder": ("an order of one pile", "no", "", "range", ""),
+    "OrderLibraryCards": ("an order of one pile", "no", "", "range", ""),
     "LegendRule": ("the legendary permanents sharing the name", "no", "", "range", ""),
 }
 

@@ -182,6 +182,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
             .map(BoardRef::Object)
             .collect(),
         ChoiceOption::Replacement(_) => option.effect_source().into_iter().map(BoardRef::Object).collect(),
+        ChoiceOption::CostPart(part) => part.paid_with.iter().copied().map(BoardRef::Object).collect(),
         // An existence that has left is no board thing.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::NormalCost

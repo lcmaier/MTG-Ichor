@@ -240,6 +240,37 @@ impl DecisionProvider for AsksNobody {
     }
 }
 
+/// Every question answered with the first legal answer. An audit's clone
+/// answers with this: the game's own seat draws from a stream a fork must not
+/// move, and both forks being compared must answer alike.
+pub(crate) struct FirstLegalAnswer;
+
+impl DecisionProvider for FirstLegalAnswer {
+    fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption], (at_least, _): (usize, usize)) -> Vec<usize> {
+        (0..at_least).collect()
+    }
+
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
+        min
+    }
+
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, total: u64, buckets: &[ChoiceOption], mins: &[u64], maxs: Option<&[u64]>) -> Vec<u64> {
+        let mut shares: Vec<u64> = (0..buckets.len()).map(|at| mins.get(at).copied().unwrap_or(0)).collect();
+        let mut left = total.saturating_sub(shares.iter().sum());
+        for (at, share) in shares.iter_mut().enumerate() {
+            let room = maxs.and_then(|maxs| maxs.get(at)).map_or(left, |max| max.saturating_sub(*share));
+            let more = room.min(left);
+            *share += more;
+            left -= more;
+        }
+        shares
+    }
+
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        (0..items.len()).collect()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Scripted DecisionProvider for tests
 // ---------------------------------------------------------------------------

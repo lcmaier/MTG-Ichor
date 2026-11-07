@@ -600,12 +600,12 @@ then: player 1 activates Merfolk Thaumaturgist | targeting Grizzly Bears [b]
   unseen.
 - Each line's own prompts are answered from the line: its targets by name or
   player, its ability by place; nothing asks for a mode or an X yet (§5.1).
-  Costs are paid from the board's untapped lands, as a seat's `AutoPayer` over
+  Costs are paid from the board's untapped lands, as a seat's
   `ManaWindowStop` pays them: the window taps a source that makes a pip still
   owed, by the random agent's preference taking its first source rather than
   a random one and the line's own permanent last, closes once paid, and the
-  generic split is the first the caps allow. (`AutoPayer` itself only orders
-  cost reductions; the tap is the driver's, until `backlog.md` §2.18's
+  generic split is the first the caps allow. (The tap is the driver's, until
+  `backlog.md` §2.18's
   solver.) A deep stack needs as many lands as its spells cost; floating mana
   waits for item 33's provenance.
 - What can be checked before play fails the load, naming the line: a name
@@ -823,7 +823,7 @@ a start ── build ──▶ Game ── run ── each prompt ──▶ the 
   `prompt_subject_test.rs:48`). Two in `test_support.rs` keep the whole text
   and match its start: `RecordingDecisionProvider::kinds`, whose 27 uses in 8
   files compare with `starts_with`, and `RejectionRecorder::rejected_at`. A
-  prefix is looser than a name, since `Scry` begins `ScryOrder`, though no
+  prefix is looser than a name, since `Scry` began `ScryOrder` (`OrderLibraryCards` since 2026-11-06), though no
   test matches `Scry` today. `ChoiceKind::as_str` replaces all eight: not
   `name`, which the CR uses for a card's name (CR 201) and for choosing one
   (201.4), the owner at #216's review.
@@ -970,8 +970,8 @@ methods refuse a stopped game rather than trusting every caller.
 **The problem.** A person's click is one line among many. In the probe's games
 about three lines in ten are choices, and the rest are passes the engine made
 itself. Some choices at the window's seat are its decorators', not the
-person's: `ManaWindowStop` closing a paid window, `AutoPayer` ordering
-reductions, `AutoYield` passing. Whatever undo removes, the replay hands the
+person's: `ManaWindowStop` closing a paid window, `AutoYield` passing.
+Whatever undo removes, the replay hands the
 next prompt to the seats, and anything a seat answers without asking the
 person is answered again at once.
 

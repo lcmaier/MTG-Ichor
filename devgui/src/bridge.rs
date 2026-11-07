@@ -26,7 +26,6 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
-use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};
@@ -243,7 +242,7 @@ fn play(
                 record: record.clone(),
                 watching: Rc::clone(&watching),
             };
-            let decorated = AutoOrderTriggers::new(AutoYield::new(AutoPayer::new(ManaWindowStop::new(seat.clone())), yields.clone()));
+            let decorated = AutoOrderTriggers::new(AutoYield::new(ManaWindowStop::new(seat.clone()), yields.clone()));
             let routed = FullControl::new(decorated, seat, full_control.clone()).superseding(yields);
             Box::new(routed) as Box<dyn DecisionProvider>
         })

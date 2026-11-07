@@ -6,10 +6,9 @@
 // (`cost-architecture.md` §3.11); declining once the cost is covered is a
 // *payer's* policy, and this decorator's job.
 //
-// **Why it is its own decorator and not part of `AutoPayer`.** The two toggle
-// independently, for clients that want different things. A human turning off
-// auto-pay wants the window to keep offering — floating mana mid-cast is the
-// feature CR 605.3a describes. An agent with no stop needs one:
+// **Why it is a decorator a client chooses.** A human turning off auto-pay
+// wants the window to keep offering — floating mana mid-cast is the feature
+// CR 605.3a describes. An agent with no stop needs one:
 // `RandomDecisionProvider`'s `AnyWillDo` arm never declines while a source is
 // offered, so without this its only terminator is `WINDOW_ACTIVATION_CAP`.
 //

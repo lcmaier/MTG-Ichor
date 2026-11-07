@@ -125,7 +125,8 @@ pub enum AmountExpr {
     /// a **total across types** (Glissa Sunseeker) as an `Option<ManaType>`,
     /// and **another player's pool** (Drain Power, Pygmy Hippo) as a
     /// `PlayerRef`. Omnath, Locus of Mana reads the same quantity on the layer
-    /// side, where `layers::compute` would evaluate it.
+    /// side, where `layers::compute` evaluates it and notes the read
+    /// (`GatedWalkInput::ManaPools`).
     UnspentMana(crate::types::mana::ManaType),
     /// CR 615.5's "the amount of damage that was prevented" — how much the
     /// prevention effect that queued a CR 615.5 rider actually prevented.
@@ -147,6 +148,19 @@ pub enum AmountExpr {
     /// `Fixed(20)` because v1 is Commander, where it is 40, and the number is
     /// the game's (`GameState::starting_life`) and not the card's.
     StartingLifeTotal,
+    /// "Equal to the sacrificed creature's power": a value of one object,
+    /// which object by the word the text uses for it. Only
+    /// [`Antecedent::PaidWith`] is read here yet: the seven variants above that
+    /// name one object and one value fold into this at
+    /// `resolution-recipients-and-amounts`.
+    ValueOf(Antecedent, ObjectValue),
+}
+
+/// Which number [`AmountExpr::ValueOf`] reads off its object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectValue {
+    Power,
+    Toughness,
 }
 
 /// Reference to a player in an effect context
@@ -796,6 +810,11 @@ pub enum Antecedent {
     /// triggered ability's alone. A static ability has none, and the leaf
     /// answers no.
     Triggering(crate::types::triggers::EventRole),
+    /// "The sacrificed creature": the one object this spell or ability's
+    /// payment used by that act (CR 601.2h), read as it last existed once it
+    /// has left (CR 608.2h). A resolution's alone, so every other reader
+    /// answers no.
+    PaidWith(crate::types::costs::PaymentAct),
 }
 
 impl Condition {

@@ -654,7 +654,7 @@ fn dies_trigger_if_it_had_counters_counts_the_counters_it_died_with() {
 fn dies_trigger_if_kicked_sees_that_the_creature_was_kicked_after_it_died() {
     let kicked = |game: &mut GameState, creature: ObjectId| {
         game.battlefield.get_mut(&creature).unwrap().cost_choices =
-            CostChoices { additional: vec![AdditionalCost::Kicker(Vec::new())], alternative: None };
+            CostChoices { additional: vec![AdditionalCost::Kicker(Vec::new())], ..CostChoices::NONE };
     };
     assert!(dies_trigger_gains_life(Condition::SpellWasKicked, kicked), "it was kicked");
     assert!(!dies_trigger_gains_life(Condition::SpellWasKicked, leave_it), "it was not");

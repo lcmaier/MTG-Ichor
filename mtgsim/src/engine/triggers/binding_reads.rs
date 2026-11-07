@@ -292,6 +292,7 @@ fn creature_reads(creature: Antecedent) -> TriggerBindingReads {
     match creature {
         Antecedent::ThisObject => TriggerBindingReads::SOURCE,
         Antecedent::Triggering(p) => TriggerBindingReads::TRIGGERING_OBJECTS | TriggerBindingReads::needs_one(p),
+        Antecedent::PaidWith(_) => TriggerBindingReads::NONE,
     }
 }
 
@@ -308,7 +309,8 @@ fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
         | AmountExpr::ReplacedAmount
         | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
-        | AmountExpr::StartingLifeTotal => TriggerBindingReads::NONE,
+        | AmountExpr::StartingLifeTotal
+        | AmountExpr::ValueOf(..) => TriggerBindingReads::NONE,
         AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => object_set_reads(over),
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount_reads(inner),
         AmountExpr::History(_, history) => history_count_reads(history),
@@ -370,6 +372,7 @@ fn condition_reads(c: &Condition) -> TriggerBindingReads {
         Condition::CounterCount { object: Antecedent::Triggering(p), .. } => {
             TriggerBindingReads::CHARACTERISTICS | TriggerBindingReads::needs_one(*p)
         }
+        Condition::CounterCount { object: Antecedent::PaidWith(_), .. } => TriggerBindingReads::NONE,
         Condition::All(all) => all.iter().fold(TriggerBindingReads::NONE, |reads, c| reads | condition_reads(c)),
         Condition::Not(clause) => condition_reads(clause),
         Condition::ResolvedThisTurn(_) => TriggerBindingReads::ABILITY,

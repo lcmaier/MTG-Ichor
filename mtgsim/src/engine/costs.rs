@@ -18,14 +18,16 @@
 use std::collections::HashMap;
 
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
-use crate::types::costs::Cost;
-use crate::oracle::characteristics::has_summoning_sickness;
+use crate::state::battlefield::PaidWith;
+use crate::types::costs::{Cost, PaymentAct};
 use crate::state::game_state::GameState;
+use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::oracle::characteristics::ObjectInformation;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectOrPlayer, PlayerId};
 use crate::types::mana::{ManaSpent, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
+use crate::ui::choice_types::CostPart;
 use crate::types::zones::Zone;
 
 /// The decisions CR 601.2h's payment needs, taken against one board.
@@ -36,16 +38,36 @@ use crate::types::zones::Zone;
 /// deciding and performing do not interleave (see the module doc).
 #[derive(Debug, Clone)]
 pub struct PaymentPlan {
-    /// The costs in the order they will be paid ([`payment_order_rank`]).
-    ordered: Vec<Cost>,
+    /// The costs in the order they will be paid: [`payment_order_rank`]'s,
+    /// or the player's where the order can change the game
+    /// (`engine::payment_order`).
+    pub(super) ordered: Vec<Cost>,
     /// How the mana component's generic part is split across the pool.
     generic_allocation: HashMap<ManaType, u64>,
     /// Which permanents pay each `Cost::Sacrifice`, keyed by index into
     /// `ordered`.
-    sacrifices: HashMap<usize, Vec<ObjectId>>,
+    pub(super) sacrifices: HashMap<usize, Vec<ObjectId>>,
 }
 
 impl PaymentPlan {
+    /// The part at `place`, as an option names it.
+    pub(super) fn part(&self, place: usize) -> CostPart {
+        CostPart { cost: self.ordered[place].clone(), paid_with: self.sacrifices.get(&place).cloned().unwrap_or_default() }
+    }
+
+    /// Pay the parts in `order`, each by its place in `ordered` now.
+    pub(super) fn pay_in(&mut self, order: &[usize]) {
+        let mut sacrifices = HashMap::with_capacity(self.sacrifices.len());
+        for (place, &was) in order.iter().enumerate() {
+            if let Some(chosen) = self.sacrifices.remove(&was) {
+                sacrifices.insert(place, chosen);
+            }
+        }
+        self.ordered = order.iter().map(|&was| self.ordered[was].clone()).collect();
+        self.sacrifices = sacrifices;
+    }
+
+
     /// The permanents this plan will sacrifice, in payment order.
     #[cfg(test)]
     fn planned_sacrifices(&self) -> Vec<ObjectId> {
@@ -53,6 +75,16 @@ impl PaymentPlan {
         keys.sort();
         keys.into_iter().flat_map(|k| self.sacrifices[k].iter().copied()).collect()
     }
+}
+
+/// What a payment leaves behind for the spell or ability it paid for.
+#[derive(Debug, Clone)]
+pub struct Payment {
+    /// The mana spent (CR 601.2h), which only the pool knows once it has been
+    /// paid and CR 400.7d's facts keep.
+    pub mana_spent: ManaSpent,
+    /// What it used, in the order it was paid (`CostChoices::paid_with`).
+    pub paid_with: Vec<PaidWith>,
 }
 
 /// Why a cost can't be paid now: the resource it needs is missing (CR 118.3).
@@ -64,9 +96,6 @@ pub enum CannotPay {
     AlreadyTapped,
     /// {Q} on an untapped permanent.
     NotTapped,
-    /// {T} or {Q} on a creature that has not been under its controller's
-    /// control since their most recent turn began (CR 302.6).
-    SummoningSick,
     /// More mana than the pool holds, asked at CR 601.2h once the window has
     /// closed. The enumeration counts the sources too, in a reason of its own.
     PoolShort,
@@ -87,7 +116,6 @@ impl std::fmt::Display for CannotPay {
             CannotPay::SourceGone(id) => write!(f, "Permanent {id} not on battlefield"),
             CannotPay::AlreadyTapped => f.write_str("Permanent is already tapped"),
             CannotPay::NotTapped => f.write_str("Permanent is not tapped"),
-            CannotPay::SummoningSick => f.write_str("Creature has summoning sickness"),
             CannotPay::PoolShort => f.write_str("Not enough mana"),
             CannotPay::TooLittleLife { life, amount } => write!(f, "Cannot pay {amount} life, only {life} available"),
             CannotPay::TooFewToSacrifice { matching, needed } => {
@@ -104,29 +132,33 @@ const RANK_MUTATES: u8 = 1;
 const RANK_MOVES_AN_OBJECT: u8 = 2;
 
 
-/// Where a cost sits in the order the engine pays a total cost.
+/// Where a cost sits in the order the engine pays a total cost, wherever no
+/// order the player could choose changes the game.
 ///
 /// **CR 601.2h gives the order to the player** — "they pay all costs that
 /// don't involve random elements or moving objects from the library to a
-/// public zone, in any order" — and the engine picks one of them. (That
+/// public zone, in any order" — and `engine::payment_order` asks them where it
+/// matters, keeping what follows true of the order they choose. (That
 /// sentence's own two groups are not modeled: no `Cost` arm is random and
 /// none moves a card out of a library, so the second group is empty for every
 /// cost that exists, and an arm nothing can reach is worse than a missing
-/// one. `ATOM-601.2h-003` is the atom for handing the order to the player.)
+/// one.)
 ///
-/// The engine picks **the order in which no payment can fail after one that
-/// cannot be taken back**, which is what makes CR 732.1's "any payments
-/// already made are canceled" unreachable rather than unimplemented:
+/// This is **the order in which no payment can fail after one that cannot be
+/// taken back**, which is what makes CR 732.1's "any payments already made
+/// are canceled" unreachable rather than unimplemented:
 ///
-/// - rank 0, `Mana` — the only cost whose payment can fail on a choice the
-///   player made (a generic split that spends a color a pip still needs), so
-///   it is paid while nothing else has been. `cost_determination::total`
+/// - rank 0, `Mana` — the one payment resting on a choice the player made, the
+///   generic split, which `generic_split_caps` holds to what leaves every pip
+///   its mana. It is paid while nothing else has been, so that holding is not
+///   all that stands before CR 732.1. `cost_determination::total`
 ///   already merges every mana entry into one component ahead of this
 ///   (`cost-architecture.md` §3.3); this extends the same argument to an
 ///   ability's cost list, which is its *printed* one and never merged.
-/// - rank 1 — mutates, moves nothing: reads the source's tapped state, its
-///   summoning sickness or the player's life, none of which a rank-0 payment
-///   changes.
+/// - rank 1 — mutates, moves nothing: reads the source's tapped state or the
+///   player's life, neither of which a rank-0 payment changes. Summoning
+///   sickness is no cost's to read: it forbids beginning to activate (CR
+///   602.5a), before anything is paid.
 /// - rank 2 — moves an object. Its own payment cannot fail, because
 ///   `plan_payment` enumerated the candidates and `validate_pick_n` bounds
 ///   the answer; and nothing after it can fail, because nothing after it
@@ -196,14 +228,11 @@ impl GameState {
         match cost {
             Cost::TapSelf => {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
+                // The summoning sickness rule is no resource: it forbids
+                // beginning to activate (CR 602.5a), which
+                // `summoning_sickness_forbids` asks where activating begins.
                 if entry.tapped {
                     return Err(CannotPay::AlreadyTapped);
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // tapping, unless they have haste. `has_summoning_sickness` is
-                // false for a noncreature permanent, so it needs no type gate here.
-                if has_summoning_sickness(self, source_id) {
-                    return Err(CannotPay::SummoningSick);
                 }
                 Ok(())
             }
@@ -211,11 +240,6 @@ impl GameState {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
                 if !entry.tapped {
                     return Err(CannotPay::NotTapped);
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // paying {Q} (untap symbol), unless they have haste.
-                if has_summoning_sickness(self, source_id) {
-                    return Err(CannotPay::SummoningSick);
                 }
                 Ok(())
             }
@@ -280,15 +304,6 @@ impl GameState {
             .collect()
     }
 
-    /// Take every choice CR 601.2h's payment needs, against one board.
-    ///
-    /// Reads only — nothing is paid here. `can_pay_costs` must already have
-    /// passed; this asks *how* to pay, not *whether*, and the one error it
-    /// returns is a cost it cannot plan at all.
-    ///
-    /// Every prompt a payment asks is asked here, which is the property
-    /// [`Self::pay_costs`] leans on: once the first permanent moves, no
-    /// decision is outstanding. See the module doc.
     /// The buckets CR 601.2h's generic split is asked over: each type of mana
     /// in `player_id`'s pool, with how much, in type order. The split's why
     /// reads the same ones.
@@ -304,6 +319,17 @@ impl GameState {
         available
     }
 
+    /// Take every choice CR 601.2h's payment needs, against one board.
+    ///
+    /// Reads only — nothing is paid here. `can_pay_costs` must already have
+    /// passed; this asks *how* to pay, not *whether*, and the one error it
+    /// returns is a cost it cannot plan at all.
+    ///
+    /// Every prompt a payment asks is asked here, which is the property
+    /// [`Self::pay_costs`] leans on: once the first permanent moves, no
+    /// decision is outstanding. See the module doc. Its order is asked last,
+    /// since which permanent pays a sacrifice decides whether the order can
+    /// change the game (`engine::payment_order`).
     pub fn plan_payment(
         &self,
         costs: &[Cost],
@@ -341,7 +367,9 @@ impl GameState {
             }
         }
 
-        Ok(PaymentPlan { ordered, generic_allocation, sacrifices })
+        let mut plan = PaymentPlan { ordered, generic_allocation, sacrifices };
+        self.settle_payment_order(&mut plan, player_id, source_id, ctx)?;
+        Ok(plan)
     }
 
     /// Pay a planned total cost (CR 601.2h).
@@ -352,22 +380,21 @@ impl GameState {
     /// cancellation because [`payment_order_rank`] makes it unreachable — see
     /// the debug assertion below, which is where that claim is enforced.
     ///
-    /// Returns the mana spent (CR 601.2h), which only the pool knows once it
-    /// has been paid and CR 400.7d's facts keep. A cost that moved an object
-    /// left that object's last known information in the LKI store, framed by
-    /// the cost's own batch (CR 113.7a).
+    /// A cost that moved an object left that object's last known information
+    /// in the LKI store, framed by the cost's own batch (CR 113.7a), and the
+    /// [`Payment`] names the object as it left.
     pub fn pay_costs(
         &mut self,
         plan: &PaymentPlan,
         player_id: PlayerId,
         source_id: ObjectId,
         ctx: &ActionContext,
-    ) -> Result<ManaSpent, String> {
+    ) -> Result<Payment, String> {
         let mut moved_an_object = false;
-        let mut spent = ManaSpent::NONE;
+        let mut payment = Payment { mana_spent: ManaSpent::NONE, paid_with: Vec::new() };
         for (idx, cost) in plan.ordered.iter().enumerate() {
             let result = self.pay_single_cost(
-                cost, player_id, source_id, plan, idx, &mut spent, ctx,
+                cost, player_id, source_id, plan, idx, &mut payment, ctx,
             );
             if let Err(e) = result {
                 // CR 732.1: "the entire action is reversed and any payments
@@ -388,7 +415,7 @@ impl GameState {
                 moved_an_object = true;
             }
         }
-        Ok(spent)
+        Ok(payment)
     }
 
     /// Pay a single cost from the plan. Internal helper.
@@ -402,7 +429,7 @@ impl GameState {
         source_id: ObjectId,
         plan: &PaymentPlan,
         idx: usize,
-        spent: &mut ManaSpent,
+        payment: &mut Payment,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         match cost {
@@ -425,7 +452,8 @@ impl GameState {
                 } else {
                     player.mana_pool.pay(mana_cost, &plan.generic_allocation)
                 }?;
-                spent.absorb(paid);
+                payment.mana_spent.absorb(paid);
+                self.bump_layer_epoch_if_read(GatedWalkInput::ManaPools);
                 Ok(())
             }
             Cost::PayLife(amount) => {
@@ -452,6 +480,7 @@ impl GameState {
                 )
             }
             Cost::SacrificeSelf => {
+                self.note_sacrificed(source_id, payment)?;
                 self.change_zone(source_id, crate::types::zones::Zone::Graveyard, ZoneChangeAct::Sacrificed, ctx)
             }
             Cost::Sacrifice(_, n) => {
@@ -463,6 +492,9 @@ impl GameState {
                         "Planned {} sacrifice(s) for a cost of {}",
                         chosen.len(), n
                     ));
+                }
+                for &object in chosen {
+                    self.note_sacrificed(object, payment)?;
                 }
                 // One batch, not a loop: the permanents paying one cost leave
                 // the battlefield together, so a "whenever one or more
@@ -487,6 +519,14 @@ impl GameState {
             }
         }
     }
+
+    /// `object`, about to be sacrificed, as the existence the payment used:
+    /// taken before it moves, since the move ends that existence (CR 400.7).
+    fn note_sacrificed(&self, object: ObjectId, payment: &mut Payment) -> Result<(), String> {
+        let used = ObjectOrPlayer::Object(self.existence_for_record(object)?);
+        payment.paid_with.push(PaidWith { used, act: PaymentAct::Sacrificed });
+        Ok(())
+    }
 }
 
 
@@ -497,6 +537,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::costs::Cost;
     use crate::objects::object::GameObject;
+    use crate::oracle::characteristics::summoning_sickness_forbids;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::GameState;
     use crate::types::card_types::*;
@@ -516,7 +557,7 @@ mod tests {
         ctx: &crate::engine::actions::ActionContext,
     ) -> Result<ManaSpent, String> {
         let plan = game.plan_payment(costs, player, source, ctx)?;
-        game.pay_costs(&plan, player, source, ctx)
+        game.pay_costs(&plan, player, source, ctx).map(|payment| payment.mana_spent)
     }
 
     fn setup_with_forest() -> (GameState, crate::types::ids::ObjectId) {
@@ -640,11 +681,12 @@ mod tests {
 
     #[test]
     fn test_untap_cost_blocked_by_summoning_sickness() {
-        // Creature enters on turn 1, game is on turn 1 → summoning sick → can't pay {Q}
-        let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
-        let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("summoning sickness"));
+        // Creature enters on turn 1, game is on turn 1 → summoning sick, so an
+        // ability with {Q} cannot begin to be activated (CR 602.5a). The {Q}
+        // itself is no resource it lacks.
+        let (game, creature_id) = setup_creature_on_turn(1, vec![]);
+        assert!(summoning_sickness_forbids(&game, creature_id, &[Cost::UntapSelf]));
+        assert_eq!(game.can_pay_costs(&[Cost::UntapSelf], 0, creature_id), Ok(()));
     }
 
     #[test]
@@ -676,7 +718,7 @@ mod tests {
     #[test]
     fn test_untap_cost_blocked_on_the_turn_its_clock_starts() {
         // CR 302.6's clock started on turn 3, its controller's turn, staged as
-        // the arrival it seeds from: sick, so {Q} cannot be paid. A Layer 2
+        // the arrival it seeds from: sick, so {Q} cannot be activated. A Layer 2
         // change starting the clock is phase_lg's
         // `test_gaining_control_gives_the_creature_summoning_sickness`.
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
@@ -685,9 +727,7 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().control_began_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
-        let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("summoning sickness"));
+        assert!(summoning_sickness_forbids(&game, creature_id, &[Cost::UntapSelf]));
     }
 
     #[test]

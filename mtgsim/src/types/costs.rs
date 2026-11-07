@@ -32,6 +32,14 @@ pub enum Cost {
     AddCounters(CounterType, u32),
 }
 
+/// What a payment did with something it used, as a card's text names the
+/// cost by its verb: "the sacrificed creature". Each other verb lands with its
+/// cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaymentAct {
+    Sacrificed,
+}
+
 impl Cost {
     /// Whether paying it can take the ability's source out of the zone it is
     /// activated from, so the activation's record reads the source as it was
@@ -45,6 +53,22 @@ impl Cost {
             | Cost::UntapSelf
             | Cost::Mana(_)
             | Cost::PayLife(_)
+            | Cost::RemoveCounters(..)
+            | Cost::AddCounters(..) => false,
+        }
+    }
+
+    /// Whether it is the tap or the untap symbol, {T} or {Q}: the costs the
+    /// summoning sickness rule is about (CR 302.6).
+    pub fn is_tap_or_untap_symbol(&self) -> bool {
+        match self {
+            Cost::TapSelf | Cost::UntapSelf => true,
+            Cost::Mana(_)
+            | Cost::PayLife(_)
+            | Cost::SacrificeSelf
+            | Cost::Sacrifice(..)
+            | Cost::Discard(..)
+            | Cost::ExileFromGraveyard(..)
             | Cost::RemoveCounters(..)
             | Cost::AddCounters(..) => false,
         }

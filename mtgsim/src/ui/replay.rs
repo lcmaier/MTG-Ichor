@@ -274,10 +274,14 @@ impl DecisionProvider for Replay<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cards::printings::{grizzly_bears, savannah_lions};
     use crate::cards::registry::CardRegistry;
     use crate::engine::priority::PriorityResult;
-    use crate::test_support::{put_in_hand, setup_two_player_game};
+    use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
+    use crate::types::costs::Cost;
+    use crate::types::effects::ObjectFilter;
     use crate::types::ids::ObjectId;
+    use crate::ui::choice_types::CostPart;
     use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
     /// A replay of one line, player 0's answer to `kind` where `game` stands.
@@ -316,6 +320,21 @@ mod tests {
         let kind = ChoiceKind::OrderCostReductions { spell_id: ObjectId::UNASSIGNED };
         let ordered = Chosen::Order(vec!["player 0".to_string(), "player 1".to_string()]);
         let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &ChoiceContext::new(kind), &the_seats_the_other_way_round());
+        assert_eq!(answer, vec![1, 0]);
+    }
+
+    /// Two parts whose costs read alike are told apart by what pays them,
+    /// since the replay finds an answer by its words: an order of "sacrifice 1"
+    /// and "sacrifice 1" comes back the way it was given.
+    #[test]
+    fn an_order_of_two_sacrifices_finds_each_by_what_pays_it() {
+        let mut game = setup_two_player_game();
+        let (bears, lions) = (put_on_battlefield(&mut game, grizzly_bears(), 0), put_on_battlefield(&mut game, savannah_lions(), 0));
+        let sacrificing = |filter, paid_by| ChoiceOption::CostPart(CostPart { cost: Cost::Sacrifice(filter, 1), paid_with: vec![paid_by] });
+        let options = [sacrificing(ObjectFilter::All, bears), sacrificing(ObjectFilter::Token, lions)];
+        let kind = ChoiceKind::OrderCostPayments { spell_or_ability_id: ObjectId::UNASSIGNED };
+        let ordered = Chosen::Order(vec![options[1].as_logged(&game), options[0].as_logged(&game)]);
+        let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &ChoiceContext::new(kind), &options);
         assert_eq!(answer, vec![1, 0]);
     }
 
