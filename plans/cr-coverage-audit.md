@@ -1234,7 +1234,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `ThisCombat` — **not a word**: a criterion on what it did this combat.
 - `ByOwner` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
 - `NotSource` — **kept** "other than this object": a relation to an object ("another"), not a word for one.
-- `OtherThanInstance` — **kept** "another target" (CR 601.2c): a relation to an earlier instance.
+
 - `And` — **not a word**: an intersection of criteria.
 - `Or` — **not a word**: a union of criteria.
 - `Not` — **not a word**: a complement.
@@ -1284,6 +1284,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `Permanent` — **holds** an `ObjectFilter`.
 - `Spell` — **owns** "a spell on the stack" as a candidate.
 - `DamageSource` — **owns** "a source of damage", CR 609.7a's choice.
+- `OtherThan` — **kept** "another target", "any other target" (CR 601.2c, 115.4): a relation to an earlier instance, over any filter a player's among; it was `ObjectFilter::OtherThanInstance` until item 154.
 
 #### `SourceFilter`
 - `ControlledBy` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).

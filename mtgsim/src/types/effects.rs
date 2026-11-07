@@ -288,22 +288,6 @@ pub enum ObjectFilter {
     /// grant of Soul Warden's ability excludes the creature that has it and
     /// never the object that granted it.
     NotSource,
-    /// CR 601.2c — "**another** target creature", "a **third** target
-    /// creature": not what an earlier instance of "target" on this same spell
-    /// took.
-    ///
-    /// The rule allows one object to be chosen once for each instance "as long
-    /// as it fits the targeting criteria", and "another" is how a card puts the
-    /// exclusion *into* those criteria. Incremental Growth's three clauses are
-    /// `Creature`, `And(Creature, OtherThanInstance(0))` and that filter with
-    /// `OtherThanInstance(1)` as well.
-    ///
-    /// [`NotSource`](Self::NotSource)'s sibling, and answered the same way:
-    /// identity is not a characteristic, so no layer can change it and no
-    /// frame is read. Meaningful only where the asker holds the instances
-    /// chosen so far — the CR 601.2c loop and the CR 608.2b re-check — and
-    /// refused elsewhere rather than silently matching everything.
-    OtherThanInstance(usize),
     And(Box<ObjectFilter>, Box<ObjectFilter>),
     /// Added for Root Maze, "Artifacts and lands enter tapped" — English "and"
     /// over two type leaves is set *union*, which is this node.
@@ -1266,6 +1250,42 @@ pub enum SelectionFilter {
     /// `game-formats`'s (`codebase-state.md` item 99), and `ATOM-609.7a-001` is
     /// `COVERS-PARTIAL` for it.
     DamageSource,
+    /// CR 115.4's "**any other** target", CR 601.2c's "**another** target
+    /// creature", "a **third** target creature": what `filter` admits, other
+    /// than what the earlier instance of "target" `instance` in the same scope
+    /// chose (the effect's, or one mode's). CR 601.2c lets one object be chosen
+    /// once for each instance "as long as it fits the targeting criteria", and
+    /// "another" is how a card puts the exclusion into those criteria, over a
+    /// player as over a permanent (Arc Trail). Incremental Growth's third
+    /// clause wraps its second's.
+    ///
+    /// Identity is not a characteristic, so no layer can change it. Answered
+    /// only where the asker holds the instances chosen so far — CR 601.2c's
+    /// loop and CR 608.2b's re-check — and refused elsewhere rather than
+    /// silently matching everything.
+    OtherThan { filter: Box<SelectionFilter>, instance: usize },
+}
+
+impl SelectionFilter {
+    /// `filter`, other than what each instance of "target" in `earlier`
+    /// chose: "another target creature" is `other_than(creature, &[0])`.
+    pub fn other_than(filter: SelectionFilter, earlier: &[usize]) -> SelectionFilter {
+        earlier
+            .iter()
+            .fold(filter, |filter, &instance| SelectionFilter::OtherThan { filter: Box::new(filter), instance })
+    }
+
+    /// The filter inside every [`Self::OtherThan`], and the instances they
+    /// exclude: `other_than`'s inverse.
+    pub fn without_exclusions(&self) -> (&SelectionFilter, Vec<usize>) {
+        let mut filter = self;
+        let mut excluded = Vec::new();
+        while let SelectionFilter::OtherThan { filter: inner, instance } = filter {
+            excluded.push(*instance);
+            filter = inner;
+        }
+        (filter, excluded)
+    }
 }
 
 /// Which phase a [`Primitive::ExtraPhases`] run follows (CR 500.8's

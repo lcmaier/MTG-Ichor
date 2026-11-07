@@ -261,7 +261,7 @@ fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usiz
 }
 
 /// Whether a clause's criteria read an earlier instance of "target" —
-/// `ObjectFilter::OtherThanInstance`, the "another target" family.
+/// `SelectionFilter::OtherThan`, the "another target" family.
 ///
 /// **A cost question, not a correctness one.** The announcement loop feeds each
 /// instance's choice forward so the next one can exclude it, and building that
@@ -271,21 +271,10 @@ fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usiz
 /// on a board where no game played differently (A4i's A/B). So the loop asks
 /// this first and skips the enumeration when the answer is no.
 pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
-    fn filter_reads(filter: &ObjectFilter) -> bool {
-        match filter {
-            ObjectFilter::OtherThanInstance(_) => true,
-            ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
-                filter_reads(a) || filter_reads(b)
-            }
-            ObjectFilter::Not(inner) => filter_reads(inner),
-            _ => false,
-        }
-    }
-    match recipient {
-        EffectRecipient::Target(SelectionFilter::Permanent(f), _)
-        | EffectRecipient::Choose(SelectionFilter::Permanent(f), _) => filter_reads(f),
-        _ => false,
-    }
+    matches!(
+        recipient,
+        EffectRecipient::Target(SelectionFilter::OtherThan { .. }, _) | EffectRecipient::Choose(SelectionFilter::OtherThan { .. }, _)
+    )
 }
 
 /// CR 608.2b's two questions across every scope of one stack object: whether
@@ -558,6 +547,19 @@ impl GameState {
             }
             SelectionFilter::Spell => self.validate_spell_target(target),
             SelectionFilter::DamageSource => self.validate_damage_source(target),
+            SelectionFilter::OtherThan { filter, instance } => {
+                let earlier = identity.earlier_targets;
+                if *instance >= earlier.len() {
+                    return Err(format!(
+                        "\"another target\" names instance {instance} of \"target\", which has not been announced (CR 601.2c); \
+                         only the announcement and the CR 608.2b re-check hold the earlier instances"
+                    ));
+                }
+                if earlier.instance_names(*instance, *target) {
+                    return Err(format!("{target:?} was chosen for instance {instance}, and this is another target (CR 115.4)"));
+                }
+                self.validate_selection(filter, target, you, identity)
+            }
         }
     }
 

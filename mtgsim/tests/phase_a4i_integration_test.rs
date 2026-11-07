@@ -149,14 +149,8 @@ fn target_creature() -> EffectRecipient {
 /// Incremental Growth's later clauses, as the card writes them: a creature,
 /// and not one an earlier instance took.
 fn another_target_creature(earlier_targets: &[usize]) -> EffectRecipient {
-    let mut filter = ObjectFilter::ByType(CardType::Creature);
-    for &ix in earlier_targets {
-        filter = ObjectFilter::And(
-            Box::new(filter),
-            Box::new(ObjectFilter::OtherThanInstance(ix)),
-        );
-    }
-    EffectRecipient::Target(SelectionFilter::Permanent(filter), TargetCount::Exactly(1))
+    let creature = SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature));
+    EffectRecipient::Target(SelectionFilter::other_than(creature, earlier_targets), TargetCount::Exactly(1))
 }
 
 /// `Diagnostics::decisions` is cumulative over the game, so a test that

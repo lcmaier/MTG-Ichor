@@ -225,8 +225,7 @@ fn filter_reads(filter: &ObjectFilter) -> PaymentChannels {
         | ObjectFilter::ByController(_)
         | ObjectFilter::ByOwner(_)
         | ObjectFilter::Token
-        | ObjectFilter::NotSource
-        | ObjectFilter::OtherThanInstance(_) => Q::NONE,
+        | ObjectFilter::NotSource => Q::NONE,
     }
 }
 

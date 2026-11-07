@@ -272,14 +272,37 @@ pub fn enumerate_legal_selections_upto(
             .then_some(candidate)
     };
 
+    // A player is asked the filter as an object is, so a player filter's
+    // criteria, and "another target" over one, are read (item 154).
+    let player_passes = |candidate: ObjectOrPlayerId| game.validate_selection(filter, &candidate, you, identity).is_ok();
+
     match filter {
-        SelectionFilter::Player => players().take(limit).collect(),
+        SelectionFilter::Player => players().filter(|&p| player_passes(p)).take(limit).collect(),
 
         // "Any target" — players, then creatures and planeswalkers.
         SelectionFilter::Any => players()
+            .filter(|&p| player_passes(p))
             .chain(battlefield().filter_map(passes))
             .take(limit)
             .collect(),
+
+        // "Another target": what the wrapped filter offers, less what the
+        // earlier instances took, in the wrapped filter's order. Each
+        // candidate is validated once, by the wrapped filter's arm, and at
+        // most `limit` plus the targets taken are asked for.
+        SelectionFilter::OtherThan { .. } => {
+            let (inner, excluded) = filter.without_exclusions();
+            let earlier = identity.earlier_targets;
+            if excluded.iter().any(|&ix| ix >= earlier.len()) {
+                return Vec::new();
+            }
+            let taken: usize = excluded.iter().map(|&ix| earlier.instance_len(ix)).sum();
+            enumerate_legal_selections_upto(game, inner, exclude_id, you, identity, limit.saturating_add(taken))
+                .into_iter()
+                .filter(|&candidate| !excluded.iter().any(|&ix| earlier.instance_names(ix, candidate)))
+                .take(limit)
+                .collect()
+        }
 
         SelectionFilter::Spell => spells_on_stack().map(ObjectOrPlayerId::Object).take(limit).collect(),
 

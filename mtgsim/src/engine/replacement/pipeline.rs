@@ -1754,7 +1754,6 @@ impl EntryWrites {
             | ObjectFilter::ThisTurn(_)
             | ObjectFilter::ThisCombat(_)
             | ObjectFilter::NotSource
-            | ObjectFilter::OtherThanInstance(_)
             | ObjectFilter::ByController(_)
             | ObjectFilter::ByOwner(_) => false,
             // An added value can only turn its leaf on.

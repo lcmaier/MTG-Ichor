@@ -9,8 +9,8 @@
 use std::cell::RefCell;
 
 use mtgsim::cards::authoring::{
-    activated_ability, choose, choose_one, creature, destroy, draw_cards, enchantment, gain_life, gets, spell_ability, tap, target_creature,
-    target_permanent, you,
+    activated_ability, another_target, choose, choose_one, creature, destroy, draw_cards, enchantment, gain_life, gets, spell_ability, tap,
+    target_creature, target_permanent, you,
 };
 use mtgsim::cards::fixtures::{branching_beacon, forked_omen, hesitant_omen, kindled_option, mode_lever, tally_of_choices};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -20,7 +20,7 @@ use mtgsim::oracle::characteristics::get_effective_abilities;
 use mtgsim::oracle::mana_helpers::{can_activate, CannotActivate};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::Cost;
-use mtgsim::types::effects::{Condition, Effect, ModalCount, ObjectFilter};
+use mtgsim::types::effects::{Condition, Effect, ModalCount, SelectionFilter};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::cards::printings::{abrade, casualties_of_war, cryptic_command, forest, grizzly_bears, hill_giant, paladin_of_atonement};
 use mtgsim::oracle::mana_helpers::{can_cast, CannotCast};
@@ -419,14 +419,17 @@ fn another_target_inside_a_mode_excludes_only_that_modes_targets() {
     let mut game = setup_two_player_game();
     let first = put_on_battlefield(&mut game, hill_giant(), 1);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let another = creature().and(ObjectFilter::OtherThanInstance(0));
+
     let card = invented_instant(
         "Choose one or both —\n• Target creature gets +1/+1 until end of turn.\n• Tap target creature. Tap another target creature.",
         choose(
             ModalCount::Range { fewest: 1, most: 2 },
             [
                 gets(target_creature(), 1, 1).until_end_of_turn(),
-                Effect::Sequence(vec![tap(target_permanent(creature())), tap(target_permanent(another))]),
+                Effect::Sequence(vec![
+                    tap(target_permanent(creature())),
+                    tap(another_target(SelectionFilter::Permanent(creature()), &[0])),
+                ]),
             ],
         ),
     );

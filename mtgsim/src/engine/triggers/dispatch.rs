@@ -28,7 +28,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::mana::triggered_mana_recipient;
-use crate::engine::object_filter::{player_ref_names, EarlierTargets, FilterReferents};
+use crate::engine::object_filter::{player_ref_names, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
@@ -432,10 +432,6 @@ impl FilterReferents for TriggerReferents<'_> {
 
     fn source_owner(&mut self) -> Option<PlayerId> {
         Some(self.owner)
-    }
-
-    fn earlier_targets(&self) -> EarlierTargets<'_> {
-        EarlierTargets::None
     }
 
     /// The candidate, now: an arm's own words have no triggering event yet.

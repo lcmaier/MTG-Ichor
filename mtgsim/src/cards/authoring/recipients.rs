@@ -69,6 +69,18 @@ pub fn any_target() -> EffectRecipient {
     target(SelectionFilter::Any)
 }
 
+/// "Any other target" (CR 115.4): any target but what the instance of
+/// "target" `than` chose — Arc Trail's second.
+pub fn any_other_target(than: usize) -> EffectRecipient {
+    another_target(SelectionFilter::Any, &[than])
+}
+
+/// "Another target [filter]", "a third target [filter]" (CR 601.2c): one more
+/// instance of "target", other than what each instance in `than` chose.
+pub fn another_target(filter: SelectionFilter, than: &[usize]) -> EffectRecipient {
+    target(SelectionFilter::other_than(filter, than))
+}
+
 // ---------------------------------------------------------------------------
 // Every other recipient, by its rule
 // ---------------------------------------------------------------------------

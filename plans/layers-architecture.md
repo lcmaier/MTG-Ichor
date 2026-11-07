@@ -271,7 +271,7 @@ Three implementors: `FilterPlayers` (a source always, earlier targets never); `T
 | `ByOwner(Owner)` | the source's owner | always true | the source's owner; refused with no source |
 | `Token`, `ByOwner` of a gone object | false | refused (`ObjectGone`) | refused, not malformed; the walk cannot reach it, since it asks only objects it holds frames for |
 | `NotSource` | `id != source` | refused with no source | refused with no source; the walk always has one |
-| `OtherThanInstance` | false | refused outside an announcement | refused, malformed |
+| `OtherThanInstance` (since item 154, `SelectionFilter::OtherThan`, out of this table) | false | refused outside an announcement | refused, malformed |
 | `PowerLE` with no power | false | refused (`NoPower`), malformed | refused, **not** malformed |
 | `And`, `Or` | short-circuit | a refusal in the left arm ends the walk | Kleene's: an arm that decides (`false` for `And`, `true` for `Or`) decides whichever side it is on; otherwise the left arm's refusal |
 | `Not` | `!` | the refusal passes through | the refusal passes through |

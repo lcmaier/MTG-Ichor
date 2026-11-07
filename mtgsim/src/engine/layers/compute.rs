@@ -23,7 +23,7 @@ use crate::engine::layers::explain::{AppliedBy, RecordedStep, Recorder, StepResu
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
-use crate::engine::object_filter::{self, EarlierTargets, FilterReferents};
+use crate::engine::object_filter::{self, FilterReferents};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::state::game_state::GameState;
 #[cfg(debug_assertions)]
@@ -696,10 +696,6 @@ impl FilterReferents for FilterPlayers<'_, '_> {
 
     fn source_owner(&mut self) -> Option<PlayerId> {
         Some(self.owner())
-    }
-
-    fn earlier_targets(&self) -> EarlierTargets<'_> {
-        EarlierTargets::None
     }
 
     fn note_gated_read(&self, input: GatedWalkInput) {
