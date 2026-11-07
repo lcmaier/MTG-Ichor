@@ -3265,7 +3265,7 @@ impl GameState {
     ) -> PlayerId {
         match recipient {
             EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
-            EffectRecipient::Target(SelectionFilter::Player, _)
+            EffectRecipient::Target(SelectionFilter::Player(_), _)
             | EffectRecipient::TriggeringPlayer
             | EffectRecipient::Referred
             | EffectRecipient::DefendingPlayer(_) => {

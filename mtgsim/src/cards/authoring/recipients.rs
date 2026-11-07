@@ -30,7 +30,12 @@ pub fn target_creature() -> EffectRecipient {
 
 /// "Target player".
 pub fn target_player() -> EffectRecipient {
-    target(SelectionFilter::Player)
+    target(SelectionFilter::Player(PlayerSet::Everyone))
+}
+
+/// "Target opponent": a player other than the controller (CR 102.1, 109.5).
+pub fn target_opponent() -> EffectRecipient {
+    target(SelectionFilter::Player(PlayerSet::Opponents))
 }
 
 /// "Target [permanent the filter describes]": "target land", "target

@@ -121,7 +121,7 @@ fn stack_sources(game: &GameState) -> Vec<ObjectId> {
 fn expect_target_player(dp: &ScriptedDecisionProvider, player: PlayerId) {
     dp.expect_choice(
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
         vec![ChoiceOption::Player(player)],
@@ -1449,7 +1449,7 @@ fn a_mana_producing_trigger_from_another_event_uses_the_stack() {
     let mut targeted = (**wild).clone();
     targeted.effect = Effect::Sequence(vec![
         produce.clone(),
-        Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
+        Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1))),
     ]);
     assert!(!could_be_a_mana_ability(&targeted), "a target disqualifies it");
 

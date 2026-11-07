@@ -664,7 +664,7 @@ fn its_power_is_read_as_the_effect_applies() {
     let mut game = setup_two_player_game();
     let bolt_of_self = Effect::Atom(
         Primitive::DealDamage { amount: AmountExpr::TriggeringPower(EventRole::Object), unpreventable: false },
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
     );
     let brute = put_on_battlefield(
         &mut game,
@@ -679,7 +679,7 @@ fn its_power_is_read_as_the_effect_applies() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
         vec![ChoiceOption::Player(1)],

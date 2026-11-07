@@ -1218,8 +1218,10 @@ pub enum PickCount {
 pub enum SelectionFilter {
     /// Creature on the battlefield
     Creature,
-    /// Player
-    Player,
+    /// A player in the set: "target player" is `Everyone`, "target opponent"
+    /// `Opponents` (742 printed cards), read against the controller (CR
+    /// 109.5) at the announcement and at CR 608.2b's re-check (item 345).
+    Player(PlayerSet),
     /// "any target" — creature, player, or planeswalker
     Any,
     /// Permanent matching a filter

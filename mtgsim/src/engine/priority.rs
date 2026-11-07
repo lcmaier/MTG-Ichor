@@ -302,7 +302,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::PhaseType;
     use crate::types::card_types::CardType;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::choice_types::ChoiceKind;
     use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
@@ -351,7 +351,7 @@ mod tests {
                 "",
                 Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             ).with_id(crate::types::ids::new_ability_id()))
             .build();
@@ -363,7 +363,7 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(card_id))]);
         dp.expect_choice(ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 

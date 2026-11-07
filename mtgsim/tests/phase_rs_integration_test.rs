@@ -25,7 +25,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AffectedSet, Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
-    PlayerRef, Primitive, SelectionFilter, TargetCount,
+    PlayerRef, Primitive, PlayerSet, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -160,7 +160,7 @@ fn edict_for(n: u64) -> Effect {
     Effect::Atom(
         Primitive::Sacrifice,
         EffectRecipient::ChosenBy(Box::new(Choice {
-            chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            chooser: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             among: ChoiceScope::ChoosersPermanents,
             picks: vec![Pick::exactly(n, ObjectFilter::ByType(CardType::Creature))],
             acts_on: ChoiceSide::Chosen,

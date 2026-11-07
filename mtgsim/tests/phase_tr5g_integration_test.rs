@@ -818,7 +818,7 @@ fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
     let ping = activated_ability(
         "",
         Vec::new(),
-        Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
+        Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1))),
     );
     let pinger = put_on_battlefield(&mut game, creature_with_ability("Counter", 1, 1, ping), 0);
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);

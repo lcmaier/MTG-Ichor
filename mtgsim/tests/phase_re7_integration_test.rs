@@ -31,7 +31,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Duration, Effect, EffectRecipient, PlayerRef, Primitive, PlayerSet, SelectionFilter, TargetCount,
     TokenDef,
 };
 use mtgsim::types::colors::Color;
@@ -182,7 +182,7 @@ fn stack_object_with(
     let recipient = if chosen_targets.is_empty() {
         EffectRecipient::Implicit
     } else {
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1))
     };
     let obj = GameObject::new(CardDataBuilder::new("Fixture Stack Object").build(), owner, Zone::Stack);
     let id = game.add_object(obj);
@@ -903,7 +903,7 @@ fn a_spell_whose_owner_leaves_during_its_own_resolution_makes_no_graveyard_trip(
         true,
         Effect::Atom(
             Primitive::LoseGame,
-            EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         ),
         vec![ObjectOrPlayerId::Player(1)],
     );

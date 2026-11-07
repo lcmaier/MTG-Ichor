@@ -5,7 +5,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, ModeIndex, SelectionFilter, TargetBounds, TargetCount};
+use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, ModeIndex, PlayerSet, SelectionFilter, TargetBounds, TargetCount};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 
@@ -540,7 +540,7 @@ impl GameState {
     ) -> Result<(), String> {
         match filter {
             SelectionFilter::Creature => self.validate_creature_target(target),
-            SelectionFilter::Player => self.validate_player_target(target),
+            SelectionFilter::Player(players) => self.validate_player_target(target, players, you),
             SelectionFilter::Any => self.validate_any_target(target),
             SelectionFilter::Permanent(pf) => {
                 self.validate_permanent_target(target, pf, you, identity)
@@ -608,12 +608,17 @@ impl GameState {
         }
     }
 
-    /// Validate a target is a valid player.
-    fn validate_player_target(&self, target: &ObjectOrPlayerId) -> Result<(), String> {
+    /// Validate a target is a player in `players`: "target player" any, and
+    /// "target opponent" an opponent of `you`, the controller (CR 109.5,
+    /// 102.1), asked again at CR 608.2b's re-check.
+    fn validate_player_target(&self, target: &ObjectOrPlayerId, players: &PlayerSet, you: PlayerId) -> Result<(), String> {
         match target {
             ObjectOrPlayerId::Player(pid) => {
                 if *pid >= self.players.len() {
                     return Err(format!("Player {} does not exist", pid));
+                }
+                if !players.contains(you, *pid) {
+                    return Err(format!("Player {pid} is not among {players:?} for player {you}"));
                 }
                 // CR 800.4a — a player who has left the game is not a player,
                 // so not a legal target: not offered at CR 601.2c, and a
@@ -972,7 +977,7 @@ mod tests {
     fn test_validate_player_target() {
         let game = GameState::new(2, 20);
         let targets = vec![ObjectOrPlayerId::Player(1)];
-        let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_ok());
     }
 
@@ -980,7 +985,7 @@ mod tests {
     fn test_validate_player_target_invalid() {
         let game = GameState::new(2, 20);
         let targets = vec![ObjectOrPlayerId::Player(5)];
-        let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 

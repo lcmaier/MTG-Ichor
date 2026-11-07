@@ -80,7 +80,7 @@ fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
             Effect::Atom(
                 primitive,
                 EffectRecipient::Target(
-                    mtgsim::types::effects::SelectionFilter::Player,
+                    mtgsim::types::effects::SelectionFilter::Player(PlayerSet::Everyone),
                     mtgsim::types::effects::TargetCount::Exactly(1),
                 ),
             ),
@@ -105,7 +105,7 @@ fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
                     .map(|(i, p)| {
                         let recipient = if i == 0 {
                             EffectRecipient::Target(
-                                mtgsim::types::effects::SelectionFilter::Player,
+                                mtgsim::types::effects::SelectionFilter::Player(PlayerSet::Everyone),
                                 mtgsim::types::effects::TargetCount::Exactly(1),
                             )
                         } else {

@@ -409,7 +409,7 @@ fn a_departed_player_is_not_a_legal_target_and_the_spell_fizzles() {
             "",
             Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             ),
         ).with_id(mtgsim::types::ids::new_ability_id()))
         .build();
@@ -419,7 +419,7 @@ fn a_departed_player_is_not_a_legal_target_and_the_spell_fizzles() {
         draw_for_target,
         0,
         vec![ObjectOrPlayerId::Player(2)],
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
     );
     game.players[2].life_total = 0;
     assert!(sba(&mut game, &test_dp()));
@@ -606,7 +606,7 @@ fn an_effect_may_state_that_a_player_loses_the_game() {
     let mut game = setup_game(2);
     let effect = Effect::Atom(
         Primitive::LoseGame,
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
     );
     resolve_with(&mut game, 0, &effect, vec![ObjectOrPlayerId::Player(1)], &test_dp());
 

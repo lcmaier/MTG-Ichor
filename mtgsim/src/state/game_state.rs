@@ -3019,10 +3019,10 @@ mod tests {
     #[test]
     fn an_announcements_targets_run_mode_after_mode() {
         use crate::engine::targeting::{Announcement, ChosenMode, TargetInstance};
-        use crate::types::effects::{EffectRecipient, ModeIndex, SelectionFilter, TargetCount};
+        use crate::types::effects::{EffectRecipient, ModeIndex, PlayerSet, SelectionFilter, TargetCount};
         use crate::types::ids::ObjectOrPlayer;
 
-        let player = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+        let player = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
         let target = |seat| TargetInstance::new(player.clone(), vec![ObjectOrPlayer::Player(seat)]);
         let announced = Announcement::Modes(vec![
             ChosenMode { mode: ModeIndex::printed(1), targets: vec![target(1)] },

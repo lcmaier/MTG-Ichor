@@ -821,7 +821,7 @@ mod tests {
     use crate::types::ids::ObjectOrPlayerId;
     use crate::objects::card_data::{AbilityType, CardDataBuilder};
     use crate::types::card_types::*;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
     use crate::ui::decision::ScriptedDecisionProvider;
@@ -1016,7 +1016,7 @@ mod tests {
                 "",
                 Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             ).with_id(crate::types::ids::new_ability_id()))
             .build();

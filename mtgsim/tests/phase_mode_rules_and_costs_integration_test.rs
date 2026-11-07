@@ -9,16 +9,16 @@
 //! and targets are questions asked on that path, and a staged entry cannot
 //! check them.
 
-use mtgsim::cards::authoring::{any_other_target, any_target, deal_damage, spell_ability};
+use mtgsim::cards::authoring::{any_other_target, any_target, deal_damage, lose_life, spell_ability, target_opponent};
 use mtgsim::engine::object_filter::EarlierTargets;
 use mtgsim::engine::targeting::{ChosenTargets, FilterIdentity};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::legality::enumerate_legal_selections_excluding;
 use mtgsim::cards::printings::grizzly_bears;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_dp};
+use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{Effect, SelectionFilter};
+use mtgsim::types::effects::{Effect, PlayerSet, SelectionFilter};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
@@ -91,4 +91,33 @@ fn any_other_target_takes_its_own_damage_after_the_first_names_a_player() {
 
     assert_eq!(game.players[1].life_total, 18);
     assert_eq!(damage_on(&game, bears), 1);
+}
+
+// ---------------------------------------------------------------------------
+// "Target opponent" (item 345)
+// ---------------------------------------------------------------------------
+
+/// At three seats "target opponent" offers both opponents and never the
+/// caster, and cast from hand it takes the opponent named: player 2 loses
+/// the life, player 1 and the caster none.
+#[test]
+fn target_opponent_offers_each_opponent_and_never_the_caster() {
+    let mut game = setup_game(3);
+    let opponents = SelectionFilter::Player(PlayerSet::Opponents);
+    assert_eq!(
+        enumerate_legal_selections_excluding(&game, &opponents, None, 0, FilterIdentity::NONE),
+        [ObjectOrPlayerId::Player(1), ObjectOrPlayerId::Player(2)],
+    );
+
+    let text = "Target opponent loses 2 life.";
+    let drain = invented_instant("Invented Drain", text, lose_life(target_opponent(), 2));
+    let spell = put_in_hand(&mut game, drain, 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+    let answers = ScriptedDecisionProvider::new();
+    names_targets(&answers, vec![ChoiceOption::Player(2)]);
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    let life: Vec<i64> = game.players.iter().map(|player| player.life_total).collect();
+    assert_eq!(life, [20, 20, 18]);
 }

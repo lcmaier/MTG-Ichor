@@ -41,7 +41,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     ColorChange, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, Primitive,
-    SelectionFilter, TargetCount,
+    PlayerSet, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
@@ -648,7 +648,7 @@ fn skullcrack_cast_from_hand_deals_its_three_damage() {
     let dp = stopping_dp();
     answer_targets(
         &dp,
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         card,
         ChoiceOption::Player(1),
     );
