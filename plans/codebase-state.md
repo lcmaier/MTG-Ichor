@@ -10778,8 +10778,8 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      registry nears 10,000 cards, about a second in debug.
      **Sized:** move it to run in release only, as the whole-game tests do, or
      sample the registry by a seeded draw; ~10 lines either way.
-     **Slotted:** when `cargo test`'s slowest test is this one, or with card
-     breadth past 5,000 registered cards, whichever comes first.
+     **Slotted:** Phase 9, card breadth, once the registry passes 5,000 cards,
+     or sooner if `cargo test`'s slowest test is this one.
 
 411. **Nine hand-rolled bit sets, one shape.** Three vocabularies of named flags
      (`engine::layers::board`'s `Channels`, `PaymentChannels`,
@@ -10796,5 +10796,5 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      strings read differently.
      **Sized:** about 770 lines name the nine types; the named-flag sets first,
      and an enum set moves only where `bitflags` keeps its `of(kind)` as plain.
-     **Slotted:** its own PR, after `orders-the-cr-hands-a-player`, never inside an
-     engine PR.
+     **Slotted:** its own PR, ahead of `fork-test-at-every-decision`, never inside
+     an engine PR.
