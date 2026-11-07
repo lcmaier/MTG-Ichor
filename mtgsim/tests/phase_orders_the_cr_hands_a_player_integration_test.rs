@@ -402,12 +402,14 @@ fn an_order_leaving_a_part_unpaid_is_refused_and_asked_again() {
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Graveyard);
 }
 
-/// The {T} and the sacrifice of a creature hasty by that creature: the other
-/// order leaves the {T} unpayable, so it is the one that completes, and the
-/// player is not asked though the two parts do not commute. The source's own
-/// haste stays whatever moves, so the same two parts are a question.
+/// The summoning sickness rule forbids beginning to activate (CR 602.5,
+/// 602.5a) and nothing after: once begun, {T} needs only an untapped source
+/// (CR 118.3). So a creature hasty only by the creature its cost sacrifices
+/// pays the two in either order, as one hasty of its own does, and where the
+/// order shows, under its anthem, the player chooses it. With no haste at all
+/// it is refused before anything is asked or paid.
 #[test]
-fn haste_decides_the_order_only_where_the_move_takes_it_away() {
+fn haste_is_read_as_the_activation_begins_and_never_at_the_payment() {
     let altar = |own_haste: bool| {
         let anthem = "As long as this creature is untapped, other creatures you control get +1/+1.";
         let activated = "{T}, Sacrifice another creature: Draw a card.";
@@ -448,9 +450,20 @@ fn haste_decides_the_order_only_where_the_move_takes_it_away() {
     game.begin_turn(1, 0);
     fill_library(&mut game, 0, 5);
     let source = put_on_battlefield_this_turn(&mut game, altar(false), 0);
-    put_on_battlefield(&mut game, haste_giver(), 0);
-    game.activate_ability(0, source, 1, &test_dp()).expect("the {T} is paid while the haste lasts");
-    assert_not_asked(&game, 0, "OrderCostPayments", "its one legal answer");
+    let giver = put_on_battlefield(&mut game, haste_giver(), 0);
+    let answers = ScriptedDecisionProvider::new();
+    pays_in_order(&answers, vec![another_creature(giver), part(Cost::TapSelf)]);
+    game.activate_ability(0, source, 1, &answers).expect("the haste is read as the activation begins");
+    assert_eq!(answers.remaining(), 0, "the player chose to sacrifice the haste's source first");
+    assert_eq!(game.get_object(giver).unwrap().zone, Zone::Graveyard);
+    assert!(game.battlefield[&source].tapped);
+
+    let mut game = setup_two_player_game();
+    game.begin_turn(1, 0);
+    let source = put_on_battlefield_this_turn(&mut game, altar(false), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert!(game.activate_ability(0, source, 1, &test_dp()).is_err(), "no haste, so it cannot begin");
+    assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield, "nothing paid");
 }
 
 /// "An artifact" and "a creature" over one artifact creature, the overlap no

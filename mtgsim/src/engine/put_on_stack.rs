@@ -497,7 +497,7 @@ impl GameState {
         let abilities = crate::oracle::characteristics::get_effective_abilities(self, source_id);
         let ability = abilities.get(ability_index)
             .ok_or_else(|| format!("Ability index {} out of range", ability_index))?;
-        can_begin_to_activate(self, player_id, ability).map_err(|reason| reason.to_string())?;
+        can_begin_to_activate(self, player_id, source_id, ability).map_err(|reason| reason.to_string())?;
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs().to_vec();

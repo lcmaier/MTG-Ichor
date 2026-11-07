@@ -932,7 +932,7 @@ stays ahead of every move, and an order leaving a part unpayable is refused:
 | rank | costs | why nothing after it can fail |
 |---|---|---|
 | 0 | `Mana` | the only cost whose payment can fail on a choice the player made — an illegal generic split — so it is paid while nothing else has been |
-| 1 | `TapSelf`, `UntapSelf`, `PayLife`, `RemoveCounters`, `AddCounters` | reads the source's tapped state, its summoning sickness, or a life total; no rank-0 payment touches any of them |
+| 1 | `TapSelf`, `UntapSelf`, `PayLife`, `RemoveCounters`, `AddCounters` | reads the source's tapped state or a life total; no rank-0 payment touches either. Summoning sickness is no cost's: it forbids beginning to activate (CR 602.5a) |
 | 2 | `Sacrifice`, `SacrificeSelf`, `Discard`, `ExileFromGraveyard` | its own payment cannot fail — `plan_payment` enumerated the candidates and `validate_pick_n` bounds the answer — and nothing follows it that a removal could invalidate |
 
 `payment_order_rank` is matched exhaustively, so a new `Cost` arm decides where

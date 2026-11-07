@@ -454,7 +454,7 @@ each re-answers **one named question at one named read**:
 | May this attack: defender, haste | 57, 3 | `can_attack`; Frenzied Saddlebrute's haste is per attack target | the permission half |
 | May this block: evasion, tapped | 15, 1 | `can_block`'s pair checks, `can_be_a_blocker` | the permission half |
 | May this be targeted: hexproof, shroud | 5 | `validate_targets`, and CR 608.2b's re-check | the permission half, its seam cut by `cant-be-targeted` |
-| May this be activated: haste, a use limit | 4, 2 | `has_summoning_sickness` at the tap and untap costs and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half, its seam cut by `cant-pay-costs` |
+| May this be activated: haste, a use limit | 4, 2 | `summoning_sickness_forbids`, once as an activation begins (CR 602.5a; never at the tap and untap costs, since #316) and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half |
 | How is this creature's damage assigned | 19 | a "may" at CR 510.1c, a choice kind no census has counted | the permission half, with its `ChoiceKind` |
 | What does this source's damage do | 2 | wither's and infect's reads (Everlasting Torment, Phyrexian Unlife) | those keywords' first cards |
 | What number does this rule read | 24, 1 | crew, saddle and station's power sum (22), Loot's and Zimone's assignment, adapt's counter check | `remaining-costs` for crew, saddle and station; each other with its mechanic |

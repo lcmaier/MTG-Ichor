@@ -705,10 +705,13 @@ both checkable at `combat-restrictions`'s review.**
   they didn't have hexproof". Hexproof is a keyword-derived restriction like
   Defender, so the consult must see past it to the next, and only for the
   source's controller the fiction names. CR 608.2b's re-check asks the same.
-- **`cant-pay-costs`**: "activate abilities as though those creatures had haste"
-  reaches the tap and untap costs and `mana_supply`'s recheck, and not the attack,
-  though `has_summoning_sickness` answers both. The accessor takes the question,
-  or the fiction leaks from one to the other, which is CR 609.4's whole point.
+- **Activation, not a cost**: "activate abilities as though those creatures had
+  haste" reaches `summoning_sickness_forbids`, which CR 602.5a asks once as an
+  activation begins and `mana_supply` asks of each source, and not the attack.
+  Since #316 no cost reads haste: the rule forbids beginning (CR 602.5), and a
+  {T} needs only an untapped permanent (CR 118.3). The two questions have two
+  accessors, so the fiction cannot leak from one to the other, which is CR
+  609.4's whole point.
 
 **What this section does not ask for.** No `PermissionDef`, no `Query` arm, no
 card, no schedule change, and no sizing pass. CR 609.4's mechanism is

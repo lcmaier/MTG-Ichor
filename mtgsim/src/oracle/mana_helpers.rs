@@ -6,6 +6,7 @@
 use std::cell::OnceCell;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use crate::oracle::characteristics::summoning_sickness_forbids;
 use crate::oracle::mana_supply::{ManaSupply, NonManaCosts};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
@@ -223,7 +224,7 @@ pub(crate) fn remaining_cost_after_pool(
 
 /// Why an ability is not offered to activate at a priority question.
 ///
-/// The first five are CR 602.2's and CR 602.5's "can begin to activate",
+/// The first six are CR 602.2's and CR 602.5's "can begin to activate",
 /// which [`can_activate_its_abilities`] and [`can_begin_to_activate`] ask for
 /// the enumeration and for the activation alike. The last three predict what
 /// CR 602.2b's run of 601.2c and 601.2h would refuse, which the activation
@@ -243,6 +244,9 @@ pub enum CannotActivate {
     NotActivated,
     /// "Activate only as a sorcery", outside sorcery timing (CR 602.5d).
     Timing(SorceryTiming),
+    /// {T} or {Q} in its cost, on a creature with summoning sickness (CR
+    /// 602.5a): forbidden to begin, though the {T} itself could be paid.
+    SummoningSick,
     /// A cost other than mana that can't be paid (CR 118.3).
     Cost(CannotPay),
     /// The mana its controller's pool and untapped sources can make does not
@@ -263,6 +267,7 @@ impl std::fmt::Display for CannotActivate {
             CannotActivate::ManaAbility => f.write_str("Use activate_mana_ability for mana abilities"),
             CannotActivate::NotActivated => f.write_str("Not an activated ability"),
             CannotActivate::Timing(timing) => timing.fmt(f),
+            CannotActivate::SummoningSick => f.write_str("Creature has summoning sickness"),
             CannotActivate::Cost(cost) => cost.fmt(f),
             CannotActivate::ManaShort => f.write_str("Not enough mana"),
             CannotActivate::NoLegalTarget => f.write_str("No legal choice for one of its targets"),
@@ -289,10 +294,11 @@ pub fn can_activate_its_abilities(game: &GameState, player_id: PlayerId, source_
     Ok(())
 }
 
-/// CR 602.5's "can begin to activate", for one ability: an activated ability,
-/// and, if it may be activated only as a sorcery, at sorcery timing
+/// CR 602.5's "can begin to activate", for one ability of `source_id`'s: an
+/// activated ability, not forbidden by the summoning sickness rule (CR
+/// 602.5a), and, if it may be activated only as a sorcery, at sorcery timing
 /// (CR 602.5d).
-pub fn can_begin_to_activate(game: &GameState, player_id: PlayerId, ability: &AbilityDef) -> Result<(), CannotActivate> {
+pub fn can_begin_to_activate(game: &GameState, player_id: PlayerId, source_id: ObjectId, ability: &AbilityDef) -> Result<(), CannotActivate> {
     let activation = match &ability.ability_type {
         AbilityType::Activated(activation) => activation,
         AbilityType::Mana(_) => return Err(CannotActivate::ManaAbility),
@@ -300,6 +306,9 @@ pub fn can_begin_to_activate(game: &GameState, player_id: PlayerId, ability: &Ab
             return Err(CannotActivate::NotActivated);
         }
     };
+    if summoning_sickness_forbids(game, source_id, &activation.costs) {
+        return Err(CannotActivate::SummoningSick);
+    }
     if activation.restriction == ActivationRestriction::OnlyAsSorcery {
         game.check_sorcery_timing(player_id).map_err(CannotActivate::Timing)?;
     }
@@ -331,7 +340,7 @@ fn can_activate_as_its_controller(
     ability: &AbilityDef,
     supply: &OnceCell<ManaSupply>,
 ) -> Result<(), CannotActivate> {
-    can_begin_to_activate(game, player_id, ability)?;
+    can_begin_to_activate(game, player_id, source_id, ability)?;
 
     let (symbols, other_costs) = Cost::split_out_mana_costs(ability.costs().iter().cloned());
     for cost in &other_costs {

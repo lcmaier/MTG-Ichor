@@ -13,6 +13,7 @@ use crate::objects::card_data::AbilityDef;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
+use crate::types::costs::Cost;
 use crate::types::effects::ObjectFilter;
 use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::Lki;
@@ -294,10 +295,14 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
     under_the_summoning_sickness_rule(game, id).is_some_and(|chars| !chars.keyword_flags.contains(&KeywordFlag::Haste))
 }
 
-/// Whether haste is what lets `id` pay {T} or {Q} now (CR 302.6): the keyword
-/// could leave with whatever gives it.
-pub(crate) fn needs_haste_to_tap(game: &GameState, id: ObjectId) -> bool {
-    under_the_summoning_sickness_rule(game, id).is_some()
+/// Whether the summoning sickness rule forbids beginning to activate an
+/// ability of `id`'s whose cost is `costs` (CR 602.5a): one with {T} or {Q}
+/// in it, on a creature with summoning sickness. A prohibition, asked as the
+/// activation begins (CR 602.5) and never again: the {T} itself needs only
+/// an untapped permanent (CR 118.3), so haste that leaves during the
+/// payment, sacrificed with what grants it, refuses nothing.
+pub fn summoning_sickness_forbids(game: &GameState, id: ObjectId, costs: &[Cost]) -> bool {
+    costs.iter().any(Cost::is_tap_or_untap_symbol) && has_summoning_sickness(game, id)
 }
 
 /// `id`'s characteristics, when it is a creature on the battlefield its

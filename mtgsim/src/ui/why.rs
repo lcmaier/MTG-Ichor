@@ -21,9 +21,9 @@ use crate::state::game_state::NotAnOpponent;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{EventId, ResolutionStamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{get_effective_abilities, is_creature};
+use crate::oracle::characteristics::{get_effective_abilities, is_creature, summoning_sickness_forbids};
 use crate::oracle::legality::{can_attack, can_play_land};
-use crate::oracle::mana_helpers::{can_activate, can_activate_its_abilities, can_cast};
+use crate::oracle::mana_helpers::{can_activate, can_activate_its_abilities, can_cast, CannotActivate};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::state::trace::{RecordKind, TraceRecord};
@@ -733,9 +733,12 @@ fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> V
     mana.iter()
         .filter(|ability| !window_offers(question, id, ability.id))
         .filter_map(|ability| {
-            let reason = game.can_pay_costs(ability.costs(), player, id).err()?;
             let action = format!("To activate “{}”", ability.rules_text.words);
-            Some(refusal(action, cannot_pay(game, player, id, &reason)))
+            if summoning_sickness_forbids(game, id, ability.costs()) {
+                return Some(refusal(action, cannot_activate(game, player, id, ability, &CannotActivate::SummoningSick)));
+            }
+            let reason = game.can_pay_costs(ability.costs(), player, id).err()?;
+            Some(refusal(action, cannot_pay(player, &reason)))
         })
         .collect()
 }
@@ -788,9 +791,9 @@ pub fn not_offered_yet(game: &GameState, question: &OpenQuestion) -> Vec<NotOffe
             // the rest is asked on its own.
             let short = game.can_pay_costs(ability.costs(), player, source) == Err(CannotPay::PoolShort);
             let rest: Vec<Cost> = ability.costs().iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
-            if short && game.can_pay_costs(&rest, player, source).is_ok() {
+            if short && !summoning_sickness_forbids(game, source, ability.costs()) && game.can_pay_costs(&rest, player, source).is_ok() {
                 let option = ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability.id));
-                let (reason, rule) = cannot_pay(game, player, source, &CannotPay::PoolShort);
+                let (reason, rule) = cannot_pay(player, &CannotPay::PoolShort);
                 not_yet.push(NotOfferedYet { source, label: option_label(game, &option), reason, rule });
             }
         }

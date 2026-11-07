@@ -49,6 +49,11 @@ impl GameState {
         if !crate::oracle::characteristics::controls(self, permanent_id, player_id) {
             return Err("You don't control this permanent".to_string());
         }
+        // CR 602.5a, as the activation begins (CR 605.3a's mana abilities are
+        // activated by the rules for any activated ability).
+        if crate::oracle::characteristics::summoning_sickness_forbids(self, permanent_id, &activation.costs) {
+            return Err(crate::oracle::mana_helpers::CannotActivate::SummoningSick.to_string());
+        }
 
         // Pay costs via shared cost payment system: plan, then perform.
         // A mana ability's cost is usually just {T}, but Krark-Clan Ironworks'

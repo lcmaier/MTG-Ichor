@@ -20,7 +20,6 @@ use std::collections::HashMap;
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::state::battlefield::PaidWith;
 use crate::types::costs::{Cost, PaymentAct};
-use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
@@ -97,9 +96,6 @@ pub enum CannotPay {
     AlreadyTapped,
     /// {Q} on an untapped permanent.
     NotTapped,
-    /// {T} or {Q} on a creature that has not been under its controller's
-    /// control since their most recent turn began (CR 302.6).
-    SummoningSick,
     /// More mana than the pool holds, asked at CR 601.2h once the window has
     /// closed. The enumeration counts the sources too, in a reason of its own.
     PoolShort,
@@ -120,7 +116,6 @@ impl std::fmt::Display for CannotPay {
             CannotPay::SourceGone(id) => write!(f, "Permanent {id} not on battlefield"),
             CannotPay::AlreadyTapped => f.write_str("Permanent is already tapped"),
             CannotPay::NotTapped => f.write_str("Permanent is not tapped"),
-            CannotPay::SummoningSick => f.write_str("Creature has summoning sickness"),
             CannotPay::PoolShort => f.write_str("Not enough mana"),
             CannotPay::TooLittleLife { life, amount } => write!(f, "Cannot pay {amount} life, only {life} available"),
             CannotPay::TooFewToSacrifice { matching, needed } => {
@@ -160,9 +155,10 @@ const RANK_MOVES_AN_OBJECT: u8 = 2;
 ///   already merges every mana entry into one component ahead of this
 ///   (`cost-architecture.md` §3.3); this extends the same argument to an
 ///   ability's cost list, which is its *printed* one and never merged.
-/// - rank 1 — mutates, moves nothing: reads the source's tapped state, its
-///   summoning sickness or the player's life, none of which a rank-0 payment
-///   changes.
+/// - rank 1 — mutates, moves nothing: reads the source's tapped state or the
+///   player's life, neither of which a rank-0 payment changes. Summoning
+///   sickness is no cost's to read: it forbids beginning to activate (CR
+///   602.5a), before anything is paid.
 /// - rank 2 — moves an object. Its own payment cannot fail, because
 ///   `plan_payment` enumerated the candidates and `validate_pick_n` bounds
 ///   the answer; and nothing after it can fail, because nothing after it
@@ -232,14 +228,11 @@ impl GameState {
         match cost {
             Cost::TapSelf => {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
+                // The summoning sickness rule is no resource: it forbids
+                // beginning to activate (CR 602.5a), which
+                // `summoning_sickness_forbids` asks where activating begins.
                 if entry.tapped {
                     return Err(CannotPay::AlreadyTapped);
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // tapping, unless they have haste. `has_summoning_sickness` is
-                // false for a noncreature permanent, so it needs no type gate here.
-                if has_summoning_sickness(self, source_id) {
-                    return Err(CannotPay::SummoningSick);
                 }
                 Ok(())
             }
@@ -247,11 +240,6 @@ impl GameState {
                 let entry = self.battlefield.get(&source_id).ok_or(CannotPay::SourceGone(source_id))?;
                 if !entry.tapped {
                     return Err(CannotPay::NotTapped);
-                }
-                // Rule 302.6 / 702.10c: Summoning sickness prevents creatures from
-                // paying {Q} (untap symbol), unless they have haste.
-                if has_summoning_sickness(self, source_id) {
-                    return Err(CannotPay::SummoningSick);
                 }
                 Ok(())
             }
@@ -549,6 +537,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::costs::Cost;
     use crate::objects::object::GameObject;
+    use crate::oracle::characteristics::summoning_sickness_forbids;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::GameState;
     use crate::types::card_types::*;
@@ -692,11 +681,12 @@ mod tests {
 
     #[test]
     fn test_untap_cost_blocked_by_summoning_sickness() {
-        // Creature enters on turn 1, game is on turn 1 → summoning sick → can't pay {Q}
-        let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
-        let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("summoning sickness"));
+        // Creature enters on turn 1, game is on turn 1 → summoning sick, so an
+        // ability with {Q} cannot begin to be activated (CR 602.5a). The {Q}
+        // itself is no resource it lacks.
+        let (game, creature_id) = setup_creature_on_turn(1, vec![]);
+        assert!(summoning_sickness_forbids(&game, creature_id, &[Cost::UntapSelf]));
+        assert_eq!(game.can_pay_costs(&[Cost::UntapSelf], 0, creature_id), Ok(()));
     }
 
     #[test]
@@ -728,7 +718,7 @@ mod tests {
     #[test]
     fn test_untap_cost_blocked_on_the_turn_its_clock_starts() {
         // CR 302.6's clock started on turn 3, its controller's turn, staged as
-        // the arrival it seeds from: sick, so {Q} cannot be paid. A Layer 2
+        // the arrival it seeds from: sick, so {Q} cannot be activated. A Layer 2
         // change starting the clock is phase_lg's
         // `test_gaining_control_gives_the_creature_summoning_sickness`.
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
@@ -737,9 +727,7 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().control_began_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
-        let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("summoning sickness"));
+        assert!(summoning_sickness_forbids(&game, creature_id, &[Cost::UntapSelf]));
     }
 
     #[test]

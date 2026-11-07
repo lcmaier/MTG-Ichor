@@ -743,7 +743,7 @@ pub fn cannot_cast(game: &GameState, player: PlayerId, card: ObjectId, reason: &
         ),
         CannotCast::NoLegalTarget => ("one of its targets has no legal choice".to_string(), Some("601.2c")),
         CannotCast::AdditionalCost(cost) => {
-            let (words, rule) = cannot_pay(game, player, card, cost);
+            let (words, rule) = cannot_pay(player, cost);
             (format!("its additional cost can't be paid: {words}"), rule)
         }
         CannotCast::ManaShort => {
@@ -807,7 +807,16 @@ pub fn cannot_activate(
             ),
             Some("602.5d"),
         ),
-        CannotActivate::Cost(cost) => cannot_pay(game, player, source, cost),
+        CannotActivate::SummoningSick => {
+            let controller = controller_or_owner(game, source).map_or_else(|| who.clone(), player_name);
+            (
+                format!(
+                    "it has not been under {controller}'s control since their most recent turn began, so an ability with {{T}} or {{Q}} can't begin to be activated"
+                ),
+                Some("602.5a"),
+            )
+        }
+        CannotActivate::Cost(cost) => cannot_pay(player, cost),
         CannotActivate::ManaShort => {
             let cost = ability.costs().iter().find_map(|cost| match cost {
                 Cost::Mana(mana) => Some(format!(" {mana}")),
@@ -819,20 +828,14 @@ pub fn cannot_activate(
     }
 }
 
-/// Why a cost of `source`'s can't be paid, and the rule.
-pub fn cannot_pay(game: &GameState, player: PlayerId, source: ObjectId, reason: &CannotPay) -> (String, Option<&'static str>) {
+/// Why a cost can't be paid by `player`, and the rule.
+pub fn cannot_pay(player: PlayerId, reason: &CannotPay) -> (String, Option<&'static str>) {
     let who = player_name(player);
     match reason {
         CannotPay::SourceGone(_) => ("it is not on the battlefield to pay with".to_string(), Some("118.3")),
         CannotPay::AlreadyTapped => ("it is already tapped, so it can't be tapped to pay {T}".to_string(), Some("118.3")),
         CannotPay::NotTapped => ("it is untapped, so it can't be untapped to pay {Q}".to_string(), Some("118.3")),
-        CannotPay::SummoningSick => {
-            let controller = controller_or_owner(game, source).map_or_else(|| who.clone(), player_name);
-            (
-                format!("it has not been under {controller}'s control since their most recent turn began, so it can't pay {{T}} or {{Q}}"),
-                Some("302.6"),
-            )
-        }
+
         CannotPay::PoolShort => (format!("{who}'s mana pool does not hold the mana"), Some("601.2h")),
         CannotPay::TooLittleLife { life, amount } => (format!("{who} has {life} life, less than the {amount} it costs"), Some("119.4")),
         CannotPay::TooFewToSacrifice { matching: 0, .. } => (format!("{who} controls nothing it could sacrifice"), Some("701.21a")),

@@ -28,13 +28,12 @@ use crate::engine::layers::cda::pt_amounts;
 use crate::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, PtValue};
 use crate::engine::replacement::replacement_watchers;
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
-use crate::oracle::characteristics::{get_effective_abilities, get_effective_controller, needs_haste_to_tap, ObjectInformation};
+use crate::oracle::characteristics::{get_effective_abilities, get_effective_controller, ObjectInformation};
 use crate::state::game_state::GameState;
 use crate::state::history_log::RowKind;
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Condition, ObjectFilter, ObjectSet, PlayerFact};
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{EventKind, EventKindMask};
 use crate::types::zones::{Zone, ZoneSet};
 use crate::ui::ask::ask_order_cost_payments;
@@ -321,6 +320,22 @@ impl PaymentPart<'_> {
     }
 }
 
+/// What the plan forces, before closing it: a part ahead of whatever moves
+/// what it needs, so that nothing fails after a payment that cannot be taken
+/// back (CR 732.1, `engine::costs`). Haste forces nothing: the summoning
+/// sickness rule is read as the activation begins (CR 602.5a), so its leaving
+/// during the payment leaves the {T} payable.
+fn direct_edges(parts: &[PaymentPart]) -> Vec<Vec<bool>> {
+    let n = parts.len();
+    let mut precedes = vec![vec![false; n]; n];
+    for a in 0..n {
+        for b in (0..n).filter(|&b| b != a) {
+            precedes[a][b] = parts[a].needs.iter().any(|object| parts[b].moves.contains(object));
+        }
+    }
+    precedes
+}
+
 /// The orders that complete, as what must come before what: `precedes[a][b]`
 /// is that part `a` is paid ahead of part `b` in every one of them.
 pub(crate) struct MustPrecede {
@@ -399,7 +414,7 @@ impl GameState {
         }
         let parts: Vec<PaymentPart> =
             plan.ordered.iter().enumerate().map(|(place, cost)| self.part_of(cost, plan.sacrifices.get(&place).map(Vec::as_slice), source)).collect();
-        let must = MustPrecede::closed(self.direct_edges(&parts, source))
+        let must = MustPrecede::closed(direct_edges(&parts))
             .ok_or_else(|| format!("No order pays {:?}: two parts use one object", plan.ordered))?;
 
         let n = parts.len();
@@ -579,33 +594,6 @@ impl GameState {
                     || ability.effect.replacements().any(|(_, def)| def.pattern.action_kinds().intersects(watched.actions))
             })
         })
-    }
-
-    /// What the plan forces, before closing it: a part ahead of whatever moves
-    /// what it needs, so that nothing fails after a payment that cannot be
-    /// taken back (CR 732.1, `engine::costs`).
-    fn direct_edges(&self, parts: &[PaymentPart], source: ObjectId) -> Vec<Vec<bool>> {
-        let n = parts.len();
-        let mut precedes = vec![vec![false; n]; n];
-        for a in 0..n {
-            for b in (0..n).filter(|&b| b != a) {
-                let needs_what_b_moves = parts[a].needs.iter().any(|object| parts[b].moves.contains(object));
-                precedes[a][b] = needs_what_b_moves || (parts[a].cost.is_tap_or_untap_symbol() && self.haste_leaves_with(source, &parts[b].moves));
-            }
-        }
-        precedes
-    }
-
-    /// Whether `source` pays {T} or {Q} only by a haste that `moved` gives it
-    /// (CR 302.6). Haste of its own stays, so that order completes.
-    fn haste_leaves_with(&self, source: ObjectId, moved: &[ObjectId]) -> bool {
-        !moved.is_empty()
-            && needs_haste_to_tap(self, source)
-            && self.continuous_effects.iter().any(|row| {
-                moved.contains(&row.source)
-                    && row.modification == EffectModification::GrantKeywordFlag(KeywordFlag::Haste)
-                    && self.row_reaches(row, source)
-            })
     }
 
     /// The shortcut's check, with the shortcut off: `plan` paid in every order
