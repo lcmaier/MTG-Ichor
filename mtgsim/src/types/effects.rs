@@ -907,15 +907,17 @@ impl ModeIndex {
         ModeIndex(place)
     }
 
-    /// The mode at `position` in its node's list, counting from 0. `None`
-    /// past the 255th, which no ability prints.
-    pub fn at(position: usize) -> Option<ModeIndex> {
-        u8::try_from(position + 1).ok().map(ModeIndex)
+    /// The mode stored at `ModalNode::modes[list_position]`: the printed
+    /// place one more, since the list counts from 0 and the card from 1.
+    /// `None` past the 255th, which no ability prints.
+    pub fn from_list_position(list_position: usize) -> Option<ModeIndex> {
+        u8::try_from(list_position + 1).ok().map(ModeIndex)
     }
 
-    /// Where the mode sits in its node's list, counting from 0; `None` for a
-    /// place of 0, which names no mode.
-    fn position(self) -> Option<usize> {
+    /// The inverse of [`ModeIndex::from_list_position`]: where the mode is
+    /// stored in `ModalNode::modes`. `None` for a place of 0, which names no
+    /// mode.
+    fn list_position(self) -> Option<usize> {
         usize::from(self.0).checked_sub(1)
     }
 }
@@ -989,7 +991,7 @@ impl Mode {
 impl ModalNode {
     /// The mode printed at `mode`, if the node has one.
     pub fn mode(&self, mode: ModeIndex) -> Option<&Mode> {
-        self.modes.get(mode.position()?)
+        self.modes.get(mode.list_position()?)
     }
 
     /// Where each of the `chosen` modes' instances begin among the
@@ -1011,7 +1013,7 @@ impl ModalNode {
 
     /// Every mode with its printed place, in printed order.
     pub fn indexed_modes(&self) -> impl Iterator<Item = (ModeIndex, &Mode)> {
-        self.modes.iter().enumerate().filter_map(|(at, mode)| Some((ModeIndex::at(at)?, mode)))
+        self.modes.iter().enumerate().filter_map(|(at, mode)| Some((ModeIndex::from_list_position(at)?, mode)))
     }
 }
 
