@@ -79,14 +79,14 @@ impl GameState {
         &mut self,
         player_id: PlayerId,
         card_id: ObjectId,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // --- Pre-proposal legality check (rule 601.3) ---
         // The check the enumeration asks, so the two agree.
         can_begin_to_cast(self, player_id, card_id).map_err(|reason| reason.to_string())?;
 
         // What the payment proposes, it causes as a cost (CR 601.2h).
-        let actx = ActionContext::paying_cost(decisions, player_id, card_id);
+        let actx = ActionContext::paying_cost(dp, player_id, card_id);
 
         // Snapshot data we need before moving the card
         let card_data = self.get_object(card_id)?.card_data.clone();
@@ -119,7 +119,7 @@ impl GameState {
         self.move_object(card_id, Zone::Stack)?;
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
-        let chosen_alt = ask_choose_alternative_cost(decisions, self, player_id, card_id, &card_data.alternative_costs);
+        let chosen_alt = ask_choose_alternative_cost(dp, self, player_id, card_id, &card_data.alternative_costs);
 
         // CR 601.2b announces "their intentions to pay any or all of those
         // costs" — of the *optional* ones. A mandatory additional cost
@@ -138,7 +138,7 @@ impl GameState {
                 .iter()
                 .map(|&i| card_data.additional_costs[i].clone())
                 .collect();
-            ask_choose_additional_costs(decisions, self, player_id, card_id, &offered)
+            ask_choose_additional_costs(dp, self, player_id, card_id, &offered)
         } else {
             Vec::new()
         };
@@ -176,7 +176,7 @@ impl GameState {
         let has_x = base_mana_cost.x_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
         let x_value = if has_x {
             match legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero) {
-                Some(values) => ask_choose_x_value(decisions, self, player_id, card_id, values),
+                Some(values) => ask_choose_x_value(dp, self, player_id, card_id, values),
                 // The 601.2h failure, found before a window opens for it.
                 None => {
                     self.rollback_cast_to_hand(card_id)?;
@@ -195,7 +195,7 @@ impl GameState {
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
         let (chosen_modes, targets) = match self.announce_modes_and_targets(
-            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), decisions,
+            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), dp,
         ) {
             Ok(announced) => announced,
             Err(e) => {
@@ -242,7 +242,7 @@ impl GameState {
             chosen_alt,
             &chosen_additional,
             x_value,
-            decisions,
+            dp,
         );
 
         // --- 601.2g: Mana ability window ---
@@ -251,7 +251,7 @@ impl GameState {
         // runs until the player declines or no activatable ability remains
         // (`run_mana_ability_window`); 601.2h then checks the pool and rolls the
         // cast back if it does not cover the cost.
-        self.run_mana_ability_window(player_id, card_id, &total_costs, decisions);
+        self.run_mana_ability_window(player_id, card_id, &total_costs, dp);
 
         // --- 601.2h: Pay total cost ---
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
@@ -298,7 +298,7 @@ impl GameState {
         let card_before_cast = card_before_cast.ok_or_else(|| format!("{card_id} was cast from no zone"))?;
         let casting = EventCause::Casting(player_id);
         self.announce_zone_change(card_before_cast, cast_from, Zone::Stack, ZoneChangeAct::Cast, None, None, casting)?;
-        self.announce_targeted_records(card_id, casting, decisions)?;
+        self.announce_targeted_records(card_id, casting, dp)?;
         self.emit_event(GameEvent::SpellCast { spell: self.existence_for_record(card_id)?, caster: player_id }, casting)?;
 
         Ok(())
@@ -334,7 +334,7 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
         x_value: Option<u64>,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
         let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
@@ -359,7 +359,7 @@ impl GameState {
             // spell's text", and once determined it does not change.
             let bounds = count.bounds(&|amount| self.amount_as_announced(amount, player_id, this_object, named_objects, x_value))?;
             let chosen = ask_select_recipients(
-                decisions, self, player_id, recipient, source_id,
+                dp, self, player_id, recipient, source_id,
                 &legal, bounds.fewest, bounds.most,
             );
             self.validate_targets(recipient, &chosen, bounds, player_id, identity)?;
@@ -378,7 +378,7 @@ impl GameState {
             // CR 115.6: "any number" may be none, which divides nothing.
             if !targets.is_empty() {
                 let total = self.amount_as_announced(&divided.total, player_id, this_object, named_objects, x_value)?;
-                instance.divide(&ask_divide_among(decisions, self, player_id, source_id, &targets, total));
+                instance.divide(&ask_divide_among(dp, self, player_id, source_id, &targets, total));
             }
         }
         Ok(announced)
@@ -404,10 +404,10 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: ConditionReferents<'_>,
         x_value: Option<u64>,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(Vec<ModeIndex>, Vec<TargetInstance>), String> {
         let Some(node) = effect.modal() else {
-            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, decisions)?;
+            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
             return Ok((Vec::new(), targets));
         };
         let ask = ModeAsk { game: self, player: player_id, this_object, named: named_objects, x_value };
@@ -418,11 +418,11 @@ impl GameState {
         let chooser = match node.chooser {
             ModeChooser::Controller => player_id,
         };
-        let modes = ask_choose_modes(decisions, self, chooser, source_id, sets);
-        let mut targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, decisions)?;
+        let modes = ask_choose_modes(dp, self, chooser, source_id, sets);
+        let mut targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
         for &mode in &modes {
             let mode = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
-            targets.extend(self.announce_targets(player_id, source_id, this_object, &mode.instances, named_objects, x_value, decisions)?);
+            targets.extend(self.announce_targets(player_id, source_id, this_object, &mode.instances, named_objects, x_value, dp)?);
         }
         Ok((modes, targets))
     }
@@ -528,7 +528,7 @@ impl GameState {
         player_id: PlayerId,
         source_id: ObjectId,
         ability_index: usize,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // On the battlefield, and this player's: activating from another zone is
         // `backlog.md` §2.8's. The checks the enumeration asks, so the two agree.
@@ -571,7 +571,7 @@ impl GameState {
         // CR 602.2b routes an activation through 601.2b–c, so an ability
         // announces its modes and instances exactly as a spell does.
         let (chosen_modes, targets) = match self.announce_modes_and_targets(
-            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, decisions,
+            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, dp,
         ) {
             Ok(announced) => announced,
             Err(e) => {
@@ -603,7 +603,7 @@ impl GameState {
         // mana abilities as needed to pay the activated-ability cost. Pool is
         // filled in-place; caller's pay_costs below detects insufficiency and
         // triggers rollback.
-        self.run_mana_ability_window(player_id, source_id, &ability_costs, decisions);
+        self.run_mana_ability_window(player_id, source_id, &ability_costs, dp);
 
         // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's: check,
         // ask how the generic part is split, then pay.
@@ -612,7 +612,7 @@ impl GameState {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e.to_string());
         }
-        let actx = ActionContext::paying_cost(decisions, player_id, source_id);
+        let actx = ActionContext::paying_cost(dp, player_id, source_id);
         let plan = match self.plan_payment(&ability_costs, player_id, source_id, &actx) {
             Ok(plan) => plan,
             Err(e) => {
@@ -635,10 +635,10 @@ impl GameState {
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
         let activating = EventCause::Activating(player_id);
-        self.announce_targeted_records(ability_obj_id, activating, decisions)?;
+        self.announce_targeted_records(ability_obj_id, activating, dp)?;
         // Where its cost moved it, as it left (CR 608.2h).
         let source_lki = self.lki(identity.source).cloned();
-        self.announce_activation(identity, player_id, false, from, source_lki, decisions)?;
+        self.announce_activation(identity, player_id, false, from, source_lki, dp)?;
 
         Ok(())
     }
@@ -697,7 +697,7 @@ impl GameState {
         player_id: PlayerId,
         spell_or_ability_id: ObjectId,
         total_costs: &[Cost],
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) {
         let mana_cost_for_window = Cost::mana_part(total_costs);
 
@@ -728,10 +728,10 @@ impl GameState {
             let remaining = remaining_cost_after_pool(&mana_cost_for_window, pool);
 
             match ask_activate_mana_ability(
-                decisions, self, player_id, spell_or_ability_id, &remaining, &legal,
+                dp, self, player_id, spell_or_ability_id, &remaining, &legal,
             ) {
                 Some((perm_id, ability_id)) => {
-                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, decisions) {
+                    if let Err(e) = self.activate_mana_ability(player_id, perm_id, ability_id, dp) {
                         // Enumeration said this was legal but activation
                         // failed: likely staleness, or a cost the window's
                         // offer re-asked wrongly (`can_pay_costs`). Blacklist
