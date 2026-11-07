@@ -208,8 +208,8 @@ fn test_tarmogoyf_stripped_of_abilities_is_0_1_and_survives_sbas() {
         "the printed box is */1+*, so the `1+` survives with * as 0"
     );
 
-    let decisions = ScriptedDecisionProvider::new();
-    game.check_state_based_actions_loop(&decisions).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.check_state_based_actions_loop(&dp).unwrap();
     assert_eq!(
         game.get_object(goyf).unwrap().zone,
         Zone::Battlefield,
@@ -245,9 +245,9 @@ fn test_lightning_bolt_does_not_kill_tarmogoyf_because_bolt_itself_grows_it() {
     game.players[1].mana_pool.add(ManaType::Red, 1);
     game.active_player = 1;
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
-    decisions.expect_choice(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt_id,
@@ -255,13 +255,13 @@ fn test_lightning_bolt_does_not_kill_tarmogoyf_because_bolt_itself_grows_it() {
         vec![ChoiceOption::Object(goyf)],
     );
     assert_eq!(
-        game.run_priority_round(&decisions).unwrap(),
+        game.run_priority_round(&dp).unwrap(),
         PriorityResult::ActionTaken
     );
 
     // Both pass — Bolt resolves, then SBAs run.
     assert_eq!(
-        game.run_priority_round(&decisions).unwrap(),
+        game.run_priority_round(&dp).unwrap(),
         PriorityResult::StackResolved
     );
 

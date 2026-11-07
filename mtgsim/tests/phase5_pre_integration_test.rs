@@ -24,14 +24,14 @@ use mtgsim::test_support::{setup_two_player_game, put_in_hand, put_on_battlefiel
 
 fn cast_and_resolve(
     game: &mut GameState,
-    decisions: &ScriptedDecisionProvider,
+    dp: &ScriptedDecisionProvider,
 ) {
     // Round 1: Cast
-    let result = game.run_priority_round(decisions).unwrap();
+    let result = game.run_priority_round(dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
     // Round 2: Both pass → resolve
-    let result = game.run_priority_round(decisions).unwrap();
+    let result = game.run_priority_round(dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 }
 
@@ -47,13 +47,13 @@ fn test_nights_whisper_draw_and_life_loss() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(whisper_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(whisper_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
 
-    cast_and_resolve(&mut game, &decisions);
+    cast_and_resolve(&mut game, &dp);
 
     // Drew 2 cards
     assert_eq!(game.players[0].hand.len(), 2);
@@ -76,9 +76,9 @@ fn test_nights_whisper_sorcery_speed_wrong_phase() {
     game.set_turn_position(mtgsim::state::game_state::Phase::new(PhaseType::Combat));
 
     // Sorcery can't be cast in combat — not in candidates, both pass
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
-    let result = game.run_priority_round(&decisions);
+    let result = game.run_priority_round(&dp);
     // Should pass through — both players pass, stack empty → AllPassed
     assert!(result.is_ok());
     assert!(game.stack.is_empty());
@@ -95,13 +95,13 @@ fn test_angels_mercy_gains_life() {
     game.players[0].mana_pool.add(ManaType::White, 2);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(mercy_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(mercy_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
 
-    cast_and_resolve(&mut game, &decisions);
+    cast_and_resolve(&mut game, &dp);
 
     assert_eq!(game.players[0].life_total, 27);
     assert_eq!(game.get_object(mercy_id).unwrap().zone, Zone::Graveyard);
@@ -117,11 +117,11 @@ fn test_dark_ritual_adds_three_black_mana() {
     let ritual_id = put_in_hand(&mut game, printings::dark_ritual(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
     // Both pass → resolve
 
-    cast_and_resolve(&mut game, &decisions);
+    cast_and_resolve(&mut game, &dp);
 
     // Started with 1B, spent 1B to cast, gained 3B → 3B in pool
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 3);
@@ -136,11 +136,11 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     let ritual_id = put_in_hand(&mut game, printings::dark_ritual(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
 
     // Cast — it should go on the stack
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
     assert!(game.stack.contains(&ritual_id));
 
@@ -148,7 +148,7 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 0);
 
     // Now resolve (both pass)
-    let result = game.run_priority_round(&decisions).unwrap();
+    let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 3);
 }
@@ -167,14 +167,14 @@ fn test_doom_blade_destroys_nonblack_creature() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(blade_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(blade_id))]);
     // The only nonblack creature, so the target is forced and not asked.
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
 
-    cast_and_resolve(&mut game, &decisions);
+    cast_and_resolve(&mut game, &dp);
 
     // Creature destroyed
     assert_eq!(game.get_object(target_id).unwrap().zone, Zone::Graveyard);
@@ -247,16 +247,16 @@ fn test_isamaru_legend_rule_second_copy_dies() {
     );
     game.players[0].mana_pool.add(ManaType::White, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(second_id))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(second_id))]);
     // Both pass → resolve. SBAs fire after resolution and detect legend rule.
     // LegendRule fires during SBA check after resolution: keep the first
-    decisions.expect_choice(ChoiceKind::LegendRule {
+    dp.expect_choice(ChoiceKind::LegendRule {
         legend_name: "Isamaru, Hound of Konda".to_string(),
     }, vec![ChoiceOption::Object(first_id)]);
 
     // Cast and resolve — second Isamaru enters, SBAs kill one
-    cast_and_resolve(&mut game, &decisions);
+    cast_and_resolve(&mut game, &dp);
 
     // One Isamaru should remain, one should be in the graveyard.
     let first_on_bf = game.battlefield.contains_key(&first_id);

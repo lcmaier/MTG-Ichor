@@ -836,19 +836,19 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 
-        (game, card_id, decisions)
+        (game, card_id, dp)
     }
 
     #[test]
     fn test_cast_records_origin_zone() {
-        let (mut game, card_id, decisions) = setup_for_casting();
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        let (mut game, card_id, dp) = setup_for_casting();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // CR 601.2a's origin, captured before the card moved. Unrecoverable
         // afterward — the object's own `zone` now says Stack, which is the
@@ -869,7 +869,7 @@ mod tests {
             0,
         );
 
-        let decisions = ScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         // No target to script: the Thaumaturgist is the only creature on the
         // board and the ability takes exactly one, so the
         // choice is forced and `ask_select_recipients` does not prompt.
@@ -880,8 +880,8 @@ mod tests {
             .unwrap();
         let ability_id = abilities[idx].id;
 
-        game.activate_ability(0, thaum, idx, &decisions).unwrap();
-        game.resolve_top_of_stack(&decisions).unwrap();
+        game.activate_ability(0, thaum, idx, &dp).unwrap();
+        game.resolve_top_of_stack(&dp).unwrap();
 
         let activated: Vec<_> = game.recorded_events().events().filter_map(|e| match e {
             GameEvent::AbilityActivated { identity, .. } => Some(*identity),
@@ -922,7 +922,7 @@ mod tests {
             0,
         );
 
-        let decisions = ScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         let ability_id = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
             .iter()
             .find(|a| matches!(a.ability_type, AbilityType::Activated(_)))
@@ -934,7 +934,7 @@ mod tests {
             .iter()
             .position(|a| a.id == ability_id)
             .unwrap();
-        game.activate_ability(0, thaum, idx, &decisions).unwrap();
+        game.activate_ability(0, thaum, idx, &dp).unwrap();
 
         // There is an ability on the stack, and it records no origin zone.
         // ORDER-FREE: one, asserted.
@@ -956,8 +956,8 @@ mod tests {
 
     #[test]
     fn test_cast_instant_spell() {
-        let (mut game, card_id, decisions) = setup_for_casting();
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        let (mut game, card_id, dp) = setup_for_casting();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // Card should be on the stack
         assert!(game.stack.contains(&card_id));
@@ -988,17 +988,17 @@ mod tests {
         let card_id = game.add_object(obj);
         game.players[0].graveyard.push(card_id);
 
-        let decisions = ScriptedDecisionProvider::new();
-        assert!(game.cast_spell(0, card_id, &decisions).is_err());
+        let dp = ScriptedDecisionProvider::new();
+        assert!(game.cast_spell(0, card_id, &dp).is_err());
     }
 
     #[test]
     fn test_cast_not_enough_mana() {
-        let (mut game, card_id, decisions) = setup_for_casting();
+        let (mut game, card_id, dp) = setup_for_casting();
         // Drain the mana pool
         let _ = game.players[0].mana_pool.remove(ManaType::Red, 1);
 
-        assert!(game.cast_spell(0, card_id, &decisions).is_err());
+        assert!(game.cast_spell(0, card_id, &dp).is_err());
     }
 
     #[test]
@@ -1022,16 +1022,16 @@ mod tests {
         // Set to combat phase — sorceries can't be cast here
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Combat));
 
-        let decisions = ScriptedDecisionProvider::new();
-        assert!(game.cast_spell(0, card_id, &decisions).is_err());
+        let dp = ScriptedDecisionProvider::new();
+        assert!(game.cast_spell(0, card_id, &dp).is_err());
     }
 
     #[test]
     fn test_cast_instant_during_combat() {
-        let (mut game, card_id, decisions) = setup_for_casting();
+        let (mut game, card_id, dp) = setup_for_casting();
         // Instants can be cast during any phase
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Combat));
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
         assert!(game.stack.contains(&card_id));
     }
 
@@ -1049,9 +1049,9 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
@@ -1059,7 +1059,7 @@ mod tests {
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // Card on stack
         assert!(game.stack.contains(&card_id));
@@ -1084,13 +1084,13 @@ mod tests {
 
         // X = 0 is the one value `{R}` pays, so it is announced without a
         // prompt (`backlog.md` §2.22's rule 1): nothing is scripted for it.
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.x_value, Some(0));
@@ -1111,16 +1111,16 @@ mod tests {
         game.active_player = 0;
 
         use crate::oracle::x_values::{LegalXValues, XOffer};
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
-        let ChoiceKind::ChooseXValue { values, .. } = &decisions.asked()[0] else { panic!("X is asked first") };
+        let ChoiceKind::ChooseXValue { values, .. } = &dp.asked()[0] else { panic!("X is asked first") };
         assert_eq!(values.offered, XOffer::Interval { at_least: 0, at_most: 1 });
         assert_eq!(game.stack_entries[&card_id].x_value, Some(1));
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
@@ -1144,12 +1144,12 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
 
-        let result = game.cast_spell(0, card_id, &decisions);
+        let result = game.cast_spell(0, card_id, &dp);
         assert!(result.is_err());
-        assert!(decisions.is_empty(), "no X and no target was asked");
+        assert!(dp.is_empty(), "no X and no target was asked");
         assert_eq!(game.get_object(card_id).unwrap().zone, Zone::Hand);
         assert!(game.players[0].hand.contains(&card_id));
         assert!(!game.stack.contains(&card_id));
@@ -1181,10 +1181,10 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![ChoiceOption::AlternativeCost(pay_life)]);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![ChoiceOption::AlternativeCost(pay_life)]);
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         // Card on stack
         assert!(game.stack.contains(&card_id));
@@ -1217,13 +1217,13 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         assert!(game.stack.contains(&card_id));
         let entry = game.stack_entries.get(&card_id).unwrap();
@@ -1236,8 +1236,8 @@ mod tests {
     #[test]
     fn test_cast_normal_cost_no_x_no_alt() {
         // Verify the normal path still sets x_value=None and no alt/additional
-        let (mut game, card_id, decisions) = setup_for_casting();
-        game.cast_spell(0, card_id, &decisions).unwrap();
+        let (mut game, card_id, dp) = setup_for_casting();
+        game.cast_spell(0, card_id, &dp).unwrap();
 
         let entry = game.stack_entries.get(&card_id).unwrap();
         assert_eq!(entry.x_value, None);

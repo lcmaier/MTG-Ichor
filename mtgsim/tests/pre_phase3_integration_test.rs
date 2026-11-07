@@ -42,8 +42,8 @@ fn test_game_lifecycle_two_turns() {
         vec![make_test_decklist(30), make_test_decklist(30)],
     ).unwrap();
 
-    let decisions = ScriptedDecisionProvider::new();
-    game.setup(&decisions).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // No creatures, so no DeclareAttackers TBA fires.
     // Skip first draw to avoid discard-to-hand-size noise.
@@ -51,16 +51,16 @@ fn test_game_lifecycle_two_turns() {
 
     // Turn 1: all players pass all priority — the active player is asked in
     // its main phases, holding lands, and the engine takes the rest
-    decisions.queue_main_phase_passes();
-    game.run_turn(&decisions).unwrap();
+    dp.queue_main_phase_passes();
+    game.run_turn(&dp).unwrap();
     assert_eq!(game.state.turn_number, 2);
     assert_eq!(game.state.active_player, 1);
 
     // Turn 2: player 1 draws (hand=8), cleanup discards 1
-    decisions.queue_main_phase_passes();
+    dp.queue_main_phase_passes();
     let first = game.state.players[1].hand[0];
-    decisions.expect_choice(ChoiceKind::Discard { source: None }, vec![ChoiceOption::Object(first)]);
-    game.run_turn(&decisions).unwrap();
+    dp.expect_choice(ChoiceKind::Discard { source: None }, vec![ChoiceOption::Object(first)]);
+    game.run_turn(&dp).unwrap();
     assert_eq!(game.state.turn_number, 3);
     assert_eq!(game.state.active_player, 0);
 
@@ -185,8 +185,8 @@ fn test_discard_to_hand_size() {
         vec![make_test_decklist(30), make_test_decklist(30)],
     ).unwrap();
 
-    let decisions = ScriptedDecisionProvider::new();
-    game.setup(&decisions).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Player 0 has 7 cards after setup. Give them 3 more to force discard.
     for _ in 0..3 {
@@ -204,10 +204,10 @@ fn test_discard_to_hand_size() {
     // **One prompt for all four** (CR 514.1: "they discard enough cards"),
     // and one batch — RE-8 replaced the one-card-at-a-time loop, which put
     // each card in a batch of its own.
-    decisions.queue_main_phase_passes();
+    dp.queue_main_phase_passes();
     let hand = game.state.players[0].hand.clone();
-    decisions.expect_choice(ChoiceKind::Discard { source: None }, hand[..4].iter().map(|&card| ChoiceOption::Object(card)).collect());
-    game.run_turn(&decisions).unwrap();
+    dp.expect_choice(ChoiceKind::Discard { source: None }, hand[..4].iter().map(|&card| ChoiceOption::Object(card)).collect());
+    game.run_turn(&dp).unwrap();
 
     // After turn completes, player 0 should have max_hand_size cards
     assert_eq!(game.state.players[0].hand.len(), 7);
@@ -225,8 +225,8 @@ fn test_first_player_draw_skip() {
         vec![make_test_decklist(60), make_test_decklist(60)],
     ).unwrap();
 
-    let decisions = ScriptedDecisionProvider::new();
-    game.setup(&decisions).unwrap();
+    let dp = ScriptedDecisionProvider::new();
+    game.setup(&dp).unwrap();
 
     // Both players drew 7 cards during setup
     let hand_after_setup_p0 = game.state.players[0].hand.len();
@@ -241,8 +241,8 @@ fn test_first_player_draw_skip() {
     // No creatures → no DeclareAttackers TBA.
     // skip_first_draw is already true (standard config), so draw is skipped
     // and hand stays at 7 (no discard needed).
-    decisions.queue_main_phase_passes();
-    game.run_turn(&decisions).unwrap();
+    dp.queue_main_phase_passes();
+    game.run_turn(&dp).unwrap();
 
     // Player 0 did NOT draw → hand should still be 7
     // (the draw was skipped, and cleanup discards to 7 anyway)
@@ -267,14 +267,14 @@ fn test_cast_spell_rollback_on_insufficient_mana() {
     // Give player 0 a bolt in hand but NO mana
     let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
 
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::SelectRecipients {
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![ChoiceOption::Player(1)]);
 
     // Casting should fail
-    let result = game.cast_spell(0, bolt_id, &decisions);
+    let result = game.cast_spell(0, bolt_id, &dp);
     assert!(result.is_err());
 
     // Card should be back in hand, NOT stranded on the stack
@@ -332,9 +332,9 @@ fn test_counterspell_cleans_up_stack_entries() {
     let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
     // The bolt's target is a real choice — either player — so it is scripted.
-    decisions.expect_choice(
+    dp.expect_choice(
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt_id,
@@ -344,12 +344,12 @@ fn test_counterspell_cleans_up_stack_entries() {
     // The Counterspell's is not: the bolt is the only spell on the stack, so
     // it is forced and no prompt is made.
     let cs_id = put_in_hand(&mut game, printings::counterspell(), 1);
-    game.cast_spell(0, bolt_id, &decisions).unwrap();
+    game.cast_spell(0, bolt_id, &dp).unwrap();
     assert!(game.stack_entries.contains_key(&bolt_id));
 
     // Player 1 casts counterspell targeting bolt
     game.players[1].mana_pool.add(ManaType::Blue, 2);
-    game.cast_spell(1, cs_id, &decisions).unwrap();
+    game.cast_spell(1, cs_id, &dp).unwrap();
 
     // Resolve counterspell (top of stack)
     game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).unwrap();

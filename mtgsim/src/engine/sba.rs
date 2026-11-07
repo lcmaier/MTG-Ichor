@@ -169,7 +169,7 @@ impl GameState {
     /// Returns true if any SBA was performed (caller should re-check).
     pub fn check_state_based_actions(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<bool, String> {
         // CR 104.1 — a game that has ended performs nothing further. The
         // priority loop stops granting on the same read; this is the check's
@@ -282,7 +282,7 @@ impl GameState {
                 // A state-based action, not a replacement effect: only CR
                 // 903.9b's hand or library move is one.
                 let kind = ChoiceKind::CommanderToCommandZoneSba { commander: id };
-                if ask_take_or_leave(decisions, self, owner, id, kind, "commander_to_command_zone") {
+                if ask_take_or_leave(dp, self, owner, id, kind, "commander_to_command_zone") {
                     let to_command = GameAction::ZoneChange {
                         object: id,
                         from,
@@ -434,7 +434,7 @@ impl GameState {
                 // The group key, not a re-read: the key is what put these
                 // permanents together, so asking anyone else would prompt a
                 // player who does not control them.
-                let keep = ask_choose_legend_to_keep(decisions, self, *controller, name, &ids);
+                let keep = ask_choose_legend_to_keep(dp, self, *controller, name, &ids);
                 for id in ids {
                     if id != keep {
                         chosen.push(id);
@@ -568,7 +568,7 @@ impl GameState {
             // (CR 615.5), or Stunning Reversal's "immediately after" opens a window.
             let before = self.events.next_seq();
             let members = batch.into_iter().map(|(action, rule)| (action, EventCause::StateBasedAction(rule))).collect();
-            self.execute_caused_actions(members, &ActionContext::game_rule(decisions, GameRule::StateBasedCheck))?;
+            self.execute_caused_actions(members, &ActionContext::game_rule(dp, GameRule::StateBasedCheck))?;
             any_performed |= self.events.next_seq() > before;
         }
 
@@ -584,11 +584,11 @@ impl GameState {
     /// the checks are a loop, which CR 104.4b makes a draw.
     pub fn check_state_based_actions_loop(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let mut checks = 0usize;
         loop {
-            if !self.check_state_based_actions(decisions)? {
+            if !self.check_state_based_actions(dp)? {
                 break;
             }
             checks += 1;
@@ -601,7 +601,7 @@ impl GameState {
             if checks >= MANDATORY_LOOP_CHECKS && self.result.is_none() {
                 self.execute_actions(
                     vec![GameAction::GameEndsInADraw],
-                    &ActionContext::game_rule(decisions, GameRule::MandatoryLoop),
+                    &ActionContext::game_rule(dp, GameRule::MandatoryLoop),
                 )?;
                 break;
             }

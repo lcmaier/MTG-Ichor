@@ -37,11 +37,11 @@ impl GameState {
     ///    - Stack empty → return PhaseEnds.
     pub fn run_priority_round(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<PriorityResult, String> {
         self.refuse_if_stopped()?;
         // --- Rule 117.5: SBAs before granting priority ---
-        self.perform_sba_and_triggers(decisions)?;
+        self.perform_sba_and_triggers(dp)?;
 
         // CR 104.1 — the game ends immediately, and nobody receives priority
         // in a game that has ended.
@@ -91,7 +91,7 @@ impl GameState {
                 // pass is logged as the seat's would be, so the decision log
                 // does not depend on whether the seat stops.
                 if available.len() == 1
-                    && !decisions.seat_mode(current_priority).stops_at_every_priority_point
+                    && !dp.seat_mode(current_priority).stops_at_every_priority_point
                 {
                     self.log_decision(LoggedDecision {
                         player: current_priority,
@@ -104,7 +104,7 @@ impl GameState {
                 }
 
                 let action = ask_choose_priority_action(
-                    decisions, self, current_priority, &available, rejected.take(),
+                    dp, self, current_priority, &available, rejected.take(),
                 );
 
                 // Pass doesn't execute anything — accept it immediately.
@@ -119,11 +119,11 @@ impl GameState {
                 let (exec_result, was_mana_ability) = match &action {
                     PriorityAction::Pass => unreachable!(),
                     PriorityAction::CastSpell(card_id) => (
-                        self.cast_spell(current_priority, *card_id, decisions),
+                        self.cast_spell(current_priority, *card_id, dp),
                         false,
                     ),
                     PriorityAction::PlayLand(card_id) => (
-                        self.play_land(current_priority, *card_id, decisions),
+                        self.play_land(current_priority, *card_id, dp),
                         false,
                     ),
                     PriorityAction::ActivateAbility(permanent_id, ability_id) => 'activation: {
@@ -147,12 +147,12 @@ impl GameState {
                             .is_some_and(|a| matches!(a.ability_type, crate::objects::card_data::AbilityType::Mana(_)));
                         let result = if is_mana {
                             self.activate_mana_ability(
-                                current_priority, *permanent_id, *ability_id, decisions,
+                                current_priority, *permanent_id, *ability_id, dp,
                             )
                         } else {
                             match found {
                                 Some(ability) => self.activate_ability(
-                                    current_priority, *permanent_id, ability.index(), decisions,
+                                    current_priority, *permanent_id, ability.index(), dp,
                                 ),
                                 None => Err(format!(
                                     "Ability {} not found on permanent {}",
@@ -196,10 +196,10 @@ impl GameState {
                         if self.stack.is_empty() {
                             return Ok(PriorityResult::PhaseEnds);
                         } else {
-                            self.resolve_top_of_stack(decisions)?;
+                            self.resolve_top_of_stack(dp)?;
                             // After resolution, active player gets priority (117.3b)
                             // Run SBAs again before granting (117.5)
-                            self.perform_sba_and_triggers(decisions)?;
+                            self.perform_sba_and_triggers(dp)?;
                             return Ok(PriorityResult::StackResolved);
                         }
                     }
@@ -213,7 +213,7 @@ impl GameState {
                 PriorityAction::CastSpell(_) => {
                     // Player who acted gets priority again (117.3c) — we
                     // return and let the caller start a fresh round.
-                    self.perform_sba_and_triggers(decisions)?;
+                    self.perform_sba_and_triggers(dp)?;
                     return Ok(PriorityResult::ActionTaken);
                 }
 
@@ -222,7 +222,7 @@ impl GameState {
                     // SBA pass; other activated abilities go on the stack and
                     // get the normal SBA sweep.
                     if !executed.1 {
-                        self.perform_sba_and_triggers(decisions)?;
+                        self.perform_sba_and_triggers(dp)?;
                     }
                     return Ok(PriorityResult::ActionTaken);
                 }
@@ -242,10 +242,10 @@ impl GameState {
     /// stack. After each stack resolution, another round begins.
     pub fn run_priority_loop(
         &mut self,
-        decisions: &dyn DecisionProvider,
+        dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         loop {
-            match self.run_priority_round(decisions)? {
+            match self.run_priority_round(dp)? {
                 PriorityResult::PhaseEnds => return Ok(()),
                 PriorityResult::StackResolved | PriorityResult::ActionTaken => {
                     // Continue looping — more priority passing needed
@@ -265,10 +265,10 @@ impl GameState {
     /// Step 2 runs CR 603.8's state check first, which sees what changed
     /// with no record to dispatch: a continuous effect that ended, a row the
     /// state-based check dropped.
-    pub fn perform_sba_and_triggers(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
+    pub fn perform_sba_and_triggers(&mut self, dp: &dyn DecisionProvider) -> Result<(), String> {
         loop {
             // Step 1: Exhaust all SBAs (rule 704.3)
-            self.check_state_based_actions_loop(decisions)?;
+            self.check_state_based_actions_loop(dp)?;
 
             // CR 104.1 — a game that has ended places nothing.
             if self.result.is_some() {
@@ -278,11 +278,11 @@ impl GameState {
             // A change the check made in the layers' output, as an Aura that
             // left takes its creature back, or a player's leaving (CR 800.4a),
             // is settled before anything is placed.
-            self.settle_layer_consequences(&ActionContext::game_rule(decisions, GameRule::ControlChanges))?;
+            self.settle_layer_consequences(&ActionContext::game_rule(dp, GameRule::ControlChanges))?;
 
             // Step 2: Place triggered abilities on the stack (rule 603.3)
             self.check_state_triggers()?;
-            let triggers_placed = self.place_pending_triggers(decisions)?;
+            let triggers_placed = self.place_pending_triggers(dp)?;
 
             // Step 3: If no triggers were placed, we're stable
             if !triggers_placed {
@@ -314,9 +314,9 @@ mod tests {
     fn test_all_pass_empty_stack_ends_phase() {
         let mut game = GameState::new(2, 20);
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
-        let decisions = ScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
 
-        let result = game.run_priority_round(&decisions).unwrap();
+        let result = game.run_priority_round(&dp).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
     }
 
@@ -327,12 +327,12 @@ mod tests {
     fn a_seat_that_stops_at_every_priority_point_is_asked_to_pass() {
         let mut game = GameState::new(2, 20);
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
-        let decisions = ScriptedDecisionProvider::new()
+        let dp = ScriptedDecisionProvider::new()
             .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
-        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
-        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
 
-        let result = game.run_priority_round(&decisions).unwrap();
+        let result = game.run_priority_round(&dp).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
     }
 
@@ -360,27 +360,27 @@ mod tests {
         game.players[0].hand.push(card_id);
         game.players[0].mana_pool.add(ManaType::Red, 1);
 
-        let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(card_id))]);
-        decisions.expect_choice(ChoiceKind::SelectRecipients {
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(card_id))]);
+        dp.expect_choice(ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![ChoiceOption::Player(1)]);
 
         // First round: player 0 casts bolt (returns ActionTaken immediately)
-        let result = game.run_priority_round(&decisions).unwrap();
+        let result = game.run_priority_round(&dp).unwrap();
         assert_eq!(result, PriorityResult::ActionTaken);
         assert!(game.stack.contains(&card_id));
 
         // Second round: both pass, stack resolves — each has `Pass` alone
-        let result = game.run_priority_round(&decisions).unwrap();
+        let result = game.run_priority_round(&dp).unwrap();
         assert_eq!(result, PriorityResult::StackResolved);
 
         // Bolt resolved — player 1 lost 3 life
         assert_eq!(game.players[1].life_total, 17);
 
         // Third round: empty stack, both pass -> phase ends
-        let result = game.run_priority_round(&decisions).unwrap();
+        let result = game.run_priority_round(&dp).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
     }
 
@@ -388,10 +388,10 @@ mod tests {
     fn test_run_priority_loop_no_actions() {
         let mut game = GameState::new(2, 20);
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
-        let decisions = ScriptedDecisionProvider::new();
+        let dp = ScriptedDecisionProvider::new();
         // Both players pass — phase ends
 
-        game.run_priority_loop(&decisions).unwrap();
+        game.run_priority_loop(&dp).unwrap();
         // Should complete without error — phase ended
     }
 }

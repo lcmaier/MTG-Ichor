@@ -166,12 +166,12 @@ fn test_legend_rule_sees_granted_legendary_supertype() {
     add_layer4(&mut game, b, EffectModification::AddSupertype(Supertype::Legendary));
 
     // The legend rule now fires, so the controller must choose which to keep.
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
         ChoiceKind::LegendRule { legend_name: "Ornithopter".to_string() },
         vec![ChoiceOption::Object(a)],
     );
-    game.check_state_based_actions_loop(&decisions).unwrap();
+    game.check_state_based_actions_loop(&dp).unwrap();
     let survivors = [a, b].iter().filter(|id| game.battlefield.contains_key(id)).count();
     assert_eq!(
         survivors, 1,

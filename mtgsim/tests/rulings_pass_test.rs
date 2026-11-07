@@ -62,14 +62,14 @@ use std::sync::Arc;
 /// The LC file's idiom: with a single legal target the choice is
 /// forced, so nothing is scripted but the cast itself.
 fn cast_and_resolve(game: &mut GameState, spell: ObjectId) {
-    let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
     assert_eq!(
-        game.run_priority_round(&decisions).unwrap(),
+        game.run_priority_round(&dp).unwrap(),
         PriorityResult::ActionTaken
     );
     // Both pass → resolve: each has `Pass` alone, which the engine takes
-    game.run_priority_round(&decisions).unwrap();
+    game.run_priority_round(&dp).unwrap();
 }
 
 

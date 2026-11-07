@@ -61,10 +61,10 @@ fn cast_battlegrowth_at_the_only_creature(game: &mut GameState, player: usize) -
 
     // Nothing to script: exactly one creature, so the target is
     // forced and no prompt is made.
-    let decisions = ScriptedDecisionProvider::new();
+    let dp = ScriptedDecisionProvider::new();
 
-    game.cast_spell(player, id, &decisions).expect("it is castable");
-    game.resolve_top_of_stack(&decisions).expect("it resolves");
+    game.cast_spell(player, id, &dp).expect("it is castable");
+    game.resolve_top_of_stack(&dp).expect("it resolves");
     // CR 704.3 — the check a player receiving priority after the resolution
     // would trigger. `resolve_top_of_stack` deliberately does not run it, so a
     // test that skipped this would show counters piling up and call it a rule.
