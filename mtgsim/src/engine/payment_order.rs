@@ -44,7 +44,11 @@ use crate::ui::decision::FirstLegalAnswer;
 /// The channels a payment's parts can change, and so all a reader is asked
 /// about here, as `engine::layers::board`'s `Channels` are what a layer can
 /// write. Mana and life are amounts, so two parts that each take some commute;
-/// what they leave is a sum. A library is absent: no `Cost` arm touches one.
+/// what they leave is a sum.
+///
+/// **A reader names what it reads, even where no `Cost` arm changes it yet**:
+/// a library, and the resolutions counted this turn. A cost that comes to
+/// change one, a mill, then meets its readers without anyone revisiting them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PaymentChannels(u16);
 
@@ -58,10 +62,14 @@ impl PaymentChannels {
     const GRAVEYARD: PaymentChannels = PaymentChannels(1 << 5);
     const HAND: PaymentChannels = PaymentChannels(1 << 6);
     const EXILE: PaymentChannels = PaymentChannels(1 << 7);
-    const HISTORY: PaymentChannels = PaymentChannels(1 << 8);
+    const LIBRARY: PaymentChannels = PaymentChannels(1 << 8);
+    const HISTORY: PaymentChannels = PaymentChannels(1 << 9);
+    /// How many spells or abilities have resolved this turn (CR 603.7h's
+    /// count), apart from `HISTORY`, which every part's event adds to.
+    const RESOLUTIONS: PaymentChannels = PaymentChannels(1 << 10);
     /// A reader's own tapped status, "as long as this is untapped": no part
     /// changes it unless the reader is what a part taps (`as_read_by`).
-    const ITS_OWN_TAPPED_STATUS: PaymentChannels = PaymentChannels(1 << 9);
+    const ITS_OWN_TAPPED_STATUS: PaymentChannels = PaymentChannels(1 << 11);
     /// What a reader that cannot say states: it intersects what every other
     /// part changes.
     const EVERYTHING: PaymentChannels = PaymentChannels(u16::MAX);
@@ -78,6 +86,7 @@ impl PaymentChannels {
             (Zone::Graveyard, PaymentChannels::GRAVEYARD),
             (Zone::Hand, PaymentChannels::HAND),
             (Zone::Exile, PaymentChannels::EXILE),
+            (Zone::Library, PaymentChannels::LIBRARY),
         ]
         .into_iter()
         .filter(|(zone, _)| zones.contains(*zone))
@@ -229,7 +238,7 @@ fn player_fact_reads(fact: &PlayerFact) -> PaymentChannels {
         PlayerFact::LifeAtLeast(threshold) | PlayerFact::LifeAtMost(threshold) => Q::LIFE | amount_reads(threshold),
         PlayerFact::HandEmpty => Q::HAND,
         PlayerFact::CardInGraveyard(filter) => Q::GRAVEYARD | filter_reads(filter),
-        PlayerFact::LibraryEmpty => Q::NONE,
+        PlayerFact::LibraryEmpty => Q::LIBRARY,
     }
 }
 
@@ -247,8 +256,8 @@ fn condition_reads(condition: &Condition) -> PaymentChannels {
         Condition::SpellWasKicked
         | Condition::ModeChosen(_)
         | Condition::CounterCountReached { .. }
-        | Condition::ResolvedThisTurn(_)
         | Condition::CostAnswer(_) => Q::NONE,
+        Condition::ResolvedThisTurn(_) => Q::RESOLUTIONS,
     }
 }
 
@@ -720,6 +729,16 @@ mod tests {
         let plan = game.plan_payment(&costs, 0, omnath, &ActionContext::paying_cost(&answers, 0, omnath)).expect("payable");
         let nothing_forced = MustPrecede::closed(vec![vec![false; 2]; 2]).expect("no edges, no cycle");
         game.audit_payment_orders(&plan, &nothing_forced, &[], 0, omnath);
+    }
+
+    /// A reader names what it reads where no cost changes it yet, so a cost
+    /// that comes to mill meets "your library has no cards in it" unasked.
+    #[test]
+    fn a_library_and_the_resolutions_are_channels_of_their_own() {
+        assert_eq!(player_fact_reads(&PlayerFact::LibraryEmpty), PaymentChannels::LIBRARY);
+        assert_eq!(condition_reads(&Condition::ResolvedThisTurn(2)), PaymentChannels::RESOLUTIONS);
+        let life = footprint_of(&Cost::PayLife(1)).changes;
+        assert!(life.intersects(PaymentChannels::HISTORY) && !life.intersects(PaymentChannels::RESOLUTIONS), "a payment resolves nothing");
     }
 
     #[test]
