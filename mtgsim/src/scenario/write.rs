@@ -625,6 +625,12 @@ impl<'g> Writer<'g> {
             }
             place.filter(|_| obj.zone == Zone::Battlefield).map(|i| (source.id, i + 1))
         };
+        // "That hasn't been chosen" has no word yet: a board where an ability
+        // that still exists has chosen modes is not written, rather than
+        // written as though it had chosen none.
+        if state.history.modes_chosen.keys().any(|identity| state.object_ref(identity.source.id) == Some(identity.source)) {
+            self.report("the modes an ability has chosen before (\"that hasn't been chosen\")");
+        }
         // The sets are hashed, so each is read in the board's order: a report
         // is a line of the output, and a controller is a layer walk.
         let board_order = |source: crate::types::ids::ObjectRef, ability: crate::types::ids::AbilityId| {

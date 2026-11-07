@@ -8,7 +8,7 @@ use crate::engine::object_filter::EarlierTargets;
 use crate::engine::targeting::FilterIdentity;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::every_instance_has_a_choice;
-use crate::state::game_state::GameState;
+use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{EffectRecipient, ModalCount, ModalNode, ModeIndex, SelectionFilter};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 
@@ -22,8 +22,9 @@ use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 /// `every_instance_has_a_choice` reads a spell's targets: `player` is the one
 /// announcing, whose "you" the targets and the count's condition read;
 /// `this_object` the object whose text it is (CR 113.7a); `named` what a
-/// trigger's event names; and `x_value` the X announced before the modes,
-/// which a count of X reads.
+/// trigger's event names; `x_value` the X announced before the modes, which a
+/// count of X reads; and `identity` the ability announcing, whose modes
+/// chosen before "that hasn't been chosen" leaves out (none for a spell).
 pub(crate) fn legal_mode_sets(
     game: &GameState,
     node: &ModalNode,
@@ -31,9 +32,10 @@ pub(crate) fn legal_mode_sets(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
+    identity: Option<AbilityIdentity>,
 ) -> Vec<Vec<ModeIndex>> {
     let mut sets = Vec::new();
-    walk_legal_sets(game, node, player, this_object, named, x_value, &mut |set| {
+    walk_legal_sets(game, node, player, this_object, named, x_value, identity, &mut |set| {
         sets.push(set.to_vec());
         KeepGoing::Yes
     });
@@ -48,9 +50,10 @@ pub(crate) fn has_a_legal_mode_set(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
+    identity: Option<AbilityIdentity>,
 ) -> bool {
     let mut found = false;
-    walk_legal_sets(game, node, player, this_object, named, x_value, &mut |_| {
+    walk_legal_sets(game, node, player, this_object, named, x_value, identity, &mut |_| {
         found = true;
         KeepGoing::No
     });
@@ -74,12 +77,19 @@ fn walk_legal_sets(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
+    identity: Option<AbilityIdentity>,
     visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing,
 ) {
     let Some(count) = count_now(game, &node.count, player, this_object, named, x_value) else { return };
+    let chosen_before = match (node.rules.not_chosen_before, identity) {
+        (Some(scope), Some(identity)) => game.modes_chosen_before(identity, scope),
+        _ => &[],
+    };
     let legal: Vec<ModeIndex> = node
         .indexed_modes()
-        .filter(|(_, mode)| every_instance_has_a_choice(game, &mode.instances, player, this_object, named))
+        .filter(|(place, mode)| {
+            !chosen_before.contains(place) && every_instance_has_a_choice(game, &mode.instances, player, this_object, named)
+        })
         .map(|(place, _)| place)
         .collect();
     let pawprints = |set: &[ModeIndex]| set.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.pawprints).sum::<u32>();

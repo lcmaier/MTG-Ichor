@@ -139,7 +139,7 @@ fn can_cast_with(
     // `cast_spell` reads them.
     if let Some(node) = crate::objects::card_data::spell_modes(&obj.card_data.abilities) {
         let least_x = obj.card_data.mana_cost.as_ref().filter(|cost| cost.x_count() > 0).map(|_| u64::from(obj.card_data.x_cant_be_zero));
-        if !has_a_legal_mode_set(game, node, player_id, card_id, ConditionReferents::NONE, least_x) {
+        if !has_a_legal_mode_set(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
             return Err(CannotCast::NoLegalModes);
         }
     }
@@ -377,8 +377,9 @@ fn can_activate_as_its_controller(
     // CR 700.2a's modes, as a spell's are: the announcement's list, asked for
     // its first, with the X `activate_ability` passes, none: an activation's X
     // (CR 602.2b) is `hybrid-and-phyrexian-payment`'s.
+    let identity = game.object_ref(source_id).map(|source| crate::state::game_state::AbilityIdentity { source, ability: ability.id });
     if let Some(node) = ability.effect.modal()
-        && !has_a_legal_mode_set(game, node, player_id, source_id, ConditionReferents::NONE, None)
+        && !has_a_legal_mode_set(game, node, player_id, source_id, ConditionReferents::NONE, None, identity)
     {
         return Err(CannotActivate::NoLegalModes);
     }

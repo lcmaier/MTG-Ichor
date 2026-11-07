@@ -223,7 +223,7 @@ impl GameState {
         // CR 603.3c's modes before 603.3d's targets, as a spell's (CR 601.2b–c).
         let effect = &pending.binding.def.effect;
         let announced =
-            self.announce_modes_and_targets(controller, id, identity.source.id, effect, &pending.instances, named, pending.x_value, dp);
+            self.announce_modes_and_targets(controller, id, identity.source.id, effect, &pending.instances, named, pending.x_value, Some(identity), dp);
         let announced = match announced {
             // CR 603.3c: "if no mode is chosen, the ability is removed from the
             // stack", where the count allows none.
@@ -254,7 +254,9 @@ impl GameState {
             trigger: Some(pending.binding.clone()),
         };
         let chosen = entry.announced.clone();
+        let effect = Arc::clone(&entry.effect);
         self.set_stack_entry(entry);
+        self.note_modes_announced(identity, &effect, &chosen);
         self.diagnostics.record_trigger_placed();
         self.trace(|| trace_records::pending(self, &pending, Some(id), None, &chosen));
         self.announce_targeted_records(id, EventCause::GameRule(GameRule::TriggeredAbilityPutOnStack), dp)?;

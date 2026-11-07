@@ -203,7 +203,7 @@ impl GameState {
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
         let announced = match self.announce_modes_and_targets(
-            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), dp,
+            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), None, dp,
         ) {
             Ok(announced) => announced,
             Err(e) => {
@@ -411,7 +411,8 @@ impl GameState {
     ///
     /// `Err` when no set of modes is legal, which the caller rewinds or, for
     /// a trigger, removes (CR 603.3c), and for a modal effect that declares
-    /// instances outside its node, which the registry refuses.
+    /// instances outside its node, which the registry refuses. `identity` is
+    /// the ability announcing, none for a spell.
     pub(crate) fn announce_modes_and_targets(
         &self,
         player_id: PlayerId,
@@ -421,6 +422,7 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: ConditionReferents<'_>,
         x_value: Option<u64>,
+        identity: Option<AbilityIdentity>,
         dp: &dyn DecisionProvider,
     ) -> Result<Announcement, String> {
         let Some(node) = effect.modal() else {
@@ -430,8 +432,16 @@ impl GameState {
         if !instances.is_empty() {
             return Err(format!("{source_id}'s modal effect declares instances of \"target\" outside its modes; a modal node is all of its ability"));
         }
-        let modes = self.choose_modes(player_id, source_id, this_object, node, named_objects, x_value, dp)?;
+        let modes = self.choose_modes(player_id, source_id, this_object, node, named_objects, x_value, identity, dp)?;
         self.announce_chosen_modes(player_id, source_id, this_object, node, modes, named_objects, x_value, dp)
+    }
+
+    /// "That hasn't been chosen": what `identity`'s ability announced is
+    /// recorded once it is on the stack, for a node that reads the record.
+    pub(crate) fn note_modes_announced(&mut self, identity: AbilityIdentity, effect: &crate::types::effects::Effect, announced: &Announcement) {
+        if let Some(scope) = effect.modal().and_then(|node| node.rules.not_chosen_before) {
+            self.note_modes_chosen(identity, scope, announced.chosen_modes());
+        }
     }
 
     /// CR 601.2b's modes for `node` on the stack object `source_id`: its
@@ -446,9 +456,10 @@ impl GameState {
         node: &ModalNode,
         named_objects: ConditionReferents<'_>,
         x_value: Option<u64>,
+        identity: Option<AbilityIdentity>,
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<ModeIndex>, String> {
-        let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value);
+        let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value, identity);
         if sets.is_empty() {
             return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
         }
@@ -642,7 +653,7 @@ impl GameState {
         // CR 602.2b routes an activation through 601.2b–c, so an ability
         // announces its modes and instances exactly as a spell does.
         let announced = match self.announce_modes_and_targets(
-            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, dp,
+            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, Some(identity), dp,
         ) {
             Ok(announced) => announced,
             Err(e) => {
@@ -704,6 +715,10 @@ impl GameState {
         // CR 602.2b runs 601.2i: the ability becomes activated once its costs
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
+        if let Some(entry) = self.stack_entries.get(&ability_obj_id) {
+            let (effect, announced) = (Arc::clone(&entry.effect), entry.announced.clone());
+            self.note_modes_announced(identity, &effect, &announced);
+        }
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, dp)?;
         // Where its cost moved it, as it left (CR 608.2h).

@@ -13,6 +13,8 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DepartedObject, EventId, GameEvent, LifeChange};
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
+use crate::state::history::ModesChosen;
+use crate::types::effects::{ChosenBefore, ModeIndex};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectOrPlayer, ObjectRef, PlayerId};
@@ -222,6 +224,30 @@ impl GameState {
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
     pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
         self.history.resolutions_this_turn.get(&identity.ignoring_ability_grant()).copied().unwrap_or(0)
+    }
+
+    /// The modes `identity`'s ability has chosen before, as `scope` reads
+    /// them: this turn's only, or every one while its object exists.
+    pub(crate) fn modes_chosen_before(&self, identity: AbilityIdentity, scope: ChosenBefore) -> &[ModeIndex] {
+        match self.history.modes_chosen.get(&identity) {
+            Some(chosen) if scope == ChosenBefore::WhileItExists || chosen.turn == self.turn_number => &chosen.modes,
+            _ => &[],
+        }
+    }
+
+    /// `identity`'s ability chose `modes` as it was put on the stack, which
+    /// "that hasn't been chosen" reads from then on, whatever becomes of the
+    /// ability (Demonic Pact's ruling). Under `scope` "this turn", a choice on
+    /// a later turn starts the record over. Its caller owns the moment, once
+    /// the announcement is complete.
+    pub(crate) fn note_modes_chosen(&mut self, identity: AbilityIdentity, scope: ChosenBefore, modes: impl IntoIterator<Item = ModeIndex>) {
+        let turn = self.turn_number;
+        let chosen = self.history.modes_chosen.entry(identity).or_insert(ModesChosen { turn, modes: Vec::new() });
+        if scope == ChosenBefore::ThisTurn && chosen.turn != turn {
+            chosen.modes.clear();
+        }
+        chosen.turn = turn;
+        chosen.modes.extend(modes);
     }
 
     /// The log's rows for record `seq` of `window`, each its object as the

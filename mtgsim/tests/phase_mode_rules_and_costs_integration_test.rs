@@ -9,7 +9,10 @@
 //! and targets are questions asked on that path, and a staged entry cannot
 //! check them.
 
-use mtgsim::cards::authoring::{any_other_target, any_target, deal_damage, lose_life, spell_ability, target_opponent};
+use mtgsim::cards::authoring::{
+    activated_ability, any_other_target, any_target, choose_one_not_chosen_before, deal_damage, gain_life, lose_life, spell_ability, target_opponent,
+    you,
+};
 use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tribute_offering};
 use mtgsim::cards::printings::{grizzly_bears, hill_giant};
 use mtgsim::engine::object_filter::EarlierTargets;
@@ -18,9 +21,12 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::legality::enumerate_legal_selections_excluding;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
+use mtgsim::oracle::characteristics::get_effective_abilities;
+use mtgsim::oracle::mana_helpers::{can_activate, CannotActivate};
+use mtgsim::test_support::{fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
+use mtgsim::types::costs::Cost;
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{Effect, ModeIndex, PlayerSet, SelectionFilter};
+use mtgsim::types::effects::{ChosenBefore, Effect, ModeIndex, PlayerSet, SelectionFilter};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -361,6 +367,55 @@ fn with_two_opponents_the_caster_picks_which_chooses() {
     assert_eq!(shown.mode_choosers(), [2], "the opponent the caster picked chose");
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(game.battlefield[&bears].damage_marked, 3, "the one creature, the caster's target");
+}
+
+// ---------------------------------------------------------------------------
+// "Choose one that hasn't been chosen this turn"
+// ---------------------------------------------------------------------------
+
+/// An artifact whose `{1}` ability chooses one mode not chosen this turn.
+fn turnwise_lever() -> Arc<CardData> {
+    let text = "{1}: Choose one that hasn't been chosen this turn —\n• You gain 1 life.\n• You gain 2 life.";
+    CardDataBuilder::new("Turnwise Lever")
+        .mana_cost(ManaCost::build(&[], 1))
+        .card_type(CardType::Artifact)
+        .rules_text(text)
+        .ability(activated_ability(
+            text,
+            vec![Cost::Mana(ManaCost::build(&[], 1))],
+            choose_one_not_chosen_before(ChosenBefore::ThisTurn, [gain_life(you(), 1), gain_life(you(), 2)]),
+        ))
+        .build()
+}
+
+/// A mode the ability chose this turn is not offered again this turn: the
+/// second activation takes the other mode unasked, a third has none to take,
+/// and the next turn offers both again.
+#[test]
+fn a_mode_chosen_this_turn_is_not_offered_again_until_the_next() {
+    let mut game = setup_two_player_game();
+    let lever = put_on_battlefield(&mut game, turnwise_lever(), 0);
+    let activate = |game: &mut GameState, answers: ScriptedDecisionProvider| {
+        game.players[0].mana_pool.add(ManaType::Green, 1);
+        game.activate_ability(0, lever, 0, &ManaWindowStop::new(answers)).expect("activatable");
+        let ability = *game.stack.last().expect("on the stack");
+        let chosen = chosen_modes(game, ability);
+        game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+        chosen
+    };
+
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1]);
+    assert_eq!(activate(&mut game, answers), modes(&[1]));
+    assert_eq!(activate(&mut game, test_dp()), modes(&[2]), "the other mode, the one legal set");
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+    let ability = get_effective_abilities(&game, lever)[0].clone();
+    assert_eq!(can_activate(&game, 0, lever, &ability), Err(CannotActivate::NoLegalModes));
+    assert_eq!(game.players[0].life_total, 23);
+
+    pass_turn(&mut game);
+    game.players[0].mana_pool.add(ManaType::Green, 1);
+    assert_eq!(can_activate(&game, 0, lever, &ability), Ok(()), "a new turn, nothing chosen in it");
 }
 
 // ---------------------------------------------------------------------------

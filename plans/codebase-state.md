@@ -10797,3 +10797,41 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      No game or test should move.
      **Slotted:** `mode-rules-and-costs`, which reshapes the same stack entry
      (the owner, 2026-11-07).
+
+### Found by `mode-rules-and-costs` (2026-11-07)
+
+414. **The save has no word for the modes an ability chose before.**
+     `GameHistory::modes_chosen` is what "choose one that hasn't been chosen
+     [this turn]" reads, and `scenario::write` reports a board where an
+     ability that still exists has chosen modes as unwritten rather than
+     writing it as though it had chosen none, so the round trip skips such a
+     board. The word is a card line's: `ability N chose modes 1, 3` (and a
+     `this turn:` form for the scope that ends with the turn), read back by
+     the builder into the record.
+     **Reachability (2026-11-07):** reachable — not wrong today: a game with
+     Demonic Pact on the battlefield after its first upkeep is not saved, and
+     the dev GUI's save says so.
+     **Sized:** ~80–120 lines: the word on `CardWord`, its parse, write and
+     build, a round-trip test.
+     **Slotted:** `pausing-at-a-decision`'s build, which writes a paused
+     game's board, and owns the save's vocabulary.
+
+415. **A player an instance of "target" chose can't be named by a filter or a
+     performer, nor declared by a sentence's subject.** Shadrix Silverquill's
+     third mode, "Target player puts a +1/+1 counter on each creature they
+     control": "they" is the target player, as a filter's controller and as
+     who puts the counters (`AddCounters.by`), and "target player" is the
+     sentence's subject, which no atom acts on, so `Effect::instances` never
+     declares it. A `PlayerRef` arm naming the player instance k chose is
+     small (six exhaustive matches; `matches_for_effect` would hand the
+     filter the resolution's survivors); declaring the instance is the shape
+     question: a recipient arm, "each [filter] [target player] controls",
+     which declares its player the way `ChosenBy`'s chooser is declared.
+     Splinter & Leo ("each other creature target player controls"),
+     Requisition Raid and Rustler Rampage print the same shape, and 223 cards
+     say "that player controls" (item 342).
+     **Reachability (2026-11-07):** unreachable — no registered card writes
+     it; Shadrix's other rules are carried by Divided Envoy, a fixture.
+     **Sized:** ~150–250 lines with Shadrix registered.
+     **Slotted:** `multiplayer-rules`, beside item 342, whose `PlayerSet::Player`
+     holds the arm in a filter.
