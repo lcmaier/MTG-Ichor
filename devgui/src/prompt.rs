@@ -187,6 +187,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         | ChoiceOption::NormalCost
         | ChoiceOption::AlternativeCost(_)
         | ChoiceOption::AdditionalCost(_)
+        | ChoiceOption::CostPart(_)
         | ChoiceOption::Number(_)
         | ChoiceOption::Color(_)
         | ChoiceOption::CounterType(_)

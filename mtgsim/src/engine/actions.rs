@@ -782,6 +782,10 @@ impl GameActionKindMask {
         self.0[word] & bit != 0
     }
 
+    pub fn intersects(self, other: GameActionKindMask) -> bool {
+        self.0.iter().zip(other.0.iter()).any(|(a, b)| a & b != 0)
+    }
+
     pub fn is_empty(self) -> bool {
         self.0.iter().all(|&word| word == 0)
     }
@@ -1277,7 +1281,9 @@ impl GameState {
                 .ok_or_else(|| "an entry decided events to happen before it with no batch id to perform them under".to_string())?;
             self.perform_just_before_entry(before, window, ctx)?;
         }
+        let stamped: Vec<ObjectId> = decided.iter().filter_map(BatchMember::object_stamped).collect();
         let performed = self.perform_members(decided, riders.len(), ctx)?;
+        self.settle_simultaneous_timestamps(stamped, ctx);
         Ok((performed, riders))
     }
 

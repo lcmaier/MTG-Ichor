@@ -35,7 +35,7 @@ use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
 use crate::engine::trace_records;
 use crate::events::unasked::{Unasked, UnaskedAnswer};
-use crate::types::costs::{AdditionalCost, AlternativeCost};
+use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
@@ -863,6 +863,37 @@ pub fn ask_order_cost_reductions(
     let ctx = ChoiceContext::new(ChoiceKind::OrderCostReductions { spell_id });
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "order_cost_reductions", game, player, &ctx);
+    order
+}
+
+/// CR 601.2h — the order `parts` of a payment are paid in, the first first.
+/// `rejected` says why the last answer was refused: an order that pays what
+/// another part needs first leaves that part unpayable.
+pub fn ask_order_cost_payments(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    spell_or_ability_id: ObjectId,
+    parts: &[Cost],
+    rejected: Option<Rejection>,
+) -> Vec<usize> {
+    debug_assert!(parts.len() >= 2, "CR 601.2h: one part has no order to choose");
+    let options: Vec<ChoiceOption> = parts.iter().cloned().map(ChoiceOption::CostPart).collect();
+    let ctx = ChoiceContext { kind: ChoiceKind::OrderCostPayments { spell_or_ability_id }, rejected };
+    let order = dp.choose_ordering(game, player, &ctx, &options);
+    validate_ordering(&order, &options, "order_cost_payments", game, player, &ctx);
+    order
+}
+
+/// CR 613.7m — the order `objects`, `player`'s, receive their timestamps in,
+/// the earliest first. Two or more only, and only where
+/// `engine::simultaneous_timestamps` cannot show that every order agrees.
+pub fn ask_order_simultaneous_entries(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId, objects: &[ObjectId]) -> Vec<usize> {
+    debug_assert!(objects.len() >= 2, "CR 613.7m: one object has no order to choose");
+    let options: Vec<ChoiceOption> = objects.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext::new(ChoiceKind::OrderSimultaneousEntries { player });
+    let order = dp.choose_ordering(game, player, &ctx, &options);
+    validate_ordering(&order, &options, "order_simultaneous_entries", game, player, &ctx);
     order
 }
 

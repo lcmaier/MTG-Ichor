@@ -158,6 +158,8 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         ChoiceKind::ChooseAlternativeCost { .. }
         | ChoiceKind::ChooseAdditionalCosts { .. }
         | ChoiceKind::OrderCostReductions { .. }
+        | ChoiceKind::OrderCostPayments { .. }
+        | ChoiceKind::OrderSimultaneousEntries { .. }
         | ChoiceKind::DivideAmong { .. }
         | ChoiceKind::ChooseSacrificeForCost { .. }
         | ChoiceKind::OrderTriggers { .. }

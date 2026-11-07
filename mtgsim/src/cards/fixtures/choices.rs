@@ -5,17 +5,20 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_controls, creature, deal_damage_divided, distribute_counters, draw_cards, enters, gain_life,
-    gets, planeswalker, prevent_the_next_damage_divided, spell_ability, static_ability, tap, targets, this_object, triggered_ability,
-    whenever, you,
+    activated_ability, an_opponent_controls, another, as_long_as, creature, deal_damage_divided, dies, distribute_counters, draw_cards,
+    each, enters, exile, gain_life, gets, has_base_power_and_toughness, planeswalker, prevent_the_next_damage_divided,
+    return_to_the_battlefield, spell_ability, static_ability, tap, targets, that_target, this_object, triggered_ability, whenever, you,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, Cost, PaymentAct};
-use crate::types::effects::{AmountExpr, Antecedent, CounterType, Effect, ObjectFilter, ObjectValue, SelectionFilter, TargetCount};
+use crate::types::effects::{
+    AmountExpr, Antecedent, Condition, CounterType, Effect, ObjectFilter, ObjectValue, PlayerFact, PlayerRef, PlayerSet, ReturnUnder,
+    SelectionFilter, TargetCount,
+};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::types::triggers::TriggerSubject;
+use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 
 /// Omnath, Locus of Mana Fixture — {2}{G}
 /// Creature — Elemental, 1/1.
@@ -59,6 +62,157 @@ pub fn momentous_fall_fixture() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(vec![draw_cards(you(), sacrificed(ObjectValue::Power)), gain_life(you(), sacrificed(ObjectValue::Toughness))]),
+        ))
+        .build()
+}
+
+/// Tithing Engine — {2}
+/// Artifact.
+///
+/// **A fixture, and an invented name.** Two parts that each make an event,
+/// neither reading the other: what a watcher of one can tell apart.
+pub fn tithing_engine() -> Arc<CardData> {
+    let text = "Pay 2 life, Sacrifice a creature: Draw a card.";
+    CardDataBuilder::new("Tithing Engine")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text(text)
+        .ability(activated_ability(text, vec![Cost::PayLife(2), Cost::Sacrifice(creature(), 1)], draw_cards(you(), 1)))
+        .build()
+}
+
+/// Reckoner of Debts — {1}{B}
+/// Enchantment.
+///
+/// **A fixture, and an invented name.** CR 603.4's intervening "if", read as
+/// the event happens, so a payment's other part decides whether it triggers.
+pub fn reckoner_of_debts() -> Arc<CardData> {
+    let text = "Whenever a creature dies, if you have 10 or less life, you gain 5 life.";
+    let def = TriggerDef {
+        intervening_if: Some(Condition::Player { players: PlayerSet::You, fact: PlayerFact::LifeAtMost(AmountExpr::Fixed(10)) }),
+        ..whenever(dies(TriggerSubject::Filter(creature())), gain_life(you(), 5))
+    };
+    CardDataBuilder::new("Reckoner of Debts")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 1))
+        .color(Color::Black)
+        .card_type(CardType::Enchantment)
+        .rules_text(text)
+        .ability(triggered_ability(text, def))
+        .build()
+}
+
+/// Vengeful Warchief Fixture — {4}{R}
+/// Creature — Orc Warrior, 4/4.
+///
+/// Vengeful Warchief's trigger on its shape, drawing where the card counts:
+/// sacrificed beside a life payment, it sees the payment only if it was still
+/// there.
+pub fn vengeful_warchief_fixture() -> Arc<CardData> {
+    let text = "Whenever you lose life, you gain 1 life.";
+    let def = TriggerDef {
+        condition: TriggerCondition::Event(TriggerEvent::LosesLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence }),
+        intervening_if: None,
+        limit: None,
+        effect: gain_life(you(), 1),
+    };
+    CardDataBuilder::new("Vengeful Warchief Fixture")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 4))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Warrior))
+        .power_toughness(4, 4)
+        .rules_text(text)
+        .ability(triggered_ability(text, def))
+        .build()
+}
+
+/// Forked Reliquary — {3}
+/// Artifact.
+///
+/// **A fixture, and an invented name.** Three parts where the {T} must come
+/// ahead of the sacrifice of this artifact, and the other sacrifice can read
+/// the {T}: an order of all three that completes is asked for, and the
+/// orders that do not are refused.
+pub fn forked_reliquary() -> Arc<CardData> {
+    let text = "{T}, Sacrifice this artifact, Sacrifice another creature: Draw a card.";
+    CardDataBuilder::new("Forked Reliquary")
+        .mana_cost(ManaCost::build(&[], 3))
+        .card_type(CardType::Artifact)
+        .rules_text(text)
+        .ability(activated_ability(text, vec![Cost::TapSelf, Cost::SacrificeSelf, Cost::Sacrifice(creature(), 1)], draw_cards(you(), 1)))
+        .build()
+}
+
+/// Sentry of the Tapped Gate — {1}{W}
+/// Creature — Soldier, 2/2.
+///
+/// **A fixture, and an invented name.** A creature whose characteristics read
+/// a tapped status, for [`forked_reliquary`]'s second sacrifice.
+pub fn sentry_of_the_tapped_gate() -> Arc<CardData> {
+    let text = "As long as this creature is untapped, it gets +1/+1.";
+    CardDataBuilder::new("Sentry of the Tapped Gate")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Soldier))
+        .power_toughness(2, 2)
+        .rules_text(text)
+        .ability(static_ability(text, as_long_as(Condition::SourceUntapped, gets(this_object(), 1, 1))))
+        .build()
+}
+
+/// Kudo, King Among Bears Fixture — {G}{W}
+/// Creature — Bear, 2/2.
+///
+/// Kudo's power and toughness half: a layer 7b effect on every other
+/// creature, whose order against [`godhead_of_awe_fixture`]'s is CR 613.7m's
+/// (`choices-architecture.md`'s "Found while designing", item 6).
+pub fn kudo_king_among_bears_fixture() -> Arc<CardData> {
+    let text = "Other creatures have base power and toughness 2/2.";
+    CardDataBuilder::new("Kudo, King Among Bears Fixture")
+        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::White], 0))
+        .color(Color::Green)
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Bear))
+        .power_toughness(2, 2)
+        .rules_text(text)
+        .ability(static_ability(text, has_base_power_and_toughness(each(another(creature())), 2, 2)))
+        .build()
+}
+
+/// Godhead of Awe Fixture — {5}
+/// Creature — Spirit, 4/4.
+///
+/// Godhead of Awe's second line, unhybrid and without its flying.
+pub fn godhead_of_awe_fixture() -> Arc<CardData> {
+    let text = "Other creatures have base power and toughness 1/1.";
+    CardDataBuilder::new("Godhead of Awe Fixture")
+        .mana_cost(ManaCost::build(&[], 5))
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Spirit))
+        .power_toughness(4, 4)
+        .rules_text(text)
+        .ability(static_ability(text, has_base_power_and_toughness(each(another(creature())), 1, 1)))
+        .build()
+}
+
+/// Ghostly Flicker Fixture — {2}{U}
+/// Instant.
+///
+/// Ghostly Flicker's shape over two target creatures, each back under its
+/// owner's control: one event putting several players' objects onto the
+/// battlefield at once, as Living Death does.
+pub fn ghostly_flicker_fixture() -> Arc<CardData> {
+    let text = "Exile two target creatures, then return those cards to the battlefield under their owners' control.";
+    CardDataBuilder::new("Ghostly Flicker Fixture")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![exile(targets(2, SelectionFilter::Creature)), return_to_the_battlefield(that_target(0), ReturnUnder::Owner)]),
         ))
         .build()
 }

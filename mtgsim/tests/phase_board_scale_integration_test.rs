@@ -235,7 +235,8 @@ fn a_token_whose_proposal_differs_is_not_served_its_runs_frame() {
 }
 
 /// CR 616.1b's rewrite is a proposal's controller, and the anthem is P0's: the
-/// Goblin given to P1 enters a 1/1 beside a run of P0's 2/2s.
+/// Goblin given to P1 enters a 1/1 beside a run of P0's 2/2s, and CR 613.7m
+/// puts the active player's first, so it is the youngest of the three.
 #[test]
 fn a_token_entering_under_another_player_is_read_under_that_player() {
     let mut game = setup_game(2);
@@ -258,7 +259,7 @@ fn a_token_entering_under_another_player_is_read_under_that_player() {
     let create = GameAction::CreateTokens { defs: vec![goblin(); 3], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&dp)).expect("the creation performs");
 
-    assert_eq!(plus_one_counters(&game, &tokens_owned_by(&game, 0)), vec![1, 0, 1]);
+    assert_eq!(plus_one_counters(&game, &tokens_owned_by(&game, 0)), vec![1, 1, 0]);
 }
 
 /// Three runs, the last equal to the first: a run's frame goes with its card,

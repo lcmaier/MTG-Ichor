@@ -449,6 +449,12 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::OrderCostReductions { spell_id } => {
             format!("Order the cost reductions for {}; the first applies first", n(spell_id))
         }
+        ChoiceKind::OrderCostPayments { spell_or_ability_id } => {
+            format!("Order the costs of {}; the first is paid first", n(spell_or_ability_id))
+        }
+        ChoiceKind::OrderSimultaneousEntries { .. } => {
+            "Order these objects as they arrive together; the first has the earliest timestamp".to_string()
+        }
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => {
             format!("Pay {remaining_cost} more for {}: activate a mana ability, or stop", n(spell_or_ability_id))
         }
@@ -520,6 +526,7 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", n(blocker), n(attacker)),
         ChoiceOption::NormalCost => "Its mana cost".to_string(),
         ChoiceOption::AlternativeCost(cost) => alternative_cost_label(cost),
+        ChoiceOption::CostPart(cost) => cost_part_label(cost),
         ChoiceOption::AdditionalCost(cost) => additional_cost_label(cost),
         ChoiceOption::Number(number) => number.to_string(),
         ChoiceOption::Color(color) => color_name(*color).to_string(),
@@ -627,6 +634,10 @@ pub fn rejection(game: &GameState, rejected: &Rejection) -> String {
             format!("{words} (CR 732.1)")
         }
         Rejection::IllegalBlocks { why, .. } => format!("Those blocks are illegal: {}", combat_error(game, why)),
+        Rejection::OrderLeavesACostUnpaid(_) => {
+            let (words, _) = rejection_words(game, rejected);
+            format!("{words} (CR 601.2h)")
+        }
     }
 }
 
@@ -641,6 +652,9 @@ pub fn rejection_words(game: &GameState, rejected: &Rejection) -> (String, Optio
             ),
             Some("732.1"),
         ),
+        Rejection::OrderLeavesACostUnpaid(cost) => {
+            (format!("That order leaves \"{}\" unpaid, and unpayable costs can't be paid", cost_part_label(cost)), Some("601.2h"))
+        }
         Rejection::IllegalBlocks { why, .. } => {
             let (words, rule) = combat_refusal(game, why, Declaring::Blockers);
             (format!("Those blocks are illegal: {words}"), rule)
@@ -846,6 +860,11 @@ pub(crate) fn alternative_cost_label(cost: &AlternativeCost) -> String {
         AlternativeCost::Bestow(costs) => keyword_and_cost("Bestow", costs),
         AlternativeCost::Custom(text, _) => text.clone(),
     }
+}
+
+/// One part of a total cost: "{2}{G}{G}", "sacrifice a creature".
+pub(crate) fn cost_part_label(cost: &Cost) -> String {
+    keyword_and_cost("Pay", std::slice::from_ref(cost))
 }
 
 pub(crate) fn additional_cost_label(cost: &AdditionalCost) -> String {
@@ -1377,6 +1396,8 @@ pub fn format_unasked(game: &GameState, question: &UnaskedChoice) -> String {
         Unasked::OneGame(Elision::TriggerOrder) => "every order leaves one game (CR 603.3b)",
         Unasked::OneGame(Elision::DelayedTriggerCause) => "every event leaves one game (CR 603.7b)",
         Unasked::OneGame(Elision::CostReductionOrder) => "every order leaves one game (CR 601.2f)",
+        Unasked::OneGame(Elision::PaymentOrder) => "every order leaves one game (CR 601.2h)",
+        Unasked::OneGame(Elision::EntryOrder) => "every order leaves one game (CR 613.7m)",
     };
     format!("NotAsked: {} {}{subject}: {answered}, {reason}", player_in_log(*player), kind.as_str())
 }

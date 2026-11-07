@@ -239,6 +239,7 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
         | ChoiceOption::Player(_)
         | ChoiceOption::NormalCost
         | ChoiceOption::AlternativeCost(_)
+        | ChoiceOption::CostPart(_)
         | ChoiceOption::AdditionalCost(_)
         | ChoiceOption::Number(_)
         | ChoiceOption::Color(_)
@@ -254,6 +255,7 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
         Rejection::IllegalBlocks { blocks, .. } => {
             blocks.iter().any(|&(blocker, attacker)| names(&ChoiceOption::BlockerAttacker(blocker, attacker), about))
         }
+        Rejection::OrderLeavesACostUnpaid(_) => false,
     }
 }
 
@@ -344,6 +346,8 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::DivideAmong { .. }
             | ChoiceKind::GenericManaAllocation { .. }
             | ChoiceKind::OrderCostReductions { .. }
+            | ChoiceKind::OrderCostPayments { .. }
+            | ChoiceKind::OrderSimultaneousEntries { .. }
             | ChoiceKind::ManaAbilityWindow { .. }
             | ChoiceKind::ChooseSacrificeForCost { .. }
             | ChoiceKind::ChooseReplacementEffect { .. }
@@ -461,6 +465,12 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::OrderCostReductions { spell_id } => {
             (format!("the order the cost reductions apply to {} in", n(spell_id)), Some("601.2f"))
+        }
+        ChoiceKind::OrderCostPayments { spell_or_ability_id } => {
+            (format!("the order {who} pays the costs of {} in", n(spell_or_ability_id)), Some("601.2h"))
+        }
+        ChoiceKind::OrderSimultaneousEntries { .. } => {
+            (format!("the objects {who} controls that arrived together and whose timestamps can change the game"), Some("613.7m"))
         }
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } => {
             (format!("the mana abilities {who} can activate to pay for {}", n(spell_or_ability_id)), Some("601.2g"))

@@ -13,7 +13,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
 use super::decision::PriorityAction;
-use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, printed_name};
+use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_part_label, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -87,6 +87,22 @@ pub enum ChoiceKind {
     /// (`cost-architecture.md` §3.4), so no game reaches it until one of that
     /// section's two expiry conditions lands.
     OrderCostReductions { spell_id: ObjectId },
+    /// CR 601.2h — "they pay all costs … in any order." Asked only where the
+    /// order can change the game, after every other choice the payment needs,
+    /// and only of the parts it can change it for: the options are those
+    /// parts, each by what it costs, and the answer is the order to pay them
+    /// in, the first first (`engine::payment_order`). Two parts alike in every
+    /// word are taken in turn. An order that leaves a part unpayable is
+    /// refused, and the rejection names that part. `spell_or_ability_id` is
+    /// what is being paid for.
+    OrderCostPayments { spell_or_ability_id: ObjectId },
+    /// CR 613.7m — the order of `player`'s objects receiving a timestamp at
+    /// once, "in the order of that player's choice", each player's in APNAP
+    /// order. The options are the objects a timestamp is read for, and the
+    /// answer is the order they receive theirs, the earliest first. Asked
+    /// only where the order can change the game
+    /// (`engine::simultaneous_timestamps`): alike objects never reach it.
+    OrderSimultaneousEntries { player: PlayerId },
     /// 601.2g / 602.1b — "mana ability window" inside spell cast or ability
     /// activation. The player may activate mana abilities (rule 605) to cover
     /// the spell's / ability's cost. Asked repeatedly in a loop: each prompt
@@ -397,6 +413,9 @@ impl ChoiceKind {
                 Some(*spell_or_ability_id)
             }
             ChoiceKind::OrderCostReductions { spell_id } => Some(*spell_id),
+            ChoiceKind::OrderCostPayments { spell_or_ability_id } => Some(*spell_or_ability_id),
+            // Several objects at once, like `DeclareAttackers`: no one subject.
+            ChoiceKind::OrderSimultaneousEntries { .. } => None,
             ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } => Some(*spell_or_ability_id),
             ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => {
                 Some(*spell_or_ability_id)
@@ -441,6 +460,8 @@ impl ChoiceKind {
             ChoiceKind::DivideAmong { .. } => "DivideAmong",
             ChoiceKind::GenericManaAllocation { .. } => "GenericManaAllocation",
             ChoiceKind::OrderCostReductions { .. } => "OrderCostReductions",
+            ChoiceKind::OrderCostPayments { .. } => "OrderCostPayments",
+            ChoiceKind::OrderSimultaneousEntries { .. } => "OrderSimultaneousEntries",
             ChoiceKind::ManaAbilityWindow { .. } => "ManaAbilityWindow",
             ChoiceKind::ChooseSacrificeForCost { .. } => "ChooseSacrificeForCost",
             ChoiceKind::ChooseReplacementEffect { .. } => "ChooseReplacementEffect",
@@ -499,6 +520,9 @@ pub enum Rejection {
     /// The blocks declared were illegal, so the defending player declares
     /// again; `why` names the creatures and the rule (CR 509.1a–c).
     IllegalBlocks { blocks: Vec<(ObjectId, ObjectId)>, why: CombatError },
+    /// The order of a payment's parts would have left this one unpayable, so
+    /// the player orders them again (CR 601.2h).
+    OrderLeavesACostUnpaid(Cost),
 }
 
 /// A single selectable option presented to the DP.
@@ -525,6 +549,8 @@ pub enum ChoiceOption {
     AlternativeCost(AlternativeCost),
     /// An additional cost option
     AdditionalCost(AdditionalCost),
+    /// One part of a total cost (CR 601.2h), for the order they are paid in.
+    CostPart(Cost),
     /// A number (for X value ranges presented as discrete options)
     Number(u64),
     /// A color
@@ -683,6 +709,7 @@ impl ChoiceOption {
             ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", object(blocker), object(attacker)),
             ChoiceOption::NormalCost => "mana cost".to_string(),
             ChoiceOption::AlternativeCost(cost) => format!("alternative {}", alternative_cost_label(cost)),
+            ChoiceOption::CostPart(cost) => format!("cost {}", cost_part_label(cost)),
             ChoiceOption::AdditionalCost(cost) => format!("additional {}", additional_cost_label(cost)),
             ChoiceOption::Number(number) => format!("number {number}"),
             ChoiceOption::Color(color) => format!("color {}", color_name(*color).to_lowercase()),

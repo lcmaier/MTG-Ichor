@@ -26,7 +26,7 @@ use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::ObjectFilter;
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, PlayerId};
-use crate::types::mana::{ManaSpent, ManaType};
+use crate::types::mana::{ManaPool, ManaSpent, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
 use crate::types::zones::Zone;
 
@@ -38,16 +38,42 @@ use crate::types::zones::Zone;
 /// deciding and performing do not interleave (see the module doc).
 #[derive(Debug, Clone)]
 pub struct PaymentPlan {
-    /// The costs in the order they will be paid ([`payment_order_rank`]).
-    ordered: Vec<Cost>,
+    /// The costs in the order they will be paid: [`payment_order_rank`]'s,
+    /// or the player's where the order can change the game
+    /// (`engine::payment_order`).
+    pub(super) ordered: Vec<Cost>,
     /// How the mana component's generic part is split across the pool.
     generic_allocation: HashMap<ManaType, u64>,
     /// Which permanents pay each `Cost::Sacrifice`, keyed by index into
     /// `ordered`.
-    sacrifices: HashMap<usize, Vec<ObjectId>>,
+    pub(super) sacrifices: HashMap<usize, Vec<ObjectId>>,
 }
 
 impl PaymentPlan {
+    /// Pay the parts in `order`, each by its place in `ordered` now.
+    pub(super) fn pay_in(&mut self, order: &[usize]) {
+        let mut sacrifices = HashMap::with_capacity(self.sacrifices.len());
+        for (place, &was) in order.iter().enumerate() {
+            if let Some(chosen) = self.sacrifices.remove(&was) {
+                sacrifices.insert(place, chosen);
+            }
+        }
+        self.ordered = order.iter().map(|&was| self.ordered[was].clone()).collect();
+        self.sacrifices = sacrifices;
+    }
+
+    /// Whether every mana cost here pays out of `pool` under this plan's
+    /// split, tried on a copy of it. What a move ahead of the mana leans on:
+    /// a split can spend a color a pip still needs.
+    pub(super) fn mana_can_be_paid_by(&self, pool: &ManaPool) -> bool {
+        let mut pool = pool.clone();
+        self.ordered.iter().all(|cost| match cost {
+            Cost::Mana(mana) if mana.generic_count() == 0 => pool.pay_specific_only(mana).is_ok(),
+            Cost::Mana(mana) => pool.pay(mana, &self.generic_allocation).is_ok(),
+            _ => true,
+        })
+    }
+
     /// The permanents this plan will sacrifice, in payment order.
     #[cfg(test)]
     fn planned_sacrifices(&self) -> Vec<ObjectId> {
@@ -116,19 +142,21 @@ const RANK_MUTATES: u8 = 1;
 const RANK_MOVES_AN_OBJECT: u8 = 2;
 
 
-/// Where a cost sits in the order the engine pays a total cost.
+/// Where a cost sits in the order the engine pays a total cost, wherever no
+/// order the player could choose changes the game.
 ///
 /// **CR 601.2h gives the order to the player** — "they pay all costs that
 /// don't involve random elements or moving objects from the library to a
-/// public zone, in any order" — and the engine picks one of them. (That
+/// public zone, in any order" — and `engine::payment_order` asks them where it
+/// matters, keeping what follows true of the order they choose. (That
 /// sentence's own two groups are not modeled: no `Cost` arm is random and
 /// none moves a card out of a library, so the second group is empty for every
 /// cost that exists, and an arm nothing can reach is worse than a missing
-/// one. `ATOM-601.2h-003` is the atom for handing the order to the player.)
+/// one.)
 ///
-/// The engine picks **the order in which no payment can fail after one that
-/// cannot be taken back**, which is what makes CR 732.1's "any payments
-/// already made are canceled" unreachable rather than unimplemented:
+/// This is **the order in which no payment can fail after one that cannot be
+/// taken back**, which is what makes CR 732.1's "any payments already made
+/// are canceled" unreachable rather than unimplemented:
 ///
 /// - rank 0, `Mana` — the only cost whose payment can fail on a choice the
 ///   player made (a generic split that spends a color a pip still needs), so
@@ -292,15 +320,6 @@ impl GameState {
             .collect()
     }
 
-    /// Take every choice CR 601.2h's payment needs, against one board.
-    ///
-    /// Reads only — nothing is paid here. `can_pay_costs` must already have
-    /// passed; this asks *how* to pay, not *whether*, and the one error it
-    /// returns is a cost it cannot plan at all.
-    ///
-    /// Every prompt a payment asks is asked here, which is the property
-    /// [`Self::pay_costs`] leans on: once the first permanent moves, no
-    /// decision is outstanding. See the module doc.
     /// The buckets CR 601.2h's generic split is asked over: each type of mana
     /// in `player_id`'s pool, with how much, in type order. The split's why
     /// reads the same ones.
@@ -316,6 +335,17 @@ impl GameState {
         available
     }
 
+    /// Take every choice CR 601.2h's payment needs, against one board.
+    ///
+    /// Reads only — nothing is paid here. `can_pay_costs` must already have
+    /// passed; this asks *how* to pay, not *whether*, and the one error it
+    /// returns is a cost it cannot plan at all.
+    ///
+    /// Every prompt a payment asks is asked here, which is the property
+    /// [`Self::pay_costs`] leans on: once the first permanent moves, no
+    /// decision is outstanding. See the module doc. Its order is asked last,
+    /// since which permanent pays a sacrifice decides whether the order can
+    /// change the game (`engine::payment_order`).
     pub fn plan_payment(
         &self,
         costs: &[Cost],
@@ -353,7 +383,9 @@ impl GameState {
             }
         }
 
-        Ok(PaymentPlan { ordered, generic_allocation, sacrifices })
+        let mut plan = PaymentPlan { ordered, generic_allocation, sacrifices };
+        self.settle_payment_order(&mut plan, player_id, source_id, ctx);
+        Ok(plan)
     }
 
     /// Pay a planned total cost (CR 601.2h).
