@@ -2871,6 +2871,10 @@ one, so nothing was wrong in practice and nothing moved.
     **Slotted:** `remaining-costs`, the cost actions, whose per-action resource check (CR
     118.3) is where a set-cover pre-check over two object-moving costs is
     designed.
+    **Owed by the same row to the payment order:** `part_of`'s discard and
+    exile arms name no object, since the plan does not choose those cards yet.
+    When it does, each arm takes them, as a sacrifice's does, or two such parts
+    are ordered as though they used nothing.
 
 79. **~~CR 601.2h's payment order is the player's and the engine takes it.~~ — ✅ CLOSED
     2026-11-06 (`orders-the-cr-hands-a-player`).** — archived. Asked where the orders'

@@ -454,22 +454,26 @@ impl GameState {
         }
     }
 
-    /// `cost` as this board pays it, `chosen` being what pays a sacrifice.
+    /// `cost` as this board pays it: its footprint, the objects it takes away
+    /// (`moves`) and the ones that must still be in place when it is paid
+    /// (`needs`), and what those objects and the abilities watching its event
+    /// read. `chosen` is what the plan picked to pay a sacrifice.
     fn part_of<'a>(&self, cost: &'a Cost, chosen: Option<&[ObjectId]>, source: ObjectId) -> PaymentPart<'a> {
         let CostFootprint { mut reads, changes, appends, events, actions } = footprint_of(cost);
         let chosen = chosen.unwrap_or_default();
+        let this = std::slice::from_ref(&source);
         let (moves, needs): (&[ObjectId], &[ObjectId]) = match cost {
-            Cost::TapSelf | Cost::UntapSelf => (&[], std::slice::from_ref(&source)),
-            Cost::SacrificeSelf => (std::slice::from_ref(&source), std::slice::from_ref(&source)),
+            // Amounts, so no object is used.
+            Cost::Mana(_) | Cost::PayLife(_) => (&[], &[]),
+            // The source stays, and must still be there.
+            Cost::TapSelf | Cost::UntapSelf | Cost::RemoveCounters(..) | Cost::AddCounters(..) => (&[], this),
+            Cost::SacrificeSelf => (this, this),
             Cost::Sacrifice(..) => (chosen, chosen),
-            // A discard, an exile and a counter are refused by `can_pay_costs`
-            // until `remaining-costs` plans what each uses.
-            Cost::Mana(_)
-            | Cost::PayLife(_)
-            | Cost::Discard(..)
-            | Cost::ExileFromGraveyard(..)
-            | Cost::RemoveCounters(..)
-            | Cost::AddCounters(..) => (&[], &[]),
+            // Their cards are chosen as each is paid, and the plan does not
+            // hold that choice yet: `can_pay_costs` refuses both
+            // (`CannotPay::Unchecked`) until `remaining-costs` moves it into
+            // the plan, so no plan reaches here with one.
+            Cost::Discard(..) | Cost::ExileFromGraveyard(..) => (&[], &[]),
         };
         for &object in moves {
             reads |= self.characteristics_read(object, source);
