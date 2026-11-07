@@ -214,6 +214,7 @@ impl GameState {
             cost_choices: crate::state::battlefield::CostChoices {
                 additional: chosen_additional.iter().map(|&cost| cost.clone()).collect(),
                 alternative: chosen_alt.cloned(),
+                paid_with: Vec::new(),
             },
             mana_spent: ManaSpent::NONE,
             cast_from: Some(cast_from),
@@ -271,17 +272,18 @@ impl GameState {
         // payable — a generic split that spends a color a pip still needs —
         // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
         // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
-        let mana_spent = match self.pay_costs(&plan, player_id, card_id, &actx) {
-            Ok(spent) => spent,
+        let payment = match self.pay_costs(&plan, player_id, card_id, &actx) {
+            Ok(payment) => payment,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
             }
         };
         // CR 400.7d's mana, written here because once paid the pool no longer
-        // knows what paid.
+        // knows what paid, and what else the payment used.
         if let Some(entry) = self.stack_entries.get_mut(&card_id) {
-            entry.mana_spent = mana_spent;
+            entry.mana_spent = payment.mana_spent;
+            entry.cost_choices.paid_with = payment.paid_with;
         }
 
         // --- 601.2i: the spell becomes cast ---
@@ -572,9 +574,15 @@ impl GameState {
                 return Err(e);
             }
         };
-        if let Err(e) = self.pay_costs(&plan, player_id, source_id, &actx) {
-            self.rollback_ability_activation(ability_obj_id);
-            return Err(e);
+        let payment = match self.pay_costs(&plan, player_id, source_id, &actx) {
+            Ok(payment) => payment,
+            Err(e) => {
+                self.rollback_ability_activation(ability_obj_id);
+                return Err(e);
+            }
+        };
+        if let Some(entry) = self.stack_entries.get_mut(&ability_obj_id) {
+            entry.cost_choices.paid_with = payment.paid_with;
         }
 
         // CR 602.2b runs 601.2i: the ability becomes activated once its costs

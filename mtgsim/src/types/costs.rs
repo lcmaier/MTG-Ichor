@@ -32,6 +32,14 @@ pub enum Cost {
     AddCounters(CounterType, u32),
 }
 
+/// What a payment did with something it used, as a card's text names the
+/// cost by its verb: "the sacrificed creature". Each other verb lands with its
+/// cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaymentAct {
+    Sacrificed,
+}
+
 impl Cost {
     /// Whether paying it can take the ability's source out of the zone it is
     /// activated from, so the activation's record reads the source as it was

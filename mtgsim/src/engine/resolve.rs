@@ -16,7 +16,7 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
-    EffectRecipient, NamedPlayers, ObjectFilter, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+    EffectRecipient, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
@@ -2688,6 +2688,27 @@ impl GameState {
                 self.bound_amount(binding).ok_or_else(|| {
                     format!("{:?} carries no amount for TriggeringAmount to read", binding.event())
                 })
+            }
+            // "The sacrificed creature's power": the one object its payment
+            // used by that act, as it last existed (CR 608.2h), since the move
+            // that paid the cost ended that existence.
+            AmountExpr::ValueOf(object, value) => {
+                let Antecedent::PaidWith(act) = object else {
+                    return Err(format!("{expr:?}: only an object a payment used is read as a `ValueOf` yet"));
+                };
+                let resolving = self.resolving_for(_ctx).ok_or_else(|| format!("{expr:?} has no meaning outside a resolving spell or ability"))?;
+                let mut used = resolving.cost_choices.used_by(*act);
+                let (Some(one), None) = (used.next(), used.next()) else {
+                    return Err(format!("{expr:?} reads one object, and {} used none or several", _ctx.source));
+                };
+                let chars = one.object().and_then(|existence| self.lki(existence)).map(Lki::characteristics).ok_or_else(|| {
+                    format!("{expr:?}: {one:?} moved to pay a cost, and no last known information answers for it, which is a missed capture")
+                })?;
+                let read = match value {
+                    ObjectValue::Power => chars.power,
+                    ObjectValue::Toughness => chars.toughness,
+                };
+                Ok(read.unwrap_or(0).max(0) as u64)
             }
             // "Its power", "its toughness" (CR 608.2h). A negative value is
             // no amount: Paladin of Atonement's ruling gains nothing, and

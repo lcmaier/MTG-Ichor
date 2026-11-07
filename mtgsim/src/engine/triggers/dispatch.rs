@@ -441,7 +441,7 @@ impl FilterReferents for TriggerReferents<'_> {
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         match creature {
             Antecedent::ThisObject => ObjectInformation::Current(self.this.id()).defending_player(game, &|_| {}),
-            Antecedent::Triggering(_) => None,
+            Antecedent::Triggering(_) | Antecedent::PaidWith(_) => None,
         }
     }
 }
@@ -880,6 +880,17 @@ impl GameState {
             return Vec::new();
         }
         self.find_trigger_matches(window, gate, snapshots)
+    }
+
+    /// The objects that may carry a triggered ability reading `kinds`, in CR
+    /// 613.7 order: the dispatch gate's own legs, for a reader that asks of an
+    /// event yet to happen.
+    pub(crate) fn objects_that_may_watch(&self, kinds: EventKindMask) -> Vec<ObjectId> {
+        let gate = self.trigger_gate(kinds, Vec::new(), OffBattlefieldLegs::FilteredByKind);
+        if gate.is_empty() {
+            return Vec::new();
+        }
+        gate.candidates()
     }
 
     /// The dispatch gate's legs for a window carrying `kinds`, with the

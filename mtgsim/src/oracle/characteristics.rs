@@ -291,14 +291,25 @@ pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
 /// point — so an opening-hand Leyline is not sick, while anything that arrived
 /// after the game began is, until its controller's first turn.
 pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
+    under_the_summoning_rule(game, id).is_some_and(|chars| !chars.keyword_flags.contains(&KeywordFlag::Haste))
+}
+
+/// Whether haste is what lets `id` pay {T} or {Q} now (CR 302.6): the keyword
+/// could leave with whatever gives it.
+pub(crate) fn needs_haste_to_tap(game: &GameState, id: ObjectId) -> bool {
+    under_the_summoning_rule(game, id).is_some()
+}
+
+/// `id`'s characteristics, when it is a creature on the battlefield its
+/// controller has not controlled continuously since their most recent turn
+/// began (CR 302.6).
+fn under_the_summoning_rule(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
     if !game.battlefield.contains_key(&id) {
-        return false;
+        return None;
     }
-    let Some(chars) = compute_characteristics(game, id) else {
-        return false;
-    };
+    let chars = compute_characteristics(game, id)?;
     if !chars.types.contains(&CardType::Creature) {
-        return false;
+        return None;
     }
     let sick = match game.most_recent_turn_began(chars.controller) {
         // Control gained *during* that turn is not control since it began, so
@@ -306,7 +317,7 @@ pub fn has_summoning_sickness(game: &GameState, id: ObjectId) -> bool {
         Some(began) => chars.control_since_turn >= began,
         None => chars.control_since_turn > 0,
     };
-    sick && !chars.keyword_flags.contains(&KeywordFlag::Haste)
+    sick.then_some(chars)
 }
 
 /// Get the effective colors of a game object after applying Layer 5 effects.

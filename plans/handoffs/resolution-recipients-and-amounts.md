@@ -66,7 +66,7 @@ the tree on 2026-10-26; item 155 had no size line and is sized here.
 |---|---|---:|---:|
 | 334 | `ChosenTargets` holds the existence chosen; its four readers in the resolver filter or follow, and castability builds existences (decision 1). About 70 test literals stage one by id | 60–90 | 70–100 |
 | 269, 299 | `AmountExpr::ValueOf(Antecedent, ObjectValue)`; seven variants folded at about 40 sites in `src` and 17 in tests; the source's power at resolution (decision 2) | 80–120 | 50–80 |
-| 30 | `CostChoices.paid_with`, its sacrifice recorded and read by decision 2's word (decision 3) | 40–60 | 30–50 |
+| 30 | `CostChoices.paid_with`, its sacrifice recorded and read by decision 2's word (decision 3). **Landed at `orders-the-cr-hands-a-player`** (2026-11-06), as decision 3 settled it, with `ValueOf` reading only `Antecedent::PaidWith`; this row's fold is what is left | 40–60 | 30–50 |
 | 268 | `EffectRecipient::Player(PlayerAntecedent)` and `PlayerRef::Named`; `TriggeringPlayer`'s 13 sites, `NamedPlayers::FirstInstance`'s 6 and `PlayerRef::Owner`'s 20 migrated (decision 4) | 60–90 | 70–100 |
 | 272 | `Effect::ForEach` over players for a token body, decided per player and performed as one event (decision 5) | 50–80 | 60–90 |
 | 292, row 39 | No player is an answer that does nothing: `resolve_player_for_self`'s 13 calls, `named_player`, `EntersAttacking::Player` | 60–80 | 60–80 |

@@ -233,6 +233,7 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
         ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
         ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id).chain(trigger.triggered_by.iter().copied()).collect(),
         ChoiceOption::Replacement(_) => option.effect_source().into_iter().collect(),
+        ChoiceOption::CostPart(part) => part.paid_with.clone(),
         // No object on the board: the existence has left.
         ChoiceOption::LastKnown(_)
         | ChoiceOption::Action(PriorityAction::Pass)
@@ -254,6 +255,7 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
         Rejection::IllegalBlocks { blocks, .. } => {
             blocks.iter().any(|&(blocker, attacker)| names(&ChoiceOption::BlockerAttacker(blocker, attacker), about))
         }
+        Rejection::OrderLeavesACostUnpaid(_) => false,
     }
 }
 
@@ -344,6 +346,8 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::DivideAmong { .. }
             | ChoiceKind::GenericManaAllocation { .. }
             | ChoiceKind::OrderCostReductions { .. }
+            | ChoiceKind::OrderCostPayments { .. }
+            | ChoiceKind::OrderSimultaneousEntries { .. }
             | ChoiceKind::ManaAbilityWindow { .. }
             | ChoiceKind::ChooseSacrificeForCost { .. }
             | ChoiceKind::ChooseReplacementEffect { .. }
@@ -362,7 +366,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::CommanderToCommandZoneSba { .. }
             | ChoiceKind::Discard { .. }
             | ChoiceKind::Scry { .. }
-            | ChoiceKind::ScryOrder { .. }
+            | ChoiceKind::OrderLibraryCards { .. }
             | ChoiceKind::LegendRule { .. },
             _,
         ) => Vec::new(),
@@ -462,6 +466,12 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::OrderCostReductions { spell_id } => {
             (format!("the order the cost reductions apply to {} in", n(spell_id)), Some("601.2f"))
         }
+        ChoiceKind::OrderCostPayments { spell_or_ability_id } => {
+            (format!("the order {who} pays the costs of {} in", n(spell_or_ability_id)), Some("601.2h"))
+        }
+        ChoiceKind::OrderSimultaneousEntries { .. } => {
+            (format!("the objects {who} controls that arrived together and whose timestamps can change the game"), Some("613.7m"))
+        }
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } => {
             (format!("the mana abilities {who} can activate to pay for {}", n(spell_or_ability_id)), Some("601.2g"))
         }
@@ -513,7 +523,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::Discard { .. } => (format!("the cards in {who}'s hand"), Some("701.9b")),
         ChoiceKind::Scry { .. } => (format!("the cards {who} is looking at, any of which go to the bottom"), Some("701.22a")),
-        ChoiceKind::ScryOrder { bottom, .. } => {
+        ChoiceKind::OrderLibraryCards { bottom, .. } => {
             let pile = if *bottom { "bottom" } else { "top" };
             (format!("the order of the cards going on the {pile}"), Some("701.22a"))
         }

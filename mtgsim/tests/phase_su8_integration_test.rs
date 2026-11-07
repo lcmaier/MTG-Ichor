@@ -229,10 +229,12 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::CommanderToCommandZoneSba { commander: object },
         ChoiceKind::Discard { source: None },
         ChoiceKind::Scry { source: None, n: 1 },
-        ChoiceKind::ScryOrder { source: None, bottom: true },
+        ChoiceKind::OrderLibraryCards { source: None, bottom: true },
         ChoiceKind::LegendRule { legend_name: "Grizzly Bears".to_string() },
         ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
         ChoiceKind::DivideAmong { source: object },
+        ChoiceKind::OrderCostPayments { spell_or_ability_id: object },
+        ChoiceKind::OrderSimultaneousEntries { player: 0 },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -263,13 +265,15 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::CommanderToCommandZoneSba { .. } => 25,
         ChoiceKind::Discard { .. } => 26,
         ChoiceKind::Scry { .. } => 27,
-        ChoiceKind::ScryOrder { .. } => 28,
+        ChoiceKind::OrderLibraryCards { .. } => 28,
         ChoiceKind::LegendRule { .. } => 29,
         ChoiceKind::AcceptAsObjectEnters { .. } => 30,
         ChoiceKind::DivideAmong { .. } => 31,
+        ChoiceKind::OrderCostPayments { .. } => 32,
+        ChoiceKind::OrderSimultaneousEntries { .. } => 33,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..32).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..34).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

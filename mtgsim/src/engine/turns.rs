@@ -3,6 +3,7 @@ use crate::events::cause::{EventCause, GameRule, TurnBasedAction};
 use crate::state::game_state::{
     initial_step, next_step, ExtraTurn, GameState, PhaseType, StepType, TurnPlan,
 };
+use crate::state::layer_memo::GatedWalkInput;
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 use crate::types::zones::Zone;
@@ -359,15 +360,19 @@ impl GameState {
 
     // --- Phase lifecycle callbacks ---
 
-    fn on_phase_end(&mut self, phase_type: PhaseType) -> Result<(), String> {
-        // Mana pools empty at end of each phase (rule 106.4). A pool that does
-        // not empty (Upwelling's class) is a `BlanketPersistenceSet` read off the
-        // registry, and nothing builds one yet — `codebase-state.md`, "Before
-        // Layers" item 4.
+    /// Mana pools empty at the end of each step and phase (CR 106.4). A pool
+    /// that does not empty (Upwelling's class) is a `BlanketPersistenceSet` read
+    /// off the registry, which `mana-provenance` builds.
+    fn empty_mana_pools(&mut self) {
         let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
             player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
         }
+        self.bump_layer_epoch_if_read(GatedWalkInput::ManaPools);
+    }
+
+    fn on_phase_end(&mut self, phase_type: PhaseType) -> Result<(), String> {
+        self.empty_mana_pools();
 
         if phase_type == PhaseType::Combat {
             let combatants: Vec<ObjectId> = self
@@ -483,12 +488,7 @@ impl GameState {
     }
 
     fn on_step_end(&mut self, _step_type: StepType) -> Result<(), String> {
-        // Mana pools empty at end of each step (rule 106.4); the persistence
-        // set is the same stub as `on_phase_end`'s ("Before Layers" item 4).
-        let blanket = BlanketPersistenceSet::none();
-        for player in &mut self.players {
-            player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
-        }
+        self.empty_mana_pools();
         Ok(())
     }
 

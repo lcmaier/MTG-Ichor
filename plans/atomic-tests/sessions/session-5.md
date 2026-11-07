@@ -360,6 +360,14 @@
 > representable yet. The prompt is still asked, because the CR makes it the
 > player's, and the test asserts that, that both reductions apply, and that
 > every order gives the same answer.
+>
+> **Note (601.2f-004, added 2026-11-06 by `orders-the-cr-hands-a-player`):** the
+> prompt is asked no longer. `choices-architecture.md`'s decision 6b holds every
+> order the CR hands a player to one rule, asked only where the orders' outcomes
+> differ, and the proof above is that rule's premise. The test asserts that both
+> reductions apply and that the log says why nobody was asked. The order is still
+> the player's, and the expected result's prompt returns with either expiry
+> condition.
 
 ---
 

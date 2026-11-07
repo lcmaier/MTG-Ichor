@@ -44,7 +44,7 @@
 
 use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer, PtValue};
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::types::effects::{ColorChange, Effect, EffectRecipient, Primitive};
+use crate::types::effects::{AmountExpr, ColorChange, Effect, EffectRecipient, Primitive};
 use crate::types::ids::AbilityId;
 
 /// The layers a CDA can occupy.
@@ -227,6 +227,17 @@ fn atoms(ability: &AbilityDef) -> Vec<(&Primitive, &EffectRecipient)> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// The amounts a CDA's power and toughness are read from.
+pub(crate) fn pt_amounts(ability: &AbilityDef) -> Vec<&AmountExpr> {
+    atoms(ability)
+        .into_iter()
+        .flat_map(|(primitive, _)| match primitive {
+            Primitive::SetPowerToughness(power, toughness, _) => vec![power, toughness],
+            _ => Vec::new(),
+        })
+        .collect()
 }
 
 #[cfg(test)]

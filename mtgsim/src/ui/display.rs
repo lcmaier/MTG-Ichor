@@ -33,7 +33,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaSymbol, ManaType};
 use crate::ui::choice_types::{
-    AbilityAsRead, ChoiceKind, ChoiceOption, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
+    AbilityAsRead, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
 use crate::ui::decision::PriorityAction;
 
@@ -449,6 +449,12 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::OrderCostReductions { spell_id } => {
             format!("Order the cost reductions for {}; the first applies first", n(spell_id))
         }
+        ChoiceKind::OrderCostPayments { spell_or_ability_id } => {
+            format!("Order the costs of {}; the first is paid first", n(spell_or_ability_id))
+        }
+        ChoiceKind::OrderSimultaneousEntries { .. } => {
+            "Order these objects as they arrive together; the first has the earliest timestamp".to_string()
+        }
         ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => {
             format!("Pay {remaining_cost} more for {}: activate a mana ability, or stop", n(spell_or_ability_id))
         }
@@ -492,7 +498,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             None => "Discard down to your maximum hand size".to_string(),
         },
         ChoiceKind::Scry { n: count, .. } => format!("Scry {count}: choose the cards that go on the bottom"),
-        ChoiceKind::ScryOrder { bottom, .. } => {
+        ChoiceKind::OrderLibraryCards { bottom, .. } => {
             format!("Order the cards going on the {}, top-most first", if *bottom { "bottom" } else { "top" })
         }
         ChoiceKind::LegendRule { legend_name } => format!("Legend rule: choose the {legend_name} to keep"),
@@ -520,6 +526,8 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", n(blocker), n(attacker)),
         ChoiceOption::NormalCost => "Its mana cost".to_string(),
         ChoiceOption::AlternativeCost(cost) => alternative_cost_label(cost),
+        ChoiceOption::CostPart(CostPart { cost, paid_with }) if paid_with.is_empty() => cost_words(cost),
+        ChoiceOption::CostPart(CostPart { cost, paid_with }) => format!("{}: {}", cost_words(cost), listed(game, paid_with)),
         ChoiceOption::AdditionalCost(cost) => additional_cost_label(cost),
         ChoiceOption::Number(number) => number.to_string(),
         ChoiceOption::Color(color) => color_name(*color).to_string(),
@@ -627,6 +635,10 @@ pub fn rejection(game: &GameState, rejected: &Rejection) -> String {
             format!("{words} (CR 732.1)")
         }
         Rejection::IllegalBlocks { why, .. } => format!("Those blocks are illegal: {}", combat_error(game, why)),
+        Rejection::OrderLeavesACostUnpaid(_) => {
+            let (words, _) = rejection_words(game, rejected);
+            format!("{words} (CR 601.2h)")
+        }
     }
 }
 
@@ -641,6 +653,9 @@ pub fn rejection_words(game: &GameState, rejected: &Rejection) -> (String, Optio
             ),
             Some("732.1"),
         ),
+        Rejection::OrderLeavesACostUnpaid(cost) => {
+            (format!("That order leaves \"{}\" unpaid, and unpayable costs can't be paid", cost_words(cost)), Some("601.2h"))
+        }
         Rejection::IllegalBlocks { why, .. } => {
             let (words, rule) = combat_refusal(game, why, Declaring::Blockers);
             (format!("Those blocks are illegal: {words}"), rule)
@@ -846,6 +861,11 @@ pub(crate) fn alternative_cost_label(cost: &AlternativeCost) -> String {
         AlternativeCost::Bestow(costs) => keyword_and_cost("Bestow", costs),
         AlternativeCost::Custom(text, _) => text.clone(),
     }
+}
+
+/// One cost as a sentence says it: "pay {2}{G}{G}", "sacrifice 1".
+pub(crate) fn cost_words(cost: &Cost) -> String {
+    entry_offer_words(&EntryOffer::Pay(cost.clone()))
 }
 
 pub(crate) fn additional_cost_label(cost: &AdditionalCost) -> String {
@@ -1376,6 +1396,9 @@ pub fn format_unasked(game: &GameState, question: &UnaskedChoice) -> String {
         Unasked::OneGame(Elision::ReplacementOrder) => "every order leaves one game (CR 616.1)",
         Unasked::OneGame(Elision::TriggerOrder) => "every order leaves one game (CR 603.3b)",
         Unasked::OneGame(Elision::DelayedTriggerCause) => "every event leaves one game (CR 603.7b)",
+        Unasked::OneGame(Elision::CostReductionOrder) => "every order leaves one game (CR 601.2f)",
+        Unasked::OneGame(Elision::PaymentOrder) => "every order leaves one game (CR 601.2h)",
+        Unasked::OneGame(Elision::EntryOrder) => "every order leaves one game (CR 613.7m)",
     };
     format!("NotAsked: {} {}{subject}: {answered}, {reason}", player_in_log(*player), kind.as_str())
 }

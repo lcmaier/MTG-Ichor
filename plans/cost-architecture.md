@@ -363,10 +363,11 @@ arithmetic in one function, the one call `cast_spell` makes at 601.2f.
    the singular, and CR 118.8 says additional costs are paid "at the same
    time". The non-mana costs keep their order behind it; **the component goes
    first**, because CR 601.2h lets the first group's costs be paid "in any
-   order", the engine picks one, and the mana payment is the one that can
-   still fail after `can_pay_costs` (an illegal generic split) — a failure
-   mid-list leaves what came before it paid. This is also what fixes the two
-   latent defects in §2.
+   order", the engine takes that order wherever no other changes the game
+   (`engine::payment_order`, `choices-architecture.md`'s decision 6), and the
+   mana payment is the one that can still fail after `can_pay_costs` (an
+   illegal generic split) — a failure mid-list leaves what came before it
+   paid. This is also what fixes the two latent defects in §2.
 2. **Gather** (§4): every applying `CostModificationInstance` — source,
    definition, controller — sources in battlefield timestamp order, the spell
    itself last.
@@ -396,6 +397,13 @@ release, never guessed at. §3.4 says why the reduction case is the one that
 matters.
 
 ### 3.4 "In any order they choose" — the prompt, the theorem, and the middleware
+
+**Elided since `orders-the-cr-hands-a-player` (2026-11-06,
+`choices-architecture.md`'s decision 6b).** Two or more reductions apply and
+none meets an expiry condition below: the engine applies them in gather order
+and records that it did not ask (`reduction_order_can_change_total`), and the
+last bullet's middleware is gone with item 165. What this section says of a
+prompt is the rule for the day a condition lands.
 
 **Two or more reductions apply → `ask_order_cost_reductions` asks the caster
 to order them** (`ChoiceKind::OrderCostReductions`), and the pipeline applies
@@ -914,9 +922,12 @@ That is a system with a new concept in it (event retraction), not an arm, and
 it would be built for a rule the engine should never reach.
 
 **Why it is never reached — the order, and the gate on it.** CR 601.2h hands
-the order of a total cost's payment to the player, "in any order", and the
-engine picks one. It picks **the order in which nothing fallible is paid after
-something irreversible**, which is §3.3's mana-first argument generalised:
+the order of a total cost's payment to the player, "in any order". Where no
+order changes the game the engine pays in **the order in which nothing fallible
+is paid after something irreversible**, which is §3.3's mana-first argument
+generalised. Where one does, the player chooses (`choices-architecture.md`'s
+decision 6), and the claim still holds of what they choose: what could fail
+stays ahead of every move, and an order leaving a part unpayable is refused:
 
 | rank | costs | why nothing after it can fail |
 |---|---|---|

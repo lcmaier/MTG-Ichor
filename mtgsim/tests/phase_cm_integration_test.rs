@@ -22,8 +22,6 @@
 //! after the window would be payable from the same pool and would leave a
 //! different amount of mana behind.
 
-use std::cell::RefCell;
-
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::cards::{fixtures, printings};
 use mtgsim::engine::actions::ZoneChangeAct;
@@ -32,7 +30,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::mana_helpers::castable_spells;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    place_forest, put_in_hand, put_on_battlefield, registered, setup_two_player_game,
+    not_asked, place_forest, put_in_hand, put_on_battlefield, registered, setup_two_player_game,
     textless_static, test_ctx, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
@@ -41,7 +39,7 @@ use mtgsim::types::effects::{Effect, ObjectFilter};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use std::sync::Arc;
@@ -236,12 +234,7 @@ fn test_reductions_floor_the_component_at_zero_and_a_zero_spell_is_free() {
     let cast = cast_from_pool(&mut game, 0, fixtures::verdant_lesson(), &[], &dp);
     assert!(cast.is_ok(), "free: {cast:?}");
     assert_eq!(game.players[0].mana_pool.total(), 0);
-    // Three reductions is "multiple", so the caster was asked to order them.
-    assert!(
-        dp.kinds().iter().any(|k| k == "OrderCostReductions"),
-        "CR 601.2f's order was the caster's to choose: {:?}",
-        dp.kinds()
-    );
+    assert_no_order_was_asked(&dp);
 }
 
 /// CR 118.9d — the modifications apply to the alternative cost that was
@@ -268,66 +261,44 @@ fn test_a_chosen_alternative_cost_is_modified_too() {
 // "In any order they choose"
 // ---------------------------------------------------------------------------
 
-/// A `DecisionProvider` that records the options it was asked to order and
-/// answers with a scripted permutation, by position on purpose: its tests
-/// walk every permutation to show each order agrees, and one of the sources
-/// is a spell whose id the cast creates.
-struct OrderingDp {
-    order: Vec<usize>,
-    offered: RefCell<Vec<Vec<ChoiceOption>>>,
-}
-
-impl DecisionProvider for OrderingDp {
-    fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
-        vec![0]
-    }
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
-        min
-    }
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, total: u64, buckets: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
-        let mut out = vec![0; buckets.len()];
-        out[0] = total;
-        out
-    }
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        assert!(matches!(ctx.kind, ChoiceKind::OrderCostReductions { .. }), "{:?}", ctx.kind);
-        self.offered.borrow_mut().push(items.to_vec());
-        self.order.clone()
-    }
+/// CR 601.2f's order is the player's, and with the symbols the engine pays
+/// every order gives one total (`cost-architecture.md` §3.4), so no game
+/// reaches the question (`choices-architecture.md`'s decision 6b).
+fn assert_no_order_was_asked(dp: &RecordingDecisionProvider) {
+    assert!(!dp.kinds().iter().any(|k| k == "OrderCostReductions"), "{:?}", dp.kinds());
 }
 
 /// Two different reductions on one red instant — Electromancer's {1} and the
-/// Red Reducer's {R} on {1}{R}{R}: the caster is asked which applies first,
-/// the sources are offered in timestamp order, both apply, and every order
-/// leaves {R} (`cost-architecture.md` §3.4's theorem, checked the other way).
-// COVERS: ATOM-601.2f-004
+/// Red Reducer's {R} on {1}{R}{R}: both apply and the cast costs {R}. The
+/// order was the caster's, and the log says why nobody was asked, the sources
+/// oldest first. That every order agrees is `reductions_commute_under_118_7a_to_d`.
+// COVERS-PARTIAL: ATOM-601.2f-004
 #[test]
-fn test_two_reductions_are_ordered_by_the_caster_and_every_order_agrees() {
-    for order in [vec![0, 1], vec![1, 0]] {
-        let mut game = setup_two_player_game();
-        let electromancer = put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
-        let reducer = put_on_battlefield(&mut game, fixtures::red_reducer(), 0);
-        let dp = OrderingDp { order: order.clone(), offered: RefCell::new(Vec::new()) };
-        let cast = cast_from_pool(&mut game, 0, fixtures::crimson_lesson(), &[(ManaType::Red, 1)], &dp);
-        assert!(cast.is_ok(), "order {order:?}: {cast:?}");
-        assert_eq!(game.players[0].mana_pool.total(), 0, "order {order:?}: {{R}} either way");
-        let offered = dp.offered.borrow();
-        assert_eq!(offered.len(), 1, "asked exactly once");
-        let ids: Vec<ObjectId> = offered[0]
-            .iter()
-            .map(|o| match o {
-                ChoiceOption::Object(id) => *id,
-                other => panic!("a source is an object: {other:?}"),
-            })
-            .collect();
-        assert_eq!(ids, vec![electromancer, reducer], "the sources, oldest first");
-    }
-    // One reduction is not "multiple": nothing is asked.
+fn test_two_reductions_both_apply_and_their_order_is_not_asked() {
     let mut game = setup_two_player_game();
+    game.record_events();
+    let electromancer = put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
+    let reducer = put_on_battlefield(&mut game, fixtures::red_reducer(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+    let spell = cast_from_pool(&mut game, 0, fixtures::crimson_lesson(), &[(ManaType::Red, 1)], &dp).unwrap();
+    assert_eq!(game.players[0].mana_pool.total(), 0, "{{R}}: both reductions applied");
+    assert_no_order_was_asked(&dp);
+    assert_eq!(
+        not_asked(&game),
+        vec![format!(
+            "NotAsked: P0 OrderCostReductions for Crimson Lesson ({spell}): Goblin Electromancer ({electromancer}), \
+             Red Reducer ({reducer}) in that order, every order leaves one game (CR 601.2f)"
+        )],
+    );
+
+    // One reduction is not "multiple": there is no order, so no elision either.
+    let mut game = setup_two_player_game();
+    game.record_events();
     put_on_battlefield(&mut game, printings::goblin_electromancer(), 0);
     let dp = RecordingDecisionProvider::picking(0);
     cast_from_pool(&mut game, 0, fixtures::crimson_lesson(), &[(ManaType::Red, 2)], &dp).unwrap();
-    assert!(!dp.kinds().iter().any(|k| k == "OrderCostReductions"), "{:?}", dp.kinds());
+    assert_no_order_was_asked(&dp);
+    assert_eq!(not_asked(&game), Vec::<String>::new());
 }
 
 // ---------------------------------------------------------------------------
@@ -554,31 +525,24 @@ fn test_a_resolved_affinity_creature_counts_for_the_next_one() {
 }
 
 /// A reduction from the battlefield and the spell's own meet on one spell, so
-/// CR 601.2f's "if multiple cost reductions apply" is asked — with the
-/// *spell* as one of the candidates, offered last (`cost-architecture.md`
-/// §4). Both orders leave {4}: two artifacts is {2} off, the Generic Reducer
-/// is {1} more off, and generic subtraction commutes.
+/// CR 601.2f's "if multiple cost reductions apply" holds, with the *spell* as
+/// one of the reductions, gathered last (`cost-architecture.md` §4). Every
+/// order leaves {4}: two artifacts is {2} off, the Generic Reducer is {1}
+/// more off, and generic subtraction commutes.
 #[test]
-fn test_affinity_joins_the_ordering_prompt_and_is_offered_last() {
-    for order in [vec![0, 1], vec![1, 0]] {
-        let mut game = setup_two_player_game();
-        let reducer = put_on_battlefield(&mut game, fixtures::generic_reducer(), 0);
-        artifacts(&mut game, 2, 0);
-        let dp = OrderingDp { order: order.clone(), offered: RefCell::new(Vec::new()) };
-        let spell = cast_from_pool(&mut game, 0, printings::myr_enforcer(), &[(ManaType::Colorless, 4)], &dp);
-        let spell = spell.unwrap_or_else(|e| panic!("order {order:?}: {e}"));
-        assert_eq!(game.players[0].mana_pool.total(), 0, "order {order:?}: {{4}} either way");
-        let offered = dp.offered.borrow();
-        assert_eq!(offered.len(), 1, "asked exactly once");
-        let ids: Vec<ObjectId> = offered[0]
-            .iter()
-            .map(|o| match o {
-                ChoiceOption::Object(id) => *id,
-                other => panic!("a source is an object: {other:?}"),
-            })
-            .collect();
-        assert_eq!(ids, vec![reducer, spell], "the battlefield's source first, the spell's own last");
-    }
+fn test_affinity_joins_the_reductions_and_is_gathered_last() {
+    let mut game = setup_two_player_game();
+    game.record_events();
+    let reducer = put_on_battlefield(&mut game, fixtures::generic_reducer(), 0);
+    artifacts(&mut game, 2, 0);
+    let dp = RecordingDecisionProvider::picking(0);
+    let spell = cast_from_pool(&mut game, 0, printings::myr_enforcer(), &[(ManaType::Colorless, 4)], &dp).unwrap();
+    assert_eq!(game.players[0].mana_pool.total(), 0, "{{4}}");
+    assert_no_order_was_asked(&dp);
+    let lines = not_asked(&game);
+    let order = lines.iter().find(|line| line.contains("OrderCostReductions")).expect("the elision's line");
+    let (first, last) = (format!("Generic Reducer ({reducer}),"), format!("Myr Enforcer ({spell}) in that order"));
+    assert!(order.contains(&first) && order.contains(&last), "the battlefield's source first: {order}");
 }
 
 /// CR 601.2f's positions 2 and 3 on one spell: affinity takes the Enforcer
@@ -1056,8 +1020,8 @@ fn test_the_familiar_reduces_a_black_and_green_spell_once() {
 }
 
 /// Thunderscape Familiar, 2004-10-04: "The effect is cumulative." Two
-/// Familiars make a black spell cost {2} less — and, because two reductions
-/// apply, CR 601.2f's ordering prompt is asked.
+/// Familiars make a black spell cost {2} less, and with one total whichever
+/// applies first, nothing is asked.
 #[test]
 fn test_two_familiars_reduce_cumulatively() {
     let board = || {
@@ -1083,10 +1047,7 @@ fn test_two_familiars_reduce_cumulatively() {
         &[(ManaType::Black, 1)], &dp,
     )
     .unwrap();
-    assert!(
-        dp.kinds().iter().any(|k| k == "OrderCostReductions"),
-        "two reductions is a choice: {:?}", dp.kinds(),
-    );
+    assert_no_order_was_asked(&dp);
 }
 
 /// Thunderscape Familiar, 2004-10-04: "Can never affect the colored part of

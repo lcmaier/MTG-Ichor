@@ -243,7 +243,7 @@ holds it: a pull request that adds a field this document does not name fails
 | `ManaPool` *(pass 3, re-read)* | a unit's source; restrictions (CR 106.6, 107.4h) | item 33, as corrected above |
 | `TargetInstance` *(pass 3)* | a target that left and came back (CR 400.7) | **built** — `ObjectOrPlayer` carries the epoch, compared at CR 608.2b (main item 10, closed by CV-1b, #230) |
 | `ResolvingObject` *(pass 3)* | — | **no gap** — CR 110.2b's default controller and CR 400.7d's facts, carried past the entry's removal |
-| `GameObject` *(pass 4: `timestamp`)* | — | **no gap** — CR 613.7d–e built; 613.7m is "Before card breadth" item 4 |
+| `GameObject` *(pass 4: `timestamp`)* | — | **no gap** — CR 613.7d–e and 613.7m built |
 | `PlayerState` *(pass 4: `counters`)* | a team's shared poison (CR 701.34b) | feature, Phase 9's Two-Headed Giant |
 | `RestrictionRegistry` *(pass 4)* | a target that left and came back; the object a "for as long as" watches | the first **built**: a move ends every reference to the object (main item 10, closed by CV-1b, #230); the second item 17 |
 | `DurationRegistry` *(pass 4)* | the object a resolution's "for as long as" watches (CR 611.2b) | item 17, sharpened |
@@ -387,7 +387,7 @@ stood.
 
 | Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
 |---|---|---|---|---|
-| An object's timestamp (613.7d, 613.7e) | `GameObject.timestamp` | yes: `add_object` and `move_object` stamp it, and `attach` stamps it again | simultaneous arrivals, in APNAP order and each player's own (613.7m); turning face up, transforming (613.7f–g) | no gap: 613.7m is "Before card breadth" item 4, 613.7f–g are `roadmap.md` D3, and 613.7n rides LH-2 |
+| An object's timestamp (613.7d, 613.7e) | `GameObject.timestamp` | yes: `add_object` and `move_object` stamp it, and `attach` stamps it again | simultaneous arrivals, in APNAP order and each player's own (613.7m); turning face up, transforming (613.7f–g) | no gap: 613.7m is built (`engine::simultaneous_timestamps`), 613.7f–g are `roadmap.md` D3, and 613.7n rides LH-2 |
 | A player's counters (122.1) | `PlayerState.counters` | yes, through `perform_action`'s counter arms (RE-5) | proliferate (701.34a); a team's shared poison (701.34b) | no gap for v1: Two-Headed Giant is Phase 9's |
 | A resolution's "can't", with its duration and its "you" (101.2, 611.2a, 611.2c) | `RegisteredRestriction` | yes | a target that left and came back (400.7); "for as long as this creature remains on the battlefield" (Suncleanser) | the first **built**: a move ends every reference to the object (main item 10, closed by CV-1b, #230); the second the next row |
 | **The object a "for as long as" watches** (611.2b) | nowhere: a resolution's row records `source: ctx.source`, the resolving stack object | **no** | a flicker ends it (400.7); leaving before the resolution means it never starts (Sower of Temptation's ruling); a change of control ends it for good (Dragonlord Silumgar's ruling, and suspend's haste, 702.62a) | **item 17, sharpened.** 78 cards, nearly all resolutions: `o:"for as long as ~ remains on the battlefield"` 27, `o:"for as long as you control ~"` 51 |
