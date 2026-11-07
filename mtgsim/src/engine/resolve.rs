@@ -184,19 +184,25 @@ struct ResolutionWalk {
 }
 
 impl ResolutionWalk {
-    /// Before the effect's first atom: no instance used, no action taken.
-    /// `chosen_modes` as [`ResolutionWalk::chosen_modes`] holds them.
-    fn start(chosen_modes: Option<Vec<ModeIndex>>) -> Self {
+    /// Before the effect's first atom: no instance used, no action taken,
+    /// and no modes chosen, as for an effect with none.
+    fn start() -> Self {
         ResolutionWalk {
             instance_cursor: 0,
             mode_scope_start: 0,
-            chosen_modes,
+            chosen_modes: None,
             last_cost_answer: None,
             extra_turn: None,
             remembering: None,
             remembered: None,
             last_action: None,
         }
+    }
+
+    /// [`ResolutionWalk::start`] for an effect whose modes CR 601.2b chose:
+    /// the record a `Modal` node at its root resolves.
+    fn start_with_chosen_modes(chosen_modes: Vec<ModeIndex>) -> Self {
+        ResolutionWalk { chosen_modes: Some(chosen_modes), ..ResolutionWalk::start() }
     }
 
     /// What an atom acts on, for an `Effect::Remember` around it.
@@ -226,7 +232,7 @@ impl GameState {
         // test that staged `ctx` by hand — so a `SameInstanceAs` atom reads its
         // clause off the tree (`DeclaredInstances::Effect`). The stack's path
         // is [`Self::resolve_effect_with_announced_targets`].
-        let mut walk = ResolutionWalk::start(None);
+        let mut walk = ResolutionWalk::start();
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Effect(effect), &mut walk)
     }
 
@@ -249,7 +255,10 @@ impl GameState {
     ) -> Result<Option<CostAnswer>, String> {
         // Only the node at the root was announced for (`Effect::modal`); any
         // other finds no modes, and is refused rather than taken as none.
-        let mut walk = ResolutionWalk::start(effect.modal().map(|_| chosen_modes.to_vec()));
+        let mut walk = match effect.modal() {
+            Some(_) => ResolutionWalk::start_with_chosen_modes(chosen_modes.to_vec()),
+            None => ResolutionWalk::start(),
+        };
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut walk)?;
         Ok(walk.last_cost_answer)
     }
