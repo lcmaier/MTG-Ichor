@@ -6,12 +6,12 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, artifact, as_long_as, choose, choose_one, choose_one_or_both_if,
+    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, choose, choose_one, choose_one_or_both_if,
     choose_pawprints_worth, choose_repeatable, choose_up_to, creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, dies,
     discard, distribute_counters, draw_cards, each, enters, exile, gain_life, gets, has_base_power_and_toughness, lose_life,
     may_choose_two_each_targeting_a_different_player, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield,
-    spell_ability, static_ability, tap, target_creature, target_permanent, target_player, targets, that_target, this_object, triggered_ability,
-    whenever, you, you_have,
+    spell_ability, spree, static_ability, tap, target_creature, target_permanent, target_player, targets, that_target, this_object,
+    triggered_ability, whenever, you, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -510,6 +510,29 @@ pub fn divided_envoy() -> Arc<CardData> {
                 enters(TriggerSubject::ThisObject),
                 may_choose_two_each_targeting_a_different_player([mill(target_player(), 2), draws_and_loses, gain_life(target_player(), 2)]),
             ),
+        ))
+        .build()
+}
+
+/// Tithed Ultimatum — {1}{B}, a sorcery.
+///
+/// CR 700.2h's own cost on each mode, ATOM-700.2h-001's board: one mode
+/// behind a life payment, the other behind a sacrifice, each paid as an
+/// additional cost when chosen and both when both are. Spree's shape (CR
+/// 702.172a); a printed spree card's costs are mana.
+pub fn tithed_ultimatum() -> Arc<CardData> {
+    let text = "Spree (Choose one or more additional costs.)\n+ Pay 2 life — This spell deals 3 damage to any target.\n+ Sacrifice a creature — Destroy target creature.";
+    CardDataBuilder::new("Tithed Ultimatum")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 1))
+        .color(Color::Black)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            spree([
+                (vec![Cost::PayLife(2)], deal_damage(any_target(), 3)),
+                (vec![Cost::Sacrifice(creature(), 1)], destroy(target_creature())),
+            ]),
         ))
         .build()
 }

@@ -1485,6 +1485,14 @@ mod tests {
             let mut copy = (*card).clone();
             for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
                 check(&format!("{name} ability #{i}"), &ability.effect);
+                // CR 700.2h's cost is a spell's to pay as it is cast; an
+                // activation or a trigger would announce the mode and pay
+                // nothing for it.
+                let carries_costs = ability.effect.modal().is_some_and(|node| node.modes_carry_costs());
+                assert!(
+                    !carries_costs || matches!(ability.ability_type, crate::objects::card_data::AbilityType::Spell),
+                    "{name} ability #{i}: a mode's own cost on an ability that is no spell's"
+                );
                 let mut nested = 0usize;
                 ability.effect.for_each_ability_def_mut(&mut |def: &mut AbilityDef| {
                     check(&format!("{name} ability #{i}, nested def #{nested}"), &def.effect);

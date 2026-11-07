@@ -13,7 +13,7 @@ use mtgsim::cards::authoring::{
     activated_ability, any_other_target, any_target, choose_one_not_chosen_before, deal_damage, gain_life, lose_life, spell_ability, target_opponent,
     you,
 };
-use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tribute_offering};
+use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tithed_ultimatum, tribute_offering};
 use mtgsim::cards::printings::{grizzly_bears, hill_giant};
 use mtgsim::engine::object_filter::EarlierTargets;
 use mtgsim::engine::targeting::{ChosenTargets, FilterIdentity};
@@ -22,7 +22,7 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::legality::enumerate_legal_selections_excluding;
 use mtgsim::state::game_state::GameState;
 use mtgsim::oracle::characteristics::get_effective_abilities;
-use mtgsim::oracle::mana_helpers::{can_activate, CannotActivate};
+use mtgsim::oracle::mana_helpers::{can_activate, can_cast, CannotActivate};
 use mtgsim::test_support::{fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::card_types::CardType;
@@ -367,6 +367,54 @@ fn with_two_opponents_the_caster_picks_which_chooses() {
     assert_eq!(shown.mode_choosers(), [2], "the opponent the caster picked chose");
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(game.battlefield[&bears].damage_marked, 3, "the one creature, the caster's target");
+}
+
+// ---------------------------------------------------------------------------
+// CR 700.2h: a mode's own cost
+// ---------------------------------------------------------------------------
+
+/// ATOM-700.2h-001's board: both modes chosen, so both their costs are in
+/// the total and paid as the spell is cast — 2 life and a creature — beside
+/// its mana. The modes are asked before the targets, and the costs after.
+// COVERS: ATOM-700.2h-001
+#[test]
+fn each_chosen_modes_own_cost_is_paid_as_the_spell_is_cast() {
+    let mut game = setup_two_player_game();
+    let fodder = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let victim = put_on_battlefield(&mut game, hill_giant(), 1);
+    let spell = put_in_hand(&mut game, tithed_ultimatum(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 2);
+
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2]);
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![ChoiceOption::Object(victim)]);
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable with both modes' costs");
+    assert_eq!(game.players[0].life_total, 18, "the first mode's 2 life, paid as it was cast");
+    assert!(!game.battlefield.contains_key(&fodder), "the second mode's sacrifice");
+    let paid = &game.stack_entries[&spell].cost_choices.additional;
+    assert_eq!(paid.len(), 2, "each mode's cost is an additional cost the spell was cast with");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[1].life_total, 17);
+    assert!(!game.battlefield.contains_key(&victim));
+}
+
+/// A mode whose own cost can't be paid makes no set the spell can be cast
+/// with: with no creature to sacrifice and too little life to pay 2 (CR
+/// 119.4), neither mode is payable, so the spell is not offered; with the
+/// life back, the first mode alone is.
+#[test]
+fn a_spell_is_castable_only_while_some_set_of_modes_is_payable() {
+    let mut game = setup_two_player_game();
+    let _ = put_on_battlefield(&mut game, hill_giant(), 1);
+    let spell = put_in_hand(&mut game, tithed_ultimatum(), 0);
+    game.players[0].mana_pool.add(ManaType::Black, 2);
+    game.players[0].life_total = 1;
+    assert!(can_cast(&game, 0, spell).is_err(), "no creature to sacrifice, and 1 life");
+
+    game.players[0].life_total = 20;
+    assert_eq!(can_cast(&game, 0, spell), Ok(()), "the first mode's 2 life is payable");
 }
 
 // ---------------------------------------------------------------------------

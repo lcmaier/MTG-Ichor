@@ -1038,6 +1038,24 @@ impl ModalNode {
     }
 
 
+    /// Whether a mode prints a cost of its own (CR 700.2h): the modes are
+    /// then chosen ahead of X, and each set's total is its own.
+    pub fn modes_carry_costs(&self) -> bool {
+        self.modes.iter().any(|mode| !mode.cost.is_empty())
+    }
+
+    /// The additional costs `chosen` adds to the spell's total (CR 700.2h):
+    /// each chosen mode's own, a repeated mode's once per copy, mandatory once
+    /// it is chosen (item 81).
+    pub fn costs_of(&self, chosen: &[ModeIndex]) -> Vec<crate::types::costs::AdditionalCost> {
+        chosen
+            .iter()
+            .filter_map(|&mode| self.mode(mode))
+            .filter(|mode| !mode.cost.is_empty())
+            .map(|mode| crate::types::costs::AdditionalCost::Mandatory(mode.cost.clone()))
+            .collect()
+    }
+
     /// Every mode with its printed place, in printed order.
     pub fn indexed_modes(&self) -> impl Iterator<Item = (ModeIndex, &Mode)> {
         self.modes.iter().enumerate().filter_map(|(at, mode)| Some((ModeIndex::from_list_position(at)?, mode)))

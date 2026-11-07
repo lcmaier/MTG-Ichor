@@ -160,10 +160,31 @@ impl GameState {
             .iter()
             .map(|&idx| offered_positions[idx])
             .collect();
+
+        // CR 700.2h: a mode's own cost is an additional cost in the total, so
+        // where modes carry costs they are announced here, ahead of X, whose
+        // payable values read that total. CR 601.2b announces both in one
+        // step, so which is asked first is the engine's order of two
+        // questions (decision 2b); a count of X with costs is printed nowhere.
+        let modes_ahead_of_x = match effect.modal().filter(|node| node.modes_carry_costs()) {
+            Some(node) => match self.choose_modes(player_id, card_id, card_id, node, ConditionReferents::NONE, None, None, dp) {
+                Ok(modes) => Some(modes),
+                Err(e) => {
+                    self.rollback_cast_to_hand(card_id)?;
+                    return Err(e);
+                }
+            },
+            None => None,
+        };
+        let mode_costs = match (effect.modal(), &modes_ahead_of_x) {
+            (Some(node), Some(modes)) => node.costs_of(modes),
+            _ => Vec::new(),
+        };
         let chosen_additional: Vec<&AdditionalCost> = card_data.additional_costs.iter()
             .enumerate()
             .filter(|(i, c)| !c.is_optional() || announced.contains(i))
             .map(|(_, c)| c)
+            .chain(mode_costs.iter())
             .collect();
 
         // The value of X, last of 601.2b's announcements, from the values the
@@ -197,14 +218,20 @@ impl GameState {
 
         // --- 601.2b's modes, then 601.2c: targets, one instance at a time ---
         // The modes last of 601.2b's announcements, which is one step, so a
-        // count can read the X and a kicker announced before them. "The player
-        // announces their choice of an appropriate object or player for
-        // **each** target the spell requires", in printed order, because an
-        // `OtherThanInstance` clause reads the instances already announced —
-        // Incremental Growth's second creature has to know the first.
-        let announced = match self.announce_modes_and_targets(
-            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), None, dp,
-        ) {
+        // count can read the X and a kicker announced before them, unless they
+        // carry costs and were asked above. "The player announces their choice
+        // of an appropriate object or player for **each** target the spell
+        // requires", in printed order, because an "another target" clause
+        // reads the instances already announced — Incremental Growth's second
+        // creature has to know the first.
+        let x_announced = has_x.then_some(x_value);
+        let announced = match (effect.modal(), modes_ahead_of_x) {
+            (Some(node), Some(modes)) => {
+                self.announce_chosen_modes(player_id, card_id, card_id, node, modes, ConditionReferents::NONE, x_announced, dp)
+            }
+            _ => self.announce_modes_and_targets(player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, x_announced, None, dp),
+        };
+        let announced = match announced {
             Ok(announced) => announced,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;

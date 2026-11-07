@@ -17,7 +17,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::engine::costs::CannotPay;
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::put_on_stack::SorceryTiming;
-use crate::oracle::modes::has_a_legal_mode_set;
+use crate::oracle::modes::{has_a_legal_mode_set, legal_mode_sets};
 
 /// Whether `player_id` can pay the mana `cost` asks, for `payment`: from the
 /// pool alone, or from all they can make, the inventory `supply` holds once
@@ -139,10 +139,41 @@ fn can_cast_with(
     // `cast_spell` reads them.
     if let Some(node) = crate::objects::card_data::spell_modes(&obj.card_data.abilities) {
         let least_x = obj.card_data.mana_cost.as_ref().filter(|cost| cost.x_count() > 0).map(|_| u64::from(obj.card_data.x_cant_be_zero));
+        // CR 700.2h: a mode's own cost is in the total, so where modes carry
+        // costs the spell is castable when some legal set's total is
+        // payable, asked set by set, the smaller sets first.
+        if node.modes_carry_costs() {
+            let mut last = Err(CannotCast::NoLegalModes);
+            for set in legal_mode_sets(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
+                let costs: Vec<Cost> = set.iter().filter_map(|&mode| node.mode(mode)).flat_map(|mode| mode.cost.iter().cloned()).collect();
+                last = total_is_payable(game, player_id, card_id, &costs, supply);
+                if last.is_ok() {
+                    break;
+                }
+            }
+            return last;
+        }
         if !has_a_legal_mode_set(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
             return Err(CannotCast::NoLegalModes);
         }
     }
+    total_is_payable(game, player_id, card_id, &[], supply)
+}
+
+/// Whether `card_id`'s total, with `chosen_costs` beside its printed costs (a
+/// set of modes' own, CR 700.2h), can be paid as CR 601.2f–h would lock and
+/// pay it.
+fn total_is_payable(
+    game: &GameState,
+    player_id: PlayerId,
+    card_id: ObjectId,
+    chosen_costs: &[Cost],
+    supply: &OnceCell<ManaSupply>,
+) -> Result<(), CannotCast> {
+    let Some(obj) = game.objects.get(&card_id) else {
+        return Err(CannotCast::NotInHand);
+    };
+    let (chosen_mana, chosen_non_mana) = Cost::split_out_mana_costs(chosen_costs.iter().cloned());
 
     // An unpayable mandatory cost makes the spell uncastable (CR 601.2h), and
     // enumeration must agree with enforcement (`cost-architecture.md` §3.6), or
@@ -155,6 +186,7 @@ fn can_cast_with(
         .flat_map(|c| c.costs().iter())
         .filter(|c| !matches!(c, Cost::Mana(_)))
         .cloned()
+        .chain(chosen_non_mana)
         .collect();
     if !mandatory_non_mana.is_empty() {
         game.can_pay_costs(&mandatory_non_mana, player_id, card_id).map_err(CannotCast::AdditionalCost)?;
@@ -177,6 +209,14 @@ fn can_cast_with(
         &at_the_least_x
     } else {
         printed
+    };
+    let with_chosen;
+    let printed = match chosen_mana {
+        Some(symbols) => {
+            with_chosen = ManaCost::from_symbols(printed.symbols.iter().cloned().chain(symbols).collect());
+            &with_chosen
+        }
+        None => printed,
     };
     let mana_cost = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
     // The mandatory sacrifices are paid at 601.2h, after the window, so what
