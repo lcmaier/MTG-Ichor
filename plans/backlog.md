@@ -1307,6 +1307,8 @@ mechanic rather than a migration, which is why it is here and not in
   that makes a Treasure** (RE-4's review, 2026-09-13): the Treasure def in
   §2.27's library, and with it Xorn, Chatterfang and Hullbreacher, whose
   replacement shapes `GameActionTemplate::CreateTokens` already carries.
+  Prismari Command, a `tdc` deck card, waits here for its third mode, its
+  other three playable since `modes-chosen-and-resolved` (2026-11-07).
 - **Atoms** — ATOM-111.10-001's expected result prints the text; ATOM-605.3c-001's
   board is a mana filter that adds "one mana of any color". Neither is about
   this mechanic and neither is claimed. The spending-side rules — CR 609.4b's

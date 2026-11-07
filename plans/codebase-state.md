@@ -1566,32 +1566,12 @@ section never asked.
     it replaces, "`spell-copies` or the first Fling-shaped card", waited on a
     card.
 
-31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
-    (found 2026-08-31 by the D3b slice-1 triage).** Declared at
-    `state/game_state.rs:33` as `Vec<usize>`, constructed `Vec::new()` at all
-    twelve sites (`put_on_stack.rs` ×2, `stack.rs` ×5, `game_state.rs`, `ui/display.rs`
-    ×3, one test), and **read nowhere in the tree.**
-
-    Exactly the shape of `CardData.color_indicator` in `cr-coverage-audit.md`
-    §5.2: a field that represents its fact correctly, with nothing on either
-    side of it. So this is **debt, not a fact** — the type is already right, and
-    whoever builds modal spells inherits it rather than designing it.
-
-    **Nothing chooses a mode, so nothing can be modal**, which is why CR 700.2's
-    seven atoms sit under a shipped phase with no test. The reader arrives with
-    that work; CR 700.2h's per-mode additional costs and 700.2c's
-    mode-conditional targeting both reach into the cost pipeline, so it wants
-    doing near it. → `backlog.md` §2.7.
-
-    **Reachability (2026-09-03):** unreachable — nothing is modal; the field is
-    still `Vec::new()` at every construction site and read nowhere.
-
-    **Sized:** owned by `backlog.md` §2.7, one phase; the field
-    costs nothing until then.
-    **Slotted:** `modes-chosen-and-resolved`, whose modes are the field's first
-    writer and reader, named by identity rather than position (`route-review`,
-    2026-10-29; re-slotted at that PR's intake, 2026-11-07); it was
-    `breadth-features`' `backlog.md` §2.7.
+31. **~~`StackEntry.chosen_modes` is dead scaffolding — no writer, no
+    reader~~ — ✅ CLOSED 2026-11-07 (`modes-chosen-and-resolved`).** — archived.
+    A `ModeIndex` per chosen mode, written as the modes are announced and read
+    by the resolution and CR 608.2b's re-check.
+    **Reachability (2026-11-07):** closed — `modes-chosen-and-resolved`.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 31".
 
 32. **`DeckLimits` is configured and never consulted (found 2026-08-31 by the
     D3b slice-2 triage).** `GameConfig` carries `min_deck_size`,
@@ -6849,38 +6829,13 @@ place.
      is not: any card whose targeting atom is not the first in its sequence had
      the same defect, and the probe says Skullcrack was the only one registered.
 
-153. **`effect_instances` walks `Atom` and `Sequence` and nothing else, so a
-     modal spell would announce the targets of modes nobody chose.**
-     CR 601.2b chooses modes *before* CR 601.2c announces targets, so a walk
-     that descended into every branch of `Effect::Modal` would declare an
-     instance per mode and ask for all of them. The walk therefore stops at the
-     nodes it understands — the same scope the one-recipient rule it replaced
-     had.
-
-     **Reachability (2026-09-17):** unreachable. `Effect::Modal`,
-     `Conditional`, `Optional`, `ForEach` and `Repeat` all resolve to an error
-     today (`resolve_effect`), so no card can carry one and be played. It bites
-     the moment modal spells land — `backlog.md` §2.7 — and that phase owns it.
-
-     **Sized:** small, and it is a design choice rather than a sweep. The walk
-     takes the chosen modes as an argument and descends only into those, which
-     means `effect_instances` grows a second spelling for the post-601.2b call
-     and `StackEntry.chosen_modes` becomes an input to it rather than a record.
-     Under fifty lines; the cost is deciding where the two spellings live.
-
-     **Amended 2026-09-18 (A4n):** the walk is `Effect::instances` now, run
-     once per card by `CardDataBuilder::build` and stored on every def
-     (`AbilityDef::instances`) and on the card (`CardData::spell_instances`);
-     the engine reads the stored lists and never walks at cast time. That
-     settles where the second spelling lives: a modal spell's post-601.2b list
-     depends on the modes chosen at that cast, so it cannot be a stored
-     constant, and the mode-aware walk runs at cast time from
-     `StackEntry.chosen_modes` — once per cast, which is the rate the stored
-     list was built to take castability *off*. The stored list stays the
-     pre-601.2b one, and today a `Modal` node declares nothing in it.
-     **Slotted:** `modes-chosen-and-resolved`, whose modes make the cast walk
-     only the chosen modes (`route-review`, 2026-10-29; re-slotted at that
-     PR's intake, 2026-11-07); it was `breadth-features`' `backlog.md` §2.7.
+153. **~~`effect_instances` walks `Atom` and `Sequence` and nothing else, so a
+     modal spell would announce the targets of modes nobody chose.~~ — ✅
+     CLOSED 2026-11-07 (`modes-chosen-and-resolved`).** — archived. Each `Mode`
+     keeps its own instance list, filled with `AbilityDef::instances`, and the
+     announcement reads the chosen modes' after the effect's own.
+     **Reachability (2026-11-07):** closed — `modes-chosen-and-resolved`.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 153".
 
 154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
      filter, so "another target" over `SelectionFilter::Any` or `Player` is

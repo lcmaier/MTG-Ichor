@@ -34,4 +34,9 @@ merges.
   `choices-architecture.md`, items 79, 165 and "Before card breadth" 4 closed.
 - `mana-provenance`'s design comes before `costs-and-choices-at-resolution`
   (the owner, 2026-11-06, #314).
-- Next: `modal-spells-and-abilities`, on its own branch.
+- `modal-spells-and-abilities` split at its brief (the owner, 2026-11-07): its
+  first PR, `modes-chosen-and-resolved`, is handed over, its as-built in
+  `choices-architecture.md`, items 31 and 153 closed. Prismari Command waits for
+  any-color mana, Cryptic Command in its place; the Will cycle for `game-formats`.
+- Next: `mode-rules-and-costs` (items 81 and 154), on its own branch; then the
+  dev GUI PR with the mode picker (decision 2's "For the GUIs").

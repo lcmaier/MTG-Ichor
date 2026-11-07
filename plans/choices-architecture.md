@@ -1173,6 +1173,44 @@ Where it differs from decision 6's words:
   409 owns CR 303.7a). **No test over every entry batch**: `CreateToken` is one definition,
   so distinct arrivals come only from until-returns, and `--census` read none asked.
 
+### `modes-chosen-and-resolved` — a mode chosen, targeted and resolved — ✅ landed 2026-11-07
+
+The first of `modal-spells-and-abilities`' two PRs: 1,807 lines of code and tests
+touched (1,667 added) against ~1,500–2,300.
+- **The node** (decision 2): `Effect::Modal(Box<ModalNode>)`, its count `Exactly`,
+  `Range`, `X` or `RaisedIf`, its chooser `ModeChooser::Controller`, and each `Mode`
+  with its own instance list. A mode is named by `ModeIndex`, its printed place, on
+  `StackEntry.chosen_modes` and `Condition::ModeChosen` (item 31).
+- **The offer** (option B): `oracle::modes` lists the sets the count allows of the
+  modes whose targets can all be chosen, and castability asks it for the first
+  (`CannotCast::NoLegalModes`, `CannotActivate::NoLegalModes`). `ChoiceKind::ChooseModes`
+  over `ChoiceOption::Modes`; the log writes `mode 2`, `modes 1, 3`, `no modes`.
+- **The announcement and resolution** (option A): a cast, an activation and a
+  trigger's placement each announce the chosen modes' targets after the effect's
+  own, a scope per mode (item 153); the `Modal` arm walks the chosen modes in
+  printed order, and CR 608.2b's re-check reads each mode's scope.
+- **CR 603.3c**: a modal trigger with no legal set, or whose controller chose none,
+  is removed. **The cards**: Abrade (pooled), Cryptic Command, Casualties of War,
+  and Momentous Fall, its fixture removed; six fixtures in `CASTABLE`.
+
+Where it differs from decisions 2 and 3's words:
+- **The modes are asked last of 601.2b's announcements**, after X and any
+  kicker, so a count can read either; decision 2b had only a count of X wait.
+  A mode's own cost moves them ahead of X in `mode-rules-and-costs`, where a
+  node carries one.
+- **A modal node is all of its ability.** "The chosen modes' lists after the
+  node's own" reads as the effect's own list, empty on every printed modal
+  card, and the registry refuses a node anywhere but an ability's root.
+- **A mode's scope holds "another target" too**: a mode's earlier instances,
+  never another mode's, at the announcement, castability and the re-check.
+- **Prismari Command waits for `any-color-plus-painlands-plus-signets`**: its
+  third mode makes a Treasure, whose mana ability can't be written
+  (`backlog.md` §2.19). Cryptic Command is the "choose two" card. The Will of
+  the [clan] cycle waits for `game-formats`' designation.
+- **An X past the modes rewinds the cast** (CR 601.2e): X's offer is MA-2's,
+  not narrowed by the node. **A label is the places** ("Modes 1 and 3"); each
+  mode's words are the dev GUI PR's. Found on the way: an audit's fork traced.
+
 ## 6. Found while designing
 
 1. **The brief cited CR 500.4 for a pool emptying at a step's end**; it is
