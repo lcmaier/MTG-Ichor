@@ -144,3 +144,31 @@ pub(crate) fn assert_shortcut_agrees(site: &str, question: impl FnOnce() -> Stri
         question = question(),
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::engine::actions::ActionContext;
+    use crate::test_support::{install_trace, put_in_graveyard, setup_two_player_game, RecordingDecisionProvider};
+    use crate::types::zones::{Zone, ZoneChangeAct};
+
+    /// A fork an unobserved read makes and plays on, as the payment-order
+    /// audit does, writes no `fork` record and none of what it plays, and the
+    /// game it was made from goes on writing as its own branch.
+    #[test]
+    fn an_unobserved_fork_writes_nothing() {
+        let mut game = setup_two_player_game();
+        let bears = put_in_graveyard(&mut game, crate::cards::printings::grizzly_bears(), 0);
+        let trace = install_trace(&mut game, "an unobserved fork");
+        let before = trace.lines().len();
+        let dp = RecordingDecisionProvider::picking(0);
+        game.unobserved(|| {
+            let mut fork = game.clone();
+            fork.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
+        });
+        assert_eq!(trace.lines().len(), before, "{:#?}", &trace.lines()[before..]);
+
+        game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
+        let after = trace.records();
+        assert!(after.len() > before && after[before..].iter().all(|record| record.branch == 0), "the game's own branch");
+    }
+}

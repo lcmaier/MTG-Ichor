@@ -211,7 +211,13 @@ impl TraceHandle {
 }
 
 impl Clone for TraceHandle {
+    /// A fork made while paused is an observer's (the payment-order audit
+    /// plays each order on one), so it takes no branch and writes nothing,
+    /// what it plays included.
     fn clone(&self) -> Self {
+        if self.paused.get() {
+            return TraceHandle { sink: Arc::clone(&self.sink), branch: self.branch, paused: Cell::new(true) };
+        }
         TraceHandle { sink: Arc::clone(&self.sink), branch: self.sink.fork(self.branch), paused: Cell::new(false) }
     }
 }
