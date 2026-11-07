@@ -312,19 +312,66 @@ fn a_count_of_x_asks_x_then_the_sets_of_that_many() {
     assert_eq!(game.players[1].graveyard.len(), 2, "mode 3 milled");
 }
 
-/// A count of X past the modes printed has no set of that size, so the
-/// announcement can't be completed and the cast is rewound (CR 601.2e).
+/// A count of X whose modes are each chosen once offers no X past the modes
+/// it can take (item 412): with five mana an X of 4 is payable, and three
+/// modes stop it at 3, which takes all three without asking.
 #[test]
-fn a_count_of_x_past_the_modes_rewinds_the_cast() {
+fn a_count_of_x_offers_no_x_past_the_modes() {
     let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 2);
+    fill_library(&mut game, 1, 2);
     let tally = put_in_hand(&mut game, tally_of_choices(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 5);
 
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_number(choose_x(), 4);
-    assert!(game.cast_spell(0, tally, &ManaWindowStop::new(answers)).is_err());
-    assert_eq!(game.get_object(tally).unwrap().zone, Zone::Hand);
-    assert!(game.stack.is_empty());
+    answers.expect_number(choose_x(), 3);
+    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    let most_offered = std::rc::Rc::new(std::cell::Cell::new(None));
+    let offered = XOffered { inner: answers, most: std::rc::Rc::clone(&most_offered) };
+    game.cast_spell(0, tally, &ManaWindowStop::new(offered)).expect("castable at the most X the modes take");
+    assert_eq!(most_offered.get(), Some(3), "four was payable, and three modes take three");
+    assert_eq!(chosen_modes(&game, tally), modes(&[1, 2, 3]));
+}
+
+/// A provider that keeps the most X it is offered and answers through
+/// `inner`.
+struct XOffered<D> {
+    inner: D,
+    most: std::rc::Rc<std::cell::Cell<Option<u64>>>,
+}
+
+impl<D: DecisionProvider> DecisionProvider for XOffered<D> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        if matches!(context.kind, ChoiceKind::ChooseXValue { .. }) {
+            self.most.set(Some(max));
+        }
+        self.inner.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
+    }
 }
 
 // ---------------------------------------------------------------------------

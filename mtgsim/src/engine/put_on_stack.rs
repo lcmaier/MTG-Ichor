@@ -21,8 +21,8 @@ use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::{Announcement, ChosenMode, TargetInstance};
-use crate::oracle::modes::legal_mode_sets;
-use crate::types::effects::{EffectRecipient, ModeChooser, TargetCount};
+use crate::oracle::modes::{legal_mode_sets, most_modes_for_x};
+use crate::types::effects::{EffectRecipient, ModalNode, ModeChooser, ModeIndex, SelectionFilter, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
@@ -174,8 +174,16 @@ impl GameState {
             .unwrap_or_else(ManaCost::zero);
         let total_in_x = total_cost_in_x(self, card_id, &base_mana_cost, chosen_alt, &chosen_additional);
         let has_x = base_mana_cost.x_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
+        // "Choose X" whose modes are each chosen once takes no X past them
+        // (item 412).
+        let most_modes = effect.modal().and_then(|node| most_modes_for_x(self, node, player_id, card_id, ConditionReferents::NONE));
         let x_value = if has_x {
-            match legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero) {
+            let values = legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero)
+                .and_then(|values| match most_modes {
+                    Some(most) => values.capped_at_modes(most),
+                    None => Some(values),
+                });
+            match values {
                 Some(values) => ask_choose_x_value(dp, self, player_id, card_id, values),
                 // The 601.2h failure, found before a window opens for it.
                 None => {
@@ -325,6 +333,9 @@ impl GameState {
     /// 113.7a), which "another target" excludes — the spell itself, or the
     /// permanent whose ability is announced. `x_value` is the X announced
     /// before the targets (CR 601.2b), which a count of targets may read.
+    /// `players_taken` are the players another chosen mode targeted, which a
+    /// player-targeting instance here may not under "each mode must target a
+    /// different player"; none otherwise.
     pub(crate) fn announce_targets(
         &self,
         player_id: PlayerId,
@@ -333,6 +344,7 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
         x_value: Option<u64>,
+        players_taken: &[PlayerId],
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
@@ -353,7 +365,12 @@ impl GameState {
                 crate::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
             )
             .naming(named_objects);
-            let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
+            let taken_by_another_mode = |target: &ObjectOrPlayerId| {
+                matches!(filter, SelectionFilter::Player(_))
+                    && matches!(target, ObjectOrPlayerId::Player(seat) if players_taken.contains(seat))
+            };
+            let mut legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
+            legal.retain(|target| !taken_by_another_mode(target));
             // CR 601.2c: "the number of targets will be defined by the
             // spell's text", and once determined it does not change.
             let bounds = count.bounds(&|amount| self.amount_as_announced(amount, player_id, this_object, named_objects, x_value))?;
@@ -362,6 +379,9 @@ impl GameState {
                 &legal, bounds.fewest, bounds.most,
             );
             self.validate_targets(recipient, &chosen, bounds, player_id, identity)?;
+            if let Some(taken) = chosen.iter().find(|target| taken_by_another_mode(target)) {
+                return Err(format!("{taken:?} is another mode's target, and each mode must target a different player"));
+            }
             announced.push(TargetInstance::from_announcement(self, recipient.clone(), &chosen)?);
             earlier_targets.push(chosen);
         }
@@ -385,12 +405,9 @@ impl GameState {
 
     /// CR 601.2b's modes, then 601.2c's targets, for `effect` on the stack
     /// object `source_id`: what [`Self::announce_targets`] announces for an
-    /// effect with no modes. A modal one's chooser picks one of the legal
-    /// sets (`oracle::modes`, CR 700.2a), and each chosen mode announces its
-    /// own instances, in printed order: a mode is its own instance scope, so
-    /// its "another target" reads only its own earlier instances, and a
-    /// division is announced inside it. The modes are in printed order, which
-    /// is the order they resolve in.
+    /// effect with no modes. A modal one's modes are chosen
+    /// ([`Self::choose_modes`]) and then each chosen mode announces its own
+    /// instances ([`Self::announce_chosen_modes`]).
     ///
     /// `Err` when no set of modes is legal, which the caller rewinds or, for
     /// a trigger, removes (CR 603.3c), and for a modal effect that declares
@@ -407,24 +424,75 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<Announcement, String> {
         let Some(node) = effect.modal() else {
-            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
+            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, &[], dp)?;
             return Ok(Announcement::Targets(targets));
         };
         if !instances.is_empty() {
             return Err(format!("{source_id}'s modal effect declares instances of \"target\" outside its modes; a modal node is all of its ability"));
         }
+        let modes = self.choose_modes(player_id, source_id, this_object, node, named_objects, x_value, dp)?;
+        self.announce_chosen_modes(player_id, source_id, this_object, node, modes, named_objects, x_value, dp)
+    }
+
+    /// CR 601.2b's modes for `node` on the stack object `source_id`: its
+    /// chooser picks one of the legal sets (`oracle::modes`, CR 700.2a). The
+    /// controller, or under CR 700.2e an opponent, the controller first
+    /// picking which where there are several. `Err` when no set is legal.
+    pub(crate) fn choose_modes(
+        &self,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        this_object: ObjectId,
+        node: &ModalNode,
+        named_objects: ConditionReferents<'_>,
+        x_value: Option<u64>,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Vec<ModeIndex>, String> {
         let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value);
         if sets.is_empty() {
             return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
         }
         let chooser = match node.chooser {
             ModeChooser::Controller => player_id,
+            ModeChooser::AnOpponent => match self.opponents_of(player_id).as_slice() {
+                [] => return Err(format!("an opponent chooses {source_id}'s modes, and player {player_id} has none in the game")),
+                [only] => *only,
+                several => crate::ui::ask::ask_choose_opponent(dp, self, player_id, source_id, several),
+            },
         };
-        let modes = ask_choose_modes(dp, self, chooser, source_id, sets);
+        Ok(ask_choose_modes(dp, self, chooser, source_id, sets))
+    }
+
+    /// CR 601.2c for the chosen `modes` of `node`: each mode announces its own
+    /// instances, in printed order, a mode its own instance scope, so its
+    /// "another target" reads only its own earlier instances and a division is
+    /// announced inside it. Under "each mode must target a different player",
+    /// a mode is not offered a player an earlier mode took.
+    pub(crate) fn announce_chosen_modes(
+        &self,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        this_object: ObjectId,
+        node: &ModalNode,
+        modes: Vec<ModeIndex>,
+        named_objects: ConditionReferents<'_>,
+        x_value: Option<u64>,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Announcement, String> {
         let mut chosen = Vec::with_capacity(modes.len());
+        let mut players_taken: Vec<PlayerId> = Vec::new();
         for mode in modes {
             let printed = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
-            let targets = self.announce_targets(player_id, source_id, this_object, &printed.instances, named_objects, x_value, dp)?;
+            let targets =
+                self.announce_targets(player_id, source_id, this_object, &printed.instances, named_objects, x_value, &players_taken, dp)?;
+            if node.rules.each_mode_targets_a_different_player {
+                for instance in targets.iter().filter(|instance| matches!(instance.recipient, EffectRecipient::Target(SelectionFilter::Player(_), _))) {
+                    players_taken.extend(instance.targets().filter_map(|target| match target {
+                        ObjectOrPlayer::Player(seat) => Some(seat),
+                        ObjectOrPlayer::Object(_) => None,
+                    }));
+                }
+            }
             chosen.push(ChosenMode { mode, targets });
         }
         Ok(Announcement::Modes(chosen))

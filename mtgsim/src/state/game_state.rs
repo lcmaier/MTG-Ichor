@@ -2838,6 +2838,7 @@ mod tests {
             let ability = textless_static(Effect::Modal(Box::new(ModalNode {
                 count: ModalCount::Exactly(1),
                 chooser: ModeChooser::Controller,
+                rules: crate::types::effects::ModeRules::default(),
                 modes: vec![Mode::new(anthem_atom())],
             })));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");

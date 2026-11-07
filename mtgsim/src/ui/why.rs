@@ -387,6 +387,11 @@ fn x_refusals(game: &GameState, player: PlayerId, spell: ObjectId, values: &Lega
         lines.push(refusal("Any X but 0", ("the cost being paid has no X".to_string(), Some("601.2b"))));
         return lines;
     };
+    if let Some(most) = values.most_modes {
+        let words = format!("{} chooses X modes, each once, and can choose {most}", named(game, spell));
+        lines.push(refusal(format!("X above {most}"), (words, Some("700.2d"))).naming(game, &[spell]));
+        return lines;
+    }
     let pips = if bound.pips.symbols.is_empty() { String::new() } else { format!("alongside {}, ", bound.pips) };
     let generic_besides_x = bound.generic_besides_x;
     let besides = match generic_besides_x.cmp(&0) {

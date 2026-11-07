@@ -30,6 +30,10 @@ pub struct LegalXValues {
     /// X, so X is 0 (CR 601.2b announces "a variable cost that will be
     /// paid", and 107.3b says the same of an effect's free cast).
     pub bound: Option<XBound>,
+    /// The most modes a "choose X" spell can take where each is chosen once,
+    /// when that stops X before the mana does (item 412): an X past it lists
+    /// no set of modes.
+    pub most_modes: Option<u64>,
 }
 
 impl LegalXValues {
@@ -46,7 +50,29 @@ impl LegalXValues {
                 generic_besides_x: 0,
                 x_symbol_count: 1,
             }),
+            most_modes: None,
         }
+    }
+
+    /// These values, none past `most` modes: "choose X" whose modes are each
+    /// chosen once lists no set for a larger X (CR 700.2d, item 412). `None`
+    /// when no value is left, which reverses the cast as an unpayable X does.
+    pub fn capped_at_modes(self, most: u64) -> Option<LegalXValues> {
+        if most >= self.offered.at_most() {
+            return Some(self);
+        }
+        let offered = match self.offered {
+            XOffer::Interval { at_least, .. } if at_least <= most => XOffer::Interval { at_least, at_most: most },
+            XOffer::Interval { .. } => return None,
+            XOffer::Set(values) => {
+                let kept: Vec<u64> = values.into_iter().filter(|&x| x <= most).collect();
+                if kept.is_empty() {
+                    return None;
+                }
+                XOffer::Set(kept)
+            }
+        };
+        Some(LegalXValues { offered, most_modes: Some(most), ..self })
     }
 }
 
@@ -117,6 +143,7 @@ pub fn legal_x_values(
             offered: XOffer::Interval { at_least: 0, at_most: 0 },
             x_cant_be_zero,
             bound: None,
+            most_modes: None,
         });
     };
     let non_mana = NonManaCosts { source: None, costs: &total.non_mana };
@@ -138,6 +165,7 @@ pub fn legal_x_values(
             generic_besides_x: total.mana.generic_besides_x(),
             x_symbol_count: x_symbol_count.get(),
         }),
+        most_modes: None,
     })
 }
 
@@ -228,6 +256,7 @@ mod tests {
                     generic_besides_x: 0,
                     x_symbol_count: 1,
                 }),
+                most_modes: None,
             })
         );
     }
@@ -301,7 +330,7 @@ mod tests {
         let (game, spell) = board(5, sorcery(&[X, R]).build());
         assert_eq!(
             values_with(&game, spell, Some(&free), &[]),
-            Some(LegalXValues { offered: XOffer::Interval { at_least: 0, at_most: 0 }, x_cant_be_zero: false, bound: None })
+            Some(LegalXValues { offered: XOffer::Interval { at_least: 0, at_most: 0 }, x_cant_be_zero: false, bound: None, most_modes: None })
         );
         let (game, spell) = board(5, sorcery(&[X, R]).x_cant_be_zero().build());
         assert_eq!(values_with(&game, spell, Some(&free), &[]), None);

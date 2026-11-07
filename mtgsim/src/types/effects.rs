@@ -916,9 +916,17 @@ impl std::fmt::Display for ModeIndex {
 /// How many modes a modal ability's player chooses (CR 700.2), one arm a
 /// printed count rule. Where modes may not repeat (CR 700.2d), a range's most
 /// past the number of modes takes them all, and a fewest past it allows no
-/// choice at all.
+/// choice at all; where they may, the most is the printed number (Moment of
+/// Reckoning's "up to four", of two modes).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalCount {
+    /// "You may choose two" (Shadrix Silverquill's ruling: "exactly zero
+    /// modes or two modes. You can't choose only one"): none, or exactly `n`.
+    NoneOr(u32),
+    /// CR 700.2i: "choose up to [budget] {P} worth of modes": any modes whose
+    /// pawprints ([`Mode::pawprints`]) total no more than the budget, none
+    /// among them.
+    Pawprints(u32),
     /// "Choose one", "choose two": that many different modes.
     Exactly(u32),
     /// "Choose one or both" (1 to 2), "one or more" (1 to every mode), "up to
@@ -936,21 +944,54 @@ pub enum ModalCount {
     RaisedIf { usual: Box<ModalCount>, raised: Box<ModalCount>, condition: Box<Condition> },
 }
 
-/// Who chooses a modal ability's modes: its controller (CR 700.2a, 700.2b).
-/// An opponent (700.2e) and a choice at random are `mode-rules-and-costs`'
-/// arms.
+/// Who chooses a modal ability's modes: its controller (CR 700.2a, 700.2b),
+/// or another player (700.2e). The targets stay the controller's to choose
+/// (601.2c). A choice at random is an arm with its first card.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModeChooser {
     Controller,
+    /// "An opponent chooses one —" (CR 700.2e): the opponent chooses as the
+    /// controller would have, and with more than one the controller first
+    /// picks which.
+    AnOpponent,
 }
 
 /// "Choose one —" and the bulleted list under it (CR 700.2): how many modes,
-/// who chooses them, and the modes.
+/// who chooses them, the node's own rules, and the modes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModalNode {
     pub count: ModalCount,
     pub chooser: ModeChooser,
+    pub rules: ModeRules,
     pub modes: Vec<Mode>,
+}
+
+/// The rules a modal node may print beside its count, each one a plain
+/// "choose one" leaves off (`choices-architecture.md`, decision 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ModeRules {
+    /// CR 700.2d's "You may choose the same mode more than once": a mode is
+    /// chosen as often as the count allows, its copies resolving in sequence.
+    pub may_repeat: bool,
+    /// "Each mode must target a different player" (item 154's second half):
+    /// no player is a target of two chosen modes. Written once on the node,
+    /// never as an instance number, since which instances exist depends on
+    /// the modes chosen.
+    pub each_mode_targets_a_different_player: bool,
+    /// "Choose one that hasn't been chosen [this turn]": a mode this
+    /// object's ability chose before is not offered.
+    pub not_chosen_before: Option<ChosenBefore>,
+}
+
+/// How long a mode an ability chose stays unoffered to it
+/// ([`ModeRules::not_chosen_before`]): the record is the ability's on that
+/// object (CR 400.7), whoever controls it (Demonic Pact's rulings).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChosenBefore {
+    /// "That hasn't been chosen this turn".
+    ThisTurn,
+    /// "That hasn't been chosen": for as long as the object exists.
+    WhileItExists,
 }
 
 /// One bulleted option of a modal ability (CR 700.2).
@@ -962,13 +1003,31 @@ pub struct Mode {
     /// inside a mode names one of its own. Read off the effect as the mode is
     /// made, so neither a cast nor castability walks the tree.
     pub instances: Vec<EffectRecipient>,
+    /// CR 700.2i: the pawprints printed for it, which a count of
+    /// [`ModalCount::Pawprints`] spends; 1 unless printed.
+    pub pawprints: u32,
+    /// CR 700.2h: the cost printed before its effect (spree's "+ {2} —"), an
+    /// additional cost the spell's total includes for each time it is chosen;
+    /// empty for a mode that prints none.
+    pub cost: Vec<crate::types::costs::Cost>,
 }
 
 impl Mode {
-    /// A mode doing `effect`, with its instances of "target".
+    /// A mode doing `effect`, with its instances of "target", one pawprint
+    /// and no cost of its own.
     pub fn new(effect: Effect) -> Mode {
         let instances = effect.instances();
-        Mode { effect, instances }
+        Mode { effect, instances, pawprints: 1, cost: Vec::new() }
+    }
+
+    /// `effect` behind its printed cost (CR 700.2h).
+    pub fn with_cost(cost: Vec<crate::types::costs::Cost>, effect: Effect) -> Mode {
+        Mode { cost, ..Mode::new(effect) }
+    }
+
+    /// `effect` printed with `pawprints` pawprint symbols (CR 700.2i).
+    pub fn with_pawprints(pawprints: u32, effect: Effect) -> Mode {
+        Mode { pawprints, ..Mode::new(effect) }
     }
 }
 
