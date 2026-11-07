@@ -158,9 +158,11 @@ impl ResolutionContext {
 #[derive(Debug)]
 struct ResolutionWalk {
     instance_cursor: usize,
-    /// Where the instance scope the walk is in begins: 0, or the first
-    /// instance of the chosen mode it is resolving (`Mode::instances`).
-    scope_start: usize,
+    /// While a chosen mode resolves, where its targets begin in the announced
+    /// list (`ModalNode::mode_scope_starts`), so a back-reference inside the
+    /// mode counts from the mode's first target; 0 outside a mode. A place
+    /// in that list, as `instance_cursor` is.
+    mode_scope_start: usize,
     /// The modes CR 601.2b chose (`StackEntry::chosen_modes`), which the
     /// `Modal` arm walks; `None` for an effect resolved with nothing
     /// announced, which can have no modes chosen.
@@ -187,7 +189,7 @@ impl ResolutionWalk {
     fn start(chosen_modes: Option<Vec<ModeIndex>>) -> Self {
         ResolutionWalk {
             instance_cursor: 0,
-            scope_start: 0,
+            mode_scope_start: 0,
             chosen_modes,
             last_cost_answer: None,
             extra_turn: None,
@@ -391,7 +393,7 @@ impl GameState {
                 self.resolve_primitive(primitive, recipient, &chosen, ctx, dp, walk)
             }
             Effect::Atom(primitive, recipient) => {
-                match instance_of(recipient, declared, &mut walk.instance_cursor, walk.scope_start) {
+                match instance_of(recipient, declared, &mut walk.instance_cursor, walk.mode_scope_start) {
                     // The atom that declared the division acts by the shares;
                     // a later one naming its instance ("each of those
                     // creatures") reads the targets alone, as `clause` does.
@@ -558,7 +560,7 @@ impl GameState {
                         ctx.source
                     ));
                 };
-                let starts = node.scope_starts(&modes).ok_or_else(|| format!("{:?} chose a mode its effect does not print", ctx.source))?;
+                let starts = node.mode_scope_starts(&modes).ok_or_else(|| format!("{:?} chose a mode its effect does not print", ctx.source))?;
                 for (&place, start) in modes.iter().zip(starts) {
                     let mode = node.mode(place).ok_or_else(|| format!("{:?} chose mode {place}, which its effect does not print", ctx.source))?;
                     if walk.instance_cursor != start {
@@ -567,10 +569,10 @@ impl GameState {
                             ctx.source, walk.instance_cursor
                         ));
                     }
-                    walk.scope_start = start;
+                    walk.mode_scope_start = start;
                     self.resolve_effect_at(&mode.effect, ctx, dp, declared, walk)?;
                 }
-                walk.scope_start = 0;
+                walk.mode_scope_start = 0;
                 Ok(())
             }
 
@@ -2362,7 +2364,7 @@ impl GameState {
     ) -> Result<Vec<ObjectOrPlayerId>, String> {
         let choosers: Vec<PlayerId> = match &choice.chooser {
             chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
-                match instance_of(chooser, declared, &mut walk.instance_cursor, walk.scope_start) {
+                match instance_of(chooser, declared, &mut walk.instance_cursor, walk.mode_scope_start) {
                     Some((ix, _)) => ctx
                         .targets
                         .instance(ix)

@@ -134,8 +134,8 @@ impl GameState {
         // text's "this": the spell, or the permanent with the ability (CR 113.7a).
         let this_object = entry.this_object();
         let named = self.condition_objects(entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref());
-        let scope_starts = entry.instance_scope_starts()?;
-        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, &scope_starts, controller, this_object, named) else {
+        let mode_scope_starts = entry.mode_scope_starts()?;
+        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, &mode_scope_starts, controller, this_object, named) else {
             // Every target of every instance is illegal — the spell or ability
             // doesn't resolve (CR 608.2b).
             self.handle_fizzle(object_id, &entry, controller, dp)?;

@@ -151,14 +151,14 @@ impl StackEntry {
         self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
     }
 
-    /// Where each chosen mode's instances begin in `chosen_targets`
-    /// (`ModalNode::scope_starts`), empty for an effect with no modes. `Err`
+    /// Where each chosen mode's targets begin in `chosen_targets`
+    /// (`ModalNode::mode_scope_starts`), empty for an effect with no modes. `Err`
     /// for an entry whose chosen modes are not what its effect prints, or
     /// whose announcement holds another number of instances than they declare.
-    pub fn instance_scope_starts(&self) -> Result<Vec<usize>, String> {
+    pub fn mode_scope_starts(&self) -> Result<Vec<usize>, String> {
         let Some(node) = self.effect.modal() else { return Ok(Vec::new()) };
         let starts = node
-            .scope_starts(&self.chosen_modes)
+            .mode_scope_starts(&self.chosen_modes)
             .ok_or_else(|| format!("{} chose a mode its effect does not print", self.object_id))?;
         let declared: usize = self.chosen_modes.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.instances.len()).sum();
         if declared != self.chosen_targets.len() {
@@ -3058,12 +3058,12 @@ mod tests {
             ability_identity: None,
             trigger: None,
         };
-        assert!(entry.instance_scope_starts().is_err(), "two modes of one instance each, and none announced");
+        assert!(entry.mode_scope_starts().is_err(), "two modes of one instance each, and none announced");
         let player = crate::types::effects::EffectRecipient::Target(crate::types::effects::SelectionFilter::Player, crate::types::effects::TargetCount::Exactly(1));
         entry.chosen_targets = vec![TargetInstance::new(player.clone(), Vec::new()), TargetInstance::new(player, Vec::new())];
-        assert_eq!(entry.instance_scope_starts(), Ok(vec![0, 1]));
+        assert_eq!(entry.mode_scope_starts(), Ok(vec![0, 1]));
         entry.chosen_modes = vec![ModeIndex::printed(0), ModeIndex::printed(2)];
-        assert!(entry.instance_scope_starts().is_err(), "a place of 0 names no mode");
+        assert!(entry.mode_scope_starts().is_err(), "a place of 0 names no mode");
     }
 
     /// Each layer card lowered to the rows its text describes.

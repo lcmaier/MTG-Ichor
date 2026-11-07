@@ -324,16 +324,16 @@ impl<'a> DeclaredInstances<'a> {
 ///
 /// `cursor` is the count of instances *declared* so far by the walk, which is
 /// how a declaring atom learns its own index without the tree being numbered.
-/// `scope_start` is where the instances a back-reference counts from begin:
-/// the effect's first, or a chosen mode's, since a mode is its own scope
-/// (`Mode::instances`). Returns `None` for a recipient that names no instance
+/// `mode_scope_start` is where the instances a back-reference counts from
+/// begin: 0, or the first of the chosen mode resolving, since a mode is its
+/// own scope (`ModalNode::mode_scope_starts`). Returns `None` for a recipient that names no instance
 /// — `Implicit`, `Controller`, the filtered sweeps and `Host`, none of which
 /// reads a chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
     declared: DeclaredInstances<'a>,
     cursor: &mut usize,
-    scope_start: usize,
+    mode_scope_start: usize,
 ) -> Option<(usize, &'a EffectRecipient)> {
     match recipient {
         EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => {
@@ -343,7 +343,7 @@ pub(crate) fn instance_of<'a>(
         }
         // The declaring atom's clause, not this atom's: an `Instance` atom
         // behaves exactly as the atom that announced the instance did.
-        EffectRecipient::SameInstanceAs(ix) => declared.clause(scope_start + ix).map(|r| (scope_start + ix, r)),
+        EffectRecipient::SameInstanceAs(ix) => declared.clause(mode_scope_start + ix).map(|r| (mode_scope_start + ix, r)),
         _ => None,
     }
 }
@@ -754,13 +754,13 @@ impl GameState {
     /// it is "no longer in the zone it was in when it was targeted", which
     /// its epoch says and its id cannot.
     ///
-    /// `scope_starts` are where a chosen mode's instances begin
-    /// (`StackEntry::instance_scope_starts`), since a mode is its own scope
+    /// `mode_scope_starts` are where each chosen mode's targets begin
+    /// (`StackEntry::mode_scope_starts`), since a mode is its own scope
     /// for "another target"; empty for an effect with no modes.
     pub fn surviving_targets(
         &self,
         instances: &[TargetInstance],
-        scope_starts: &[usize],
+        mode_scope_starts: &[usize],
         you: PlayerId,
         this_object: ObjectId,
         named_objects: ConditionReferents<'_>,
@@ -778,7 +778,7 @@ impl GameState {
             // scope: "another target" was a criterion of CR 601.2c's
             // announcement, and re-asking it against a half-filtered list would
             // let one instance's fizzle legalize another's. Borrowed, not copied.
-            let scope = scope_starts.iter().copied().filter(|&start| start <= ix).max().unwrap_or(0);
+            let scope = mode_scope_starts.iter().copied().filter(|&start| start <= ix).max().unwrap_or(0);
             let announced_targets =
                 FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(&instances[scope..])).naming(named_objects);
             let existing = inst.targets().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());

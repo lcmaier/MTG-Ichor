@@ -431,7 +431,7 @@ fn another_target_inside_a_mode_excludes_only_that_modes_targets() {
     names_targets(&answers, vec![ChoiceOption::Object(second)]);
     names_targets(&answers, vec![ChoiceOption::Object(first)]);
     game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
-    assert_eq!(game.stack_entries[&spell].instance_scope_starts(), Ok(vec![0, 1]));
+    assert_eq!(game.stack_entries[&spell].mode_scope_starts(), Ok(vec![0, 1]));
 
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert!(game.battlefield[&first].tapped);
