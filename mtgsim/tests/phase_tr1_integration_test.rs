@@ -26,7 +26,7 @@ use mtgsim::cards::printings::{blood_artist, felidar_sovereign, soul_warden, ver
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::ChosenTargets;
+use mtgsim::engine::targeting::{Announcement, ChosenTargets};
 use mtgsim::engine::triggers::{could_be_a_mana_ability, visible_to_all};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
@@ -2136,8 +2136,7 @@ fn a_spell_that_was_not_cast_keeps_its_kicker() {
     game.stack_entries.insert(copy, StackEntry {
         object_id: copy,
         controller: 0,
-        chosen_targets: Vec::new(),
-        chosen_modes: Vec::new(),
+        announced: Announcement::NONE,
         x_value: None,
         effect: Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,

@@ -5,7 +5,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
+use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, ModeIndex, SelectionFilter, TargetBounds, TargetCount};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 
@@ -85,6 +85,69 @@ impl TargetInstance {
     pub fn is_targeted(&self) -> bool {
         matches!(self.recipient, EffectRecipient::Target(_, _))
     }
+}
+
+/// CR 601.2b–c's record of a stack object's modes and targets. A modal node is
+/// all of its ability, so an effect's instances of "target" are either its
+/// own or its chosen modes', never both: each chosen mode holds its own (CR
+/// 700.2c), so no mode's targets are found by counting, and a later writer
+/// that changes a target (CR 115.7, 707.10c) cannot move one into another
+/// mode's place.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Announcement {
+    /// An effect with no modes: every instance of "target", in printed order
+    /// (an Aura's is its enchant ability's, CR 303.4a).
+    Targets(Vec<TargetInstance>),
+    /// A modal effect: the chosen modes in printed order, a repeated mode's
+    /// copies adjacent (CR 700.2d), each with its own instances. None chosen
+    /// is a choice of no modes.
+    Modes(Vec<ChosenMode>),
+}
+
+/// One mode CR 601.2b chose, and the instances of "target" its choice
+/// announced (CR 700.2c), counted from its own first: a mode is its own scope
+/// for "another target" and a back-reference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChosenMode {
+    pub mode: ModeIndex,
+    pub targets: Vec<TargetInstance>,
+}
+
+impl Announcement {
+    /// Nothing announced: an effect with no modes and no instance of "target".
+    pub const NONE: Announcement = Announcement::Targets(Vec::new());
+
+    /// Every instance announced, in the order announced: the effect's, or each
+    /// chosen mode's after the one before. What a reader that does not ask
+    /// which mode reads: the targeted records, a label, a source of damage.
+    pub fn targets(&self) -> impl Iterator<Item = &TargetInstance> + '_ {
+        let (own, modes): (&[TargetInstance], &[ChosenMode]) = match self {
+            Announcement::Targets(own) => (own, &[]),
+            Announcement::Modes(modes) => (&[], modes),
+        };
+        own.iter().chain(modes.iter().flat_map(|chosen| chosen.targets.iter()))
+    }
+
+    /// The chosen modes by printed place, in the order they resolve; none
+    /// for an effect with no modes.
+    pub fn chosen_modes(&self) -> impl Iterator<Item = ModeIndex> + '_ {
+        let modes: &[ChosenMode] = match self {
+            Announcement::Targets(_) => &[],
+            Announcement::Modes(modes) => modes,
+        };
+        modes.iter().map(|chosen| chosen.mode)
+    }
+}
+
+/// What each instance of "target" holds after CR 608.2b's re-check, scope by
+/// scope as [`Announcement`] holds them: the effect's own, or each chosen
+/// mode's.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SurvivingTargets {
+    /// The effect's own instances; none for a modal effect.
+    pub own: ChosenTargets,
+    /// Each chosen mode's, in the order announced.
+    pub modes: Vec<ChosenTargets>,
 }
 
 /// What each instance of "target" holds, indexed by the instance.
@@ -225,6 +288,14 @@ pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
     }
 }
 
+/// CR 608.2b's two questions across every scope of one stack object: whether
+/// a targeted instance announced any target, and whether any of those is
+/// still legal.
+struct Fizzle {
+    announced: bool,
+    survived: bool,
+}
+
 /// The two facts a filter leaf may need that are **not characteristics**, so
 /// that no layer can change them and no frame answers them.
 ///
@@ -295,8 +366,12 @@ impl<'a> FilterIdentity<'a> {
 /// own clause, and [`instance_of`] never opens this for one.
 #[derive(Clone, Copy)]
 pub enum DeclaredInstances<'a> {
-    /// The stack's: what CR 601.2c announced, clause by clause.
+    /// The stack's: what CR 601.2c announced, clause by clause — the effect's
+    /// own, or the mode resolving's.
     Announced(&'a [TargetInstance]),
+    /// A modal effect's, at its root: the chosen modes, each resolved against
+    /// its own instances. The node declares none of its own.
+    Modes(&'a [ChosenMode]),
     /// Nothing was announced: the effect's own declaring atoms, in printed order.
     Effect(&'a Effect),
 }
@@ -305,6 +380,7 @@ impl<'a> DeclaredInstances<'a> {
     fn clause(self, ix: usize) -> Option<&'a EffectRecipient> {
         match self {
             DeclaredInstances::Announced(announced) => announced.get(ix).map(|inst| &inst.recipient),
+            DeclaredInstances::Modes(_) => None,
             DeclaredInstances::Effect(effect) => effect.instance(ix),
         }
     }
@@ -314,7 +390,7 @@ impl<'a> DeclaredInstances<'a> {
     pub(crate) fn division(self, ix: usize) -> &'a [(ObjectOrPlayer, u64)] {
         match self {
             DeclaredInstances::Announced(announced) => announced.get(ix).and_then(TargetInstance::division).unwrap_or(&[]),
-            DeclaredInstances::Effect(_) => &[],
+            DeclaredInstances::Modes(_) | DeclaredInstances::Effect(_) => &[],
         }
     }
 }
@@ -323,17 +399,14 @@ impl<'a> DeclaredInstances<'a> {
 /// instance was announced with.
 ///
 /// `cursor` is the count of instances *declared* so far by the walk, which is
-/// how a declaring atom learns its own index without the tree being numbered.
-/// `mode_scope_start` is where the instances a back-reference counts from
-/// begin: 0, or the first of the chosen mode resolving, since a mode is its
-/// own scope (`ModalNode::mode_scope_starts`). Returns `None` for a recipient that names no instance
-/// — `Implicit`, `Controller`, the filtered sweeps and `Host`, none of which
-/// reads a chosen target.
+/// how a declaring atom learns its own index without the tree being numbered;
+/// a mode starts its own from 0. Returns `None` for a recipient that names no
+/// instance — `Implicit`, `Controller`, the filtered sweeps and `Host`, none of
+/// which reads a chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
     declared: DeclaredInstances<'a>,
     cursor: &mut usize,
-    mode_scope_start: usize,
 ) -> Option<(usize, &'a EffectRecipient)> {
     match recipient {
         EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => {
@@ -343,7 +416,7 @@ pub(crate) fn instance_of<'a>(
         }
         // The declaring atom's clause, not this atom's: an `Instance` atom
         // behaves exactly as the atom that announced the instance did.
-        EffectRecipient::SameInstanceAs(ix) => declared.clause(mode_scope_start + ix).map(|r| (mode_scope_start + ix, r)),
+        EffectRecipient::SameInstanceAs(ix) => declared.clause(*ix).map(|r| (*ix, r)),
         _ => None,
     }
 }
@@ -754,33 +827,58 @@ impl GameState {
     /// it is "no longer in the zone it was in when it was targeted", which
     /// its epoch says and its id cannot.
     ///
-    /// `mode_scope_starts` are where each chosen mode's targets begin
-    /// (`StackEntry::mode_scope_starts`), since a mode is its own scope
-    /// for "another target"; empty for an effect with no modes.
+    /// Each chosen mode is its own scope for "another target", and "all its
+    /// targets" is asked across every scope.
     pub fn surviving_targets(
         &self,
-        instances: &[TargetInstance],
-        mode_scope_starts: &[usize],
+        announcement: &Announcement,
         you: PlayerId,
         this_object: ObjectId,
         named_objects: ConditionReferents<'_>,
-    ) -> Option<ChosenTargets> {
+    ) -> Option<SurvivingTargets> {
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
         // or more targets have been chosen for it." An `UpTo` clause the player
         // took nothing for leaves nothing for 608.2b to find illegal, so it
         // cannot be what makes the spell fail to resolve.
-        let mut announced = false;
-        let mut survived = false;
+        let mut tally = Fizzle { announced: false, survived: false };
+        let surviving = match announcement {
+            Announcement::Targets(own) => SurvivingTargets {
+                own: self.surviving_in_scope(own, you, this_object, named_objects, &mut tally),
+                modes: Vec::new(),
+            },
+            Announcement::Modes(modes) => SurvivingTargets {
+                own: ChosenTargets::NONE,
+                modes: modes
+                    .iter()
+                    .map(|chosen| self.surviving_in_scope(&chosen.targets, you, this_object, named_objects, &mut tally))
+                    .collect(),
+            },
+        };
+        if tally.announced && !tally.survived {
+            return None;
+        }
+        Some(surviving)
+    }
+
+    /// [`Self::surviving_targets`] for one scope's instances, noting in
+    /// `tally` whether any targeted instance announced a target and whether
+    /// any of those survived.
+    fn surviving_in_scope(
+        &self,
+        instances: &[TargetInstance],
+        you: PlayerId,
+        this_object: ObjectId,
+        named_objects: ConditionReferents<'_>,
+        tally: &mut Fizzle,
+    ) -> ChosenTargets {
+        // The scope's announcement, unfiltered: "another target" was a
+        // criterion of CR 601.2c's announcement, and re-asking it against a
+        // half-filtered list would let one instance's fizzle legalize
+        // another's. Borrowed, not copied.
+        let announced_targets = FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(instances)).naming(named_objects);
         let mut survivors = ChosenTargets::NONE;
-        for (ix, inst) in instances.iter().enumerate() {
-            // The announcement, unfiltered, from the start of this instance's
-            // scope: "another target" was a criterion of CR 601.2c's
-            // announcement, and re-asking it against a half-filtered list would
-            // let one instance's fizzle legalize another's. Borrowed, not copied.
-            let scope = mode_scope_starts.iter().copied().filter(|&start| start <= ix).max().unwrap_or(0);
-            let announced_targets =
-                FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(&instances[scope..])).naming(named_objects);
+        for inst in instances {
             let existing = inst.targets().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked against its
@@ -788,16 +886,12 @@ impl GameState {
                 survivors.push(existing);
                 continue;
             }
-            announced |= inst.targets().next().is_some();
+            tally.announced |= inst.targets().next().is_some();
             let before = survivors.all().len();
             survivors.push(existing.filter(|t| self.is_single_target_legal(&inst.recipient, t, you, announced_targets)));
-            survived |= survivors.all().len() > before;
+            tally.survived |= survivors.all().len() > before;
         }
-
-        if announced && !survived {
-            return None;
-        }
-        Some(survivors)
+        survivors
     }
 
     /// Check if a single target is still legal for the given spec.
@@ -920,18 +1014,19 @@ mod tests {
     fn a_spell_whose_only_target_left_the_battlefield_does_not_resolve() {
         let (mut game, land_id) = setup_game_with_land();
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        let instances = vec![TargetInstance::from_announcement(&game, spec, &[ObjectOrPlayerId::Object(land_id)]).unwrap()];
+        let announcement =
+            Announcement::Targets(vec![TargetInstance::from_announcement(&game, spec, &[ObjectOrPlayerId::Object(land_id)]).unwrap()]);
 
         // Target is legal while on battlefield
         let survivors = game
-            .surviving_targets(&instances, &[], 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
+            .surviving_targets(&announcement, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
             .expect("a legal target resolves");
-        assert_eq!(survivors.instance(0), &[ObjectOrPlayerId::Object(land_id)]);
+        assert_eq!(survivors.own.instance(0), &[ObjectOrPlayerId::Object(land_id)]);
 
         // Remove from battlefield — the one target is no longer legal, and
         // CR 608.2b's "all its targets" is therefore satisfied.
         game.battlefield.remove(&land_id);
-        assert!(game.surviving_targets(&instances, &[], 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE).is_none());
+        assert!(game.surviving_targets(&announcement, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE).is_none());
     }
 }
 

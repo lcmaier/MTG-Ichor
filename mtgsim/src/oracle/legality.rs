@@ -363,7 +363,7 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
         if let Some(binding) = &entry.trigger {
             referred.extend(binding.referred.objects.iter().map(|r| r.object));
         }
-        for instance in &entry.chosen_targets {
+        for instance in entry.announced.targets() {
             referred.extend(instance.targets().filter_map(ObjectOrPlayer::object));
         }
         referred.extend(left_since_read(game, entry.ability_identity, entry.trigger.as_ref()));
@@ -683,7 +683,7 @@ mod tests {
             cast: None,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             x_value: None,
-            chosen_targets: Vec::new(),
+            announced: crate::engine::targeting::Announcement::NONE,
             identity: None,
             trigger: None,
             began_at: game.events.next_seq(),

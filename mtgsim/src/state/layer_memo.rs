@@ -711,8 +711,7 @@ mod tests {
         game.set_stack_entry(StackEntry {
             object_id: card,
             controller: 1,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
+            announced: crate::engine::targeting::Announcement::NONE,
             x_value: None,
             effect: Arc::new(Effect::Sequence(Vec::new())),
             is_spell: true,

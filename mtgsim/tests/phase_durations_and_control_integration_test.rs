@@ -243,7 +243,7 @@ fn an_opponent_gains_control_is_chosen_as_it_resolves_among_two_opponents() {
     // The ability on the stack holds no target (CR 115.1): the opponent is
     // no choice made as it was put there.
     let ability = *game.stack.iter().last().unwrap();
-    assert!(game.stack_entries[&ability].chosen_targets.iter().all(|instance| !instance.is_targeted()));
+    assert!(game.stack_entries[&ability].announced.targets().all(|instance| !instance.is_targeted()));
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(ChoiceKind::ChooseOpponent { source: horse }, vec![ChoiceOption::Player(2)]);
 

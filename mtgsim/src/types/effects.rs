@@ -994,25 +994,6 @@ impl ModalNode {
         self.modes.get(mode.list_position()?)
     }
 
-    /// For each of the `chosen` modes, where its targets begin in the stack
-    /// entry's announced list (`StackEntry::chosen_targets`). The chosen
-    /// modes' targets are announced one mode after another, so Casualties of
-    /// War with modes 1, 2 and 4 chosen, one target each, holds them at 0, 1
-    /// and 2: [0, 1, 2]. A mode's "another target" and its back-references
-    /// ("that creature") count from its own start. A modal node is all of its
-    /// ability, so the first starts at 0. `None` for a mode the node does not
-    /// print. The resolution and CR 608.2b's re-check both read this.
-    pub fn mode_scope_starts(&self, chosen: &[ModeIndex]) -> Option<Vec<usize>> {
-        let mut start = 0;
-        chosen
-            .iter()
-            .map(|&mode| {
-                let this = start;
-                start += self.mode(mode)?.instances.len();
-                Some(this)
-            })
-            .collect()
-    }
 
     /// Every mode with its printed place, in printed order.
     pub fn indexed_modes(&self) -> impl Iterator<Item = (ModeIndex, &Mode)> {

@@ -43,7 +43,7 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
+use mtgsim::engine::targeting::{Announcement, ChosenTargets, TargetInstance};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,8 +108,7 @@ fn stage_spell_with(
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets,
-        chosen_modes: Vec::new(),
+        announced: Announcement::Targets(chosen_targets),
         x_value: None,
         effect: Arc::new(effect),
         is_spell: true,

@@ -309,7 +309,7 @@ fn a_choice_that_does_not_target_announces_nothing() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     let pump = cast_at(&mut game, 0, chosen_pump(), &[(ManaType::Green, 1)], &[]);
-    assert!(!game.stack_entries[&pump].chosen_targets[0].is_targeted());
+    assert!(!game.stack_entries[&pump].announced.targets().next().unwrap().is_targeted());
 
     let log = format_event_log(&game);
     assert!(log.iter().any(|l| l.starts_with("SpellCast")));

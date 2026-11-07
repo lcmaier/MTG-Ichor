@@ -407,7 +407,7 @@ fn a_spell_whose_target_left_and_came_back_does_not_resolve() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::choosing([ChoiceOption::Object(bears)]));
-    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
+    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].announced.targets().next().unwrap().as_resolved_targets().collect();
     assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)]);
 
     leave_and_return(&mut game, bears, Zone::Graveyard, ZoneChangeAct::Destroyed);
@@ -446,7 +446,7 @@ fn a_choice_made_at_cast_finds_nothing_once_its_object_has_moved() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let spell = cast_from_pool(&mut game, 0, chosen_pump(), &[(ManaType::Green, 1)], RecordingDecisionProvider::picking(0));
-    assert!(!game.stack_entries[&spell].chosen_targets[0].is_targeted());
+    assert!(!game.stack_entries[&spell].announced.targets().next().unwrap().is_targeted());
 
     leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeAct::Put);
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -499,7 +499,7 @@ fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
         vec![ChoiceOption::Object(bears)],
     );
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], aim);
-    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].chosen_targets[0].as_resolved_targets().collect();
+    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].announced.targets().next().unwrap().as_resolved_targets().collect();
     assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)]);
 
     destroy(&mut game, bears);
@@ -925,7 +925,7 @@ fn another_target_is_other_than_the_abilitys_own_source() {
     let dp = RecordingDecisionProvider::picking(0);
     game.activate_ability(0, pumper, 0, &dp).unwrap();
     let ability = *game.stack.last().unwrap();
-    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&ability].chosen_targets[0].as_resolved_targets().collect();
+    let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&ability].announced.targets().next().unwrap().as_resolved_targets().collect();
     assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)]);
     assert_eq!(dp.prompts(), 0, "one legal choice is no choice");
 
@@ -957,7 +957,7 @@ fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
 /// The trigger on top of the stack, and what it targets.
 fn top_targets(game: &GameState) -> (ObjectId, Vec<ObjectOrPlayerId>) {
     let top = *game.stack.last().expect("a trigger on the stack");
-    (top, game.stack_entries[&top].chosen_targets[0].as_resolved_targets().collect())
+    (top, game.stack_entries[&top].announced.targets().next().unwrap().as_resolved_targets().collect())
 }
 
 /// Place the upkeep trigger, choosing `target` among several candidates.

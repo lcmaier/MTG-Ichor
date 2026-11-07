@@ -15,7 +15,7 @@
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::replacement::{BatchMember, SubjectGroup};
-use crate::engine::targeting::TargetInstance;
+use crate::engine::targeting::Announcement;
 use crate::events::event::EventId;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
@@ -210,7 +210,7 @@ pub(crate) fn pending(
     entry: &PendingTrigger,
     object: Option<ObjectId>,
     refused_by: Option<&str>,
-    targets: &[TargetInstance],
+    announced: &Announcement,
 ) -> Record {
     let identity = entry.origin.identity();
     let mut r = Record::new(RecordKind::Pending);
@@ -224,8 +224,8 @@ pub(crate) fn pending(
     r.field_u64s("records", &records);
     r.field_opt_u64("object", object.map(|id| id.raw()));
     r.field_opt_str("refused_by", refused_by);
-    let rendered: Vec<String> = targets
-        .iter()
+    let rendered: Vec<String> = announced
+        .targets()
         .flat_map(|t| t.as_resolved_targets().map(|target| render_debug(&target)))
         .collect();
     r.field_strs("targets", &rendered);

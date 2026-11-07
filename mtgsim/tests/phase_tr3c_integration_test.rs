@@ -745,7 +745,7 @@ fn zone(game: &GameState, id: ObjectId) -> Zone {
 
 fn top_targets(game: &GameState) -> Vec<Vec<ObjectOrPlayerId>> {
     let top = *game.stack.last().expect("something on the stack");
-    game.stack_entries[&top].chosen_targets.iter().map(|i| i.as_resolved_targets().collect()).collect()
+    game.stack_entries[&top].announced.targets().map(|i| i.as_resolved_targets().collect()).collect()
 }
 
 /// The words of each reflexive trigger's creation, in the log.

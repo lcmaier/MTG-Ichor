@@ -806,8 +806,7 @@ pub fn put_spell_on_stack(
     game.set_stack_entry(crate::state::game_state::StackEntry {
         object_id: id,
         controller,
-        chosen_targets: Vec::new(),
-        chosen_modes: Vec::new(),
+        announced: crate::engine::targeting::Announcement::NONE,
         x_value: None,
         effect: Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,

@@ -25,6 +25,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::cards::printings::{abrade, casualties_of_war, cryptic_command, forest, grizzly_bears, hill_giant, paladin_of_atonement};
 use mtgsim::oracle::mana_helpers::{can_cast, CannotCast};
 use mtgsim::oracle::x_values::LegalXValues;
+use mtgsim::engine::targeting::Announcement;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp};
 use mtgsim::types::effects::ModeIndex;
@@ -104,6 +105,11 @@ fn choose_x() -> ChoiceKind {
     ChoiceKind::ChooseXValue { spell_id: ObjectId::UNASSIGNED, values: Box::new(LegalXValues::zero_through(0)) }
 }
 
+/// The modes the stack object `id` announced, by printed place.
+fn chosen_modes(game: &GameState, id: ObjectId) -> Vec<ModeIndex> {
+    game.stack_entries[&id].announced.chosen_modes().collect()
+}
+
 fn modes(places: &[u8]) -> Vec<ModeIndex> {
     places.iter().map(|&place| ModeIndex::printed(place)).collect()
 }
@@ -144,8 +150,8 @@ fn a_modal_trigger_with_one_legal_mode_takes_it_unasked() {
     // `test_dp` answers nothing, so a question would panic.
     assert!(game.place_pending_triggers(&test_dp()).expect("the trigger is placed"));
     let trigger = *game.stack.last().expect("on the stack");
-    assert_eq!(game.stack_entries[&trigger].chosen_modes, modes(&[2]));
-    assert!(game.stack_entries[&trigger].chosen_targets.is_empty(), "the unchosen mode announces nothing");
+    assert_eq!(chosen_modes(&game, trigger), modes(&[2]));
+    assert_eq!(game.stack_entries[&trigger].announced.targets().count(), 0, "the unchosen mode announces nothing");
     game.resolve_top_of_stack(&test_dp()).expect("the trigger resolves");
     assert_eq!(game.players[0].life_total, 23);
 }
@@ -173,7 +179,7 @@ fn a_modal_trigger_with_a_legal_mode_is_placed() {
 
     assert!(game.place_pending_triggers(&test_dp()).expect("the trigger is placed"));
     let trigger = *game.stack.last().expect("on the stack");
-    assert_eq!(game.stack_entries[&trigger].chosen_modes, modes(&[2]));
+    assert_eq!(chosen_modes(&game, trigger), modes(&[2]));
     game.resolve_top_of_stack(&test_dp()).expect("the trigger resolves");
     assert_eq!(game.get_object(giant).unwrap().zone, Zone::Graveyard);
 }
@@ -217,7 +223,7 @@ fn a_modal_activation_announces_its_modes_before_its_targets() {
     assert_eq!(kinds, ["ChooseModes", "SelectRecipients"]);
 
     let ability = *game.stack.last().expect("on the stack");
-    assert_eq!(game.stack_entries[&ability].chosen_modes, modes(&[1]));
+    assert_eq!(chosen_modes(&game, ability), modes(&[1]));
     game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
     assert_eq!(mtgsim::oracle::characteristics::get_effective_power(&game, bears), Some(3));
     assert_eq!(game.players[0].life_total, 20, "the other mode did nothing");
@@ -240,7 +246,7 @@ fn a_mode_whose_target_has_no_legal_choice_is_not_offered() {
     names_targets(&answers, vec![ChoiceOption::Player(1)]);
     let stop = ManaWindowStop::new(answers);
     game.cast_spell(0, option, &stop).expect("the second mode is legal");
-    assert_eq!(game.stack_entries[&option].chosen_modes, modes(&[2]));
+    assert_eq!(chosen_modes(&game, option), modes(&[2]));
     assert!(!stop.inner().asked().iter().any(|kind| matches!(kind, ChoiceKind::ChooseModes { .. })));
 }
 
@@ -342,7 +348,7 @@ fn an_unchosen_modes_target_is_never_announced() {
     names_targets(&answers, vec![ChoiceOption::Player(1)]);
     game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
     let entry = &game.stack_entries[&option];
-    assert_eq!(entry.chosen_targets.len(), 1, "the second mode's player alone");
+    assert_eq!(entry.announced.targets().count(), 1, "the second mode's player alone");
 
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(damage_on(&game, giant), 0);
@@ -368,9 +374,9 @@ fn a_modes_back_reference_names_its_own_first_instance() {
     chooses_modes(&answers, &[1, 2]);
     names_targets(&answers, vec![ChoiceOption::Player(1)]);
     game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
-    assert_eq!(game.stack_entries[&option].chosen_modes, modes(&[1, 2]));
+    assert_eq!(chosen_modes(&game, option), modes(&[1, 2]));
     let targets: Vec<Vec<ObjectOrPlayerId>> =
-        game.stack_entries[&option].chosen_targets.iter().map(|instance| instance.as_resolved_targets().collect()).collect();
+        game.stack_entries[&option].announced.targets().map(|instance| instance.as_resolved_targets().collect()).collect();
     assert_eq!(targets, vec![vec![ObjectOrPlayerId::Object(giant)], vec![ObjectOrPlayerId::Player(1)]], "mode 1's first");
 
     game.change_zone(lever, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the artifact leaves");
@@ -433,7 +439,9 @@ fn another_target_inside_a_mode_excludes_only_that_modes_targets() {
     names_targets(&answers, vec![ChoiceOption::Object(second)]);
     names_targets(&answers, vec![ChoiceOption::Object(first)]);
     game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
-    assert_eq!(game.stack_entries[&spell].mode_scope_starts(), Ok(vec![0, 1]));
+    let Announcement::Modes(chosen) = &game.stack_entries[&spell].announced else { panic!("a modal spell announces its modes") };
+    let per_mode: Vec<usize> = chosen.iter().map(|mode| mode.targets.len()).collect();
+    assert_eq!(per_mode, [1, 2], "each mode holds its own instances");
 
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert!(game.battlefield[&first].tapped);
@@ -473,7 +481,7 @@ fn a_modal_node_below_the_root_is_refused_at_resolution() {
     let source = put_in_hand(&mut game, hill_giant(), 0);
     let effect = Effect::Sequence(vec![choose_one([gain_life(you(), 1), gain_life(you(), 2)])]);
     let ctx = ResolutionContext::untargeted(source, 0, GeneratedBy::Spell);
-    let refused = game.resolve_effect_with_announced_targets(&effect, &[], &[], &ctx, &test_dp());
+    let refused = game.resolve_effect_with_announced_targets(&effect, &Announcement::NONE, Vec::new(), &ctx, &test_dp());
     assert!(refused.is_err_and(|why| why.contains("no modes announced")));
     assert_eq!(game.players[0].life_total, 20);
 }
@@ -547,7 +555,7 @@ fn abrade_is_offered_only_while_one_of_its_modes_can_be_chosen() {
     let lever = put_on_battlefield(&mut game, mode_lever(), 1);
     assert_eq!(can_cast(&game, 0, abrade), Ok(()));
     game.cast_spell(0, abrade, &ManaWindowStop::new(test_dp())).expect("the second mode, unasked");
-    assert_eq!(game.stack_entries[&abrade].chosen_modes, modes(&[2]));
+    assert_eq!(chosen_modes(&game, abrade), modes(&[2]));
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(game.get_object(lever).unwrap().zone, Zone::Graveyard);
 }
@@ -571,7 +579,7 @@ fn cryptic_command_offers_each_pair_of_different_modes() {
     let stop = ManaWindowStop::new(answers);
     game.cast_spell(0, command, &stop).expect("castable");
     assert_eq!(offered(&game, &stop.inner().offers()), vec![vec!["modes 2, 3", "modes 2, 4", "modes 3, 4"]]);
-    assert!(game.stack_entries[&command].chosen_targets.is_empty());
+    assert_eq!(game.stack_entries[&command].announced.targets().count(), 0);
 
     let hand = game.players[0].hand.len();
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
@@ -651,7 +659,7 @@ fn cast_casualties_of_war(places: &[u8]) -> (GameState, Vec<Vec<ChoiceOption>>) 
     chooses_modes(&answers.inner, places);
     let stop = ManaWindowStop::new(answers);
     game.cast_spell(0, casualties, &stop).expect("castable");
-    assert_eq!(game.stack_entries[&casualties].chosen_modes, modes(places));
+    assert_eq!(chosen_modes(&game, casualties), modes(places));
     let offers = stop.inner().offers();
     (game, offers)
 }

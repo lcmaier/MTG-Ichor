@@ -277,7 +277,7 @@ impl LineAnswers<'_> {
         {
             self.refuse(format!("it says `x {x}`, and the spell was cast with X = {}", entry.x_value.unwrap_or(0)));
         }
-        let chosen: Vec<ObjectOrPlayerId> = entry.chosen_targets.iter().flat_map(|instance| instance.as_resolved_targets()).collect();
+        let chosen: Vec<ObjectOrPlayerId> = entry.announced.targets().flat_map(|instance| instance.as_resolved_targets()).collect();
         let untaken = line.targets.iter().zip(self.taken.borrow().iter()).position(|(target, taken)| !taken && !chosen.contains(target));
         if let Some(i) = untaken {
             self.refuse(format!("it names {} as a target, and no target it was cast or activated with is that", line.written.targets[i]));

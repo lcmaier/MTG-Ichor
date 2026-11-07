@@ -41,7 +41,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
+use mtgsim::engine::targeting::{Announcement, ChosenTargets, TargetInstance};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -191,8 +191,7 @@ fn stack_object_with(
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets,
-        chosen_modes: Vec::new(),
+        announced: Announcement::Targets(chosen_targets),
         x_value: None,
         effect: Arc::new(effect),
         is_spell,

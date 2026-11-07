@@ -901,11 +901,15 @@ named `damage_marked`; type `bool` named `damaged_by_deathtouch`
 
 #### Targets
 CR 115.1, 601.2c. **Key:** a spell or ability on the stack and its instance
-of "target". **Query:** type `TargetInstance`; type `AnnouncedTargets`; type
-`ObjectOrPlayer` named `target`; type `ObjectOrPlayer` named `targets`. An
-object or a player by reference is one type for every role (item 291), so the
-field's name says which; a damage record's is `recipient`.
-- `StackEntry` — owner.
+of "target". **Query:** type `Announcement`; type `TargetInstance`; type
+`AnnouncedTargets`; type `ObjectOrPlayer` named `target`; type
+`ObjectOrPlayer` named `targets`. An object or a player by reference is one
+type for every role (item 291), so the field's name says which; a damage
+record's is `recipient`.
+- `StackEntry` — owner, through its `Announcement`.
+- `Announcement` — owner: the effect's own instances, or for a modal effect
+  each chosen mode's (item 413).
+- `ChosenMode` — owner: the instances one chosen mode announced (CR 700.2c).
 - `TargetInstance` — owner: the targets one instance chose, each with its share
   when CR 601.2d divided it.
 - `RegisteredReplacementEffect` — hand-over: the targets of the resolution
@@ -918,10 +922,11 @@ field's name says which; a damage record's is `recipient`.
 
 #### A spell's or ability's choices
 CR 107.3, 601.2b, 700.2. **Key:** the stack object, and through CR 400.7d the
-permanent it became. **Query:** type `u64` named `x_value`; type `ModeIndex`
-named `chosen_modes`
-- `StackEntry` ×2 — owner of X; and owner of the modes chosen, written as
-  they are announced and read as the effect resolves (`modes-chosen-and-resolved`).
+permanent it became. **Query:** type `u64` named `x_value`; type `ChosenMode`
+- `StackEntry` — owner of X.
+- `Announcement` — owner of the modes chosen, each with its targets, written as
+  they are announced and read as the effect resolves (`modes-chosen-and-resolved`,
+  item 413).
 - `ResolvingObject` — hand-over of X, to the permanent.
 - `PermanentState` — owner: the X of the spell it was (CR 400.7d).
 - `PendingTrigger` — owner: a delayed trigger's X, its creator's (CR 107.3n).

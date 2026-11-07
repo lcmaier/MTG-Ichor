@@ -181,7 +181,7 @@ fn counterspell_takes_the_spell_beside_the_ability_without_a_prompt() {
 
     game.cast_spell(0, counter, &dp)
         .expect("one legal target on the stack, so the choice is forced");
-    let chosen = &game.stack_entries[&counter].chosen_targets;
+    let chosen: Vec<_> = game.stack_entries[&counter].announced.targets().collect();
     assert_eq!(chosen.len(), 1, "one instance of \"target\" (CR 601.2c)");
     assert_eq!(
         chosen[0].as_resolved_targets().collect::<Vec<_>>(),

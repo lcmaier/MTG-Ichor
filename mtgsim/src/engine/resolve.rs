@@ -8,7 +8,7 @@ use crate::engine::layers::types::{
 };
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{EventId, GameEvent, ResolutionStamp};
-use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
+use crate::engine::targeting::{instance_of, Announcement, ChosenTargets, DeclaredInstances};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::{ZoneSet, Zone};
@@ -158,15 +158,11 @@ impl ResolutionContext {
 #[derive(Debug)]
 struct ResolutionWalk {
     instance_cursor: usize,
-    /// While a chosen mode resolves, where its targets begin in the announced
-    /// list (`ModalNode::mode_scope_starts`), so a back-reference inside the
-    /// mode counts from the mode's first target; 0 outside a mode. A place
-    /// in that list, as `instance_cursor` is.
-    mode_scope_start: usize,
-    /// The modes CR 601.2b chose (`StackEntry::chosen_modes`), which the
-    /// `Modal` arm walks; `None` for an effect resolved with nothing
-    /// announced, which can have no modes chosen.
-    chosen_modes: Option<Vec<ModeIndex>>,
+    /// The modes CR 601.2b chose, each with what its instances of "target"
+    /// hold after CR 608.2b's re-check, which the `Modal` arm walks; `None`
+    /// for an effect resolved with nothing announced, which can have no modes
+    /// chosen.
+    chosen_modes: Option<Vec<(ModeIndex, ChosenTargets)>>,
     last_cost_answer: Option<CostAnswer>,
     /// The extra turn this resolution's last `ExtraTurn` scheduled: what
     /// "that turn" names (Final Fortune; CR 500.7).
@@ -189,7 +185,6 @@ impl ResolutionWalk {
     fn start() -> Self {
         ResolutionWalk {
             instance_cursor: 0,
-            mode_scope_start: 0,
             chosen_modes: None,
             last_cost_answer: None,
             extra_turn: None,
@@ -200,8 +195,9 @@ impl ResolutionWalk {
     }
 
     /// [`ResolutionWalk::start`] for an effect whose modes CR 601.2b chose:
-    /// the record a `Modal` node at its root resolves.
-    fn start_with_chosen_modes(chosen_modes: Vec<ModeIndex>) -> Self {
+    /// the record a `Modal` node at its root resolves, each mode with its
+    /// targets' survivors.
+    fn start_with_chosen_modes(chosen_modes: Vec<(ModeIndex, ChosenTargets)>) -> Self {
         ResolutionWalk { chosen_modes: Some(chosen_modes), ..ResolutionWalk::start() }
     }
 
@@ -238,28 +234,38 @@ impl GameState {
 
     /// [`Self::resolve_effect`] for a spell or ability leaving the stack.
     ///
-    /// `announced` is the entry's CR 601.2c record, so an atom finds its own
+    /// `announced` is the entry's CR 601.2b–c record, so an atom finds its own
     /// targets by the index the announcement filled and nothing is derived
-    /// from the tree — see `DeclaredInstances`. `chosen_modes` is its CR
-    /// 601.2b record, the modes a `Modal` node resolves.
+    /// from the tree — see `DeclaredInstances`. `ctx.targets` holds the
+    /// effect's own survivors and `mode_survivors` each chosen mode's, in the
+    /// order announced.
     ///
     /// Returns CR 118.12's last answer, which CR 603.2h's writer reads: an
     /// action declined is not an action taken.
     pub fn resolve_effect_with_announced_targets(
         &mut self,
         effect: &Effect,
-        announced: &[TargetInstance],
-        chosen_modes: &[ModeIndex],
+        announced: &Announcement,
+        mode_survivors: Vec<ChosenTargets>,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<Option<CostAnswer>, String> {
         // Only the node at the root was announced for (`Effect::modal`); any
         // other finds no modes, and is refused rather than taken as none.
-        let mut walk = match effect.modal() {
-            Some(_) => ResolutionWalk::start_with_chosen_modes(chosen_modes.to_vec()),
-            None => ResolutionWalk::start(),
+        let (mut walk, declared) = match announced {
+            Announcement::Modes(chosen) if effect.modal().is_some() => (
+                ResolutionWalk::start_with_chosen_modes(chosen.iter().map(|mode| mode.mode).zip(mode_survivors).collect()),
+                DeclaredInstances::Modes(chosen),
+            ),
+            Announcement::Targets(own) if effect.modal().is_none() => (ResolutionWalk::start(), DeclaredInstances::Announced(own)),
+            _ => {
+                return Err(format!(
+                    "{:?}'s announcement is not of its effect's shape: modes for a modal effect, targets for any other",
+                    ctx.source
+                ));
+            }
         };
-        self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut walk)?;
+        self.resolve_effect_at(effect, ctx, dp, declared, &mut walk)?;
         Ok(walk.last_cost_answer)
     }
 
@@ -402,7 +408,7 @@ impl GameState {
                 self.resolve_primitive(primitive, recipient, &chosen, ctx, dp, walk)
             }
             Effect::Atom(primitive, recipient) => {
-                match instance_of(recipient, declared, &mut walk.instance_cursor, walk.mode_scope_start) {
+                match instance_of(recipient, declared, &mut walk.instance_cursor) {
                     // The atom that declared the division acts by the shares;
                     // a later one naming its instance ("each of those
                     // creatures") reads the targets alone, as `clause` does.
@@ -559,29 +565,24 @@ impl GameState {
 
             // CR 700.2: the chosen modes in printed order and no others, as
             // though the spell were printed with only those (700.2c, 700.2d).
-            // A mode is its own instance scope, so its back-references count
-            // from its first instance; the instances run on across the modes
-            // as the announcement put them.
+            // A mode is its own instance scope: it resolves against its own
+            // announcement and survivors, its cursor from its first instance.
             Effect::Modal(node) => {
-                let Some(modes) = walk.chosen_modes.clone() else {
+                let (DeclaredInstances::Modes(announced), Some(survivors)) = (declared, walk.chosen_modes.clone()) else {
                     return Err(format!(
                         "{:?} reached a modal effect with no modes announced for it; a modal spell or ability resolves from the stack with its CR 601.2b record, and its node at its root",
                         ctx.source
                     ));
                 };
-                let starts = node.mode_scope_starts(&modes).ok_or_else(|| format!("{:?} chose a mode its effect does not print", ctx.source))?;
-                for (&place, start) in modes.iter().zip(starts) {
-                    let mode = node.mode(place).ok_or_else(|| format!("{:?} chose mode {place}, which its effect does not print", ctx.source))?;
-                    if walk.instance_cursor != start {
-                        return Err(format!(
-                            "{:?} reached mode {place} at instance {} of \"target\", where its scope begins at {start}",
-                            ctx.source, walk.instance_cursor
-                        ));
-                    }
-                    walk.mode_scope_start = start;
-                    self.resolve_effect_at(&mode.effect, ctx, dp, declared, walk)?;
+                for (chosen, (_, targets)) in announced.iter().zip(survivors) {
+                    let mode = node
+                        .mode(chosen.mode)
+                        .ok_or_else(|| format!("{:?} chose mode {}, which its effect does not print", ctx.source, chosen.mode))?;
+                    let in_mode = ResolutionContext { targets, ..ctx.clone() };
+                    let cursor = std::mem::replace(&mut walk.instance_cursor, 0);
+                    self.resolve_effect_at(&mode.effect, &in_mode, dp, DeclaredInstances::Announced(&chosen.targets), walk)?;
+                    walk.instance_cursor = cursor;
                 }
-                walk.mode_scope_start = 0;
                 Ok(())
             }
 
@@ -2373,7 +2374,7 @@ impl GameState {
     ) -> Result<Vec<ObjectOrPlayerId>, String> {
         let choosers: Vec<PlayerId> = match &choice.chooser {
             chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
-                match instance_of(chooser, declared, &mut walk.instance_cursor, walk.mode_scope_start) {
+                match instance_of(chooser, declared, &mut walk.instance_cursor) {
                     Some((ix, _)) => ctx
                         .targets
                         .instance(ix)
@@ -3003,7 +3004,7 @@ impl GameState {
             Condition::CostAnswer(answer) => walk.last_cost_answer == Some(*answer),
             // CR 700.2's record, which only the resolution has: "if you chose
             // [that mode]".
-            Condition::ModeChosen(mode) => walk.chosen_modes.as_ref().is_some_and(|modes| modes.contains(mode)),
+            Condition::ModeChosen(mode) => walk.chosen_modes.as_ref().is_some_and(|modes| modes.iter().any(|(chosen, _)| chosen == mode)),
             Condition::All(clauses) => clauses.iter().all(|c| self.resolution_condition_holds(c, ctx, walk)),
             // CR 109.5 — a resolving spell's or ability's "you" is its
             // controller, whatever has become of its source since; and the

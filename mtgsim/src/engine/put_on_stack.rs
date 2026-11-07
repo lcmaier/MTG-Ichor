@@ -20,9 +20,9 @@ use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
-use crate::engine::targeting::TargetInstance;
+use crate::engine::targeting::{Announcement, ChosenMode, TargetInstance};
 use crate::oracle::modes::legal_mode_sets;
-use crate::types::effects::{EffectRecipient, ModeChooser, ModeIndex, TargetCount};
+use crate::types::effects::{EffectRecipient, ModeChooser, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
@@ -194,7 +194,7 @@ impl GameState {
         // **each** target the spell requires", in printed order, because an
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
-        let (chosen_modes, targets) = match self.announce_modes_and_targets(
+        let announced = match self.announce_modes_and_targets(
             player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), dp,
         ) {
             Ok(announced) => announced,
@@ -209,8 +209,7 @@ impl GameState {
         let entry = StackEntry {
             object_id: card_id,
             controller: player_id,
-            chosen_targets: targets,
-            chosen_modes,
+            announced,
             x_value: has_x.then_some(x_value),
             effect: Arc::new(effect),
             is_spell: true,
@@ -387,14 +386,15 @@ impl GameState {
     /// CR 601.2b's modes, then 601.2c's targets, for `effect` on the stack
     /// object `source_id`: what [`Self::announce_targets`] announces for an
     /// effect with no modes. A modal one's chooser picks one of the legal
-    /// sets (`oracle::modes`, CR 700.2a), and each chosen mode's instances
-    /// follow `instances`, the effect's own, in printed order: a mode is its
-    /// own instance scope, so its "another target" reads only its own earlier
-    /// instances, and a division is announced inside it. The modes are in
-    /// printed order, which is the order they resolve in.
+    /// sets (`oracle::modes`, CR 700.2a), and each chosen mode announces its
+    /// own instances, in printed order: a mode is its own instance scope, so
+    /// its "another target" reads only its own earlier instances, and a
+    /// division is announced inside it. The modes are in printed order, which
+    /// is the order they resolve in.
     ///
     /// `Err` when no set of modes is legal, which the caller rewinds or, for
-    /// a trigger, removes (CR 603.3c).
+    /// a trigger, removes (CR 603.3c), and for a modal effect that declares
+    /// instances outside its node, which the registry refuses.
     pub(crate) fn announce_modes_and_targets(
         &self,
         player_id: PlayerId,
@@ -405,11 +405,14 @@ impl GameState {
         named_objects: ConditionReferents<'_>,
         x_value: Option<u64>,
         dp: &dyn DecisionProvider,
-    ) -> Result<(Vec<ModeIndex>, Vec<TargetInstance>), String> {
+    ) -> Result<Announcement, String> {
         let Some(node) = effect.modal() else {
             let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
-            return Ok((Vec::new(), targets));
+            return Ok(Announcement::Targets(targets));
         };
+        if !instances.is_empty() {
+            return Err(format!("{source_id}'s modal effect declares instances of \"target\" outside its modes; a modal node is all of its ability"));
+        }
         let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value);
         if sets.is_empty() {
             return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
@@ -418,12 +421,13 @@ impl GameState {
             ModeChooser::Controller => player_id,
         };
         let modes = ask_choose_modes(dp, self, chooser, source_id, sets);
-        let mut targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
-        for &mode in &modes {
-            let mode = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
-            targets.extend(self.announce_targets(player_id, source_id, this_object, &mode.instances, named_objects, x_value, dp)?);
+        let mut chosen = Vec::with_capacity(modes.len());
+        for mode in modes {
+            let printed = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
+            let targets = self.announce_targets(player_id, source_id, this_object, &printed.instances, named_objects, x_value, dp)?;
+            chosen.push(ChosenMode { mode, targets });
         }
-        Ok((modes, targets))
+        Ok(Announcement::Modes(chosen))
     }
 
     /// An amount the text defines, read as the announcement starts: a count
@@ -453,7 +457,7 @@ impl GameState {
     pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause, dp: &dyn DecisionProvider) -> Result<(), String> {
         let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
         let mut targeted: Vec<(ObjectOrPlayer, u32)> = Vec::new();
-        for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(TargetInstance::targets) {
+        for target in entry.announced.targets().filter(|instance| instance.is_targeted()).flat_map(TargetInstance::targets) {
             match targeted.iter_mut().find(|(seen, _)| *seen == target) {
                 Some((_, instances)) => *instances += 1,
                 None => targeted.push((target, 1)),
@@ -569,7 +573,7 @@ impl GameState {
 
         // CR 602.2b routes an activation through 601.2b–c, so an ability
         // announces its modes and instances exactly as a spell does.
-        let (chosen_modes, targets) = match self.announce_modes_and_targets(
+        let announced = match self.announce_modes_and_targets(
             player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, dp,
         ) {
             Ok(announced) => announced,
@@ -582,8 +586,7 @@ impl GameState {
         let stack_entry = StackEntry {
             object_id: ability_obj_id,
             controller: player_id,
-            chosen_targets: targets,
-            chosen_modes,
+            announced,
             x_value: None,
             effect: Arc::new(effect),
             is_spell: false,
@@ -972,9 +975,10 @@ mod tests {
 
         // StackEntry should have correct targets
         let entry = game.stack_entries.get(&card_id).unwrap();
-        assert_eq!(entry.chosen_targets.len(), 1, "one instance of \"target\"");
+        let instances: Vec<_> = entry.announced.targets().collect();
+        assert_eq!(instances.len(), 1, "one instance of \"target\"");
         assert_eq!(
-            entry.chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
+            instances[0].as_resolved_targets().collect::<Vec<_>>(),
             vec![ObjectOrPlayerId::Player(1)]
         );
         assert!(entry.is_spell);
