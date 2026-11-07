@@ -1175,7 +1175,7 @@ Where it differs from decision 6's words:
 
 ### `modes-chosen-and-resolved` — a mode chosen, targeted and resolved — ✅ landed 2026-11-07
 
-The first of `modal-spells-and-abilities`' two PRs: 2,035 lines of code and tests
+PR #318, the first of `modal-spells-and-abilities`' two: 2,035 lines of code and tests
 touched (1,882 added) against ~1,500–2,300.
 - **The node** (decision 2): `Effect::Modal(Box<ModalNode>)`, its count `Exactly`,
   `Range`, `X` or `RaisedIf`, its chooser `ModeChooser::Controller`, and each `Mode`

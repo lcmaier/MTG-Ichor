@@ -203,7 +203,7 @@ one means the engine's cost model moved
 ## The records, newest first
 
 **Re-recorded 2026-11-07 for `modes-chosen-and-resolved`, a mode chosen, targeted and resolved**
-(`choices/modes-chosen-and-resolved`: CR 700.2 and 603.3c, items 31 and 153). Abrade
+(`choices/modes-chosen-and-resolved`, PR #318: CR 700.2 and 603.3c, items 31 and 153). Abrade
 joins the performance pool (125 → 126), and Abrade, Cryptic Command, Casualties of War
 and Momentous Fall the registry, so both §3 columns are new baselines; six fixtures join
 `CASTABLE` and one leaves it. One `close_out.py` sitting against **main** `dade3822`:
