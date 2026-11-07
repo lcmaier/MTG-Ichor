@@ -245,7 +245,9 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<Option<CostAnswer>, String> {
-        let mut walk = ResolutionWalk::start(Some(chosen_modes.to_vec()));
+        // Only the node at the root was announced for (`Effect::modal`); any
+        // other finds no modes, and is refused rather than taken as none.
+        let mut walk = ResolutionWalk::start(effect.modal().map(|_| chosen_modes.to_vec()));
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut walk)?;
         Ok(walk.last_cost_answer)
     }
@@ -552,17 +554,23 @@ impl GameState {
             Effect::Modal(node) => {
                 let Some(modes) = walk.chosen_modes.clone() else {
                     return Err(format!(
-                        "{:?} reached a modal effect with no modes chosen; a modal spell or ability resolves from the stack with its CR 601.2b record",
+                        "{:?} reached a modal effect with no modes announced for it; a modal spell or ability resolves from the stack with its CR 601.2b record, and its node at its root",
                         ctx.source
                     ));
                 };
-                for mode in modes {
-                    let mode = node.mode(mode).ok_or_else(|| format!("{:?} chose mode {mode}, which its effect does not print", ctx.source))?;
-                    let enclosing = std::mem::replace(&mut walk.scope_start, walk.instance_cursor);
-                    let resolved = self.resolve_effect_at(&mode.effect, ctx, dp, declared, walk);
-                    walk.scope_start = enclosing;
-                    resolved?;
+                let starts = node.scope_starts(&modes).ok_or_else(|| format!("{:?} chose a mode its effect does not print", ctx.source))?;
+                for (&place, start) in modes.iter().zip(starts) {
+                    let mode = node.mode(place).ok_or_else(|| format!("{:?} chose mode {place}, which its effect does not print", ctx.source))?;
+                    if walk.instance_cursor != start {
+                        return Err(format!(
+                            "{:?} reached mode {place} at instance {} of \"target\", where its scope begins at {start}",
+                            ctx.source, walk.instance_cursor
+                        ));
+                    }
+                    walk.scope_start = start;
+                    self.resolve_effect_at(&mode.effect, ctx, dp, declared, walk)?;
                 }
+                walk.scope_start = 0;
                 Ok(())
             }
 
@@ -2982,6 +2990,9 @@ impl GameState {
     ) -> bool {
         match condition {
             Condition::CostAnswer(answer) => walk.last_cost_answer == Some(*answer),
+            // CR 700.2's record, which only the resolution has: "if you chose
+            // [that mode]".
+            Condition::ModeChosen(mode) => walk.chosen_modes.as_ref().is_some_and(|modes| modes.contains(mode)),
             Condition::All(clauses) => clauses.iter().all(|c| self.resolution_condition_holds(c, ctx, walk)),
             // CR 109.5 — a resolving spell's or ability's "you" is its
             // controller, whatever has become of its source since; and the

@@ -494,7 +494,6 @@ impl CardDataBuilder {
             }
             ordinal += 1;
             def.instances = def.effect.instances();
-            def.effect.fill_mode_instances();
         };
         let rules_text = &self.data.rules_text;
         let abilities = Arc::make_mut(&mut self.data.abilities);

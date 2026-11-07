@@ -218,7 +218,7 @@ pub fn could_be_a_mana_ability(def: &TriggerDef) -> bool {
         matches!(arm, TriggerEvent::ManaAdded { .. } | TriggerEvent::ActivatesAbility { mana_ability: None | Some(true), .. })
     };
     // A mode's targets are the ability's too, once chosen (CR 700.2c).
-    let modes_target = def.effect.modal().is_some_and(|node| node.modes.iter().any(|mode| !mode.effect.instances().is_empty()));
+    let modes_target = def.effect.modal().is_some_and(|node| node.modes.iter().any(|mode| !mode.instances.is_empty()));
     def.condition.events().iter().any(from_mana) && def.effect.instances().is_empty() && !modes_target && could_add_mana(&def.effect)
 }
 

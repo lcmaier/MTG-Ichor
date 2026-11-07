@@ -913,9 +913,10 @@ impl ModeIndex {
         u8::try_from(position + 1).ok().map(ModeIndex)
     }
 
-    /// Where the mode sits in its node's list, counting from 0.
-    pub fn position(self) -> usize {
-        usize::from(self.0).saturating_sub(1)
+    /// Where the mode sits in its node's list, counting from 0; `None` for a
+    /// place of 0, which names no mode.
+    fn position(self) -> Option<usize> {
+        usize::from(self.0).checked_sub(1)
     }
 }
 
@@ -927,8 +928,9 @@ impl std::fmt::Display for ModeIndex {
 }
 
 /// How many modes a modal ability's player chooses (CR 700.2), one arm a
-/// printed count rule. Where modes may not repeat (CR 700.2d), a count past
-/// the number of modes takes them all.
+/// printed count rule. Where modes may not repeat (CR 700.2d), a range's most
+/// past the number of modes takes them all, and a fewest past it allows no
+/// choice at all.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalCount {
     /// "Choose one", "choose two": that many different modes.
@@ -971,23 +973,40 @@ pub struct Mode {
     pub effect: Effect,
     /// The instances of "target" this mode declares, which only its choice
     /// announces (CR 700.2c), counted from the mode's first: a back-reference
-    /// inside a mode names one of its own. Filled by `CardDataBuilder::build`
-    /// in the pass that fills `AbilityDef::instances`, so neither a cast nor
-    /// castability walks the tree.
+    /// inside a mode names one of its own. Read off the effect as the mode is
+    /// made, so neither a cast nor castability walks the tree.
     pub instances: Vec<EffectRecipient>,
 }
 
 impl Mode {
-    /// A mode doing `effect`, its instances filled when its card is built.
+    /// A mode doing `effect`, with its instances of "target".
     pub fn new(effect: Effect) -> Mode {
-        Mode { effect, instances: Vec::new() }
+        let instances = effect.instances();
+        Mode { effect, instances }
     }
 }
 
 impl ModalNode {
     /// The mode printed at `mode`, if the node has one.
     pub fn mode(&self, mode: ModeIndex) -> Option<&Mode> {
-        self.modes.get(mode.position())
+        self.modes.get(mode.position()?)
+    }
+
+    /// Where each of the `chosen` modes' instances begin among the
+    /// announcement's, each mode's after the last's: the scope its
+    /// back-references and "another target" count in. A modal node is all of
+    /// its ability, so the first begins at 0. `None` for a mode the node does
+    /// not print. The resolution and CR 608.2b's re-check both read this.
+    pub fn scope_starts(&self, chosen: &[ModeIndex]) -> Option<Vec<usize>> {
+        let mut start = 0;
+        chosen
+            .iter()
+            .map(|&mode| {
+                let this = start;
+                start += self.mode(mode)?.instances.len();
+                Some(this)
+            })
+            .collect()
     }
 
     /// Every mode with its printed place, in printed order.
@@ -2920,24 +2939,6 @@ impl Effect {
             Effect::FunctionsIn(_, inner) => inner.modal(),
             Effect::Triggered(def) => def.effect.modal(),
             _ => None,
-        }
-    }
-
-    /// Fill each mode's instance list off its effect, at the root
-    /// [`Self::modal`] reads: `CardDataBuilder::build`'s, with
-    /// `AbilityDef::instances`.
-    pub(crate) fn fill_mode_instances(&mut self) {
-        match self {
-            Effect::Modal(node) => {
-                for mode in &mut node.modes {
-                    mode.instances = mode.effect.instances();
-                }
-            }
-            Effect::FunctionsIn(_, inner) => inner.fill_mode_instances(),
-            // A card's defs are built before anything shares them, so
-            // `make_mut` writes in place here.
-            Effect::Triggered(def) => std::sync::Arc::make_mut(def).effect.fill_mode_instances(),
-            _ => {}
         }
     }
 

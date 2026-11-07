@@ -8,7 +8,20 @@
 
 use std::cell::RefCell;
 
+use mtgsim::cards::authoring::{
+    activated_ability, choose, choose_one, creature, destroy, draw_cards, enchantment, gain_life, gets, spell_ability, tap, target_creature,
+    target_permanent, you,
+};
 use mtgsim::cards::fixtures::{branching_beacon, forked_omen, hesitant_omen, kindled_option, mode_lever, tally_of_choices};
+use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::events::cause::GeneratedBy;
+use mtgsim::objects::card_data::CardDataBuilder;
+use mtgsim::oracle::characteristics::get_effective_abilities;
+use mtgsim::oracle::mana_helpers::{can_activate, CannotActivate};
+use mtgsim::types::card_types::CardType;
+use mtgsim::types::costs::Cost;
+use mtgsim::types::effects::{Condition, Effect, ModalCount, ObjectFilter};
+use mtgsim::types::mana::ManaCost;
 use mtgsim::cards::printings::{abrade, casualties_of_war, cryptic_command, forest, grizzly_bears, hill_giant, paladin_of_atonement};
 use mtgsim::oracle::mana_helpers::{can_cast, CannotCast};
 use mtgsim::oracle::x_values::LegalXValues;
@@ -145,8 +158,24 @@ fn a_modal_trigger_with_no_legal_mode_is_removed() {
     let mut game = setup_two_player_game();
     cast_and_resolve(&mut game, forked_omen(), &[(ManaType::Black, 2)]);
 
+    assert_eq!(game.pending_triggers.len(), 1, "it triggered");
     assert!(!game.place_pending_triggers(&test_dp()).expect("the placement runs"), "nothing was placed");
-    assert!(game.stack.is_empty());
+    assert!(game.stack.is_empty() && game.pending_triggers.is_empty());
+}
+
+/// The same trigger with a creature to destroy: its second mode is the one
+/// legal set, and it is placed.
+#[test]
+fn a_modal_trigger_with_a_legal_mode_is_placed() {
+    let mut game = setup_two_player_game();
+    let giant = put_on_battlefield(&mut game, hill_giant(), 1);
+    cast_and_resolve(&mut game, forked_omen(), &[(ManaType::Black, 2)]);
+
+    assert!(game.place_pending_triggers(&test_dp()).expect("the trigger is placed"));
+    let trigger = *game.stack.last().expect("on the stack");
+    assert_eq!(game.stack_entries[&trigger].chosen_modes, modes(&[2]));
+    game.resolve_top_of_stack(&test_dp()).expect("the trigger resolves");
+    assert_eq!(game.get_object(giant).unwrap().zone, Zone::Graveyard);
 }
 
 /// CR 603.3c's other removal: "choose up to one" lets its controller choose
@@ -176,20 +205,19 @@ fn a_modal_activation_announces_its_modes_before_its_targets() {
     let mut game = setup_two_player_game();
     let lever = put_on_battlefield(&mut game, mode_lever(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    put_on_battlefield(&mut game, hill_giant(), 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
-    // The bears are the one creature, so the target is not asked.
     let answers = ScriptedDecisionProvider::new();
     chooses_modes(&answers, &[1]);
+    names_targets(&answers, vec![ChoiceOption::Object(bears)]);
     let stop = ManaWindowStop::new(answers);
     game.activate_ability(0, lever, 0, &stop).expect("{1} and the tap pay it");
     let kinds: Vec<&str> = stop.inner().asked().iter().map(ChoiceKind::as_str).collect();
-    assert_eq!(kinds, ["ChooseModes"]);
+    assert_eq!(kinds, ["ChooseModes", "SelectRecipients"]);
 
     let ability = *game.stack.last().expect("on the stack");
     assert_eq!(game.stack_entries[&ability].chosen_modes, modes(&[1]));
-    let targets: Vec<ObjectOrPlayerId> = game.stack_entries[&ability].chosen_targets.iter().flat_map(|i| i.as_resolved_targets()).collect();
-    assert_eq!(targets, vec![ObjectOrPlayerId::Object(bears)], "the chosen mode's target, announced after the mode");
     game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
     assert_eq!(mtgsim::oracle::characteristics::get_effective_power(&game, bears), Some(3));
     assert_eq!(game.players[0].life_total, 20, "the other mode did nothing");
@@ -295,9 +323,10 @@ fn a_count_of_x_past_the_modes_rewinds_the_cast() {
 // Decision 3: the chosen modes resolve, each its own instance scope
 // ---------------------------------------------------------------------------
 
-/// ATOM-700.2c-001: a mode not chosen announces no target, so the creature
-/// its target would have been is never asked about and is untouched.
-// COVERS: ATOM-700.2c-001
+/// A mode not chosen announces no target, so the creature its target would
+/// have been is never asked about and is untouched. The chosen mode targets a
+/// player here; Cryptic Command's untargeted pair is the atom's own board.
+// COVERS-PARTIAL: ATOM-700.2c-001
 #[test]
 fn an_unchosen_modes_target_is_never_announced() {
     let mut game = setup_two_player_game();
@@ -321,11 +350,12 @@ fn an_unchosen_modes_target_is_never_announced() {
 /// A mode is its own instance scope: the second mode's "then discards a
 /// card" names the mode's own first instance, which is the spell's second
 /// when both modes are chosen. Read from the spell's first, it would name the
-/// creature.
+/// creature. The artifact that raised the count leaves before the spell
+/// resolves, and both modes still do: the count was read as they were chosen.
 #[test]
 fn a_modes_back_reference_names_its_own_first_instance() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, mode_lever(), 0);
+    let lever = put_on_battlefield(&mut game, mode_lever(), 0);
     let giant = put_on_battlefield(&mut game, hill_giant(), 1);
     fill_library(&mut game, 1, 3);
     let option = put_in_hand(&mut game, kindled_option(), 0);
@@ -341,6 +371,7 @@ fn a_modes_back_reference_names_its_own_first_instance() {
         game.stack_entries[&option].chosen_targets.iter().map(|instance| instance.as_resolved_targets().collect()).collect();
     assert_eq!(targets, vec![vec![ObjectOrPlayerId::Object(giant)], vec![ObjectOrPlayerId::Player(1)]], "mode 1's first");
 
+    game.change_zone(lever, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the artifact leaves");
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(damage_on(&game, giant), 2);
     assert!(game.players[1].hand.is_empty(), "the card drawn was discarded");
@@ -367,6 +398,115 @@ fn a_chosen_mode_whose_target_left_does_nothing_and_the_rest_resolves() {
 
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(game.players[1].graveyard.len(), 1, "the second mode still drew and discarded");
+}
+
+/// "Another target" inside a mode excludes the mode's own earlier target, at
+/// CR 608.2b's re-check as at the announcement. The first mode targets the
+/// second creature; the second mode taps the first creature and then
+/// "another target creature", the second. Read against the spell's first
+/// instance instead of the mode's, the second creature would be excluded at
+/// the re-check and left untapped.
+#[test]
+fn another_target_inside_a_mode_excludes_only_that_modes_targets() {
+    let mut game = setup_two_player_game();
+    let first = put_on_battlefield(&mut game, hill_giant(), 1);
+    let second = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let another = creature().and(ObjectFilter::OtherThanInstance(0));
+    let card = invented_instant(
+        "Choose one or both —\n• Target creature gets +1/+1 until end of turn.\n• Tap target creature. Tap another target creature.",
+        choose(
+            ModalCount::Range { fewest: 1, most: 2 },
+            [
+                gets(target_creature(), 1, 1).until_end_of_turn(),
+                Effect::Sequence(vec![tap(target_permanent(creature())), tap(target_permanent(another))]),
+            ],
+        ),
+    );
+    let spell = put_in_hand(&mut game, card, 0);
+    game.players[0].mana_pool.add(ManaType::Red, 1);
+
+    // The second mode's "another" has one creature left, so it is not asked.
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2]);
+    names_targets(&answers, vec![ChoiceOption::Object(second)]);
+    names_targets(&answers, vec![ChoiceOption::Object(first)]);
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
+    assert_eq!(game.stack_entries[&spell].instance_scope_starts(), Ok(vec![0, 1]));
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert!(game.battlefield[&first].tapped);
+    assert!(game.battlefield[&second].tapped, "its other target, the mode's own second");
+}
+
+/// "If you chose [that mode]" reads the record the announcement wrote.
+#[test]
+fn a_condition_on_a_chosen_mode_reads_the_modes_chosen() {
+    for (chosen, drew) in [(&[1u8, 2][..], 1), (&[2u8][..], 0)] {
+        let mut game = setup_two_player_game();
+        fill_library(&mut game, 0, 3);
+        let first = ModeIndex::printed(1);
+        let card = invented_instant(
+            "Choose one or both —\n• You gain 2 life.\n• If you chose the first mode, draw a card.",
+            choose(
+                ModalCount::Range { fewest: 1, most: 2 },
+                [gain_life(you(), 2), Effect::Conditional(Condition::ModeChosen(first), Box::new(draw_cards(you(), 1)))],
+            ),
+        );
+        let spell = put_in_hand(&mut game, card, 0);
+        game.players[0].mana_pool.add(ManaType::Red, 1);
+        let answers = ScriptedDecisionProvider::new();
+        chooses_modes(&answers, chosen);
+        game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
+        let hand = game.players[0].hand.len();
+        game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+        assert_eq!(game.players[0].hand.len(), hand + drew, "modes {chosen:?}");
+    }
+}
+
+/// A modal node anywhere but its ability's root was announced for by
+/// nothing, so it is refused rather than resolved as a choice of none.
+#[test]
+fn a_modal_node_below_the_root_is_refused_at_resolution() {
+    let mut game = setup_two_player_game();
+    let source = put_in_hand(&mut game, hill_giant(), 0);
+    let effect = Effect::Sequence(vec![choose_one([gain_life(you(), 1), gain_life(you(), 2)])]);
+    let ctx = ResolutionContext::untargeted(source, 0, GeneratedBy::Spell);
+    let refused = game.resolve_effect_with_announced_targets(&effect, &[], &[], &ctx, &test_dp());
+    assert!(refused.is_err_and(|why| why.contains("no modes announced")));
+    assert_eq!(game.players[0].life_total, 20);
+}
+
+/// A modal activation every mode of which targets is not offered on a board
+/// with nothing to target (CR 700.2a, 602.2b).
+#[test]
+fn a_modal_activation_with_no_legal_mode_is_not_offered() {
+    let mut game = setup_two_player_game();
+    let text = "{T}: Choose one —\n• Destroy target creature.\n• Destroy target enchantment.";
+    let card = CardDataBuilder::new("Two-Way Lever")
+        .card_type(CardType::Artifact)
+        .rules_text(text)
+        .ability(activated_ability(
+            text,
+            vec![Cost::TapSelf],
+            choose_one([destroy(target_creature()), destroy(target_permanent(enchantment()))]),
+        ))
+        .build();
+    let lever = put_on_battlefield(&mut game, card, 0);
+    let ability = |game: &GameState| get_effective_abilities(game, lever)[0].clone();
+    assert_eq!(can_activate(&game, 0, lever, &ability(&game)), Err(CannotActivate::NoLegalModes));
+
+    put_on_battlefield(&mut game, hill_giant(), 1);
+    assert_eq!(can_activate(&game, 0, lever, &ability(&game)), Ok(()));
+}
+
+/// An instant of `text` doing `effect` for {R}, a test's own.
+fn invented_instant(text: &'static str, effect: Effect) -> std::sync::Arc<mtgsim::objects::card_data::CardData> {
+    CardDataBuilder::new("Invented Modal Instant")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 0))
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(text, effect))
+        .build()
 }
 
 // ---------------------------------------------------------------------------
@@ -412,8 +552,10 @@ fn abrade_is_offered_only_while_one_of_its_modes_can_be_chosen() {
 
 /// Cryptic Command with no spell on the stack: its first mode can't be
 /// chosen, so each pair of the other three is offered, two different modes
-/// each, and a pair that targets nothing announces nothing.
+/// each, and a pair that targets nothing announces nothing though a creature
+/// it could have bounced is there (ATOM-700.2c-001's board).
 // RULING: Cryptic Command #1 - "You choose both modes as you cast Cryptic Command. You must choose two different modes."
+// COVERS: ATOM-700.2c-001
 #[test]
 fn cryptic_command_offers_each_pair_of_different_modes() {
     let mut game = setup_two_player_game();

@@ -151,22 +151,24 @@ impl StackEntry {
         self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
     }
 
-    /// Where each chosen mode's instances begin in `chosen_targets`: after the
-    /// effect's own, each mode's following the last's, as the announcement put
-    /// them. Empty for an effect with no modes.
-    pub fn instance_scope_starts(&self) -> Vec<usize> {
-        let Some(node) = self.effect.modal() else { return Vec::new() };
-        let in_modes: usize = self.chosen_modes.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.instances.len()).sum();
-        let mut start = self.chosen_targets.len().saturating_sub(in_modes);
-        self.chosen_modes
-            .iter()
-            .filter_map(|&mode| node.mode(mode))
-            .map(|mode| {
-                let this = start;
-                start += mode.instances.len();
-                this
-            })
-            .collect()
+    /// Where each chosen mode's instances begin in `chosen_targets`
+    /// (`ModalNode::scope_starts`), empty for an effect with no modes. `Err`
+    /// for an entry whose chosen modes are not what its effect prints, or
+    /// whose announcement holds another number of instances than they declare.
+    pub fn instance_scope_starts(&self) -> Result<Vec<usize>, String> {
+        let Some(node) = self.effect.modal() else { return Ok(Vec::new()) };
+        let starts = node
+            .scope_starts(&self.chosen_modes)
+            .ok_or_else(|| format!("{} chose a mode its effect does not print", self.object_id))?;
+        let declared: usize = self.chosen_modes.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.instances.len()).sum();
+        if declared != self.chosen_targets.len() {
+            return Err(format!(
+                "{}'s chosen modes declare {declared} instances of \"target\", and its announcement holds {}",
+                self.object_id,
+                self.chosen_targets.len()
+            ));
+        }
+        Ok(starts)
     }
 
     /// The player who cast this spell: the controller it was put on the stack
@@ -3030,6 +3032,38 @@ mod tests {
 };
         assert!(entry.cost_choices.alternative.is_none());
         assert!(entry.cost_choices.additional.is_empty());
+    }
+
+    /// Each chosen mode's scope begins where the last's instances end, and
+    /// an announcement holding another number of instances than the chosen
+    /// modes declare, or a mode the effect does not print, is refused rather
+    /// than read.
+    #[test]
+    fn a_stack_entrys_mode_scopes_are_the_chosen_modes_instances() {
+        use crate::engine::targeting::TargetInstance;
+        use crate::types::effects::ModeIndex;
+
+        let effect = crate::objects::card_data::spell_effect(&crate::cards::fixtures::kindled_option().abilities).unwrap();
+        let mut entry = StackEntry {
+            object_id: crate::types::ids::new_object_id(),
+            controller: 0,
+            chosen_targets: Vec::new(),
+            chosen_modes: vec![ModeIndex::printed(1), ModeIndex::printed(2)],
+            x_value: None,
+            effect: Arc::new(effect),
+            is_spell: true,
+            cost_choices: crate::state::battlefield::CostChoices::NONE,
+            mana_spent: ManaSpent::NONE,
+            cast_from: Some(Zone::Hand),
+            ability_identity: None,
+            trigger: None,
+        };
+        assert!(entry.instance_scope_starts().is_err(), "two modes of one instance each, and none announced");
+        let player = crate::types::effects::EffectRecipient::Target(crate::types::effects::SelectionFilter::Player, crate::types::effects::TargetCount::Exactly(1));
+        entry.chosen_targets = vec![TargetInstance::new(player.clone(), Vec::new()), TargetInstance::new(player, Vec::new())];
+        assert_eq!(entry.instance_scope_starts(), Ok(vec![0, 1]));
+        entry.chosen_modes = vec![ModeIndex::printed(0), ModeIndex::printed(2)];
+        assert!(entry.instance_scope_starts().is_err(), "a place of 0 names no mode");
     }
 
     /// Each layer card lowered to the rows its text describes.
