@@ -258,7 +258,16 @@ fixes refusing every cost below 0 life under Platinum Angel, seeds 12366 and 125
 table above is after that fix, and it is also the first run of `assert_frames_agree`
 once its bite test had shown it could fail.
 
-**Size**: 2,543 added and 487 deleted in `mtgsim/src` and `mtgsim/tests`, 3,030 touched,
+**Rerun after the owner's first review round (2026-11-07), on `165f71ef`:**
+summoning sickness moved from the {T} and {Q} costs to where an activation begins
+(CR 602.5a). Predicted IDENTICAL and a budget within 0.2 points of +0.13%. Gameplay
+held: shipped against sixb IDENTICAL on both pools at both seats, the checked sittings
+as above. The budget first read **+0.35%** with `Memo hits` up 3%: the mana supply read
+every tapped land's characteristics for a sickness its tapped status had settled.
+Asking the resources first took it to **+0.24%** (0.8437 M → 0.8457 M), `Memo hits`
+up 31 to 195 a game, the activation check reading sickness ahead of the costs.
+
+**Size**: 2,657 added and 550 deleted in `mtgsim/src` and `mtgsim/tests`, 3,207 touched,
 past the band's top. The design sized 600–1,100. What it did not size: the pool as a walk
 input, the paid record and `ValueOf` with item 30's sacrifice, three watchers' readers in
 the commute check, and the exhaustive `PaymentChannels` matches over every `Cost`, `AmountExpr`,
