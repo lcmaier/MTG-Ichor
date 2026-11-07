@@ -213,8 +213,14 @@ jobs:
       # Each run's second half starts every game from the template's board,
       # whose setup action casts a Bolt first, so the scenario loader and the
       # setup driver are under the same check (`setup-architecture.md` §8).
+      #
+      # `shell: bash` is what adds `pipefail`. An inline step's default shell
+      # is `bash -e`, under which the pipeline's status is `sed`'s: a harness
+      # that crashed in all three runs passed, and `diff` compared whatever it
+      # printed before it died.
       - name: Determinism — three runs at one seed, three hasher seeds
         if: steps.changes.outputs.code == 'true'
+        shell: bash
         run: |
           for i in 1 2 3; do
             { MTGSIM_HASH_SEED="$i" cargo run --locked --release --bin fuzz_games -- --games 50 --seed 12345
