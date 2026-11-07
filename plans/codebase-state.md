@@ -10603,8 +10603,9 @@ and no row before it.
 All 378 unregistered deck cards written against the tree,
 `plans/references/card-census/results/gap-census.md`, which lists each item's
 cards. Each of these has a deck card and no row before it, and each was tried
-once more before it was filed. The census sees a card's blockers only up to its
-first row not built, so a list here can grow as rows land.
+once more before it was filed. Every ability nothing wrote was then read, and the
+doubtful ones written alone, which is where items 405 and 406 came from. The census
+sees a card's blockers only as far as that, so a list here can grow as rows land.
 
 392. **A target can't be a card off the battlefield, or an ability.**
      `SelectionFilter` offers permanents, players, spells and damage sources, so
@@ -10632,25 +10633,27 @@ first row not built, so a list here can grow as rows land.
 
 394. **A filter compares only power, and only to a fixed number.**
      `ObjectFilter::PowerLE` takes an `i32`. No leaf reads mana value (Despark, Sun
-     Titan, Tocasia's Welcome), compares to an amount (the life you lost, Betor; a
-     spell's mana value, Hammerhead Tyrant; the chosen number, Expel the Interlopers;
-     mentor's "lesser power", Legion Warboss), or asks whether a permanent is tapped
-     (Mana Geyser). `backlog.md` §2.43's leaf is the other filter the decks ask for.
+     Titan, Tocasia's Welcome) or toughness (Colfenor's Urn), compares to an amount
+     (the life you lost, Betor; a spell's mana value, Hammerhead Tyrant; the chosen
+     number, Expel the Interlopers; mentor's "lesser power", Legion Warboss), or asks
+     whether a permanent is tapped (Mana Geyser). `backlog.md` §2.43's leaf is the
+     other filter the decks ask for.
 
      **Reachability (2026-11-06):** unreachable — no registered card writes one.
-     **Sized:** ~150–220 lines: three leaves, each with `filter_reads`' arm.
-     **Slotted:** `tarkir-dragonstorm-decks`.
+     **Sized:** ~170–250 lines: four leaves, each with `filter_reads`' arm.
+     **Slotted:** `tarkir-dragonstorm-decks`, its cheap gaps at step 9's close.
 
 395. **No condition counts what you control.** `PlayerFact::ControlsPermanent` asks
      for one: "two or more basic lands", "six or more lands" and "three or more
-     Dragons" have no arm, on 11 deck cards, 9 of them lands. A condition around an
+     Dragons" have no arm, on 12 deck cards, 9 of them lands. A condition around an
      entry replacement works, so the lands asking for one are writable.
 
      **Reachability (2026-11-06):** unreachable — no registered card asks for two.
      **Sized:** ~30–50 lines: a count on the fact.
-     **Slotted:** `tarkir-dragonstorm-decks`.
+     **Slotted:** `tarkir-dragonstorm-decks`, its cheap gaps at step 9's close.
 
-396. **Five things no condition can ask.** Whose turn it is (Baldin, Kishla Skimmer);
+396. **Five things no condition can ask.** Whose turn it is (Baldin, Kishla Skimmer,
+     Essence Anchor);
      the object a trigger is about ("if that spell's power is 4 or greater", Eshki;
      "if it was attacking", Zurgo, whose mobilize plays); who has the most life
      (dethrone, Scourge of the Throne); who attacked you last turn (Weathered
@@ -10658,25 +10661,28 @@ first row not built, so a list here can grow as rows land.
 
      **Reachability (2026-11-06):** unreachable — no registered card asks one.
      **Sized:** ~155–235 lines: a `Condition` arm each.
-     **Slotted:** `tarkir-dragonstorm-decks`.
+     **Slotted:** `tarkir-dragonstorm-decks`: whose turn it is at its cheap gaps, the
+     rest at the five decks.
 
 397. **`AmountExpr::CountOf` counts only the battlefield and a hand.** Over a
      graveyard it is refused at resolution, and as a static ability it panics as the
      card lowers ("has no static-context evaluator"), which only a lowering walk or
      the first game with the card shows. Haughty Djinn, Multani, Jarad, Lord of
-     Extinction, Consuming Aberration and Crypt of Agadeem ask for it.
+     Extinction, Consuming Aberration, Crypt of Agadeem and Cephalid Coliseum's
+     threshold ask for it.
 
      **Reachability (2026-11-06):** unreachable — no registered card counts a graveyard.
      **Sized:** ~80–120 lines: both evaluators, and what a count off the battlefield
      depends on for the layer memo.
-     **Slotted:** `tarkir-dragonstorm-decks`.
+     **Slotted:** `tarkir-dragonstorm-decks`, its cheap gaps at step 9's close.
 
 398. **Eight amounts have no arm.** A value over a set, greatest or total (Arbor
-     Adherent, Towering Titan, Will of the Abzan, Will of the Temur), which
-     `cost-architecture.md` owes to Phase 8; a difference (Jaws of Defeat); your
+     Adherent, Towering Titan, Mosswort Bridge, Will of the Abzan, Will of the Temur),
+     which `cost-architecture.md` owes to Phase 8; a difference (Jaws of Defeat); your
      opponents (Chittering Witch); a spell's targets (Voracious Bibliophile); colors
-     among permanents (Faeburrow Elder); cards put into a graveyard this turn (Welcome
-     the Dead); tokens created this turn (Thalisse, Idol of Oblivion); and an X/X
+     among permanents (Faeburrow Elder); cards put into or leaving a graveyard this
+     turn (Welcome the Dead, Essence Anchor); tokens created this turn (Thalisse, Idol
+     of Oblivion); and an X/X
      token (Manaform Hellkite), since `TokenDef`'s power and toughness are fixed.
 
      **Reachability (2026-11-06):** unreachable — no registered card writes one.
@@ -10690,7 +10696,7 @@ first row not built, so a list here can grow as rows land.
 
      **Reachability (2026-11-06):** unreachable — no registered card prints it.
      **Sized:** ~60–100 lines: a static read at the assignment.
-     **Slotted:** `tarkir-dragonstorm-decks`.
+     **Slotted:** `tarkir-dragonstorm-decks`, its cheap gaps at step 9's close.
 
 400. **"For each [object]" is refused at resolution.** `Effect::ForEach`'s arm errors,
      and `resolution-recipients-and-amounts` builds it over players only, its note
@@ -10706,7 +10712,7 @@ first row not built, so a list here can grow as rows land.
      condition is the wrong word: as an intervening "if", a third spell in response
      stops it, which the text does not. `TriggerLimit::FirstTimeEachTurn` reads on a
      cast, and `readings_its_arms_cannot_give` refuses it on a zone change (Crawling
-     Sensation).
+     Sensation) and an attack (Scourge of the Throne).
 
      **Reachability (2026-11-06):** unreachable — no registered card asks either.
      **Sized:** ~70–110 lines: `DrawFilter::NthThisTurn`'s shape on the cast arm, and
@@ -10725,7 +10731,8 @@ first row not built, so a list here can grow as rows land.
 
      **Reachability (2026-11-06):** unreachable — no registered card prints one.
      **Sized:** ~640–1,020 lines, each with its card.
-     **Slotted:** `tarkir-dragonstorm-decks`.
+     **Slotted:** `tarkir-dragonstorm-decks`: surveil at its cheap gaps, the rest at the
+     five decks.
 
 403. **Two rules of a step no effect can change.** CR 502.3's untap reads only the
      active player, and a trigger cannot stand in for Seedborn Muse: nothing resolves
@@ -10737,14 +10744,33 @@ first row not built, so a list here can grow as rows land.
      **Sized:** ~100–160 lines: a query at the untap, and the emptying's event.
      **Slotted:** `tarkir-dragonstorm-decks`.
 
-404. **Five words one card each asks.** "If that spell is countered this way, exile
+404. **Six words one card each asks.** "If that spell is countered this way, exile
      it instead" (Transcendent Dragon): a replacement made first does not reach the
      spell, on either zone-change pattern. "When you cycle this card" (Dismantling
      Wave). "Choose an opponent at random" (Territorial Hellkite). "Have all activated
      abilities of all land cards exiled with this creature" (Steward of the Harvest).
      "Chooses any number with total power 4 or less, then sacrifices all other
      creatures" (Slaughter the Strong), `ChoiceSide`'s other arm and a pick's total.
+     "Whose controller was dealt combat damage by this creature" (Steel Hellkite).
 
      **Reachability (2026-11-06):** unreachable — no registered card asks one.
-     **Sized:** ~300–490 lines, each with its card.
+     **Sized:** ~330–540 lines, each with its card.
+     **Slotted:** `tarkir-dragonstorm-decks`.
+
+405. **No instruction exiles the top of a library.** `Mill` and
+     `PutTopCardsIntoHand` name top cards and `Primitive::Exile` takes a recipient,
+     and no recipient is "the top N": `exile` over `each_in` resolves and moves nothing
+     (item 350). Atsushi, Gix, Grenzo, Neriv, Parapet Thrasher and Zenith Festival print
+     it, each the first half of an impulse draw whose second half is a cast.
+
+     **Reachability (2026-11-06):** unreachable — no registered card exiles a top card.
+     **Sized:** ~40–70 lines: the primitive and its zone-change act.
+     **Slotted:** `casting-from-other-zones`, whose permission is its other half.
+
+406. **Only an ability's source can deal its damage.** `Primitive::DealDamage` holds an
+     amount and no source, so "it deals" of another object has no word (CR 120.1): the
+     entering Dragon on Dragon Tempest, the goaded attacker on Vengeful Ancestor.
+
+     **Reachability (2026-11-06):** unreachable — no registered card asks it.
+     **Sized:** ~30–50 lines: a source on the primitive, from an event role.
      **Slotted:** `tarkir-dragonstorm-decks`.

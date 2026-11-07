@@ -25,7 +25,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
 `route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `tarkir-dragonstorm-decks`' gap census; `modes-plus-choice-kinds`, `mana-provenance`'s design before its `costs-and-choices-at-resolution`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`; `information-model-design`, `information-model`;
-`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
+`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; the decks' cheap gaps; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
 then `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
 `casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks, `decks-in-fuzz-games`; `devgui-at-five-seats`, `mana-payment-solver`.
@@ -52,16 +52,16 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 6 | `linked-abilities` | to come | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 4–7 |
-| 9 | `permission-design` and 5 more | to come | 7–13 |
+| 9 | `permission-design` and 6 more | to come | 8–15 |
 | 10 | `player-scoped-values` and 2 more | to come | 3–6 |
 | 11 | `combat-restrictions` and 4 more | to come | 9–14 |
 | 12 | `rulings-for-every-card` | to come | 3–6 |
 | 14 | `chosen-color-plus-could-produce` and 3 more | to come | 6–9 |
 | 15 | `casting-from-other-zones` and 3 more | to come | 6–10 |
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
-| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 16–40 |
+| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **43 rows to come** | **73–137** |
+| | **To v0.5** | **44 rows to come** | **73–138** |
 
 **Deck cards registered: 7 of 385**,
 the five lists' distinct cards less basics.
@@ -229,14 +229,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 454 |
+| Numbered items | 456 |
 | …closed, still recorded | 273 |
-| …open — unreachable, and says why | 122 |
+| …open — unreachable, and says why | 124 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 35 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 175 of 181 |
+| …open, carrying an explicit `**Sized:**` | 177 of 183 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -250,7 +250,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 168 |
+| …slotted to a phase or roadmap row still to come | 170 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

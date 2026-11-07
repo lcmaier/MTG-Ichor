@@ -101,6 +101,11 @@ and what proves a card writable.
 - **It sees a card's blockers only up to its first row not built.** A card waiting on
   `information-model` may hold another blocker behind the search, so each row's
   card-by-card hunt finishes the list. No card's list is complete past its first row.
+- **Most of what is not writable was read, not written.** Of the 287 cards waiting,
+  148 hold no written ability. Every ability nothing wrote was read once the census
+  had finished, and the doubtful clauses written alone: that added 28 needs on 25
+  cards, 18 on what was already known and 10 on four new gaps. A reading is still all
+  that holds a clause behind a row.
 - **What is proved is that writable cards are writable.** Nothing proves a blocked
   card needs only what it lists: a row's name on a card with no clause to write is
   a reading of its text. Writing corrected the reading both ways: a check land read

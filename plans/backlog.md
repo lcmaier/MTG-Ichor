@@ -2927,7 +2927,7 @@ reaches nothing once Humility has removed it. No `ObjectFilter` leaf can say
 | **Size** | a leaf, ~100–150 lines with tests. Besides its arm in `object_filter::evaluate`, the compiler asks for two: `filter_reads`, on the abilities and keywords channels, and `EntryWrites::unmatches`, where keyword counters and CV-2b's "has flying" exceptions start to unmatch it. The test is Kwende beside a first-strike grant, then under Humility |
 | **Blocks** | the census's `ability-filter` class, 7 cards in Commander; the 7c anthems that name a keyword ("creatures you control with flying get +1/+1") need the same leaf, and close no loop, since they read the layer before theirs |
 | **Atoms** | none filed |
-| **Owner** | `tarkir-dragonstorm-decks`: four `tdc` cards filter by flying (Dragon Tempest, Frontier Siege, Harbinger of the Hunt, Will of the Temur; Scryfall, 2026-11-01). The leaf's CR 613.8a(b) dependency is `layers-architecture.md`'s |
+| **Owner** | `tarkir-dragonstorm-decks`, its cheap gaps at step 9's close: 13 deck cards by the gap census, four of them filtering by flying (Dragon Tempest, Frontier Siege, Harbinger of the Hunt, Will of the Temur; Scryfall, 2026-11-01). The leaf's CR 613.8a(b) dependency is `layers-architecture.md`'s |
 
 ### 2.44 Sagas and dungeons, the state-based actions that wait on a trigger
 

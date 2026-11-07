@@ -293,7 +293,7 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 6. **`linked-abilities`** | below | Before every card that remembers a choice adds a field of its own |
 | 7. **`resolution-recipients-and-amounts`**, then **`mana-ability-costs`**, **`mana-provenance`**, **`any-color-plus-painlands-plus-signets`** | below, `mana-architecture.md` | On #295's settled design, after steps 5 and 6, whose types it writes. Then the mana that frees the most deck cards for the fewest PRs: any-color mana alone is 62 `tdc` cards, and `mana-ability-costs` widens the check the others extend (the owner, at #224's and #225's reviews; moved up from step 14, 2026-11-06, #314) |
 | 8. **`information-model-design`**, then **`information-model`** | A, B | 39 `tdc` cards, the dev GUI's one-player view and an AI's observation read through it |
-| 9. **`permission-design`**, with **`card-and-object-model`**, `text-changing-effects`' design, `cant-cast-play-or-activate`'s reasons and CR 610.5's grant at cast designed beside it; **`command-zone-casting`**, **`game-formats`**, **`multiplayer-rules`**, with teams designed in it | `permission-architecture.md`, below, B | One cast path for who may cast what and which characteristics it is cast with; then a commander cast from the command zone (CR 903.8), Commander at any number of seats, and CR 800 and 802 |
+| 9. **`permission-design`**, with **`card-and-object-model`**, `text-changing-effects`' design, `cant-cast-play-or-activate`'s reasons and CR 610.5's grant at cast designed beside it; **`command-zone-casting`**, **`game-formats`**, **`multiplayer-rules`**, with teams designed in it, then the decks' cheap gaps | `permission-architecture.md`, below, B | One cast path for who may cast what and which characteristics it is cast with; then a commander cast from the command zone (CR 903.8), Commander at any number of seats, and CR 800 and 802 |
 | 10. **`player-scoped-values`**, then **`cant-be-targeted`**, then **`cant-cast-play-or-activate`** | `cant-effects-architecture.md` | `tdc`'s cards need both |
 | 11. **`combat-restrictions`**, **`cant-pay-costs`**, **`combat-requirements`** with costs to attack (CR 508.1g–h), then **`as-though-effects`**'s permission half, then **`layers-combat-and-counters`** | `cant-effects-architecture.md`, B, below | Combat's "can't"s are the largest family (1,267 of 1,277 Tier-1a clauses), and `as-though-effects` is cut against them; a cost to attack is paid as the declaration is made, so it is designed with the declaration's solver; row 7's combat builds read the declaration `combat-requirements` reshapes |
 | 12. **`rulings-for-every-card`** | §C | Every registered card's rulings tested before the decks add the rest of their 385 |
@@ -317,7 +317,10 @@ release. **v1 is when Phase 10 is done** (the owner, 2026-10-29).
 rulings, in a PR of its own after the row, and step 17 is what is left (the owner,
 2026-11-06, #314: better for manual testing and morale). Not before: the rows up
 to it reshape what 9 of the card pilot's 20 cards are written in. Each row's list is
-`plans/references/card-census/results/gap-census.md`, which a row's hunt finishes.
+`plans/references/card-census/results/gap-census.md`, which a row's hunt finishes. No
+deck goes first: a row registers what it unlocks, and a steady stream of playable
+cards is the measure (the owner, 2026-11-06, #315). So the small gaps go at step 9's
+close, where they free cards for the same PRs, and the rest wait for step 17.
 
 **Only these bind:** `combat-restrictions`, then `cant-pay-costs`, then `combat-requirements`; `as-though-effects` after `combat-requirements`; `hybrid-and-phyrexian-payment` carries
 `as-though-effects`'s payment half; `card-and-object-model`'s design before any of the card model's builds, which frees face-down from waiting on `double-faced-cards`; `double-faced-cards`' transform half before `token-copies`, `spell-copies` and face-down's manifest half; `double-faced-cards`, then `merging-and-meld`;
@@ -759,6 +762,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 9 | `command-zone-casting` | | 1–3 | rides `permission-design` | may | Guess until `permission-design` sizes it. Nearest: CM-1, the first sweep on the cast, one PR at 1,783, and six items wait on the cast path's shape |
 | 9 | `game-formats` | | 2–3 | no | likely | Sum: six items at 265–325, about 1,000 at 3×, on top of formats as data, deck validation, the legality table and the designation |
 | 9 | `multiplayer-rules` | | 2–4 | rides, for teams | likely | Sum: 650–890 at 3× is 2,000–2,700, one item unsized and item 342's ~195 filter sites in it. The route's 1 is a count before design |
+| 9 | `tarkir-dragonstorm-decks`, the cheap gaps | | 1–2 | no | may | Sum: ten gaps of items 394–397, 399, 402 and `backlog.md` §2.43, 515–795 at 3× is 1,545–2,385. Moved up from step 17 on the owner's yes (2026-11-06, #315): nothing built before them is unbuilt by them, and they free cards on their own |
 | 10 | `player-scoped-values` | | 1–2 | rides | may | Nearest: RF, a query beside the oracle layer, one PR at 1,429 |
 | 10 | `cant-be-targeted` | | 1–2 | no | may | Nearest: RS-1. One enforcement site and two enumerations, and CR 702's three keywords. Item 392's target in a graveyard, 18 deck cards, rewrites the same two functions: 400–650 at 3× is 1,200–1,950 |
 | 10 | `cant-cast-play-or-activate` | | 1–2 | at `permission-design` | may | Sum: 230–250 at 3×, two items unsized, over one site for each of three arms since SU-7 |
@@ -779,31 +783,31 @@ name for, and a phase of the critical path that no Row cell names.
 | 16 | `split-and-adventure-style-cards`, split and Omen | | 1–3 | at `card-and-object-model` | may | Guess: `backlog.md` §2.41 says about a PR a mechanic, and the decks print a split card and two Omens |
 | 16 | `face-down-and-morph`, manifest | | 1–2 | at `card-and-object-model` | may | Guess: the layer half is small and known, and manifest has no cast |
 | 16 | `card-and-object-model`, an Aura on a player | | 1 | no | no | Sum: 350–450 at 3× is about 1,200, with Curse of Opulence |
-| 17 | `tarkir-dragonstorm-decks`, the five decks | | 15–39 | census | yes | Nearest: the registered cards. A bare card and one test is 18 + 35 lines and a commented card with three tests 47 + 105, so 60–140 a card. The 378 left at 2,500 and 1,700 a PR are 10–31. Sum: the gaps slotted here, items 389–391 and 393–404 with `backlog.md`'s three, are 2,810–4,500 at 3×, 5–8 PRs. From step 9's close these PRs land beside the rows that unlock them, so this count falls as the board's deck count rises. `plans/references/card-census/results/gap-census.md` |
+| 17 | `tarkir-dragonstorm-decks`, the five decks | | 14–38 | census | yes | Nearest: the registered cards. A bare card and one test is 18 + 35 lines and a commented card with three tests 47 + 105, so 60–140 a card. The 378 left at 2,500 and 1,700 a PR are 10–31. Sum: the gaps slotted here, items 389–391, 393, 396, 398, 400–404 and 406 with `backlog.md`'s two, are 2,375–3,835 at 3×, 4–7 PRs. From step 9's close these PRs land beside the rows that unlock them, so this count falls as the board's deck count rises. `plans/references/card-census/results/gap-census.md` |
 | 17 | `decks-in-fuzz-games` | | 1 | no | no | Guess: a flag, a seat per list and `game-formats`' setup |
 | 18 | `devgui-at-five-seats` | | 1–2 | no | may | Nearest: #214's seats, 297 lines, and SU-6's window work, 546, for a command zone and commander damage |
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-06:** 73–137 route PRs, 15–39 of them the
-decks' cards.
+**What the rows sum to, read 2026-11-06:** 73–138 route PRs, 15–40 of them the
+decks' cards and gaps.
 
 **Overhead.** A route PR is one that builds a row of this table, or of the cleanup
 plan whose last rows joined it, so work is counted the way the rows left are. Of
 177 merge commits in the eight weeks to #313, 87 were on the route, 27 the dev
 GUI, 36 audit, 13 process and docs, and 14 detours: 2.0 merged PRs for each route
 PR, and 36% audit, process and detours. The item 6 audit's plan said 13–20 PRs and
-ran to 28, its cleanup builds among them. At that rate the route is 146–274 merged
+ran to 28, its cleanup builds among them. At that rate the route is 146–276 merged
 PRs. Held to about 1.5 for each route PR, with audits on a budget, the process PR
-at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–206. So
+at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–207. So
 **about 110–275 merged PRs**.
 
 **A date, and what it assumes.** The route ran 10.9 PRs a week over those eight
 weeks and 5 in its slowest fortnight, the dev GUI's. 73 PRs at the first pace is
-about 7 weeks and 137 at the second 27, so **between about New Year and mid-May
-2027**. Each range's midpoint, 105 PRs at 8 a week, gives early February. It
+about 7 weeks and 138 at the second 28, so **between about New Year and late May
+2027**. Each range's midpoint, 106 PRs at 8 a week, gives early February. It
 assumes the owner's review keeps pace and no row's design doubles it as TR-5's did.
-The gap census held the date: its gaps are 5–8 PRs where the five-decks row guessed
+The gap census held the date: its gaps are 5–9 PRs where the five-decks row guessed
 5–10, and it sees a card's blockers only up to its first row not built, so each
 row's hunt can still add to them.
 

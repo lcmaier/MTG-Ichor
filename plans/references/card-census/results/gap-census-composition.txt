@@ -75,7 +75,7 @@ unwritten: {G}: Target creature with defender can attack this turn as though it 
 === Atarka, World Render (whole, writable)
 [triggered] "Whenever a Dragon you control attacks, it gains double strike until end of turn." costs [] => Triggered(TriggerDef { condition: Event(Attacks { attacker: Filter(And(BySubtype(Creature(Dragon)), ByController(You))), defender: None, occurrence: Attacker, alone: false, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(GrantKeywordFlag(DoubleStrike, UntilEndOfTurn), Triggering(Attacker)) })
 
-=== Atsushi, the Blazing Sky (face, blocked)
+=== Atsushi, the Blazing Sky (face, gap)
 unwritten: When Atsushi dies, choose one — • Exile the top two cards of your library. Until the end of your next turn, you may play those cards. • Create three Treasure tokens.
 
 === Avenger of Zendikar (whole, writable)
@@ -211,7 +211,7 @@ unwritten: {U/R}, {T}: Add {U}{U}, {U}{R}, or {R}{R}.
 [mana] "{T}: Add {W} or {B}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 [mana] "{T}: Add {W} or {B}. This land deals 1 damage to you." costs [TapSelf] => Sequence([Atom(ProduceMana(ManaOutput { mana: [(Black, Fixed(1))], special: [] }), Implicit), Atom(DealDamage { amount: Fixed(1), unpreventable: false }, Controller)])
 
-=== Cephalid Coliseum (face, blocked)
+=== Cephalid Coliseum (face, gap)
 unwritten: {T}: Add {U}. This land deals 1 damage to you.
 unwritten: Threshold — {U}, {T}, Sacrifice this land: Target player draws three cards, then discards three cards. Activate only if there are seven or more cards in your graveyard.
 
@@ -232,7 +232,7 @@ unwritten: This land enters tapped unless you control two or more basic lands.
 [mana] "{T}: Add {R} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {R} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 
-=== Colfenor's Urn (part, blocked)
+=== Colfenor's Urn (part, gap)
 unwritten: At the beginning of the end step, if three or more cards have been exiled with this artifact, sacrifice it. If you do, return those cards to the battlefield under their owner's control.
 [triggered] "Whenever a creature with toughness 4 or greater is put into your graveyard from the battlefield, you may exile it." costs [] => Triggered(TriggerDef { condition: Event(ZoneChange { subject: Filter(And(ByType(Creature), ByOwner(You))), change: ZoneChangePattern { from: Some(Battlefield), to: Some(Graveyard), act: None }, by: None, owner: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(Exile, Triggering(Object)) } })
 
@@ -481,14 +481,14 @@ unwritten: {T}: Add {G} or {W}.
 === Frontier Siege (face, gap)
 unwritten: As this enchantment enters, choose Khans or Dragons. • Khans — At the beginning of each of your main phases, add {G}{G}. • Dragons — Whenever a creature you control with flying enters, you may have it fight target creature you don't control.
 
-=== Gadrak, the Crown-Scourge (face, blocked)
+=== Gadrak, the Crown-Scourge (face, gap)
 unwritten: Gadrak can't attack unless you control four or more artifacts.
 unwritten: At the beginning of your end step, create a Treasure token for each nontoken creature that died this turn.
 
 === Ghostly Prison (face, blocked)
 unwritten: Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.
 
-=== Gix, Yawgmoth Praetor (face, blocked)
+=== Gix, Yawgmoth Praetor (face, gap)
 unwritten: Whenever a creature deals combat damage to one of your opponents, its controller may pay 1 life. If they do, they draw a card.
 unwritten: {4}{B}{B}{B}, Discard X cards: Exile the top X cards of target opponent's library. You may play lands and cast spells from among cards exiled this way without paying their mana costs.
 
@@ -522,7 +522,7 @@ unwritten: Whenever this creature deals combat damage to a player, create a Trea
 unwritten: This creature can't block.
 unwritten: You may cast this card from your graveyard as long as you control a Zombie.
 
-=== Grenzo, Havoc Raiser (face, blocked)
+=== Grenzo, Havoc Raiser (face, gap)
 unwritten: Whenever a creature you control deals combat damage to a player, choose one — • Goad target creature that player controls. • Exile the top card of that player's library. Until end of turn, you may cast that card and you may spend mana as though it were mana of any color to cast that spell.
 
 === Grisly Salvage (face, blocked)
@@ -752,7 +752,7 @@ unwritten: {T}, Mill a card: Add {C}.
 === Mossfire Valley (whole, blocked)
 [mana] "{1}, {T}: Add {R}{G}." costs [Mana(ManaCost { symbols: [Generic] }), TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1)), (Green, Fixed(1))], special: [] }), Implicit)
 
-=== Mosswort Bridge (face, blocked)
+=== Mosswort Bridge (face, gap)
 unwritten: Hideaway 4
 unwritten: This land enters tapped.
 unwritten: {T}: Add {G}.
@@ -843,7 +843,7 @@ unwritten: This land enters tapped unless you control two or more other lands.
 [mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Green, Fixed(1))], special: [] }), Implicit)
 [mana] "{T}: Add {G} or {W}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(White, Fixed(1))], special: [] }), Implicit)
 
-=== Parapet Thrasher (face, blocked)
+=== Parapet Thrasher (face, gap)
 unwritten: Whenever one or more Dragons you control deal combat damage to an opponent, choose one that hasn't been chosen this turn — • Destroy target artifact that opponent controls. • This creature deals 4 damage to each other opponent. • Exile the top card of your library. You may play it this turn.
 
 === Path of Ancestry (part, blocked)
@@ -1322,10 +1322,10 @@ unwritten: Whenever Ureni enters or attacks, look at the top eight cards of your
 [mana] "{T}: Add {C}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Colorless, Fixed(1))], special: [] }), Implicit)
 [activated] "{2}{W}{B}, {T}: Creatures you control gain deathtouch and lifelink until end of turn." costs [Mana(ManaCost { symbols: [Generic, Generic, Colored(White), Colored(Black)] }), TapSelf] => Sequence([Atom(GrantKeywordFlag(Deathtouch, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You)))), Atom(GrantKeywordFlag(Lifelink, UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))])
 
-=== Velomachus Lorehold (face, blocked)
+=== Velomachus Lorehold (face, gap)
 unwritten: Whenever Velomachus Lorehold attacks, look at the top seven cards of your library. You may cast an instant or sorcery spell with mana value less than or equal to Velomachus Lorehold's power from among them without paying its mana cost. Put the rest on the bottom of your library in a random order.
 
-=== Vengeful Ancestor (face, blocked)
+=== Vengeful Ancestor (face, gap)
 unwritten: Whenever this creature enters or attacks, goad target creature.
 unwritten: Whenever a goaded creature attacks, it deals 1 damage to its controller.
 
@@ -1436,7 +1436,7 @@ unwritten: This creature escapes with two +1/+1 counters on it.
 === Young Pyromancer (whole, writable)
 [triggered] "Whenever you cast an instant or sorcery spell, create a 1/1 red Elemental creature token." costs [] => Triggered(TriggerDef { condition: Event(CastsSpell { caster: Some(You), spell: Some(Or(ByType(Instant), ByType(Sorcery))) }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [Red], types: [Creature], subtypes: [Creature(Elemental)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(1)), Controller) })
 
-=== Zenith Festival (face, blocked)
+=== Zenith Festival (face, gap)
 unwritten: Exile the top X cards of your library. You may play them until the end of your next turn.
 unwritten: Harmonize {X}{R}{R}
 

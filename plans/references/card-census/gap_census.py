@@ -60,6 +60,9 @@ RECORDS = HERE / "results" / "gap-census-records.jsonl"
 REPORT = HERE / "results" / "gap-census.md"
 COMPOSITION = HERE / "results" / "gap-census-composition.txt"
 DECKS_ROW = "tarkir-dragonstorm-decks"
+#: The Sizing table's row of the small gaps built at step 9's close, which shares
+#: its name with the decks' other rows.
+CHEAP_GAPS = "the cheap gaps"
 GAP_PREFIX = "gap:"
 #: What a run's line carries that no table reads.
 UNREAD = ("made_by", "written", "games")
@@ -92,17 +95,18 @@ GAPS = {
     "modes-target-different-players": Gap(DECKS_ROW, "item 393", 40, 80),
     "targets-with-a-total": Gap(DECKS_ROW, "item 393", 80, 120),
     "target-by-kicker": Gap(DECKS_ROW, "item 393", 60, 100),
-    "filter-by-keyword": Gap(DECKS_ROW, "`backlog.md` 2.43", 100, 150),
-    "filter-mana-value": Gap(DECKS_ROW, "item 394", 40, 60),
-    "filter-against-an-amount": Gap(DECKS_ROW, "item 394", 80, 120),
-    "filter-tapped": Gap(DECKS_ROW, "item 394", 30, 40),
-    "condition-counts-permanents": Gap(DECKS_ROW, "item 395", 30, 50),
-    "during-your-turn": Gap(DECKS_ROW, "item 396", 15, 25),
+    "filter-by-keyword": Gap(CHEAP_GAPS, "`backlog.md` 2.43", 100, 150),
+    "filter-mana-value": Gap(CHEAP_GAPS, "item 394", 40, 60),
+    "filter-against-an-amount": Gap(CHEAP_GAPS, "item 394", 80, 120),
+    "filter-tapped": Gap(CHEAP_GAPS, "item 394", 30, 40),
+    "filter-toughness": Gap(CHEAP_GAPS, "item 394", 20, 30),
+    "condition-counts-permanents": Gap(CHEAP_GAPS, "item 395", 30, 50),
+    "during-your-turn": Gap(CHEAP_GAPS, "item 396", 15, 25),
     "condition-on-the-triggering-object": Gap(DECKS_ROW, "item 396", 40, 60),
     "condition-most-life": Gap(DECKS_ROW, "item 396", 30, 40),
     "attacked-you-last-turn": Gap(DECKS_ROW, "item 396", 40, 60),
     "count-of-attackers-at-you": Gap(DECKS_ROW, "item 396", 30, 50),
-    "count-off-the-battlefield": Gap(DECKS_ROW, "item 397", 80, 120),
+    "count-off-the-battlefield": Gap(CHEAP_GAPS, "item 397", 80, 120),
     "value-over-a-set": Gap(DECKS_ROW, "item 398", 80, 120),
     "amount-difference": Gap(DECKS_ROW, "item 398", 20, 30),
     "amount-opponents": Gap(DECKS_ROW, "item 398", 15, 25),
@@ -111,12 +115,12 @@ GAPS = {
     "amount-cards-put-in-graveyard": Gap(DECKS_ROW, "item 398", 40, 60),
     "tokens-created-this-turn": Gap(DECKS_ROW, "item 398", 30, 50),
     "token-with-an-amount": Gap(DECKS_ROW, "item 398", 50, 80),
-    "assigns-damage-by-toughness": Gap(DECKS_ROW, "item 399", 60, 100),
+    "assigns-damage-by-toughness": Gap(CHEAP_GAPS, "item 399", 60, 100),
     "for-each-object": Gap(DECKS_ROW, "item 400", 120, 200),
     "nth-spell-each-turn": Gap(DECKS_ROW, "item 401", 40, 60),
-    "first-time-each-turn-on-a-zone-change": Gap(DECKS_ROW, "item 401", 30, 50),
+    "first-time-each-turn": Gap(DECKS_ROW, "item 401", 30, 50),
     "monstrosity": Gap(DECKS_ROW, "item 402", 80, 120),
-    "surveil": Gap(DECKS_ROW, "item 402", 60, 100),
+    "surveil": Gap(CHEAP_GAPS, "item 402", 60, 100),
     "proliferate": Gap(DECKS_ROW, "item 402", 100, 150),
     "connive": Gap(DECKS_ROW, "item 402", 60, 100),
     "riot": Gap(DECKS_ROW, "item 402", 40, 70),
@@ -130,6 +134,9 @@ GAPS = {
     "random-opponent": Gap(DECKS_ROW, "item 404", 30, 50),
     "has-activated-abilities-of-cards": Gap(DECKS_ROW, "item 404", 120, 200),
     "choose-with-a-total-the-rest-acts": Gap(DECKS_ROW, "item 404", 80, 120),
+    "whose-controller-was-dealt-damage": Gap(DECKS_ROW, "item 404", 30, 50),
+    "exile-top-cards": Gap("casting-from-other-zones", "item 405", 40, 70),
+    "damage-by-another-object": Gap(DECKS_ROW, "item 406", 30, 50),
     "entry-counters-amount": Gap(DECKS_ROW, "item 389", 30, 60),
     "amount-differently-named-tokens": Gap(DECKS_ROW, "item 390", 40, 80),
     "dredge": Gap(DECKS_ROW, "`backlog.md` 2.49", 300, 500),
@@ -221,6 +228,10 @@ def amend(card, add, remove):
     print(f"{card}: {', '.join(record['needs']) or 'no needs'}")
 
 
+def row_name(sized):
+    return CHEAP_GAPS if CHEAP_GAPS in sized.row else re.match(r"`([^`]+)`", sized.row).group(1)
+
+
 def route():
     """The rows to come by name as `SizedRow`s, the names landed, and the rows to
     come in order. A name's last row wins, so `mana-provenance` is its build and
@@ -230,7 +241,7 @@ def route():
         sys.exit("\n".join(problems))
     rows, landed = {}, set()
     for sized in parsed:
-        name = re.match(r"`([^`]+)`", sized.row).group(1)
+        name = row_name(sized)
         if sized.landed:
             landed.add(name)
             rows.pop(name, None)
@@ -376,7 +387,7 @@ def row_table(needs_by_card, rows, to_come):
     for row in sorted(needs_it, key=lambda n: (rows[n].step, n)):
         out.append(f"| {rows[row].step} | `{row}` | {len(needs_it[row])} | {len(unlocks[row])} | {', '.join(sorted(unlocks[row]))} |")
     out.append("")
-    unnamed = [r.row for r in to_come if re.match(r"`([^`]+)`", r.row).group(1) not in needs_it]
+    unnamed = [r.row for r in to_come if row_name(r) not in needs_it]
     out += ["**No card named these rows.** The census stops at a card's first row not built, so this is what it saw and no more: " + ", ".join(unnamed) + ".", ""]
     return out
 
