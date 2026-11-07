@@ -28,7 +28,7 @@ pub(crate) fn legal_mode_sets(
     let mut sets = Vec::new();
     walk_legal_sets(game, node, player, this_object, named, x_value, &mut |set| {
         sets.push(set.to_vec());
-        true
+        KeepGoing::Yes
     });
     sets
 }
@@ -45,12 +45,21 @@ pub(crate) fn has_a_legal_mode_set(
     let mut found = false;
     walk_legal_sets(game, node, player, this_object, named, x_value, &mut |_| {
         found = true;
-        false
+        KeepGoing::No
     });
     found
 }
 
-/// Each legal set in [`legal_mode_sets`]' order, until `f` returns `false`.
+/// Whether a walk over the sets of modes goes on to the next set.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum KeepGoing {
+    Yes,
+    No,
+}
+
+/// Hands `visit` each legal set in [`legal_mode_sets`]' order, stopping when
+/// it says to. The two callers differ only in `visit`: the list keeps every
+/// set, castability stops at the first.
 fn walk_legal_sets(
     game: &GameState,
     node: &ModalNode,
@@ -58,7 +67,7 @@ fn walk_legal_sets(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
-    f: &mut impl FnMut(&[ModeIndex]) -> bool,
+    visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing,
 ) {
     let Some((fewest, most)) = set_sizes(game, &node.count, player, this_object, named, x_value) else { return };
     // A size past the modes left is no set: a mode is chosen once.
@@ -71,7 +80,7 @@ fn walk_legal_sets(
         .map(|(place, _)| place)
         .collect();
     for size in fewest..=most.min(legal.len()) {
-        if !for_each_set_of(&legal, size, f) {
+        if for_each_combination(&legal, size, visit) == KeepGoing::No {
             return;
         }
     }
@@ -105,24 +114,26 @@ fn set_sizes(
     }
 }
 
-/// Each `size`-mode subset of `legal`, its modes in `legal`'s order, the
-/// subsets in lexicographic order, until `f` returns `false`; whether it ran
-/// to the end.
-fn for_each_set_of(legal: &[ModeIndex], size: usize, f: &mut impl FnMut(&[ModeIndex]) -> bool) -> bool {
+/// Hands `visit` every way to pick `size` of the modes in `legal`, each in
+/// printed order: from modes 1, 2 and 4, two at a time, that is {1, 2},
+/// {1, 4}, {2, 4}, in that order. Returns `KeepGoing::No` when `visit` stopped
+/// it, so the walk does not go on to the next size.
+fn for_each_combination(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing) -> KeepGoing {
     if size > legal.len() {
-        return true;
+        return KeepGoing::Yes;
     }
     let mut picks: Vec<usize> = (0..size).collect();
     let mut set: Vec<ModeIndex> = Vec::with_capacity(size);
     loop {
         set.clear();
         set.extend(picks.iter().map(|&at| legal[at]));
-        if !f(&set) {
-            return false;
+        if visit(&set) == KeepGoing::No {
+            return KeepGoing::No;
         }
-        // The rightmost pick that can still move right, and every pick after
-        // it packed in behind it.
-        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return true };
+        // `picks` are positions in `legal`, rising. The next combination
+        // moves the rightmost pick that has room one step right, and packs
+        // every pick after it in behind it; none has room after the last.
+        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return KeepGoing::Yes };
         picks[moves] += 1;
         for i in moves + 1..size {
             picks[i] = picks[i - 1] + 1;
@@ -140,9 +151,9 @@ mod tests {
 
     fn sets_of(legal: &[u8], size: usize) -> Vec<Vec<ModeIndex>> {
         let mut out = Vec::new();
-        for_each_set_of(&modes(legal), size, &mut |set| {
+        for_each_combination(&modes(legal), size, &mut |set| {
             out.push(set.to_vec());
-            true
+            KeepGoing::Yes
         });
         out
     }
