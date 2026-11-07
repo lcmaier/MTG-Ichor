@@ -22,7 +22,7 @@
 use std::collections::HashMap;
 
 use crate::engine::actions::ActionContext;
-use crate::engine::audit::{assert_frames_agree, permanents_as_they_are, Frames};
+use crate::engine::audit::{assert_frames_agree, orders_to_audit, permanents_as_they_are, Frames};
 use crate::engine::layers::types::ContinuousEffect;
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
 use crate::oracle::characteristics::controller_or_owner;
@@ -31,10 +31,6 @@ use crate::types::effects::ObjectSet;
 use crate::types::ids::{IdSet, ObjectId, PlayerId, Timestamp};
 use crate::ui::ask::ask_order_simultaneous_entries;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
-
-/// The most objects `audit_entry_orders` tries every order of. Past it the
-/// audit tries the reverse alone: 120 walks a batch is plenty.
-const MOST_AUDITED_OBJECTS: usize = 5;
 
 impl GameState {
     /// CR 613.7m for `stamped`, the objects a batch just moved or created, in
@@ -131,11 +127,8 @@ impl GameState {
     /// after, whole. A difference is a timestamp read where this module says
     /// none is.
     fn audit_entry_orders(&self, objects: &[ObjectId]) {
-        let orders: Vec<Vec<ObjectId>> = if objects.len() <= MOST_AUDITED_OBJECTS {
-            crate::engine::payment_order::orders_of(objects.len()).into_iter().map(|order| order.into_iter().map(|at| objects[at]).collect()).collect()
-        } else {
-            vec![objects.iter().rev().copied().collect()]
-        };
+        let orders: Vec<Vec<ObjectId>> =
+            orders_to_audit(objects.len()).into_iter().map(|order| order.into_iter().map(|at| objects[at]).collect()).collect();
         let (dealt, others) = self.unobserved(|| {
             let others: Vec<_> = orders.iter().map(|order| (order, self.permanents_after_dealing(order))).collect();
             (self.permanents_after_dealing(objects), others)

@@ -82,6 +82,35 @@ impl GameState {
     }
 }
 
+/// The most things an audit tries in every order of, 120 orders, each a clone
+/// of the game played forward. Every order of n things is n! of them, and a
+/// fuzz run cannot pay that past here: 6 is 720 clones and 8 is 40,320, at
+/// every payment or batch that size.
+const MOST_AUDITED_IN_EVERY_ORDER: usize = 5;
+
+/// The orders of `n` things an audit of an order tries, as places in the
+/// order it was handed: every one up to [`MOST_AUDITED_IN_EVERY_ORDER`], and
+/// past it that order and its reverse.
+pub(crate) fn orders_to_audit(n: usize) -> Vec<Vec<usize>> {
+    if n > MOST_AUDITED_IN_EVERY_ORDER {
+        return vec![(0..n).collect(), (0..n).rev().collect()];
+    }
+    let mut orders = vec![Vec::new()];
+    for thing in 0..n {
+        orders = orders
+            .into_iter()
+            .flat_map(|order: Vec<usize>| {
+                (0..=order.len()).map(move |at| {
+                    let mut longer = order.clone();
+                    longer.insert(at, thing);
+                    longer
+                })
+            })
+            .collect();
+    }
+    orders
+}
+
 /// What objects are, by id, whole: what an audit that replays an order
 /// compares. Keyed, since which came first is no difference.
 pub(crate) type Frames = HashMap<ObjectId, Arc<EffectiveCharacteristics>>;

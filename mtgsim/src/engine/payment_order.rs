@@ -22,7 +22,7 @@
 use std::ops::{BitOr, BitOrAssign};
 
 use crate::engine::actions::{ActionContext, GameActionKind, GameActionKindMask};
-use crate::engine::audit::{assert_frames_agree, assert_shortcut_agrees, permanents_as_they_are, Frames};
+use crate::engine::audit::{assert_frames_agree, assert_shortcut_agrees, orders_to_audit, permanents_as_they_are, Frames};
 use crate::engine::costs::{Payment, PaymentPlan};
 use crate::engine::layers::cda::pt_amounts;
 use crate::engine::layers::types::{ContinuousEffect, EffectModification, EffectOrigin, PtValue};
@@ -40,10 +40,6 @@ use crate::types::zones::{Zone, ZoneSet};
 use crate::ui::ask::ask_order_cost_payments;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, CostPart, Rejection};
 use crate::ui::decision::FirstLegalAnswer;
-
-/// The most parts `audit_payment_orders` pays in every order of, 120 clones.
-/// Past it the audit tries the plan's order and its reverse.
-const MOST_AUDITED_PARTS: usize = 5;
 
 /// The channels a payment's parts can change, and so all a reader is asked
 /// about here, as `engine::layers::board`'s `Channels` are what a layer can
@@ -617,9 +613,8 @@ impl GameState {
         source: ObjectId,
     ) {
         let n = plan.ordered.len();
-        let every_order = if n <= MOST_AUDITED_PARTS { orders_of(n) } else { vec![(0..n).collect(), (0..n).rev().collect()] };
         let keeps_chosen = |order: &[usize]| order.iter().filter(|part| chosen.contains(part)).eq(chosen.iter());
-        let orders: Vec<Vec<usize>> = every_order.into_iter().filter(|order| must.part_left_unpaid_by(order).is_none() && keeps_chosen(order)).collect();
+        let orders: Vec<Vec<usize>> = orders_to_audit(n).into_iter().filter(|order| must.part_left_unpaid_by(order).is_none() && keeps_chosen(order)).collect();
         let Some((first, others)) = orders.split_first() else { return };
         let (first, others) = self.unobserved(|| {
             let first = self.board_after_paying(plan, first, player, source);
@@ -697,24 +692,6 @@ impl GameState {
         }
         lines
     }
-}
-
-/// Every order of `n` things.
-pub(crate) fn orders_of(n: usize) -> Vec<Vec<usize>> {
-    let mut orders = vec![Vec::new()];
-    for part in 0..n {
-        orders = orders
-            .into_iter()
-            .flat_map(|order: Vec<usize>| {
-                (0..=order.len()).map(move |at| {
-                    let mut longer = order.clone();
-                    longer.insert(at, part);
-                    longer
-                })
-            })
-            .collect();
-    }
-    orders
 }
 
 #[cfg(test)]
