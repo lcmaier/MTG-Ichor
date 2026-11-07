@@ -360,15 +360,19 @@ impl GameState {
     /// the game, among the orders that complete, and otherwise the plan's
     /// own, recorded as not asked. Taken after the plan's other choices, since
     /// which permanent pays a sacrifice decides whether an order matters.
-    pub(super) fn settle_payment_order(&self, plan: &mut PaymentPlan, player: PlayerId, source: ObjectId, ctx: &ActionContext) {
+    ///
+    /// Refused when no order completes: two parts have chosen one object, so
+    /// whichever is paid first leaves the other unpayable, and "unpayable costs
+    /// can't be paid". Refused here, before anything has moved, so that the
+    /// failure comes ahead of every payment that cannot be taken back.
+    pub(super) fn settle_payment_order(&self, plan: &mut PaymentPlan, player: PlayerId, source: ObjectId, ctx: &ActionContext) -> Result<(), String> {
         if plan.ordered.len() < 2 {
-            return;
+            return Ok(());
         }
         let parts: Vec<Part> =
             plan.ordered.iter().enumerate().map(|(place, cost)| self.part_of(cost, plan.sacrifices.get(&place).map(Vec::as_slice), source)).collect();
-        // No order completes: two parts want one object, whichever the plan
-        // pays first. Item 78's, and the payment refuses it.
-        let Some(must) = MustPrecede::closed(self.direct_edges(plan, &parts, player)) else { return };
+        let must = MustPrecede::closed(self.direct_edges(plan, &parts, player))
+            .ok_or_else(|| format!("No order pays {:?}: two parts use one object", plan.ordered))?;
 
         let n = parts.len();
         let mut asked = vec![false; n];
@@ -392,7 +396,7 @@ impl GameState {
             if self.audit_on() {
                 self.audit_payment_orders(plan, &must, &[], player, source);
             }
-            return;
+            return Ok(());
         }
 
         let chosen = self.ask_payment_order(plan, &must, &items, player, source, ctx);
@@ -400,6 +404,7 @@ impl GameState {
             self.audit_payment_orders(plan, &must, &chosen, player, source);
         }
         plan.pay_in(&must.merged(&chosen));
+        Ok(())
     }
 
     /// `items`' order, asked until the answer completes: an order that pays

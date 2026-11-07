@@ -307,6 +307,26 @@ fn an_order_leaving_a_part_unpaid_is_refused_and_asked_again() {
     assert_eq!(game.get_object(sentry).unwrap().zone, Zone::Graveyard);
 }
 
+/// "Sacrifice this creature, Sacrifice another creature" with the source
+/// chosen for the second: each part moves what the other needs, so no order
+/// completes. Refused as it is planned, before anything has moved: found by
+/// CI's checked sitting, where a Forked Reliquary made a creature paid both
+/// parts with itself and the second failed after the first.
+// COVERS-PARTIAL: ATOM-601.2h-002
+#[test]
+fn two_parts_using_one_object_are_refused_before_anything_moves() {
+    let mut game = setup_two_player_game();
+    game.enable_audit();
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let costs = [Cost::SacrificeSelf, the_sacrifice()];
+    assert!(game.can_pay_costs(&costs, 0, bears).is_ok(), "each part alone is payable");
+
+    let answers = test_dp();
+    let refused = game.plan_payment(&costs, 0, bears, &ActionContext::paying_cost(&answers, 0, bears));
+    assert!(refused.is_err_and(|why| why.contains("two parts use one object")));
+    assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield, "nothing moved");
+}
+
 /// Two life payments each pass CR 118.3's check and together are more than
 /// the player has. The sacrifice cannot go ahead of them, since the failure
 /// would come after a payment that cannot be taken back (CR 732.1): the

@@ -384,7 +384,7 @@ impl GameState {
         }
 
         let mut plan = PaymentPlan { ordered, generic_allocation, sacrifices };
-        self.settle_payment_order(&mut plan, player_id, source_id, ctx);
+        self.settle_payment_order(&mut plan, player_id, source_id, ctx)?;
         Ok(plan)
     }
 
