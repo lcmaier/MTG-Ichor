@@ -48,4 +48,5 @@ every test's reads; item 154's first half 328, item 345 167, the node's rules
 with item 412 968 (about 400 of it tests and four fixtures), the record 169, a
 mode's own cost 195: the engine half 2,426, past the split point, so the picker
 went to its own PR. The cards and their rulings 628, 2,970 in all, past the
-band's top. The save word was not built (item 414), nor Shadrix's player word.
+band's top, and the pre-review's fixes 121 more, 3,091. The save word was not
+built (item 414), nor Shadrix's player word.

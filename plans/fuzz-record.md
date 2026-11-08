@@ -263,9 +263,18 @@ stress sitting read 0 errors, panics and turn limits.
 | **Dependency checks** | **11** | **2** |
 | Decisions | 189 | 222 |
 
-**Size**: 2,445 added and 525 removed in `mtgsim/src` and `mtgsim/tests`, 2,970 touched,
-against the intake's 1,410–2,380 without the picker: past the band's top, the engine half
-2,426 of it. The picker went to `mode-picker`, as the intake set. Registering the cards moved
+**Rerun after the pre-review (2026-11-07), on `5b41408c`** against shipped `678202d3`: one
+reading of "a different player", each mode's survivors held with it, what stops X one enum,
+the record's own scope. Predicted every row `IDENTICAL`, since each changes no answer a
+registered card's game reaches. Every gameplay row **IDENTICAL** on both pools at both seats;
+instructions a decision 0.7062 M → 0.7054 M, **-0.11%**. Valgrind read no symbols from the
+reviewed binary, whose read-only and code segments now share a file page, so its function
+list was blank and the growth gate read zero; the same tree linked with `-z separate-code`
+read ×3.94 to ×4.03, unchanged.
+
+**Size**: 2,445 added and 525 removed in `mtgsim/src` and `mtgsim/tests`, 2,970 touched, and
+3,091 after the pre-review's fixes, against the intake's 1,410–2,380 without the picker: past
+the band's top, the engine half 2,426 of it. The picker went to `mode-picker`, as the intake set. Registering the cards moved
 `priority_fork_test`'s delayed-trigger seed (21 → 43, from the sweep: 0 of 13,064 branches
 diverging) and `prompt_subject_test`'s second window (0xA4_0039).
 
