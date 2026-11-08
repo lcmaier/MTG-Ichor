@@ -6851,6 +6851,11 @@ place.
      so a later clause narrower than one it excludes is not refused, with a
      fixture "target creature" then "another target creature you control" on
      the board above.
+     **A second greedy site (2026-11-07):** "each mode must target a
+     different player" (`oracle::modes::players_can_differ`) gives each
+     mode's player targets the first free players in printed order; two modes
+     with different player filters, each able to take the other's player,
+     are the same shape, and the same assignment answers both.
 
 156. **~~The rulings gate has a same-day blind spot.~~ — ✅ CLOSED 2026-10-09
      (PR #238).** — archived.
@@ -10751,3 +10756,14 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~150–250 lines with Shadrix registered.
      **Slotted:** `multiplayer-rules`, beside item 342, whose `PlayerSet::Player`
      holds the arm in a filter.
+
+416. **No mode is chosen at random.** CR 700.2 lets the game choose a modal
+     ability's modes at random (Summon: Magus Sisters and four more, by the
+     choices census); decision 2 names the chooser "at random from
+     `GameState.rng`, which asks nothing", and `ModeChooser` has the
+     controller and an opponent.
+     **Reachability (2026-11-07):** unreachable — no registered card chooses
+     its modes at random, and none in `tdc` does.
+     **Sized:** ~30–50 lines: the arm, a draw from the game's generator over
+     the listed sets, and a fixture.
+     **Slotted:** `breadth-features`, with its first card.

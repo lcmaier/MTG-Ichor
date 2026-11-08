@@ -1240,7 +1240,11 @@ Where it differs from decisions 2 and 3's words:
   printed "different player"; Divided Envoy, a fixture, Shadrix's zero or two.
 - **The record has no word in the save** (item 414): such a board is reported unwritten.
 - **"Different players" is greedy**, in printed order: exact for every printed shape, item 155's.
-- **A mode's own cost is a spell's**: the registry refuses one on any other ability.
+- **A mode's own cost is a spell's**: the registry refuses one on any other ability. Spree is the
+  node that writes one, ahead of `breadth-features`, at the brief's word; no keyword reads it.
+- **The record is `modes_chosen`, modes only, and keeps its scope**; decision 7's remembered values
+  widen its entry at `values-chosen-at-resolution`. 700.2e's "which opponent" is `ChooseOpponent`,
+  which existed, not decision 7's `ChoosePlayer`. A random chooser is item 416's.
 - **The picker is a PR of its own**, `mode-picker`, the split the intake set.
 
 ## 6. Found while designing
