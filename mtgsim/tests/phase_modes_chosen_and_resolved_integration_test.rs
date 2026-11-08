@@ -24,7 +24,8 @@ use mtgsim::types::effects::{Condition, Effect, ModalCount, SelectionFilter};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::cards::printings::{abrade, casualties_of_war, cryptic_command, forest, grizzly_bears, hill_giant, paladin_of_atonement};
 use mtgsim::oracle::mana_helpers::{can_cast, CannotCast};
-use mtgsim::oracle::x_values::LegalXValues;
+use mtgsim::oracle::x_values::{LegalXValues, XStop};
+use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
 use mtgsim::engine::targeting::Announcement;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp};
@@ -313,8 +314,9 @@ fn a_count_of_x_asks_x_then_the_sets_of_that_many() {
 }
 
 /// A count of X whose modes are each chosen once offers no X past the modes
-/// it can take (item 412): with five mana an X of 4 is payable, and three
-/// modes stop it at 3, which takes all three without asking.
+/// it can take: with five mana an X of 4 is payable, and three modes stop it
+/// at 3, which takes all three without asking. The why panel says the modes
+/// stopped it, not the mana.
 #[test]
 fn a_count_of_x_offers_no_x_past_the_modes() {
     let mut game = setup_two_player_game();
@@ -326,18 +328,26 @@ fn a_count_of_x_offers_no_x_past_the_modes() {
     let answers = ScriptedDecisionProvider::new();
     answers.expect_number(choose_x(), 3);
     names_targets(&answers, vec![ChoiceOption::Player(1)]);
-    let most_offered = std::rc::Rc::new(std::cell::Cell::new(None));
-    let offered = XOffered { inner: answers, most: std::rc::Rc::clone(&most_offered) };
+    let asked = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let offered = XOffered { inner: answers, asked: std::rc::Rc::clone(&asked) };
     game.cast_spell(0, tally, &ManaWindowStop::new(offered)).expect("castable at the most X the modes take");
-    assert_eq!(most_offered.get(), Some(3), "four was payable, and three modes take three");
     assert_eq!(chosen_modes(&game, tally), modes(&[1, 2, 3]));
+
+    let kind = asked.borrow_mut().take().expect("X was asked");
+    let ChoiceKind::ChooseXValue { values, .. } = &kind else { panic!("the X question") };
+    assert_eq!(values.offered.at_most(), 3, "four was payable, and three modes take three");
+    assert_eq!(values.bound, Some(XStop::Modes(3)));
+    let context = ChoiceContext::new(kind.clone());
+    let answer = why(&game, WhyAbout::Object(tally), Some(&OpenQuestion { player: 0, context: &context, options: &[] }));
+    let lines: Vec<(&str, Option<&str>)> = answer.sections[0].lines.iter().map(|line| (line.text.as_str(), line.rule)).collect();
+    assert!(lines.iter().any(|(text, rule)| text.contains("X above 3") && *rule == Some("700.2d")), "{lines:?}");
 }
 
-/// A provider that keeps the most X it is offered and answers through
+/// A provider that keeps the X question it is asked and answers through
 /// `inner`.
 struct XOffered<D> {
     inner: D,
-    most: std::rc::Rc<std::cell::Cell<Option<u64>>>,
+    asked: std::rc::Rc<std::cell::RefCell<Option<ChoiceKind>>>,
 }
 
 impl<D: DecisionProvider> DecisionProvider for XOffered<D> {
@@ -347,7 +357,7 @@ impl<D: DecisionProvider> DecisionProvider for XOffered<D> {
 
     fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
         if matches!(context.kind, ChoiceKind::ChooseXValue { .. }) {
-            self.most.set(Some(max));
+            *self.asked.borrow_mut() = Some(context.kind.clone());
         }
         self.inner.pick_number(game, player, context, min, max)
     }

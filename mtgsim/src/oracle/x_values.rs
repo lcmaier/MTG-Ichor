@@ -29,11 +29,17 @@ pub struct LegalXValues {
     /// Why a larger X is not offered; `None` when the cost being paid has no
     /// X, so X is 0 (CR 601.2b announces "a variable cost that will be
     /// paid", and 107.3b says the same of an effect's free cast).
-    pub bound: Option<XBound>,
-    /// The most modes a "choose X" spell can take where each is chosen once,
-    /// when that stops X before the mana does (item 412): an X past it lists
-    /// no set of modes.
-    pub most_modes: Option<u64>,
+    pub bound: Option<XStop>,
+}
+
+/// What stops a larger X: the mana the caster can pay, or, for "choose X"
+/// whose modes are each chosen once, the modes there are to choose, when
+/// those run out first (CR 700.2d).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum XStop {
+    Mana(XBound),
+    /// The most modes the count can take: an X past it lists no set.
+    Modes(u64),
 }
 
 impl LegalXValues {
@@ -44,19 +50,18 @@ impl LegalXValues {
         LegalXValues {
             offered: XOffer::Interval { at_least: 0, at_most },
             x_cant_be_zero: false,
-            bound: Some(XBound {
+            bound: Some(XStop::Mana(XBound {
                 pips: ManaCost::zero(),
                 max_generic_payable: at_most,
                 generic_besides_x: 0,
                 x_symbol_count: 1,
-            }),
-            most_modes: None,
+            })),
         }
     }
 
     /// These values, none past `most` modes: "choose X" whose modes are each
-    /// chosen once lists no set for a larger X (CR 700.2d, item 412). `None`
-    /// when no value is left, which reverses the cast as an unpayable X does.
+    /// chosen once lists no set for a larger X (CR 700.2d). `None` when no
+    /// value is left, which reverses the cast as an unpayable X does.
     pub fn capped_at_modes(self, most: u64) -> Option<LegalXValues> {
         if most >= self.offered.at_most() {
             return Some(self);
@@ -72,7 +77,7 @@ impl LegalXValues {
                 XOffer::Set(kept)
             }
         };
-        Some(LegalXValues { offered, most_modes: Some(most), ..self })
+        Some(LegalXValues { offered, bound: Some(XStop::Modes(most)), ..self })
     }
 }
 
@@ -143,7 +148,6 @@ pub fn legal_x_values(
             offered: XOffer::Interval { at_least: 0, at_most: 0 },
             x_cant_be_zero,
             bound: None,
-            most_modes: None,
         });
     };
     let non_mana = NonManaCosts { source: None, costs: &total.non_mana };
@@ -159,13 +163,12 @@ pub fn legal_x_values(
     Some(LegalXValues {
         offered: XOffer::Interval { at_least, at_most },
         x_cant_be_zero,
-        bound: Some(XBound {
+        bound: Some(XStop::Mana(XBound {
             pips,
             max_generic_payable,
             generic_besides_x: total.mana.generic_besides_x(),
             x_symbol_count: x_symbol_count.get(),
-        }),
-        most_modes: None,
+        })),
     })
 }
 
@@ -242,6 +245,28 @@ mod tests {
 
     /// Five Mountains pay `{X}{R}` up to X = 4, and the why's numbers are the
     /// closed form's: four generic beside `{R}`, one a X.
+    /// "Choose X" past its modes: an interval is cut at the modes, a set keeps
+    /// the values within them, and a least past them leaves none, which
+    /// reverses the cast. Values the modes do not reach are kept whole.
+    #[test]
+    fn the_modes_cap_x_in_each_shape_of_offer() {
+        let capped = LegalXValues::zero_through(5).capped_at_modes(3).expect("0 through 3 is left");
+        assert_eq!(capped.offered, XOffer::Interval { at_least: 0, at_most: 3 });
+        assert_eq!(capped.bound, Some(XStop::Modes(3)));
+
+        let set = LegalXValues { offered: XOffer::Set(vec![1, 2, 4, 6]), ..LegalXValues::zero_through(6) };
+        let capped = set.capped_at_modes(3).expect("1 and 2 are left");
+        assert_eq!(capped.offered, XOffer::Set(vec![1, 2]));
+
+        let past = LegalXValues { offered: XOffer::Interval { at_least: 4, at_most: 6 }, ..LegalXValues::zero_through(6) };
+        assert_eq!(past.capped_at_modes(3), None, "the least X is past the modes");
+        let gaps = LegalXValues { offered: XOffer::Set(vec![4, 5]), ..LegalXValues::zero_through(5) };
+        assert_eq!(gaps.capped_at_modes(3), None);
+
+        let within = LegalXValues::zero_through(2);
+        assert_eq!(within.clone().capped_at_modes(3), Some(within), "the mana stops X first, and still says so");
+    }
+
     #[test]
     fn the_most_is_what_the_board_pays_beside_the_pips() {
         let (game, spell) = board(5, sorcery(&[X, R]).build());
@@ -250,13 +275,12 @@ mod tests {
             Some(LegalXValues {
                 offered: XOffer::Interval { at_least: 0, at_most: 4 },
                 x_cant_be_zero: false,
-                bound: Some(XBound {
+                bound: Some(XStop::Mana(XBound {
                     pips: ManaCost::from_symbols(vec![R]),
                     max_generic_payable: 4,
                     generic_besides_x: 0,
                     x_symbol_count: 1,
-                }),
-                most_modes: None,
+                })),
             })
         );
     }
@@ -330,7 +354,7 @@ mod tests {
         let (game, spell) = board(5, sorcery(&[X, R]).build());
         assert_eq!(
             values_with(&game, spell, Some(&free), &[]),
-            Some(LegalXValues { offered: XOffer::Interval { at_least: 0, at_most: 0 }, x_cant_be_zero: false, bound: None, most_modes: None })
+            Some(LegalXValues { offered: XOffer::Interval { at_least: 0, at_most: 0 }, x_cant_be_zero: false, bound: None })
         );
         let (game, spell) = board(5, sorcery(&[X, R]).x_cant_be_zero().build());
         assert_eq!(values_with(&game, spell, Some(&free), &[]), None);

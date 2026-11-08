@@ -32,7 +32,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
-use crate::oracle::x_values::LegalXValues;
+use crate::oracle::x_values::{LegalXValues, XStop};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
@@ -383,15 +383,18 @@ fn x_refusals(game: &GameState, player: PlayerId, spell: ObjectId, values: &Lega
     if values.x_cant_be_zero {
         lines.push(refusal("X = 0", (format!("{} says X can't be 0", named(game, spell)), None)).naming(game, &[spell]));
     }
-    let Some(bound) = &values.bound else {
-        lines.push(refusal("Any X but 0", ("the cost being paid has no X".to_string(), Some("601.2b"))));
-        return lines;
+    let bound = match &values.bound {
+        None => {
+            lines.push(refusal("Any X but 0", ("the cost being paid has no X".to_string(), Some("601.2b"))));
+            return lines;
+        }
+        Some(XStop::Modes(most)) => {
+            let words = format!("{} chooses X modes, each once, and can choose {most}", named(game, spell));
+            lines.push(refusal(format!("X above {most}"), (words, Some("700.2d"))).naming(game, &[spell]));
+            return lines;
+        }
+        Some(XStop::Mana(bound)) => bound,
     };
-    if let Some(most) = values.most_modes {
-        let words = format!("{} chooses X modes, each once, and can choose {most}", named(game, spell));
-        lines.push(refusal(format!("X above {most}"), (words, Some("700.2d"))).naming(game, &[spell]));
-        return lines;
-    }
     let pips = if bound.pips.symbols.is_empty() { String::new() } else { format!("alongside {}, ", bound.pips) };
     let generic_besides_x = bound.generic_besides_x;
     let besides = match generic_besides_x.cmp(&0) {
