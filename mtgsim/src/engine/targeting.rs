@@ -140,14 +140,22 @@ impl Announcement {
 }
 
 /// What each instance of "target" holds after CR 608.2b's re-check, scope by
-/// scope as [`Announcement`] holds them: the effect's own, or each chosen
-/// mode's.
+/// scope as [`Announcement`] holds them.
 #[derive(Debug, Clone, PartialEq)]
-pub struct SurvivingTargets {
-    /// The effect's own instances; none for a modal effect.
-    pub own: ChosenTargets,
-    /// Each chosen mode's, in the order announced.
-    pub modes: Vec<ChosenTargets>,
+pub enum SurvivingTargets<'a> {
+    /// An effect with no modes: its own instances'.
+    Targets(ChosenTargets),
+    /// A modal effect: each chosen mode with its own, in the order announced.
+    Modes(Vec<SurvivingMode<'a>>),
+}
+
+/// One chosen mode as it begins to resolve: the mode as CR 601.2b–c announced
+/// it, and what its instances hold after CR 608.2b's re-check, kept together
+/// so neither is found by the other's place.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SurvivingMode<'a> {
+    pub chosen: &'a ChosenMode,
+    pub survivors: ChosenTargets,
 }
 
 /// What each instance of "target" holds, indexed by the instance.
@@ -359,8 +367,9 @@ pub enum DeclaredInstances<'a> {
     /// own, or the mode resolving's.
     Announced(&'a [TargetInstance]),
     /// A modal effect's, at its root: the chosen modes, each resolved against
-    /// its own instances. The node declares none of its own.
-    Modes(&'a [ChosenMode]),
+    /// its own instances and their survivors. The node declares none of its
+    /// own.
+    Modes(&'a [SurvivingMode<'a>]),
     /// Nothing was announced: the effect's own declaring atoms, in printed order.
     Effect(&'a Effect),
 }
@@ -836,13 +845,13 @@ impl GameState {
     ///
     /// Each chosen mode is its own scope for "another target", and "all its
     /// targets" is asked across every scope.
-    pub fn surviving_targets(
+    pub fn surviving_targets<'a>(
         &self,
-        announcement: &Announcement,
+        announcement: &'a Announcement,
         you: PlayerId,
         this_object: ObjectId,
         named_objects: ConditionReferents<'_>,
-    ) -> Option<SurvivingTargets> {
+    ) -> Option<SurvivingTargets<'a>> {
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
         // or more targets have been chosen for it." An `UpTo` clause the player
@@ -850,17 +859,18 @@ impl GameState {
         // cannot be what makes the spell fail to resolve.
         let mut tally = Fizzle { announced: false, survived: false };
         let surviving = match announcement {
-            Announcement::Targets(own) => SurvivingTargets {
-                own: self.surviving_in_scope(own, you, this_object, named_objects, &mut tally),
-                modes: Vec::new(),
-            },
-            Announcement::Modes(modes) => SurvivingTargets {
-                own: ChosenTargets::NONE,
-                modes: modes
+            Announcement::Targets(own) => {
+                SurvivingTargets::Targets(self.surviving_in_scope(own, you, this_object, named_objects, &mut tally))
+            }
+            Announcement::Modes(modes) => SurvivingTargets::Modes(
+                modes
                     .iter()
-                    .map(|chosen| self.surviving_in_scope(&chosen.targets, you, this_object, named_objects, &mut tally))
+                    .map(|chosen| SurvivingMode {
+                        chosen,
+                        survivors: self.surviving_in_scope(&chosen.targets, you, this_object, named_objects, &mut tally),
+                    })
                     .collect(),
-            },
+            ),
         };
         if tally.announced && !tally.survived {
             return None;
@@ -1028,7 +1038,8 @@ mod tests {
         let survivors = game
             .surviving_targets(&announcement, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
             .expect("a legal target resolves");
-        assert_eq!(survivors.own.instance(0), &[ObjectOrPlayerId::Object(land_id)]);
+        let SurvivingTargets::Targets(survivors) = survivors else { panic!("an effect with no modes") };
+        assert_eq!(survivors.instance(0), &[ObjectOrPlayerId::Object(land_id)]);
 
         // Remove from battlefield — the one target is no longer legal, and
         // CR 608.2b's "all its targets" is therefore satisfied.

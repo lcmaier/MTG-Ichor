@@ -140,6 +140,12 @@ impl GameState {
             self.handle_fizzle(object_id, &entry, controller, dp)?;
             return Ok(());
         };
+        // An effect's own survivors are the resolution's targets; a modal
+        // effect's go with each chosen mode.
+        let (own, modes) = match surviving {
+            crate::engine::targeting::SurvivingTargets::Targets(own) => (own, Vec::new()),
+            crate::engine::targeting::SurvivingTargets::Modes(modes) => (crate::engine::targeting::ChosenTargets::NONE, modes),
+        };
 
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
@@ -153,7 +159,7 @@ impl GameState {
                 (false, Some(_)) => GeneratedBy::TriggeredAbility,
                 (false, None) => GeneratedBy::ActivatedAbility,
             },
-            targets: surviving.own,
+            targets: own,
             // A resolving spell or ability replaced nothing, so CR 615.5's
             // "that much" has no answer here — see `ResolutionContext::replaced_event`.
             replaced_event: None,
@@ -170,7 +176,7 @@ impl GameState {
             .map(|identity| (identity, entry.controller));
         if action_gate.is_none_or(|key| !self.history.action_taken_this_turn.contains(&key)) {
             let answer =
-                self.resolve_effect_with_announced_targets(&entry.effect, &entry.announced, surviving.modes, &ctx, dp)?;
+                self.resolve_effect_with_announced_targets(&entry.effect, &entry.announced, &modes, &ctx, dp)?;
             #[cfg(debug_assertions)]
             if let (Some(binding), Some(resolving)) = (&entry.trigger, &self.resolving) {
                 binding_reads_are_named(binding, resolving.binding_reads_noted.get(), object_id);

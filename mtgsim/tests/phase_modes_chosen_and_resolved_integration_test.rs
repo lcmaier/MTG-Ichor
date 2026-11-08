@@ -531,7 +531,7 @@ fn a_modal_node_below_the_root_is_refused_at_resolution() {
     let source = put_in_hand(&mut game, hill_giant(), 0);
     let effect = Effect::Sequence(vec![choose_one([gain_life(you(), 1), gain_life(you(), 2)])]);
     let ctx = ResolutionContext::untargeted(source, 0, GeneratedBy::Spell);
-    let refused = game.resolve_effect_with_announced_targets(&effect, &Announcement::NONE, Vec::new(), &ctx, &test_dp());
+    let refused = game.resolve_effect_with_announced_targets(&effect, &Announcement::NONE, &[], &ctx, &test_dp());
     assert!(refused.is_err_and(|why| why.contains("no modes announced")));
     assert_eq!(game.players[0].life_total, 20);
 }
