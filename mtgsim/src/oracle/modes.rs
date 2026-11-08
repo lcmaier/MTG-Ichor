@@ -9,7 +9,7 @@ use crate::engine::targeting::FilterIdentity;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::every_instance_has_a_choice;
 use crate::state::game_state::{AbilityIdentity, GameState};
-use crate::types::effects::{EffectRecipient, ModalCount, ModalNode, ModeIndex, SelectionFilter};
+use crate::types::effects::{EffectRecipient, ModalCount, ModalNode, ModeIndex};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 
 /// Every set of modes `node` lets its chooser announce now, in printed order
@@ -207,12 +207,7 @@ fn players_can_differ(
     let identity = FilterIdentity::for_text_of(this_object, EarlierTargets::None).naming(named);
     let mut taken: Vec<PlayerId> = Vec::new();
     for mode in set.iter().filter_map(|&mode| node.mode(mode)) {
-        for instance in &mode.instances {
-            let (EffectRecipient::Target(filter @ SelectionFilter::Player(_), count)
-            | EffectRecipient::Choose(filter @ SelectionFilter::Player(_), count)) = instance
-            else {
-                continue;
-            };
+        for (filter, count) in mode.instances.iter().filter_map(EffectRecipient::player_target) {
             let needed = count.fewest();
             let free: Vec<PlayerId> = enumerate_legal_selections_excluding(game, filter, None, player, identity)
                 .into_iter()

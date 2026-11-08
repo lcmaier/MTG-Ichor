@@ -1448,6 +1448,21 @@ impl EffectRecipient {
     pub fn is_divided(&self) -> bool {
         matches!(self, EffectRecipient::Target(_, TargetCount::Divided(_)))
     }
+
+    /// The filter and count of an instance of "target" that targets players,
+    /// "another" ones among them: what "each mode must target a different
+    /// player" constrains. The offer, the announcement and the players a mode
+    /// took all read this one answer. A choice is no target (CR 115.1), and
+    /// "any target" is not a player's: no printed mode under the rule has
+    /// either.
+    pub fn player_target(&self) -> Option<(&SelectionFilter, &TargetCount)> {
+        match self {
+            EffectRecipient::Target(filter, count) if matches!(filter.without_exclusions().0, SelectionFilter::Player(_)) => {
+                Some((filter, count))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// CR 601.2d's count: how many targets a clause may divide among, and what it

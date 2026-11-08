@@ -22,7 +22,7 @@ use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
 use crate::engine::targeting::{Announcement, ChosenMode, TargetInstance};
 use crate::oracle::modes::{legal_mode_sets, most_modes_for_x};
-use crate::types::effects::{EffectRecipient, ModalNode, ModeChooser, ModeIndex, SelectionFilter, TargetCount};
+use crate::types::effects::{EffectRecipient, ModalNode, ModeChooser, ModeIndex, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
@@ -393,7 +393,7 @@ impl GameState {
             )
             .naming(named_objects);
             let taken_by_another_mode = |target: &ObjectOrPlayerId| {
-                matches!(filter, SelectionFilter::Player(_))
+                recipient.player_target().is_some()
                     && matches!(target, ObjectOrPlayerId::Player(seat) if players_taken.contains(seat))
             };
             let mut legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
@@ -524,7 +524,7 @@ impl GameState {
             let targets =
                 self.announce_targets(player_id, source_id, this_object, &printed.instances, named_objects, x_value, &players_taken, dp)?;
             if node.rules.each_mode_targets_a_different_player {
-                for instance in targets.iter().filter(|instance| matches!(instance.recipient, EffectRecipient::Target(SelectionFilter::Player(_), _))) {
+                for instance in targets.iter().filter(|instance| instance.recipient.player_target().is_some()) {
                     players_taken.extend(instance.targets().filter_map(|target| match target {
                         ObjectOrPlayer::Player(seat) => Some(seat),
                         ObjectOrPlayer::Object(_) => None,
