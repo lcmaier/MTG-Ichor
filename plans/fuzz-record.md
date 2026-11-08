@@ -202,6 +202,29 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Recorded 2026-11-07 for `mode-rules-and-costs`, the modal node's rules and a mode's own cost**
+(`choices/mode-rules-and-costs`: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
+345, 412 and 413). Arc Trail, Explosive Derailment, Demonic Pact and Vindictive Lich join the
+registry and no card the performance pool, so the stress column is a new baseline and the
+performance one should not move; five fixtures join `CASTABLE`. One `close_out.py` sitting
+against **main** `354270f6`: **engine** `7bbb6d51`, the last commit before the cards, and
+**shipped** `8e4df895`.
+
+**Predictions, before any arm ran**:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seats. No registered
+  card prints a rule the node gained; item 413 reshapes the stack's record without moving a
+  game; "another target" asks through its wrapper what the leaf asked (Incremental Growth, on
+  stress); "target player" is every player, and the enumeration's player arms now ask the
+  validator, which admits each seat in the game. A cost row may move on stress only, where
+  Incremental Growth's castability now asks up to as many more candidates as its earlier
+  instances took;
+- shipped vs engine: performance `IDENTICAL`, its decks unchanged; stress moves, with
+  `ChooseModes` asked more often (Explosive Derailment, Demonic Pact, Vindictive Lich);
+  0 errors, panics and turn limits on every arm;
+- instructions per decision, engine vs `main`, within 0.5 points; no growth shape past ×4.35;
+- Demonic Pact ends few stress games by its fourth mode, under 3%: it has to see four of its
+  controller's upkeeps.
+
 **Re-recorded 2026-11-07 for `modes-chosen-and-resolved`, a mode chosen, targeted and resolved**
 (`choices/modes-chosen-and-resolved`, PR #318: CR 700.2 and 603.3c, items 31 and 153). Abrade
 joins the performance pool (125 → 126), and Abrade, Cryptic Command, Casualties of War
