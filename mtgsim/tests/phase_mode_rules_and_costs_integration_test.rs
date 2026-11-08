@@ -5,16 +5,17 @@
 //! and a mode's own cost (700.2h, spree) — `choices-architecture.md`,
 //! decisions 2 and 3.
 //!
-//! **Every board is cast, activated or triggered, never staged**: the modes
-//! and targets are questions asked on that path, and a staged entry cannot
-//! check them.
+//! **Every board is cast, activated or triggered**: the modes and targets are
+//! questions asked on that path, and a staged entry cannot check them. Two
+//! tests ask the enumeration directly, an earlier instance or the seats
+//! given, and one writes Demonic Pact's full record into the history, which
+//! only a borrowed Pact made to choose the fourth mode would leave.
 
 use mtgsim::cards::authoring::{
-    activated_ability, any_other_target, any_target, choose_one_not_chosen_before, deal_damage, gain_life, lose_life, spell_ability, target_opponent,
-    you,
+    activated_ability, choose_one_not_chosen_before, dies, enchantment, gain_control_of, gain_life, spell_ability, target_permanent,
+    triggered_ability, whenever, you,
 };
 use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tithed_ultimatum, tribute_offering};
-use mtgsim::cards::authoring::{dies, enchantment, gain_control_of, target_permanent, triggered_ability, whenever};
 use mtgsim::cards::printings::{arc_trail, demonic_pact, explosive_derailment, grizzly_bears, hill_giant, mind_stone, vindictive_lich};
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::scenario::Scenario;
@@ -34,7 +35,7 @@ use mtgsim::oracle::mana_helpers::{can_activate, can_cast, CannotActivate};
 use mtgsim::test_support::{fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_dp};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{ChosenBefore, Effect, ModeIndex, PlayerSet, SelectionFilter};
+use mtgsim::types::effects::{ChosenBefore, ModeIndex, PlayerSet, SelectionFilter};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -141,25 +142,12 @@ fn cast_and_resolve(game: &mut GameState, card: Arc<CardData>, mana: &[(ManaType
     id
 }
 
-/// An instant costing {R} with `text`, which `effect` does.
-fn invented_instant(name: &'static str, text: &'static str, effect: Effect) -> Arc<CardData> {
-    CardDataBuilder::new(name)
-        .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-        .card_type(CardType::Instant)
-        .rules_text(text)
-        .ability(spell_ability(text, effect))
-        .build()
-}
-
 /// The script's next answer: `chosen` for an instance of "target".
 fn names_targets(answers: &ScriptedDecisionProvider, chosen: Vec<ChoiceOption>) {
     let kind = ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
     answers.expect_choice(kind, chosen);
 }
 
-fn damage_on(game: &GameState, id: ObjectId) -> u32 {
-    game.battlefield[&id].damage_marked
-}
 
 // ---------------------------------------------------------------------------
 // "Another target" over any target
@@ -182,58 +170,22 @@ fn any_other_target_is_not_the_player_the_first_instance_took() {
     assert_eq!(offered, [ObjectOrPlayerId::Player(0), ObjectOrPlayerId::Object(bears)]);
 }
 
-/// Cast from hand, "2 damage to any target and 1 damage to any other
-/// target": player 1 first, the creature second, each dealt its own amount.
-#[test]
-fn any_other_target_takes_its_own_damage_after_the_first_names_a_player() {
-    let mut game = setup_two_player_game();
-    let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let text = "Invented Fork deals 2 damage to any target and 1 damage to any other target.";
-    let fork = invented_instant(
-        "Invented Fork",
-        text,
-        Effect::Sequence(vec![deal_damage(any_target(), 2), deal_damage(any_other_target(0), 1)]),
-    );
-    let spell = put_in_hand(&mut game, fork, 0);
-    game.players[0].mana_pool.add(ManaType::Red, 1);
-
-    let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, vec![ChoiceOption::Player(1)]);
-    names_targets(&answers, vec![ChoiceOption::Object(bears)]);
-    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
-    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
-
-    assert_eq!(game.players[1].life_total, 18);
-    assert_eq!(damage_on(&game, bears), 1);
-}
 
 // ---------------------------------------------------------------------------
 // "Target opponent"
 // ---------------------------------------------------------------------------
 
-/// At three seats "target opponent" offers both opponents and never the
-/// caster, and cast from hand it takes the opponent named: player 2 loses
-/// the life, player 1 and the caster none.
+/// At three seats "target opponent" is each opponent and never the
+/// controller, whoever's turn it is. Vindictive Lich's three-seat test plays
+/// it on a trigger and resolves it.
 #[test]
-fn target_opponent_offers_each_opponent_and_never_the_caster() {
-    let mut game = setup_game(3);
+fn target_opponent_is_each_opponent_and_never_the_controller() {
+    let game = setup_game(3);
     let opponents = SelectionFilter::Player(PlayerSet::Opponents);
-    assert_eq!(
-        enumerate_legal_selections_excluding(&game, &opponents, None, 0, FilterIdentity::NONE),
-        [ObjectOrPlayerId::Player(1), ObjectOrPlayerId::Player(2)],
-    );
-
-    let text = "Target opponent loses 2 life.";
-    let drain = invented_instant("Invented Drain", text, lose_life(target_opponent(), 2));
-    let spell = put_in_hand(&mut game, drain, 0);
-    game.players[0].mana_pool.add(ManaType::Red, 1);
-    let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, vec![ChoiceOption::Player(2)]);
-    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
-    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
-
-    let life: Vec<i64> = game.players.iter().map(|player| player.life_total).collect();
-    assert_eq!(life, [20, 20, 18]);
+    for controller in 0..3 {
+        let others: Vec<ObjectOrPlayerId> = (0..3).filter(|&seat| seat != controller).map(ObjectOrPlayerId::Player).collect();
+        assert_eq!(enumerate_legal_selections_excluding(&game, &opponents, None, controller, FilterIdentity::NONE), others);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -430,6 +382,12 @@ fn a_spell_is_castable_only_while_some_set_of_modes_is_payable() {
 // ---------------------------------------------------------------------------
 
 /// An artifact whose `{1}` ability chooses one mode not chosen this turn.
+/// The printed "this turn" cards are triggers in `tdc` that no card writes
+/// yet: Teval's Judgment makes a Treasure (any-color mana,
+/// `any-color-plus-painlands-plus-signets`), and Parapet Thrasher names "that
+/// opponent" and plays an exiled card (`multiplayer-rules`,
+/// `casting-from-other-zones`). A trigger writes and reads the record as
+/// Demonic Pact's tests show; the scope is one function both read.
 fn turnwise_lever() -> Arc<CardData> {
     let text = "{1}: Choose one that hasn't been chosen this turn —\n• You gain 1 life.\n• You gain 2 life.";
     CardDataBuilder::new("Turnwise Lever")
@@ -918,6 +876,14 @@ fn vindictive_lich_at_three_seats_offers_one_mode_or_two() {
     let (showing, shown) = Showing::new(answers);
     assert!(game.place_pending_triggers(&showing).expect("the trigger is placed"));
     assert_eq!(shown.mode_offers(&game), [["mode 1", "mode 2", "mode 3", "modes 1, 2", "modes 1, 3", "modes 2, 3"]]);
+    let first_target: Vec<ChoiceOption> = shown
+        .prompts
+        .borrow()
+        .iter()
+        .find(|(_, kind, _)| matches!(kind, ChoiceKind::SelectRecipients { .. }))
+        .map(|(_, _, options)| options.clone())
+        .expect("the second mode's opponent was asked");
+    assert_eq!(first_target, [ChoiceOption::Player(1), ChoiceOption::Player(2)], "target opponent: never the Lich's controller");
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(game.players[2].hand.len(), 0, "player 2 discarded");
     assert_eq!(game.players[1].life_total, 15, "player 1, the one opponent left for the third mode, lost 5");

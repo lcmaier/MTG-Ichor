@@ -435,7 +435,7 @@ pub fn tally_of_choices() -> Arc<CardData> {
 /// mode more than once." (CR 700.2d): a mode chosen past the number of modes,
 /// its copies resolving in sequence. Its modes are ATOM-700.2d-002's; the
 /// Moment's second targets a card in a graveyard, which no clause can
-/// announce yet.
+/// announce until `ironworks-loop` builds graveyard targets.
 pub fn echoing_reckoning() -> Arc<CardData> {
     let text = "Choose up to four. You may choose the same mode more than once.\n• This spell deals 2 damage to target creature.\n• Draw a card.";
     CardDataBuilder::new("Echoing Reckoning")
@@ -455,7 +455,10 @@ pub fn echoing_reckoning() -> Arc<CardData> {
 /// CR 700.2i's budget, ATOM-700.2i-001's board: modes of one, two and one
 /// pawprints under a budget of three, so the second and third together are
 /// legal and all three are not. Bloomburrow's Seasons print five {P} over
-/// modes of one, two and three.
+/// modes of one, two and three, and each prints a mode no card writes yet:
+/// Season of the Burrow returns a card from a graveyard (`ironworks-loop`),
+/// Season of Gathering chooses a card type as it resolves
+/// (`values-chosen-at-resolution`).
 pub fn pawprint_parade() -> Arc<CardData> {
     let text = "Choose up to three {P} worth of modes. You may choose the same mode more than once.\n{P} — You gain 1 life.\n{P}{P} — Draw a card.\n{P} — Target player mills two cards.";
     CardDataBuilder::new("Pawprint Parade")
@@ -473,7 +476,9 @@ pub fn pawprint_parade() -> Arc<CardData> {
 /// Tribute Offering — {1}{R}, an instant.
 ///
 /// CR 700.2e's other chooser, ATOM-700.2e-001's board: "an opponent chooses
-/// one", the targets still the caster's.
+/// one", the targets still the caster's. Fatal Lore prints it, and its second
+/// mode's "that player", the opponent who chose, has no player word yet
+/// (`multiplayer-rules`).
 pub fn tribute_offering() -> Arc<CardData> {
     let text = "An opponent chooses one —\n• You draw a card.\n• This spell deals 3 damage to target creature.";
     CardDataBuilder::new("Tribute Offering")
