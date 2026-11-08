@@ -177,7 +177,7 @@ pub struct SurvivingMode<'a> {
 /// `&[ObjectOrPlayerId]` and cannot reach a neighboring instance's targets by
 /// accident.
 ///
-/// Distinct from `StackEntry::chosen_targets`, and the difference is CR 608.2b:
+/// Distinct from `StackEntry::announced`, and the difference is CR 608.2b:
 /// the entry holds the **announcement**, clause and all, so the re-check can
 /// ask the same question; this holds the **survivors** of that re-check. One
 /// type for both is how a filtered list leaks back into the thing it was
@@ -239,7 +239,7 @@ impl ChosenTargets {
     }
 
     /// Append the next instance's choice. CR 601.2c announces in printed
-    /// order, and `ObjectFilter::OtherThanInstance` reads the ones already
+    /// order, and `SelectionFilter::OtherThan` reads the ones already
     /// pushed, so the order is load-bearing rather than incidental.
     pub fn push(&mut self, targets: impl IntoIterator<Item = ObjectOrPlayerId>) {
         if self.bounds.is_empty() {
@@ -315,8 +315,8 @@ pub struct FilterIdentity<'a> {
     /// text is being announced, and the leaf is refused rather than answered.
     pub source: Option<ObjectId>,
     /// The instances of "target" announced before this one, which
-    /// [`ObjectFilter::OtherThanInstance`] reads. `None` outside CR 601.2c's
-    /// loop and CR 608.2b's re-check, where that leaf is likewise refused.
+    /// [`SelectionFilter::OtherThan`] reads. `None` outside CR 601.2c's
+    /// loop and CR 608.2b's re-check, where that wrapper is likewise refused.
     pub earlier_targets: EarlierTargets<'a>,
     /// The other objects the text names, as CR 608.2h reads them: "this" once
     /// it has left, and a trigger's triggering event. A target's "defending
@@ -350,7 +350,7 @@ impl<'a> FilterIdentity<'a> {
 /// Where a resolution reads CR 601.2c's clauses from, for an atom that refers
 /// back to one (`EffectRecipient::SameInstanceAs`).
 ///
-/// **The stack reads the announcement.** `StackEntry::chosen_targets` recorded
+/// **The stack reads the announcement.** `StackEntry::announced` recorded
 /// each clause beside its choice, so the index the announcement filled is the
 /// index the resolution reads, and nothing is derived from the effect tree at
 /// resolution. An Aura's instance comes from its enchant ability and sits in
@@ -438,7 +438,7 @@ impl GameState {
     /// which for a spell or activated ability being cast is the player casting
     /// it, and for an Aura's enchant clause is the Aura's controller.
     /// `earlier_targets` is the instances announced before this one, which is what
-    /// `ObjectFilter::OtherThanInstance` reads — empty for a spell whose
+    /// `SelectionFilter::OtherThan` reads — empty for a spell whose
     /// clauses name no earlier instance, which is all but the "another target"
     /// family.
     ///
@@ -528,7 +528,7 @@ impl GameState {
     /// `host` (CR 303.4a), its "you" being `you` (CR 109.5): what CR 704.5m
     /// leaves attached and what CR 303.4f offers an Aura entering the
     /// battlefield. Not targeting, so hexproof and shroud do not apply. Asked
-    /// outside CR 601.2c's loop, so an `OtherThanInstance` leaf is refused
+    /// outside CR 601.2c's loop, so a `SelectionFilter::OtherThan` is refused
     /// rather than answered; "this" is the Aura.
     pub(crate) fn can_enchant(&self, filter: &SelectionFilter, aura: ObjectId, host: ObjectId, you: PlayerId) -> bool {
         let identity = FilterIdentity::for_text_of(aura, EarlierTargets::None);
@@ -773,9 +773,8 @@ impl GameState {
     }
 
     /// [`Self::object_matches_filter`] asked inside CR 601.2c's loop, where
-    /// the instances announced so far are known — so
-    /// [`ObjectFilter::OtherThanInstance`] has something to be other than —
-    /// and the object whose text is announced, which
+    /// the instances announced so far are known, and the object whose text is
+    /// announced, which
     /// [`ObjectFilter::NotSource`] is other than and whose owner `Owner` names.
     /// A resolution asks it with its effect's source and no instances
     /// (`codebase-state.md` item 229).

@@ -198,7 +198,6 @@ impl std::fmt::Display for FilterRefusal {
             FilterRefusal::NoSource(id) => {
                 write!(f, "a filter asked of {id} names a source, \"another\" or \"its owner\", and nothing is being read")
             }
-
             FilterRefusal::NoPower(id) => write!(f, "Object {id} has no power"),
             FilterRefusal::NotInCharacteristics(id) => write!(
                 f,
@@ -339,7 +338,6 @@ fn answer_or_refuse<'f>(
         }
         // Identity, off the ids: no layer makes an object other than itself.
         ObjectFilter::NotSource => referents.source().map(|source| id != source).ok_or(FilterRefusal::NoSource(id)),
-
         ObjectFilter::And(a, b) => {
             let left = answer_or_refuse(game, a, id, object, frame, referents);
             if left == Ok(false) {

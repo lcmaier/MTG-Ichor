@@ -946,7 +946,8 @@ pub enum ModalCount {
 
 /// Who chooses a modal ability's modes: its controller (CR 700.2a, 700.2b),
 /// or another player (700.2e). The targets stay the controller's to choose
-/// (601.2c). A choice at random is an arm with its first card.
+/// (601.2c). A choice at random, from the game's own generator, is
+/// `breadth-features`' arm, with its first card.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModeChooser {
     Controller,
@@ -968,19 +969,24 @@ pub struct ModalNode {
 
 /// The rules a modal node may print beside its count, each one a plain
 /// "choose one" leaves off (`choices-architecture.md`, decision 2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModeRules {
     /// CR 700.2d's "You may choose the same mode more than once": a mode is
     /// chosen as often as the count allows, its copies resolving in sequence.
     pub may_repeat: bool,
-    /// "Each mode must target a different player" (item 154's second half):
-    /// no player is a target of two chosen modes. Written once on the node,
-    /// never as an instance number, since which instances exist depends on
-    /// the modes chosen.
+    /// "Each mode must target a different player": no player is a target of
+    /// two chosen modes. Written once on the node, never as an instance
+    /// number, since which instances exist depends on the modes chosen.
     pub each_mode_targets_a_different_player: bool,
     /// "Choose one that hasn't been chosen [this turn]": a mode this
     /// object's ability chose before is not offered.
     pub not_chosen_before: Option<ChosenBefore>,
+}
+
+impl ModeRules {
+    /// A plain "choose one"'s: no mode repeats, no rule on players, and
+    /// every mode offered whatever was chosen before.
+    pub const NONE: ModeRules = ModeRules { may_repeat: false, each_mode_targets_a_different_player: false, not_chosen_before: None };
 }
 
 /// How long a mode an ability chose stays unoffered to it
@@ -1046,7 +1052,7 @@ impl ModalNode {
 
     /// The additional costs `chosen` adds to the spell's total (CR 700.2h):
     /// each chosen mode's own, a repeated mode's once per copy, mandatory once
-    /// it is chosen (item 81).
+    /// it is chosen.
     pub fn costs_of(&self, chosen: &[ModeIndex]) -> Vec<crate::types::costs::AdditionalCost> {
         chosen
             .iter()
@@ -1297,7 +1303,9 @@ pub enum SelectionFilter {
     Creature,
     /// A player in the set: "target player" is `Everyone`, "target opponent"
     /// `Opponents` (742 printed cards), read against the controller (CR
-    /// 109.5) at the announcement and at CR 608.2b's re-check (item 345).
+    /// 109.5) at the announcement and at CR 608.2b's re-check. The set is
+    /// the one a replacement scopes players by; a target names `Everyone` or
+    /// `Opponents`, and a fixed set or `You` only where a card prints one.
     Player(PlayerSet),
     /// "any target" — creature, player, or planeswalker
     Any,
@@ -2772,7 +2780,7 @@ pub enum Effect {
     /// modes' targets are announced and resolved in one order
     /// (`cards::registry`'s test refuses it anywhere else). The stack keeps
     /// it whole and records the modes chosen beside it
-    /// (`StackEntry::chosen_modes`); resolution walks only those. Boxed, since
+    /// (`StackEntry::announced`); resolution walks only those. Boxed, since
     /// its count may carry a condition.
     Modal(Box<ModalNode>),
 

@@ -165,7 +165,8 @@ impl GameState {
         // where modes carry costs they are announced here, ahead of X, whose
         // payable values read that total. CR 601.2b announces both in one
         // step, so which is asked first is the engine's order of two
-        // questions (decision 2b); a count of X with costs is printed nowhere.
+        // questions, as X is asked ahead of a count of X; a count of X with
+        // costs is printed nowhere.
         let modes_ahead_of_x = match effect.modal().filter(|node| node.modes_carry_costs()) {
             Some(node) => match self.choose_modes(player_id, card_id, card_id, node, ConditionReferents::NONE, None, None, dp) {
                 Ok(modes) => Some(modes),
@@ -195,8 +196,7 @@ impl GameState {
             .unwrap_or_else(ManaCost::zero);
         let total_in_x = total_cost_in_x(self, card_id, &base_mana_cost, chosen_alt, &chosen_additional);
         let has_x = base_mana_cost.x_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
-        // "Choose X" whose modes are each chosen once takes no X past them
-        // (item 412).
+        // "Choose X" whose modes are each chosen once takes no X past them.
         let most_modes = effect.modal().and_then(|node| most_modes_for_x(self, node, player_id, card_id, ConditionReferents::NONE));
         let x_value = if has_x {
             let values = legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero)
@@ -346,7 +346,7 @@ impl GameState {
     /// before it divides its first), so a second walk asks it.
     ///
     /// **Printed order is load-bearing.** Each instance is enumerated against
-    /// the ones already announced, which is what `ObjectFilter::OtherThanInstance`
+    /// the ones already announced, which is what `SelectionFilter::OtherThan`
     /// reads; announcing out of order would let Incremental Growth's "another
     /// target creature" exclude a creature that had not been chosen yet.
     ///

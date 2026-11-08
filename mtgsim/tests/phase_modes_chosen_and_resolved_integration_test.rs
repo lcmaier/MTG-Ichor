@@ -476,7 +476,6 @@ fn another_target_inside_a_mode_excludes_only_that_modes_targets() {
     let mut game = setup_two_player_game();
     let first = put_on_battlefield(&mut game, hill_giant(), 1);
     let second = put_on_battlefield(&mut game, grizzly_bears(), 1);
-
     let card = invented_instant(
         "Choose one or both —\n• Target creature gets +1/+1 until end of turn.\n• Tap target creature. Tap another target creature.",
         choose(

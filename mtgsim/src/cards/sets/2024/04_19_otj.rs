@@ -18,9 +18,12 @@ use crate::types::mana::{ManaCost, ManaType};
 /// (Oracle text verified on Scryfall, 2026-11-07.)
 ///
 /// CR 702.172a's spree: "choose one or more modes", each paid for as an
-/// additional cost when chosen (CR 700.2h, item 81), Abrade's two modes
-/// behind {2} each. The modes are asked before the mana is known, and the
-/// spell is offered while some set of its modes is payable.
+/// additional cost when chosen (CR 700.2h), Abrade's two modes behind {2}
+/// each. The modes are asked before the mana is known, and the spell is
+/// offered while some set of its modes is payable. Spree is the modal node
+/// that writes it, a count of one or more and a cost a mode; nothing reads a
+/// spree keyword yet, which a card asking "a spell with spree" would, with
+/// `breadth-features`.
 ///
 /// # The rulings, and where each is tested
 ///

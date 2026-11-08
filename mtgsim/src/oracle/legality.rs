@@ -208,7 +208,7 @@ pub fn enumerate_legal_selections(
 /// [`enumerate_legal_selections`] inside CR 601.2c's loop, where the instances
 /// of "target" announced so far are known.
 ///
-/// `earlier_targets` is what an `ObjectFilter::OtherThanInstance` leaf reads — the
+/// `earlier_targets` is what a `SelectionFilter::OtherThan` reads — the
 /// difference between Incremental Growth offering three creatures for its
 /// second clause and offering the two it has not already taken. Outside the
 /// loop the list is empty and that leaf is refused, which is why the plain
@@ -273,7 +273,7 @@ pub fn enumerate_legal_selections_upto(
     };
 
     // A player is asked the filter as an object is, so a player filter's
-    // criteria, and "another target" over one, are read (item 154).
+    // criteria, and "another target" over one, are read.
     let player_passes = |candidate: ObjectOrPlayerId| game.validate_selection(filter, &candidate, you, identity).is_ok();
 
     match filter {

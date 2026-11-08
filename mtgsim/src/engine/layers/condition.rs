@@ -254,7 +254,7 @@ pub(super) fn holds(
         }
 
         // An answer a *resolution* has, which the resolver's walk gives off
-        // `StackEntry::chosen_modes`, and a static ability never does. A card
+        // `StackEntry::announced`, and a static ability never does. A card
         // author reaching for one on a static ability is making the
         // `evaluate_amount` mistake and gets the same treatment — stopped in
         // debug, declining in release, never inventing an answer.

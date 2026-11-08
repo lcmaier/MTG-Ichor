@@ -162,7 +162,7 @@ fn damage_on(game: &GameState, id: ObjectId) -> u32 {
 }
 
 // ---------------------------------------------------------------------------
-// "Another target" over any target (item 154's first half)
+// "Another target" over any target
 // ---------------------------------------------------------------------------
 
 /// "Any other target" excludes a *player* the earlier instance took, which
@@ -208,7 +208,7 @@ fn any_other_target_takes_its_own_damage_after_the_first_names_a_player() {
 }
 
 // ---------------------------------------------------------------------------
-// "Target opponent" (item 345)
+// "Target opponent"
 // ---------------------------------------------------------------------------
 
 /// At three seats "target opponent" offers both opponents and never the

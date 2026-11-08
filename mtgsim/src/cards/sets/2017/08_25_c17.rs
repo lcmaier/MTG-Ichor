@@ -99,11 +99,11 @@ pub fn alms_collector() -> Arc<CardData> {
 ///
 /// (Oracle text verified on Scryfall, 2026-11-07.)
 ///
-/// "Each mode must target a different player", the rule of the modal node
-/// (item 154's second half), on a dies trigger: at two seats one opponent
-/// takes one mode, and at more each mode its own opponent. In Shadrix
-/// Silverquill's place, whose third mode waits for `multiplayer-rules`
-/// (item 415).
+/// "Each mode must target a different player", the rule of the modal node,
+/// on a dies trigger: at two seats one opponent takes one mode, and at more
+/// each mode its own opponent. In Shadrix Silverquill's place, whose third
+/// mode, "each creature they control" of its target player, waits for
+/// `multiplayer-rules`.
 ///
 /// # The rulings, and where each is tested
 ///

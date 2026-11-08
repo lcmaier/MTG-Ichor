@@ -96,7 +96,7 @@ fn walk_legal_sets(
     let mut admitted = |set: &[ModeIndex]| {
         let within_budget = match count {
             CountNow::Pawprints(budget) => pawprints(set) <= budget,
-            CountNow::Sizes(..) => true,
+            CountNow::Sizes { .. } => true,
         };
         if !within_budget
             || (node.rules.each_mode_targets_a_different_player && !players_can_differ(game, node, set, player, this_object, named))
@@ -124,9 +124,9 @@ fn walk_legal_sets(
 /// A count read now: the sizes of set it allows, or a pawprint budget.
 #[derive(Clone, Copy)]
 enum CountNow {
-    /// Every size from the first through the second, and the third if any:
-    /// "you may choose two" is 0 and 2.
-    Sizes(usize, usize, Option<usize>),
+    /// Every size from `fewest` through `most`, and `also` beside them:
+    /// "you may choose two" is 0, and 2 also.
+    Sizes { fewest: usize, most: usize, also: Option<usize> },
     /// CR 700.2i: any size, its pawprints within the budget. Every printed
     /// mode has a pawprint, so no set is larger than the budget.
     Pawprints(u32),
@@ -135,7 +135,7 @@ enum CountNow {
 impl CountNow {
     fn sizes(self) -> impl Iterator<Item = usize> {
         let (fewest, most, also) = match self {
-            CountNow::Sizes(fewest, most, also) => (fewest, most, also),
+            CountNow::Sizes { fewest, most, also } => (fewest, most, also),
             CountNow::Pawprints(budget) => (0, usize::try_from(budget).unwrap_or(usize::MAX), None),
         };
         (fewest..=most).chain(also)
@@ -155,13 +155,13 @@ fn count_now(
 ) -> Option<CountNow> {
     let size = |n: u32| usize::try_from(n).unwrap_or(usize::MAX);
     match count {
-        ModalCount::Exactly(n) => Some(CountNow::Sizes(size(*n), size(*n), None)),
-        ModalCount::Range { fewest, most } => Some(CountNow::Sizes(size(*fewest), size(*most), None)),
+        ModalCount::Exactly(n) => Some(CountNow::Sizes { fewest: size(*n), most: size(*n), also: None }),
+        ModalCount::Range { fewest, most } => Some(CountNow::Sizes { fewest: size(*fewest), most: size(*most), also: None }),
         ModalCount::X => {
             let x = usize::try_from(x_value?).unwrap_or(usize::MAX);
-            Some(CountNow::Sizes(x, x, None))
+            Some(CountNow::Sizes { fewest: x, most: x, also: None })
         }
-        ModalCount::NoneOr(n) => Some(CountNow::Sizes(0, 0, Some(size(*n)).filter(|&n| n > 0))),
+        ModalCount::NoneOr(n) => Some(CountNow::Sizes { fewest: 0, most: 0, also: Some(size(*n)).filter(|&n| n > 0) }),
         ModalCount::Pawprints(budget) => Some(CountNow::Pawprints(*budget)),
         // Read once as the modes are chosen, against the board then (Will of
         // the Abzan's ruling).
@@ -173,7 +173,7 @@ fn count_now(
 }
 
 /// The most modes a count of X can take now, where its modes are each
-/// chosen once: the X a cast may announce for it (item 412). `None` for any
+/// chosen once: the X a cast may announce for it. `None` for any
 /// other count, or one whose modes may repeat, which every X fills.
 pub(crate) fn most_modes_for_x(
     game: &GameState,
@@ -195,7 +195,8 @@ pub(crate) fn most_modes_for_x(
 /// printed order. Greedy, which is exact for the shapes that print, every mode
 /// of a card naming the same players ("target player", or "target opponent");
 /// two modes with different player filters that each could take the other's
-/// player are `codebase-state.md` item 155's shape.
+/// player are the shape `every_instance_has_a_choice`'s greedy feed-forward
+/// leaves to `resolution-recipients-and-amounts`.
 fn players_can_differ(
     game: &GameState,
     node: &ModalNode,

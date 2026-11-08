@@ -518,9 +518,9 @@ pub(crate) fn every_instance_has_a_choice(
     let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
     for (ix, recipient) in instances.iter().enumerate() {
         // **Every instance pushes, in order, whether or not it is checked.**
-        // `OtherThanInstance(k)` reads position `k`, so a skipped push would
-        // renumber every instance after it and an "another target" clause would
-        // exclude the wrong one. Pushing nothing is the honest content: an
+        // `SelectionFilter::OtherThan` reads an instance by its position, so a
+        // skipped push would renumber every instance after it and an "another
+        // target" clause would exclude the wrong one. Pushing nothing is the honest content: an
         // instance that announces nothing excludes nothing.
         let mut feed = Vec::new();
         if let EffectRecipient::Target(f, count) | EffectRecipient::Choose(f, count) = recipient

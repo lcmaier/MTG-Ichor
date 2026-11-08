@@ -18,7 +18,7 @@ use crate::types::mana::{ManaCost, ManaType};
 ///
 /// CR 115.4's "any other target": the second instance is any target but the
 /// first's, a player as much as a creature, which an exclusion on a
-/// permanent's filter could not say (item 154).
+/// permanent's filter could not say.
 ///
 /// # The rulings, and where each is tested
 ///
