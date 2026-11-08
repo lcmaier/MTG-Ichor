@@ -1215,7 +1215,7 @@ Where it differs from decisions 2 and 3's words:
 
 ### `mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost — ✅ landed 2026-11-07
 
-The second of `modal-spells-and-abilities`' two: 3,091 lines of code and tests touched against
+PR #319, the second of `modal-spells-and-abilities`' two: 3,091 lines of code and tests touched against
 ~1,410–2,380 at its intake, past the band's top (`fuzz-record.md`'s block). The intake and the
 measurements are `archive/choices-architecture-landed.md`'s.
 - **Each chosen mode holds its own targets** (item 413): `StackEntry.announced` is an

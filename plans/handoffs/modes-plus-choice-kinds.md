@@ -38,7 +38,7 @@ merges.
   first PR, `modes-chosen-and-resolved` (#318), is handed over, its as-built in
   `choices-architecture.md`, items 31 and 153 closed. Prismari Command waits for
   any-color mana, Cryptic Command in its place; the Will cycle for `game-formats`.
-- Its second, `mode-rules-and-costs`, is handed over: items 81, 154, 345, 412
+- Its second, `mode-rules-and-costs` (#319), is handed over: items 81, 154, 345, 412
   and 413 closed, Shadrix Silverquill moved to `multiplayer-rules` (item 415),
   Vindictive Lich in its place. Past the band's top, so the picker split off at
   the point its intake set.

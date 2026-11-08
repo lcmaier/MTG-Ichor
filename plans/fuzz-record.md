@@ -203,7 +203,7 @@ one means the engine's cost model moved
 ## The records, newest first
 
 **Recorded 2026-11-07 for `mode-rules-and-costs`, the modal node's rules and a mode's own cost**
-(`choices/mode-rules-and-costs`: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
+(`choices/mode-rules-and-costs`, PR #319: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
 345, 412 and 413). Arc Trail, Explosive Derailment, Demonic Pact and Vindictive Lich join the
 registry and no card the performance pool, so the stress column is a new baseline and the
 performance one should not move; five fixtures join `CASTABLE`. One `close_out.py` sitting
