@@ -226,24 +226,24 @@ impl GameState {
         self.history.resolutions_this_turn.get(&identity.ignoring_ability_grant()).copied().unwrap_or(0)
     }
 
-    /// The modes `identity`'s ability has chosen before, as `scope` reads
-    /// them: this turn's only, or every one while its object exists.
-    pub(crate) fn modes_chosen_before(&self, identity: AbilityIdentity, scope: ChosenBefore) -> &[ModeIndex] {
-        match self.history.modes_chosen.get(&identity) {
-            Some(chosen) if scope == ChosenBefore::WhileItExists || chosen.turn == self.turn_number => &chosen.modes,
-            _ => &[],
-        }
+    /// The modes `identity`'s ability has chosen that it may not choose now.
+    pub(crate) fn modes_chosen_before(&self, identity: AbilityIdentity) -> &[ModeIndex] {
+        self.history.modes_chosen.get(&identity).map_or(&[], |chosen| chosen.unoffered(self.turn_number))
     }
 
     /// `identity`'s ability chose `modes` as it was put on the stack, which
     /// "that hasn't been chosen" reads from then on, whatever becomes of the
     /// ability (Demonic Pact's ruling). Under `scope` "this turn", a choice on
-    /// a later turn starts the record over. Its caller owns the moment, once
-    /// the announcement is complete.
+    /// a later turn starts the record over. A choice of none writes nothing.
+    /// Its caller owns the moment, once the announcement is complete.
     pub(crate) fn note_modes_chosen(&mut self, identity: AbilityIdentity, scope: ChosenBefore, modes: impl IntoIterator<Item = ModeIndex>) {
+        let modes: Vec<ModeIndex> = modes.into_iter().collect();
+        if modes.is_empty() {
+            return;
+        }
         let turn = self.turn_number;
-        let chosen = self.history.modes_chosen.entry(identity).or_insert(ModesChosen { turn, modes: Vec::new() });
-        if scope == ChosenBefore::ThisTurn && chosen.turn != turn {
+        let chosen = self.history.modes_chosen.entry(identity).or_insert(ModesChosen { turn, scope, modes: Vec::new() });
+        if chosen.unoffered(turn).is_empty() {
             chosen.modes.clear();
         }
         chosen.turn = turn;

@@ -82,7 +82,7 @@ fn walk_legal_sets(
 ) {
     let Some(count) = count_now(game, &node.count, player, this_object, named, x_value) else { return };
     let chosen_before = match (node.rules.not_chosen_before, identity) {
-        (Some(scope), Some(identity)) => game.modes_chosen_before(identity, scope),
+        (Some(_), Some(identity)) => game.modes_chosen_before(identity),
         _ => &[],
     };
     let legal: Vec<ModeIndex> = node

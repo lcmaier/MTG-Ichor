@@ -625,10 +625,14 @@ impl<'g> Writer<'g> {
             }
             place.filter(|_| obj.zone == Zone::Battlefield).map(|i| (source.id, i + 1))
         };
-        // "That hasn't been chosen" has no word yet: a board where an ability
-        // that still exists has chosen modes is not written, rather than
-        // written as though it had chosen none.
-        if state.history.modes_chosen.keys().any(|identity| state.object_ref(identity.source.id) == Some(identity.source)) {
+        // "That hasn't been chosen" has no word until `pausing-at-a-decision`'s
+        // build: a board where an ability that still exists keeps modes
+        // unoffered is not written, rather than written as though it had
+        // chosen none. A "this turn" record of an earlier turn keeps nothing.
+        let unoffered = |(identity, chosen): (&crate::state::game_state::AbilityIdentity, &crate::state::history::ModesChosen)| {
+            state.object_ref(identity.source.id) == Some(identity.source) && !chosen.unoffered(state.turn_number).is_empty()
+        };
+        if state.history.modes_chosen.iter().any(unoffered) {
             self.report("the modes an ability has chosen before (\"that hasn't been chosen\")");
         }
         // The sets are hashed, so each is read in the board's order: a report

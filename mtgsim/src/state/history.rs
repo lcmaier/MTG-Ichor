@@ -16,7 +16,7 @@ use crate::oracle::characteristics::ObjectInformation;
 use crate::state::game_state::AbilityIdentity;
 use crate::state::history_log::{HistoryLog, HistoryRow, added_to_count};
 use crate::state::layer_memo::GatedWalkInput;
-use crate::types::effects::{ModeIndex, ObjectFilter};
+use crate::types::effects::{ChosenBefore, ModeIndex, ObjectFilter};
 use crate::types::history::{HistoryCount, HistorySpan, TurnFact};
 use crate::types::ids::{IdCollection, IdMap, IdSet, PlayerId};
 
@@ -157,12 +157,26 @@ pub struct GameHistory {
     pub log: HistoryLog,
 }
 
-/// The modes one ability has chosen ([`GameHistory::modes_chosen`]), and the
-/// turn of the last choice, which "this turn" reads.
+/// The modes one ability has chosen ([`GameHistory::modes_chosen`]), how long
+/// its text keeps them unoffered, and the turn of the last choice, which "this
+/// turn" reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModesChosen {
     pub turn: u32,
+    pub scope: ChosenBefore,
     pub modes: Vec<ModeIndex>,
+}
+
+impl ModesChosen {
+    /// The modes still unoffered on turn `now`: every one while the object
+    /// exists, or under "this turn" this turn's alone.
+    pub fn unoffered(&self, now: u32) -> &[ModeIndex] {
+        match self.scope {
+            ChosenBefore::WhileItExists => &self.modes,
+            ChosenBefore::ThisTurn if self.turn == now => &self.modes,
+            ChosenBefore::ThisTurn => &[],
+        }
+    }
 }
 
 impl GameHistory {

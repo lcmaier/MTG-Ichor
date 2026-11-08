@@ -17,6 +17,7 @@ use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade,
 use mtgsim::cards::authoring::{dies, enchantment, gain_control_of, target_permanent, triggered_ability, whenever};
 use mtgsim::cards::printings::{arc_trail, demonic_pact, explosive_derailment, grizzly_bears, hill_giant, mind_stone, vindictive_lich};
 use mtgsim::engine::layers::compute::compute_characteristics;
+use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::{AbilityIdentity, StepType};
 use mtgsim::state::history::ModesChosen;
 use mtgsim::test_support::{pending_triggers_of, test_ctx};
@@ -467,10 +468,13 @@ fn a_mode_chosen_this_turn_is_not_offered_again_until_the_next() {
     let ability = get_effective_abilities(&game, lever)[0].clone();
     assert_eq!(can_activate(&game, 0, lever, &ability), Err(CannotActivate::NoLegalModes));
     assert_eq!(game.players[0].life_total, 23);
+    let keeps_modes_unoffered = |game: &GameState| Scenario::write(game).unwritten.iter().any(|line| line.contains("hasn't been chosen"));
+    assert!(keeps_modes_unoffered(&game), "the save has no word for the record yet, and says so");
 
     pass_turn(&mut game);
     game.players[0].mana_pool.add(ManaType::Green, 1);
     assert_eq!(can_activate(&game, 0, lever, &ability), Ok(()), "a new turn, nothing chosen in it");
+    assert!(!keeps_modes_unoffered(&game), "last turn's record keeps nothing unoffered, so it holds no save back");
 }
 
 // ---------------------------------------------------------------------------
@@ -838,7 +842,8 @@ fn demonic_pact_with_no_mode_left_is_removed() {
     let pact = put_on_battlefield(&mut game, demonic_pact(), 0);
     let ability = get_effective_abilities(&game, pact)[0].id;
     let identity = AbilityIdentity { source: game.object_ref(pact).expect("on the battlefield"), ability };
-    game.history.modes_chosen.insert(identity, ModesChosen { turn: game.turn_number, modes: modes(&[1, 2, 3, 4]) });
+    let record = ModesChosen { turn: game.turn_number, scope: ChosenBefore::WhileItExists, modes: modes(&[1, 2, 3, 4]) };
+    game.history.modes_chosen.insert(identity, record);
     to_upkeep(&mut game, 0);
 
     assert_eq!(game.pending_triggers.len(), 1, "it triggered");
