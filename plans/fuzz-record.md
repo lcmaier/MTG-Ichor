@@ -225,6 +225,50 @@ against **main** `354270f6`: **engine** `7bbb6d51`, the last commit before the c
 - Demonic Pact ends few stress games by its fourth mode, under 3%: it has to see four of its
   controller's upkeeps.
 
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,672 / 182,558 | 428,501 / 435,728 |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / differ | **IDENTICAL** / differ |
+| audit, shipped, dispatches agreed, performance / stress | 176,672 / 173,574 | 428,501 / 430,772 |
+| `Memo hits`, `main` → shipped, performance / stress | 51,488 → 51,488 / 61,432 → 56,521 | 235,348 → 235,348 / 262,256 → 243,581 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7041 M → 0.7063 M, **+0.32%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**Every prediction held**, the cost rows of the engine arm with the gameplay ones: the
+Incremental Growth games asked no more than before. The functions past half a point are
+castability's split into `total_is_payable` (`can_cast_with`'s cost moved, with
+`mana_payable` inlined into it), and an iterator `affected_members` had inlined now standing
+alone. Reachability, shipped, 200 games at two seats: Arc Trail cast 139 and resolved 139 in
+55% of games, Explosive Derailment 139 (138) in 55%, Demonic Pact 104 in 48%, Vindictive Lich
+91 (89) in 38%; at four seats 91, 101, 26 and 93. **Wins by effect** on stress read 0 → 1 of
+50 games, Demonic Pact the one new card that ends a game by one: 2%. **No ladder shape is
+added**: a set of modes is a constant per card, and castability's walk over the sets with
+costs is one total each. The CI fixtures sitting (50 games, release-checked) and the checked
+stress sitting read 0 errors, panics and turn limits.
+
+**§3, shipped, 50 games at seed 12345**, the stress column a new baseline:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 19 / 29 | 28 / 21 |
+| Wins by effect | 2 | 1 |
+| Avg turns | 28.5 | 26.5 |
+| Spells cast | 22.5 | 19.0 |
+| Creatures died | 8.1 | 3.8 |
+| Total damage | 61.0 | 43.8 |
+| **Layer walks** | **338** | **385** |
+| **Memo hits** | **51,637** | **58,280** |
+| **Frames/walk** | **11.24** | **11.10** |
+| **Dependency checks** | **11** | **2** |
+| Decisions | 189 | 222 |
+
+**Size**: 2,445 added and 525 removed in `mtgsim/src` and `mtgsim/tests`, 2,970 touched,
+against the intake's 1,410–2,380 without the picker: past the band's top, the engine half
+2,426 of it. The picker went to `mode-picker`, as the intake set. Registering the cards moved
+`priority_fork_test`'s delayed-trigger seed (21 → 43, from the sweep: 0 of 13,064 branches
+diverging) and `prompt_subject_test`'s second window (0xA4_0039).
+
 **Re-recorded 2026-11-07 for `modes-chosen-and-resolved`, a mode chosen, targeted and resolved**
 (`choices/modes-chosen-and-resolved`, PR #318: CR 700.2 and 603.3c, items 31 and 153). Abrade
 joins the performance pool (125 → 126), and Abrade, Cryptic Command, Casualties of War

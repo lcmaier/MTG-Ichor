@@ -10393,3 +10393,165 @@ a mode is its own instance scope.
      **Slotted:** `modes-chosen-and-resolved`, whose modes make the cast walk
      only the chosen modes (`route-review`, 2026-10-29; re-slotted at that
      PR's intake, 2026-11-07); it was `breadth-features`' `backlog.md` §2.7.
+
+### Item 81 — closed 2026-11-07 by `mode-rules-and-costs`
+
+Closed by CR 700.2h's build: `Mode::cost` holds the cost printed before a
+mode's effect, and the chosen modes' costs are `AdditionalCost::Mandatory` in
+the total at 601.2f (`ModalNode::costs_of`), the modes asked ahead of X where a
+node carries one. Spree is the node writing one per mode under "one or more"
+(Explosive Derailment); no keyword variant was added.
+
+*Original entry:*
+
+81. **A keyworded additional cost can be mandatory, and `AdditionalCost`'s
+    shape says otherwise.** Every named variant is a keyword whose keyword
+    makes it optional, so `is_optional` reads as "named ⇒ optional" even
+    though it is matched exhaustively. **Spree** (CR 702.172a) is the
+    counterexample: "Choose one or more modes. As an additional cost to cast
+    this spell, pay the costs associated with those modes" — choosing is not
+    optional, and the costs follow the modes.
+
+    Spree is not one variant away, though. Its costs are *per mode*, chosen at
+    CR 601.2b along with the modes (CR 700.2), so it needs the modal machinery
+    — `StackEntry.chosen_modes` is written and read by nothing — before it
+    needs anything from this enum. When it lands, the additional cost it
+    contributes is `Mandatory` with a payload assembled from the chosen modes,
+    which is the variant behaving correctly rather than a new one.
+
+    **Reachability (2026-09-08):** unreachable — no registered card is modal,
+    and `chosen_modes` has no producer or consumer.
+
+    **Sized:** with modal spells (`backlog.md` §2.3's neighbourhood), not
+    before. Nothing here changes until then; the note exists so that "keyword
+    means optional" is not inferred from the variant list.
+    **Slotted:** `mode-rules-and-costs`, the second of the modal row's two PRs,
+    whose CR 700.2h builds a mode's own cost as a `Mandatory` additional cost
+    assembled from the chosen modes, then the first spree card (Scryfall:
+    `keyword:spree`) (`route-review`, 2026-10-29; split from the first PR's
+    modes at its intake, 2026-11-07); it was `breadth-features`' `backlog.md`
+    §2.7.
+
+### Item 154 — closed 2026-11-07 by `mode-rules-and-costs`
+
+Closed in both halves: the leaf is gone and `SelectionFilter::OtherThan {
+filter, instance }` wraps any filter, a player's too, the enumeration's player
+arms now asking the validator (Arc Trail); and "each mode must target a
+different player" is `ModeRules::each_mode_targets_a_different_player`, which
+the enumerator and the announcement read (Vindictive Lich).
+
+*Original entry:*
+
+154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
+     filter, so "another target" over `SelectionFilter::Any` or `Player` is
+     not expressible.** The leaf lives inside an `ObjectFilter`, and
+     `SelectionFilter::Any`, `Player`, `Spell` and `DamageSource` carry none;
+     `enumerate_legal_selections` also pushes every player unconditionally for
+     `Any` and `Player` without asking `validate_selection`, so a player
+     exclusion would be skipped even if the leaf could be written.
+
+     **Reachability (2026-09-17):** unreachable — no registered card writes
+     "another target" over anything but a permanent filter. CR 115.4 puts the
+     phrase over "any target" on real cards, so a printed one exists; it is
+     Phase 8 breadth's, and the fix is a `SelectionFilter`-level exclusion
+     rather than a wider `ObjectFilter`.
+
+     **Amended at the A4i review (2026-09-17): it has eight named customers.**
+     `o:"must target"` returns 8, and every one is *"Each mode must target a
+     different player"* — a player-filter exclusion, which is exactly what this
+     item says cannot be written. They arrive with modal spells; item 158 has
+     the list and the two sibling axes.
+
+     **Sized:** ~60 lines. The exclusion moves from the filter to the clause —
+     the instance carries "not what instance k took" beside its filter — and
+     the two enumeration arms that bypass `validate_selection` learn to apply
+     it. That is the shape CR 601.2c actually describes, so it is a
+     simplification as well as a widening; it was not done here because it
+     touches `EffectRecipient`, which 146 sites construct.
+     **Slotted:** `mode-rules-and-costs`, the second of the modal row's two
+     PRs, with Shadrix Silverquill and Arc Trail: seven printed modal cards say
+     "each mode must target a different player", a rule of the modal node, and
+     the exclusion moves to `SelectionFilter` (`route-review`, 2026-10-29; left
+     to the second PR at the first's intake, 2026-11-07); it was
+     `breadth-features`' `backlog.md` §2.7.
+
+### Item 345 — closed 2026-11-07 by `mode-rules-and-costs`
+
+Closed by pulling it forward for Demonic Pact: `SelectionFilter::Player`
+takes a `PlayerSet`, read against the controller by `validate_selection`, so
+the announcement, the enumeration and CR 608.2b's re-check all ask it.
+`target_opponent` is the authoring word; item 342 stays at `multiplayer-rules`.
+
+*Original entry:*
+
+345. **"Target opponent" can't be written.** `SelectionFilter::Player`
+     admits any player, where its three trigger-side siblings each carry a
+     player filter. 742 printed cards say it (`o:"target opponent"
+     game:paper -is:funny`, 2026-10-26), and v1 is four-player Commander.
+     `Player` takes a `PlayerSet` (item 342's), so it is
+     `Player(PlayerSet::Opponents)`, and `validate_selection` and the
+     enumeration of legal selections ask it.
+     **Reachability (2026-10-26):** unreachable — no registered card targets
+     an opponent, since none can be written.
+     **Sized:** ~40–60 lines and a fixture "target opponent loses 2 life"
+     at three seats, cast from hand.
+     **Slotted:** `mode-rules-and-costs`, for Demonic Pact's "target opponent"
+     (pulled forward at its intake, 2026-11-07: `PlayerSet` exists, and nothing
+     here reads "an opponent" two ways, so item 342 stays at
+     `multiplayer-rules`); it was `multiplayer-rules`', with item 342
+     (`route-review`, 2026-10-29). Four Tarkir: Dragonstorm Commander cards say
+     "target opponent". #297's version is `fd07d50b`, about
+     150 lines with its fixture, and needs none of the other folds.
+
+### Item 412 — closed 2026-11-07 by `mode-rules-and-costs`
+
+Closed by capping X's offer at the modes a count of X can take where they
+do not repeat (`oracle::modes::most_modes_for_x`,
+`LegalXValues::capped_at_modes`); the why panel's line reads
+`LegalXValues::most_modes`. Its test fails on the tree before.
+
+*Original entry:*
+
+412. **A count of X offers every payable X, past the modes it can take.** "Choose
+     X" announces X first (decision 2b), from MA-2's payable values, and the node
+     does not narrow them: with modes that may not repeat, an X past the number of
+     legal modes lists no set, and the cast rewinds (CR 601.2e). The cast is
+     offered and refused in the same priority window, `Actions reversed`'s class.
+
+     **Reachability (2026-11-07):** unreachable from a printed card — Doomsday
+     Confluence, the count's one card, repeats its modes, so every X has a set.
+     Reached by Tally of Choices, a fixture in `CASTABLE`.
+     **Sized:** ~20–40 lines: the X offer capped by the most a count of X can take
+     where modes don't repeat, read beside the repeats.
+     **Slotted:** `mode-rules-and-costs`, whose repeats decide what a count of X
+     can take.
+
+### Item 413 — closed 2026-11-07 by `mode-rules-and-costs`
+
+Closed by giving each chosen mode its own targets: `StackEntry.announced`
+is `Announcement::Targets` or `Announcement::Modes(Vec<ChosenMode>)`, every
+reader asking no mode reads `Announcement::targets`, and CR 608.2b's
+re-check and the resolution go scope by scope. `mode_scope_starts` and its
+count checks are gone; no game moved.
+
+*Original entry:*
+
+413. **A chosen mode's targets are told apart by count, not held by the mode.**
+     `StackEntry` keeps `chosen_modes` and one flat `chosen_targets`, and each
+     mode's slice is recomputed from the modes' instance counts
+     (`ModalNode::mode_scope_starts`), which the resolution's `Modal` arm and
+     CR 608.2b's re-check both read. Today the two are written together, once,
+     by `announce_modes_and_targets`, and a count that disagrees is refused. A
+     later writer that edits the targets and keeps their number, CR 115.7's
+     change of target (Redirect) or a copy choosing new targets (CR 707.10c),
+     could put one in another mode's place and pass every check. Found at
+     #318's review (the owner, 2026-11-07).
+
+     **Reachability (2026-11-07):** unreachable — nothing but the three
+     announcements writes `chosen_targets`.
+     **Sized:** ~150–250 lines: each chosen mode holds its own targets, the
+     40 readers of `chosen_targets` in 10 files read them through one
+     flattening accessor, and `mode_scope_start(s)` and the count checks go.
+     No game or test should move.
+     **Slotted:** `mode-rules-and-costs`, which reshapes the same stack entry
+     (the owner, 2026-11-07).

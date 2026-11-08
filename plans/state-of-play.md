@@ -48,7 +48,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | — |
 | 3 | `card-layer-cleanup` | landed | — |
 | 4 | `pausing-at-a-decision`, the design | landed | — |
-| 5 | `mode-rules-and-costs`, the second and 4 more | 5 of 10 landed | 5–8 |
+| 5 | `mode-picker`, the dev GUI's and 4 more | 6 of 11 landed | 5–8 |
 | 6 | `linked-abilities` | to come | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 4–7 |
@@ -170,6 +170,7 @@ is derived.
 | 2026-11-03 | An effect divided among its targets | `divided-among-targets` | `choices-architecture.md` |
 | 2026-11-06 | The orders the CR hands a player | `orders-the-cr-hands-a-player` | `choices-architecture.md` |
 | 2026-11-07 | A mode chosen, targeted and resolved | `modes-chosen-and-resolved` | `choices-architecture.md` |
+| 2026-11-07 | The node's rules, its other choosers and a mode's own cost | `mode-rules-and-costs` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -183,7 +184,7 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| The node's rules, its other choosers and a mode's own cost | `mode-rules-and-costs` | `choices-architecture.md` |
+| The dev GUI asks for modes one at a time | `mode-picker` | `choices-architecture.md` |
 | A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
 | A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
 | Token copies | `token-copies` | `copy-effects-architecture.md` |
@@ -231,13 +232,13 @@ with less than 20% room is bolded.
 | | |
 |---|---:|
 | Numbered items | 465 |
-| …closed, still recorded | 278 |
-| …open — unreachable, and says why | 127 |
+| …closed, still recorded | 283 |
+| …open — unreachable, and says why | 122 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 34 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **2** |
-| …open, carrying an explicit `**Sized:**` | 181 of 187 |
+| …open, carrying an explicit `**Sized:**` | 176 of 182 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -251,7 +252,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 174 |
+| …slotted to a phase or roadmap row still to come | 169 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

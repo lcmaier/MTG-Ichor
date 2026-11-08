@@ -16,7 +16,7 @@ order. The first, `options-named-by-what-they-are`, is built on this branch
 after the design; each later one on its own branch once the one before
 merges.
 
-**Where it stands** (2026-11-03):
+**Where it stands** (2026-11-07):
 - The first PR, `options-named-by-what-they-are`, landed on #307: items 336
   and 361 closed. The owner's rule from its review: name by ids of game things
   (objects, the resolving stack object), never by positions or the engine's
@@ -38,6 +38,11 @@ merges.
   first PR, `modes-chosen-and-resolved` (#318), is handed over, its as-built in
   `choices-architecture.md`, items 31 and 153 closed. Prismari Command waits for
   any-color mana, Cryptic Command in its place; the Will cycle for `game-formats`.
-- Next: `mode-rules-and-costs` (items 81, 154, 412 and 413, the last each
-  chosen mode holding its own targets), on its own branch; then the
-  dev GUI PR with the mode picker (decision 2's "For the GUIs").
+- Its second, `mode-rules-and-costs`, is handed over: items 81, 154, 345, 412
+  and 413 closed, Shadrix Silverquill moved to `multiplayer-rules` (item 415),
+  Vindictive Lich in its place. Past the band's top, so the picker split off at
+  the point its intake set.
+- Next: `mode-picker`, the dev GUI PR that asks for modes through a picker
+  (decision 2's "For the GUIs": a checkbox or a count per mode, its logic plain
+  Rust over the offered list under tests, egui only drawing); then
+  `mana-provenance`'s design.
