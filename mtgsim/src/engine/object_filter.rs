@@ -98,7 +98,7 @@ impl FilterReferents for TextReferents<'_, '_> {
     }
 }
 
-/// What the announced instances look like to `SelectionFilter::OtherThan`,
+/// What the announced instances look like to `SelectionFilter::Another`,
 /// without copying them.
 ///
 /// Read only by a spell or ability with more than one "target" whose later
@@ -106,7 +106,7 @@ impl FilterReferents for TextReferents<'_, '_> {
 /// creature, and a third target creature" (CR 115.3 lets one object be chosen
 /// once per instance, so "another" is what forbids the repeat), and Arc
 /// Trail's "any other target". The second instance's filter is wrapped in
-/// `OtherThan` naming instance 0, which asks what the first chose.
+/// `Another`, which asks what the instances before it chose.
 ///
 /// Two shapes answer the same question. Inside CR 601.2c's loop the earlier
 /// choices are a [`ChosenTargets`] being built; inside CR 608.2b's re-check
@@ -127,32 +127,23 @@ pub enum EarlierTargets<'a> {
 }
 
 impl EarlierTargets<'_> {
-    /// How many instances of "target" are announced so far.
-    pub(crate) fn len(&self) -> usize {
-        match self {
-            EarlierTargets::None => 0,
-            EarlierTargets::Chosen(c) => c.len(),
-            EarlierTargets::Announced(i) => i.len(),
-        }
-    }
-
-    /// Was `target` chosen for instance `ix`? By id: "another target" asks
+    /// Did an earlier instance choose `target`? By id: "another target" asks
     /// whether the announcement named this object, and an announcement names
     /// objects as they were at one moment.
-    pub(crate) fn instance_names(&self, ix: usize, target: ObjectOrPlayerId) -> bool {
+    pub(crate) fn names(&self, target: ObjectOrPlayerId) -> bool {
         match self {
             EarlierTargets::None => false,
-            EarlierTargets::Chosen(c) => c.instance(ix).contains(&target),
-            EarlierTargets::Announced(i) => i.get(ix).is_some_and(|inst| inst.as_resolved_targets().any(|t| t == target)),
+            EarlierTargets::Chosen(c) => c.all().contains(&target),
+            EarlierTargets::Announced(i) => i.iter().any(|inst| inst.as_resolved_targets().any(|t| t == target)),
         }
     }
 
-    /// How many targets instance `ix` chose.
-    pub(crate) fn instance_len(&self, ix: usize) -> usize {
+    /// How many targets the earlier instances chose, all told.
+    pub(crate) fn targets_taken(&self) -> usize {
         match self {
             EarlierTargets::None => 0,
-            EarlierTargets::Chosen(c) => c.instance(ix).len(),
-            EarlierTargets::Announced(i) => i.get(ix).map_or(0, |inst| inst.targets().count()),
+            EarlierTargets::Chosen(c) => c.all().len(),
+            EarlierTargets::Announced(i) => i.iter().map(|inst| inst.targets().count()).sum(),
         }
     }
 }

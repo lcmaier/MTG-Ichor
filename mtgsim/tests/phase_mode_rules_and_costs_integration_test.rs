@@ -163,7 +163,7 @@ fn any_other_target_is_not_the_player_the_first_instance_took() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let first = ChosenTargets::one(vec![ObjectOrPlayerId::Player(1)]);
     let identity = FilterIdentity::for_text_of(ObjectId::UNASSIGNED, EarlierTargets::Chosen(&first));
-    let other = SelectionFilter::other_than(SelectionFilter::Any, &[0]);
+    let other = SelectionFilter::Another(Box::new(SelectionFilter::Any));
 
     let offered = enumerate_legal_selections_excluding(&game, &other, None, 0, identity);
 

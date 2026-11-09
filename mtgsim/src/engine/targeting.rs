@@ -239,7 +239,7 @@ impl ChosenTargets {
     }
 
     /// Append the next instance's choice. CR 601.2c announces in printed
-    /// order, and `SelectionFilter::OtherThan` reads the ones already
+    /// order, and `SelectionFilter::Another` reads the ones already
     /// pushed, so the order is load-bearing rather than incidental.
     pub fn push(&mut self, targets: impl IntoIterator<Item = ObjectOrPlayerId>) {
         if self.bounds.is_empty() {
@@ -269,7 +269,7 @@ fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usiz
 }
 
 /// Whether a clause's criteria read an earlier instance of "target" —
-/// `SelectionFilter::OtherThan`, the "another target" family.
+/// `SelectionFilter::Another`, the "another target" family.
 ///
 /// **A cost question, not a correctness one.** The announcement loop feeds each
 /// instance's choice forward so the next one can exclude it, and building that
@@ -281,7 +281,7 @@ fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usiz
 pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
     matches!(
         recipient,
-        EffectRecipient::Target(SelectionFilter::OtherThan { .. }, _) | EffectRecipient::Choose(SelectionFilter::OtherThan { .. }, _)
+        EffectRecipient::Target(SelectionFilter::Another(_), _) | EffectRecipient::Choose(SelectionFilter::Another(_), _)
     )
 }
 
@@ -315,7 +315,7 @@ pub struct FilterIdentity<'a> {
     /// text is being announced, and the leaf is refused rather than answered.
     pub source: Option<ObjectId>,
     /// The instances of "target" announced before this one, which
-    /// [`SelectionFilter::OtherThan`] reads. `None` outside CR 601.2c's
+    /// [`SelectionFilter::Another`] reads. `None` outside CR 601.2c's
     /// loop and CR 608.2b's re-check, where that wrapper is likewise refused.
     pub earlier_targets: EarlierTargets<'a>,
     /// The other objects the text names, as CR 608.2h reads them: "this" once
@@ -438,7 +438,7 @@ impl GameState {
     /// which for a spell or activated ability being cast is the player casting
     /// it, and for an Aura's enchant clause is the Aura's controller.
     /// `earlier_targets` is the instances announced before this one, which is what
-    /// `SelectionFilter::OtherThan` reads — empty for a spell whose
+    /// `SelectionFilter::Another` reads — empty for a spell whose
     /// clauses name no earlier instance, which is all but the "another target"
     /// family.
     ///
@@ -528,7 +528,7 @@ impl GameState {
     /// `host` (CR 303.4a), its "you" being `you` (CR 109.5): what CR 704.5m
     /// leaves attached and what CR 303.4f offers an Aura entering the
     /// battlefield. Not targeting, so hexproof and shroud do not apply. Asked
-    /// outside CR 601.2c's loop, so a `SelectionFilter::OtherThan` is refused
+    /// outside CR 601.2c's loop, so a `SelectionFilter::Another` is refused
     /// rather than answered; "this" is the Aura.
     pub(crate) fn can_enchant(&self, filter: &SelectionFilter, aura: ObjectId, host: ObjectId, you: PlayerId) -> bool {
         let identity = FilterIdentity::for_text_of(aura, EarlierTargets::None);
@@ -556,16 +556,17 @@ impl GameState {
             }
             SelectionFilter::Spell => self.validate_spell_target(target),
             SelectionFilter::DamageSource => self.validate_damage_source(target),
-            SelectionFilter::OtherThan { filter, instance } => {
+            SelectionFilter::Another(filter) => {
                 let earlier = identity.earlier_targets;
-                if *instance >= earlier.len() {
-                    return Err(format!(
-                        "\"another target\" names instance {instance} of \"target\", which has not been announced (CR 601.2c); \
-                         only the announcement and the CR 608.2b re-check hold the earlier instances"
-                    ));
+                if matches!(earlier, EarlierTargets::None) {
+                    return Err(
+                        "\"another target\" is asked outside an announcement; only the announcement and the CR 608.2b re-check \
+                         hold the earlier instances (CR 601.2c)"
+                            .to_string(),
+                    );
                 }
-                if earlier.instance_names(*instance, *target) {
-                    return Err(format!("{target:?} was chosen for instance {instance}, and this is another target (CR 115.4)"));
+                if earlier.names(*target) {
+                    return Err(format!("{target:?} is an earlier instance's, and this is another target (CR 115.4)"));
                 }
                 self.validate_selection(filter, target, you, identity)
             }
@@ -888,13 +889,14 @@ impl GameState {
         named_objects: ConditionReferents<'_>,
         tally: &mut Fizzle,
     ) -> ChosenTargets {
-        // The scope's announcement, unfiltered: "another target" was a
-        // criterion of CR 601.2c's announcement, and re-asking it against a
-        // half-filtered list would let one instance's fizzle legalize
-        // another's. Borrowed, not copied.
-        let announced_targets = FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(instances)).naming(named_objects);
+        // Each instance's earlier ones as announced, unfiltered: "another
+        // target" was a criterion of CR 601.2c's announcement, and re-asking
+        // it against a half-filtered list would let one instance's fizzle
+        // legalize another's. Borrowed, not copied.
         let mut survivors = ChosenTargets::NONE;
-        for inst in instances {
+        for (ix, inst) in instances.iter().enumerate() {
+            let announced_targets =
+                FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(&instances[..ix])).naming(named_objects);
             let existing = inst.targets().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked against its

@@ -484,7 +484,7 @@ fn another_target_inside_a_mode_excludes_only_that_modes_targets() {
                 gets(target_creature(), 1, 1).until_end_of_turn(),
                 Effect::Sequence(vec![
                     tap(target_permanent(creature())),
-                    tap(another_target(SelectionFilter::Permanent(creature()), &[0])),
+                    tap(another_target(SelectionFilter::Permanent(creature()))),
                 ]),
             ],
         ),

@@ -208,7 +208,7 @@ pub fn enumerate_legal_selections(
 /// [`enumerate_legal_selections`] inside CR 601.2c's loop, where the instances
 /// of "target" announced so far are known.
 ///
-/// `earlier_targets` is what a `SelectionFilter::OtherThan` reads — the
+/// `earlier_targets` is what a `SelectionFilter::Another` reads — the
 /// difference between Incremental Growth offering three creatures for its
 /// second clause and offering the two it has not already taken. Outside the
 /// loop the list is empty and that leaf is refused, which is why the plain
@@ -290,16 +290,14 @@ pub fn enumerate_legal_selections_upto(
         // earlier instances took, in the wrapped filter's order. Each
         // candidate is validated once, by the wrapped filter's arm, and at
         // most `limit` plus the targets taken are asked for.
-        SelectionFilter::OtherThan { .. } => {
-            let (inner, excluded) = filter.without_exclusions();
+        SelectionFilter::Another(inner) => {
             let earlier = identity.earlier_targets;
-            if excluded.iter().any(|&ix| ix >= earlier.len()) {
+            if matches!(earlier, crate::engine::object_filter::EarlierTargets::None) {
                 return Vec::new();
             }
-            let taken: usize = excluded.iter().map(|&ix| earlier.instance_len(ix)).sum();
-            enumerate_legal_selections_upto(game, inner, exclude_id, you, identity, limit.saturating_add(taken))
+            enumerate_legal_selections_upto(game, inner, exclude_id, you, identity, limit.saturating_add(earlier.targets_taken()))
                 .into_iter()
-                .filter(|&candidate| !excluded.iter().any(|&ix| earlier.instance_names(ix, candidate)))
+                .filter(|&candidate| !earlier.names(candidate))
                 .take(limit)
                 .collect()
         }

@@ -31,7 +31,7 @@ pub fn arc_trail() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, Effect::Sequence(vec![deal_damage(any_target(), 2), deal_damage(any_other_target(0), 1)])))
+        .ability(spell_ability(text, Effect::Sequence(vec![deal_damage(any_target(), 2), deal_damage(any_other_target(), 1)])))
         .build()
 }
 

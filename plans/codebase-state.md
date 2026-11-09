@@ -6816,7 +6816,7 @@ place.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 153".
 
 154. **~~`ObjectFilter::OtherThanInstance` is only asked of a `Permanent` filter, so "another target" over `SelectionFilter::Any` or `Player` is not expressible.~~ — ✅ CLOSED 2026-11-07 (`mode-rules-and-costs`).** — archived.
-     "Another target" is `SelectionFilter::OtherThan` over any filter (Arc
+     "Another target" is `SelectionFilter::Another` over any filter (Arc
      Trail), and "each mode must target a different player" a rule of the
      modal node (Vindictive Lich).
      **Reachability (2026-11-07):** closed — `mode-rules-and-costs`.
@@ -6927,7 +6927,7 @@ place.
        `copy-effects-architecture.md`'s and not this one's.
 
      **Reachability (2026-11-07):** unreachable for the copy axis — nothing
-     copies a spell. The across-instances axis is `SelectionFilter::OtherThan`
+     copies a spell. The across-instances axis is `SelectionFilter::Another`
      and the across-modes axis `ModeRules::each_mode_targets_a_different_player`
      since `mode-rules-and-costs` (item 154, Vindictive Lich registered), so one
      axis of three is left.

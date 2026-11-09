@@ -346,7 +346,7 @@ impl GameState {
     /// before it divides its first), so a second walk asks it.
     ///
     /// **Printed order is load-bearing.** Each instance is enumerated against
-    /// the ones already announced, which is what `SelectionFilter::OtherThan`
+    /// the ones already announced, which is what `SelectionFilter::Another`
     /// reads; announcing out of order would let Incremental Growth's "another
     /// target creature" exclude a creature that had not been chosen yet.
     ///

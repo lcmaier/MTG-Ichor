@@ -1284,7 +1284,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `Permanent` — **holds** an `ObjectFilter`.
 - `Spell` — **owns** "a spell on the stack" as a candidate.
 - `DamageSource` — **owns** "a source of damage", CR 609.7a's choice.
-- `OtherThan` — **kept** "another target", "any other target" (CR 601.2c, 115.4): a relation to an earlier instance, over any filter a player's among; it was `ObjectFilter::OtherThanInstance` until item 154.
+- `Another` — **kept** "another target", "any other target" (CR 601.2c, 115.4): a relation to the earlier instances in its scope, over any filter a player's among; it was `ObjectFilter::OtherThanInstance` until item 154.
 
 #### `SourceFilter`
 - `ControlledBy` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).

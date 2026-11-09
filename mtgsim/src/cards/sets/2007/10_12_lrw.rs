@@ -22,7 +22,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// parenthesis rather than through a rule of its own: one object may be chosen
 /// once for each instance "as long as it fits the targeting criteria", and
 /// "another" is how a card writes the exclusion *into* those criteria. Each
-/// later clause is `SelectionFilter::OtherThan` every earlier one.
+/// later clause is `SelectionFilter::Another`, other than every earlier one.
 ///
 /// Registered and unpooled: three distinct creatures is a board a random game
 /// reaches rarely, and the castability rule it presses on is the same one
@@ -47,7 +47,7 @@ use crate::types::mana::{ManaCost, ManaType};
 pub fn incremental_growth() -> Arc<CardData> {
     // "another target creature", "a third target creature": a creature, and not
     // one an earlier instance took.
-    let other_than = |earlier_targets: &[usize]| another_target(SelectionFilter::Permanent(creature()), earlier_targets);
+    let another_creature = || another_target(SelectionFilter::Permanent(creature()));
     let grow = |n: u64, recipient| {
         put_counters(recipient, CounterType::PlusOnePlusOne, n)
     };
@@ -61,8 +61,8 @@ pub fn incremental_growth() -> Arc<CardData> {
         )
         .ability(spell_ability("Put a +1/+1 counter on target creature, two +1/+1 counters on another target creature, and three +1/+1 counters on a third target creature.", Effect::Sequence(vec![
             grow(1, target_creature()),
-            grow(2, other_than(&[0])),
-            grow(3, other_than(&[0, 1])),
+            grow(2, another_creature()),
+            grow(3, another_creature()),
         ])))
         .build()
 }

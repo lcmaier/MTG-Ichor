@@ -1341,40 +1341,30 @@ pub enum SelectionFilter {
     /// `COVERS-PARTIAL` for it.
     DamageSource,
     /// CR 115.4's "**any other** target", CR 601.2c's "**another** target
-    /// creature", "a **third** target creature": what `filter` admits, other
-    /// than what the earlier instance of "target" `instance` in the same scope
-    /// chose (the effect's, or one mode's). CR 601.2c lets one object be chosen
-    /// once for each instance "as long as it fits the targeting criteria", and
-    /// "another" is how a card puts the exclusion into those criteria, over a
-    /// player as over a permanent (Arc Trail). Incremental Growth's third
-    /// clause wraps its second's.
+    /// creature", "a **third** target creature": what the wrapped filter
+    /// admits, other than anything an earlier instance of "target" in the same
+    /// scope chose (the effect's, or one mode's). CR 601.2c lets one object be
+    /// chosen once for each instance "as long as it fits the targeting
+    /// criteria", and "another" is how a card puts the exclusion into those
+    /// criteria, over a player as over a permanent (Arc Trail). Every printed
+    /// "another" is other than the targets its sentence named before it, so
+    /// no instance is named: Incremental Growth's second and third clauses
+    /// are the same filter.
     ///
     /// Identity is not a characteristic, so no layer can change it. Answered
     /// only where the asker holds the instances chosen so far — CR 601.2c's
     /// loop and CR 608.2b's re-check — and refused elsewhere rather than
     /// silently matching everything.
-    OtherThan { filter: Box<SelectionFilter>, instance: usize },
+    Another(Box<SelectionFilter>),
 }
 
 impl SelectionFilter {
-    /// `filter`, other than what each instance of "target" in `earlier`
-    /// chose: "another target creature" is `other_than(creature, &[0])`.
-    pub fn other_than(filter: SelectionFilter, earlier: &[usize]) -> SelectionFilter {
-        earlier
-            .iter()
-            .fold(filter, |filter, &instance| SelectionFilter::OtherThan { filter: Box::new(filter), instance })
-    }
-
-    /// The filter inside every [`Self::OtherThan`], and the instances they
-    /// exclude: `other_than`'s inverse.
-    pub fn without_exclusions(&self) -> (&SelectionFilter, Vec<usize>) {
-        let mut filter = self;
-        let mut excluded = Vec::new();
-        while let SelectionFilter::OtherThan { filter: inner, instance } = filter {
-            excluded.push(*instance);
-            filter = inner;
+    /// The filter "another" is said of: this one, unwrapped.
+    pub fn without_another(&self) -> &SelectionFilter {
+        match self {
+            SelectionFilter::Another(inner) => inner.without_another(),
+            other => other,
         }
-        (filter, excluded)
     }
 }
 
@@ -1468,7 +1458,7 @@ impl EffectRecipient {
     /// either.
     pub fn player_target(&self) -> Option<(&SelectionFilter, &TargetCount)> {
         match self {
-            EffectRecipient::Target(filter, count) if matches!(filter.without_exclusions().0, SelectionFilter::Player(_)) => {
+            EffectRecipient::Target(filter, count) if matches!(filter.without_another(), SelectionFilter::Player(_)) => {
                 Some((filter, count))
             }
             _ => None,

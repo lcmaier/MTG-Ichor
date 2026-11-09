@@ -148,9 +148,9 @@ fn target_creature() -> EffectRecipient {
 
 /// Incremental Growth's later clauses, as the card writes them: a creature,
 /// and not one an earlier instance took.
-fn another_target_creature(earlier_targets: &[usize]) -> EffectRecipient {
+fn another_target_creature() -> EffectRecipient {
     let creature = SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature));
-    EffectRecipient::Target(SelectionFilter::other_than(creature, earlier_targets), TargetCount::Exactly(1))
+    EffectRecipient::Target(SelectionFilter::Another(Box::new(creature)), TargetCount::Exactly(1))
 }
 
 /// `Diagnostics::decisions` is cumulative over the game, so a test that
@@ -541,7 +541,7 @@ fn incremental_growth_counters_three_different_creatures() {
     // Instance 0 offers all three; instance 1 offers the two left; instance 2's
     // single remaining creature is forced and unasked.
     answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
-    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
+    answer_targets(&dp, another_target_creature(), growth, ChoiceOption::Object(b));
     let asked = decisions_during(&mut game, |game| {
         cast_and_resolve(game, 0, growth, &dp);
     });
@@ -571,7 +571,7 @@ fn incremental_growth_still_counters_the_creatures_that_are_left() {
 
     let dp = stopping_dp();
     answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
-    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
+    answer_targets(&dp, another_target_creature(), growth, ChoiceOption::Object(b));
     game.cast_spell(0, growth, &dp).expect("three creatures, so castable");
     exile(&mut game, a);
 
@@ -596,7 +596,7 @@ fn incremental_growth_does_not_resolve_with_every_creature_gone() {
 
     let dp = stopping_dp();
     answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
-    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
+    answer_targets(&dp, another_target_creature(), growth, ChoiceOption::Object(b));
     game.cast_spell(0, growth, &dp).expect("three creatures, so castable");
     for id in [a, b, c] {
         exile(&mut game, id);
@@ -682,7 +682,7 @@ fn incremental_growth_resolves_on_its_last_legal_creature() {
 
     let dp = stopping_dp();
     answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
-    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
+    answer_targets(&dp, another_target_creature(), growth, ChoiceOption::Object(b));
     game.cast_spell(0, growth, &dp).expect("three creatures, so castable");
     exile(&mut game, a);
     exile(&mut game, b);
@@ -726,8 +726,8 @@ fn vorinclex_doubles_each_of_incremental_growths_three_instructions() {
     // announcement is a real prompt.
     let dp = stopping_dp();
     answer_targets(&dp, target_creature(), growth, ChoiceOption::Object(a));
-    answer_targets(&dp, another_target_creature(&[0]), growth, ChoiceOption::Object(b));
-    answer_targets(&dp, another_target_creature(&[0, 1]), growth, ChoiceOption::Object(c));
+    answer_targets(&dp, another_target_creature(), growth, ChoiceOption::Object(b));
+    answer_targets(&dp, another_target_creature(), growth, ChoiceOption::Object(c));
     cast_and_resolve(&mut game, 0, growth, &dp);
 
     assert_eq!(counters(&game, a), 2, "one, doubled");

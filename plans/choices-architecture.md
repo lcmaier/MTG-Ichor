@@ -543,8 +543,10 @@ copy keeps the original's modes (700.2g, `spell-copies`).
   another target", CR 115.4) cannot exclude a player today, because the
   exclusion is an `ObjectFilter` leaf (`OtherThanInstance`) and a player or
   "any target" filter carries none. The leaf is deleted and its 25 uses
-  re-pointed to one wrapper any filter takes, `SelectionFilter::OtherThan {
-  filter, instance }`; the two enumeration arms that push players without
+  re-pointed to one wrapper any filter takes, `SelectionFilter::Another`,
+  other than every earlier instance in its scope (the review dropped the
+  instance number: every printed "another" excludes all the targets its
+  sentence named before it); the two enumeration arms that push players without
   asking `validate_selection` learn to ask it. One spelling of "another
   target", ~60–90 lines.
 - **"Each mode must target a different player" across modes** (Shadrix
@@ -1221,8 +1223,9 @@ measurements are `archive/choices-architecture-landed.md`'s.
 - **Each chosen mode holds its own targets** (item 413): `StackEntry.announced` is an
   `Announcement`, the effect's instances or each `ChosenMode`'s; a reader asking no mode reads
   `Announcement::targets`, and the re-check and the resolution go scope by scope.
-- **"Another target" is `SelectionFilter::OtherThan`**, over any filter, a player too (item 154's
-  first half); "target opponent" is `SelectionFilter::Player(PlayerSet::Opponents)` (item 345).
+- **"Another target" is `SelectionFilter::Another`**, over any filter, a player too, other than
+  every earlier instance in its scope (item 154's first half); "target opponent" is
+  `SelectionFilter::Player(PlayerSet::Opponents)` (item 345).
 - **The node's rules** (decision 2): `ModalCount::NoneOr` and `Pawprints`; `ModeRules`, a mode
   may repeat (700.2d), each mode a different player (item 154's second half), a mode not chosen
   before; `ModeChooser::AnOpponent` (700.2e). The enumerator lists multisets, spends a pawprint
