@@ -51,7 +51,7 @@ pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 32] = [
     ("Pawprint Parade", super::pawprint_parade),
     ("Tribute Offering", super::tribute_offering),
     ("Divided Envoy", super::divided_envoy),
-    ("Tithed Ultimatum", super::tithed_ultimatum),
+    ("Twofold Tithe", super::twofold_tithe),
 ];
 
 /// Fixture Curtain — {W}, instant: "Target creature becomes blocked." CR

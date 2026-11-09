@@ -15,7 +15,7 @@ use mtgsim::cards::authoring::{
     activated_ability, choose_one_not_chosen_before, dies, enchantment, gain_control_of, gain_life, spell_ability, target_permanent,
     triggered_ability, whenever, you,
 };
-use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tithed_ultimatum, tribute_offering};
+use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tribute_offering, twofold_tithe};
 use mtgsim::cards::printings::{arc_trail, demonic_pact, explosive_derailment, grizzly_bears, hill_giant, mind_stone, vindictive_lich};
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::scenario::Scenario;
@@ -342,7 +342,7 @@ fn each_chosen_modes_own_cost_is_paid_as_the_spell_is_cast() {
     let mut game = setup_two_player_game();
     let fodder = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let victim = put_on_battlefield(&mut game, hill_giant(), 1);
-    let spell = put_in_hand(&mut game, tithed_ultimatum(), 0);
+    let spell = put_in_hand(&mut game, twofold_tithe(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 2);
 
     let answers = ScriptedDecisionProvider::new();
@@ -368,7 +368,7 @@ fn each_chosen_modes_own_cost_is_paid_as_the_spell_is_cast() {
 fn a_spell_is_castable_only_while_some_set_of_modes_is_payable() {
     let mut game = setup_two_player_game();
     let _ = put_on_battlefield(&mut game, hill_giant(), 1);
-    let spell = put_in_hand(&mut game, tithed_ultimatum(), 0);
+    let spell = put_in_hand(&mut game, twofold_tithe(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 2);
     game.players[0].life_total = 1;
     assert!(can_cast(&game, 0, spell).is_err(), "no creature to sacrifice, and 1 life");

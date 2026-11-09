@@ -522,15 +522,15 @@ pub fn divided_envoy() -> Arc<CardData> {
         .build()
 }
 
-/// Tithed Ultimatum — {1}{B}, a sorcery.
+/// Twofold Tithe — {1}{B}, a sorcery.
 ///
 /// CR 700.2h's own cost on each mode, ATOM-700.2h-001's board: one mode
 /// behind a life payment, the other behind a sacrifice, each paid as an
 /// additional cost when chosen and both when both are. Spree's shape (CR
 /// 702.172a); a printed spree card's costs are mana.
-pub fn tithed_ultimatum() -> Arc<CardData> {
+pub fn twofold_tithe() -> Arc<CardData> {
     let text = "Spree\n+ Pay 2 life — This spell deals 3 damage to any target.\n+ Sacrifice a creature — Destroy target creature.";
-    CardDataBuilder::new("Tithed Ultimatum")
+    CardDataBuilder::new("Twofold Tithe")
         .mana_cost(ManaCost::build(&[ManaType::Black], 1))
         .color(Color::Black)
         .card_type(CardType::Sorcery)
