@@ -929,9 +929,12 @@ pub enum ModalCount {
     Pawprints(u32),
     /// "Choose one", "choose two": that many different modes.
     Exactly(u32),
-    /// "Choose one or both" (1 to 2), "one or more" (1 to every mode), "up to
-    /// N" (0 to N), "any number" (0 to every mode, Rankle's ruling).
+    /// "Choose one or both" (1 to 2), "up to N" (0 to N): numbers the card
+    /// prints.
     Range { fewest: u32, most: u32 },
+    /// "Choose one or more" (Casualties of War, spree's, Vindictive Lich's):
+    /// one mode to every mode printed, a count the node's own modes settle.
+    OneOrMore,
     /// "Choose X": the X announced for the spell, which is asked first since
     /// the sets of modes cannot be listed before it is known (CR 601.2b
     /// announces both in one step).

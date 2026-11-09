@@ -43,8 +43,7 @@ pub use instructions::{
 };
 pub use modes::{
     an_opponent_chooses_one, choose, choose_one, choose_one_not_chosen_before, choose_one_or_both_if, choose_one_or_more,
-    choose_one_or_more_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to,
-    may_choose_two_each_targeting_a_different_player, spree,
+    choose_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to, spree,
 };
 pub use recipients::{
     an_opponent_controls, another_target, any_other_target, any_target, artifact, attacked_by, basic, chosen_by, color, creature, creatures_you_control, divided_among, each, each_in,

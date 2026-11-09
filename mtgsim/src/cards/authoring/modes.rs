@@ -20,8 +20,7 @@ pub fn choose_two(modes: impl IntoIterator<Item = Effect>) -> Effect {
 
 /// "Choose one or more —": one mode to every mode printed.
 pub fn choose_one_or_more(modes: impl IntoIterator<Item = Effect>) -> Effect {
-    let modes: Vec<Effect> = modes.into_iter().collect();
-    choose(ModalCount::Range { fewest: 1, most: count_of(&modes) }, modes)
+    choose(ModalCount::OneOrMore, modes)
 }
 
 /// "Choose up to [most] —", none among them.
@@ -53,18 +52,13 @@ pub fn choose_repeatable(count: ModalCount, modes: impl IntoIterator<Item = Effe
     modal(count, ModeChooser::Controller, rules, modes.into_iter().map(Mode::new))
 }
 
-/// "Choose one or more. Each mode must target a different player."
-pub fn choose_one_or_more_each_targeting_a_different_player(modes: impl IntoIterator<Item = Effect>) -> Effect {
-    let modes: Vec<Effect> = modes.into_iter().collect();
+/// "Choose [count]. Each mode must target a different player.": Vindictive
+/// Lich's "one or more" (`ModalCount::OneOrMore`) and Shadrix Silverquill's
+/// "you may choose two" (`ModalCount::NoneOr(2)`, zero modes or two, never
+/// one).
+pub fn choose_each_targeting_a_different_player(count: ModalCount, modes: impl IntoIterator<Item = Effect>) -> Effect {
     let rules = ModeRules { each_mode_targets_a_different_player: true, ..ModeRules::NONE };
-    modal(ModalCount::Range { fewest: 1, most: count_of(&modes) }, ModeChooser::Controller, rules, modes.into_iter().map(Mode::new))
-}
-
-/// "You may choose two. Each mode must target a different player." (Shadrix
-/// Silverquill's ruling: zero modes or two, never one).
-pub fn may_choose_two_each_targeting_a_different_player(modes: impl IntoIterator<Item = Effect>) -> Effect {
-    let rules = ModeRules { each_mode_targets_a_different_player: true, ..ModeRules::NONE };
-    modal(ModalCount::NoneOr(2), ModeChooser::Controller, rules, modes.into_iter().map(Mode::new))
+    modal(count, ModeChooser::Controller, rules, modes.into_iter().map(Mode::new))
 }
 
 /// "An opponent chooses one —" (CR 700.2e).
@@ -90,9 +84,8 @@ pub fn choose_pawprints_worth(budget: u32, modes: impl IntoIterator<Item = (u32,
 /// Spree (CR 702.172a): "Choose one or more additional costs.", each mode
 /// behind its "+ [cost] —", paid as an additional cost when chosen (700.2h).
 pub fn spree(modes: impl IntoIterator<Item = (Vec<Cost>, Effect)>) -> Effect {
-    let modes: Vec<Mode> = modes.into_iter().map(|(cost, effect)| Mode::with_cost(cost, effect)).collect();
-    let most = u32::try_from(modes.len()).unwrap_or(u32::MAX);
-    modal(ModalCount::Range { fewest: 1, most }, ModeChooser::Controller, ModeRules::NONE, modes)
+    let modes = modes.into_iter().map(|(cost, effect)| Mode::with_cost(cost, effect));
+    modal(ModalCount::OneOrMore, ModeChooser::Controller, ModeRules::NONE, modes)
 }
 
 /// The node the words above write.
@@ -100,7 +93,3 @@ fn modal(count: ModalCount, chooser: ModeChooser, rules: ModeRules, modes: impl 
     Effect::Modal(Box::new(ModalNode { count, chooser, rules, modes: modes.into_iter().collect() }))
 }
 
-/// How many modes are printed, as a count's most.
-fn count_of(modes: &[Effect]) -> u32 {
-    u32::try_from(modes.len()).unwrap_or(u32::MAX)
-}

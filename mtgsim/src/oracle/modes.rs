@@ -80,7 +80,7 @@ fn walk_legal_sets(
     identity: Option<AbilityIdentity>,
     visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing,
 ) {
-    let Some(count) = count_now(game, &node.count, player, this_object, named, x_value) else { return };
+    let Some(count) = count_now(game, &node.count, node.modes.len(), player, this_object, named, x_value) else { return };
     let chosen_before = match (node.rules.not_chosen_before, identity) {
         (Some(_), Some(identity)) => game.modes_chosen_before(identity),
         _ => &[],
@@ -142,12 +142,13 @@ impl CountNow {
     }
 }
 
-/// What `count` allows, read now: `None` for a count of X with no X
-/// announced. A most may pass the modes printed, which the walk caps where a
-/// mode is chosen once.
+/// What `count` allows, read now, of `printed` modes: `None` for a count of X
+/// with no X announced. A most may pass the modes printed, which the walk caps
+/// where a mode is chosen once.
 fn count_now(
     game: &GameState,
     count: &ModalCount,
+    printed: usize,
     player: PlayerId,
     this_object: ObjectId,
     named: ConditionReferents<'_>,
@@ -157,6 +158,7 @@ fn count_now(
     match count {
         ModalCount::Exactly(n) => Some(CountNow::Sizes { fewest: size(*n), most: size(*n), also: None }),
         ModalCount::Range { fewest, most } => Some(CountNow::Sizes { fewest: size(*fewest), most: size(*most), also: None }),
+        ModalCount::OneOrMore => Some(CountNow::Sizes { fewest: 1, most: printed, also: None }),
         ModalCount::X => {
             let x = usize::try_from(x_value?).unwrap_or(usize::MAX);
             Some(CountNow::Sizes { fewest: x, most: x, also: None })
@@ -167,7 +169,7 @@ fn count_now(
         // the Abzan's ruling).
         ModalCount::RaisedIf { usual, raised, condition } => {
             let holds = settled_holds(condition, game, this_object, Some(player), named);
-            count_now(game, if holds { raised } else { usual }, player, this_object, named, x_value)
+            count_now(game, if holds { raised } else { usual }, printed, player, this_object, named, x_value)
         }
     }
 }

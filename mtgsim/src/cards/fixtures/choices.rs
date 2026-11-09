@@ -6,10 +6,10 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, choose, choose_one, choose_one_or_both_if,
-    choose_pawprints_worth, choose_repeatable, choose_up_to, creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, dies,
-    discard, distribute_counters, draw_cards, each, enters, exile, gain_life, gets, has_base_power_and_toughness, lose_life,
-    may_choose_two_each_targeting_a_different_player, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield,
+    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, choose,
+    choose_each_targeting_a_different_player, choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_repeatable, choose_up_to,
+    creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, dies, discard, distribute_counters, draw_cards, each, enters,
+    exile, gain_life, gets, has_base_power_and_toughness, lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield,
     spell_ability, spree, static_ability, tap, target_creature, target_permanent, target_player, targets, that_target, this_object,
     triggered_ability, whenever, you, you_have,
 };
@@ -513,7 +513,10 @@ pub fn divided_envoy() -> Arc<CardData> {
             text,
             whenever(
                 enters(TriggerSubject::ThisObject),
-                may_choose_two_each_targeting_a_different_player([mill(target_player(), 2), draws_and_loses, gain_life(target_player(), 2)]),
+                choose_each_targeting_a_different_player(
+                    ModalCount::NoneOr(2),
+                    [mill(target_player(), 2), draws_and_loses, gain_life(target_player(), 2)],
+                ),
             ),
         ))
         .build()

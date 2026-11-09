@@ -3,13 +3,13 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    choose_one_or_more_each_targeting_a_different_player, chosen_by, creature, dies, discard, draw_cards, lose_life, sacrifice,
+    choose_each_targeting_a_different_player, chosen_by, creature, dies, discard, draw_cards, lose_life, sacrifice,
     static_replacement, target_opponent, triggered_ability, whenever, you_and_that_player,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, DiscardChooser, Pick, PlayerSet};
+use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, DiscardChooser, ModalCount, Pick, PlayerSet};
 use crate::types::triggers::TriggerSubject;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
@@ -131,7 +131,7 @@ pub fn vindictive_lich() -> Arc<CardData> {
             text,
             whenever(
                 dies(TriggerSubject::ThisObject),
-                choose_one_or_more_each_targeting_a_different_player([
+                choose_each_targeting_a_different_player(ModalCount::OneOrMore, [
                     sacrifices,
                     discard(target_opponent(), 2, DiscardChooser::Affected),
                     lose_life(target_opponent(), 5),
