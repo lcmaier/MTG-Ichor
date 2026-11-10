@@ -14,7 +14,8 @@
 //! - **receive**: `WindowState::receive`, the window's work as a prompt arrives;
 //! - **views**: `board_view` and `prompt_view`, which `app::draw` builds again
 //!   at every repaint, and the header's tools with three entries in their
-//!   menu (`setup-architecture.md` §7.3);
+//!   menu (`setup-architecture.md` §7.3); and the mode picker's view at the
+//!   widest choice of modes a card prints, built here, not asked on the board;
 //! - **the editor** on the same board: its view, built again at every repaint
 //!   in the editor, with the advanced settings off and on; one edit at a
 //!   click, which writes the board, reads it back and has the loader check
@@ -40,14 +41,16 @@ use std::time::{Duration, Instant};
 use devgui::bridge::{GameSetup, Play, Pool, ToWindow, spawn_game};
 use devgui::editor::{BoardNumber, Editor, EditorInput, Source};
 use devgui::save::{Destination, Tools};
+use devgui::prompt::{OptionView, Primitive, Prompt};
 use devgui::snapshot::Snapshot;
-use devgui::view_model::WindowState;
+use devgui::view_model::{Input, Selection, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::layers::explain;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::GameState;
 use mtgsim::oracle::legality::candidate_priority_actions;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::types::effects::ModeIndex;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, modes_as_logged};
 use mtgsim::ui::why::{OpenQuestion, WhyAbout, why};
 
 const RUNS: usize = 200;
@@ -95,6 +98,8 @@ fn main() {
     let mut state = WindowState::default();
     state.receive(ToWindow::Prompt { snapshot, prompt, yielding: None, why: None });
     reading("views, every repaint", || (state.board_view(), state.prompt_view()));
+    let picker = widest_mode_picker();
+    reading("mode picker, 126 choices, every repaint", || picker.prompt_view());
     let destinations = vec![
         Destination::Savestate { at: 4, name: "Turn 2 · Precombat Main".to_string() },
         Destination::Savestate { at: 11, name: "Turn 3 · Declare Blockers".to_string() },
@@ -142,6 +147,42 @@ fn main() {
         editor.input(EditorInput::AddTypedLine);
         editor.input(EditorInput::Undo);
     });
+}
+
+/// The widest choice of modes a printed card offers, Unite the Coalition's: any
+/// five of five modes, a mode as often as it likes, which is 126 choices. Two
+/// ticked, as a person partway through it, since the rows' probes each walk
+/// the list.
+fn widest_mode_picker() -> WindowState {
+    let modes = |places: &[u8]| places.iter().map(|&place| ModeIndex::printed(place)).collect::<Vec<_>>();
+    // Each choice grows by a mode no earlier than its last, in printed order as the engine lists them.
+    let mut choices: Vec<Vec<u8>> = vec![Vec::new()];
+    for _ in 0..5 {
+        let grown = |choice: Vec<u8>| (*choice.last().unwrap_or(&1)..=5).map(move |next| [choice.as_slice(), &[next]].concat());
+        choices = choices.into_iter().flat_map(grown).collect();
+    }
+    assert_eq!(choices.len(), 126);
+    let options = choices
+        .iter()
+        .map(|choice| OptionView { label: modes_as_logged(&modes(choice)), what_it_does: None, refs: Vec::new(), attacker: None, modes: Some(modes(choice)) })
+        .collect();
+    let prompt = Prompt {
+        player: 0,
+        kind: "ChooseModes".to_string(),
+        question: "Choose the modes".to_string(),
+        subject: None,
+        pass: None,
+        rejected: None,
+        why_reads_the_trace: false,
+        primitive: Primitive::PickN { min: 1, max: 1 },
+        options,
+        not_offered_yet: Vec::new(),
+    };
+    let mut state = WindowState { selection: Some(Selection::start(&prompt)), prompt: Some(prompt), ..WindowState::default() };
+    for place in [2, 2] {
+        state.input(Input::TickMode(ModeIndex::printed(place)));
+    }
+    state
 }
 
 /// Runs `work` [`RUNS`] times and prints its median and slowest tenth, with
