@@ -654,20 +654,24 @@ fn explosive_derailment_resolves_against_whichever_target_is_left() {
 }
 
 /// Walk `game` to `player`'s next upkeep, where its "beginning of your
-/// upkeep" abilities have triggered and wait to be placed.
+/// upkeep" abilities have triggered and wait to be placed: whole turns passed
+/// until `player`'s begins, then its untap step ended (CR 502, 503).
 fn to_upkeep(game: &mut GameState, player: PlayerId) {
     for seat in 0..game.num_players() {
         if game.players[seat].library.len() < 10 {
             fill_library(game, seat, 20);
         }
     }
-    for _ in 0..200 {
-        game.advance_turn(&test_dp()).expect("advancing");
-        if game.phase.step == Some(StepType::Upkeep) && game.active_player == player {
-            return;
+    for _ in 0..game.num_players() {
+        pass_turn(game);
+        if game.active_player == player {
+            break;
         }
     }
-    panic!("player {player}'s upkeep never began");
+    assert_eq!(game.active_player, player, "player {player}'s turn began within one rotation");
+    assert_eq!(game.phase.step, Some(StepType::Untap), "a turn begins with its untap step");
+    let (_, step) = game.advance_turn(&test_dp()).expect("the untap step ends");
+    assert_eq!(step, Some(StepType::Upkeep), "the upkeep follows the untap step");
 }
 
 /// Demonic Pact's trigger placed at player 0's upkeep with `answers`, and
