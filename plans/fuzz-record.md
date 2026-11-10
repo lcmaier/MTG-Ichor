@@ -279,7 +279,9 @@ excludes what the numbered one did on Arc Trail and Incremental Growth, and the 
 answer. Every gameplay row **IDENTICAL** on both pools at both seats; instructions a decision
 0.7053 M → 0.7046 M, **-0.11%**. The growth gate read the round's own binary this time,
 ×3.94 to ×4.03; the function list compares it against the measured binary valgrind could not
-read, so its rows are one arm each and say nothing.
+read, so its rows are one arm each and say nothing. The second round (`c8c5c46e` against
+`03c75bc5`: the walk's visitor a named boolean, `pass_turn`'s cap a diagnostic) read the same:
+every gameplay row **IDENTICAL**, instructions **-0.01%**, growth ×3.94 to ×4.03, in 219 s.
 
 **Size**: 2,445 added and 525 removed in `mtgsim/src` and `mtgsim/tests`, 2,970 touched, and
 3,091 after the pre-review's fixes and 3,155 after the review round's (632 lines touched in
