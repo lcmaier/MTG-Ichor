@@ -24,6 +24,7 @@ use devgui::view_model::{Input, Mode, ModeControl, Refusal, SETTLE_SECONDS, Wind
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::{self, GameStart, Log};
+use mtgsim::types::effects::ModeIndex;
 use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next, play, spawn};
 use sessions::{BOLT_IN_HAND, next_prompt, scenario_game, session_with};
@@ -191,8 +192,8 @@ fn the_lichs_modes_are_ticked_in_the_picker_and_logged_by_what_they_are() {
     state.receive(next(&engine));
     let view = state.prompt_view().expect("the trigger asks");
     assert!(view.question.contains("Vindictive Lich"), "{}", view.question);
-    let mode = |label: &str| view.modes.iter().find(|row| row.label == label).unwrap_or_else(|| panic!("no row {label}")).mode;
-    let (first, second, third) = (mode("Mode 1"), mode("Mode 2"), mode("Mode 3"));
+    let (first, second, third) = (ModeIndex::printed(1), ModeIndex::printed(2), ModeIndex::printed(3));
+    assert_eq!(view.modes.iter().map(|row| row.mode).collect::<Vec<_>>(), [first, second, third]);
     assert_eq!(state.input(Input::TickMode(first)), None);
     assert_eq!(state.input(Input::TickMode(third)), None);
     let greyed = state.prompt_view().unwrap().modes.iter().map(|row| !matches!(row.control, ModeControl::Checkbox { live: true, .. })).collect::<Vec<_>>();

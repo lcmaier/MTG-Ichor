@@ -28,7 +28,7 @@ use devgui::launch::Start;
 use devgui::prompt::{Answer, BoardRef, Prompt, Reply};
 use devgui::save::{Destination, Tools};
 use devgui::session::Session;
-use devgui::view_model::{Amount, Input, Mode, ModeControl, Progress, WindowState};
+use devgui::view_model::{Amount, Input, Key, Mode, ModeControl, Progress, WindowState};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
 use games::{from_board, next, play, spawn};
@@ -512,8 +512,6 @@ fn blocks_rejected() -> WindowState {
     state
 }
 
-/// Close a game waiting on the window and let its thread end, so none is
-/// still unwinding when the test process exits.
 /// The click script's board, `modes.scenario`: Cryptic Command cast in answer
 /// to the Bolt, its first and third modes ticked, so the other two are greyed
 /// and Done is live.
@@ -530,7 +528,7 @@ fn cryptic_command_ticked() -> WindowState {
         let input = Input::OptionButton(cryptic.or(prompt.pass).unwrap_or_else(|| panic!("nothing to take at {}", state.status())));
         engine.answers.send(state.input(input).expect("one option answers")).unwrap();
     }
-    tick(&mut state, &["Mode 1", "Mode 3"]);
+    tick(&mut state, &[1, 3]);
     let view = state.prompt_view().expect("the question is open");
     let live: Vec<bool> = view.modes.iter().map(|row| matches!(row.control, ModeControl::Checkbox { live: true, .. })).collect();
     assert_eq!(live, [true, false, true, false], "a ticked mode can be unticked; a third cannot be ticked");
@@ -544,22 +542,29 @@ fn cryptic_command_ticked() -> WindowState {
 /// one-pawprint count can take one more.
 fn pawprint_parade_counted() -> WindowState {
     let mut state = modes_asked::pawprint_parade().window();
-    tick(&mut state, &["Mode 1", "Mode 1"]);
+    tick(&mut state, &[1, 1]);
     let view = state.prompt_view().expect("the question is open");
-    let raisable: Vec<bool> = view.modes.iter().map(|row| matches!(row.control, ModeControl::Count(Amount { can_raise: true, .. }))).collect();
-    assert_eq!(raisable, [true, false, true]);
+    let controls: Vec<&ModeControl> = view.modes.iter().map(|row| &row.control).collect();
+    assert!(matches!(controls[..], [
+        ModeControl::Count(Amount { value: 2, can_raise: true, .. }),
+        ModeControl::Checkbox { ticked: false, live: false, .. },
+        ModeControl::Count(Amount { value: 0, can_raise: true, .. }),
+    ]), "{controls:?}");
     state
 }
 
-/// Each mode labeled `label` ticked once, in order.
-fn tick(state: &mut WindowState, labels: &[&str]) {
-    for label in labels {
-        let view = state.prompt_view().expect("the question is open");
-        let row = view.modes.iter().find(|row| row.label == *label).unwrap_or_else(|| panic!("no row {label}"));
-        assert_eq!(state.input(Input::TickMode(row.mode)), None);
+/// The modes printed at `places` ticked in order, each by its digit key, which
+/// is that mode's click.
+fn tick(state: &mut WindowState, places: &[u8]) {
+    for &place in places {
+        let before = state.selection.clone();
+        assert_eq!(state.input(Input::Key { key: Key::Digit(place), repeat: false }), None);
+        assert_ne!(state.selection, before, "mode {place} was not ticked");
     }
 }
 
+/// Close a game waiting on the window and let its thread end, so none is
+/// still unwinding when the test process exits.
 fn finish(engine: EngineHandle) {
     let EngineHandle { answers, thread, .. } = engine;
     drop(answers);
