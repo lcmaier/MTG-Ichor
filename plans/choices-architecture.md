@@ -1267,7 +1267,7 @@ touched against the guess of 300–600, the brief's 400–700 by parts.
   node's rules (Cryptic Command, Casualties of War, Explosive Derailment, Vindictive Lich at
   three seats; the Echoing Reckoning, Pawprint Parade, Divided Envoy, Tally of Choices and
   Kindled Option fixtures), every reachable set of ticks walked; `modes.scenario` under random
-  clicks; two pictures. At 126 choices the picker's view costs 3.7 µs a repaint (`prompt_cost`).
+  clicks; two pictures. At 126 choices the picker's view costs 1.6 µs a repaint (`prompt_cost`).
 
 Where it differs from decision 2's words:
 - **A mode in no offered choice has no row**: the list cannot say it exists, so Cryptic
