@@ -5,69 +5,23 @@
 //! answers with that option, a tick is live exactly where some offered choice
 //! still holds the ticks with it, and every offered choice is reached.
 
-use std::cell::RefCell;
+#[path = "support/modes_asked.rs"]
+#[allow(dead_code, reason = "the walk starts from the prompt alone; the snapshot is the pictures'")]
+mod modes_asked;
+
 use std::collections::BTreeSet;
-use std::rc::Rc;
-use std::sync::Arc;
 
 use devgui::prompt::{Answer, Prompt, Reply};
 use devgui::view_model::{Input, ModeControl, ModeRow, Selection, WindowState};
-use mtgsim::cards::fixtures::{echoing_reckoning, pawprint_parade};
+use mtgsim::cards::fixtures::echoing_reckoning;
 use mtgsim::cards::printings::{casualties_of_war, cryptic_command, explosive_derailment, grizzly_bears, vindictive_lich};
-use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{card_of_type, fill_library, lightning_bolt, put_in_hand, put_on_battlefield, setup_game, test_ctx};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::ModeIndex;
-use mtgsim::types::ids::PlayerId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
-
-/// A seat that keeps the window's prompt for the first choice of modes it is
-/// asked, and gives the first legal answer to everything.
-struct Keeping {
-    kept: Rc<RefCell<Option<Prompt>>>,
-}
-
-impl DecisionProvider for Keeping {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::ChooseModes { .. }) && self.kept.borrow().is_none() {
-            *self.kept.borrow_mut() = Some(Prompt::pick_n(game, player, context, options, bounds));
-        }
-        (0..bounds.0).collect()
-    }
-
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
-        min
-    }
-
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
-        panic!("nothing on these boards divides")
-    }
-
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        (0..items.len()).collect()
-    }
-}
-
-fn keeping() -> (Keeping, Rc<RefCell<Option<Prompt>>>) {
-    let kept = Rc::new(RefCell::new(None));
-    (Keeping { kept: Rc::clone(&kept) }, kept)
-}
-
-/// The window's prompt for `card`'s modes, cast by player 0 from `mana` floating.
-fn cast(game: &mut GameState, card: Arc<CardData>, mana: &[(ManaType, u64)]) -> Prompt {
-    let id = put_in_hand(game, card, 0);
-    for &(mana_type, n) in mana {
-        game.players[0].mana_pool.add(mana_type, n);
-    }
-    let (seat, kept) = keeping();
-    game.cast_spell(0, id, &ManaWindowStop::new(seat)).expect("castable from the mana floating");
-    kept.take().expect("its modes were asked")
-}
+use modes_asked::{cast, keeping};
 
 fn modes(places: &[u8]) -> Vec<ModeIndex> {
     places.iter().map(|&place| ModeIndex::printed(place)).collect()
@@ -143,7 +97,7 @@ fn cryptic_command_ticks_two_of_four() {
     let bolt = put_in_hand(&mut game, lightning_bolt(), 1);
     game.players[1].mana_pool.add(ManaType::Red, 1);
     game.cast_spell(1, bolt, &ManaWindowStop::new(keeping().0)).expect("a spell to counter");
-    let prompt = cast(&mut game, cryptic_command(), &[(ManaType::Blue, 4)]);
+    let prompt = cast(&mut game, cryptic_command(), &[(ManaType::Blue, 4)]).prompt;
     let walked = walk(&prompt);
     let checkboxes = (1..=4).map(|mode| (format!("Mode {mode}"), false)).collect::<Vec<_>>();
     assert_eq!(kinds(&walked.rows), checkboxes);
@@ -159,11 +113,11 @@ fn casualties_of_war_ticks_one_or_more_of_five() {
     for card_type in [CardType::Artifact, CardType::Creature, CardType::Enchantment, CardType::Land, CardType::Planeswalker] {
         put_on_battlefield(&mut game, card_of_type("Target", card_type), 1);
     }
-    let prompt = cast(&mut game, casualties_of_war(), &[(ManaType::Black, 3), (ManaType::Green, 3)]);
+    let prompt = cast(&mut game, casualties_of_war(), &[(ManaType::Black, 3), (ManaType::Green, 3)]).prompt;
     let walked = walk(&prompt);
     assert_eq!(walked.rows.len(), 5);
     assert_eq!(walked.confirmed, 31);
-    assert!(walked.reached.contains(&Vec::new()) && !prompt.options.iter().any(|option| option.modes == Some(Vec::new())));
+    assert!(!prompt.options.iter().any(|option| option.modes == Some(Vec::new())), "one or more, so Done waits for a tick");
 }
 
 /// The Echoing Reckoning fixture's "up to four", a mode as often as the count
@@ -172,7 +126,7 @@ fn casualties_of_war_ticks_one_or_more_of_five() {
 fn echoing_reckoning_counts_a_mode_chosen_again() {
     let mut game = setup_game(2);
     put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let prompt = cast(&mut game, echoing_reckoning(), &[(ManaType::Red, 3)]);
+    let prompt = cast(&mut game, echoing_reckoning(), &[(ManaType::Red, 3)]).prompt;
     let walked = walk(&prompt);
     assert_eq!(kinds(&walked.rows), [("Mode 1".to_string(), true), ("Mode 2".to_string(), true)]);
     assert_eq!(walked.confirmed, 15, "none, then one to four of two");
@@ -184,9 +138,7 @@ fn echoing_reckoning_counts_a_mode_chosen_again() {
 /// counts, and with it ticked the others fit once more between them.
 #[test]
 fn pawprint_parade_ticks_within_its_budget() {
-    let mut game = setup_game(2);
-    let prompt = cast(&mut game, pawprint_parade(), &[(ManaType::Green, 2)]);
-    let walked = walk(&prompt);
+    let walked = walk(&modes_asked::pawprint_parade().prompt);
     assert_eq!(kinds(&walked.rows), [("Mode 1".to_string(), true), ("Mode 2".to_string(), false), ("Mode 3".to_string(), true)]);
     assert!(walked.reached.contains(&modes(&[2, 3])) && walked.reached.contains(&modes(&[1, 1, 3])));
     assert!(!walked.reached.contains(&modes(&[1, 2, 3])), "four pawprints is past three");
@@ -198,7 +150,7 @@ fn explosive_derailment_ticks_one_mode_or_both() {
     let mut game = setup_game(2);
     put_on_battlefield(&mut game, grizzly_bears(), 1);
     put_on_battlefield(&mut game, card_of_type("Relic", CardType::Artifact), 1);
-    let prompt = cast(&mut game, explosive_derailment(), &[(ManaType::Red, 5)]);
+    let prompt = cast(&mut game, explosive_derailment(), &[(ManaType::Red, 5)]).prompt;
     let walked = walk(&prompt);
     assert_eq!(kinds(&walked.rows), [("Mode 1".to_string(), false), ("Mode 2".to_string(), false)]);
     assert_eq!(walked.confirmed, 3);
@@ -217,7 +169,7 @@ fn vindictive_lich_at_three_seats_ticks_one_mode_or_two() {
     game.change_zone(lich, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).expect("it dies");
     let (seat, kept) = keeping();
     assert!(game.place_pending_triggers(&seat).expect("the trigger is placed"));
-    let prompt = kept.take().expect("its modes were asked");
+    let prompt = kept.take().expect("its modes were asked").prompt;
     let walked = walk(&prompt);
     assert_eq!(walked.rows.len(), 3);
     assert_eq!(walked.confirmed, 6);

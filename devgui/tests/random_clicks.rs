@@ -113,12 +113,14 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
 /// The review boards reach what a dealt game reaches only now and then: a
 /// blocker with two attackers to choose between, damage to divide, blocks
 /// declared illegally and asked for again, a spell's division on the stack,
-/// and a counter's row at CR 616.1's question. The four-seat sample has three
-/// seats the window plays and one that has left the game.
+/// a counter's row at CR 616.1's question, and modes ticked in the picker.
+/// The four-seat sample has three seats the window plays and one that has
+/// left the game.
 #[test]
 fn random_clicks_finish_games_from_the_review_boards() {
     let mut reached = Reached::default();
-    for board in ["main.scenario", "blocks.scenario", "damage.scenario", "reask.scenario", "division.scenario", "finality-counter.scenario"] {
+    let boards = ["main.scenario", "blocks.scenario", "damage.scenario", "reask.scenario", "division.scenario", "finality-counter.scenario", "modes.scenario"];
+    for board in boards {
         for seed in SEEDS {
             play_at_random(from_board(board), seed, &mut reached);
         }
@@ -130,6 +132,7 @@ fn random_clicks_finish_games_from_the_review_boards() {
     assert!(reached.primitives.iter().any(|p| matches!(p, Primitive::Allocate { .. })), "no allocation reached");
     assert!(reached.shares_on_the_stack > 0, "no division reached the stack");
     assert!(reached.words_beside_an_option > 0, "no option carried its words");
+    assert!(reached.modes_picked > 0, "no choice of modes was ticked");
 }
 
 /// Plays a whole game by random clicks, adding what it reached.

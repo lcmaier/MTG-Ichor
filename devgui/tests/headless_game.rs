@@ -15,12 +15,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use devgui::boards::Folders;
-use devgui::bridge::{EngineHandle, GameSetup, Outcome, Play, Record, ToWindow, Writer};
+use devgui::bridge::{EngineHandle, GameSetup, Outcome, Play, Record, ToWindow, Writer, spawn_game};
 use devgui::editor::{BoardNumber, EditorInput, Flag, Source, Zone};
 use devgui::launch::{self, Start};
 use devgui::save::{self, Save};
 use devgui::session::Session;
-use devgui::view_model::{Input, Mode, Refusal, SETTLE_SECONDS, WindowState};
+use devgui::view_model::{Input, Mode, ModeControl, Refusal, SETTLE_SECONDS, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::decision_log::{self, GameStart, Log};
@@ -173,6 +173,36 @@ fn an_illegal_block_is_asked_again_with_the_rule_it_broke() {
     engine.answers.send(state.input(Input::Done).expect("one block declared")).unwrap();
     let message = next(&engine);
     assert!(!matches!(message, ToWindow::Panicked { .. } | ToWindow::Finished { .. }), "{message:?}");
+}
+
+/// The click script's second half on `modes.scenario`: player 0 lets the
+/// Bolt resolve, Vindictive Lich dies, and its trigger asks for one mode or
+/// two at three seats. With the first and third ticked the second is greyed,
+/// and the decision log names the choice by its modes.
+#[test]
+fn the_lichs_modes_are_ticked_in_the_picker_and_logged_by_what_they_are() {
+    let log = std::env::temp_dir().join("devgui-headless-modes.log");
+    let _ = std::fs::remove_file(&log);
+    let engine = spawn_game(recorded(from_board("modes.scenario"), log.clone()), Arc::new(|| {}));
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    let pass = state.prompt.as_ref().and_then(|prompt| prompt.pass).expect("player 0 holds priority over the Bolt");
+    engine.answers.send(state.input(Input::OptionButton(pass)).expect("a pass answers")).unwrap();
+    state.receive(next(&engine));
+    let view = state.prompt_view().expect("the trigger asks");
+    assert!(view.question.contains("Vindictive Lich"), "{}", view.question);
+    let mode = |label: &str| view.modes.iter().find(|row| row.label == label).unwrap_or_else(|| panic!("no row {label}")).mode;
+    let (first, second, third) = (mode("Mode 1"), mode("Mode 2"), mode("Mode 3"));
+    assert_eq!(state.input(Input::TickMode(first)), None);
+    assert_eq!(state.input(Input::TickMode(third)), None);
+    let greyed = state.prompt_view().unwrap().modes.iter().map(|row| !matches!(row.control, ModeControl::Checkbox { live: true, .. })).collect::<Vec<_>>();
+    assert_eq!(greyed, [false, true, false], "two opponents, so no third mode");
+    assert_eq!(state.input(Input::TickMode(second)), None);
+    engine.answers.send(state.input(Input::Done).expect("modes 1 and 3 are a choice")).unwrap();
+    let message = next(&engine);
+    assert!(matches!(message, ToWindow::Prompt { .. }), "{message:?}");
+    let text = std::fs::read_to_string(&log).unwrap();
+    assert!(text.lines().any(|line| line.contains("player 0 ChooseModes picks modes 1, 3")), "{text}");
 }
 
 /// A game from a scenario: the log's start is the file, its seed and its
