@@ -35,9 +35,11 @@ pub(crate) fn legal_mode_sets(
     identity: Option<AbilityIdentity>,
 ) -> Vec<Vec<ModeIndex>> {
     let mut sets = Vec::new();
+    // The list keeps every one, so it never stops needing more.
+    let needs_more_mode_sets = true;
     walk_legal_sets(game, node, player, this_object, named, x_value, identity, &mut |set| {
         sets.push(set.to_vec());
-        MoreSets::Wanted
+        needs_more_mode_sets
     });
     sets
 }
@@ -52,28 +54,18 @@ pub(crate) fn has_a_legal_mode_set(
     x_value: Option<u64>,
     identity: Option<AbilityIdentity>,
 ) -> bool {
-    let mut found = false;
+    // Castability needs one, so the first it is handed is enough.
+    let mut needs_more_mode_sets = true;
     walk_legal_sets(game, node, player, this_object, named, x_value, identity, &mut |_| {
-        found = true;
-        MoreSets::Enough
+        needs_more_mode_sets = false;
+        needs_more_mode_sets
     });
-    found
+    !needs_more_mode_sets
 }
 
-/// What a walk's visitor answers after each whole set of modes: hand it the
-/// next set, or stop. Not whether a player may pick another mode: a set is
-/// one complete choice, and the walk asks this between choices.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MoreSets {
-    /// The list wants every set.
-    Wanted,
-    /// Castability needed one, and has it.
-    Enough,
-}
-
-/// Hands `visit` each legal set in [`legal_mode_sets`]' order, stopping when
-/// it says to. The two callers differ only in `visit`: the list keeps every
-/// set, castability stops at the first.
+/// Hands `visit` each legal set in [`legal_mode_sets`]' order, stopping once
+/// it answers that it needs no more mode sets. The two callers differ only in
+/// `visit`: the list keeps every set, castability stops at the first.
 fn walk_legal_sets(
     game: &GameState,
     node: &ModalNode,
@@ -82,7 +74,7 @@ fn walk_legal_sets(
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
     identity: Option<AbilityIdentity>,
-    visit: &mut impl FnMut(&[ModeIndex]) -> MoreSets,
+    visit: &mut impl FnMut(&[ModeIndex]) -> bool,
 ) {
     let Some(count) = current_count(game, &node.count, node.modes.len(), player, this_object, named, x_value) else { return };
     let chosen_before = match (node.rules.not_chosen_before, identity) {
@@ -105,7 +97,8 @@ fn walk_legal_sets(
         if !within_budget
             || (node.rules.each_mode_targets_a_different_player && !players_can_differ(game, node, set, player, this_object, named))
         {
-            return MoreSets::Wanted;
+            // Not handed to `visit`, whose need is what it was.
+            return true;
         }
         visit(set)
     };
@@ -114,12 +107,12 @@ fn walk_legal_sets(
         if !node.rules.may_repeat && size > legal.len() {
             break;
         }
-        let walked = if node.rules.may_repeat {
+        let needs_more_mode_sets = if node.rules.may_repeat {
             for_each_multiset(&legal, size, &mut admitted)
         } else {
             for_each_combination(&legal, size, &mut admitted)
         };
-        if walked == MoreSets::Enough {
+        if !needs_more_mode_sets {
             return;
         }
     }
@@ -235,14 +228,15 @@ fn players_can_differ(
 
 /// Hands `visit` every way to pick `size` of the modes in `legal`, a mode as
 /// often as it likes, each in printed order (CR 700.2d): from modes 1 and 2,
-/// two at a time, that is {1, 1}, {1, 2}, {2, 2}. Returns `MoreSets::Enough` when
-/// `visit` stopped it. A size of 0 is the empty set, even with no mode legal.
-fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> MoreSets) -> MoreSets {
+/// two at a time, that is {1, 1}, {1, 2}, {2, 2}. Returns whether `visit`
+/// still needs more mode sets: `false` when it stopped the walk. A size of 0
+/// is the empty set, even with no mode legal.
+fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> bool) -> bool {
     if size == 0 {
         return visit(&[]);
     }
     if legal.is_empty() {
-        return MoreSets::Wanted;
+        return true;
     }
     // `picks` are positions in `legal`, never falling. The next multiset
     // moves the rightmost pick that has room one step right, and sets every
@@ -252,10 +246,11 @@ fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[
     loop {
         set.clear();
         set.extend(picks.iter().map(|&at| legal[at]));
-        if visit(&set) == MoreSets::Enough {
-            return MoreSets::Enough;
+        let needs_more_mode_sets = visit(&set);
+        if !needs_more_mode_sets {
+            return false;
         }
-        let Some(moves) = (0..size).rev().find(|&i| picks[i] + 1 < legal.len()) else { return MoreSets::Wanted };
+        let Some(moves) = (0..size).rev().find(|&i| picks[i] + 1 < legal.len()) else { return true };
         picks[moves] += 1;
         for i in moves + 1..size {
             picks[i] = picks[moves];
@@ -265,24 +260,26 @@ fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[
 
 /// Hands `visit` every way to pick `size` of the modes in `legal`, each in
 /// printed order: from modes 1, 2 and 4, two at a time, that is {1, 2},
-/// {1, 4}, {2, 4}, in that order. Returns `MoreSets::Enough` when `visit` stopped
-/// it, so the walk does not go on to the next size.
-fn for_each_combination(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> MoreSets) -> MoreSets {
+/// {1, 4}, {2, 4}, in that order. Returns whether `visit` still needs more
+/// mode sets: `false` when it stopped the walk, which then does not go on to
+/// the next size.
+fn for_each_combination(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> bool) -> bool {
     if size > legal.len() {
-        return MoreSets::Wanted;
+        return true;
     }
     let mut picks: Vec<usize> = (0..size).collect();
     let mut set: Vec<ModeIndex> = Vec::with_capacity(size);
     loop {
         set.clear();
         set.extend(picks.iter().map(|&at| legal[at]));
-        if visit(&set) == MoreSets::Enough {
-            return MoreSets::Enough;
+        let needs_more_mode_sets = visit(&set);
+        if !needs_more_mode_sets {
+            return false;
         }
         // `picks` are positions in `legal`, rising. The next combination
         // moves the rightmost pick that has room one step right, and packs
         // every pick after it in behind it; none has room after the last.
-        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return MoreSets::Wanted };
+        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return true };
         picks[moves] += 1;
         for i in moves + 1..size {
             picks[i] = picks[i - 1] + 1;
@@ -302,7 +299,7 @@ mod tests {
         let mut out = Vec::new();
         for_each_combination(&modes(legal), size, &mut |set| {
             out.push(set.to_vec());
-            MoreSets::Wanted
+            true
         });
         out
     }
@@ -319,7 +316,7 @@ mod tests {
         let mut out = Vec::new();
         for_each_multiset(&modes(legal), size, &mut |set| {
             out.push(set.to_vec());
-            MoreSets::Wanted
+            true
         });
         out
     }
