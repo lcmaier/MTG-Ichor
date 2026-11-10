@@ -5,6 +5,7 @@
 
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
+use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
@@ -82,6 +83,9 @@ pub struct OptionView {
     pub refs: Vec<BoardRef>,
     /// The creature an attack option declares, which takes one target.
     pub attacker: Option<ObjectId>,
+    /// A choice of modes' modes, by printed place, in the engine's order: what
+    /// the window's mode picker ticks, and what its answer is matched by.
+    pub modes: Option<Vec<ModeIndex>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -194,7 +198,11 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         | ChoiceOption::CounterType(_)
         | ChoiceOption::ManaType(_) => vec![],
     };
-    OptionView { label: option_label(game, option), what_it_does: what_the_option_does(option), refs, attacker: option.attacker() }
+    let modes = match option {
+        ChoiceOption::Modes(modes) => Some(modes.clone()),
+        _ => None,
+    };
+    OptionView { label: option_label(game, option), what_it_does: what_the_option_does(option), refs, attacker: option.attacker(), modes }
 }
 
 fn attack_target_ref(target: &AttackTarget) -> BoardRef {

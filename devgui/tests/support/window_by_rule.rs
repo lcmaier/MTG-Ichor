@@ -20,6 +20,10 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
     };
     let last = prompt.options.len().checked_sub(1);
     match &prompt.primitive {
+        // The mode picker: the last choice's modes ticked, then Done.
+        Primitive::PickN { max: 1, .. } if let Some(modes) = prompt.options.last().and_then(|option| option.modes.as_ref()) => {
+            modes.iter().copied().map(Input::TickMode).chain([Input::Done]).collect()
+        }
         Primitive::PickN { max: 1, .. } => vec![last.map_or(Input::Done, Input::OptionButton)],
         Primitive::PickN { min, max } => {
             let mut actors: Vec<BoardRef> = Vec::new();
