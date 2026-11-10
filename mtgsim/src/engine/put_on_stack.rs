@@ -19,7 +19,7 @@ use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
-use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
+use crate::state::game_state::{AbilityRef, GameState, PhaseType, StackEntry};
 use crate::engine::announcement::{Announcement, ChosenMode};
 use crate::engine::targeting::TargetInstance;
 use crate::oracle::modes::{legal_mode_sets, most_modes_for_x};
@@ -256,7 +256,7 @@ impl GameState {
             },
             mana_spent: ManaSpent::NONE,
             cast_from: Some(cast_from),
-            ability_identity: None,
+            ability_ref: None,
             trigger: None,
         };
         self.set_stack_entry(entry);
@@ -450,7 +450,7 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: ConditionReferents<'_>,
         x_value: Option<u64>,
-        identity: Option<AbilityIdentity>,
+        identity: Option<AbilityRef>,
         dp: &dyn DecisionProvider,
     ) -> Result<Announcement, String> {
         let Some(node) = effect.modal() else {
@@ -466,7 +466,7 @@ impl GameState {
 
     /// "That hasn't been chosen": what `identity`'s ability announced is
     /// recorded once it is on the stack, for a node that reads the record.
-    pub(crate) fn note_modes_announced(&mut self, identity: AbilityIdentity, effect: &crate::types::effects::Effect, announced: &Announcement) {
+    pub(crate) fn note_modes_announced(&mut self, identity: AbilityRef, effect: &crate::types::effects::Effect, announced: &Announcement) {
         if let Some(scope) = effect.modal().and_then(|node| node.rules.not_chosen_before) {
             self.note_modes_chosen(identity, scope, announced.chosen_modes());
         }
@@ -484,7 +484,7 @@ impl GameState {
         node: &ModalNode,
         named_objects: ConditionReferents<'_>,
         x_value: Option<u64>,
-        identity: Option<AbilityIdentity>,
+        identity: Option<AbilityRef>,
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<ModeIndex>, String> {
         let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value, identity);
@@ -570,7 +570,7 @@ impl GameState {
                 None => targeted.push((target, 1)),
             }
         }
-        let ability_source = entry.ability_identity.map(|identity| identity.source);
+        let ability_source = entry.ability_ref.map(|identity| identity.source);
         let controller = entry.controller;
         if targeted.is_empty() {
             return Ok(());
@@ -606,7 +606,7 @@ impl GameState {
     /// ability on it resolves at the dispatch (CR 605.1b, 605.4a).
     pub(crate) fn announce_activation(
         &mut self,
-        identity: AbilityIdentity,
+        identity: AbilityRef,
         controller: PlayerId,
         mana_ability: bool,
         from: Zone,
@@ -657,7 +657,7 @@ impl GameState {
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs().to_vec();
-        let identity = crate::state::game_state::AbilityIdentity {
+        let identity = crate::state::game_state::AbilityRef {
             source: crate::types::ids::ObjectRef {
                 id: source_id,
                 zone_change_epoch: self.get_object(source_id)?.zone_change_epoch,
@@ -702,7 +702,7 @@ impl GameState {
             // An activated ability is not cast from anywhere (CR 602.2a gives
             // it a source, which is a different fact). See `cast_from`.
             cast_from: None,
-            ability_identity: Some(identity),
+            ability_ref: Some(identity),
             trigger: None,
         };
         self.set_stack_entry(stack_entry);

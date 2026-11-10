@@ -95,7 +95,7 @@ fn each_verb_builds_the_stack_its_lines_describe() {
     let state = &game.state;
     let bears = ObjectOrPlayerId::Object(permanent(state, "Grizzly Bears"));
     assert_eq!(state.stack.iter().take(2).copied().collect::<Vec<_>>(), [object(state, Zone::Stack, "Lightning Bolt"), object(state, Zone::Stack, "Giant Growth")]);
-    let ability = state.stack_entries[&state.stack[2]].ability_identity.expect("an activated ability");
+    let ability = state.stack_entries[&state.stack[2]].ability_ref.expect("an activated ability");
     assert_eq!(ability.source.id, permanent(state, "Merfolk Thaumaturgist"));
     assert_eq!(targets_on_the_stack(state), [[[bears]], [[bears]], [[bears]]]);
     for paid in ["Forest", "Merfolk Thaumaturgist"] {
@@ -142,7 +142,7 @@ fn ability_n_names_the_activated_ability() {
     let board = "battlefield: Mind Stone | controller 0\nbattlefield: Plains | controller 0\n";
     for line in ["then: player 0 activates Mind Stone | ability 2", "then: player 0 activates Mind Stone"] {
         let state = played(&format!("{board}{line}"));
-        let ability = state.stack_entries[&state.stack[0]].ability_identity.expect("an activated ability");
+        let ability = state.stack_entries[&state.stack[0]].ability_ref.expect("an activated ability");
         assert_eq!(ability.source.id, object(&state, Zone::Graveyard, "Mind Stone"), "{line}: sacrificed for its cost");
         assert!(state.battlefield[&permanent(&state, "Plains")].tapped, "{line}");
     }

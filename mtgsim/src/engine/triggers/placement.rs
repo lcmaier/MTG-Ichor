@@ -250,7 +250,7 @@ impl GameState {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: None,
-            ability_identity: Some(identity),
+            ability_ref: Some(identity),
             trigger: Some(pending.binding.clone()),
         };
         let chosen = entry.announced.clone();

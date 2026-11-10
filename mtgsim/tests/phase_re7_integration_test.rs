@@ -199,7 +199,7 @@ fn stack_object_with(
         cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: if is_spell { Some(Zone::Hand) } else { None },
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     });
     id

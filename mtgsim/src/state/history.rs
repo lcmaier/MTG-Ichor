@@ -13,7 +13,7 @@
 use std::ops::RangeInclusive;
 
 use crate::oracle::characteristics::ObjectInformation;
-use crate::state::game_state::AbilityIdentity;
+use crate::state::game_state::AbilityRef;
 use crate::state::history_log::{HistoryLog, HistoryRow, added_to_count};
 use crate::state::layer_memo::GatedWalkInput;
 use crate::types::effects::{ChosenBefore, ModeIndex, ObjectFilter};
@@ -133,16 +133,16 @@ pub struct GameHistory {
     /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
     /// Written by the resolution that takes the action; read at the trigger
     /// and at resolution.
-    pub action_taken_this_turn: IdSet<(AbilityIdentity, PlayerId)>,
+    pub action_taken_this_turn: IdSet<(AbilityRef, PlayerId)>,
     /// "This ability triggers only once each turn" (Elvish Warmaster's
     /// ruling): each ability that has triggered this turn. Written by the
     /// dispatcher as it queues; read at the trigger.
-    pub triggered_this_turn: IdSet<AbilityIdentity>,
+    pub triggered_this_turn: IdSet<AbilityRef>,
     /// CR 603.7h — how many times each ability has resolved this turn, keyed
     /// by the ability rather than by who controlled it (Ashling the Pilgrim's
     /// ruling), so a control change does not restart it. Advanced off
     /// `AbilityResolved` by the dispatcher.
-    pub resolutions_this_turn: IdMap<AbilityIdentity, u32>,
+    pub resolutions_this_turn: IdMap<AbilityRef, u32>,
     /// "Choose one that hasn't been chosen [this turn]": the modes each
     /// ability of each object has chosen, written as they are announced, so a
     /// countered ability's still count (Demonic Pact's ruling). Keyed by the
@@ -151,7 +151,7 @@ pub struct GameHistory {
     /// control change keeps it. Never swept: a turn's start leaves it, since
     /// one scope outlives the turn, and an entry whose object is gone is never
     /// asked for again. Empty in a game without such a card.
-    pub modes_chosen: IdMap<AbilityIdentity, ModesChosen>,
+    pub modes_chosen: IdMap<AbilityRef, ModesChosen>,
     /// Every event a card can ask about later, for the whole game
     /// (`state::history_log`): what each player and each object did.
     pub log: HistoryLog,

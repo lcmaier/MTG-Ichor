@@ -106,7 +106,7 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     }
 }

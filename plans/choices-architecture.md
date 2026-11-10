@@ -432,8 +432,8 @@ assembled from the chosen modes (item 81's resolution), in the total at
 **What an ability has chosen before**, the record both "hasn't been chosen"
 scopes read (22 cards) and decision 7's two values that remember (Garth
 One-Eye's card name, The Toymaker's Trap's number). One map on
-`GameHistory`, `chosen_by_ability: IdMap<AbilityIdentity, ChosenBefore>`,
-keyed as `resolutions_this_turn` is: `AbilityIdentity` carries which
+`GameHistory`, `chosen_by_ability: IdMap<AbilityRef, ChosenBefore>`,
+keyed as `resolutions_this_turn` is: `AbilityRef` carries which
 existence of its object the ability is on (CR 400.7) and which grant, so a
 second Demonic Pact, a copy, or the same card back from a zone starts empty,
 and a control change keeps the record (Demonic Pact's rulings: "refers only

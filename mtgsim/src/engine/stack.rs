@@ -74,7 +74,7 @@ impl GameState {
             cost_choices: entry.cost_choices.clone(),
             x_value: entry.x_value,
             announced: entry.announced.clone(),
-            identity: entry.ability_identity,
+            identity: entry.ability_ref,
             trigger: entry.trigger.clone(),
             began_at: self.events.next_seq(),
             #[cfg(debug_assertions)]
@@ -117,7 +117,7 @@ impl GameState {
                 .stated_zones
                 .is_some_and(|zones| !self.objects.get(&source).is_some_and(|object| zones.contains(object.zone)));
             let condition_is_false = binding.def.intervening_if.as_ref().is_some_and(|condition| {
-                let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
+                let objects = self.condition_objects(entry.ability_ref.map(|identity| identity.source), Some(binding));
                 !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects)
             });
             if left_its_stated_zone || condition_is_false {
@@ -133,7 +133,7 @@ impl GameState {
         // after. `None` is "doesn't resolve". "Another target" is other than the
         // text's "this": the spell, or the permanent with the ability (CR 113.7a).
         let this_object = entry.this_object();
-        let named = self.condition_objects(entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref());
+        let named = self.condition_objects(entry.ability_ref.map(|identity| identity.source), entry.trigger.as_ref());
         let Some(surviving) = self.surviving_targets(&entry.announced, controller, this_object, named) else {
             // Every target of every instance is illegal — the spell or ability
             // doesn't resolve (CR 608.2b).
@@ -150,7 +150,7 @@ impl GameState {
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
-            ability_source: entry.ability_identity.map(|identity| identity.source),
+            ability_source: entry.ability_ref.map(|identity| identity.source),
             controller,
             // CR 113.3: a spell's instructions, or an activated or a triggered
             // ability's.
@@ -172,7 +172,7 @@ impl GameState {
             .trigger
             .as_ref()
             .filter(|binding| binding.def.limit == Some(crate::types::triggers::TriggerLimit::DoThisOnlyOnceEachTurn))
-            .and(entry.ability_identity)
+            .and(entry.ability_ref)
             .map(|identity| (identity, entry.controller));
         if action_gate.is_none_or(|key| !self.history.action_taken_this_turn.contains(&key)) {
             let answer =
@@ -263,7 +263,7 @@ impl GameState {
         // ability leaves no zone change, so this is where it is announced —
         // durably, by what it *is* (CR 603.7h), because the ephemeral object
         // CR 608.2n just destroyed identifies nothing afterward.
-        if let Some(identity) = entry.ability_identity {
+        if let Some(identity) = entry.ability_ref {
             self.emit_event(
                 GameEvent::AbilityResolved { identity, controller: entry.controller },
                 EventCause::GameRule(GameRule::AbilityResolves),
@@ -318,7 +318,7 @@ impl GameState {
 
         // An ability by its identity, as `resolve_taken` announces one: the
         // object just removed names nothing to a reader of the record.
-        let fizzled = match entry.ability_identity {
+        let fizzled = match entry.ability_ref {
             Some(identity) => GameEvent::AbilityFizzled { identity, controller },
             None => GameEvent::SpellFizzled { spell, controller },
         };
@@ -411,7 +411,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -537,7 +537,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -613,7 +613,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -671,7 +671,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -805,7 +805,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
-            ability_identity: None,
+            ability_ref: None,
             trigger: None,
         });
         assert!(game.resolve_top_of_stack(&test_dp()).is_err());

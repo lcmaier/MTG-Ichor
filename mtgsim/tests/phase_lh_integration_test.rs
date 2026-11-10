@@ -61,7 +61,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     });
     id

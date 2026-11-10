@@ -596,7 +596,7 @@ for nothing, and `double-faced-cards` adds it in the commit that populates it.
 - `ZoneChangeCause` on `GameAction::ZoneChange`, **11** production movers labelled. Not 10, and not 9: §11's derivation counted `change_zone` callers and missed both `resolve.rs`'s direct `execute_action(ZoneChange)` for `Primitive::Destroy` **and** `play_land`, which wrote straight to `move_object` (see the RA-3 findings below).
 - **Cast rollbacks left the chokepoint.** Four `cast_spell` failure paths had been routing CR 601.2 rewinds through `change_zone` since the Phase 6 migration. A rewind is not a zone change and no replacement may see one — under RB, CR 903.9b would have redirected a commander whose cast merely failed. Now `rollback_cast_to_hand`, tagged `// CAST-ROLLBACK:`.
 - New events: `CardDrawn` (CR 121.5), `Tapped`/`Untapped` (transition-only per CR 603.2e), `AbilityActivated`/`AbilityResolved` (durable `(source, ability)` identity per CR 603.7h).
-- `StackEntry.cast_from: Option<Zone>` and `StackEntry.ability_identity: Option<AbilityIdentity>`, with complementary invariants against `is_spell`.
+- `StackEntry.cast_from: Option<Zone>` and `StackEntry.ability_ref: Option<AbilityRef>`, with complementary invariants against `is_spell`.
 - `perform_action`'s `Tap`/`Untap` arms are loud; `Primitive::Untap` gained the CR 608.2b guard that makes them safe.
 - The untap sweep moved to `battlefield_ids_ordered` — routing it made its order observable.
 - **`execute_actions`, the batch form (CR 704.3 / 510.2 / 502.1).** `execute_action` is `execute_actions(vec![action])`; the batch opens a `BatchId` that every event it emits carries, and a *nested* call joins the enclosing batch rather than opening its own (CR 120.3f makes lifelink's gain a *result of* the damage, and CR 120.4c/d process the results and then let the one damage event occur). Three callers batch: combat damage, the untap step, and the SBA sweep.
@@ -6650,7 +6650,7 @@ owner decided it the same day.
 
 149. **~~Two instances of one ability on one object are indistinguishable by
      id, and the mana window lists them once.~~ — ✅ CLOSED 2026-09-19 (TR-1).** — archived.
-     `AbilityIdentity` gained `zone_change_epoch` and `instance` — the ordinal
+     `AbilityRef` gained `zone_change_epoch` and `instance` — the ordinal
      among same-id defs in effective-list order — as `triggers-architecture.md`
      §3.6 decided; `activate_ability` and the dispatcher both fill them. The
      `(ObjectId, AbilityId)` sites stayed a pair: they are the mana window's

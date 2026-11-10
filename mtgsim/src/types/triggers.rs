@@ -21,7 +21,7 @@ use crate::events::cause::EventCause;
 use crate::events::event::{CreatedAt, EventRecord, EventId, GameEvent, LifeChange, ResolutionStamp};
 use crate::objects::card_data::{AbilityText, CardData};
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
-use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry, StepType};
+use crate::state::game_state::{AbilityRef, GameState, PhaseType, StackEntry, StepType};
 use crate::types::effects::{Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, TokenDef};
 use crate::types::ids::{AbilityId, DelayedTriggerId, ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectRef, PlayerId};
 use crate::types::history::TurnFact;
@@ -1769,12 +1769,12 @@ impl TriggerBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TriggerOrigin {
     /// A printed, granted or copied ability of an object.
-    Object(AbilityIdentity),
+    Object(AbilityRef),
     /// CR 603.7 — a delayed triggered ability, by the identity CR 603.7d–g
     /// give it: its source, and its registry number as the ability
     /// (`AbilityId::delayed`). It is no ability of that object, and CR
     /// 603.2d's "triggers additional times" does not reach it.
-    Delayed(AbilityIdentity),
+    Delayed(AbilityRef),
     /// A triggered ability a rule gives the game rather than an object has:
     /// the monarch's "at the beginning of the monarch's end step, that player
     /// draws a card" (CR 724.2), the initiative's (CR 725.2). An arm of its
@@ -1790,7 +1790,7 @@ pub enum InherentAbility {}
 
 impl TriggerOrigin {
     /// The ability that triggered, by what it is.
-    pub fn identity(&self) -> AbilityIdentity {
+    pub fn identity(&self) -> AbilityRef {
         match self {
             TriggerOrigin::Object(identity) | TriggerOrigin::Delayed(identity) => *identity,
             TriggerOrigin::Rule(inherent) => match *inherent {},
@@ -1926,7 +1926,7 @@ pub struct DelayedTrigger {
     pub created_at: CreatedAt,
     /// The ability that created it, for CR 603.7h's "this ability"; `None`
     /// for a spell's and a replacement effect's.
-    pub created_by: Option<AbilityIdentity>,
+    pub created_by: Option<AbilityRef>,
     pub duration: DelayedDuration,
     /// CR 107.3n — the X of the spell or ability that created it.
     pub x_value: Option<u64>,
@@ -1945,8 +1945,8 @@ pub struct DelayedTrigger {
 impl DelayedTrigger {
     /// Its identity (CR 603.7d–g): the source, and its registry number as
     /// the ability.
-    pub fn identity(&self) -> AbilityIdentity {
-        AbilityIdentity { source: self.source, ability: AbilityId::delayed(self.id) }
+    pub fn identity(&self) -> AbilityRef {
+        AbilityRef { source: self.source, ability: AbilityId::delayed(self.id) }
     }
 }
 
@@ -1958,7 +1958,7 @@ pub struct DelayedProvenance {
     pub source: ObjectRef,
     pub source_card: Arc<CardData>,
     pub controller: PlayerId,
-    pub created_by: Option<AbilityIdentity>,
+    pub created_by: Option<AbilityRef>,
     pub x_value: Option<u64>,
     pub turn: TriggerTurn,
     /// The resolution creating it, if one is: a replacement's rider (CR
@@ -2218,7 +2218,7 @@ impl PendingTrigger {
 pub(crate) mod samples {
     use super::*;
     use crate::events::event::DepartedObject;
-    use crate::state::game_state::AbilityIdentity;
+    use crate::state::game_state::AbilityRef;
     use crate::types::card_types::CreatureType;
     use crate::types::colors::Color;
     use crate::types::effects::TokenDef;
@@ -2237,7 +2237,7 @@ pub(crate) mod samples {
     /// records that carry one.
     pub(crate) fn records(lki: Lki) -> Vec<(&'static str, GameEvent)> {
         let id = ObjectId::UNASSIGNED;
-        let identity = AbilityIdentity {
+        let identity = AbilityRef {
             source: ObjectRef { id, zone_change_epoch: 0 },
             ability: AbilityId::printed("x", 0),
         };

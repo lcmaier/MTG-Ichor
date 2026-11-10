@@ -263,7 +263,7 @@ impl LineAnswers<'_> {
         let entry = game.stack.get(depth).and_then(|id| game.stack_entries.get(id)).filter(|entry| match line.action {
             PriorityAction::CastSpell(card) => entry.object_id == card,
             PriorityAction::ActivateAbility(source, ability) => {
-                entry.ability_identity.is_some_and(|identity| identity.source.id == source && identity.ability == ability)
+                entry.ability_ref.is_some_and(|identity| identity.source.id == source && identity.ability == ability)
             }
             PriorityAction::Pass | PriorityAction::PlayLand(_) => false,
         });

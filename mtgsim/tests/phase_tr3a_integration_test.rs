@@ -438,7 +438,7 @@ fn a_delayed_trigger_keeps_the_frame_its_source_left_with() {
     assert_eq!(the_delayed_pending(&game).origin.source_ref(), herald_then, "waiting");
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let on_stack = &game.stack_entries[game.stack.last().unwrap()];
-    assert_eq!(on_stack.ability_identity.map(|identity| identity.source), Some(herald_then), "onto the stack");
+    assert_eq!(on_stack.ability_ref.map(|identity| identity.source), Some(herald_then), "onto the stack");
     place_and_resolve(&mut game);
     assert_eq!(life(&game, 0), 21);
 }

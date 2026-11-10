@@ -35,7 +35,7 @@ use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{
-    AbilityIdentity, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
+    AbilityRef, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
 };
 use mtgsim::test_support::pending_trigger_for;
 use mtgsim::test_support::{
@@ -114,7 +114,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 fn stack_sources(game: &GameState) -> Vec<ObjectId> {
     game.stack
         .iter()
-        .map(|id| game.stack_entries[id].ability_identity.expect("a trigger's entry").source.id)
+        .map(|id| game.stack_entries[id].ability_ref.expect("a trigger's entry").source.id)
         .collect()
 }
 
@@ -1968,7 +1968,7 @@ fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
     let entry = &game.stack_entries[&id];
     assert!(!entry.is_spell);
     assert_eq!(entry.cast_from, None);
-    let identity = entry.ability_identity.unwrap();
+    let identity = entry.ability_ref.unwrap();
     assert_eq!(identity.source.id, warden);
     assert_eq!(identity.ability, soul_warden().abilities[0].id);
     assert_eq!(identity.source.zone_change_epoch, game.get_object(warden).unwrap().zone_change_epoch);
@@ -2009,7 +2009,7 @@ fn a_grant_ending_leaves_the_surviving_grants_identity_alone() {
             )
         });
     }
-    let identities = |game: &GameState| -> Vec<AbilityIdentity> {
+    let identities = |game: &GameState| -> Vec<AbilityRef> {
         game.pending_triggers.iter().map(|t| t.origin.identity()).collect()
     };
 
@@ -2144,7 +2144,7 @@ fn a_spell_that_was_not_cast_keeps_its_kicker() {
         cost_choices: mtgsim::state::battlefield::CostChoices { additional: vec![kicker_red()], ..mtgsim::state::battlefield::CostChoices::NONE },
         mana_spent: ManaSpent::NONE,
         cast_from: None,
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     });
     resolve_top(&mut game, &test_dp());

@@ -417,7 +417,7 @@ fn can_activate_as_its_controller(
     // CR 700.2a's modes, as a spell's are: the announcement's list, asked for
     // its first, with the X `activate_ability` passes, none: an activation's X
     // (CR 602.2b) is `hybrid-and-phyrexian-payment`'s.
-    let identity = game.object_ref(source_id).map(|source| crate::state::game_state::AbilityIdentity { source, ability: ability.id });
+    let identity = game.object_ref(source_id).map(|source| crate::state::game_state::AbilityRef { source, ability: ability.id });
     if let Some(node) = ability.effect.modal()
         && !has_a_legal_mode_set(game, node, player_id, source_id, ConditionReferents::NONE, None, identity)
     {

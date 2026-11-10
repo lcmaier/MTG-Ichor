@@ -17,7 +17,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::replacement::{BatchMember, SubjectGroup};
 use crate::engine::announcement::Announcement;
 use crate::events::event::EventId;
-use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::game_state::{AbilityRef, GameState};
 use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerTier};
@@ -166,7 +166,7 @@ pub(crate) fn decision(
 pub(crate) fn trigger(
     game: &GameState,
     record: EventId,
-    identity: &AbilityIdentity,
+    identity: &AbilityRef,
     zone: Zone,
     matched: bool,
     refused_by: Option<&str>,
@@ -188,7 +188,7 @@ pub(crate) fn trigger(
 /// names no record, since no event triggered it, and says `state`; `after` is
 /// the newest record when the board was asked, which is all a reader can say
 /// about when the state held.
-pub(crate) fn state_trigger(game: &GameState, identity: &AbilityIdentity, zone: Zone, refused_by: Option<&str>) -> Record {
+pub(crate) fn state_trigger(game: &GameState, identity: &AbilityRef, zone: Zone, refused_by: Option<&str>) -> Record {
     let mut r = Record::new(RecordKind::Trigger);
     r.field_bool("state", true);
     r.field_opt_u64("after", game.events.next_seq().0.checked_sub(1).map(|newest| newest as u64));

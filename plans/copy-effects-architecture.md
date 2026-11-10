@@ -914,8 +914,8 @@ new `ObjectId`, and the interesting parts are all decision-shaped:
   which is where Tier D rejoins Tier A.
 - **CR 707.10b** — a copy of an ability has the same source as the original, and
   is "the same ability" for effects that count resolutions. That is a CR 603.7h
-  identity question: the copy keeps the original's `StackEntry.ability_identity`
-  (RA-2's `AbilityIdentity`) and advances the same resolution count
+  identity question: the copy keeps the original's `StackEntry.ability_ref`
+  (RA-2's `AbilityRef`) and advances the same resolution count
   (`triggers-architecture.md` §6.5). No TR phase builds ability copies, and
   §6.5 and §13 there give them to `spell-copies`, so `spell-copies` covers spell copies and
   *ability* copies (39 clauses) (§7's row, corrected 2026-10-12, A6p).
@@ -935,7 +935,7 @@ value of none of them. The copy resets three fields:
 The copy keeps:
 - the decisions: `chosen_targets` until 707.10c's prompt, `chosen_modes`,
   `x_value` and `cost_choices`;
-- for an ability copy (707.10b), `ability_identity` and `trigger`;
+- for an ability copy (707.10b), `ability_ref` and `trigger`;
 - the objects that paid the original's costs, once item 30 records them.
 
 A constructor such as `StackEntry::copy_of` is the one place those three
@@ -1758,7 +1758,7 @@ Four things to act on rather than read past:
 7. **CR 707.10b's ability copies are a CR 603.7h identity question, not a
    copy question.** "The copy is considered to be the same ability by effects
    that count how many times that ability has resolved during the turn" is the
-   same durable `(source, ability)` identity RA-2 built `AbilityIdentity` for.
+   same durable `(source, ability)` identity RA-2 built `AbilityRef` for.
    39 clauses, `spell-copies`'s (§7; `triggers-architecture.md` §6.5 and §13), named
    here so `spell-copies` keeps §6.5's sentence.
 

@@ -1023,7 +1023,7 @@ fn two_teysas_make_three_as_the_legend_rule_kills_one() {
     dp.expect_choice(ChoiceKind::LegendRule { legend_name: "Teysa Karlov".into() }, vec![ChoiceOption::Object(first)]);
     game.perform_sba_and_triggers(&dp).unwrap();
     assert!(dp.is_empty(), "the legend rule chose");
-    let stacked = game.stack.iter().filter(|id| game.stack_entries[*id].ability_identity.is_some_and(|i| i.source.id == mourner)).count();
+    let stacked = game.stack.iter().filter(|id| game.stack_entries[*id].ability_ref.is_some_and(|i| i.source.id == mourner)).count();
     assert_eq!(stacked, 3, "the dying Teysa is read as it was, beside the other");
 }
 

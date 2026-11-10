@@ -19,7 +19,7 @@ use crate::oracle::characteristics::{get_effective_abilities, get_effective_cont
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo, PermanentState};
 use crate::state::game::{Game, RandomStreams};
 use crate::state::game_config::GameConfig;
-use crate::state::game_state::{AbilityIdentity, GameState, StepType};
+use crate::state::game_state::{AbilityRef, GameState, StepType};
 use crate::state::history::PlayerHistory;
 use crate::types::card_types::CardType;
 use crate::types::history::{HistorySpan, TurnFact};
@@ -631,7 +631,7 @@ impl<'s> Loader<'s> {
                 let ability = found.ok_or_else(|| {
                     ScenarioError::at(ScenarioErrorKind::Reference, line, format!("name the ability: `ability N`, N its place among {}'s printed abilities", card.name))
                 })?;
-                let identity = AbilityIdentity { source: reference, ability: ability.id };
+                let identity = AbilityRef { source: reference, ability: ability.id };
                 match word {
                     CardWord::Triggered { .. } => {
                         self.state.history.triggered_this_turn.insert(identity);

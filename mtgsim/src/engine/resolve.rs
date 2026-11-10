@@ -2555,7 +2555,7 @@ impl GameState {
     fn counter_ability(&mut self, id: ObjectId, ctx: &ResolutionContext, actx: &ActionContext) -> Result<(), String> {
         if self.stack.contains(&id)
             && let Some(entry) = self.ability_leaves_the_stack(id)
-            && let Some(identity) = entry.ability_identity
+            && let Some(identity) = entry.ability_ref
         {
             let countered_by = self.existence_for_record(ctx.source)?;
             let countered = crate::events::event::GameEvent::AbilityCountered { identity, controller: entry.controller, countered_by };

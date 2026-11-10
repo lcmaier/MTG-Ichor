@@ -629,7 +629,7 @@ impl<'g> Writer<'g> {
         // build: a board where an ability that still exists keeps modes
         // from being offered again is not written, rather than written as though it had
         // chosen none. A "this turn" record of an earlier turn keeps nothing.
-        let withholds_a_mode = |(identity, chosen): (&crate::state::game_state::AbilityIdentity, &crate::state::history::ModesChosen)| {
+        let withholds_a_mode = |(identity, chosen): (&crate::state::game_state::AbilityRef, &crate::state::history::ModesChosen)| {
             state.object_ref(identity.source.id) == Some(identity.source) && !chosen.no_longer_offered(state.turn_number).is_empty()
         };
         if state.history.modes_chosen.iter().any(withholds_a_mode) {

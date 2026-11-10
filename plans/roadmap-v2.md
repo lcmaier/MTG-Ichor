@@ -557,7 +557,7 @@ and the three seams A6 names: **S1**, CR 603.10a's look-back list is written
 about *visibility*, not zones (`Zone::is_public()`, `backlog.md` §2.9);
 **S2**, CR 121.2c's recipient ordering (`codebase-state.md` main item 122);
 and **S3**, per-instance identity — CR 603.7h counts "this ability", and
-`AbilityIdentity { source, ability }` cannot tell two instances of one
+`AbilityRef { source, ability }` cannot tell two instances of one
 ability on one object apart since A4g made ids per definition (two Citanul
 Hierophants grant one `{T}: Add {G}` under one id; main item 149), while the
 index into the effective list can; the doc decides whether 603.7h wants the

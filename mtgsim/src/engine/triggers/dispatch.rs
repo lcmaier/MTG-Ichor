@@ -40,7 +40,7 @@ use crate::objects::object::GameObject;
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::battlefield::{AttackTarget, CostChoices};
 use crate::state::continuous_effects::triggered_ability_kinds;
-use crate::state::game_state::{AbilityIdentity, GameState, StackEntry};
+use crate::state::game_state::{AbilityRef, GameState, StackEntry};
 use crate::state::history_log::RowFact;
 use crate::types::effects::{Condition, Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::history::CountIs;
@@ -166,7 +166,7 @@ impl LkiCaptures {
 #[derive(Clone, Copy)]
 pub(super) struct LkiKeeper<'a> {
     /// The ability it is; `None` for a spell.
-    identity: Option<AbilityIdentity>,
+    identity: Option<AbilityRef>,
     /// Its trigger, for a triggered ability that has triggered and not yet
     /// left the stack (CR 603.8, 608.2n).
     trigger: Option<&'a TriggerBinding>,
@@ -193,7 +193,7 @@ impl LkiKeeper<'_> {
     }
 
     /// Whether it is ability `identity` triggered and not yet left the stack.
-    pub(super) fn is_triggered(self, identity: AbilityIdentity) -> bool {
+    pub(super) fn is_triggered(self, identity: AbilityRef) -> bool {
         self.trigger.is_some() && self.identity == Some(identity)
     }
 }
@@ -376,7 +376,7 @@ impl<'a> TriggerCandidate<'a> {
     /// What the candidate's ability means by "this object", "you", "its
     /// owner" and "enchanted creature", "this ability" being `this_ability`
     /// (CR 603.7h).
-    fn referents(&self, this_ability: Option<AbilityIdentity>) -> TriggerReferents<'static> {
+    fn referents(&self, this_ability: Option<AbilityRef>) -> TriggerReferents<'static> {
         TriggerReferents::of_object(self.object.id, self.controller, self.owner, self.host, this_ability)
     }
 }
@@ -398,7 +398,7 @@ pub(super) struct TriggerReferents<'a> {
     pub(super) host: Option<ObjectId>,
     /// CR 603.7h's "this ability": the ability whose arm this is, or the one
     /// that created a delayed trigger; `None` for a spell's delayed trigger.
-    pub(super) this_ability: Option<AbilityIdentity>,
+    pub(super) this_ability: Option<AbilityRef>,
     /// CR 603.7c's "that token": the objects a delayed trigger refers to;
     /// none for an object's own ability.
     pub(super) referred: &'a [RememberedObject],
@@ -413,7 +413,7 @@ impl TriggerReferents<'static> {
         controller: PlayerId,
         owner: PlayerId,
         host: Option<ObjectId>,
-        this_ability: Option<AbilityIdentity>,
+        this_ability: Option<AbilityRef>,
     ) -> Self {
         TriggerReferents { this: ThisObject::Candidate(this), controller, owner, host, this_ability, referred: &[] }
     }
@@ -570,7 +570,7 @@ struct ArmMatch<'r, 'a> {
 struct TriggerCandidateDef<'a> {
     /// Index into the candidate list.
     candidate: usize,
-    identity: AbilityIdentity,
+    identity: AbilityRef,
     def: &'a Arc<TriggerDef>,
     /// The zones its text states it functions in (CR 113.6b).
     stated_zones: Option<ZoneSet>,
@@ -630,7 +630,7 @@ pub(super) struct TriggerSource<'a> {
 
 /// A match the dispatcher will queue or resolve.
 pub(super) struct MatchedTrigger {
-    pub(super) identity: AbilityIdentity,
+    pub(super) identity: AbilityRef,
     pub(super) controller: PlayerId,
     pub(super) def: Arc<TriggerDef>,
     /// The zones its text states it functions in, which its binding takes
@@ -979,7 +979,7 @@ impl GameState {
     /// "This ability triggers only once each turn", taken as the ability
     /// queues, so a second match in the same window finds it taken.
     /// False once this turn's has been taken.
-    pub(super) fn may_trigger_this_turn(&mut self, def: &TriggerDef, identity: AbilityIdentity) -> bool {
+    pub(super) fn may_trigger_this_turn(&mut self, def: &TriggerDef, identity: AbilityRef) -> bool {
         def.limit != Some(TriggerLimit::TriggersOnlyOnceEachTurn) || self.history.triggered_this_turn.insert(identity)
     }
 
@@ -1264,7 +1264,7 @@ impl GameState {
         // writes a trace record.
         let stacked = self.stack.iter().filter_map(|&id| {
             let entry = self.stack_entries.get(&id)?;
-            Some(LkiKeeper { identity: entry.ability_identity, trigger: entry.trigger.as_ref(), place: KeeperPlace::Stacked(id) })
+            Some(LkiKeeper { identity: entry.ability_ref, trigger: entry.trigger.as_ref(), place: KeeperPlace::Stacked(id) })
         });
         let delayed = self
             .delayed_triggers
@@ -1695,7 +1695,7 @@ impl GameState {
                 }
                 defs.push(TriggerCandidateDef {
                     candidate: index,
-                    identity: AbilityIdentity { source: candidate.object, ability: ability.id },
+                    identity: AbilityRef { source: candidate.object, ability: ability.id },
                     def,
                     stated_zones: ability.effect.stated_zones(),
                     instances: ability.instances(),
@@ -1775,7 +1775,7 @@ impl GameState {
         candidate: &TriggerCandidate<'_>,
         answered: AnsweredArms,
         record: &EventRecord,
-        identity: AbilityIdentity,
+        identity: AbilityRef,
     ) -> Result<(EventIndex, Vec<TriggeringEventObjects>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
@@ -1812,7 +1812,7 @@ impl GameState {
         &self,
         def: &TriggerDef,
         stated_zones: Option<ZoneSet>,
-        identity: AbilityIdentity,
+        identity: AbilityRef,
         referents: &TriggerReferents<'_>,
         record: &EventRecord,
         source: TriggerSource<'_>,
@@ -1903,7 +1903,7 @@ impl GameState {
     pub(super) fn within_once_per_turn_limit(
         &self,
         def: &TriggerDef,
-        identity: AbilityIdentity,
+        identity: AbilityRef,
         controller: PlayerId,
         arm: &TriggerEvent,
         record: &EventRecord,
@@ -2878,7 +2878,7 @@ impl GameState {
 /// its list of each trigger's candidate in step.
 pub(super) fn fold_trigger_occurrences(
     matches: &mut Vec<MatchedTrigger>,
-    identity: AbilityIdentity,
+    identity: AbilityRef,
     arm: &TriggerEvent,
     event: EventIndex,
     record: &EventRecord,

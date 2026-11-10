@@ -390,7 +390,7 @@ pub enum TriggerLimit {
 The two gate sets live on the game's history, `GameState.history` (§3.10),
 and key on the full identity (§3.6), so a bounced and replayed permanent — a
 new object, CR 400.7 — starts clean. `action_taken_this_turn` is a set of
-`(AbilityIdentity, PlayerId)` pairs, because CR 603.2h has the ability
+`(AbilityRef, PlayerId)` pairs, because CR 603.2h has the ability
 trigger "only if its source's controller has not yet taken the indicated
 action that turn": a permanent that changes control mid-turn has a new
 controller who has not taken it. Nykthos Paragon's rulings don't reach a
@@ -412,10 +412,10 @@ spells this turn, whatever came before it, read off the turn's cast rows
 arms that can say it are `TriggerEvent::placed_fact`'s, which a test checks
 against the records the writer places (item 303).
 
-### 3.6 `AbilityIdentity` gains the object's epoch, and a granted instance its grant (S3)
+### 3.6 `AbilityRef` gains the object's epoch, and a granted instance its grant (S3)
 
 ```rust
-pub struct AbilityIdentity {
+pub struct AbilityRef {
     /// The object, and which existence of it (CR 400.7 — the epoch
     /// `move_object` stamps, item 10's field): two activations across a
     /// bounce are two abilities' worth of counting. One `ObjectRef`, since
@@ -525,13 +525,13 @@ dispatcher's stack.
 ```rust
 pub enum TriggerOrigin {
     /// A printed, granted or copied ability of an object.
-    Object(AbilityIdentity),
+    Object(AbilityRef),
     /// CR 603.7 — a delayed triggered ability, registered by a resolution,
     /// a replacement's rider or a special action, by the identity CR
     /// 603.7d–g give it. A reflexive trigger (CR 603.12) is one too.
-    Delayed(AbilityIdentity),
+    Delayed(AbilityRef),
     /// CR 724.2 / 725.2 / 727.1 — "inherent triggered abilities [that] have
-    /// no source", CR 113.8's exception. Named here so `AbilityIdentity`
+    /// no source", CR 113.8's exception. Named here so `AbilityRef`
     /// never grows a fake source; built with the designation that owns it
     /// (Phase 9). Question 6.
     Rule(InherentAbility),
@@ -540,7 +540,7 @@ pub enum TriggerOrigin {
 
 **`Delayed` carries an identity, not a registry id** (TR-3a, 2026-10-07).
 Every reader of an origin wants its source and its identity: placement
-builds the stack entry's `ability_identity`, CR 603.7h's count keys on it,
+builds the stack entry's `ability_ref`, CR 603.7h's count keys on it,
 and an entry's kept LKI names the source. A `Once` entry leaves the registry
 as it queues, so an id alone would name nothing by placement. The identity
 is the entry's source (CR 603.7d–g) and `AbilityId::delayed` of its registry
@@ -1753,7 +1753,7 @@ Taken here, for the owner's review:
 
 A placed trigger is the same ephemeral object an activated ability is:
 `GameObject::new(card, controller, Zone::Stack)` with a fresh `ObjectId`, a
-`StackEntry { is_spell: false, cast_from: None, ability_identity:
+`StackEntry { is_spell: false, cast_from: None, ability_ref:
 Some(..) for an object origin, chosen_targets from announce_targets,
 effect: def.effect.clone(), trigger: Some(TriggerBinding) }`, pushed by
 `set_stack_entry`. `StackEntry` gains one field, `trigger:
@@ -2948,8 +2948,8 @@ field with one writer:
 | Fact | Field | Writer | Readers |
 |---|---|---|---|
 | "this turn" quantities, "last turn", "your last turn", "this game" | the history log's rows (`GameHistory.log`, §3.10), summed over a span; each `PlayerHistory` keeps that player's own turns ("your last turn"), the draw step's count, and a tally of the newest turn's placed facts | `engine::triggers::history` (`advance_history`), record by record as each event ends: at the window's dispatch, or for a drawn card as its draw ends | `Condition::ThisTurn/LastTurn/SinceYourLastTurn/ThisGame`, `FirstTimeEachTurn` |
-| the action was taken this turn (603.2h) | `action_taken_this_turn`, a set of `(AbilityIdentity, PlayerId)` — "its source's controller" (§3.5) | the resolution | the dispatcher, the resolution |
-| the ability triggered this turn ("only once each turn") | `triggered_this_turn: IdSet<AbilityIdentity>` | the dispatcher | the dispatcher |
+| the action was taken this turn (603.2h) | `action_taken_this_turn`, a set of `(AbilityRef, PlayerId)` — "its source's controller" (§3.5) | the resolution | the dispatcher, the resolution |
+| the ability triggered this turn ("only once each turn") | `triggered_this_turn: IdSet<AbilityRef>` | the dispatcher | the dispatcher |
 | a state trigger is waiting or on the stack (603.8) | none materialized: read off `pending_triggers` and the stack (§4.5) | none of its own (the queue's and the stack's) | the state check |
 | resolutions per ability per turn (603.7h) | `GameHistory.resolutions_this_turn` (on `GameState.history`), keyed by the ability, `(ObjectRef, AbilityId)` (§6.5) | the history's writer, off `AbilityResolved` | `Condition::ResolvedThisTurn(n)` |
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
@@ -3201,7 +3201,7 @@ gate, the frames' look-back, CR 605.4a's immediate resolution and the
 reading the bound facts back through the arm. `Effect::Triggered`,
 `EffectRecipient::{TriggeringObject, TriggeringPlayer}`,
 `AmountExpr::TriggeringAmount`, `StackEntry.trigger`,
-`ResolutionContext.trigger`, `AbilityIdentity`'s two fields,
+`ResolutionContext.trigger`, `AbilityRef`'s two fields,
 `PermanentState.cast`, `EventId`, item 10's three fields, item 18's three
 deletions, `AbilityTriggered`, CR 113.6k derived in `functioning_zones`, the
 `Triggers placed` row. Five cards; Soul Warden, Blood Artist and Wild Growth

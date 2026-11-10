@@ -8,7 +8,7 @@ use crate::engine::object_filter::EarlierTargets;
 use crate::engine::targeting::FilterIdentity;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::every_instance_has_a_choice;
-use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::game_state::{AbilityRef, GameState};
 use crate::types::effects::{EffectRecipient, ModalCount, ModalNode, ModeIndex};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 
@@ -32,7 +32,7 @@ pub(crate) fn legal_mode_sets(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
-    identity: Option<AbilityIdentity>,
+    identity: Option<AbilityRef>,
 ) -> Vec<Vec<ModeIndex>> {
     let mut sets = Vec::new();
     // The list keeps every one, so it never stops needing more.
@@ -52,7 +52,7 @@ pub(crate) fn has_a_legal_mode_set(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
-    identity: Option<AbilityIdentity>,
+    identity: Option<AbilityRef>,
 ) -> bool {
     // Castability needs one, so the first it is handed is enough.
     let mut needs_more_mode_sets = true;
@@ -73,7 +73,7 @@ fn walk_legal_sets(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
-    identity: Option<AbilityIdentity>,
+    identity: Option<AbilityRef>,
     visit: &mut impl FnMut(&[ModeIndex]) -> bool,
 ) {
     let Some(count) = current_count(game, &node.count, node.modes.len(), player, this_object, named, x_value) else { return };

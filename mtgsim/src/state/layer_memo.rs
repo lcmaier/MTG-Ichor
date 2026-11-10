@@ -718,7 +718,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
-            ability_identity: None,
+            ability_ref: None,
             trigger: None,
         });
         assert_eq!(controller(&game, card), (Some(1), false));

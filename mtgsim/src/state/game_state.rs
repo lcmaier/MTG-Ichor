@@ -126,7 +126,7 @@ pub struct StackEntry {
     pub cast_from: Option<Zone>,
     /// For an activated ability: which ability of which permanent this is.
     ///
-    /// **Invariant: `ability_identity.is_some() == !is_spell`** — the mirror of
+    /// **Invariant: `ability_ref.is_some() == !is_spell`** — the mirror of
     /// [`Self::cast_from`], and for the same reason. An ability on the stack is
     /// a new object with a fresh `ObjectId` that ceases to exist on resolution
     /// (CR 608.2n), so the ephemeral id identifies nothing once it is gone.
@@ -135,7 +135,7 @@ pub struct StackEntry {
     /// "this ability has resolved for the third time this turn" is counting
     /// *this* ability of *this* permanent (Ashling the Pilgrim), and neither
     /// half can be recovered from the ephemeral.
-    pub ability_identity: Option<AbilityIdentity>,
+    pub ability_ref: Option<AbilityRef>,
     /// For a triggered ability: the def and the bound facts of its event
     /// (`triggers-architecture.md` §3.13). `None` for a spell and for an
     /// activated ability; the resolution reads the intervening "if" and
@@ -147,7 +147,7 @@ impl StackEntry {
     /// The object this entry's text calls "this" (CR 113.7a): an ability's
     /// source, or the spell itself.
     pub fn this_object(&self) -> ObjectId {
-        self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
+        self.ability_ref.map_or(self.object_id, |identity| identity.source.id)
     }
 
     /// The player who cast this spell: the controller it was put on the stack
@@ -205,7 +205,7 @@ pub struct ResolvingObject {
     pub announced: crate::engine::announcement::Announcement,
     /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
     /// ability has resolved this turn". `None` for a spell.
-    pub identity: Option<AbilityIdentity>,
+    pub identity: Option<AbilityRef>,
     /// Its trigger's binding, for a triggered ability: the objects of its
     /// triggering event are, with `identity`'s source, what it names, and the
     /// frames their record carries answer before the LKI store does
@@ -252,9 +252,11 @@ pub(crate) fn in_timestamp_order(mut pairs: Vec<(Timestamp, ObjectId)>) -> Vec<O
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
-/// as opposed to the ephemeral stack object representing one activation.
+/// as opposed to the ephemeral stack object representing one activation. To
+/// [`AbilityId`] what [`ObjectRef`] is to `ObjectId`: the bare id names one
+/// of an object's abilities, and this pins it to one existence of one object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AbilityIdentity {
+pub struct AbilityRef {
     /// The permanent the ability was activated from, and which existence of
     /// it (CR 400.7): two activations across a bounce are two abilities'
     /// worth of counting (`triggers-architecture.md` §3.6). The same pair
@@ -267,14 +269,14 @@ pub struct AbilityIdentity {
     pub ability: AbilityId,
 }
 
-impl AbilityIdentity {
+impl AbilityRef {
     /// This identity with the ability's grant dropped: the same ability of the
     /// same object, whichever instance of it. Two effects granting one ability
     /// give the object two instances, each its own identity; CR 603.7h's "when
     /// this ability has resolved for the third time this turn" (Ashling the
     /// Pilgrim) counts resolutions of the ability, whichever instance resolved.
-    pub fn ignoring_ability_grant(self) -> AbilityIdentity {
-        AbilityIdentity { source: self.source, ability: self.ability.definition() }
+    pub fn ignoring_ability_grant(self) -> AbilityRef {
+        AbilityRef { source: self.source, ability: self.ability.definition() }
     }
 }
 
@@ -3007,7 +3009,7 @@ mod tests {
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 };
         assert!(entry.cost_choices.alternative.is_none());
