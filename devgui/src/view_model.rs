@@ -172,7 +172,7 @@ impl Selection {
             (Primitive::PickN { min, max }, Selection::Picks { chosen, half }) => {
                 pick(prompt, (*min, *max), chosen, half, input)
             }
-            (Primitive::PickN { .. }, Selection::Modes(ticked)) => tick(prompt, ticked, input),
+            (Primitive::PickN { .. }, Selection::Modes(ticked)) => pick_modes(prompt, ticked, input),
             (Primitive::Number { min, max }, Selection::Number(value)) => match input {
                 Input::Number(n) => {
                     *value = n.clamp(*min, *max);
@@ -260,7 +260,7 @@ fn holds(choice: &[ModeIndex], ticked: &[ModeIndex]) -> bool {
 /// holds the ticks with it; an untick always is, since a choice holding the
 /// ticks holds fewer. Done answers with the option whose modes are the ticks,
 /// found by what it holds, never by its place in the list.
-fn tick(prompt: &Prompt, ticked: &mut Vec<ModeIndex>, input: Input) -> Option<Answer> {
+fn pick_modes(prompt: &Prompt, ticked: &mut Vec<ModeIndex>, input: Input) -> Option<Answer> {
     match input {
         Input::TickMode(mode) => {
             let mut more = ticked.clone();
