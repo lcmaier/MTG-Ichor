@@ -10767,3 +10767,21 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~30–50 lines: the arm, a draw from the game's generator over
      the listed sets, and a fixture.
      **Slotted:** `breadth-features`, with its first card.
+
+### Found by `mode-picker` (2026-11-09)
+
+417. **A mode's words reach no client.** The dev GUI's picker labels each row
+     by the mode's printed place ("Mode 2"), as the log and the options'
+     labels do. Decision 2 has a client draw "its modes' text, read off the
+     ability as the layers give it", and `modes-chosen-and-resolved`'s as-built
+     gave each mode's words to the dev GUI PR, but nothing carries them: a
+     `Mode` holds no words, and `ChoiceKind::ChooseModes` names its source,
+     not which of the source's abilities announces. The surface is the
+     announcing ability on the kind, and `ui::display` giving each mode's
+     words off that ability's paragraph on the effective list.
+     **Reachability (2026-11-09):** reachable — not wrong today: a person
+     reads the modes off the card's hover beside the picker.
+     **Sized:** ~100–180 lines: the ability on the kind, the words by mode,
+     the picker's row drawing them, a test over the picker's six cards.
+     **Slotted:** Phase 10, whose picker starts from this one; sooner as a
+     dev GUI PR at the owner's word.

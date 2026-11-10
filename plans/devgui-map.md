@@ -155,6 +155,10 @@ From `devgui/`, where `cargo run` runs the window:
   log line's why read from a replay stopped at the open question, a newer
   request replacing one on its way, and a finished game answering from its
   whole line.
+- `tests/mode_picker.rs`: the mode picker over the engine's own offers, a
+  board per count rule built in the test, every set of ticks it allows walked;
+  the seat that keeps the offer is `tests/support/modes_asked.rs`, which a
+  fixture's picture uses too, since no scenario can name a fixture.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
   old beside new. CI plays each board and runs the window to each picture's
@@ -170,11 +174,12 @@ From `devgui/`, where `cargo run` runs the window:
 
 `devgui/tests/random_clicks.rs` plays whole games with every seat's part
 taken by seeded random clicks, through `WindowState::input`. At each prompt it
-clicks anything the window would let a person click (a live button, a board
-item marked clickable, "Start over" or a yield one click in twenty, each live
-button's key, full control switched one prompt in twenty-five) until an answer
-completes: the half chosen and abandoned, the ordering reset midway, the
-bucket filled and emptied that no fixed rule makes. Three dealt seeds a pool,
+clicks anything the window would let a person click (a live button, a mode's
+live checkbox or count, a board item marked clickable, "Start over" or a yield
+one click in twenty, each live button's key, full control switched one prompt
+in twenty-five) until an answer completes: the half chosen and abandoned, the
+ordering reset midway, the bucket filled and emptied, the modes ticked and
+unticked, that no fixed rule makes. Three dealt seeds a pool,
 and three seeds on each review board and on the four-seat sample.
 
 - **Each game must finish**, the engine's thread must not panic, the engine

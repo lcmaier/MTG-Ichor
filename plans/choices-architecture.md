@@ -1250,6 +1250,31 @@ Where it differs from decisions 2 and 3's words:
   which existed, not decision 7's `ChoosePlayer`. A random chooser is item 416's.
 - **The picker is a PR of its own**, `mode-picker`, the split the intake set.
 
+### `mode-picker` — the dev GUI asks for modes one at a time — ✅ landed 2026-11-09
+
+PR #320, the dev GUI's half of `modal-spells-and-abilities`: 717 lines of code and tests
+touched against the guess of 300–600, the brief's 400–700 by parts.
+- **The picker** (decision 2's "For the GUIs"): a row per mode some offered choice has, a
+  checkbox, or a count where some choice has the mode twice. A tick is live while some offered
+  choice still holds the ticks with it, and Done while the ticks are one. It reads the offered
+  list alone, never the count, `may_repeat` or a pawprint, so a new count rule needs nothing
+  in the window.
+- **The answer is the option whose modes are the ticks**, found by what it holds; an option's
+  place answers nothing at the picker, and the digit key n is mode n's click.
+- **Chosen by the options, not the kind**: `OptionView::modes`, as `attacker` is, and a prompt
+  whose every option is a choice of modes is a picker. A forced choice is still unasked.
+- **Tested over the engine's own offers** for every count rule (Cryptic Command, Casualties of
+  War, Echoing Reckoning, Pawprint Parade, Explosive Derailment, Vindictive Lich at three
+  seats), every reachable set of ticks walked; `modes.scenario` under random clicks; two
+  pictures. At 126 choices the picker's view costs 3.7 µs a repaint (`prompt_cost`).
+
+Where it differs from decision 2's words:
+- **A mode in no offered choice has no row**: the list cannot say it exists, so Cryptic
+  Command with no spell to counter shows three rows, not a fourth greyed.
+- **"Choose one" is a tick, then Done**: one click more than the list's button took.
+- **A row is labeled by its place**, not its words: nothing carries a mode's words to a
+  client (`codebase-state.md` item 417).
+
 ## 6. Found while designing
 
 1. **The brief cited CR 500.4 for a pool emptying at a step's end**; it is
