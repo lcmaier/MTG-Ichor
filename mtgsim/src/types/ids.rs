@@ -446,11 +446,11 @@ impl Hasher for IdHasher {
 /// An object remembered by id **and** epoch (CR 400.7): a later move makes it
 /// a new object the reference cannot find.
 ///
-/// The pair every durable reference to an object is made of — [`AbilityIdentity`]'s
+/// The pair every durable reference to an object is made of — [`AbilityRef`]'s
 /// source, a trigger's bound subject, the delayed-trigger registry — so it lives
 /// beside the two halves rather than in the subsystem that needed it first.
 ///
-/// [`AbilityIdentity`]: crate::state::game_state::AbilityIdentity
+/// [`AbilityRef`]: crate::state::game_state::AbilityRef
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ObjectRef {
     pub id: ObjectId,

@@ -2,11 +2,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{draw_cards, static_replacement, you_and_that_player};
+use crate::cards::authoring::{
+    choose_each_targeting_a_different_player, chosen_by, creature, dies, discard, draw_cards, lose_life, sacrifice,
+    static_replacement, target_opponent, triggered_ability, whenever, you_and_that_player,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::PlayerSet;
+use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, DiscardChooser, ModalCount, Pick, PlayerSet};
+use crate::types::triggers::TriggerSubject;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 
@@ -81,6 +85,58 @@ pub fn alms_collector() -> Arc<CardData> {
                 Rewrite::Prevent,
             )
             .with_then(draw_cards(you_and_that_player(), 1)),
+        ))
+        .build()
+}
+
+/// Vindictive Lich — {3}{B}
+/// Creature — Zombie Wizard 4/1
+/// When this creature dies, choose one or more. Each mode must target a
+/// different player.
+/// • Target opponent sacrifices a creature of their choice.
+/// • Target opponent discards two cards.
+/// • Target opponent loses 5 life.
+///
+/// (Oracle text verified on Scryfall, 2026-11-07.)
+///
+/// "Each mode must target a different player", the rule of the modal node,
+/// on a dies trigger: at two seats one opponent takes one mode, and at more
+/// each mode its own opponent. In Shadrix Silverquill's place, whose third
+/// mode, "each creature they control" of its target player, waits for
+/// `multiplayer-rules`.
+///
+/// # The rulings, and where each is tested
+///
+/// - #1, no more modes than opponents, and at least one:
+///   `vindictive_lich_at_two_seats_takes_one_mode`.
+/// - #2, a mode for each opponent is not required:
+///   `vindictive_lich_at_three_seats_offers_one_mode_or_two`.
+pub fn vindictive_lich() -> Arc<CardData> {
+    let text = "When this creature dies, choose one or more. Each mode must target a different player.\n• Target opponent sacrifices a creature of their choice.\n• Target opponent discards two cards.\n• Target opponent loses 5 life.";
+    let sacrifices = sacrifice(chosen_by(Choice {
+        chooser: target_opponent(),
+        among: ChoiceScope::ChoosersPermanents,
+        picks: vec![Pick::exactly(1, creature())],
+        acts_on: ChoiceSide::Chosen,
+    }));
+    CardDataBuilder::new("Vindictive Lich")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 3))
+        .color(Color::Black)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Zombie))
+        .subtype(Subtype::Creature(CreatureType::Wizard))
+        .power_toughness(4, 1)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(
+                dies(TriggerSubject::ThisObject),
+                choose_each_targeting_a_different_player(ModalCount::OneOrMore, [
+                    sacrifices,
+                    discard(target_opponent(), 2, DiscardChooser::Affected),
+                    lose_life(target_opponent(), 5),
+                ]),
+            ),
         ))
         .build()
 }

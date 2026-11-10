@@ -13,6 +13,7 @@ pub mod layer_settlement;
 pub mod resolve;
 pub mod returns;
 pub mod targeting;
+pub mod announcement;
 pub mod object_filter;
 pub mod put_on_stack;
 pub mod stack;

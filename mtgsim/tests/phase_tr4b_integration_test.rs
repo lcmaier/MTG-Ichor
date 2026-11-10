@@ -22,6 +22,7 @@ use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_a
 use mtgsim::cards::printings::{bonesplitter, bramble_elemental, grafted_wargear, grizzly_bears, holy_strength};
 use mtgsim::cards::authoring::equip;
 use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::announcement::Announcement;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::engine::actions::GameAction;
@@ -383,7 +384,7 @@ fn aura_spell_targeting(game: &mut GameState, controller: PlayerId, target: Obje
     let aura = put_spell_on_stack(game, holy_strength(), controller);
     let enchant = holy_strength().spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
-    game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
+    game.stack_entries.get_mut(&aura).unwrap().announced = Announcement::Targets(vec![chosen]);
     aura
 }
 
@@ -726,7 +727,7 @@ fn an_aura_that_takes_a_creature_triggers_siona_as_the_creature_it_made_yours() 
     let aura = put_spell_on_stack(&mut game, control_aura(), 0);
     let enchant = control_aura().spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let chosen = TargetInstance::from_announcement(&game, enchant, &[ObjectOrPlayerId::Object(theirs)]).unwrap();
-    game.stack_entries.get_mut(&aura).unwrap().chosen_targets = vec![chosen];
+    game.stack_entries.get_mut(&aura).unwrap().announced = Announcement::Targets(vec![chosen]);
     game.resolve_top_of_stack(&test_dp()).unwrap();
     resolve_all(&mut game, &test_dp());
 
@@ -902,7 +903,7 @@ fn grafted_wargear_does_not_sacrifice_its_creature_after_it_returned() {
     let chosen = TargetInstance::from_announcement(&game, exile_it, &[ObjectOrPlayerId::Object(first)]).unwrap();
     let entry = game.stack_entries.get_mut(&spell).unwrap();
     entry.effect = Arc::new(flicker);
-    entry.chosen_targets = vec![chosen];
+    entry.announced = Announcement::Targets(vec![chosen]);
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.pending_triggers.iter().filter(|p| p.origin.source() == wargear).count(), 1, "it triggered");

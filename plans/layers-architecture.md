@@ -271,7 +271,7 @@ Three implementors: `FilterPlayers` (a source always, earlier targets never); `T
 | `ByOwner(Owner)` | the source's owner | always true | the source's owner; refused with no source |
 | `Token`, `ByOwner` of a gone object | false | refused (`ObjectGone`) | refused, not malformed; the walk cannot reach it, since it asks only objects it holds frames for |
 | `NotSource` | `id != source` | refused with no source | refused with no source; the walk always has one |
-| `OtherThanInstance` | false | refused outside an announcement | refused, malformed |
+| `OtherThanInstance` (since item 154, `SelectionFilter::Another`, out of this table) | false | refused outside an announcement | refused, malformed |
 | `PowerLE` with no power | false | refused (`NoPower`), malformed | refused, **not** malformed |
 | `And`, `Or` | short-circuit | a refusal in the left arm ends the walk | Kleene's: an arm that decides (`false` for `And`, `true` for `Or`) decides whichever side it is on; otherwise the left arm's refusal |
 | `Not` | `!` | the refusal passes through | the refusal passes through |
@@ -2756,7 +2756,7 @@ Not in scope here (too detailed): the exact test list. Driven by the atomic-test
 
 **→ Ability-granted effects on tokens (resolved).** If the token-creating effect's wording says the token "has [ability]", the ability is inherent to the token and baked into its `CardData` at creation. If the effect is "creature tokens you control get +2/+2" (a separate ongoing effect), that's a Layer 6 or 7c continuous effect registered on the source. No architecture change needed; card implementations follow this rule.
 
-**→ Emblem / commander-source effects (resolved).** Continuous effects whose source is a commander are *removed* when the commander leaves its functional zone (including to the command zone); the `remove_by_source` helper handles this. Exceptions: **Eminence abilities** are static abilities functioning in the command zone, so they register with `source = commander, zone_of_function = {Command, Battlefield}`; they *re-register* automatically on each zone entry. **Alchemy perpetual mods** are a separate system that edits `CardData` directly and is orthogonal to the continuous-effect registry (see `alchemy-mechanics-audit.md`). Emblems themselves live in the command zone and their effects register with `source = emblem_id, zone_of_function = Command` — removed only when the emblem itself is removed (rare).
+**→ Emblem / commander-source effects (resolved).** Continuous effects whose source is a commander are *removed* when the commander leaves its functional zone (including to the command zone); the `remove_by_source` helper handles this. Exceptions: **Eminence abilities** are static abilities functioning in the command zone, so they register with `source = commander, zone_of_function = {Command, Battlefield}`; they *re-register* automatically on each zone entry. **Alchemy perpetual mods** are a separate system that edits `CardData` directly and is orthogonal to the continuous-effect registry (see `alchemy-mechanics-audit.md`) — **superseded (2026-11-07)**: perpetual changes are designed in `card-and-object-model`, since editing `CardData` breaks the layer-system invariant. Emblems themselves live in the command zone and their effects register with `source = emblem_id, zone_of_function = Command` — removed only when the emblem itself is removed (rare).
 
 **→ APNAP tie-breaking on simultaneous timestamps (resolved).** Assigned at timestamp creation: when a batch of effects enters together, the active player's get strictly smaller timestamps. No runtime tie-breaking. See §8.
 
@@ -2894,7 +2894,7 @@ These are CR 613 features we will *not* implement in Phase LA–LD. Each is acce
 - **Day/Night designation** (CR 726) — similar; not a layers concern even though it influences characteristics.
 - **Energy counters, mana symbols in text** — Layer 3 (text) can theoretically touch these; practical coverage deferred to when a card needs it.
 - **Dependency cycles among 3+ effects.** CR 613.8b says cycles → timestamp order. Simple to implement; we do it in Phase LC.
-- **Perpetual modifiers (Alchemy).** Distinct system from continuous effects — perpetual mods edit the `CardData` of the object directly. See `alchemy-mechanics-audit.md`. Layer system cooperates with it via the usual wrapper reads.
+- **Perpetual modifiers (Alchemy).** Distinct system from continuous effects — perpetual mods edit the `CardData` of the object directly. See `alchemy-mechanics-audit.md`. Layer system cooperates with it via the usual wrapper reads. **Superseded (2026-11-07):** perpetual changes are designed in `card-and-object-model` (`roadmap-v2.md`'s row); editing `CardData` would break the layer-system invariant and bypass the memo.
 
 ---
 

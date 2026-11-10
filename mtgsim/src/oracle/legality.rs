@@ -12,7 +12,7 @@ use crate::oracle::characteristics::{controls, get_effective_types, has_keyword,
 use crate::oracle::mana_helpers::{activatable_abilities_with, castable_spells_with};
 use crate::engine::combat::validation::CombatError;
 use crate::engine::put_on_stack::SorceryTiming;
-use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::game_state::{AbilityRef, GameState};
 use crate::types::triggers::TriggerBinding;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
@@ -208,7 +208,7 @@ pub fn enumerate_legal_selections(
 /// [`enumerate_legal_selections`] inside CR 601.2c's loop, where the instances
 /// of "target" announced so far are known.
 ///
-/// `earlier_targets` is what an `ObjectFilter::OtherThanInstance` leaf reads — the
+/// `earlier_targets` is what a `SelectionFilter::Another` reads — the
 /// difference between Incremental Growth offering three creatures for its
 /// second clause and offering the two it has not already taken. Outside the
 /// loop the list is empty and that leaf is refused, which is why the plain
@@ -272,14 +272,35 @@ pub fn enumerate_legal_selections_upto(
             .then_some(candidate)
     };
 
+    // A player is asked the filter as an object is, so a player filter's
+    // criteria, and "another target" over one, are read.
+    let player_passes = |candidate: ObjectOrPlayerId| game.validate_selection(filter, &candidate, you, identity).is_ok();
+
     match filter {
-        SelectionFilter::Player => players().take(limit).collect(),
+        SelectionFilter::Player(_) => players().filter(|&p| player_passes(p)).take(limit).collect(),
 
         // "Any target" — players, then creatures and planeswalkers.
         SelectionFilter::Any => players()
+            .filter(|&p| player_passes(p))
             .chain(battlefield().filter_map(passes))
             .take(limit)
             .collect(),
+
+        // "Another target": what the wrapped filter offers, less what the
+        // earlier instances took, in the wrapped filter's order. Each
+        // candidate is validated once, by the wrapped filter's arm, and at
+        // most `limit` plus the targets taken are asked for.
+        SelectionFilter::Another(inner) => {
+            let earlier = identity.earlier_targets;
+            if matches!(earlier, crate::engine::object_filter::EarlierTargets::None) {
+                return Vec::new();
+            }
+            enumerate_legal_selections_upto(game, inner, exclude_id, you, identity, limit.saturating_add(earlier.targets_taken()))
+                .into_iter()
+                .filter(|&candidate| !earlier.names(candidate))
+                .take(limit)
+                .collect()
+        }
 
         SelectionFilter::Spell => spells_on_stack().map(ObjectOrPlayerId::Object).take(limit).collect(),
 
@@ -328,19 +349,19 @@ pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<Obj
 
 /// What a stack object or the resolving one names that a damage source can be
 /// chosen from: its source, then the objects its trigger's events are about.
-fn named_by(identity: Option<AbilityIdentity>, trigger: Option<&TriggerBinding>) -> impl Iterator<Item = ObjectRef> + '_ {
+fn named_by(identity: Option<AbilityRef>, trigger: Option<&TriggerBinding>) -> impl Iterator<Item = ObjectRef> + '_ {
     let source = identity.map(|identity| identity.source);
     source.into_iter().chain(trigger.into_iter().flat_map(TriggerBinding::objects_of_triggering_events))
 }
 
 /// [`named_by`], each as the trigger reads it: the existence it left as,
 /// where its trigger's records or the LKI store keep one (CR 113.7a).
-fn read_as_they_left<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, trigger: Option<&'a TriggerBinding>) -> impl Iterator<Item = ObjectRef> + 'a {
+fn read_as_they_left<'a>(game: &'a GameState, identity: Option<AbilityRef>, trigger: Option<&'a TriggerBinding>) -> impl Iterator<Item = ObjectRef> + 'a {
     named_by(identity, trigger).map(move |object| game.lki_as_read_by(trigger, object).map_or(object, |lki| lki.object()))
 }
 
 /// [`named_by`]'s objects that have left since, which the LKI store holds.
-fn left_since_read<'a>(game: &'a GameState, identity: Option<AbilityIdentity>, trigger: Option<&'a TriggerBinding>) -> impl Iterator<Item = ObjectRef> + 'a {
+fn left_since_read<'a>(game: &'a GameState, identity: Option<AbilityRef>, trigger: Option<&'a TriggerBinding>) -> impl Iterator<Item = ObjectRef> + 'a {
     named_by(identity, trigger).filter(move |object| game.lki(*object).is_some())
 }
 
@@ -359,14 +380,14 @@ fn referred_damage_sources(game: &GameState) -> Vec<ObjectRef> {
     use crate::types::ids::ObjectOrPlayer;
     let mut referred: Vec<ObjectRef> = Vec::new();
     for entry in game.stack.iter().filter_map(|id| game.stack_entries.get(id)) {
-        referred.extend(read_as_they_left(game, entry.ability_identity, entry.trigger.as_ref()));
+        referred.extend(read_as_they_left(game, entry.ability_ref, entry.trigger.as_ref()));
         if let Some(binding) = &entry.trigger {
             referred.extend(binding.referred.objects.iter().map(|r| r.object));
         }
-        for instance in &entry.chosen_targets {
+        for instance in entry.announced.targets() {
             referred.extend(instance.targets().filter_map(ObjectOrPlayer::object));
         }
-        referred.extend(left_since_read(game, entry.ability_identity, entry.trigger.as_ref()));
+        referred.extend(left_since_read(game, entry.ability_ref, entry.trigger.as_ref()));
     }
     if let Some(resolving) = &game.resolving {
         referred.extend(read_as_they_left(game, resolving.identity, resolving.trigger.as_ref()));
@@ -683,7 +704,7 @@ mod tests {
             cast: None,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             x_value: None,
-            chosen_targets: Vec::new(),
+            announced: crate::engine::announcement::Announcement::NONE,
             identity: None,
             trigger: None,
             began_at: game.events.next_seq(),
@@ -733,7 +754,7 @@ mod tests {
         // The control: with everyone in the game, four seats and a fourth
         // choice. Without it the assertions below would pass on an arm that
         // offered nothing at all.
-        for filter in [SelectionFilter::Player, SelectionFilter::Any] {
+        for filter in [SelectionFilter::Player(crate::types::effects::PlayerSet::Everyone), SelectionFilter::Any] {
             assert_eq!(seats(&game, filter.clone()).len(), 4, "{:?}: four seats", filter);
         }
 
@@ -744,7 +765,7 @@ mod tests {
             ObjectOrPlayerId::Player(1),
             ObjectOrPlayerId::Player(2),
         ];
-        for filter in [SelectionFilter::Player, SelectionFilter::Any] {
+        for filter in [SelectionFilter::Player(crate::types::effects::PlayerSet::Everyone), SelectionFilter::Any] {
             // The battlefield is empty, so `Any` offers the seats and nothing
             // else and the two lists are the same list.
             assert_eq!(seats(&game, filter.clone()), in_game, "{:?}: the seat is not offered", filter);

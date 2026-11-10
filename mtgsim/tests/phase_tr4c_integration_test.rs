@@ -32,6 +32,7 @@ use mtgsim::cards::printings::{
 };
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::announcement::Announcement;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::GameEvent;
@@ -801,7 +802,7 @@ fn aura_spell_targeting(game: &mut GameState, aura: Arc<CardData>, controller: P
     let enchant = aura.spell_instances().last().cloned().expect("an Aura announces its enchant clause");
     let id = put_spell_on_stack(game, aura, controller);
     let chosen = TargetInstance::from_announcement(game, enchant, &[ObjectOrPlayerId::Object(target)]).unwrap();
-    game.stack_entries.get_mut(&id).unwrap().chosen_targets = vec![chosen];
+    game.stack_entries.get_mut(&id).unwrap().announced = Announcement::Targets(vec![chosen]);
     id
 }
 

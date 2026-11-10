@@ -12,7 +12,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, setup_two_player_game, RecordingDecisionProvider};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, PlayerSet, SelectionFilter, TargetCount};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -35,7 +35,7 @@ fn heap_free_instant() -> Arc<CardData> {
             "",
             Effect::Atom(
                 Primitive::LoseLife(AmountExpr::Fixed(1)),
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             ),
         ))
         .build()

@@ -12,7 +12,9 @@ use std::sync::Arc;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DepartedObject, EventId, GameEvent, LifeChange};
-use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
+use crate::state::game_state::{AbilityRef, GameState, PhaseType, StepType};
+use crate::state::history::ModesChosen;
+use crate::types::effects::{ChosenBefore, ModeIndex};
 use crate::state::history_log::{HistoryRow, RowFact, RowFrame, RowKind, FIRST_TURN};
 use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectOrPlayer, ObjectRef, PlayerId};
@@ -39,7 +41,7 @@ struct RowDraft {
 
 /// What one record changes beside its rows, or has a place among.
 enum HistoryUpdate {
-    AbilityResolved { identity: AbilityIdentity },
+    AbilityResolved { identity: AbilityRef },
     SpellCast { caster: PlayerId },
     CardDrawn { player: PlayerId },
     DrawStepBegan { player: PlayerId },
@@ -220,8 +222,32 @@ impl GameState {
     }
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
-    pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
+    pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityRef) -> u32 {
         self.history.resolutions_this_turn.get(&identity.ignoring_ability_grant()).copied().unwrap_or(0)
+    }
+
+    /// The modes `identity`'s ability has chosen that it may not choose now.
+    pub(crate) fn modes_chosen_before(&self, identity: AbilityRef) -> &[ModeIndex] {
+        self.history.modes_chosen.get(&identity).map_or(&[], |chosen| chosen.no_longer_offered(self.turn_number))
+    }
+
+    /// `identity`'s ability chose `modes` as it was put on the stack, which
+    /// "that hasn't been chosen" reads from then on, whatever becomes of the
+    /// ability (Demonic Pact's ruling). Under `scope` "this turn", a choice on
+    /// a later turn starts the record over. A choice of none writes nothing.
+    /// Its caller owns the moment, once the announcement is complete.
+    pub(crate) fn note_modes_chosen(&mut self, identity: AbilityRef, scope: ChosenBefore, modes: impl IntoIterator<Item = ModeIndex>) {
+        let modes: Vec<ModeIndex> = modes.into_iter().collect();
+        if modes.is_empty() {
+            return;
+        }
+        let turn = self.turn_number;
+        let chosen = self.history.modes_chosen.entry(identity).or_insert(ModesChosen { turn, scope, modes: Vec::new() });
+        if chosen.no_longer_offered(turn).is_empty() {
+            chosen.modes.clear();
+        }
+        chosen.turn = turn;
+        chosen.modes.extend(modes);
     }
 
     /// The log's rows for record `seq` of `window`, each its object as the

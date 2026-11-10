@@ -19,7 +19,7 @@ use mtgsim::test_support::{
     RecordingDecisionProvider,
     effect_ctx,
 };
-use mtgsim::types::effects::{CounterType, EffectRecipient, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{CounterType, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -236,7 +236,7 @@ fn blood_artists_drain_triggers_the_opponents_vengeful_warchief() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
         vec![ChoiceOption::Player(1)],

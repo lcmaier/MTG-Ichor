@@ -324,7 +324,7 @@ already planned for them.
 | **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `kept_lki`, typed `Lki`, which §3.11 widens; since #285 the LKI store | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |
 | **The intervening "if" at the trigger** (603.4) | `settled_holds` when the window closes | **no**, for a window with a rider: the rider has run (615.5) | a rider that changes the condition; a rider's newcomer asked about an earlier record (603.6a) | item 175 sharpened |
 | **"Do this only once each turn"** (603.2h) | planned: `action_taken_this_turn`, keyed by the ability | planned | **a control change**: the rule keys the gate on "its source's controller". 34 cards | §3.5, §6.4 and §7 amended |
-| A state trigger's re-arm (603.8); "only once each turn" | planned: sets of `AbilityIdentity`, which carries the epoch | planned | a zone change resets both (400.7) | no gap |
+| A state trigger's re-arm (603.8); "only once each turn" | planned: sets of `AbilityRef`, which carries the epoch | planned | a zone change resets both (400.7) | no gap |
 | A delayed trigger's provenance and objects (603.7a–h) | planned: `DelayedTrigger` (§3.9) | planned: controller, source and refs as of the creating instant | refs by epoch, from the performed records | no gap, but the refs read item 177's missing field |
 | A copy of a triggered ability (707.10b) | a clone of its `StackEntry`: identity, binding, frame | yes | counted as the same ability (§6.5) | no gap |
 | Modes on a trigger (603.3c); a damage source's keywords from its LKI (702.2e, 702.15c, 702.80b, 702.90d) | `StackEntry.chosen_modes`, never written (item 31); `has_keyword`, live | — | — | owned: `backlog.md` §2.7 and §2.6 |
@@ -901,11 +901,15 @@ named `damage_marked`; type `bool` named `damaged_by_deathtouch`
 
 #### Targets
 CR 115.1, 601.2c. **Key:** a spell or ability on the stack and its instance
-of "target". **Query:** type `TargetInstance`; type `AnnouncedTargets`; type
-`ObjectOrPlayer` named `target`; type `ObjectOrPlayer` named `targets`. An
-object or a player by reference is one type for every role (item 291), so the
-field's name says which; a damage record's is `recipient`.
-- `StackEntry` — owner.
+of "target". **Query:** type `Announcement`; type `TargetInstance`; type
+`AnnouncedTargets`; type `ObjectOrPlayer` named `target`; type
+`ObjectOrPlayer` named `targets`. An object or a player by reference is one
+type for every role (item 291), so the field's name says which; a damage
+record's is `recipient`.
+- `StackEntry` — owner, through its `Announcement`.
+- `Announcement` — owner: the effect's own instances, or for a modal effect
+  each chosen mode's (item 413).
+- `ChosenMode` — owner: the instances one chosen mode announced (CR 700.2c).
 - `TargetInstance` — owner: the targets one instance chose, each with its share
   when CR 601.2d divided it.
 - `RegisteredReplacementEffect` — hand-over: the targets of the resolution
@@ -918,10 +922,11 @@ field's name says which; a damage record's is `recipient`.
 
 #### A spell's or ability's choices
 CR 107.3, 601.2b, 700.2. **Key:** the stack object, and through CR 400.7d the
-permanent it became. **Query:** type `u64` named `x_value`; type `ModeIndex`
-named `chosen_modes`
-- `StackEntry` ×2 — owner of X; and owner of the modes chosen, written as
-  they are announced and read as the effect resolves (`modes-chosen-and-resolved`).
+permanent it became. **Query:** type `u64` named `x_value`; type `ChosenMode`
+- `StackEntry` — owner of X.
+- `Announcement` — owner of the modes chosen, each with its targets, written as
+  they are announced and read as the effect resolves (`modes-chosen-and-resolved`,
+  item 413).
 - `ResolvingObject` — hand-over of X, to the permanent.
 - `PermanentState` — owner: the X of the spell it was (CR 400.7d).
 - `PendingTrigger` — owner: a delayed trigger's X, its creator's (CR 107.3n).
@@ -1229,7 +1234,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `ThisCombat` — **not a word**: a criterion on what it did this combat.
 - `ByOwner` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).
 - `NotSource` — **kept** "other than this object": a relation to an object ("another"), not a word for one.
-- `OtherThanInstance` — **kept** "another target" (CR 601.2c): a relation to an earlier instance.
+
 - `And` — **not a word**: an intersection of criteria.
 - `Or` — **not a word**: a union of criteria.
 - `Not` — **not a word**: a complement.
@@ -1279,6 +1284,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - `Permanent` — **holds** an `ObjectFilter`.
 - `Spell` — **owns** "a spell on the stack" as a candidate.
 - `DamageSource` — **owns** "a source of damage", CR 609.7a's choice.
+- `Another` — **kept** "another target", "any other target" (CR 601.2c, 115.4): a relation to the earlier instances in its scope, over any filter a player's among; it was `ObjectFilter::OtherThanInstance` until item 154.
 
 #### `SourceFilter`
 - `ControlledBy` — **folds**: its `PlayerRef` becomes a `PlayerSet` (item 342).

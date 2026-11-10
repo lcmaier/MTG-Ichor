@@ -25,7 +25,7 @@ use crate::engine::trace_records;
 use crate::engine::zone_function::functions_in;
 use crate::objects::card_data::CardData;
 use crate::oracle::characteristics::controller_or_owner;
-use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::game_state::{AbilityRef, GameState};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::zones::ZoneSet;
@@ -36,7 +36,7 @@ use crate::types::triggers::{
 
 /// A state trigger the check found true, before it is queued.
 pub(super) struct StateTriggerMatch {
-    identity: AbilityIdentity,
+    identity: AbilityRef,
     controller: PlayerId,
     def: Arc<TriggerDef>,
     stated_zones: Option<ZoneSet>,
@@ -115,7 +115,7 @@ impl GameState {
             if !functions_in(ability, &chars.types, object.zone) {
                 continue;
             }
-            let identity = AbilityIdentity { source: existence, ability: ability.id };
+            let identity = AbilityRef { source: existence, ability: ability.id };
             let refused_by = if def.intervening_if.is_some() {
                 // A state trigger checks its state at the trigger only
                 // (Emperor Crocodile's second ruling), so it has no "if".
@@ -151,7 +151,7 @@ impl GameState {
     /// resolving (CR 608.2n's last step is the leaving). Read off the keepers,
     /// which say exactly that, so nothing re-arms it: its leaving, however it
     /// leaves, is the answer changing.
-    fn state_trigger_has_not_left_the_stack(&self, identity: AbilityIdentity) -> bool {
+    fn state_trigger_has_not_left_the_stack(&self, identity: AbilityRef) -> bool {
         self.lki_keepers().any(|keeper| keeper.is_triggered(identity))
     }
 

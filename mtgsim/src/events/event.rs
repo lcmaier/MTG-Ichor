@@ -11,7 +11,7 @@ use crate::engine::actions::ZoneChangeAct;
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::last_known::LkiStore;
 use crate::state::battlefield::AttackTarget;
-use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
+use crate::state::game_state::{AbilityRef, PhaseType, StepType};
 use crate::objects::card_data::AbilityText;
 use crate::types::triggers::{DelayedDuration, Lki, TriggerOrigin, TriggerId};
 
@@ -274,7 +274,7 @@ pub enum GameEvent {
     /// counting — "whenever this ability resolves for the third time this
     /// turn" (Ashling the Pilgrim; Ashling, Flame Dancer) — needs the durable
     /// (source, ability) pair.
-    AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
+    AbilityResolved { identity: AbilityRef, controller: PlayerId },
     /// An activated ability became activated: its costs are paid (CR 602.2b
     /// runs 601.2i), so an activation reversed for want of them (CR 732.1)
     /// announces nothing. A mana ability is activated too (CR 605.3a), and
@@ -282,7 +282,7 @@ pub enum GameEvent {
     /// source was in as it was activated, and `source_lki` the source as it
     /// was then when a cost moved it, which "an ability of an artifact" reads.
     AbilityActivated {
-        identity: AbilityIdentity,
+        identity: AbilityRef,
         controller: PlayerId,
         mana_ability: bool,
         from: Zone,
@@ -298,7 +298,7 @@ pub enum GameEvent {
     ///
     /// `ability_source` is an ability's source, as the existence the ability
     /// is of, which a reader names it by: `by` is the stack object, which CR
-    /// 608.2n removes. `None` for a spell. Not the whole `AbilityIdentity`,
+    /// 608.2n removes. `None` for a spell. Not the whole `AbilityRef`,
     /// which would grow every event by half.
     Targeted { target: ObjectOrPlayer, by: ObjectRef, ability_source: Option<ObjectRef>, controller: PlayerId, instances: u32 },
     /// An ability triggered (CR 603.2) — the record CR 603.3b's second tier
@@ -340,7 +340,7 @@ pub enum GameEvent {
     SpellCountered { countered_by: ObjectRef, lki: Lki },
     /// An activated or triggered ability was countered (CR 701.6b), named by
     /// what it is: the stack object ceased to exist as it was countered.
-    AbilityCountered { identity: AbilityIdentity, controller: PlayerId, countered_by: ObjectRef },
+    AbilityCountered { identity: AbilityRef, controller: PlayerId, countered_by: ObjectRef },
     /// A spell doesn't resolve (CR 608.2b): every target of every instance of
     /// "target" is illegal. Its move to the graveyard, the `ZoneChange` caused
     /// by `GameRule::TargetsIllegal`, comes first. Not a countering: CR 701.6a's
@@ -351,7 +351,7 @@ pub enum GameEvent {
     /// An ability doesn't resolve (CR 608.2b), named by what it is, as
     /// [`Self::AbilityResolved`] is: CR 608.2b removes the stack object, so
     /// its id names nothing once this is read.
-    AbilityFizzled { identity: AbilityIdentity, controller: PlayerId },
+    AbilityFizzled { identity: AbilityRef, controller: PlayerId },
 
     // --- Deaths are not events of their own ---
     //

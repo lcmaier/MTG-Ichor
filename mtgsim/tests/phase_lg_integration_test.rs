@@ -35,7 +35,8 @@ use mtgsim::types::ids::{new_object_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::zones::Zone;
-use mtgsim::engine::targeting::{ChosenTargets};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::ChosenTargets;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -98,15 +99,14 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
     StackEntry {
         object_id: spell_id,
         controller,
-        chosen_targets: Vec::new(),
-        chosen_modes: Vec::new(),
+        announced: Announcement::NONE,
         x_value: None,
         effect: std::sync::Arc::new(effect),
         is_spell: true,
         cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     }
 }

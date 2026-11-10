@@ -2,11 +2,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create_replacement, creature, draw_cards, draw_two_instead, spell_ability, static_replacement, you};
+use crate::cards::authoring::{
+    any_target, at_beginning_of, choose_one_not_chosen_before, create_replacement, creature, deal_damage, discard, draw_cards, draw_two_instead,
+    gain_life, lose_the_game, spell_ability, static_replacement, target_opponent, triggered_ability, whenever, you, Whose,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
+use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, Supertype};
 use crate::types::colors::Color;
-use crate::types::effects::{ObjectSet, PlayerSet};
+use crate::types::effects::{ChosenBefore, DiscardChooser, Effect, ObjectSet, PlayerSet};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
 use crate::types::zones::{DrawFilter, Zone};
@@ -55,6 +59,58 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
             ),
         ))
         .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
+        .build()
+}
+
+/// Demonic Pact — {2}{B}{B}
+/// Enchantment
+/// At the beginning of your upkeep, choose one that hasn't been chosen —
+/// • This enchantment deals 4 damage to any target and you gain 4 life.
+/// • Target opponent discards two cards.
+/// • Draw two cards.
+/// • You lose the game.
+///
+/// (Oracle text verified on Scryfall, 2026-11-07.)
+///
+/// "That hasn't been chosen": the record of the modes this Demonic Pact's
+/// ability has chosen, kept for as long as this object exists and whoever
+/// controls it, so the fourth upkeep's only mode is the last.
+///
+/// # The rulings, and where each is tested
+///
+/// - #1, the mode chosen as the ability goes on the stack, among the modes
+///   with legal targets: `demonic_pact_chooses_as_it_triggers_among_the_modes_left`.
+/// - #2, a mode whose ability did not resolve still counts:
+///   `demonic_pact_counts_a_mode_whose_ability_did_not_resolve`.
+/// - #3, only this Demonic Pact's choices count: `a_second_demonic_pact_chooses_any_mode`.
+/// - #4, whoever chose a mode, it is chosen, under a new controller too:
+///   `demonic_pact_under_a_new_controller_offers_only_the_modes_left`.
+/// - #5, with no mode left the ability is removed:
+///   `demonic_pact_with_no_mode_left_is_removed`.
+/// - #6, with the fourth mode the only one left, it is chosen:
+///   `demonic_pact_with_only_the_fourth_mode_left_loses_the_game`.
+pub fn demonic_pact() -> Arc<CardData> {
+    let text = "At the beginning of your upkeep, choose one that hasn't been chosen —\n• This enchantment deals 4 damage to any target and you gain 4 life.\n• Target opponent discards two cards.\n• Draw two cards.\n• You lose the game.";
+    CardDataBuilder::new("Demonic Pact")
+        .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 2))
+        .color(Color::Black)
+        .card_type(CardType::Enchantment)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(
+                at_beginning_of(StepType::Upkeep, Whose::Yours),
+                choose_one_not_chosen_before(
+                    ChosenBefore::WhileItExists,
+                    [
+                        Effect::Sequence(vec![deal_damage(any_target(), 4), gain_life(you(), 4)]),
+                        discard(target_opponent(), 2, DiscardChooser::Affected),
+                        draw_cards(you(), 2),
+                        lose_the_game(you()),
+                    ],
+                ),
+            ),
+        ))
         .build()
 }
 

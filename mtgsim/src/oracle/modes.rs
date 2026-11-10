@@ -1,139 +1,287 @@
-//! CR 700.2's offer: the sets of modes a modal ability's chooser may
+//! CR 700.2's offer: the groups of modes a modal ability's chooser may
 //! announce, each one whole choice (`choices-architecture.md`, decision 2's
 //! B). The announcement lists them and castability asks for the first, so an
 //! offer and a cast cannot disagree (CR 700.2a, 602.2b, 603.3c).
 
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
+use crate::engine::object_filter::EarlierTargets;
+use crate::engine::targeting::FilterIdentity;
+use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::every_instance_has_a_choice;
-use crate::state::game_state::GameState;
-use crate::types::effects::{ModalCount, ModalNode, ModeIndex};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::state::game_state::{AbilityRef, GameState};
+use crate::types::effects::{EffectRecipient, ModalCount, ModalNode, ModeIndex};
+use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 
-/// Every set of modes `node` lets its chooser announce now, in printed order
-/// within a set, the smaller sets first. A mode whose instances of "target"
-/// cannot all be chosen is in none (CR 700.2a), and a mode is never in a set
-/// twice (CR 700.2d's default). Read as `every_instance_has_a_choice` reads a
-/// spell's targets: `player` is the one announcing, whose "you" the targets
-/// and the count's condition read; `this_object` the object whose text it is
-/// (CR 113.7a); `named` what a trigger's event names; and `x_value` the X
-/// announced before the modes, which a count of X reads.
-pub(crate) fn legal_mode_sets(
+/// Every group of modes `node` lets its chooser announce now, in printed order
+/// within a group, a repeated mode's copies adjacent (CR 700.2d), the smaller
+/// groups first. A group is one whole choice, and empty where the count allows
+/// none ("you may choose two", "up to four"). A mode whose instances of
+/// "target" cannot all be chosen is in none (CR 700.2a); a mode is in a group
+/// once unless the node says it may repeat; a group whose pawprints pass a
+/// pawprint count's budget is none (700.2i); and under "each mode must target
+/// a different player" a group
+/// whose modes cannot each take a player of their own is none. Read as
+/// `every_instance_has_a_choice` reads a spell's targets: `player` is the one
+/// announcing, whose "you" the targets and the count's condition read;
+/// `this_object` the object whose text it is (CR 113.7a); `named` what a
+/// trigger's event names; `x_value` the X announced before the modes, which a
+/// count of X reads; and `identity` the ability announcing, whose modes
+/// chosen before "that hasn't been chosen" leaves out (none for a spell).
+pub(crate) fn legal_mode_groups(
     game: &GameState,
     node: &ModalNode,
     player: PlayerId,
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
+    identity: Option<AbilityRef>,
 ) -> Vec<Vec<ModeIndex>> {
-    let mut sets = Vec::new();
-    walk_legal_sets(game, node, player, this_object, named, x_value, &mut |set| {
-        sets.push(set.to_vec());
-        KeepGoing::Yes
+    let mut groups = Vec::new();
+    // The list keeps every one, so it never stops needing more.
+    let needs_more_mode_groups = true;
+    walk_legal_groups(game, node, player, this_object, named, x_value, identity, &mut |group| {
+        groups.push(group.to_vec());
+        needs_more_mode_groups
     });
-    sets
+    groups
 }
 
-/// Whether [`legal_mode_sets`] lists any: the same walk, stopped at the first.
-pub(crate) fn has_a_legal_mode_set(
+/// Whether [`legal_mode_groups`] lists any: the same walk, stopped at the first.
+pub(crate) fn has_a_legal_mode_group(
     game: &GameState,
     node: &ModalNode,
     player: PlayerId,
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
+    identity: Option<AbilityRef>,
 ) -> bool {
-    let mut found = false;
-    walk_legal_sets(game, node, player, this_object, named, x_value, &mut |_| {
-        found = true;
-        KeepGoing::No
+    // Castability needs one, so the first it is handed is enough.
+    let mut needs_more_mode_groups = true;
+    walk_legal_groups(game, node, player, this_object, named, x_value, identity, &mut |_| {
+        needs_more_mode_groups = false;
+        needs_more_mode_groups
     });
-    found
+    !needs_more_mode_groups
 }
 
-/// Whether a walk over the sets of modes goes on to the next set.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum KeepGoing {
-    Yes,
-    No,
-}
-
-/// Hands `visit` each legal set in [`legal_mode_sets`]' order, stopping when
-/// it says to. The two callers differ only in `visit`: the list keeps every
-/// set, castability stops at the first.
-fn walk_legal_sets(
+/// Hands `visit` each legal group in [`legal_mode_groups`]' order, stopping
+/// once it answers that it needs no more mode groups. The two callers differ
+/// only in `visit`: the list keeps every group, castability stops at the first.
+fn walk_legal_groups(
     game: &GameState,
     node: &ModalNode,
     player: PlayerId,
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
-    visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing,
+    identity: Option<AbilityRef>,
+    visit: &mut impl FnMut(&[ModeIndex]) -> bool,
 ) {
-    let Some((fewest, most)) = set_sizes(game, &node.count, player, this_object, named, x_value) else { return };
-    // A size past the modes left is no set: a mode is chosen once.
-    if fewest > node.modes.len() {
-        return;
-    }
+    let Some(count) = current_count(game, &node.count, node.modes.len(), player, this_object, named, x_value) else { return };
+    let chosen_before = match (node.rules.not_chosen_before, identity) {
+        (Some(_), Some(identity)) => game.modes_chosen_before(identity),
+        _ => &[],
+    };
     let legal: Vec<ModeIndex> = node
         .indexed_modes()
-        .filter(|(_, mode)| every_instance_has_a_choice(game, &mode.instances, player, this_object, named))
+        .filter(|(place, mode)| {
+            !chosen_before.contains(place) && every_instance_has_a_choice(game, &mode.instances, player, this_object, named)
+        })
         .map(|(place, _)| place)
         .collect();
-    for size in fewest..=most.min(legal.len()) {
-        if for_each_combination(&legal, size, visit) == KeepGoing::No {
+    let pawprints = |group: &[ModeIndex]| group.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.pawprints).sum::<u32>();
+    let mut admitted = |group: &[ModeIndex]| {
+        let within_budget = match count {
+            CurrentCount::Pawprints(budget) => pawprints(group) <= budget,
+            CurrentCount::Sizes { .. } => true,
+        };
+        if !within_budget
+            || (node.rules.each_mode_targets_a_different_player && !players_can_differ(game, node, group, player, this_object, named))
+        {
+            // Not handed to `visit`, whose need is what it was.
+            return true;
+        }
+        visit(group)
+    };
+    for size in count.sizes() {
+        // A mode chosen once fills at most the modes there are.
+        if !node.rules.may_repeat && size > legal.len() {
+            break;
+        }
+        let needs_more_mode_groups = if node.rules.may_repeat {
+            for_each_group_with_repeats(&legal, size, &mut admitted)
+        } else {
+            for_each_combination(&legal, size, &mut admitted)
+        };
+        if !needs_more_mode_groups {
             return;
         }
     }
 }
 
-/// The fewest and most modes `count` allows, read now: `None` for a count of
-/// X with no X announced. The most may pass the modes printed, which the walk
-/// caps.
-fn set_sizes(
+/// A count read now: the sizes of group it allows, or a pawprint budget.
+#[derive(Clone, Copy)]
+enum CurrentCount {
+    /// Every size from `fewest` through `most`, and `also` beside them:
+    /// "you may choose two" is 0, and 2 also.
+    Sizes { fewest: usize, most: usize, also: Option<usize> },
+    /// CR 700.2i: any size, its pawprints within the budget. Every printed
+    /// mode has a pawprint, so no group is larger than the budget.
+    Pawprints(u32),
+}
+
+impl CurrentCount {
+    fn sizes(self) -> impl Iterator<Item = usize> {
+        let (fewest, most, also) = match self {
+            CurrentCount::Sizes { fewest, most, also } => (fewest, most, also),
+            CurrentCount::Pawprints(budget) => (0, usize::try_from(budget).unwrap_or(usize::MAX), None),
+        };
+        (fewest..=most).chain(also)
+    }
+}
+
+/// What `count` allows, read now, of `printed` modes: `None` for a count of X
+/// with no X announced. A most may pass the modes printed, which the walk caps
+/// where a mode is chosen once.
+fn current_count(
     game: &GameState,
     count: &ModalCount,
+    printed: usize,
     player: PlayerId,
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
-) -> Option<(usize, usize)> {
+) -> Option<CurrentCount> {
     let size = |n: u32| usize::try_from(n).unwrap_or(usize::MAX);
     match count {
-        ModalCount::Exactly(n) => Some((size(*n), size(*n))),
-        ModalCount::Range { fewest, most } => Some((size(*fewest), size(*most))),
+        ModalCount::Exactly(n) => Some(CurrentCount::Sizes { fewest: size(*n), most: size(*n), also: None }),
+        ModalCount::Range { fewest, most } => Some(CurrentCount::Sizes { fewest: size(*fewest), most: size(*most), also: None }),
+        ModalCount::OneOrMore => Some(CurrentCount::Sizes { fewest: 1, most: printed, also: None }),
         ModalCount::X => {
             let x = usize::try_from(x_value?).unwrap_or(usize::MAX);
-            Some((x, x))
+            Some(CurrentCount::Sizes { fewest: x, most: x, also: None })
         }
+        ModalCount::NoneOr(n) => Some(CurrentCount::Sizes { fewest: 0, most: 0, also: Some(size(*n)).filter(|&n| n > 0) }),
+        ModalCount::Pawprints(budget) => Some(CurrentCount::Pawprints(*budget)),
         // Read once as the modes are chosen, against the board then (Will of
         // the Abzan's ruling).
         ModalCount::RaisedIf { usual, raised, condition } => {
             let holds = settled_holds(condition, game, this_object, Some(player), named);
-            set_sizes(game, if holds { raised } else { usual }, player, this_object, named, x_value)
+            current_count(game, if holds { raised } else { usual }, printed, player, this_object, named, x_value)
+        }
+    }
+}
+
+/// The most modes a count of X can take now, where its modes are each
+/// chosen once: the X a cast may announce for it. `None` for any
+/// other count, or one whose modes may repeat, which every X fills.
+pub(crate) fn most_modes_for_x(
+    game: &GameState,
+    node: &ModalNode,
+    player: PlayerId,
+    this_object: ObjectId,
+    named: ConditionReferents<'_>,
+) -> Option<u64> {
+    if node.count != ModalCount::X || node.rules.may_repeat {
+        return None;
+    }
+    let legal = node.modes.iter().filter(|mode| every_instance_has_a_choice(game, &mode.instances, player, this_object, named)).count();
+    u64::try_from(legal).ok()
+}
+
+/// Whether each mode of `group` can target a player no other mode of it does:
+/// "each mode must target a different player". Each mode's player-targeting
+/// instances take the first players they may that no earlier mode took, in
+/// printed order. Greedy, which is exact for the shapes that print, every mode
+/// of a card naming the same players ("target player", or "target opponent");
+/// two modes with different player filters that each could take the other's
+/// player are the shape `every_instance_has_a_choice`'s greedy feed-forward
+/// leaves to `resolution-recipients-and-amounts`.
+fn players_can_differ(
+    game: &GameState,
+    node: &ModalNode,
+    group: &[ModeIndex],
+    player: PlayerId,
+    this_object: ObjectId,
+    named: ConditionReferents<'_>,
+) -> bool {
+    let identity = FilterIdentity::for_text_of(this_object, EarlierTargets::None).naming(named);
+    let mut taken: Vec<PlayerId> = Vec::new();
+    for mode in group.iter().filter_map(|&mode| node.mode(mode)) {
+        for (filter, count) in mode.instances.iter().filter_map(EffectRecipient::player_target) {
+            let needed = count.fewest();
+            let free: Vec<PlayerId> = enumerate_legal_selections_excluding(game, filter, None, player, identity)
+                .into_iter()
+                .filter_map(|candidate| match candidate {
+                    ObjectOrPlayerId::Player(seat) if !taken.contains(&seat) => Some(seat),
+                    _ => None,
+                })
+                .take(needed)
+                .collect();
+            if free.len() < needed {
+                return false;
+            }
+            taken.extend(free);
+        }
+    }
+    true
+}
+
+/// Hands `visit` every way to pick `size` of the modes in `legal`, a mode as
+/// often as it likes, each in printed order (CR 700.2d): from modes 1 and 2,
+/// two at a time, that is {1, 1}, {1, 2}, {2, 2}. Returns whether `visit`
+/// still needs more mode groups: `false` when it stopped the walk. A size of 0
+/// is the empty group, even with no mode legal.
+fn for_each_group_with_repeats(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> bool) -> bool {
+    if size == 0 {
+        return visit(&[]);
+    }
+    if legal.is_empty() {
+        return true;
+    }
+    // `picks` are positions in `legal`, never falling. The next group
+    // moves the rightmost pick that has room one step right, and sets every
+    // pick after it equal to it; none has room once all are the last.
+    let mut picks: Vec<usize> = vec![0; size];
+    let mut group: Vec<ModeIndex> = Vec::with_capacity(size);
+    loop {
+        group.clear();
+        group.extend(picks.iter().map(|&at| legal[at]));
+        let needs_more_mode_groups = visit(&group);
+        if !needs_more_mode_groups {
+            return false;
+        }
+        let Some(moves) = (0..size).rev().find(|&i| picks[i] + 1 < legal.len()) else { return true };
+        picks[moves] += 1;
+        for i in moves + 1..size {
+            picks[i] = picks[moves];
         }
     }
 }
 
 /// Hands `visit` every way to pick `size` of the modes in `legal`, each in
 /// printed order: from modes 1, 2 and 4, two at a time, that is {1, 2},
-/// {1, 4}, {2, 4}, in that order. Returns `KeepGoing::No` when `visit` stopped
-/// it, so the walk does not go on to the next size.
-fn for_each_combination(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing) -> KeepGoing {
+/// {1, 4}, {2, 4}, in that order. Returns whether `visit` still needs more
+/// mode groups: `false` when it stopped the walk, which then does not go on to
+/// the next size.
+fn for_each_combination(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> bool) -> bool {
     if size > legal.len() {
-        return KeepGoing::Yes;
+        return true;
     }
     let mut picks: Vec<usize> = (0..size).collect();
-    let mut set: Vec<ModeIndex> = Vec::with_capacity(size);
+    let mut group: Vec<ModeIndex> = Vec::with_capacity(size);
     loop {
-        set.clear();
-        set.extend(picks.iter().map(|&at| legal[at]));
-        if visit(&set) == KeepGoing::No {
-            return KeepGoing::No;
+        group.clear();
+        group.extend(picks.iter().map(|&at| legal[at]));
+        let needs_more_mode_groups = visit(&group);
+        if !needs_more_mode_groups {
+            return false;
         }
         // `picks` are positions in `legal`, rising. The next combination
         // moves the rightmost pick that has room one step right, and packs
         // every pick after it in behind it; none has room after the last.
-        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return KeepGoing::Yes };
+        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return true };
         picks[moves] += 1;
         for i in moves + 1..size {
             picks[i] = picks[i - 1] + 1;
@@ -149,26 +297,47 @@ mod tests {
         places.iter().map(|&place| ModeIndex::printed(place)).collect()
     }
 
-    fn sets_of(legal: &[u8], size: usize) -> Vec<Vec<ModeIndex>> {
+    fn combinations_of(legal: &[u8], size: usize) -> Vec<Vec<ModeIndex>> {
         let mut out = Vec::new();
-        for_each_combination(&modes(legal), size, &mut |set| {
-            out.push(set.to_vec());
-            KeepGoing::Yes
+        for_each_combination(&modes(legal), size, &mut |group| {
+            out.push(group.to_vec());
+            true
         });
         out
     }
 
     #[test]
-    fn subsets_come_in_lexicographic_order_without_a_dropped_mode() {
-        assert_eq!(sets_of(&[1, 2, 4], 2), vec![modes(&[1, 2]), modes(&[1, 4]), modes(&[2, 4])]);
-        assert_eq!(sets_of(&[1, 2, 3], 3), vec![modes(&[1, 2, 3])]);
-        assert_eq!(sets_of(&[1, 2], 0), vec![modes(&[])]);
-        assert!(sets_of(&[1], 2).is_empty());
+    fn combinations_come_in_lexicographic_order_without_a_dropped_mode() {
+        assert_eq!(combinations_of(&[1, 2, 4], 2), vec![modes(&[1, 2]), modes(&[1, 4]), modes(&[2, 4])]);
+        assert_eq!(combinations_of(&[1, 2, 3], 3), vec![modes(&[1, 2, 3])]);
+        assert_eq!(combinations_of(&[1, 2], 0), vec![modes(&[])]);
+        assert!(combinations_of(&[1], 2).is_empty());
+    }
+
+    fn groups_with_repeats_of(legal: &[u8], size: usize) -> Vec<Vec<ModeIndex>> {
+        let mut out = Vec::new();
+        for_each_group_with_repeats(&modes(legal), size, &mut |group| {
+            out.push(group.to_vec());
+            true
+        });
+        out
+    }
+
+    /// CR 700.2d: a mode's copies adjacent, in printed order, and a size past
+    /// the modes there are filled by repeats.
+    #[test]
+    fn groups_with_repeats_keep_a_modes_copies_in_printed_order() {
+        assert_eq!(groups_with_repeats_of(&[1, 2], 2), vec![modes(&[1, 1]), modes(&[1, 2]), modes(&[2, 2])]);
+        assert_eq!(groups_with_repeats_of(&[1, 2], 0), vec![modes(&[])]);
+        assert_eq!(groups_with_repeats_of(&[], 0), vec![modes(&[])]);
+        assert!(groups_with_repeats_of(&[], 1).is_empty());
+        let up_to_four_of_two: usize = (0..=4).map(|size| groups_with_repeats_of(&[1, 2], size).len()).sum();
+        assert_eq!(up_to_four_of_two, 15, "Moment of Reckoning's count, by the design's table");
     }
 
     #[test]
-    fn five_modes_one_or_more_are_thirty_one_sets() {
-        let total: usize = (1..=5).map(|size| sets_of(&[1, 2, 3, 4, 5], size).len()).sum();
+    fn five_modes_one_or_more_are_thirty_one_groups() {
+        let total: usize = (1..=5).map(|size| combinations_of(&[1, 2, 3, 4, 5], size).len()).sum();
         assert_eq!(total, 31, "Casualties of War's count, by the design's table");
     }
 }

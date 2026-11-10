@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::condition::ConditionReferents;
 use super::binding::TriggeringEventView;
+use crate::engine::announcement::Announcement;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};
@@ -54,7 +55,7 @@ impl GameState {
             Vec::new()
         };
         for t in &departed {
-            self.trace(|| trace_records::pending(self, t, None, Some("departed"), &[]));
+            self.trace(|| trace_records::pending(self, t, None, Some("departed"), &Announcement::NONE));
         }
 
         // CR 603.3b: what triggers as these go on the stack waits for the next
@@ -222,19 +223,19 @@ impl GameState {
         // CR 603.3c's modes before 603.3d's targets, as a spell's (CR 601.2b–c).
         let effect = &pending.binding.def.effect;
         let announced =
-            self.announce_modes_and_targets(controller, id, identity.source.id, effect, &pending.instances, named, pending.x_value, dp);
-        let (chosen_modes, targets) = match announced {
+            self.announce_modes_and_targets(controller, id, identity.source.id, effect, &pending.instances, named, pending.x_value, Some(identity), dp);
+        let announced = match announced {
             // CR 603.3c: "if no mode is chosen, the ability is removed from the
             // stack", where the count allows none.
-            Ok((modes, _)) if modes.is_empty() && effect.modal().is_some() => {
+            Ok(Announcement::Modes(modes)) if modes.is_empty() => {
                 self.ability_leaves_the_stack(id);
-                self.trace(|| trace_records::pending(self, &pending, None, Some("no_mode_chosen"), &[]));
+                self.trace(|| trace_records::pending(self, &pending, None, Some("no_mode_chosen"), &Announcement::NONE));
                 return Ok(false);
             }
             Ok(announced) => announced,
             Err(_) => {
                 self.ability_leaves_the_stack(id);
-                self.trace(|| trace_records::pending(self, &pending, None, Some("no_legal_choices"), &[]));
+                self.trace(|| trace_records::pending(self, &pending, None, Some("no_legal_choices"), &Announcement::NONE));
                 return Ok(false);
             }
         };
@@ -242,19 +243,20 @@ impl GameState {
         let entry = StackEntry {
             object_id: id,
             controller,
-            chosen_targets: targets,
-            chosen_modes,
+            announced,
             x_value: pending.x_value,
             effect: Arc::new(pending.binding.def.effect.clone()),
             is_spell: false,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: None,
-            ability_identity: Some(identity),
+            ability_ref: Some(identity),
             trigger: Some(pending.binding.clone()),
         };
-        let chosen = entry.chosen_targets.clone();
+        let chosen = entry.announced.clone();
+        let effect = Arc::clone(&entry.effect);
         self.set_stack_entry(entry);
+        self.note_modes_announced(identity, &effect, &chosen);
         self.diagnostics.record_trigger_placed();
         self.trace(|| trace_records::pending(self, &pending, Some(id), None, &chosen));
         self.announce_targeted_records(id, EventCause::GameRule(GameRule::TriggeredAbilityPutOnStack), dp)?;

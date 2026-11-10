@@ -7,7 +7,7 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mom, mrd, nem, ogw, ons, ori, p02, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg,
+    mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg,
     usg,
     vis, war, wth, wwk, zen, znr,
 };
@@ -1201,6 +1201,13 @@ impl CardRegistry {
         // CR 601.2h's sacrifice read back as it last existed, a fixture until
         // here: its cost's two parts commute on every registered board.
         registry.register("Momentous Fall", roe::momentous_fall);
+        // The rest of CR 700.2: "any other target" over a player, a mode's own
+        // cost (spree), a mode not chosen before, and each mode targeting a
+        // different player, the last two on triggers.
+        registry.register("Arc Trail", som::arc_trail);
+        registry.register("Explosive Derailment", otj::explosive_derailment);
+        registry.register("Demonic Pact", ori::demonic_pact);
+        registry.register("Vindictive Lich", c17::vindictive_lich);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);
@@ -1485,6 +1492,14 @@ mod tests {
             let mut copy = (*card).clone();
             for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
                 check(&format!("{name} ability #{i}"), &ability.effect);
+                // CR 700.2h's cost is a spell's to pay as it is cast; an
+                // activation or a trigger would announce the mode and pay
+                // nothing for it.
+                let carries_costs = ability.effect.modal().is_some_and(|node| node.modes_carry_costs());
+                assert!(
+                    !carries_costs || matches!(ability.ability_type, crate::objects::card_data::AbilityType::Spell),
+                    "{name} ability #{i}: a mode's own cost on an ability that is no spell's"
+                );
                 let mut nested = 0usize;
                 ability.effect.for_each_ability_def_mut(&mut |def: &mut AbilityDef| {
                     check(&format!("{name} ability #{i}, nested def #{nested}"), &def.effect);

@@ -202,6 +202,97 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Recorded 2026-11-07 for `mode-rules-and-costs`, the modal node's rules and a mode's own cost**
+(`choices/mode-rules-and-costs`, PR #319: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
+345, 412 and 413). Arc Trail, Explosive Derailment, Demonic Pact and Vindictive Lich join the
+registry and no card the performance pool, so the stress column is a new baseline and the
+performance one should not move; five fixtures join `CASTABLE`. One `close_out.py` sitting
+against **main** `354270f6`: **engine** `7bbb6d51`, the last commit before the cards, and
+**shipped** `8e4df895`.
+
+**Predictions, before any arm ran**:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seats. No registered
+  card prints a rule the node gained; item 413 reshapes the stack's record without moving a
+  game; "another target" asks through its wrapper what the leaf asked (Incremental Growth, on
+  stress); "target player" is every player, and the enumeration's player arms now ask the
+  validator, which admits each seat in the game. A cost row may move on stress only, where
+  Incremental Growth's castability now asks up to as many more candidates as its earlier
+  instances took;
+- shipped vs engine: performance `IDENTICAL`, its decks unchanged; stress moves, with
+  `ChooseModes` asked more often (Explosive Derailment, Demonic Pact, Vindictive Lich);
+  0 errors, panics and turn limits on every arm;
+- instructions per decision, engine vs `main`, within 0.5 points; no growth shape past ×4.35;
+- Demonic Pact ends few stress games by its fourth mode, under 3%: it has to see four of its
+  controller's upkeeps.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,672 / 182,558 | 428,501 / 435,728 |
+| gameplay rows, shipped vs `main`, performance / stress | **IDENTICAL** / differ | **IDENTICAL** / differ |
+| audit, shipped, dispatches agreed, performance / stress | 176,672 / 173,574 | 428,501 / 430,772 |
+| `Memo hits`, `main` → shipped, performance / stress | 51,488 → 51,488 / 61,432 → 56,521 | 235,348 → 235,348 / 262,256 → 243,581 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7041 M → 0.7063 M, **+0.32%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**Every prediction held**, the cost rows of the engine arm with the gameplay ones: the
+Incremental Growth games asked no more than before. The functions past half a point are
+castability's split into `total_is_payable` (`can_cast_with`'s cost moved, with
+`mana_payable` inlined into it), and an iterator `affected_members` had inlined now standing
+alone. Reachability, shipped, 200 games at two seats: Arc Trail cast 139 and resolved 139 in
+55% of games, Explosive Derailment 139 (138) in 55%, Demonic Pact 104 in 48%, Vindictive Lich
+91 (89) in 38%; at four seats 91, 101, 26 and 93. **Wins by effect** on stress read 0 → 1 of
+50 games, Demonic Pact the one new card that ends a game by one: 2%. **No ladder shape is
+added**: a set of modes is a constant per card, and castability's walk over the sets with
+costs is one total each. The CI fixtures sitting (50 games, release-checked) and the checked
+stress sitting read 0 errors, panics and turn limits.
+
+**§3, shipped, 50 games at seed 12345**, the stress column a new baseline:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 19 / 29 | 28 / 21 |
+| Wins by effect | 2 | 1 |
+| Avg turns | 28.5 | 26.5 |
+| Spells cast | 22.5 | 19.0 |
+| Creatures died | 8.1 | 3.8 |
+| Total damage | 61.0 | 43.8 |
+| **Layer walks** | **338** | **385** |
+| **Memo hits** | **51,637** | **58,280** |
+| **Frames/walk** | **11.24** | **11.10** |
+| **Dependency checks** | **11** | **2** |
+| Decisions | 189 | 222 |
+
+**Rerun after the pre-review (2026-11-07), on `5b41408c`** against shipped `678202d3`: one
+reading of "a different player", each mode's survivors held with it, what stops X one enum,
+the record's own scope. Predicted every row `IDENTICAL`, since each changes no answer a
+registered card's game reaches. Every gameplay row **IDENTICAL** on both pools at both seats;
+instructions a decision 0.7062 M → 0.7054 M, **-0.11%**. Valgrind read no symbols from the
+reviewed binary, whose read-only and code segments now share a file page, so its function
+list was blank and the growth gate read zero; the same tree linked with `-z separate-code`
+read ×3.94 to ×4.03, unchanged.
+
+**Rerun after the review round (2026-11-09), on `2f526705`** against `046c3d27`, the tree you
+reviewed: "another target" with no instance number, the fixture and five names renamed, the
+announcement's own module, a test helper. Predicted every row `IDENTICAL`: the wrapper
+excludes what the numbered one did on Arc Trail and Incremental Growth, and the rest moves no
+answer. Every gameplay row **IDENTICAL** on both pools at both seats; instructions a decision
+0.7053 M → 0.7046 M, **-0.11%**. The growth gate read the round's own binary this time,
+×3.94 to ×4.03; the function list compares it against the measured binary valgrind could not
+read, so its rows are one arm each and say nothing. The second round (`c8c5c46e` against
+`03c75bc5`: the walk's visitor a named boolean, `pass_turn`'s cap a diagnostic) read the same:
+every gameplay row **IDENTICAL**, instructions **-0.01%**, growth ×3.94 to ×4.03, in 219 s.
+The third (`27cf5796` against `3264b7c7`: `AbilityRef`, mode groups) as well: **IDENTICAL**,
+**+0.04%**, ×3.94 to ×4.03, in 243 s. Its copy report lists only pairs the renames gave new
+names, each there before them.
+
+**Size**: 2,445 added and 525 removed in `mtgsim/src` and `mtgsim/tests`, 2,970 touched, and
+3,091 after the pre-review's fixes and 3,155 after the review round's (632 lines touched in
+the round, most of them the announcement's move and its imports), against the intake's 1,410–2,380 without the picker: past
+the band's top, the engine half 2,426 of it. The picker went to `mode-picker`, as the intake set. Registering the cards moved
+`priority_fork_test`'s delayed-trigger seed (21 → 43, from the sweep: 0 of 13,064 branches
+diverging) and `prompt_subject_test`'s second window (0xA4_0039).
+
 **Re-recorded 2026-11-07 for `modes-chosen-and-resolved`, a mode chosen, targeted and resolved**
 (`choices/modes-chosen-and-resolved`, PR #318: CR 700.2 and 603.3c, items 31 and 153). Abrade
 joins the performance pool (125 → 126), and Abrade, Cryptic Command, Casualties of War

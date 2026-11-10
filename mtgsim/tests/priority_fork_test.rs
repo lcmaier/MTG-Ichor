@@ -92,7 +92,7 @@ const COMMANDER_SEED: u64 = 6;
 /// `stress` (6 of the game's forks), and an "until" exile's return, at two on
 /// `performance` (11). Re-picked from the sweep whenever a pool change stops
 /// one.
-const DELAYED_TRIGGER_SEED: u64 = 21;
+const DELAYED_TRIGGER_SEED: u64 = 43;
 const RETURN_SEED: u64 = 18;
 
 // ---------------------------------------------------------------------------
@@ -598,7 +598,10 @@ fn a_branch_that_reseeds_its_provider_is_not_a_replay() {
 /// cards joining `stress`, 0 of 13,184, the same 42 and 13; 2026-11-03,
 /// with Arc Lightning's division in both pools, 0 of 13,103, with 28 and 24;
 /// and 2026-11-07, with modes in both pools (Abrade pooled, four cards
-/// registered), 0 of 13,020, with 22 and 13.
+/// registered), 0 of 13,020, with 22 and 13; and later that day, with four
+/// more modal cards in `stress` (`mode-rules-and-costs`), 0 of 13,064, with 27
+/// and 13, stress seed 21 no longer forking with a delayed trigger and 43 in
+/// its place.
 #[test]
 #[ignore = "a sweep, not a gate — the board tests are the gate"]
 fn fork_sweep_over_many_seeds() {

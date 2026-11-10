@@ -745,7 +745,7 @@ fn zone(game: &GameState, id: ObjectId) -> Zone {
 
 fn top_targets(game: &GameState) -> Vec<Vec<ObjectOrPlayerId>> {
     let top = *game.stack.last().expect("something on the stack");
-    game.stack_entries[&top].chosen_targets.iter().map(|i| i.as_resolved_targets().collect()).collect()
+    game.stack_entries[&top].announced.targets().map(|i| i.as_resolved_targets().collect()).collect()
 }
 
 /// The words of each reflexive trigger's creation, in the log.
@@ -918,7 +918,7 @@ fn cornered_crooks_target_is_chosen_for_its_second_ability() {
     place_targeting(&mut game, ChoiceOption::Player(1));
     assert_eq!(top_targets(&game), vec![vec![ObjectOrPlayerId::Player(1)]]);
     let top = *game.stack.last().unwrap();
-    assert_eq!(game.stack_entries[&top].ability_identity.map(|i| i.source.id), Some(crook), "Cornered Crook's (CR 603.7e)");
+    assert_eq!(game.stack_entries[&top].ability_ref.map(|i| i.source.id), Some(crook), "Cornered Crook's (CR 603.7e)");
 }
 
 /// The Crook is killed in response to its reflexive trigger, and still deals

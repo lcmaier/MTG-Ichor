@@ -288,22 +288,6 @@ pub enum ObjectFilter {
     /// grant of Soul Warden's ability excludes the creature that has it and
     /// never the object that granted it.
     NotSource,
-    /// CR 601.2c — "**another** target creature", "a **third** target
-    /// creature": not what an earlier instance of "target" on this same spell
-    /// took.
-    ///
-    /// The rule allows one object to be chosen once for each instance "as long
-    /// as it fits the targeting criteria", and "another" is how a card puts the
-    /// exclusion *into* those criteria. Incremental Growth's three clauses are
-    /// `Creature`, `And(Creature, OtherThanInstance(0))` and that filter with
-    /// `OtherThanInstance(1)` as well.
-    ///
-    /// [`NotSource`](Self::NotSource)'s sibling, and answered the same way:
-    /// identity is not a characteristic, so no layer can change it and no
-    /// frame is read. Meaningful only where the asker holds the instances
-    /// chosen so far — the CR 601.2c loop and the CR 608.2b re-check — and
-    /// refused elsewhere rather than silently matching everything.
-    OtherThanInstance(usize),
     And(Box<ObjectFilter>, Box<ObjectFilter>),
     /// Added for Root Maze, "Artifacts and lands enter tapped" — English "and"
     /// over two type leaves is set *union*, which is this node.
@@ -932,16 +916,27 @@ impl std::fmt::Display for ModeIndex {
 /// How many modes a modal ability's player chooses (CR 700.2), one arm a
 /// printed count rule. Where modes may not repeat (CR 700.2d), a range's most
 /// past the number of modes takes them all, and a fewest past it allows no
-/// choice at all.
+/// choice at all; where they may, the most is the printed number (Moment of
+/// Reckoning's "up to four", of two modes).
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModalCount {
+    /// "You may choose two" (Shadrix Silverquill's ruling: "exactly zero
+    /// modes or two modes. You can't choose only one"): none, or exactly `n`.
+    NoneOr(u32),
+    /// CR 700.2i: "choose up to [budget] {P} worth of modes": any modes whose
+    /// pawprints ([`Mode::pawprints`]) total no more than the budget, none
+    /// among them.
+    Pawprints(u32),
     /// "Choose one", "choose two": that many different modes.
     Exactly(u32),
-    /// "Choose one or both" (1 to 2), "one or more" (1 to every mode), "up to
-    /// N" (0 to N), "any number" (0 to every mode, Rankle's ruling).
+    /// "Choose one or both" (1 to 2), "up to N" (0 to N): numbers the card
+    /// prints.
     Range { fewest: u32, most: u32 },
+    /// "Choose one or more" (Casualties of War, spree's, Vindictive Lich's):
+    /// one mode to every mode printed, a count the node's own modes settle.
+    OneOrMore,
     /// "Choose X": the X announced for the spell, which is asked first since
-    /// the sets of modes cannot be listed before it is known (CR 601.2b
+    /// the groups of modes cannot be listed before it is known (CR 601.2b
     /// announces both in one step).
     X,
     /// "Choose one. If [condition] as you cast this spell, you may choose both
@@ -952,21 +947,60 @@ pub enum ModalCount {
     RaisedIf { usual: Box<ModalCount>, raised: Box<ModalCount>, condition: Box<Condition> },
 }
 
-/// Who chooses a modal ability's modes: its controller (CR 700.2a, 700.2b).
-/// An opponent (700.2e) and a choice at random are `mode-rules-and-costs`'
-/// arms.
+/// Who chooses a modal ability's modes: its controller (CR 700.2a, 700.2b),
+/// or another player (700.2e). The targets stay the controller's to choose
+/// (601.2c). A choice at random, from the game's own generator, is
+/// `breadth-features`' arm, with its first card.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModeChooser {
     Controller,
+    /// "An opponent chooses one —" (CR 700.2e): the opponent chooses as the
+    /// controller would have, and with more than one the controller first
+    /// picks which.
+    AnOpponent,
 }
 
 /// "Choose one —" and the bulleted list under it (CR 700.2): how many modes,
-/// who chooses them, and the modes.
+/// who chooses them, the node's own rules, and the modes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModalNode {
     pub count: ModalCount,
     pub chooser: ModeChooser,
+    pub rules: ModeRules,
     pub modes: Vec<Mode>,
+}
+
+/// The rules a modal node may print beside its count, each one a plain
+/// "choose one" leaves off (`choices-architecture.md`, decision 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModeRules {
+    /// CR 700.2d's "You may choose the same mode more than once": a mode is
+    /// chosen as often as the count allows, its copies resolving in sequence.
+    pub may_repeat: bool,
+    /// "Each mode must target a different player": no player is a target of
+    /// two chosen modes. Written once on the node, never as an instance
+    /// number, since which instances exist depends on the modes chosen.
+    pub each_mode_targets_a_different_player: bool,
+    /// "Choose one that hasn't been chosen [this turn]": a mode this
+    /// object's ability chose before is not offered.
+    pub not_chosen_before: Option<ChosenBefore>,
+}
+
+impl ModeRules {
+    /// A plain "choose one"'s: no mode repeats, no rule on players, and
+    /// every mode offered whatever was chosen before.
+    pub const DEFAULT: ModeRules = ModeRules { may_repeat: false, each_mode_targets_a_different_player: false, not_chosen_before: None };
+}
+
+/// How long a mode an ability chose is no longer offered to it
+/// ([`ModeRules::not_chosen_before`]): the record is the ability's on that
+/// object (CR 400.7), whoever controls it (Demonic Pact's rulings).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChosenBefore {
+    /// "That hasn't been chosen this turn".
+    ThisTurn,
+    /// "That hasn't been chosen": for as long as the object exists.
+    WhileItExists,
 }
 
 /// One bulleted option of a modal ability (CR 700.2).
@@ -978,13 +1012,31 @@ pub struct Mode {
     /// inside a mode names one of its own. Read off the effect as the mode is
     /// made, so neither a cast nor castability walks the tree.
     pub instances: Vec<EffectRecipient>,
+    /// CR 700.2i: the pawprints printed for it, which a count of
+    /// [`ModalCount::Pawprints`] spends; 1 unless printed.
+    pub pawprints: u32,
+    /// CR 700.2h: the cost printed before its effect (spree's "+ {2} —"), an
+    /// additional cost the spell's total includes for each time it is chosen;
+    /// empty for a mode that prints none.
+    pub cost: Vec<crate::types::costs::Cost>,
 }
 
 impl Mode {
-    /// A mode doing `effect`, with its instances of "target".
+    /// A mode doing `effect`, with its instances of "target", one pawprint
+    /// and no cost of its own.
     pub fn new(effect: Effect) -> Mode {
         let instances = effect.instances();
-        Mode { effect, instances }
+        Mode { effect, instances, pawprints: 1, cost: Vec::new() }
+    }
+
+    /// `effect` behind its printed cost (CR 700.2h).
+    pub fn with_cost(cost: Vec<crate::types::costs::Cost>, effect: Effect) -> Mode {
+        Mode { cost, ..Mode::new(effect) }
+    }
+
+    /// `effect` printed with `pawprints` pawprint symbols (CR 700.2i).
+    pub fn with_pawprints(pawprints: u32, effect: Effect) -> Mode {
+        Mode { pawprints, ..Mode::new(effect) }
     }
 }
 
@@ -994,23 +1046,22 @@ impl ModalNode {
         self.modes.get(mode.list_position()?)
     }
 
-    /// For each of the `chosen` modes, where its targets begin in the stack
-    /// entry's announced list (`StackEntry::chosen_targets`). The chosen
-    /// modes' targets are announced one mode after another, so Casualties of
-    /// War with modes 1, 2 and 4 chosen, one target each, holds them at 0, 1
-    /// and 2: [0, 1, 2]. A mode's "another target" and its back-references
-    /// ("that creature") count from its own start. A modal node is all of its
-    /// ability, so the first starts at 0. `None` for a mode the node does not
-    /// print. The resolution and CR 608.2b's re-check both read this.
-    pub fn mode_scope_starts(&self, chosen: &[ModeIndex]) -> Option<Vec<usize>> {
-        let mut start = 0;
+
+    /// Whether a mode prints a cost of its own (CR 700.2h): the modes are
+    /// then chosen ahead of X, and each set's total is its own.
+    pub fn modes_carry_costs(&self) -> bool {
+        self.modes.iter().any(|mode| !mode.cost.is_empty())
+    }
+
+    /// The additional costs `chosen` adds to the spell's total (CR 700.2h):
+    /// each chosen mode's own, a repeated mode's once per copy, mandatory once
+    /// it is chosen.
+    pub fn costs_of(&self, chosen: &[ModeIndex]) -> Vec<crate::types::costs::AdditionalCost> {
         chosen
             .iter()
-            .map(|&mode| {
-                let this = start;
-                start += self.mode(mode)?.instances.len();
-                Some(this)
-            })
+            .filter_map(|&mode| self.mode(mode))
+            .filter(|mode| !mode.cost.is_empty())
+            .map(|mode| crate::types::costs::AdditionalCost::Mandatory(mode.cost.clone()))
             .collect()
     }
 
@@ -1253,8 +1304,12 @@ pub enum PickCount {
 pub enum SelectionFilter {
     /// Creature on the battlefield
     Creature,
-    /// Player
-    Player,
+    /// A player in the set: "target player" is `Everyone`, "target opponent"
+    /// `Opponents` (742 printed cards), read against the controller (CR
+    /// 109.5) at the announcement and at CR 608.2b's re-check. The set is
+    /// the one a replacement scopes players by; a target names `Everyone` or
+    /// `Opponents`, and a fixed set or `You` only where a card prints one.
+    Player(PlayerSet),
     /// "any target" — creature, player, or planeswalker
     Any,
     /// Permanent matching a filter
@@ -1285,6 +1340,34 @@ pub enum SelectionFilter {
     /// `game-formats`'s (`codebase-state.md` item 99), and `ATOM-609.7a-001` is
     /// `COVERS-PARTIAL` for it.
     DamageSource,
+    /// CR 115.4's "**any other** target", CR 601.2c's "**another** target
+    /// creature", "a **third** target creature": what the wrapped filter
+    /// admits, other than anything an earlier instance of "target" in the same
+    /// scope chose (the effect's, or one mode's). CR 601.2c lets one object be
+    /// chosen once for each instance "as long as it fits the targeting
+    /// criteria", and "another" is how a card puts the exclusion into those
+    /// criteria, over a player as over a permanent (Arc Trail). "Another"
+    /// after earlier instances is other than every one of them, so no
+    /// instance is named: Incremental Growth's second and third clauses are
+    /// the same filter. With no "target" before it, a permanent's "another
+    /// target permanent" is other than the permanent itself, which is
+    /// `ObjectFilter::NotSource` (Flickerwisp), not this.
+    ///
+    /// Identity is not a characteristic, so no layer can change it. Answered
+    /// only where the asker holds the instances chosen so far — CR 601.2c's
+    /// loop and CR 608.2b's re-check — and refused elsewhere rather than
+    /// silently matching everything.
+    Another(Box<SelectionFilter>),
+}
+
+impl SelectionFilter {
+    /// The filter "another" is said of: this one, unwrapped.
+    pub fn without_another(&self) -> &SelectionFilter {
+        match self {
+            SelectionFilter::Another(inner) => inner.without_another(),
+            other => other,
+        }
+    }
 }
 
 /// Which phase a [`Primitive::ExtraPhases`] run follows (CR 500.8's
@@ -1367,6 +1450,21 @@ impl EffectRecipient {
     /// Whether this clause divides an effect among its targets (CR 601.2d).
     pub fn is_divided(&self) -> bool {
         matches!(self, EffectRecipient::Target(_, TargetCount::Divided(_)))
+    }
+
+    /// The filter and count of an instance of "target" that targets players,
+    /// "another" ones among them: what "each mode must target a different
+    /// player" constrains. The offer, the announcement and the players a mode
+    /// took all read this one answer. A choice is no target (CR 115.1), and
+    /// "any target" is not a player's: no printed mode under the rule has
+    /// either.
+    pub fn player_target(&self) -> Option<(&SelectionFilter, &TargetCount)> {
+        match self {
+            EffectRecipient::Target(filter, count) if matches!(filter.without_another(), SelectionFilter::Player(_)) => {
+                Some((filter, count))
+            }
+            _ => None,
+        }
     }
 }
 
@@ -2677,7 +2775,7 @@ pub enum Effect {
     /// modes' targets are announced and resolved in one order
     /// (`cards::registry`'s test refuses it anywhere else). The stack keeps
     /// it whole and records the modes chosen beside it
-    /// (`StackEntry::chosen_modes`); resolution walks only those. Boxed, since
+    /// (`StackEntry::announced`); resolution walks only those. Boxed, since
     /// its count may carry a condition.
     Modal(Box<ModalNode>),
 

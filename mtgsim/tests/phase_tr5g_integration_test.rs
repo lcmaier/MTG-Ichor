@@ -818,7 +818,7 @@ fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
     let ping = activated_ability(
         "",
         Vec::new(),
-        Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
+        Effect::Atom(Primitive::LoseLife(others), EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1))),
     );
     let pinger = put_on_battlefield(&mut game, creature_with_ability("Counter", 1, 1, ping), 0);
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -1023,7 +1023,7 @@ fn two_teysas_make_three_as_the_legend_rule_kills_one() {
     dp.expect_choice(ChoiceKind::LegendRule { legend_name: "Teysa Karlov".into() }, vec![ChoiceOption::Object(first)]);
     game.perform_sba_and_triggers(&dp).unwrap();
     assert!(dp.is_empty(), "the legend rule chose");
-    let stacked = game.stack.iter().filter(|id| game.stack_entries[*id].ability_identity.is_some_and(|i| i.source.id == mourner)).count();
+    let stacked = game.stack.iter().filter(|id| game.stack_entries[*id].ability_ref.is_some_and(|i| i.source.id == mourner)).count();
     assert_eq!(stacked, 3, "the dying Teysa is read as it was, beside the other");
 }
 

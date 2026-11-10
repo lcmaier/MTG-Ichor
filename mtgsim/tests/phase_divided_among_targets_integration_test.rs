@@ -45,7 +45,7 @@ fn divides(answers: &ScriptedDecisionProvider, shares: Vec<(ChoiceOption, u64)>)
 
 /// What `on_stack`'s first instance announced, each target with its share.
 fn division(game: &GameState, on_stack: ObjectId) -> Vec<(ObjectOrPlayerId, u64)> {
-    let instance = &game.stack_entries[&on_stack].chosen_targets[0];
+    let instance = game.stack_entries[&on_stack].announced.targets().next().unwrap();
     instance.division().expect("the instance divides").iter().map(|(target, share)| (target.id(), *share)).collect()
 }
 
@@ -130,7 +130,7 @@ fn any_number_may_be_none() {
     game.place_pending_triggers(&answers).expect("the trigger is placed");
 
     let trigger = *game.stack.last().expect("nothing is required of the trigger, so it stays");
-    assert_eq!(game.stack_entries[&trigger].chosen_targets[0].division(), None, "nothing to divide among");
+    assert_eq!(game.stack_entries[&trigger].announced.targets().next().unwrap().division(), None, "nothing to divide among");
     game.resolve_top_of_stack(&test_dp()).expect("the trigger resolves");
     assert!(game.stack.is_empty());
 }
@@ -153,7 +153,7 @@ fn the_division_follows_every_instances_targets() {
     game.cast_spell(0, opus, &seat).expect("castable from exactly its cost");
 
     assert_eq!(the_asked(seat.inner()), ["SelectRecipients", "SelectRecipients", "DivideAmong"]);
-    assert_eq!(game.stack_entries[&opus].chosen_targets[1].division(), None, "tapping divides nothing");
+    assert_eq!(game.stack_entries[&opus].announced.targets().nth(1).unwrap().division(), None, "tapping divides nothing");
     game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
     assert_eq!(game.players[1].life_total, 17);
     assert!(game.battlefield[&one].tapped && game.battlefield[&other].tapped);

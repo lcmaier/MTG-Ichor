@@ -23,7 +23,7 @@ use crate::oracle::characteristics::{
 use crate::oracle::legality::CannotPlayLand;
 use crate::oracle::mana_helpers::{CannotActivate, CannotCast};
 use crate::state::battlefield::AttackTarget;
-use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StepType};
+use crate::state::game_state::{AbilityRef, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
@@ -836,7 +836,7 @@ pub fn cannot_activate(
     }
 }
 
-/// Why a modal spell or ability is not offered: no set of modes its count
+/// Why a modal spell or ability is not offered: no group of modes its count
 /// allows has every target it needs.
 const NO_LEGAL_MODES: &str = "no choice of its modes can be made, since a mode whose targets have no legal choice can't be chosen";
 
@@ -1056,7 +1056,7 @@ pub fn delayed_trigger_in_log(source: &str, id: DelayedTriggerId) -> String {
 
 /// An ability by its source, named as the line names it: "Soul Warden
 /// (#3)'s ability", or a delayed trigger by its number.
-fn ability_in_log(source: String, identity: AbilityIdentity) -> String {
+fn ability_in_log(source: String, identity: AbilityRef) -> String {
     match identity.ability.delayed_trigger() {
         Some(id) => delayed_trigger_in_log(&source, id),
         None => format!("{source}'s ability"),
@@ -1065,7 +1065,7 @@ fn ability_in_log(source: String, identity: AbilityIdentity) -> String {
 
 /// An ability that triggered or resolved: its source alone for an object's
 /// own, a delayed trigger by its number.
-fn triggered_ability_in_log(source: String, identity: AbilityIdentity) -> String {
+fn triggered_ability_in_log(source: String, identity: AbilityRef) -> String {
     match identity.ability.delayed_trigger() {
         Some(id) => delayed_trigger_in_log(&source, id),
         None => source,
@@ -1876,7 +1876,7 @@ mod tests {
         use crate::engine::replacement::ReplacementInstanceId;
         use crate::types::ids::ObjectOrPlayer;
         use crate::events::event::{CombatExit, EventId, UnattachRoute};
-        use crate::state::game_state::{AbilityIdentity, StepType};
+        use crate::state::game_state::{AbilityRef, StepType};
         use crate::types::effects::CounterType;
         use crate::types::ids::{AbilityId, UntilReturnId};
         use crate::types::triggers::{DelayedDuration, TriggerOrigin, TriggerId};
@@ -1887,7 +1887,7 @@ mod tests {
         let mut fresh = ids.into_iter();
         let mut id = || fresh.next().expect("enough objects");
         let reference = |game: &GameState, id: ObjectId| game.object_ref(id).expect("on the battlefield");
-        let identity = |game: &GameState, source: ObjectId| AbilityIdentity { source: reference(game, source), ability: AbilityId::printed("x", 0) };
+        let identity = |game: &GameState, source: ObjectId| AbilityRef { source: reference(game, source), ability: AbilityId::printed("x", 0) };
         let lki = |game: &GameState, id: ObjectId| game.lki_now(id).expect("a frame");
         let (a, b, c, d) = (id(), id(), id(), id());
         let (counted, countered, controlled, kept) = (id(), id(), id(), id());

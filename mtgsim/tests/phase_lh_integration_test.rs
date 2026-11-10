@@ -44,7 +44,7 @@ fn pt(game: &GameState, id: ObjectId) -> (i32, i32) {
 /// Holy Strength on the stack targeting `target`, as `cast_spell` leaves it
 /// after CR 601.2c: a permanent spell with no spell ability carries an empty
 /// `Sequence`, and the Aura's one instance of "target" — its enchant clause,
-/// CR 303.4a — lives in `chosen_targets`.
+/// CR 303.4a — is its announcement's one target.
 fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: ObjectId) -> ObjectId {
     let obj = GameObject::new(holy_strength(), controller, Zone::Stack);
     let id = game.add_object(obj);
@@ -54,15 +54,14 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets,
-        chosen_modes: Vec::new(),
+        announced: Announcement::Targets(chosen_targets),
         x_value: None,
         effect: std::sync::Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,
         cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     });
     id
@@ -324,7 +323,8 @@ use mtgsim::oracle::mana_helpers::activatable_abilities;
 use mtgsim::state::game_state::{Phase, PhaseType};
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::engine::targeting::{TargetInstance};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::TargetInstance;
 
 fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
     get_effective_abilities(game, equipment)

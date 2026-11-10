@@ -146,7 +146,7 @@ not (§3); `mod.rs` files declare and re-export only
 | `engine/priority.rs`, `engine/sba.rs`, `engine/turns.rs` | CR 117 priority rounds and CR 117.5's `perform_sba_and_triggers`; CR 704; CR 500's turn, phase and step proposals and the turn-based actions |
 | `engine/zones.rs`, `engine/leaving.rs` | `move_object`, the one mover, and zone-state cleanup; CR 800.4, a player leaving |
 | `engine/combat/` | CR 506–511: `steps.rs` the combat steps; `validation.rs` attack and block legality; `resolution.rs` damage assignment; `keywords.rs` first strike, double strike, trample |
-| `engine/targeting.rs` | CR 115 and 601.2c: target instances, validation, the selection-side `object_matches_filter` |
+| `engine/targeting.rs`, `engine/announcement.rs` | CR 115 and 601.2c: target instances, validation, the selection-side `object_matches_filter`; CR 601.2b–c's `Announcement`, a stack object's chosen modes and each scope's instances, and what CR 608.2b leaves of them |
 | `engine/costs.rs`, `engine/mana.rs` | CR 601.2h/602.2b payment; CR 605 mana abilities |
 | `engine/payment_order.rs`, `engine/simultaneous_timestamps.rs` | the two orders the CR hands a player: CR 601.2h's payment, CR 613.7m's timestamps, each asked only where the orders' outcomes differ, and each's audit |
 | `engine/zone_function.rs`, `engine/keywords.rs`, `engine/trace_records.rs` | CR 113.6's `functions_in`; lifelink and deathtouch on damage; every trace record's shape |

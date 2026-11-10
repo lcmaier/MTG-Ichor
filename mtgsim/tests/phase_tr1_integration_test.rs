@@ -26,6 +26,7 @@ use mtgsim::cards::printings::{blood_artist, felidar_sovereign, soul_warden, ver
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::announcement::Announcement;
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{could_be_a_mana_ability, visible_to_all};
 use mtgsim::events::event::GameEvent;
@@ -34,7 +35,7 @@ use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::{
-    AbilityIdentity, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
+    AbilityRef, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
 };
 use mtgsim::test_support::pending_trigger_for;
 use mtgsim::test_support::{
@@ -113,7 +114,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 fn stack_sources(game: &GameState) -> Vec<ObjectId> {
     game.stack
         .iter()
-        .map(|id| game.stack_entries[id].ability_identity.expect("a trigger's entry").source.id)
+        .map(|id| game.stack_entries[id].ability_ref.expect("a trigger's entry").source.id)
         .collect()
 }
 
@@ -121,7 +122,7 @@ fn stack_sources(game: &GameState) -> Vec<ObjectId> {
 fn expect_target_player(dp: &ScriptedDecisionProvider, player: PlayerId) {
     dp.expect_choice(
         ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
         vec![ChoiceOption::Player(player)],
@@ -1449,7 +1450,7 @@ fn a_mana_producing_trigger_from_another_event_uses_the_stack() {
     let mut targeted = (**wild).clone();
     targeted.effect = Effect::Sequence(vec![
         produce.clone(),
-        Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))),
+        Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1))),
     ]);
     assert!(!could_be_a_mana_ability(&targeted), "a target disqualifies it");
 
@@ -1967,7 +1968,7 @@ fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
     let entry = &game.stack_entries[&id];
     assert!(!entry.is_spell);
     assert_eq!(entry.cast_from, None);
-    let identity = entry.ability_identity.unwrap();
+    let identity = entry.ability_ref.unwrap();
     assert_eq!(identity.source.id, warden);
     assert_eq!(identity.ability, soul_warden().abilities[0].id);
     assert_eq!(identity.source.zone_change_epoch, game.get_object(warden).unwrap().zone_change_epoch);
@@ -2008,7 +2009,7 @@ fn a_grant_ending_leaves_the_surviving_grants_identity_alone() {
             )
         });
     }
-    let identities = |game: &GameState| -> Vec<AbilityIdentity> {
+    let identities = |game: &GameState| -> Vec<AbilityRef> {
         game.pending_triggers.iter().map(|t| t.origin.identity()).collect()
     };
 
@@ -2136,15 +2137,14 @@ fn a_spell_that_was_not_cast_keeps_its_kicker() {
     game.stack_entries.insert(copy, StackEntry {
         object_id: copy,
         controller: 0,
-        chosen_targets: Vec::new(),
-        chosen_modes: Vec::new(),
+        announced: Announcement::NONE,
         x_value: None,
         effect: Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,
         cost_choices: mtgsim::state::battlefield::CostChoices { additional: vec![kicker_red()], ..mtgsim::state::battlefield::CostChoices::NONE },
         mana_spent: ManaSpent::NONE,
         cast_from: None,
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     });
     resolve_top(&mut game, &test_dp());

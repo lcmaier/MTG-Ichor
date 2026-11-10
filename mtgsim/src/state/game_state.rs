@@ -60,9 +60,9 @@ pub struct StackEntry {
     pub object_id: ObjectId,
     /// The player who controls this spell/ability
     pub controller: PlayerId,
-    /// CR 601.2c's instances of the word "target", in printed order: what each
-    /// was announced against, and what was chosen for it. Locked in at
-    /// cast/activation time.
+    /// CR 601.2b's modes and 601.2c's instances of the word "target", in
+    /// printed order: what each was announced against, and what was chosen for
+    /// it, each chosen mode holding its own. Locked in at cast/activation time.
     ///
     /// **One entry per instance, not per target and not per atom.** CR 115.3
     /// makes the instance the unit — "the same target can't be chosen multiple
@@ -79,13 +79,12 @@ pub struct StackEntry {
     /// its enchant ability (`CardData::spell_instances`), which `effect` cannot
     /// show. The resolution reads its clauses off this record too
     /// (`targeting::DeclaredInstances`).
-    pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
-    /// The modes CR 601.2b chose for a modal `effect` (603.3c for a trigger),
-    /// in printed order, beside the effect it does not replace: the
-    /// resolution walks these and no others (CR 700.2c), each mode's instances
-    /// of "target" following the last's in `chosen_targets`. Empty for an
-    /// effect with no modes, and for a choice of none.
-    pub chosen_modes: Vec<crate::types::effects::ModeIndex>,
+    ///
+    /// **The modes sit beside the effect they do not replace**: the
+    /// resolution walks the chosen ones and no others (CR 700.2c), and a
+    /// reader that does not ask which mode reads every instance through
+    /// `Announcement::targets`.
+    pub announced: crate::engine::announcement::Announcement,
     /// X value if the spell has a variable cost
     pub x_value: Option<u64>,
     /// The effect to resolve, copied off its def when the entry is pushed.
@@ -127,7 +126,7 @@ pub struct StackEntry {
     pub cast_from: Option<Zone>,
     /// For an activated ability: which ability of which permanent this is.
     ///
-    /// **Invariant: `ability_identity.is_some() == !is_spell`** — the mirror of
+    /// **Invariant: `ability_ref.is_some() == !is_spell`** — the mirror of
     /// [`Self::cast_from`], and for the same reason. An ability on the stack is
     /// a new object with a fresh `ObjectId` that ceases to exist on resolution
     /// (CR 608.2n), so the ephemeral id identifies nothing once it is gone.
@@ -136,7 +135,7 @@ pub struct StackEntry {
     /// "this ability has resolved for the third time this turn" is counting
     /// *this* ability of *this* permanent (Ashling the Pilgrim), and neither
     /// half can be recovered from the ephemeral.
-    pub ability_identity: Option<AbilityIdentity>,
+    pub ability_ref: Option<AbilityRef>,
     /// For a triggered ability: the def and the bound facts of its event
     /// (`triggers-architecture.md` §3.13). `None` for a spell and for an
     /// activated ability; the resolution reads the intervening "if" and
@@ -148,27 +147,7 @@ impl StackEntry {
     /// The object this entry's text calls "this" (CR 113.7a): an ability's
     /// source, or the spell itself.
     pub fn this_object(&self) -> ObjectId {
-        self.ability_identity.map_or(self.object_id, |identity| identity.source.id)
-    }
-
-    /// Where each chosen mode's targets begin in `chosen_targets`
-    /// (`ModalNode::mode_scope_starts`), empty for an effect with no modes. `Err`
-    /// for an entry whose chosen modes are not what its effect prints, or
-    /// whose announcement holds another number of instances than they declare.
-    pub fn mode_scope_starts(&self) -> Result<Vec<usize>, String> {
-        let Some(node) = self.effect.modal() else { return Ok(Vec::new()) };
-        let starts = node
-            .mode_scope_starts(&self.chosen_modes)
-            .ok_or_else(|| format!("{} chose a mode its effect does not print", self.object_id))?;
-        let declared: usize = self.chosen_modes.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.instances.len()).sum();
-        if declared != self.chosen_targets.len() {
-            return Err(format!(
-                "{}'s chosen modes declare {declared} instances of \"target\", and its announcement holds {}",
-                self.object_id,
-                self.chosen_targets.len()
-            ));
-        }
-        Ok(starts)
+        self.ability_ref.map_or(self.object_id, |identity| identity.source.id)
     }
 
     /// The player who cast this spell: the controller it was put on the stack
@@ -220,12 +199,13 @@ pub struct ResolvingObject {
     /// The X its controller chose for it (CR 107.3), carried for
     /// `PermanentState::x_value` as `cast` is. `None` for a spell with no X.
     pub x_value: Option<u64>,
-    /// What each instance of "target" announced, for `stack_object_facts`: the
-    /// resolution holds the entry itself until the object finishes.
-    pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
+    /// What its modes and instances of "target" announced, for
+    /// `stack_object_facts`: the resolution holds the entry itself until the
+    /// object finishes.
+    pub announced: crate::engine::announcement::Announcement,
     /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
     /// ability has resolved this turn". `None` for a spell.
-    pub identity: Option<AbilityIdentity>,
+    pub identity: Option<AbilityRef>,
     /// Its trigger's binding, for a triggered ability: the objects of its
     /// triggering event are, with `identity`'s source, what it names, and the
     /// frames their record carries answer before the LKI store does
@@ -249,7 +229,7 @@ pub struct ResolvingObject {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StackObjectFacts<'a> {
     pub is_spell: bool,
-    pub chosen_targets: &'a [crate::engine::targeting::TargetInstance],
+    pub announced: &'a crate::engine::announcement::Announcement,
     pub x_value: Option<u64>,
 }
 
@@ -272,9 +252,11 @@ pub(crate) fn in_timestamp_order(mut pairs: Vec<(Timestamp, ObjectId)>) -> Vec<O
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
-/// as opposed to the ephemeral stack object representing one activation.
+/// as opposed to the ephemeral stack object representing one activation. To
+/// [`AbilityId`] what [`ObjectRef`] is to `ObjectId`: the bare id names one
+/// of an object's abilities, and this pins it to one existence of one object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AbilityIdentity {
+pub struct AbilityRef {
     /// The permanent the ability was activated from, and which existence of
     /// it (CR 400.7): two activations across a bounce are two abilities'
     /// worth of counting (`triggers-architecture.md` §3.6). The same pair
@@ -287,14 +269,14 @@ pub struct AbilityIdentity {
     pub ability: AbilityId,
 }
 
-impl AbilityIdentity {
+impl AbilityRef {
     /// This identity with the ability's grant dropped: the same ability of the
     /// same object, whichever instance of it. Two effects granting one ability
     /// give the object two instances, each its own identity; CR 603.7h's "when
     /// this ability has resolved for the third time this turn" (Ashling the
     /// Pilgrim) counts resolutions of the ability, whichever instance resolved.
-    pub fn ignoring_ability_grant(self) -> AbilityIdentity {
-        AbilityIdentity { source: self.source, ability: self.ability.definition() }
+    pub fn ignoring_ability_grant(self) -> AbilityRef {
+        AbilityRef { source: self.source, ability: self.ability.definition() }
     }
 }
 
@@ -2707,10 +2689,10 @@ impl GameState {
     /// resolving object answers for it.
     pub fn stack_object_facts(&self, id: ObjectId) -> Option<StackObjectFacts<'_>> {
         if let Some(entry) = self.stack_entries.get(&id) {
-            return Some(StackObjectFacts { is_spell: entry.is_spell, chosen_targets: &entry.chosen_targets, x_value: entry.x_value });
+            return Some(StackObjectFacts { is_spell: entry.is_spell, announced: &entry.announced, x_value: entry.x_value });
         }
         let resolving = self.resolving.as_ref().filter(|r| r.id == id)?;
-        Some(StackObjectFacts { is_spell: resolving.identity.is_none(), chosen_targets: &resolving.chosen_targets, x_value: resolving.x_value })
+        Some(StackObjectFacts { is_spell: resolving.identity.is_none(), announced: &resolving.announced, x_value: resolving.x_value })
     }
 
     /// CR 112.1 — is `id` a **spell** on the stack, as opposed to an activated
@@ -2858,6 +2840,7 @@ mod tests {
             let ability = textless_static(Effect::Modal(Box::new(ModalNode {
                 count: ModalCount::Exactly(1),
                 chooser: ModeChooser::Controller,
+                rules: crate::types::effects::ModeRules::DEFAULT,
                 modes: vec![Mode::new(anthem_atom())],
             })));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
@@ -3019,51 +3002,41 @@ mod tests {
         let entry = StackEntry {
             object_id: crate::types::ids::new_object_id(),
             controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value: None,
             effect: Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 };
         assert!(entry.cost_choices.alternative.is_none());
         assert!(entry.cost_choices.additional.is_empty());
     }
 
-    /// Each chosen mode's scope begins where the last's instances end, and
-    /// an announcement holding another number of instances than the chosen
-    /// modes declare, or a mode the effect does not print, is refused rather
-    /// than read.
+    /// Every instance an entry announced, read through one list: a modal
+    /// entry's are its chosen modes', each mode's after the one before, and
+    /// its chosen modes are their places in the order chosen.
     #[test]
-    fn a_stack_entrys_mode_scopes_are_the_chosen_modes_instances() {
+    fn an_announcements_targets_run_mode_after_mode() {
+        use crate::engine::announcement::{Announcement, ChosenMode};
         use crate::engine::targeting::TargetInstance;
-        use crate::types::effects::ModeIndex;
+        use crate::types::effects::{EffectRecipient, ModeIndex, PlayerSet, SelectionFilter, TargetCount};
+        use crate::types::ids::ObjectOrPlayer;
 
-        let effect = crate::objects::card_data::spell_effect(&crate::cards::fixtures::kindled_option().abilities).unwrap();
-        let mut entry = StackEntry {
-            object_id: crate::types::ids::new_object_id(),
-            controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: vec![ModeIndex::printed(1), ModeIndex::printed(2)],
-            x_value: None,
-            effect: Arc::new(effect),
-            is_spell: true,
-            cost_choices: crate::state::battlefield::CostChoices::NONE,
-            mana_spent: ManaSpent::NONE,
-            cast_from: Some(Zone::Hand),
-            ability_identity: None,
-            trigger: None,
-        };
-        assert!(entry.mode_scope_starts().is_err(), "two modes of one instance each, and none announced");
-        let player = crate::types::effects::EffectRecipient::Target(crate::types::effects::SelectionFilter::Player, crate::types::effects::TargetCount::Exactly(1));
-        entry.chosen_targets = vec![TargetInstance::new(player.clone(), Vec::new()), TargetInstance::new(player, Vec::new())];
-        assert_eq!(entry.mode_scope_starts(), Ok(vec![0, 1]));
-        entry.chosen_modes = vec![ModeIndex::printed(0), ModeIndex::printed(2)];
-        assert!(entry.mode_scope_starts().is_err(), "a place of 0 names no mode");
+        let player = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
+        let target = |seat| TargetInstance::new(player.clone(), vec![ObjectOrPlayer::Player(seat)]);
+        let announced = Announcement::Modes(vec![
+            ChosenMode { mode: ModeIndex::printed(1), targets: vec![target(1)] },
+            ChosenMode { mode: ModeIndex::printed(3), targets: vec![target(0)] },
+        ]);
+        let seats: Vec<_> = announced.targets().flat_map(TargetInstance::targets).collect();
+        assert_eq!(seats, [ObjectOrPlayer::Player(1), ObjectOrPlayer::Player(0)]);
+        assert_eq!(announced.chosen_modes().collect::<Vec<_>>(), [ModeIndex::printed(1), ModeIndex::printed(3)]);
+        assert_eq!(Announcement::NONE.targets().count(), 0);
+        assert_eq!(Announcement::NONE.chosen_modes().count(), 0);
     }
 
     /// Each layer card lowered to the rows its text describes.

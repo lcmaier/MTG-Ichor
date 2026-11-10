@@ -135,6 +135,10 @@
         {"n": 2, "published_at": "2014-09-20", "comment": "If some of the creatures are illegal targets as Arc Lightning tries to resolve, the original division of damage still applies but no damage is dealt to the illegal targets. If all targets are illegal, Arc Lightning doesn’t resolve."}
       ]
     },
+    "Arc Trail": {
+      "first_seen": "2026-11-07",
+      "rulings": []
+    },
     "Archelos, Lagoon Mystic": {
       "first_seen": "2026-09-28",
       "rulings": [
@@ -418,6 +422,17 @@
         {"n": 2, "published_at": "2004-10-04", "comment": "Deep Waters affects lands you control when it resolves and any lands you gain control of this turn."}
       ]
     },
+    "Demonic Pact": {
+      "first_seen": "2026-11-07",
+      "rulings": [
+        {"n": 1, "published_at": "2015-06-22", "comment": "You choose the mode as the triggered ability goes on the stack. You can choose a mode that requires targets only if there are legal targets available."},
+        {"n": 2, "published_at": "2015-06-22", "comment": "If the ability doesn't resolve (either for having its target become illegal or because a spell or ability counters it), the mode chosen for that instance of the ability still counts as being chosen."},
+        {"n": 3, "published_at": "2015-06-22", "comment": "The phrase \"that hasn't been chosen\" refers only to that specific Demonic Pact. If you control one and cast another one, you can choose any mode for the second one the first time its ability triggers."},
+        {"n": 4, "published_at": "2015-06-22", "comment": "It doesn't matter who has chosen any particular mode. For example, say you control Demonic Pact and have chosen the first two modes. If an opponent gains control of Demonic Pact, that player can choose only the third or fourth mode."},
+        {"n": 5, "published_at": "2015-06-22", "comment": "In some very unusual situations, you may not be able to choose a mode, either because all modes have previously been chosen or the only remaining modes require targets and there are no legal targets available. In this case, the ability is simply removed from the stack with no effect."},
+        {"n": 6, "published_at": "2015-06-22", "comment": "Yes, if the fourth mode is the only one remaining, you must choose it. You read the whole contract, right?"}
+      ]
+    },
     "Demonic Vigor": {
       "first_seen": "2026-10-14",
       "rulings": [
@@ -527,6 +542,23 @@
         {"n": 1, "published_at": "2004-12-01", "comment": "The upkeep step is skipped entirely. The turn proceeds from untap step to draw step."},
         {"n": 2, "published_at": "2004-12-01", "comment": "Upkeep-triggered abilities don't trigger, and \"activate only during your upkeep\" abilities can't be activated."},
         {"n": 3, "published_at": "2004-12-01", "comment": "Any triggered abilities that triggered during the untap step will go onto the stack at the start of the draw step."}
+      ]
+    },
+    "Explosive Derailment": {
+      "first_seen": "2026-11-07",
+      "rulings": [
+        {"n": 1, "published_at": "2024-04-12", "comment": "Spells with spree have a + (plus sign) indicator in the upper right corner of the card frame. This has no rules meaning and serves only to remind players that at least one additional cost is required to cast the spell.", "disposition": {"kind": "no-board", "why": "the card frame's + indicator, which CR 702.172b gives no rules meaning. It names no game state and never will."}},
+        {"n": 2, "published_at": "2024-04-12", "comment": "Each additional cost and associated mode in the text box is also preceded with a + indicator. These symbols also have no rules meaning and serve only to remind players that the listed costs are additional costs.", "disposition": {"kind": "no-board", "why": "the + before each mode in the text box, which CR 702.172b gives no rules meaning. It names no game state and never will."}},
+        {"n": 3, "published_at": "2024-04-12", "comment": "You must choose at least one of the listed modes and pay its associated additional cost in order to cast a spell with spree."},
+        {"n": 4, "published_at": "2024-04-12", "comment": "You choose the modes as you cast the spell with spree. Once modes are chosen, they can’t be changed."},
+        {"n": 5, "published_at": "2024-04-12", "comment": "If a mode requires a target, you can select that mode only if there’s a legal target available. Ignore the targeting requirements for modes you don’t choose."},
+        {"n": 6, "published_at": "2024-04-12", "comment": "No matter which modes you choose, you always follow the instructions in the order they are written."},
+        {"n": 7, "published_at": "2024-04-12", "comment": "You can’t choose the same mode more than once."},
+        {"n": 8, "published_at": "2024-04-12", "comment": "The mana value of a spell with spree is determined only by its mana cost (in the upper right corner of the card). It doesn’t matter which modes you choose or which additional costs you pay, including any additional costs imposed by other effects."},
+        {"n": 9, "published_at": "2024-04-12", "comment": "No player can cast spells or activate abilities in between the modes of a resolving spell. Any abilities that trigger won’t be put onto the stack until the spell is done resolving."},
+        {"n": 10, "published_at": "2024-04-12", "comment": "If a spell with spree is copied, the effect that creates the copy may allow you to choose new targets. You cannot choose new modes.", "disposition": {"kind": "not-expressible", "facility": "a copy of a spell (CR 707.10), which keeps the modes chosen (700.2g) and may choose new targets (707.10c). Nothing copies a spell yet.", "owner": "copy-effects-architecture.md §8 (spell-copies)"}},
+        {"n": 11, "published_at": "2024-04-12", "comment": "If all targets for the chosen modes become illegal before a spell with spree resolves, the spell won’t resolve and none of its effects will happen. If at least one target is still legal, the spell will resolve but will have no effect on any illegal targets."},
+        {"n": 12, "published_at": "2024-04-12", "comment": "If an effect allows you to cast a spell with spree “without paying its mana cost,” you must still choose at least one mode and pay the associated additional costs.", "disposition": {"kind": "not-expressible", "facility": "casting a spell without paying its mana cost (CR 118.9's alternative cost an effect grants), which no effect offers yet. The additional costs would stay in the total, as a mode's own cost is a Mandatory additional cost.", "owner": "permission-architecture.md (casting-from-other-zones)"}}
       ]
     },
     "Exquisite Archangel": {
@@ -1592,6 +1624,13 @@
       "rulings": [
         {"n": 1, "published_at": "2018-04-27", "comment": "Verdant Force’s ability triggers at the beginning of each upkeep, not just each of your upkeeps."},
         {"n": 2, "published_at": "2006-05-01", "comment": "In Two-Headed Giant, triggers only once per upkeep, not once for each player.", "disposition": {"kind": "format-variant", "format": "Two-Headed Giant"}}
+      ]
+    },
+    "Vindictive Lich": {
+      "first_seen": "2026-11-07",
+      "rulings": [
+        {"n": 1, "published_at": "2017-08-25", "comment": "You can’t choose more modes for Vindictive Lich’s triggered ability than you have opponents, but you need to choose at least one target if you can."},
+        {"n": 2, "published_at": "2017-08-25", "comment": "You don’t have to choose a mode for each opponent. For example, you could make one opponent lose 5 life and spare each other opponent. They might not repay your kindness."}
       ]
     },
     "Viscera Seer": {

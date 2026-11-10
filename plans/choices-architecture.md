@@ -432,8 +432,8 @@ assembled from the chosen modes (item 81's resolution), in the total at
 **What an ability has chosen before**, the record both "hasn't been chosen"
 scopes read (22 cards) and decision 7's two values that remember (Garth
 One-Eye's card name, The Toymaker's Trap's number). One map on
-`GameHistory`, `chosen_by_ability: IdMap<AbilityIdentity, ChosenBefore>`,
-keyed as `resolutions_this_turn` is: `AbilityIdentity` carries which
+`GameHistory`, `chosen_by_ability: IdMap<AbilityRef, ChosenBefore>`,
+keyed as `resolutions_this_turn` is: `AbilityRef` carries which
 existence of its object the ability is on (CR 400.7) and which grant, so a
 second Demonic Pact, a copy, or the same card back from a zone starts empty,
 and a control change keeps the record (Demonic Pact's rulings: "refers only
@@ -543,8 +543,10 @@ copy keeps the original's modes (700.2g, `spell-copies`).
   another target", CR 115.4) cannot exclude a player today, because the
   exclusion is an `ObjectFilter` leaf (`OtherThanInstance`) and a player or
   "any target" filter carries none. The leaf is deleted and its 25 uses
-  re-pointed to one wrapper any filter takes, `SelectionFilter::OtherThan {
-  filter, instance }`; the two enumeration arms that push players without
+  re-pointed to one wrapper any filter takes, `SelectionFilter::Another`,
+  other than every earlier instance in its scope (the review dropped the
+  instance number: every printed "another" excludes all the targets its
+  sentence named before it); the two enumeration arms that push players without
   asking `validate_selection` learn to ask it. One spelling of "another
   target", ~60–90 lines.
 - **"Each mode must target a different player" across modes** (Shadrix
@@ -1014,7 +1016,8 @@ division.
 | **`divided-among-targets` — an effect divided among its targets** | decision 5's division at cast, activation and placement, targeted only; ahead of it #307's two label commits (a row's targets on its label, a counter's words beside its label); item 92's record | Arc Lightning pooled; fixtures for an activation and a trigger | ~1,200–1,650 with its tests | |
 | **`orders-the-cr-hands-a-player` — the orders the CR hands a player** | decision 6's two orders and 6b's cost reductions under the same rule; `ScryOrder` widened | Omnath beside Momentous Fall as a fixture board | ~350–650 with its tests, by the item sizings | |
 | **`modes-chosen-and-resolved` — a mode chosen, targeted and resolved**, the first of `modal-spells-and-abilities`' two | decisions 2 and 3's core: the node's count (fixed, a range, X asked first, a count a condition raises) and its chooser as a field, the enumerator over the legal sets and castability that reads it, `ModeIndex`, `chosen_modes` written under decision 3's A (items 31 and 153), each mode's own instance list, the resolution of the chosen modes, CR 603.3c's removal | Abrade, Prismari Command, Casualties of War; fixtures for a modal trigger, a modal activation, a count of X and a raised count; Momentous Fall registered, its fixture removed | ~1,500–2,300 with its tests, by the brief | |
-| **`mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost**, the second | CR 700.2e's opponent choosing, a mode repeated past the number of modes (700.2d), pawprints (700.2i), the record of what an ability chose before, a mode's own cost (item 81, 700.2h), both halves of item 154 | Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost | the row's rest, ~700–1,200 by the first's ratio | |
+| **`mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost**, the second | CR 700.2e's opponent choosing, a mode repeated past the number of modes (700.2d), pawprints (700.2i), the record of what an ability chose before, a mode's own cost (item 81, 700.2h), both halves of item 154 | Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost | ~1,410–2,380 with its tests and the brief's additions, re-counted at its intake; ~1,710–2,980 with the picker | |
+| **`mode-picker` — the dev GUI asks for modes one at a time**, split from the second at its intake's point | decision 2's "For the GUIs": `ChooseModes` drawn as a checkbox per mode, or a count where modes repeat, each enabled while some offered set still holds the picks, Confirm while the picks are one; plain Rust over the offered list under tests, egui only drawing | the dev GUI, with a review path: files by review mode, a click script, pictures | ~300–600, a guess from #312 | |
 | **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment, Contamination's upkeep | ~600–950 | ~550–850 |
 | **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
@@ -1211,6 +1214,41 @@ Where it differs from decisions 2 and 3's words:
 - **An X past the modes rewinds the cast** (CR 601.2e): X's offer is MA-2's,
   not narrowed by the node. **A label is the places** ("Modes 1 and 3"); each
   mode's words are the dev GUI PR's. Found on the way: an audit's fork traced.
+
+### `mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost — ✅ landed 2026-11-07
+
+PR #319, the second of `modal-spells-and-abilities`' two: 3,091 lines of code and tests touched against
+~1,410–2,380 at its intake, past the band's top (`fuzz-record.md`'s block). The intake and the
+measurements are `archive/choices-architecture-landed.md`'s.
+- **Each chosen mode holds its own targets** (item 413): `StackEntry.announced` is an
+  `Announcement`, the effect's instances or each `ChosenMode`'s; a reader asking no mode reads
+  `Announcement::targets`, and the re-check and the resolution go scope by scope.
+- **"Another target" is `SelectionFilter::Another`**, over any filter, a player too, other than
+  every earlier instance in its scope (item 154's first half); "target opponent" is
+  `SelectionFilter::Player(PlayerSet::Opponents)` (item 345).
+- **The node's rules** (decision 2): `ModalCount::NoneOr` and `Pawprints`; `ModeRules`, a mode
+  may repeat (700.2d), each mode a different player (item 154's second half), a mode not chosen
+  before; `ModeChooser::AnOpponent` (700.2e). The enumerator lists multisets, spends a pawprint
+  budget and asks whether each mode can take its own player; item 412 caps X at the modes.
+- **What an ability chose before**: `GameHistory::modes_chosen`, keyed by the ability on its
+  object's existence, written once the ability is on the stack.
+- **A mode's own cost** (700.2h, item 81): a `Mandatory` additional cost per chosen mode, the
+  modes asked ahead of X where a node carries one, and castability asking each set's total.
+- **The cards**: Arc Trail, Explosive Derailment (spree), Demonic Pact, Vindictive Lich; five
+  fixtures in `CASTABLE`.
+
+Where it differs from decisions 2 and 3's words:
+- **Shadrix Silverquill waits for `multiplayer-rules`** (item 415): its third mode's "target
+  player" is the sentence's subject, which no recipient declares. Vindictive Lich carries the
+  printed "different player"; Divided Envoy, a fixture, Shadrix's zero or two.
+- **The record has no word in the save** (item 414): such a board is reported unwritten.
+- **"Different players" is greedy**, in printed order: exact for every printed shape, item 155's.
+- **A mode's own cost is a spell's**: the registry refuses one on any other ability. Spree is the
+  node that writes one, ahead of `breadth-features`, at the brief's word; no keyword reads it.
+- **The record is `modes_chosen`, modes only, and keeps its scope**; decision 7's remembered values
+  widen its entry at `values-chosen-at-resolution`. 700.2e's "which opponent" is `ChooseOpponent`,
+  which existed, not decision 7's `ChoosePlayer`. A random chooser is item 416's.
+- **The picker is a PR of its own**, `mode-picker`, the split the intake set.
 
 ## 6. Found while designing
 

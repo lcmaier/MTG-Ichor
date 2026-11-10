@@ -185,14 +185,34 @@ pub fn set_active_player(game: &mut GameState, player: PlayerId) {
 /// untaps, the CR 302.6 turn-start clock — is recorded the way a game records
 /// it. Assigning `turn_number` directly does not.
 pub fn pass_turn(game: &mut GameState) {
+    pass_turn_within(game, TURN_STEP_CAP);
+}
+
+/// How many steps [`pass_turn`] walks before it calls a turn stuck: a turn
+/// is about a dozen, and each extra combat phase (CR 500.8) adds up to six
+/// (CR 506.1).
+const TURN_STEP_CAP: usize = 200;
+
+/// [`pass_turn`] with its cap given. A failure names the cap and where the
+/// walk was, so a test that fails here reads as a stuck turn and not as its
+/// own assertion.
+fn pass_turn_within(game: &mut GameState, cap: usize) {
     let start = game.turn_number;
-    for _ in 0..200 {
-        game.advance_turn(&test_dp()).expect("advancing a step");
+    let mut last_steps = std::collections::VecDeque::with_capacity(8);
+    for _ in 0..cap {
+        let at = (game.phase.phase_type, game.phase.step);
+        let landed = game
+            .advance_turn(&test_dp())
+            .unwrap_or_else(|err| panic!("pass_turn: turn {start} could not leave {at:?}: {err}"));
         if game.turn_number > start {
             return;
         }
+        if last_steps.len() == 8 {
+            last_steps.pop_front();
+        }
+        last_steps.push_back(landed);
     }
-    panic!("the turn never ended");
+    panic!("pass_turn hit its {cap}-step cap: turn {start} never ended; its last steps were {last_steps:?}");
 }
 
 /// A no-op decision provider for tests that never reach a choice point.
@@ -806,15 +826,14 @@ pub fn put_spell_on_stack(
     game.set_stack_entry(crate::state::game_state::StackEntry {
         object_id: id,
         controller,
-        chosen_targets: Vec::new(),
-        chosen_modes: Vec::new(),
+        announced: crate::engine::announcement::Announcement::NONE,
         x_value: None,
         effect: Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,
         cost_choices: crate::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     });
     id
@@ -1359,4 +1378,26 @@ pub fn install_trace_file(
     game.install_trace(TraceHandle::new(&sink));
     game.trace_game(label, None);
     sink
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The cap's failure names itself and the steps it walked, so a stuck
+    /// turn reads as one in a test's output.
+    #[test]
+    #[should_panic(expected = "pass_turn hit its 2-step cap: turn 1 never ended; its last steps were [(Combat, Some(BeginCombat)), (Combat, Some(DeclareAttackers))]")]
+    fn a_turn_past_the_step_cap_fails_naming_the_cap_and_its_last_steps() {
+        let mut game = setup_two_player_game();
+        pass_turn_within(&mut game, 2);
+    }
+
+    /// The control: the same board ends its turn under the real cap.
+    #[test]
+    fn the_same_board_passes_its_turn_under_the_real_cap() {
+        let mut game = setup_two_player_game();
+        pass_turn(&mut game);
+        assert_eq!(game.turn_number, 2);
+    }
 }

@@ -6,11 +6,12 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_controls, another, artifact, as_long_as, choose, choose_one, choose_one_or_both_if, choose_up_to, creature,
-    creatures_you_control, deal_damage, deal_damage_divided, destroy, dies, discard, distribute_counters, draw_cards, each, enters, exile, gain_life,
-    gets, has_base_power_and_toughness, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield, spell_ability,
-    static_ability, tap, target_creature, target_permanent, target_player, targets, that_target, this_object, triggered_ability, whenever, you,
-    you_have,
+    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, choose,
+    choose_each_targeting_a_different_player, choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_repeatable, choose_up_to,
+    creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, dies, discard, distribute_counters, draw_cards, each, enters,
+    exile, gain_life, gets, has_base_power_and_toughness, lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield,
+    spell_ability, spree, static_ability, tap, target_creature, target_permanent, target_player, targets, that_target, this_object,
+    triggered_ability, whenever, you, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -412,8 +413,8 @@ pub fn mode_lever() -> Arc<CardData> {
 ///
 /// "Choose X" (Doomsday Confluence's count, without its repeats, which
 /// `mode-rules-and-costs` builds): X is asked before the modes, which are the
-/// sets of that many (`choices-architecture.md`, decision 2b). Past three, no
-/// set of modes is that large, and the cast rewinds.
+/// groups of that many (`choices-architecture.md`, decision 2b). Past three, no
+/// group of modes is that large, and the cast rewinds.
 pub fn tally_of_choices() -> Arc<CardData> {
     let text = "Choose X —\n• Draw a card.\n• You gain 2 life.\n• Target player mills two cards.";
     CardDataBuilder::new("Tally of Choices")
@@ -424,6 +425,122 @@ pub fn tally_of_choices() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             choose(ModalCount::X, [draw_cards(you(), 1), gain_life(you(), 2), mill(target_player(), 2)]),
+        ))
+        .build()
+}
+
+/// Echoing Reckoning — {2}{R}, a sorcery.
+///
+/// Moment of Reckoning's count, "Choose up to four. You may choose the same
+/// mode more than once." (CR 700.2d): a mode chosen past the number of modes,
+/// its copies resolving in sequence. Its modes are ATOM-700.2d-002's; the
+/// Moment's second targets a card in a graveyard, which no clause can
+/// announce until `ironworks-loop` builds graveyard targets.
+pub fn echoing_reckoning() -> Arc<CardData> {
+    let text = "Choose up to four. You may choose the same mode more than once.\n• This spell deals 2 damage to target creature.\n• Draw a card.";
+    CardDataBuilder::new("Echoing Reckoning")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 2))
+        .color(Color::Red)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            choose_repeatable(ModalCount::Range { fewest: 0, most: 4 }, [deal_damage(target_creature(), 2), draw_cards(you(), 1)]),
+        ))
+        .build()
+}
+
+/// Pawprint Parade — {1}{G}, a sorcery.
+///
+/// CR 700.2i's budget, ATOM-700.2i-001's board: modes of one, two and one
+/// pawprints under a budget of three, so the second and third together are
+/// legal and all three are not. Bloomburrow's Seasons print five {P} over
+/// modes of one, two and three, and each prints a mode no card writes yet:
+/// Season of the Burrow returns a card from a graveyard (`ironworks-loop`),
+/// Season of Gathering chooses a card type as it resolves
+/// (`values-chosen-at-resolution`).
+pub fn pawprint_parade() -> Arc<CardData> {
+    let text = "Choose up to three {P} worth of modes. You may choose the same mode more than once.\n{P} — You gain 1 life.\n{P}{P} — Draw a card.\n{P} — Target player mills two cards.";
+    CardDataBuilder::new("Pawprint Parade")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
+        .color(Color::Green)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            choose_pawprints_worth(3, [(1, gain_life(you(), 1)), (2, draw_cards(you(), 1)), (1, mill(target_player(), 2))]),
+        ))
+        .build()
+}
+
+/// Tribute Offering — {1}{R}, an instant.
+///
+/// CR 700.2e's other chooser, ATOM-700.2e-001's board: "an opponent chooses
+/// one", the targets still the caster's. Fatal Lore prints it, and its second
+/// mode's "that player", the opponent who chose, has no player word yet
+/// (`multiplayer-rules`).
+pub fn tribute_offering() -> Arc<CardData> {
+    let text = "An opponent chooses one —\n• You draw a card.\n• This spell deals 3 damage to target creature.";
+    CardDataBuilder::new("Tribute Offering")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 1))
+        .color(Color::Red)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(text, an_opponent_chooses_one([draw_cards(you(), 1), deal_damage(target_creature(), 3)])))
+        .build()
+}
+
+/// Divided Envoy — {3}{W}{B}, a creature, 3/3.
+///
+/// Shadrix Silverquill's trigger, which waits for `multiplayer-rules`: "you
+/// may choose two. Each mode must target a different player." — zero modes or
+/// two, never one (its ruling), and no player the target of both. Its first
+/// two modes are the Dragon's in words; its third, "puts a +1/+1 counter on
+/// each creature they control", names its target player in a filter, which
+/// no recipient can declare yet, so a mode that gains life stands in. An
+/// enters trigger in place of the Dragon's beginning of combat.
+pub fn divided_envoy() -> Arc<CardData> {
+    let text = "When this creature enters, you may choose two. Each mode must target a different player.\n• Target player mills two cards.\n• Target player draws a card and loses 1 life.\n• Target player gains 2 life.";
+    let draws_and_loses = Effect::Sequence(vec![draw_cards(target_player(), 1), lose_life(that_target(0), 1)]);
+    CardDataBuilder::new("Divided Envoy")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::Black], 3))
+        .color(Color::White)
+        .color(Color::Black)
+        .card_type(CardType::Creature)
+        .power_toughness(3, 3)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(
+                enters(TriggerSubject::ThisObject),
+                choose_each_targeting_a_different_player(
+                    ModalCount::NoneOr(2),
+                    [mill(target_player(), 2), draws_and_loses, gain_life(target_player(), 2)],
+                ),
+            ),
+        ))
+        .build()
+}
+
+/// Twofold Tithe — {1}{B}, a sorcery.
+///
+/// CR 700.2h's own cost on each mode, ATOM-700.2h-001's board: one mode
+/// behind a life payment, the other behind a sacrifice, each paid as an
+/// additional cost when chosen and both when both are. Spree's shape (CR
+/// 702.172a); a printed spree card's costs are mana.
+pub fn twofold_tithe() -> Arc<CardData> {
+    let text = "Spree\n+ Pay 2 life — This spell deals 3 damage to any target.\n+ Sacrifice a creature — Destroy target creature.";
+    CardDataBuilder::new("Twofold Tithe")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 1))
+        .color(Color::Black)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            spree([
+                (vec![Cost::PayLife(2)], deal_damage(any_target(), 3)),
+                (vec![Cost::Sacrifice(creature(), 1)], destroy(target_creature())),
+            ]),
         ))
         .build()
 }

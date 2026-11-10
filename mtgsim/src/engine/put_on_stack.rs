@@ -19,10 +19,11 @@ use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
-use crate::state::game_state::{AbilityIdentity, GameState, PhaseType, StackEntry};
+use crate::state::game_state::{AbilityRef, GameState, PhaseType, StackEntry};
+use crate::engine::announcement::{Announcement, ChosenMode};
 use crate::engine::targeting::TargetInstance;
-use crate::oracle::modes::legal_mode_sets;
-use crate::types::effects::{EffectRecipient, ModeChooser, ModeIndex, TargetCount};
+use crate::oracle::modes::{legal_mode_groups, most_modes_for_x};
+use crate::types::effects::{EffectRecipient, ModalNode, ModeChooser, ModeIndex, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
 use crate::types::mana::{ManaCost, ManaSpent};
@@ -160,10 +161,32 @@ impl GameState {
             .iter()
             .map(|&idx| offered_positions[idx])
             .collect();
+
+        // CR 700.2h: a mode's own cost is an additional cost in the total, so
+        // where modes carry costs they are announced here, ahead of X, whose
+        // payable values read that total. CR 601.2b announces both in one
+        // step, so which is asked first is the engine's order of two
+        // questions, as X is asked ahead of a count of X; a count of X with
+        // costs is printed nowhere.
+        let modes_ahead_of_x = match effect.modal().filter(|node| node.modes_carry_costs()) {
+            Some(node) => match self.choose_modes(player_id, card_id, card_id, node, ConditionReferents::NONE, None, None, dp) {
+                Ok(modes) => Some(modes),
+                Err(e) => {
+                    self.rollback_cast_to_hand(card_id)?;
+                    return Err(e);
+                }
+            },
+            None => None,
+        };
+        let mode_costs = match (effect.modal(), &modes_ahead_of_x) {
+            (Some(node), Some(modes)) => node.costs_of(modes),
+            _ => Vec::new(),
+        };
         let chosen_additional: Vec<&AdditionalCost> = card_data.additional_costs.iter()
             .enumerate()
             .filter(|(i, c)| !c.is_optional() || announced.contains(i))
             .map(|(_, c)| c)
+            .chain(mode_costs.iter())
             .collect();
 
         // The value of X, last of 601.2b's announcements, from the values the
@@ -174,8 +197,15 @@ impl GameState {
             .unwrap_or_else(ManaCost::zero);
         let total_in_x = total_cost_in_x(self, card_id, &base_mana_cost, chosen_alt, &chosen_additional);
         let has_x = base_mana_cost.x_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
+        // "Choose X" whose modes are each chosen once takes no X past them.
+        let most_modes = effect.modal().and_then(|node| most_modes_for_x(self, node, player_id, card_id, ConditionReferents::NONE));
         let x_value = if has_x {
-            match legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero) {
+            let values = legal_x_values(self, player_id, &total_in_x, card_data.x_cant_be_zero)
+                .and_then(|values| match most_modes {
+                    Some(most) => values.capped_at_modes(most),
+                    None => Some(values),
+                });
+            match values {
                 Some(values) => ask_choose_x_value(dp, self, player_id, card_id, values),
                 // The 601.2h failure, found before a window opens for it.
                 None => {
@@ -189,14 +219,20 @@ impl GameState {
 
         // --- 601.2b's modes, then 601.2c: targets, one instance at a time ---
         // The modes last of 601.2b's announcements, which is one step, so a
-        // count can read the X and a kicker announced before them. "The player
-        // announces their choice of an appropriate object or player for
-        // **each** target the spell requires", in printed order, because an
-        // `OtherThanInstance` clause reads the instances already announced —
-        // Incremental Growth's second creature has to know the first.
-        let (chosen_modes, targets) = match self.announce_modes_and_targets(
-            player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, has_x.then_some(x_value), dp,
-        ) {
+        // count can read the X and a kicker announced before them, unless they
+        // carry costs and were asked above. "The player announces their choice
+        // of an appropriate object or player for **each** target the spell
+        // requires", in printed order, because an "another target" clause
+        // reads the instances already announced — Incremental Growth's second
+        // creature has to know the first.
+        let x_announced = has_x.then_some(x_value);
+        let announced = match (effect.modal(), modes_ahead_of_x) {
+            (Some(node), Some(modes)) => {
+                self.announce_chosen_modes(player_id, card_id, card_id, node, modes, ConditionReferents::NONE, x_announced, dp)
+            }
+            _ => self.announce_modes_and_targets(player_id, card_id, card_id, &effect, instances, ConditionReferents::NONE, x_announced, None, dp),
+        };
+        let announced = match announced {
             Ok(announced) => announced,
             Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
@@ -209,8 +245,7 @@ impl GameState {
         let entry = StackEntry {
             object_id: card_id,
             controller: player_id,
-            chosen_targets: targets,
-            chosen_modes,
+            announced,
             x_value: has_x.then_some(x_value),
             effect: Arc::new(effect),
             is_spell: true,
@@ -221,7 +256,7 @@ impl GameState {
             },
             mana_spent: ManaSpent::NONE,
             cast_from: Some(cast_from),
-            ability_identity: None,
+            ability_ref: None,
             trigger: None,
         };
         self.set_stack_entry(entry);
@@ -312,7 +347,7 @@ impl GameState {
     /// before it divides its first), so a second walk asks it.
     ///
     /// **Printed order is load-bearing.** Each instance is enumerated against
-    /// the ones already announced, which is what `ObjectFilter::OtherThanInstance`
+    /// the ones already announced, which is what `SelectionFilter::Another`
     /// reads; announcing out of order would let Incremental Growth's "another
     /// target creature" exclude a creature that had not been chosen yet.
     ///
@@ -326,6 +361,9 @@ impl GameState {
     /// 113.7a), which "another target" excludes — the spell itself, or the
     /// permanent whose ability is announced. `x_value` is the X announced
     /// before the targets (CR 601.2b), which a count of targets may read.
+    /// `players_already_chosen` are the players another chosen mode targeted, which a
+    /// player-targeting instance here may not under "each mode must target a
+    /// different player"; none otherwise.
     pub(crate) fn announce_targets(
         &self,
         player_id: PlayerId,
@@ -334,6 +372,7 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
         x_value: Option<u64>,
+        players_already_chosen: &[PlayerId],
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
@@ -354,7 +393,12 @@ impl GameState {
                 crate::engine::object_filter::EarlierTargets::Chosen(&earlier_targets),
             )
             .naming(named_objects);
-            let legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
+            let taken_by_another_mode = |target: &ObjectOrPlayerId| {
+                recipient.player_target().is_some()
+                    && matches!(target, ObjectOrPlayerId::Player(seat) if players_already_chosen.contains(seat))
+            };
+            let mut legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
+            legal.retain(|target| !taken_by_another_mode(target));
             // CR 601.2c: "the number of targets will be defined by the
             // spell's text", and once determined it does not change.
             let bounds = count.bounds(&|amount| self.amount_as_announced(amount, player_id, this_object, named_objects, x_value))?;
@@ -363,6 +407,9 @@ impl GameState {
                 &legal, bounds.fewest, bounds.most,
             );
             self.validate_targets(recipient, &chosen, bounds, player_id, identity)?;
+            if let Some(taken) = chosen.iter().find(|target| taken_by_another_mode(target)) {
+                return Err(format!("{taken:?} is another mode's target, and each mode must target a different player"));
+            }
             announced.push(TargetInstance::from_announcement(self, recipient.clone(), &chosen)?);
             earlier_targets.push(chosen);
         }
@@ -386,15 +433,14 @@ impl GameState {
 
     /// CR 601.2b's modes, then 601.2c's targets, for `effect` on the stack
     /// object `source_id`: what [`Self::announce_targets`] announces for an
-    /// effect with no modes. A modal one's chooser picks one of the legal
-    /// sets (`oracle::modes`, CR 700.2a), and each chosen mode's instances
-    /// follow `instances`, the effect's own, in printed order: a mode is its
-    /// own instance scope, so its "another target" reads only its own earlier
-    /// instances, and a division is announced inside it. The modes are in
-    /// printed order, which is the order they resolve in.
+    /// effect with no modes. A modal one's modes are chosen
+    /// ([`Self::choose_modes`]) and then each chosen mode announces its own
+    /// instances ([`Self::announce_chosen_modes`]).
     ///
-    /// `Err` when no set of modes is legal, which the caller rewinds or, for
-    /// a trigger, removes (CR 603.3c).
+    /// `Err` when no group of modes is legal, which the caller rewinds or, for
+    /// a trigger, removes (CR 603.3c), and for a modal effect that declares
+    /// instances outside its node, which the registry refuses. `identity` is
+    /// the ability announcing, none for a spell.
     pub(crate) fn announce_modes_and_targets(
         &self,
         player_id: PlayerId,
@@ -404,26 +450,91 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: ConditionReferents<'_>,
         x_value: Option<u64>,
+        identity: Option<AbilityRef>,
         dp: &dyn DecisionProvider,
-    ) -> Result<(Vec<ModeIndex>, Vec<TargetInstance>), String> {
+    ) -> Result<Announcement, String> {
         let Some(node) = effect.modal() else {
-            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
-            return Ok((Vec::new(), targets));
+            let targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, &[], dp)?;
+            return Ok(Announcement::Targets(targets));
         };
-        let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value);
-        if sets.is_empty() {
+        if !instances.is_empty() {
+            return Err(format!("{source_id}'s modal effect declares instances of \"target\" outside its modes; a modal node is all of its ability"));
+        }
+        let modes = self.choose_modes(player_id, source_id, this_object, node, named_objects, x_value, identity, dp)?;
+        self.announce_chosen_modes(player_id, source_id, this_object, node, modes, named_objects, x_value, dp)
+    }
+
+    /// "That hasn't been chosen": what `identity`'s ability announced is
+    /// recorded once it is on the stack, for a node that reads the record.
+    pub(crate) fn note_modes_announced(&mut self, identity: AbilityRef, effect: &crate::types::effects::Effect, announced: &Announcement) {
+        if let Some(scope) = effect.modal().and_then(|node| node.rules.not_chosen_before) {
+            self.note_modes_chosen(identity, scope, announced.chosen_modes());
+        }
+    }
+
+    /// CR 601.2b's modes for `node` on the stack object `source_id`: its
+    /// chooser picks one of the legal sets (`oracle::modes`, CR 700.2a). The
+    /// controller, or under CR 700.2e an opponent, the controller first
+    /// picking which where there are several. `Err` when no set is legal.
+    pub(crate) fn choose_modes(
+        &self,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        this_object: ObjectId,
+        node: &ModalNode,
+        named_objects: ConditionReferents<'_>,
+        x_value: Option<u64>,
+        identity: Option<AbilityRef>,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Vec<ModeIndex>, String> {
+        let groups = legal_mode_groups(self, node, player_id, this_object, named_objects, x_value, identity);
+        if groups.is_empty() {
             return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
         }
         let chooser = match node.chooser {
             ModeChooser::Controller => player_id,
+            ModeChooser::AnOpponent => match self.opponents_of(player_id).as_slice() {
+                [] => return Err(format!("an opponent chooses {source_id}'s modes, and player {player_id} has none in the game")),
+                [only] => *only,
+                several => crate::ui::ask::ask_choose_opponent(dp, self, player_id, source_id, several),
+            },
         };
-        let modes = ask_choose_modes(dp, self, chooser, source_id, sets);
-        let mut targets = self.announce_targets(player_id, source_id, this_object, instances, named_objects, x_value, dp)?;
-        for &mode in &modes {
-            let mode = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
-            targets.extend(self.announce_targets(player_id, source_id, this_object, &mode.instances, named_objects, x_value, dp)?);
+        Ok(ask_choose_modes(dp, self, chooser, source_id, groups))
+    }
+
+    /// CR 601.2c for the chosen `modes` of `node`: each mode announces its own
+    /// instances, in printed order, a mode its own instance scope, so its
+    /// "another target" reads only its own earlier instances and a division is
+    /// announced inside it. Under "each mode must target a different player",
+    /// a mode is not offered a player an earlier mode took.
+    pub(crate) fn announce_chosen_modes(
+        &self,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        this_object: ObjectId,
+        node: &ModalNode,
+        modes: Vec<ModeIndex>,
+        named_objects: ConditionReferents<'_>,
+        x_value: Option<u64>,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Announcement, String> {
+        let mut chosen = Vec::with_capacity(modes.len());
+        let mut players_already_chosen: Vec<PlayerId> = Vec::new();
+        for mode in modes {
+            let printed = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
+            let targets =
+                self.announce_targets(player_id, source_id, this_object, &printed.instances, named_objects, x_value, &players_already_chosen, dp)?;
+            if node.rules.each_mode_targets_a_different_player {
+                for instance in targets.iter().filter(|instance| instance.recipient.player_target().is_some()) {
+                    players_already_chosen.extend(instance.targets().filter_map(|target| match target {
+                        ObjectOrPlayer::Player(seat) => Some(seat),
+                        ObjectOrPlayer::Object(_) => None,
+                    }));
+                }
+            }
+            chosen.push(ChosenMode { mode, targets });
         }
-        Ok((modes, targets))
+        Ok(Announcement::Modes(chosen))
     }
 
     /// An amount the text defines, read as the announcement starts: a count
@@ -453,13 +564,13 @@ impl GameState {
     pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause, dp: &dyn DecisionProvider) -> Result<(), String> {
         let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
         let mut targeted: Vec<(ObjectOrPlayer, u32)> = Vec::new();
-        for target in entry.chosen_targets.iter().filter(|instance| instance.is_targeted()).flat_map(TargetInstance::targets) {
+        for target in entry.announced.targets().filter(|instance| instance.is_targeted()).flat_map(TargetInstance::targets) {
             match targeted.iter_mut().find(|(seen, _)| *seen == target) {
                 Some((_, instances)) => *instances += 1,
                 None => targeted.push((target, 1)),
             }
         }
-        let ability_source = entry.ability_identity.map(|identity| identity.source);
+        let ability_source = entry.ability_ref.map(|identity| identity.source);
         let controller = entry.controller;
         if targeted.is_empty() {
             return Ok(());
@@ -495,7 +606,7 @@ impl GameState {
     /// ability on it resolves at the dispatch (CR 605.1b, 605.4a).
     pub(crate) fn announce_activation(
         &mut self,
-        identity: AbilityIdentity,
+        identity: AbilityRef,
         controller: PlayerId,
         mana_ability: bool,
         from: Zone,
@@ -546,7 +657,7 @@ impl GameState {
 
         let effect = ability.effect.clone();
         let ability_costs = ability.costs().to_vec();
-        let identity = crate::state::game_state::AbilityIdentity {
+        let identity = crate::state::game_state::AbilityRef {
             source: crate::types::ids::ObjectRef {
                 id: source_id,
                 zone_change_epoch: self.get_object(source_id)?.zone_change_epoch,
@@ -569,8 +680,8 @@ impl GameState {
 
         // CR 602.2b routes an activation through 601.2b–c, so an ability
         // announces its modes and instances exactly as a spell does.
-        let (chosen_modes, targets) = match self.announce_modes_and_targets(
-            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, dp,
+        let announced = match self.announce_modes_and_targets(
+            player_id, ability_obj_id, source_id, &effect, instances, ConditionReferents::NONE, None, Some(identity), dp,
         ) {
             Ok(announced) => announced,
             Err(e) => {
@@ -582,8 +693,7 @@ impl GameState {
         let stack_entry = StackEntry {
             object_id: ability_obj_id,
             controller: player_id,
-            chosen_targets: targets,
-            chosen_modes,
+            announced,
             x_value: None,
             effect: Arc::new(effect),
             is_spell: false,
@@ -592,7 +702,7 @@ impl GameState {
             // An activated ability is not cast from anywhere (CR 602.2a gives
             // it a source, which is a different fact). See `cast_from`.
             cast_from: None,
-            ability_identity: Some(identity),
+            ability_ref: Some(identity),
             trigger: None,
         };
         self.set_stack_entry(stack_entry);
@@ -633,6 +743,10 @@ impl GameState {
         // CR 602.2b runs 601.2i: the ability becomes activated once its costs
         // are paid, its targets first as a spell's are. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
+        if let Some(entry) = self.stack_entries.get(&ability_obj_id) {
+            let (effect, announced) = (Arc::clone(&entry.effect), entry.announced.clone());
+            self.note_modes_announced(identity, &effect, &announced);
+        }
         let activating = EventCause::Activating(player_id);
         self.announce_targeted_records(ability_obj_id, activating, dp)?;
         // Where its cost moved it, as it left (CR 608.2h).
@@ -818,7 +932,7 @@ mod tests {
     use crate::types::ids::ObjectOrPlayerId;
     use crate::objects::card_data::{AbilityType, CardDataBuilder};
     use crate::types::card_types::*;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
     use crate::ui::decision::ScriptedDecisionProvider;
@@ -972,9 +1086,10 @@ mod tests {
 
         // StackEntry should have correct targets
         let entry = game.stack_entries.get(&card_id).unwrap();
-        assert_eq!(entry.chosen_targets.len(), 1, "one instance of \"target\"");
+        let instances: Vec<_> = entry.announced.targets().collect();
+        assert_eq!(instances.len(), 1, "one instance of \"target\"");
         assert_eq!(
-            entry.chosen_targets[0].as_resolved_targets().collect::<Vec<_>>(),
+            instances[0].as_resolved_targets().collect::<Vec<_>>(),
             vec![ObjectOrPlayerId::Player(1)]
         );
         assert!(entry.is_spell);
@@ -1012,7 +1127,7 @@ mod tests {
                 "",
                 Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             ).with_id(crate::types::ids::new_ability_id()))
             .build();

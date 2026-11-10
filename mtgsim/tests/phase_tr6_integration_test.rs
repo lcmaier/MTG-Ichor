@@ -61,7 +61,7 @@ fn triggered(game: &GameState, source: ObjectId) -> usize {
 /// Whether one of `source`'s triggered abilities is waiting or on the stack.
 fn has_not_left_the_stack(game: &GameState, source: ObjectId) -> bool {
     game.pending_triggers.iter().any(|pending| pending.origin.source() == source)
-        || game.stack.iter().any(|id| game.stack_entries.get(id).and_then(|entry| entry.ability_identity).is_some_and(|i| i.source.id == source))
+        || game.stack.iter().any(|id| game.stack_entries.get(id).and_then(|entry| entry.ability_ref).is_some_and(|i| i.source.id == source))
 }
 
 fn hand_size(game: &GameState, player: PlayerId) -> usize {

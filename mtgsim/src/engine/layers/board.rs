@@ -755,7 +755,7 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
         // Identity leaves read no characteristic: no layer can make an object
         // something other than itself, so neither a member's frame nor the
         // source's is touched.
-        ObjectFilter::All | ObjectFilter::Token | ObjectFilter::NotSource | ObjectFilter::OtherThanInstance(_) => {}
+        ObjectFilter::All | ObjectFilter::Token | ObjectFilter::NotSource => {}
         // What an object did is the log's, gated by its rows; a player the
         // fact names resolves "you" off the source.
         ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => {

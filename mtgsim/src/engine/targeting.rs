@@ -1,3 +1,4 @@
+use crate::engine::announcement::{Announcement, SurvivingMode, SurvivingTargets};
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::object_filter::{self, EarlierTargets, FilterReferents, TextReferents};
@@ -5,7 +6,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetBounds, TargetCount};
+use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, PlayerSet, SelectionFilter, TargetBounds, TargetCount};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 
@@ -106,7 +107,7 @@ impl TargetInstance {
 /// `&[ObjectOrPlayerId]` and cannot reach a neighboring instance's targets by
 /// accident.
 ///
-/// Distinct from `StackEntry::chosen_targets`, and the difference is CR 608.2b:
+/// Distinct from `StackEntry::announced`, and the difference is CR 608.2b:
 /// the entry holds the **announcement**, clause and all, so the re-check can
 /// ask the same question; this holds the **survivors** of that re-check. One
 /// type for both is how a filtered list leaks back into the thing it was
@@ -168,7 +169,7 @@ impl ChosenTargets {
     }
 
     /// Append the next instance's choice. CR 601.2c announces in printed
-    /// order, and `ObjectFilter::OtherThanInstance` reads the ones already
+    /// order, and `SelectionFilter::Another` reads the ones already
     /// pushed, so the order is load-bearing rather than incidental.
     pub fn push(&mut self, targets: impl IntoIterator<Item = ObjectOrPlayerId>) {
         if self.bounds.is_empty() {
@@ -198,7 +199,7 @@ fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usiz
 }
 
 /// Whether a clause's criteria read an earlier instance of "target" —
-/// `ObjectFilter::OtherThanInstance`, the "another target" family.
+/// `SelectionFilter::Another`, the "another target" family.
 ///
 /// **A cost question, not a correctness one.** The announcement loop feeds each
 /// instance's choice forward so the next one can exclude it, and building that
@@ -208,21 +209,18 @@ fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usiz
 /// on a board where no game played differently (A4i's A/B). So the loop asks
 /// this first and skips the enumeration when the answer is no.
 pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
-    fn filter_reads(filter: &ObjectFilter) -> bool {
-        match filter {
-            ObjectFilter::OtherThanInstance(_) => true,
-            ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
-                filter_reads(a) || filter_reads(b)
-            }
-            ObjectFilter::Not(inner) => filter_reads(inner),
-            _ => false,
-        }
-    }
-    match recipient {
-        EffectRecipient::Target(SelectionFilter::Permanent(f), _)
-        | EffectRecipient::Choose(SelectionFilter::Permanent(f), _) => filter_reads(f),
-        _ => false,
-    }
+    matches!(
+        recipient,
+        EffectRecipient::Target(SelectionFilter::Another(_), _) | EffectRecipient::Choose(SelectionFilter::Another(_), _)
+    )
+}
+
+/// CR 608.2b's two questions across every scope of one stack object: whether
+/// a targeted instance announced any target, and whether any of those is
+/// still legal.
+struct Fizzle {
+    announced: bool,
+    survived: bool,
 }
 
 /// The two facts a filter leaf may need that are **not characteristics**, so
@@ -247,8 +245,8 @@ pub struct FilterIdentity<'a> {
     /// text is being announced, and the leaf is refused rather than answered.
     pub source: Option<ObjectId>,
     /// The instances of "target" announced before this one, which
-    /// [`ObjectFilter::OtherThanInstance`] reads. `None` outside CR 601.2c's
-    /// loop and CR 608.2b's re-check, where that leaf is likewise refused.
+    /// [`SelectionFilter::Another`] reads. `None` outside CR 601.2c's
+    /// loop and CR 608.2b's re-check, where that wrapper is likewise refused.
     pub earlier_targets: EarlierTargets<'a>,
     /// The other objects the text names, as CR 608.2h reads them: "this" once
     /// it has left, and a trigger's triggering event. A target's "defending
@@ -282,7 +280,7 @@ impl<'a> FilterIdentity<'a> {
 /// Where a resolution reads CR 601.2c's clauses from, for an atom that refers
 /// back to one (`EffectRecipient::SameInstanceAs`).
 ///
-/// **The stack reads the announcement.** `StackEntry::chosen_targets` recorded
+/// **The stack reads the announcement.** `StackEntry::announced` recorded
 /// each clause beside its choice, so the index the announcement filled is the
 /// index the resolution reads, and nothing is derived from the effect tree at
 /// resolution. An Aura's instance comes from its enchant ability and sits in
@@ -295,8 +293,13 @@ impl<'a> FilterIdentity<'a> {
 /// own clause, and [`instance_of`] never opens this for one.
 #[derive(Clone, Copy)]
 pub enum DeclaredInstances<'a> {
-    /// The stack's: what CR 601.2c announced, clause by clause.
+    /// The stack's: what CR 601.2c announced, clause by clause — the effect's
+    /// own, or the mode resolving's.
     Announced(&'a [TargetInstance]),
+    /// A modal effect's, at its root: the chosen modes, each resolved against
+    /// its own instances and their survivors. The node declares none of its
+    /// own.
+    Modes(&'a [SurvivingMode<'a>]),
     /// Nothing was announced: the effect's own declaring atoms, in printed order.
     Effect(&'a Effect),
 }
@@ -305,6 +308,7 @@ impl<'a> DeclaredInstances<'a> {
     fn clause(self, ix: usize) -> Option<&'a EffectRecipient> {
         match self {
             DeclaredInstances::Announced(announced) => announced.get(ix).map(|inst| &inst.recipient),
+            DeclaredInstances::Modes(_) => None,
             DeclaredInstances::Effect(effect) => effect.instance(ix),
         }
     }
@@ -314,7 +318,7 @@ impl<'a> DeclaredInstances<'a> {
     pub(crate) fn division(self, ix: usize) -> &'a [(ObjectOrPlayer, u64)] {
         match self {
             DeclaredInstances::Announced(announced) => announced.get(ix).and_then(TargetInstance::division).unwrap_or(&[]),
-            DeclaredInstances::Effect(_) => &[],
+            DeclaredInstances::Modes(_) | DeclaredInstances::Effect(_) => &[],
         }
     }
 }
@@ -323,17 +327,14 @@ impl<'a> DeclaredInstances<'a> {
 /// instance was announced with.
 ///
 /// `cursor` is the count of instances *declared* so far by the walk, which is
-/// how a declaring atom learns its own index without the tree being numbered.
-/// `mode_scope_start` is where the instances a back-reference counts from
-/// begin: 0, or the first of the chosen mode resolving, since a mode is its
-/// own scope (`ModalNode::mode_scope_starts`). Returns `None` for a recipient that names no instance
-/// — `Implicit`, `Controller`, the filtered sweeps and `Host`, none of which
-/// reads a chosen target.
+/// how a declaring atom learns its own index without the tree being numbered;
+/// a mode starts its own from 0. Returns `None` for a recipient that names no
+/// instance — `Implicit`, `Controller`, the filtered sweeps and `Host`, none of
+/// which reads a chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
     declared: DeclaredInstances<'a>,
     cursor: &mut usize,
-    mode_scope_start: usize,
 ) -> Option<(usize, &'a EffectRecipient)> {
     match recipient {
         EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => {
@@ -343,7 +344,7 @@ pub(crate) fn instance_of<'a>(
         }
         // The declaring atom's clause, not this atom's: an `Instance` atom
         // behaves exactly as the atom that announced the instance did.
-        EffectRecipient::SameInstanceAs(ix) => declared.clause(mode_scope_start + ix).map(|r| (mode_scope_start + ix, r)),
+        EffectRecipient::SameInstanceAs(ix) => declared.clause(*ix).map(|r| (*ix, r)),
         _ => None,
     }
 }
@@ -367,7 +368,7 @@ impl GameState {
     /// which for a spell or activated ability being cast is the player casting
     /// it, and for an Aura's enchant clause is the Aura's controller.
     /// `earlier_targets` is the instances announced before this one, which is what
-    /// `ObjectFilter::OtherThanInstance` reads — empty for a spell whose
+    /// `SelectionFilter::Another` reads — empty for a spell whose
     /// clauses name no earlier instance, which is all but the "another target"
     /// family.
     ///
@@ -457,7 +458,7 @@ impl GameState {
     /// `host` (CR 303.4a), its "you" being `you` (CR 109.5): what CR 704.5m
     /// leaves attached and what CR 303.4f offers an Aura entering the
     /// battlefield. Not targeting, so hexproof and shroud do not apply. Asked
-    /// outside CR 601.2c's loop, so an `OtherThanInstance` leaf is refused
+    /// outside CR 601.2c's loop, so a `SelectionFilter::Another` is refused
     /// rather than answered; "this" is the Aura.
     pub(crate) fn can_enchant(&self, filter: &SelectionFilter, aura: ObjectId, host: ObjectId, you: PlayerId) -> bool {
         let identity = FilterIdentity::for_text_of(aura, EarlierTargets::None);
@@ -478,13 +479,27 @@ impl GameState {
     ) -> Result<(), String> {
         match filter {
             SelectionFilter::Creature => self.validate_creature_target(target),
-            SelectionFilter::Player => self.validate_player_target(target),
+            SelectionFilter::Player(players) => self.validate_player_target(target, players, you),
             SelectionFilter::Any => self.validate_any_target(target),
             SelectionFilter::Permanent(pf) => {
                 self.validate_permanent_target(target, pf, you, identity)
             }
             SelectionFilter::Spell => self.validate_spell_target(target),
             SelectionFilter::DamageSource => self.validate_damage_source(target),
+            SelectionFilter::Another(filter) => {
+                let earlier = identity.earlier_targets;
+                if matches!(earlier, EarlierTargets::None) {
+                    return Err(
+                        "\"another target\" is asked outside an announcement; only the announcement and the CR 608.2b re-check \
+                         hold the earlier instances (CR 601.2c)"
+                            .to_string(),
+                    );
+                }
+                if earlier.names(*target) {
+                    return Err(format!("{target:?} is an earlier instance's, and this is another target (CR 115.4)"));
+                }
+                self.validate_selection(filter, target, you, identity)
+            }
         }
     }
 
@@ -533,12 +548,17 @@ impl GameState {
         }
     }
 
-    /// Validate a target is a valid player.
-    fn validate_player_target(&self, target: &ObjectOrPlayerId) -> Result<(), String> {
+    /// Validate a target is a player in `players`: "target player" any, and
+    /// "target opponent" an opponent of `you`, the controller (CR 109.5,
+    /// 102.1), asked again at CR 608.2b's re-check.
+    fn validate_player_target(&self, target: &ObjectOrPlayerId, players: &PlayerSet, you: PlayerId) -> Result<(), String> {
         match target {
             ObjectOrPlayerId::Player(pid) => {
                 if *pid >= self.players.len() {
                     return Err(format!("Player {} does not exist", pid));
+                }
+                if !players.contains(you, *pid) {
+                    return Err(format!("Player {pid} is not among {players:?} for player {you}"));
                 }
                 // CR 800.4a — a player who has left the game is not a player,
                 // so not a legal target: not offered at CR 601.2c, and a
@@ -684,9 +704,8 @@ impl GameState {
     }
 
     /// [`Self::object_matches_filter`] asked inside CR 601.2c's loop, where
-    /// the instances announced so far are known — so
-    /// [`ObjectFilter::OtherThanInstance`] has something to be other than —
-    /// and the object whose text is announced, which
+    /// the instances announced so far are known, and the object whose text is
+    /// announced, which
     /// [`ObjectFilter::NotSource`] is other than and whose owner `Owner` names.
     /// A resolution asks it with its effect's source and no instances
     /// (`codebase-state.md` item 229).
@@ -754,33 +773,60 @@ impl GameState {
     /// it is "no longer in the zone it was in when it was targeted", which
     /// its epoch says and its id cannot.
     ///
-    /// `mode_scope_starts` are where each chosen mode's targets begin
-    /// (`StackEntry::mode_scope_starts`), since a mode is its own scope
-    /// for "another target"; empty for an effect with no modes.
-    pub fn surviving_targets(
+    /// Each chosen mode is its own scope for "another target", and "all its
+    /// targets" is asked across every scope.
+    pub fn surviving_targets<'a>(
         &self,
-        instances: &[TargetInstance],
-        mode_scope_starts: &[usize],
+        announcement: &'a Announcement,
         you: PlayerId,
         this_object: ObjectId,
         named_objects: ConditionReferents<'_>,
-    ) -> Option<ChosenTargets> {
+    ) -> Option<SurvivingTargets<'a>> {
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
         // or more targets have been chosen for it." An `UpTo` clause the player
         // took nothing for leaves nothing for 608.2b to find illegal, so it
         // cannot be what makes the spell fail to resolve.
-        let mut announced = false;
-        let mut survived = false;
+        let mut tally = Fizzle { announced: false, survived: false };
+        let surviving = match announcement {
+            Announcement::Targets(own) => {
+                SurvivingTargets::Targets(self.surviving_in_scope(own, you, this_object, named_objects, &mut tally))
+            }
+            Announcement::Modes(modes) => SurvivingTargets::Modes(
+                modes
+                    .iter()
+                    .map(|chosen| SurvivingMode {
+                        chosen,
+                        survivors: self.surviving_in_scope(&chosen.targets, you, this_object, named_objects, &mut tally),
+                    })
+                    .collect(),
+            ),
+        };
+        if tally.announced && !tally.survived {
+            return None;
+        }
+        Some(surviving)
+    }
+
+    /// [`Self::surviving_targets`] for one scope's instances, noting in
+    /// `tally` whether any targeted instance announced a target and whether
+    /// any of those survived.
+    fn surviving_in_scope(
+        &self,
+        instances: &[TargetInstance],
+        you: PlayerId,
+        this_object: ObjectId,
+        named_objects: ConditionReferents<'_>,
+        tally: &mut Fizzle,
+    ) -> ChosenTargets {
+        // Each instance's earlier ones as announced, unfiltered: "another
+        // target" was a criterion of CR 601.2c's announcement, and re-asking
+        // it against a half-filtered list would let one instance's fizzle
+        // legalize another's. Borrowed, not copied.
         let mut survivors = ChosenTargets::NONE;
         for (ix, inst) in instances.iter().enumerate() {
-            // The announcement, unfiltered, from the start of this instance's
-            // scope: "another target" was a criterion of CR 601.2c's
-            // announcement, and re-asking it against a half-filtered list would
-            // let one instance's fizzle legalize another's. Borrowed, not copied.
-            let scope = mode_scope_starts.iter().copied().filter(|&start| start <= ix).max().unwrap_or(0);
             let announced_targets =
-                FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(&instances[scope..])).naming(named_objects);
+                FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(&instances[..ix])).naming(named_objects);
             let existing = inst.targets().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked against its
@@ -788,16 +834,12 @@ impl GameState {
                 survivors.push(existing);
                 continue;
             }
-            announced |= inst.targets().next().is_some();
+            tally.announced |= inst.targets().next().is_some();
             let before = survivors.all().len();
             survivors.push(existing.filter(|t| self.is_single_target_legal(&inst.recipient, t, you, announced_targets)));
-            survived |= survivors.all().len() > before;
+            tally.survived |= survivors.all().len() > before;
         }
-
-        if announced && !survived {
-            return None;
-        }
-        Some(survivors)
+        survivors
     }
 
     /// Check if a single target is still legal for the given spec.
@@ -876,7 +918,7 @@ mod tests {
     fn test_validate_player_target() {
         let game = GameState::new(2, 20);
         let targets = vec![ObjectOrPlayerId::Player(1)];
-        let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_ok());
     }
 
@@ -884,7 +926,7 @@ mod tests {
     fn test_validate_player_target_invalid() {
         let game = GameState::new(2, 20);
         let targets = vec![ObjectOrPlayerId::Player(5)];
-        let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
+        let spec = EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1));
         assert!(game.validate_targets(&spec, &targets, crate::test_support::fixed_target_bounds(&spec), 0, FilterIdentity::NONE).is_err());
     }
 
@@ -920,18 +962,20 @@ mod tests {
     fn a_spell_whose_only_target_left_the_battlefield_does_not_resolve() {
         let (mut game, land_id) = setup_game_with_land();
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        let instances = vec![TargetInstance::from_announcement(&game, spec, &[ObjectOrPlayerId::Object(land_id)]).unwrap()];
+        let announcement =
+            Announcement::Targets(vec![TargetInstance::from_announcement(&game, spec, &[ObjectOrPlayerId::Object(land_id)]).unwrap()]);
 
         // Target is legal while on battlefield
         let survivors = game
-            .surviving_targets(&instances, &[], 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
+            .surviving_targets(&announcement, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE)
             .expect("a legal target resolves");
+        let SurvivingTargets::Targets(survivors) = survivors else { panic!("an effect with no modes") };
         assert_eq!(survivors.instance(0), &[ObjectOrPlayerId::Object(land_id)]);
 
         // Remove from battlefield — the one target is no longer legal, and
         // CR 608.2b's "all its targets" is therefore satisfied.
         game.battlefield.remove(&land_id);
-        assert!(game.surviving_targets(&instances, &[], 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE).is_none());
+        assert!(game.surviving_targets(&announcement, 0, crate::types::ids::ObjectId::UNASSIGNED, ConditionReferents::NONE).is_none());
     }
 }
 

@@ -67,7 +67,7 @@ impl GameState {
 
         // CR 605.3a: activated, and announced as it is, before it resolves
         // (605.3b).
-        let identity = crate::state::game_state::AbilityIdentity { source, ability: ability_id };
+        let identity = crate::state::game_state::AbilityRef { source, ability: ability_id };
         // Where its cost moved it, as it left (CR 608.2h).
         let moved = self.lki(source).cloned();
         self.announce_activation(identity, player_id, true, from, moved.clone(), dp)?;

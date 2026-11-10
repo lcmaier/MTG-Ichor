@@ -31,7 +31,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Duration, Effect, EffectRecipient, PlayerRef, Primitive, PlayerSet, SelectionFilter, TargetCount,
     TokenDef,
 };
 use mtgsim::types::colors::Color;
@@ -41,6 +41,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::announcement::Announcement;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 
 // ---------------------------------------------------------------------------
@@ -182,7 +183,7 @@ fn stack_object_with(
     let recipient = if chosen_targets.is_empty() {
         EffectRecipient::Implicit
     } else {
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))
+        EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1))
     };
     let obj = GameObject::new(CardDataBuilder::new("Fixture Stack Object").build(), owner, Zone::Stack);
     let id = game.add_object(obj);
@@ -191,15 +192,14 @@ fn stack_object_with(
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets,
-        chosen_modes: Vec::new(),
+        announced: Announcement::Targets(chosen_targets),
         x_value: None,
         effect: Arc::new(effect),
         is_spell,
         cost_choices: mtgsim::state::battlefield::CostChoices::NONE,
         mana_spent: ManaSpent::NONE,
         cast_from: if is_spell { Some(Zone::Hand) } else { None },
-        ability_identity: None,
+        ability_ref: None,
         trigger: None,
     });
     id
@@ -904,7 +904,7 @@ fn a_spell_whose_owner_leaves_during_its_own_resolution_makes_no_graveyard_trip(
         true,
         Effect::Atom(
             Primitive::LoseGame,
-            EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
         ),
         vec![ObjectOrPlayerId::Player(1)],
     );

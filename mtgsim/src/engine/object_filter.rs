@@ -38,7 +38,6 @@ pub(crate) trait FilterReferents {
     /// `None` where no text is being read.
     fn source(&self) -> Option<ObjectId>;
     fn source_owner(&mut self) -> Option<PlayerId>;
-    fn earlier_targets(&self) -> EarlierTargets<'_>;
     /// "Defending player" for the attacking creature `creature` names (CR
     /// 508.5): `None` where the text names no such creature, or it attacks
     /// nothing.
@@ -94,24 +93,20 @@ impl FilterReferents for TextReferents<'_, '_> {
         self.identity.source.and_then(|source| self.game.owner_of(source))
     }
 
-    fn earlier_targets(&self) -> EarlierTargets<'_> {
-        self.identity.earlier_targets
-    }
-
     fn defending_player(&self, game: &GameState, creature: Antecedent) -> Option<PlayerId> {
         self.identity.named_objects.object_for(creature, self.identity.source?)?.defending_player(game, &|_| {})
     }
 }
 
-/// What the announced instances look like to `ObjectFilter::OtherThanInstance`,
+/// What the announced instances look like to `SelectionFilter::Another`,
 /// without copying them.
 ///
 /// Read only by a spell or ability with more than one "target" whose later
 /// one says "another": Incremental Growth's "target creature, another target
 /// creature, and a third target creature" (CR 115.3 lets one object be chosen
-/// once per instance, so "another" is what forbids the repeat). The second
-/// instance's filter carries `OtherThanInstance(0)`, which asks what the
-/// first instance chose.
+/// once per instance, so "another" is what forbids the repeat), and Arc
+/// Trail's "any other target". The second instance's filter is wrapped in
+/// `Another`, which asks what the instances before it chose.
 ///
 /// Two shapes answer the same question. Inside CR 601.2c's loop the earlier
 /// choices are a [`ChosenTargets`] being built; inside CR 608.2b's re-check
@@ -132,22 +127,23 @@ pub enum EarlierTargets<'a> {
 }
 
 impl EarlierTargets<'_> {
-    fn len(&self) -> usize {
+    /// Did an earlier instance choose `target`? By id: "another target" asks
+    /// whether the announcement named this object, and an announcement names
+    /// objects as they were at one moment.
+    pub(crate) fn names(&self, target: ObjectOrPlayerId) -> bool {
         match self {
-            EarlierTargets::None => 0,
-            EarlierTargets::Chosen(c) => c.len(),
-            EarlierTargets::Announced(i) => i.len(),
+            EarlierTargets::None => false,
+            EarlierTargets::Chosen(c) => c.all().contains(&target),
+            EarlierTargets::Announced(i) => i.iter().any(|inst| inst.as_resolved_targets().any(|t| t == target)),
         }
     }
 
-    /// Was `target` chosen for instance `ix`? By id: "another target" asks
-    /// whether the announcement named this object, and an announcement names
-    /// objects as they were at one moment.
-    fn instance_names(&self, ix: usize, target: ObjectOrPlayerId) -> bool {
+    /// How many targets the earlier instances chose, all told.
+    pub(crate) fn targets_taken(&self) -> usize {
         match self {
-            EarlierTargets::None => false,
-            EarlierTargets::Chosen(c) => c.instance(ix).contains(&target),
-            EarlierTargets::Announced(i) => i.get(ix).is_some_and(|inst| inst.as_resolved_targets().any(|t| t == target)),
+            EarlierTargets::None => 0,
+            EarlierTargets::Chosen(c) => c.all().len(),
+            EarlierTargets::Announced(i) => i.iter().map(|inst| inst.targets().count()).sum(),
         }
     }
 }
@@ -164,8 +160,6 @@ enum FilterRefusal {
     /// `NotSource`, or a `PlayerRef::Owner`, asked where nothing names a
     /// source.
     NoSource(ObjectId),
-    /// `OtherThanInstance` naming an instance of "target" not yet announced.
-    InstanceNotAnnounced { object: ObjectId, instance: usize },
     /// `PowerLE` asked of an object with no power (CR 208.3).
     NoPower(ObjectId),
     /// A fact the characteristics do not carry (counters, combat, what it did
@@ -183,9 +177,7 @@ impl FilterRefusal {
     fn is_malformed_question(self) -> bool {
         match self {
             FilterRefusal::ObjectGone(_) | FilterRefusal::NoPower(_) => false,
-            FilterRefusal::NoSource(_) | FilterRefusal::InstanceNotAnnounced { .. } | FilterRefusal::NotInCharacteristics(_) => {
-                true
-            }
+            FilterRefusal::NoSource(_) | FilterRefusal::NotInCharacteristics(_) => true,
         }
     }
 }
@@ -197,13 +189,6 @@ impl std::fmt::Display for FilterRefusal {
             FilterRefusal::NoSource(id) => {
                 write!(f, "a filter asked of {id} names a source, \"another\" or \"its owner\", and nothing is being read")
             }
-            FilterRefusal::InstanceNotAnnounced { object, instance } => write!(
-                f,
-                "ObjectFilter::OtherThanInstance({instance}) on {object} names an instance of \
-                 \"target\" that has not been announced (CR 601.2c). Only the \
-                 announcement loop and the CR 608.2b re-check hold the earlier_targets \
-                 instances; a filter asked anywhere else cannot carry this leaf."
-            ),
             FilterRefusal::NoPower(id) => write!(f, "Object {id} has no power"),
             FilterRefusal::NotInCharacteristics(id) => write!(
                 f,
@@ -344,15 +329,6 @@ fn answer_or_refuse<'f>(
         }
         // Identity, off the ids: no layer makes an object other than itself.
         ObjectFilter::NotSource => referents.source().map(|source| id != source).ok_or(FilterRefusal::NoSource(id)),
-        // CR 601.2c's "another target". An instance that announced nothing (an
-        // "up to" taken at zero, CR 115.6) excludes nothing.
-        ObjectFilter::OtherThanInstance(ix) => {
-            let earlier = referents.earlier_targets();
-            if *ix >= earlier.len() {
-                return Err(FilterRefusal::InstanceNotAnnounced { object: id, instance: *ix });
-            }
-            Ok(!earlier.instance_names(*ix, ObjectOrPlayerId::Object(id)))
-        }
         ObjectFilter::And(a, b) => {
             let left = answer_or_refuse(game, a, id, object, frame, referents);
             if left == Ok(false) {

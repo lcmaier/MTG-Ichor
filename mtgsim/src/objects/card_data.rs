@@ -568,13 +568,15 @@ pub fn spell_modes(abilities: &[AbilityDef]) -> Option<&crate::types::effects::M
 }
 
 /// A card's rules text cut into paragraphs, each one ability (CR 113.2c): a
-/// line, with the bullet lines after it, since a modal ability's modes are
-/// part of its paragraph (CR 700.2).
+/// line, with the mode lines after it, since a modal ability's modes are
+/// part of its paragraph (CR 700.2). A mode line starts with a bullet, a
+/// spree mode's plus sign (CR 702.172b) or a pawprint mode's {P} (700.2i).
 pub fn paragraphs(rules_text: &str) -> impl Iterator<Item = &str> {
+    let is_a_mode = |line: &str| line.starts_with('•') || line.starts_with("+ ") || line.starts_with("{P}");
     let mut rest = Some(rules_text).filter(|text| !text.is_empty());
     std::iter::from_fn(move || {
         let text = rest?;
-        let end = text.match_indices('\n').map(|(at, _)| at).find(|&at| !text[at + 1..].starts_with('•'));
+        let end = text.match_indices('\n').map(|(at, _)| at).find(|&at| !is_a_mode(&text[at + 1..]));
         match end {
             Some(at) => {
                 rest = Some(&text[at + 1..]);

@@ -73,8 +73,8 @@ impl GameState {
             }),
             cost_choices: entry.cost_choices.clone(),
             x_value: entry.x_value,
-            chosen_targets: entry.chosen_targets.clone(),
-            identity: entry.ability_identity,
+            announced: entry.announced.clone(),
+            identity: entry.ability_ref,
             trigger: entry.trigger.clone(),
             began_at: self.events.next_seq(),
             #[cfg(debug_assertions)]
@@ -117,7 +117,7 @@ impl GameState {
                 .stated_zones
                 .is_some_and(|zones| !self.objects.get(&source).is_some_and(|object| zones.contains(object.zone)));
             let condition_is_false = binding.def.intervening_if.as_ref().is_some_and(|condition| {
-                let objects = self.condition_objects(entry.ability_identity.map(|identity| identity.source), Some(binding));
+                let objects = self.condition_objects(entry.ability_ref.map(|identity| identity.source), Some(binding));
                 !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller), objects)
             });
             if left_its_stated_zone || condition_is_false {
@@ -133,19 +133,24 @@ impl GameState {
         // after. `None` is "doesn't resolve". "Another target" is other than the
         // text's "this": the spell, or the permanent with the ability (CR 113.7a).
         let this_object = entry.this_object();
-        let named = self.condition_objects(entry.ability_identity.map(|identity| identity.source), entry.trigger.as_ref());
-        let mode_scope_starts = entry.mode_scope_starts()?;
-        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, &mode_scope_starts, controller, this_object, named) else {
+        let named = self.condition_objects(entry.ability_ref.map(|identity| identity.source), entry.trigger.as_ref());
+        let Some(surviving) = self.surviving_targets(&entry.announced, controller, this_object, named) else {
             // Every target of every instance is illegal — the spell or ability
             // doesn't resolve (CR 608.2b).
             self.handle_fizzle(object_id, &entry, controller, dp)?;
             return Ok(());
         };
+        // An effect's own survivors are the resolution's targets; a modal
+        // effect's go with each chosen mode.
+        let (own, modes) = match surviving {
+            crate::engine::announcement::SurvivingTargets::Targets(own) => (own, Vec::new()),
+            crate::engine::announcement::SurvivingTargets::Modes(modes) => (crate::engine::targeting::ChosenTargets::NONE, modes),
+        };
 
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
-            ability_source: entry.ability_identity.map(|identity| identity.source),
+            ability_source: entry.ability_ref.map(|identity| identity.source),
             controller,
             // CR 113.3: a spell's instructions, or an activated or a triggered
             // ability's.
@@ -154,7 +159,7 @@ impl GameState {
                 (false, Some(_)) => GeneratedBy::TriggeredAbility,
                 (false, None) => GeneratedBy::ActivatedAbility,
             },
-            targets: surviving,
+            targets: own,
             // A resolving spell or ability replaced nothing, so CR 615.5's
             // "that much" has no answer here — see `ResolutionContext::replaced_event`.
             replaced_event: None,
@@ -167,11 +172,11 @@ impl GameState {
             .trigger
             .as_ref()
             .filter(|binding| binding.def.limit == Some(crate::types::triggers::TriggerLimit::DoThisOnlyOnceEachTurn))
-            .and(entry.ability_identity)
+            .and(entry.ability_ref)
             .map(|identity| (identity, entry.controller));
         if action_gate.is_none_or(|key| !self.history.action_taken_this_turn.contains(&key)) {
             let answer =
-                self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &entry.chosen_modes, &ctx, dp)?;
+                self.resolve_effect_with_announced_targets(&entry.effect, &entry.announced, &modes, &ctx, dp)?;
             #[cfg(debug_assertions)]
             if let (Some(binding), Some(resolving)) = (&entry.trigger, &self.resolving) {
                 binding_reads_are_named(binding, resolving.binding_reads_noted.get(), object_id);
@@ -209,9 +214,9 @@ impl GameState {
                 // The fizzle check (608.2b, 608.3b) at the top of this function
                 // guarantees the target is still legal. An Aura spell targets
                 // only what its enchant ability names (CR 303.4a), so its host
-                // is the first and only entry of `chosen_targets`.
+                // is the one instance its announcement holds.
                 let attached_to = if has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura)) {
-                    match entry.chosen_targets.first().and_then(|inst| inst.as_resolved_targets().next()) {
+                    match entry.announced.targets().next().and_then(|inst| inst.as_resolved_targets().next()) {
                         Some(ObjectOrPlayerId::Object(host)) => Some(host),
                         _ => return Err(format!(
                             "Aura {object_id} resolved from stack with no Object target: the fizzle check should have caught it"
@@ -258,7 +263,7 @@ impl GameState {
         // ability leaves no zone change, so this is where it is announced —
         // durably, by what it *is* (CR 603.7h), because the ephemeral object
         // CR 608.2n just destroyed identifies nothing afterward.
-        if let Some(identity) = entry.ability_identity {
+        if let Some(identity) = entry.ability_ref {
             self.emit_event(
                 GameEvent::AbilityResolved { identity, controller: entry.controller },
                 EventCause::GameRule(GameRule::AbilityResolves),
@@ -313,7 +318,7 @@ impl GameState {
 
         // An ability by its identity, as `resolve_taken` announces one: the
         // object just removed names nothing to a reader of the record.
-        let fizzled = match entry.ability_identity {
+        let fizzled = match entry.ability_ref {
             Some(identity) => GameEvent::AbilityFizzled { identity, controller },
             None => GameEvent::SpellFizzled { spell, controller },
         };
@@ -356,7 +361,7 @@ mod tests {
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
     use crate::types::card_types::CardType;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaSpent, ManaType};
     use crate::types::zones::Zone;
     use crate::test_support::{lightning_bolt as make_bolt, pacifism as make_pacifism, test_dp};
@@ -370,7 +375,7 @@ mod tests {
                 "",
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(3)),
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             ).with_id(crate::types::ids::new_ability_id()))
             .build()
@@ -399,15 +404,14 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets,
-            chosen_modes: Vec::new(),
+            announced: crate::engine::announcement::Announcement::Targets(chosen_targets),
             x_value: None,
             effect: std::sync::Arc::new(effect),
             is_spell: true,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -526,15 +530,14 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -603,15 +606,14 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -662,15 +664,14 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets,
-            chosen_modes: Vec::new(),
+            announced: crate::engine::announcement::Announcement::Targets(chosen_targets),
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
-                    ability_identity: None,
+                    ability_ref: None,
     trigger: None,
 });
         id
@@ -741,7 +742,7 @@ mod tests {
         let asked = std::cell::Cell::new(false);
         let seat = AtEachPrompt::new(answers, |game: &GameState, _: &ChoiceContext| {
             let facts = game.stack_object_facts(rot).expect("on the stack until it finishes");
-            let targets: Vec<_> = facts.chosen_targets.iter().flat_map(TargetInstance::as_resolved_targets).collect();
+            let targets: Vec<_> = facts.announced.targets().flat_map(TargetInstance::as_resolved_targets).collect();
             assert!(facts.is_spell);
             assert_eq!(facts.x_value, Some(3));
             assert_eq!(targets, [ObjectOrPlayerId::Player(1)]);
@@ -797,15 +798,14 @@ mod tests {
         game.stack_entries.insert(aura_id, StackEntry {
             object_id: aura_id,
             controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(Vec::new())),
             is_spell: true,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
-            ability_identity: None,
+            ability_ref: None,
             trigger: None,
         });
         assert!(game.resolve_top_of_stack(&test_dp()).is_err());

@@ -247,7 +247,7 @@ fn a_trigger_created_during_placement_waits_for_the_next_pass() {
     game.perform_sba_and_triggers(&dp).unwrap();
 
     let sources: Vec<Option<ObjectId>> =
-        game.stack.iter().map(|id| game.stack_entries[id].ability_identity.map(|ability| ability.source.id)).collect();
+        game.stack.iter().map(|id| game.stack_entries[id].ability_ref.map(|ability| ability.source.id)).collect();
     assert_eq!(sources, vec![Some(wisp), Some(warden), Some(aristocrat)], "bottom of the stack first");
     assert_eq!(dp.kinds(), vec!["SelectRecipients"], "P1 has nothing to order");
 }

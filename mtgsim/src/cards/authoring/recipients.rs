@@ -30,7 +30,12 @@ pub fn target_creature() -> EffectRecipient {
 
 /// "Target player".
 pub fn target_player() -> EffectRecipient {
-    target(SelectionFilter::Player)
+    target(SelectionFilter::Player(PlayerSet::Everyone))
+}
+
+/// "Target opponent": a player other than the controller (CR 102.1, 109.5).
+pub fn target_opponent() -> EffectRecipient {
+    target(SelectionFilter::Player(PlayerSet::Opponents))
 }
 
 /// "Target [permanent the filter describes]": "target land", "target
@@ -67,6 +72,20 @@ pub fn that_target(ix: usize) -> EffectRecipient {
 /// "Any target" (CR 115.4): a creature, player, planeswalker or battle.
 pub fn any_target() -> EffectRecipient {
     target(SelectionFilter::Any)
+}
+
+/// "Any other target" (CR 115.4): any target but what the targets before it
+/// chose — Arc Trail's second.
+pub fn any_other_target() -> EffectRecipient {
+    another_target(SelectionFilter::Any)
+}
+
+/// "Another target [filter]", "a third target [filter]" (CR 601.2c): one more
+/// instance of "target", other than what the targets before it chose. A
+/// permanent's "another target permanent" with no target before it is other
+/// than the permanent: `target_permanent(another(ObjectFilter::All))`, Flickerwisp's.
+pub fn another_target(filter: SelectionFilter) -> EffectRecipient {
+    target(SelectionFilter::Another(Box::new(filter)))
 }
 
 // ---------------------------------------------------------------------------

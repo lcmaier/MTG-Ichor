@@ -17,7 +17,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::engine::costs::CannotPay;
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::put_on_stack::SorceryTiming;
-use crate::oracle::modes::has_a_legal_mode_set;
+use crate::oracle::modes::{has_a_legal_mode_group, legal_mode_groups};
 
 /// Whether `player_id` can pay the mana `cost` asks, for `payment`: from the
 /// pool alone, or from all they can make, the inventory `supply` holds once
@@ -56,7 +56,7 @@ pub enum CannotCast {
     Timing(SorceryTiming),
     /// An instance of "target" with no legal choice (CR 601.2c).
     NoLegalTarget,
-    /// A modal spell with no set of modes its count allows whose targets can
+    /// A modal spell with no group of modes its count allows whose targets can
     /// all be chosen (CR 700.2a).
     NoLegalModes,
     /// A mandatory additional cost that can't be paid (CR 601.2h).
@@ -132,17 +132,48 @@ fn can_cast_with(
     if !every_instance_has_a_choice(game, obj.card_data.spell_instances(), player_id, card_id, ConditionReferents::NONE) {
         return Err(CannotCast::NoLegalTarget);
     }
-    // CR 700.2a: a modal spell needs a legal set of modes, each mode's targets
+    // CR 700.2a: a modal spell needs a legal group of modes, each mode's targets
     // among what makes one legal; the announcement's own list, asked for its
     // first. At the least X, as the mana below is asked.
     // PRE-LAYER ZONE: printed abilities on purpose, the card still in hand, as
     // `cast_spell` reads them.
     if let Some(node) = crate::objects::card_data::spell_modes(&obj.card_data.abilities) {
         let least_x = obj.card_data.mana_cost.as_ref().filter(|cost| cost.x_count() > 0).map(|_| u64::from(obj.card_data.x_cant_be_zero));
-        if !has_a_legal_mode_set(game, node, player_id, card_id, ConditionReferents::NONE, least_x) {
+        // CR 700.2h: a mode's own cost is in the total, so where modes carry
+        // costs the spell is castable when some legal group's total is
+        // payable, asked group by group, the smaller groups first.
+        if node.modes_carry_costs() {
+            let mut last = Err(CannotCast::NoLegalModes);
+            for group in legal_mode_groups(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
+                let costs: Vec<Cost> = group.iter().filter_map(|&mode| node.mode(mode)).flat_map(|mode| mode.cost.iter().cloned()).collect();
+                last = total_is_payable(game, player_id, card_id, &costs, supply);
+                if last.is_ok() {
+                    break;
+                }
+            }
+            return last;
+        }
+        if !has_a_legal_mode_group(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
             return Err(CannotCast::NoLegalModes);
         }
     }
+    total_is_payable(game, player_id, card_id, &[], supply)
+}
+
+/// Whether `card_id`'s total, with `chosen_costs` beside its printed costs (a
+/// group of modes' own, CR 700.2h), can be paid as CR 601.2f–h would lock and
+/// pay it.
+fn total_is_payable(
+    game: &GameState,
+    player_id: PlayerId,
+    card_id: ObjectId,
+    chosen_costs: &[Cost],
+    supply: &OnceCell<ManaSupply>,
+) -> Result<(), CannotCast> {
+    let Some(obj) = game.objects.get(&card_id) else {
+        return Err(CannotCast::NotInHand);
+    };
+    let (chosen_mana, chosen_non_mana) = Cost::split_out_mana_costs(chosen_costs.iter().cloned());
 
     // An unpayable mandatory cost makes the spell uncastable (CR 601.2h), and
     // enumeration must agree with enforcement (`cost-architecture.md` §3.6), or
@@ -155,6 +186,7 @@ fn can_cast_with(
         .flat_map(|c| c.costs().iter())
         .filter(|c| !matches!(c, Cost::Mana(_)))
         .cloned()
+        .chain(chosen_non_mana)
         .collect();
     if !mandatory_non_mana.is_empty() {
         game.can_pay_costs(&mandatory_non_mana, player_id, card_id).map_err(CannotCast::AdditionalCost)?;
@@ -177,6 +209,14 @@ fn can_cast_with(
         &at_the_least_x
     } else {
         printed
+    };
+    let with_chosen;
+    let printed = match chosen_mana {
+        Some(symbols) => {
+            with_chosen = ManaCost::from_symbols(printed.symbols.iter().cloned().chain(symbols).collect());
+            &with_chosen
+        }
+        None => printed,
     };
     let mana_cost = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
     // The mandatory sacrifices are paid at 601.2h, after the window, so what
@@ -271,7 +311,7 @@ pub enum CannotActivate {
     ManaShort,
     /// An instance of "target" with no legal choice (CR 602.2b, 601.2c).
     NoLegalTarget,
-    /// A modal ability with no legal set of modes (CR 700.2a).
+    /// A modal ability with no legal group of modes (CR 700.2a).
     NoLegalModes,
 }
 
@@ -377,8 +417,9 @@ fn can_activate_as_its_controller(
     // CR 700.2a's modes, as a spell's are: the announcement's list, asked for
     // its first, with the X `activate_ability` passes, none: an activation's X
     // (CR 602.2b) is `hybrid-and-phyrexian-payment`'s.
+    let identity = game.object_ref(source_id).map(|source| crate::state::game_state::AbilityRef { source, ability: ability.id });
     if let Some(node) = ability.effect.modal()
-        && !has_a_legal_mode_set(game, node, player_id, source_id, ConditionReferents::NONE, None)
+        && !has_a_legal_mode_group(game, node, player_id, source_id, ConditionReferents::NONE, None, identity)
     {
         return Err(CannotActivate::NoLegalModes);
     }
@@ -476,11 +517,9 @@ pub(crate) fn every_instance_has_a_choice(
     let reusable_from = feed_until.map_or(0, |last| last + 1);
     let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
     for (ix, recipient) in instances.iter().enumerate() {
-        // **Every instance pushes, in order, whether or not it is checked.**
-        // `OtherThanInstance(k)` reads position `k`, so a skipped push would
-        // renumber every instance after it and an "another target" clause would
-        // exclude the wrong one. Pushing nothing is the honest content: an
-        // instance that announces nothing excludes nothing.
+        // `SelectionFilter::Another` reads every instance before it, so each
+        // one's feed is pushed; an instance that announces nothing pushes
+        // nothing, and excludes nothing.
         let mut feed = Vec::new();
         if let EffectRecipient::Target(f, count) | EffectRecipient::Choose(f, count) = recipient
             && count.fewest() > 0
@@ -542,7 +581,7 @@ mod tests {
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase, PhaseType};
     use crate::types::card_types::*;
-    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
+    use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::types::zones::Zone;
 
@@ -716,7 +755,7 @@ mod tests {
                 "",
                 Effect::Atom(
                     Primitive::DealDamage { amount: AmountExpr::Fixed(5), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
                 ),
             ).with_id(crate::types::ids::new_ability_id()))
             .build();

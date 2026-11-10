@@ -41,11 +41,14 @@ pub use instructions::{
     remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
     shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
 };
-pub use modes::{choose, choose_one, choose_one_or_both_if, choose_one_or_more, choose_two, choose_up_to};
+pub use modes::{
+    an_opponent_chooses_one, choose, choose_one, choose_one_not_chosen_before, choose_one_or_both_if, choose_one_or_more,
+    choose_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to, spree,
+};
 pub use recipients::{
-    an_opponent_controls, any_target, artifact, attacked_by, basic, chosen_by, color, creature, creatures_you_control, divided_among, each, each_in,
+    an_opponent_controls, another_target, any_other_target, any_target, artifact, attacked_by, basic, chosen_by, color, creature, creatures_you_control, divided_among, each, each_in,
     each_opponent, each_player, enchantment, host, land, non, nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature,
-    target_permanent, target_player, target_spell, targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player,
+    target_opponent, target_permanent, target_player, target_spell, targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player,
     you_cast, you_control, your_opponents_control,
 };
 pub use replacements::{

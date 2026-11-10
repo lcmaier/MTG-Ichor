@@ -711,15 +711,14 @@ mod tests {
         game.set_stack_entry(StackEntry {
             object_id: card,
             controller: 1,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value: None,
             effect: Arc::new(Effect::Sequence(Vec::new())),
             is_spell: true,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
-            ability_identity: None,
+            ability_ref: None,
             trigger: None,
         });
         assert_eq!(controller(&game, card), (Some(1), false));
