@@ -109,6 +109,9 @@ pub struct Prompt {
     pub primitive: Primitive,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
+    /// Each mode some option is a choice of, in printed order, labeled as
+    /// `ui::display` labels the choice of it alone: the mode picker's rows.
+    pub mode_labels: Vec<(ModeIndex, String)>,
     /// At CR 601.2g's window, each mana ability it does not offer until the
     /// pool holds its mana, with why.
     pub not_offered_yet: Vec<NotOfferedYet>,
@@ -163,9 +166,26 @@ impl Prompt {
             why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
             options: options.iter().map(|option| option_view(game, option)).collect(),
+            mode_labels: mode_labels(game, options),
             not_offered_yet: not_offered_yet(game, &OpenQuestion { player, context, options }),
         }
     }
+}
+
+/// Each mode some option is a choice of, once, in printed order, with its label.
+fn mode_labels(game: &GameState, options: &[ChoiceOption]) -> Vec<(ModeIndex, String)> {
+    let mut modes: Vec<ModeIndex> = options
+        .iter()
+        .filter_map(|option| match option {
+            ChoiceOption::Modes(modes) => Some(modes),
+            _ => None,
+        })
+        .flatten()
+        .copied()
+        .collect();
+    modes.sort_unstable();
+    modes.dedup();
+    modes.into_iter().map(|mode| (mode, option_label(game, &ChoiceOption::Modes(vec![mode])))).collect()
 }
 
 /// The board things an option names, in the order `OptionView::refs` keeps.

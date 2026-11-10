@@ -1251,7 +1251,7 @@ pub struct Amount {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModeRow {
     pub mode: ModeIndex,
-    /// `Mode 2`.
+    /// `Prompt::mode_labels`' label: `Mode 2`.
     pub label: String,
     pub control: ModeControl,
 }
@@ -1456,13 +1456,12 @@ impl PromptView {
     }
 }
 
-/// The mode picker's rows: each mode some offered choice has, a count where
-/// some choice has it twice, each control live as `live` finds it.
+/// The mode picker's rows: each mode some offered choice has, as the prompt
+/// labels it, a count where some choice has it twice, each control live as
+/// `live` finds it.
 fn mode_rows(prompt: &Prompt, ticked: &[ModeIndex], live: &dyn Fn(Input) -> bool) -> Vec<ModeRow> {
-    let mut modes: Vec<ModeIndex> = offered_choices(prompt).flatten().copied().collect();
-    modes.sort_unstable();
-    modes.dedup();
-    let row = |mode: ModeIndex| {
+    let row = |(mode, label): &(ModeIndex, String)| {
+        let mode = *mode;
         let control = if repeats(prompt, mode) {
             let value = times(ticked, mode) as u64;
             ModeControl::Count(Amount { value, can_lower: live(Input::UntickMode(mode)), can_raise: live(Input::TickMode(mode)) })
@@ -1470,9 +1469,9 @@ fn mode_rows(prompt: &Prompt, ticked: &[ModeIndex], live: &dyn Fn(Input) -> bool
             let click = mode_click(prompt, ticked, mode);
             ModeControl::Checkbox { ticked: ticked.contains(&mode), live: live(click.clone()), click }
         };
-        ModeRow { mode, label: format!("Mode {mode}"), control }
+        ModeRow { mode, label: label.clone(), control }
     };
-    modes.into_iter().map(row).collect()
+    prompt.mode_labels.iter().map(row).collect()
 }
 
 fn pick_rule(min: usize, max: usize) -> String {
@@ -1563,9 +1562,18 @@ mod tests {
             rejected: None,
             why_reads_the_trace: false,
             primitive,
+            mode_labels: mode_labels(&options),
             options,
             not_offered_yet: Vec::new(),
         }
+    }
+
+    /// Each mode the options are choices of, labeled as the engine labels it.
+    fn mode_labels(options: &[OptionView]) -> Vec<(ModeIndex, String)> {
+        let mut modes: Vec<ModeIndex> = options.iter().filter_map(|option| option.modes.as_deref()).flatten().copied().collect();
+        modes.sort_unstable();
+        modes.dedup();
+        modes.into_iter().map(|mode| (mode, format!("Mode {mode}"))).collect()
     }
 
     fn option(label: &str, refs: Vec<BoardRef>) -> OptionView {
