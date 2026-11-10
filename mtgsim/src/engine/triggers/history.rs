@@ -228,7 +228,7 @@ impl GameState {
 
     /// The modes `identity`'s ability has chosen that it may not choose now.
     pub(crate) fn modes_chosen_before(&self, identity: AbilityIdentity) -> &[ModeIndex] {
-        self.history.modes_chosen.get(&identity).map_or(&[], |chosen| chosen.unoffered(self.turn_number))
+        self.history.modes_chosen.get(&identity).map_or(&[], |chosen| chosen.no_longer_offered(self.turn_number))
     }
 
     /// `identity`'s ability chose `modes` as it was put on the stack, which
@@ -243,7 +243,7 @@ impl GameState {
         }
         let turn = self.turn_number;
         let chosen = self.history.modes_chosen.entry(identity).or_insert(ModesChosen { turn, scope, modes: Vec::new() });
-        if chosen.unoffered(turn).is_empty() {
+        if chosen.no_longer_offered(turn).is_empty() {
             chosen.modes.clear();
         }
         chosen.turn = turn;

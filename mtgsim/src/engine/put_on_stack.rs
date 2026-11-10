@@ -360,7 +360,7 @@ impl GameState {
     /// 113.7a), which "another target" excludes — the spell itself, or the
     /// permanent whose ability is announced. `x_value` is the X announced
     /// before the targets (CR 601.2b), which a count of targets may read.
-    /// `players_taken` are the players another chosen mode targeted, which a
+    /// `players_already_chosen` are the players another chosen mode targeted, which a
     /// player-targeting instance here may not under "each mode must target a
     /// different player"; none otherwise.
     pub(crate) fn announce_targets(
@@ -371,7 +371,7 @@ impl GameState {
         instances: &[EffectRecipient],
         named_objects: crate::engine::layers::condition::ConditionReferents<'_>,
         x_value: Option<u64>,
-        players_taken: &[PlayerId],
+        players_already_chosen: &[PlayerId],
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
@@ -394,7 +394,7 @@ impl GameState {
             .naming(named_objects);
             let taken_by_another_mode = |target: &ObjectOrPlayerId| {
                 recipient.player_target().is_some()
-                    && matches!(target, ObjectOrPlayerId::Player(seat) if players_taken.contains(seat))
+                    && matches!(target, ObjectOrPlayerId::Player(seat) if players_already_chosen.contains(seat))
             };
             let mut legal = enumerate_legal_selections_excluding(self, filter, Some(source_id), player_id, identity);
             legal.retain(|target| !taken_by_another_mode(target));
@@ -518,14 +518,14 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<Announcement, String> {
         let mut chosen = Vec::with_capacity(modes.len());
-        let mut players_taken: Vec<PlayerId> = Vec::new();
+        let mut players_already_chosen: Vec<PlayerId> = Vec::new();
         for mode in modes {
             let printed = node.mode(mode).ok_or_else(|| format!("{source_id} has no mode {mode}"))?;
             let targets =
-                self.announce_targets(player_id, source_id, this_object, &printed.instances, named_objects, x_value, &players_taken, dp)?;
+                self.announce_targets(player_id, source_id, this_object, &printed.instances, named_objects, x_value, &players_already_chosen, dp)?;
             if node.rules.each_mode_targets_a_different_player {
                 for instance in targets.iter().filter(|instance| instance.recipient.player_target().is_some()) {
-                    players_taken.extend(instance.targets().filter_map(|target| match target {
+                    players_already_chosen.extend(instance.targets().filter_map(|target| match target {
                         ObjectOrPlayer::Player(seat) => Some(seat),
                         ObjectOrPlayer::Object(_) => None,
                     }));

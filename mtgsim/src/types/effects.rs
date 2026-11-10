@@ -989,10 +989,10 @@ pub struct ModeRules {
 impl ModeRules {
     /// A plain "choose one"'s: no mode repeats, no rule on players, and
     /// every mode offered whatever was chosen before.
-    pub const NONE: ModeRules = ModeRules { may_repeat: false, each_mode_targets_a_different_player: false, not_chosen_before: None };
+    pub const DEFAULT: ModeRules = ModeRules { may_repeat: false, each_mode_targets_a_different_player: false, not_chosen_before: None };
 }
 
-/// How long a mode an ability chose stays unoffered to it
+/// How long a mode an ability chose is no longer offered to it
 /// ([`ModeRules::not_chosen_before`]): the record is the ability's on that
 /// object (CR 400.7), whoever controls it (Demonic Pact's rulings).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -37,7 +37,7 @@ pub(crate) fn legal_mode_sets(
     let mut sets = Vec::new();
     walk_legal_sets(game, node, player, this_object, named, x_value, identity, &mut |set| {
         sets.push(set.to_vec());
-        KeepGoing::Yes
+        MoreSets::Wanted
     });
     sets
 }
@@ -55,16 +55,20 @@ pub(crate) fn has_a_legal_mode_set(
     let mut found = false;
     walk_legal_sets(game, node, player, this_object, named, x_value, identity, &mut |_| {
         found = true;
-        KeepGoing::No
+        MoreSets::Enough
     });
     found
 }
 
-/// Whether a walk over the sets of modes goes on to the next set.
+/// What a walk's visitor answers after each whole set of modes: hand it the
+/// next set, or stop. Not whether a player may pick another mode: a set is
+/// one complete choice, and the walk asks this between choices.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum KeepGoing {
-    Yes,
-    No,
+enum MoreSets {
+    /// The list wants every set.
+    Wanted,
+    /// Castability needed one, and has it.
+    Enough,
 }
 
 /// Hands `visit` each legal set in [`legal_mode_sets`]' order, stopping when
@@ -78,9 +82,9 @@ fn walk_legal_sets(
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
     identity: Option<AbilityIdentity>,
-    visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing,
+    visit: &mut impl FnMut(&[ModeIndex]) -> MoreSets,
 ) {
-    let Some(count) = count_now(game, &node.count, node.modes.len(), player, this_object, named, x_value) else { return };
+    let Some(count) = current_count(game, &node.count, node.modes.len(), player, this_object, named, x_value) else { return };
     let chosen_before = match (node.rules.not_chosen_before, identity) {
         (Some(_), Some(identity)) => game.modes_chosen_before(identity),
         _ => &[],
@@ -95,13 +99,13 @@ fn walk_legal_sets(
     let pawprints = |set: &[ModeIndex]| set.iter().filter_map(|&mode| node.mode(mode)).map(|mode| mode.pawprints).sum::<u32>();
     let mut admitted = |set: &[ModeIndex]| {
         let within_budget = match count {
-            CountNow::Pawprints(budget) => pawprints(set) <= budget,
-            CountNow::Sizes { .. } => true,
+            CurrentCount::Pawprints(budget) => pawprints(set) <= budget,
+            CurrentCount::Sizes { .. } => true,
         };
         if !within_budget
             || (node.rules.each_mode_targets_a_different_player && !players_can_differ(game, node, set, player, this_object, named))
         {
-            return KeepGoing::Yes;
+            return MoreSets::Wanted;
         }
         visit(set)
     };
@@ -115,7 +119,7 @@ fn walk_legal_sets(
         } else {
             for_each_combination(&legal, size, &mut admitted)
         };
-        if walked == KeepGoing::No {
+        if walked == MoreSets::Enough {
             return;
         }
     }
@@ -123,7 +127,7 @@ fn walk_legal_sets(
 
 /// A count read now: the sizes of set it allows, or a pawprint budget.
 #[derive(Clone, Copy)]
-enum CountNow {
+enum CurrentCount {
     /// Every size from `fewest` through `most`, and `also` beside them:
     /// "you may choose two" is 0, and 2 also.
     Sizes { fewest: usize, most: usize, also: Option<usize> },
@@ -132,11 +136,11 @@ enum CountNow {
     Pawprints(u32),
 }
 
-impl CountNow {
+impl CurrentCount {
     fn sizes(self) -> impl Iterator<Item = usize> {
         let (fewest, most, also) = match self {
-            CountNow::Sizes { fewest, most, also } => (fewest, most, also),
-            CountNow::Pawprints(budget) => (0, usize::try_from(budget).unwrap_or(usize::MAX), None),
+            CurrentCount::Sizes { fewest, most, also } => (fewest, most, also),
+            CurrentCount::Pawprints(budget) => (0, usize::try_from(budget).unwrap_or(usize::MAX), None),
         };
         (fewest..=most).chain(also)
     }
@@ -145,7 +149,7 @@ impl CountNow {
 /// What `count` allows, read now, of `printed` modes: `None` for a count of X
 /// with no X announced. A most may pass the modes printed, which the walk caps
 /// where a mode is chosen once.
-fn count_now(
+fn current_count(
     game: &GameState,
     count: &ModalCount,
     printed: usize,
@@ -153,23 +157,23 @@ fn count_now(
     this_object: ObjectId,
     named: ConditionReferents<'_>,
     x_value: Option<u64>,
-) -> Option<CountNow> {
+) -> Option<CurrentCount> {
     let size = |n: u32| usize::try_from(n).unwrap_or(usize::MAX);
     match count {
-        ModalCount::Exactly(n) => Some(CountNow::Sizes { fewest: size(*n), most: size(*n), also: None }),
-        ModalCount::Range { fewest, most } => Some(CountNow::Sizes { fewest: size(*fewest), most: size(*most), also: None }),
-        ModalCount::OneOrMore => Some(CountNow::Sizes { fewest: 1, most: printed, also: None }),
+        ModalCount::Exactly(n) => Some(CurrentCount::Sizes { fewest: size(*n), most: size(*n), also: None }),
+        ModalCount::Range { fewest, most } => Some(CurrentCount::Sizes { fewest: size(*fewest), most: size(*most), also: None }),
+        ModalCount::OneOrMore => Some(CurrentCount::Sizes { fewest: 1, most: printed, also: None }),
         ModalCount::X => {
             let x = usize::try_from(x_value?).unwrap_or(usize::MAX);
-            Some(CountNow::Sizes { fewest: x, most: x, also: None })
+            Some(CurrentCount::Sizes { fewest: x, most: x, also: None })
         }
-        ModalCount::NoneOr(n) => Some(CountNow::Sizes { fewest: 0, most: 0, also: Some(size(*n)).filter(|&n| n > 0) }),
-        ModalCount::Pawprints(budget) => Some(CountNow::Pawprints(*budget)),
+        ModalCount::NoneOr(n) => Some(CurrentCount::Sizes { fewest: 0, most: 0, also: Some(size(*n)).filter(|&n| n > 0) }),
+        ModalCount::Pawprints(budget) => Some(CurrentCount::Pawprints(*budget)),
         // Read once as the modes are chosen, against the board then (Will of
         // the Abzan's ruling).
         ModalCount::RaisedIf { usual, raised, condition } => {
             let holds = settled_holds(condition, game, this_object, Some(player), named);
-            count_now(game, if holds { raised } else { usual }, printed, player, this_object, named, x_value)
+            current_count(game, if holds { raised } else { usual }, printed, player, this_object, named, x_value)
         }
     }
 }
@@ -231,14 +235,14 @@ fn players_can_differ(
 
 /// Hands `visit` every way to pick `size` of the modes in `legal`, a mode as
 /// often as it likes, each in printed order (CR 700.2d): from modes 1 and 2,
-/// two at a time, that is {1, 1}, {1, 2}, {2, 2}. Returns `KeepGoing::No` when
+/// two at a time, that is {1, 1}, {1, 2}, {2, 2}. Returns `MoreSets::Enough` when
 /// `visit` stopped it. A size of 0 is the empty set, even with no mode legal.
-fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing) -> KeepGoing {
+fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> MoreSets) -> MoreSets {
     if size == 0 {
         return visit(&[]);
     }
     if legal.is_empty() {
-        return KeepGoing::Yes;
+        return MoreSets::Wanted;
     }
     // `picks` are positions in `legal`, never falling. The next multiset
     // moves the rightmost pick that has room one step right, and sets every
@@ -248,10 +252,10 @@ fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[
     loop {
         set.clear();
         set.extend(picks.iter().map(|&at| legal[at]));
-        if visit(&set) == KeepGoing::No {
-            return KeepGoing::No;
+        if visit(&set) == MoreSets::Enough {
+            return MoreSets::Enough;
         }
-        let Some(moves) = (0..size).rev().find(|&i| picks[i] + 1 < legal.len()) else { return KeepGoing::Yes };
+        let Some(moves) = (0..size).rev().find(|&i| picks[i] + 1 < legal.len()) else { return MoreSets::Wanted };
         picks[moves] += 1;
         for i in moves + 1..size {
             picks[i] = picks[moves];
@@ -261,24 +265,24 @@ fn for_each_multiset(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[
 
 /// Hands `visit` every way to pick `size` of the modes in `legal`, each in
 /// printed order: from modes 1, 2 and 4, two at a time, that is {1, 2},
-/// {1, 4}, {2, 4}, in that order. Returns `KeepGoing::No` when `visit` stopped
+/// {1, 4}, {2, 4}, in that order. Returns `MoreSets::Enough` when `visit` stopped
 /// it, so the walk does not go on to the next size.
-fn for_each_combination(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> KeepGoing) -> KeepGoing {
+fn for_each_combination(legal: &[ModeIndex], size: usize, visit: &mut impl FnMut(&[ModeIndex]) -> MoreSets) -> MoreSets {
     if size > legal.len() {
-        return KeepGoing::Yes;
+        return MoreSets::Wanted;
     }
     let mut picks: Vec<usize> = (0..size).collect();
     let mut set: Vec<ModeIndex> = Vec::with_capacity(size);
     loop {
         set.clear();
         set.extend(picks.iter().map(|&at| legal[at]));
-        if visit(&set) == KeepGoing::No {
-            return KeepGoing::No;
+        if visit(&set) == MoreSets::Enough {
+            return MoreSets::Enough;
         }
         // `picks` are positions in `legal`, rising. The next combination
         // moves the rightmost pick that has room one step right, and packs
         // every pick after it in behind it; none has room after the last.
-        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return KeepGoing::Yes };
+        let Some(moves) = (0..size).rev().find(|&i| picks[i] < legal.len() - size + i) else { return MoreSets::Wanted };
         picks[moves] += 1;
         for i in moves + 1..size {
             picks[i] = picks[i - 1] + 1;
@@ -298,7 +302,7 @@ mod tests {
         let mut out = Vec::new();
         for_each_combination(&modes(legal), size, &mut |set| {
             out.push(set.to_vec());
-            KeepGoing::Yes
+            MoreSets::Wanted
         });
         out
     }
@@ -315,7 +319,7 @@ mod tests {
         let mut out = Vec::new();
         for_each_multiset(&modes(legal), size, &mut |set| {
             out.push(set.to_vec());
-            KeepGoing::Yes
+            MoreSets::Wanted
         });
         out
     }

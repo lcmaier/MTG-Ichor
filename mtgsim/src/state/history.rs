@@ -158,8 +158,8 @@ pub struct GameHistory {
 }
 
 /// The modes one ability has chosen ([`GameHistory::modes_chosen`]), how long
-/// its text keeps them unoffered, and the turn of the last choice, which "this
-/// turn" reads.
+/// its text keeps them from being offered again, and the turn of the last
+/// choice, which "this turn" reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModesChosen {
     pub turn: u32,
@@ -168,9 +168,10 @@ pub struct ModesChosen {
 }
 
 impl ModesChosen {
-    /// The modes still unoffered on turn `now`: every one while the object
-    /// exists, or under "this turn" this turn's alone.
-    pub fn unoffered(&self, now: u32) -> &[ModeIndex] {
+    /// The modes that may not be offered on turn `now`, because they were
+    /// chosen: every one while the object exists, or under "this turn" this
+    /// turn's alone.
+    pub fn no_longer_offered(&self, now: u32) -> &[ModeIndex] {
         match self.scope {
             ChosenBefore::WhileItExists => &self.modes,
             ChosenBefore::ThisTurn if self.turn == now => &self.modes,
