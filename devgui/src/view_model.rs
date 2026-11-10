@@ -112,8 +112,22 @@ pub enum Key {
     F6,
 }
 
-/// What each key does, for the prompt's foot.
-pub const KEYS: &str = "Keys: 1–9 an option · Enter confirm · Space pass · Esc start over · F2 pass until the stack changes · F4 until end of turn · F6 until this player's next turn";
+/// What each key does, for the prompt's foot, after what a digit clicks.
+macro_rules! keys_line {
+    ($digit_clicks:literal) => {
+        concat!(
+            "Keys: 1–9 ",
+            $digit_clicks,
+            " · Enter confirm · Space pass · Esc start over · F2 pass until the stack changes · F4 until end of turn · F6 until this player's next turn"
+        )
+    };
+}
+
+/// The prompt's keys, where a digit is an option's button.
+const KEYS: &str = keys_line!("an option");
+
+/// The mode picker's, where a digit is a mode's click.
+const MODE_KEYS: &str = keys_line!("a mode");
 
 /// How long after a prompt arrives its input is dropped (`codebase-state.md`
 /// item 201): egui's double-click window, so the second click of a double
@@ -1327,6 +1341,8 @@ pub struct PromptView {
     pub yielding: Option<(String, SeatButton)>,
     /// `WindowState::prompts` when this prompt arrived.
     pub serial: u64,
+    /// What each key does here, for the prompt's foot.
+    pub keys: &'static str,
 }
 
 impl PromptView {
@@ -1425,6 +1441,7 @@ impl PromptView {
             yields: Vec::new(),
             yielding: None,
             serial: 0,
+            keys: if matches!(selection, Selection::Modes(_)) { MODE_KEYS } else { KEYS },
         }
     }
 
@@ -1975,6 +1992,7 @@ mod tests {
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, choices(&[&[2, 3], &[1, 3], &[1, 2]])));
         assert_eq!(state.clone().input(Input::OptionButton(1)), None, "no option button at a mode picker");
         assert!(state.prompt_view().unwrap().options.is_empty());
+        assert!(state.prompt_view().unwrap().keys.starts_with("Keys: 1–9 a mode ·"), "a digit is a mode's click here");
         assert_eq!(state.input(Input::TickMode(ModeIndex::printed(3))), None);
         assert_eq!(state.input(Input::TickMode(ModeIndex::printed(1))), None);
         assert_eq!(state.prompt_view().unwrap().rule, "tick the modes: modes 1, 3 ticked");

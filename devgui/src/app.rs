@@ -15,8 +15,8 @@ use crate::editor::{
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, ModeControl, ModeRow, NO_SAVESTATES, NumberField, OptionButton,
-    PromptView, SeatButton, ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
+    Amount, BoardView, DIVERGED, Input, Item, Key, Mode, ModeControl, ModeRow, NO_SAVESTATES, NumberField, OptionButton, PromptView,
+    SeatButton, ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
 };
 
 /// Every scroll area fills its panel's width, so its bar stays at the
@@ -813,7 +813,7 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
             }
         });
     }
-    ui.weak(KEYS);
+    ui.weak(prompt.keys);
 }
 
 fn option_control(ui: &mut egui::Ui, i: usize, option: &OptionButton, inputs: &mut Vec<Input>) {
