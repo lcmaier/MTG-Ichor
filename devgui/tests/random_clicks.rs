@@ -24,7 +24,7 @@ use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow};
 use devgui::editor::{BoardNumber, EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
 use devgui::prompt::{Primitive, Reply};
 use devgui::view_model::{
-    Amount, BoardView, DoneButton, Input, Item, Key, ModeControl, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
+    Amount, BoardView, DoneButton, Input, Item, Key, ModeControl, NumberField, SETTLE_SECONDS, SeatButton, Selection, WindowState,
 };
 use games::{dealt, from_board, next, spawn};
 use mtgsim::cards::registry::CardRegistry;
@@ -175,7 +175,7 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
         assert_eq!(state.clone().input(Input::OptionButton(0)), None, "{game}: a click in the beat");
         state.tick(clock + 2.0 * SETTLE_SECONDS);
         let prompt = state.prompt.clone();
-        let picker = state.prompt_view().is_some_and(|view| !view.modes.is_empty());
+        let picker = matches!(state.selection, Some(Selection::Modes(_)));
         let reply = click_until_answered(&mut state, &engine, &mut rng, reached)
             .unwrap_or_else(|| panic!("{game}: no answer in {CLICK_CAP} clicks to {prompt:?}"));
         last = format!("answering {prompt:?} with {reply:?}");
