@@ -158,7 +158,8 @@ From `devgui/`, where `cargo run` runs the window:
 - `tests/mode_picker.rs`: the mode picker over the engine's own offers, a
   board per count rule built in the test, every set of ticks it allows walked;
   the seat that keeps the offer is `tests/support/modes_asked.rs`, which a
-  fixture's picture uses too, since no scenario can name a fixture.
+  fixture's picture uses too, since no scenario can name a fixture the
+  registry leaves out, as Pawprint Parade is.
 - `tests/screenshots.rs`: the window drawn offscreen at the review boards,
   as the pictures in `tests/snapshots/`. A PR shows each picture it changed,
   old beside new. CI plays each board and runs the window to each picture's

@@ -1252,7 +1252,7 @@ Where it differs from decisions 2 and 3's words:
 
 ### `mode-picker` — the dev GUI asks for modes one at a time — ✅ landed 2026-11-09
 
-PR #320, the dev GUI's half of `modal-spells-and-abilities`: 717 lines of code and tests
+PR #320, the dev GUI's half of `modal-spells-and-abilities`: 828 lines of code and tests
 touched against the guess of 300–600, the brief's 400–700 by parts.
 - **The picker** (decision 2's "For the GUIs"): a row per mode some offered choice has, a
   checkbox, or a count where some choice has the mode twice. A tick is live while some offered
@@ -1263,17 +1263,20 @@ touched against the guess of 300–600, the brief's 400–700 by parts.
   place answers nothing at the picker, and the digit key n is mode n's click.
 - **Chosen by the options, not the kind**: `OptionView::modes`, as `attacker` is, and a prompt
   whose every option is a choice of modes is a picker. A forced choice is still unasked.
-- **Tested over the engine's own offers** for every count rule (Cryptic Command, Casualties of
-  War, Echoing Reckoning, Pawprint Parade, Explosive Derailment, Vindictive Lich at three
-  seats), every reachable set of ticks walked; `modes.scenario` under random clicks; two
-  pictures. At 126 choices the picker's view costs 3.7 µs a repaint (`prompt_cost`).
+- **Tested over the engine's own offers** for each of `ModalCount`'s seven arms and the
+  node's rules (Cryptic Command, Casualties of War, Explosive Derailment, Vindictive Lich at
+  three seats; the Echoing Reckoning, Pawprint Parade, Divided Envoy, Tally of Choices and
+  Kindled Option fixtures), every reachable set of ticks walked; `modes.scenario` under random
+  clicks; two pictures. At 126 choices the picker's view costs 3.7 µs a repaint (`prompt_cost`).
 
 Where it differs from decision 2's words:
 - **A mode in no offered choice has no row**: the list cannot say it exists, so Cryptic
   Command with no spell to counter shows three rows, not a fourth greyed.
-- **"Choose one" is a tick, then Done**: one click more than the list's button took.
-- **A row is labeled by its place**, not its words: nothing carries a mode's words to a
-  client (`codebase-state.md` item 417).
+- **"Choose one" is a tick, then Done**: one click more than the list's button took, since
+  Done is live while the ticks are a listed choice, as "B against C" puts it, and a tick
+  can be taken back before it goes.
+- **A row is labeled as `ui::display` labels the choice of its mode alone** ("Mode 2"), not
+  by its words: nothing carries a mode's words to a client (`codebase-state.md` item 417).
 
 ## 6. Found while designing
 

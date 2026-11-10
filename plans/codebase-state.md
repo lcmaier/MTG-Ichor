@@ -10781,7 +10781,8 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      words off that ability's paragraph on the effective list.
      **Reachability (2026-11-09):** reachable — not wrong today: a person
      reads the modes off the card's hover beside the picker.
-     **Sized:** ~100–180 lines: the ability on the kind, the words by mode,
-     the picker's row drawing them, a test over the picker's six cards.
-     **Slotted:** Phase 10, whose picker starts from this one; sooner as a
-     dev GUI PR at the owner's word.
+     **Sized:** ~100–160 lines: the ability on the kind, the words by mode
+     in `ui::display`, `Prompt::mode_labels` reading them (the rows already
+     do), a test over the picker's cards.
+     **Slotted:** `values-chosen-at-resolution`, which reshapes the choice
+     kinds and the words `ui::display` gives their options.
