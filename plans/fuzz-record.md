@@ -282,6 +282,9 @@ answer. Every gameplay row **IDENTICAL** on both pools at both seats; instructio
 read, so its rows are one arm each and say nothing. The second round (`c8c5c46e` against
 `03c75bc5`: the walk's visitor a named boolean, `pass_turn`'s cap a diagnostic) read the same:
 every gameplay row **IDENTICAL**, instructions **-0.01%**, growth ×3.94 to ×4.03, in 219 s.
+The third (`27cf5796` against `3264b7c7`: `AbilityRef`, mode groups) as well: **IDENTICAL**,
+**+0.04%**, ×3.94 to ×4.03, in 243 s. Its copy report lists only pairs the renames gave new
+names, each there before them.
 
 **Size**: 2,445 added and 525 removed in `mtgsim/src` and `mtgsim/tests`, 2,970 touched, and
 3,091 after the pre-review's fixes and 3,155 after the review round's (632 lines touched in
