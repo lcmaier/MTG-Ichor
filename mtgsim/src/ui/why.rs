@@ -461,7 +461,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
             Some("702.19b"),
         ),
         ChoiceKind::ChooseModes { source } => (
-            format!("the sets of {}'s modes its count allows, leaving out a mode whose targets have no legal choice", n(source)),
+            format!("the groups of {}'s modes its count allows, leaving out a mode whose targets have no legal choice", n(source)),
             Some("700.2a"),
         ),
         ChoiceKind::ChooseXValue { spell_id, .. } => (format!("the value of X for {}", n(spell_id)), Some("601.2b")),

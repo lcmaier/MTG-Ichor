@@ -836,7 +836,7 @@ pub fn cannot_activate(
     }
 }
 
-/// Why a modal spell or ability is not offered: no set of modes its count
+/// Why a modal spell or ability is not offered: no group of modes its count
 /// allows has every target it needs.
 const NO_LEGAL_MODES: &str = "no choice of its modes can be made, since a mode whose targets have no legal choice can't be chosen";
 

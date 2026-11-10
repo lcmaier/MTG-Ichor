@@ -413,8 +413,8 @@ pub fn mode_lever() -> Arc<CardData> {
 ///
 /// "Choose X" (Doomsday Confluence's count, without its repeats, which
 /// `mode-rules-and-costs` builds): X is asked before the modes, which are the
-/// sets of that many (`choices-architecture.md`, decision 2b). Past three, no
-/// set of modes is that large, and the cast rewinds.
+/// groups of that many (`choices-architecture.md`, decision 2b). Past three, no
+/// group of modes is that large, and the cast rewinds.
 pub fn tally_of_choices() -> Arc<CardData> {
     let text = "Choose X —\n• Draw a card.\n• You gain 2 life.\n• Target player mills two cards.";
     CardDataBuilder::new("Tally of Choices")

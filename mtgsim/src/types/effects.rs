@@ -936,7 +936,7 @@ pub enum ModalCount {
     /// one mode to every mode printed, a count the node's own modes settle.
     OneOrMore,
     /// "Choose X": the X announced for the spell, which is asked first since
-    /// the sets of modes cannot be listed before it is known (CR 601.2b
+    /// the groups of modes cannot be listed before it is known (CR 601.2b
     /// announces both in one step).
     X,
     /// "Choose one. If [condition] as you cast this spell, you may choose both

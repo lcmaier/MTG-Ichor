@@ -22,7 +22,7 @@ use crate::objects::object::GameObject;
 use crate::state::game_state::{AbilityRef, GameState, PhaseType, StackEntry};
 use crate::engine::announcement::{Announcement, ChosenMode};
 use crate::engine::targeting::TargetInstance;
-use crate::oracle::modes::{legal_mode_sets, most_modes_for_x};
+use crate::oracle::modes::{legal_mode_groups, most_modes_for_x};
 use crate::types::effects::{EffectRecipient, ModalNode, ModeChooser, ModeIndex, TargetCount};
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
 use crate::types::triggers::Lki;
@@ -437,7 +437,7 @@ impl GameState {
     /// ([`Self::choose_modes`]) and then each chosen mode announces its own
     /// instances ([`Self::announce_chosen_modes`]).
     ///
-    /// `Err` when no set of modes is legal, which the caller rewinds or, for
+    /// `Err` when no group of modes is legal, which the caller rewinds or, for
     /// a trigger, removes (CR 603.3c), and for a modal effect that declares
     /// instances outside its node, which the registry refuses. `identity` is
     /// the ability announcing, none for a spell.
@@ -487,8 +487,8 @@ impl GameState {
         identity: Option<AbilityRef>,
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<ModeIndex>, String> {
-        let sets = legal_mode_sets(self, node, player_id, this_object, named_objects, x_value, identity);
-        if sets.is_empty() {
+        let groups = legal_mode_groups(self, node, player_id, this_object, named_objects, x_value, identity);
+        if groups.is_empty() {
             return Err(format!("no choice of {source_id}'s modes is legal (CR 700.2a)"));
         }
         let chooser = match node.chooser {
@@ -499,7 +499,7 @@ impl GameState {
                 several => crate::ui::ask::ask_choose_opponent(dp, self, player_id, source_id, several),
             },
         };
-        Ok(ask_choose_modes(dp, self, chooser, source_id, sets))
+        Ok(ask_choose_modes(dp, self, chooser, source_id, groups))
     }
 
     /// CR 601.2c for the chosen `modes` of `node`: each mode announces its own

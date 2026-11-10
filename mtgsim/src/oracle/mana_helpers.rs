@@ -17,7 +17,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::engine::costs::CannotPay;
 use crate::engine::layers::condition::ConditionReferents;
 use crate::engine::put_on_stack::SorceryTiming;
-use crate::oracle::modes::{has_a_legal_mode_set, legal_mode_sets};
+use crate::oracle::modes::{has_a_legal_mode_group, legal_mode_groups};
 
 /// Whether `player_id` can pay the mana `cost` asks, for `payment`: from the
 /// pool alone, or from all they can make, the inventory `supply` holds once
@@ -56,7 +56,7 @@ pub enum CannotCast {
     Timing(SorceryTiming),
     /// An instance of "target" with no legal choice (CR 601.2c).
     NoLegalTarget,
-    /// A modal spell with no set of modes its count allows whose targets can
+    /// A modal spell with no group of modes its count allows whose targets can
     /// all be chosen (CR 700.2a).
     NoLegalModes,
     /// A mandatory additional cost that can't be paid (CR 601.2h).
@@ -132,7 +132,7 @@ fn can_cast_with(
     if !every_instance_has_a_choice(game, obj.card_data.spell_instances(), player_id, card_id, ConditionReferents::NONE) {
         return Err(CannotCast::NoLegalTarget);
     }
-    // CR 700.2a: a modal spell needs a legal set of modes, each mode's targets
+    // CR 700.2a: a modal spell needs a legal group of modes, each mode's targets
     // among what makes one legal; the announcement's own list, asked for its
     // first. At the least X, as the mana below is asked.
     // PRE-LAYER ZONE: printed abilities on purpose, the card still in hand, as
@@ -140,12 +140,12 @@ fn can_cast_with(
     if let Some(node) = crate::objects::card_data::spell_modes(&obj.card_data.abilities) {
         let least_x = obj.card_data.mana_cost.as_ref().filter(|cost| cost.x_count() > 0).map(|_| u64::from(obj.card_data.x_cant_be_zero));
         // CR 700.2h: a mode's own cost is in the total, so where modes carry
-        // costs the spell is castable when some legal set's total is
-        // payable, asked set by set, the smaller sets first.
+        // costs the spell is castable when some legal group's total is
+        // payable, asked group by group, the smaller groups first.
         if node.modes_carry_costs() {
             let mut last = Err(CannotCast::NoLegalModes);
-            for set in legal_mode_sets(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
-                let costs: Vec<Cost> = set.iter().filter_map(|&mode| node.mode(mode)).flat_map(|mode| mode.cost.iter().cloned()).collect();
+            for group in legal_mode_groups(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
+                let costs: Vec<Cost> = group.iter().filter_map(|&mode| node.mode(mode)).flat_map(|mode| mode.cost.iter().cloned()).collect();
                 last = total_is_payable(game, player_id, card_id, &costs, supply);
                 if last.is_ok() {
                     break;
@@ -153,7 +153,7 @@ fn can_cast_with(
             }
             return last;
         }
-        if !has_a_legal_mode_set(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
+        if !has_a_legal_mode_group(game, node, player_id, card_id, ConditionReferents::NONE, least_x, None) {
             return Err(CannotCast::NoLegalModes);
         }
     }
@@ -161,7 +161,7 @@ fn can_cast_with(
 }
 
 /// Whether `card_id`'s total, with `chosen_costs` beside its printed costs (a
-/// set of modes' own, CR 700.2h), can be paid as CR 601.2f–h would lock and
+/// group of modes' own, CR 700.2h), can be paid as CR 601.2f–h would lock and
 /// pay it.
 fn total_is_payable(
     game: &GameState,
@@ -311,7 +311,7 @@ pub enum CannotActivate {
     ManaShort,
     /// An instance of "target" with no legal choice (CR 602.2b, 601.2c).
     NoLegalTarget,
-    /// A modal ability with no legal set of modes (CR 700.2a).
+    /// A modal ability with no legal group of modes (CR 700.2a).
     NoLegalModes,
 }
 
@@ -419,7 +419,7 @@ fn can_activate_as_its_controller(
     // (CR 602.2b) is `hybrid-and-phyrexian-payment`'s.
     let identity = game.object_ref(source_id).map(|source| crate::state::game_state::AbilityRef { source, ability: ability.id });
     if let Some(node) = ability.effect.modal()
-        && !has_a_legal_mode_set(game, node, player_id, source_id, ConditionReferents::NONE, None, identity)
+        && !has_a_legal_mode_group(game, node, player_id, source_id, ConditionReferents::NONE, None, identity)
     {
         return Err(CannotActivate::NoLegalModes);
     }
