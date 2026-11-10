@@ -84,7 +84,7 @@ pub struct StackEntry {
     /// resolution walks the chosen ones and no others (CR 700.2c), and a
     /// reader that does not ask which mode reads every instance through
     /// `Announcement::targets`.
-    pub announced: crate::engine::targeting::Announcement,
+    pub announced: crate::engine::announcement::Announcement,
     /// X value if the spell has a variable cost
     pub x_value: Option<u64>,
     /// The effect to resolve, copied off its def when the entry is pushed.
@@ -202,7 +202,7 @@ pub struct ResolvingObject {
     /// What its modes and instances of "target" announced, for
     /// `stack_object_facts`: the resolution holds the entry itself until the
     /// object finishes.
-    pub announced: crate::engine::targeting::Announcement,
+    pub announced: crate::engine::announcement::Announcement,
     /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
     /// ability has resolved this turn". `None` for a spell.
     pub identity: Option<AbilityIdentity>,
@@ -229,7 +229,7 @@ pub struct ResolvingObject {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StackObjectFacts<'a> {
     pub is_spell: bool,
-    pub announced: &'a crate::engine::targeting::Announcement,
+    pub announced: &'a crate::engine::announcement::Announcement,
     pub x_value: Option<u64>,
 }
 
@@ -3000,7 +3000,7 @@ mod tests {
         let entry = StackEntry {
             object_id: crate::types::ids::new_object_id(),
             controller: 0,
-            announced: crate::engine::targeting::Announcement::NONE,
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value: None,
             effect: Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
@@ -3019,7 +3019,8 @@ mod tests {
     /// its chosen modes are their places in the order chosen.
     #[test]
     fn an_announcements_targets_run_mode_after_mode() {
-        use crate::engine::targeting::{Announcement, ChosenMode, TargetInstance};
+        use crate::engine::announcement::{Announcement, ChosenMode};
+        use crate::engine::targeting::TargetInstance;
         use crate::types::effects::{EffectRecipient, ModeIndex, PlayerSet, SelectionFilter, TargetCount};
         use crate::types::ids::ObjectOrPlayer;
 

@@ -35,7 +35,8 @@ use mtgsim::types::ids::{new_object_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::zones::Zone;
-use mtgsim::engine::targeting::{Announcement, ChosenTargets};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::ChosenTargets;
 
 // ---------------------------------------------------------------------------
 // Helpers

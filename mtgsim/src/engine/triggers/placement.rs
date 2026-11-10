@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::condition::ConditionReferents;
 use super::binding::TriggeringEventView;
-use crate::engine::targeting::Announcement;
+use crate::engine::announcement::Announcement;
 use crate::engine::trace_records;
 use crate::events::cause::{EventCause, GameRule};
 use crate::events::unasked::{Elision, Unasked, UnaskedAnswer};

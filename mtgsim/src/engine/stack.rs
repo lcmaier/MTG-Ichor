@@ -143,8 +143,8 @@ impl GameState {
         // An effect's own survivors are the resolution's targets; a modal
         // effect's go with each chosen mode.
         let (own, modes) = match surviving {
-            crate::engine::targeting::SurvivingTargets::Targets(own) => (own, Vec::new()),
-            crate::engine::targeting::SurvivingTargets::Modes(modes) => (crate::engine::targeting::ChosenTargets::NONE, modes),
+            crate::engine::announcement::SurvivingTargets::Targets(own) => (own, Vec::new()),
+            crate::engine::announcement::SurvivingTargets::Modes(modes) => (crate::engine::targeting::ChosenTargets::NONE, modes),
         };
 
         // --- Resolve the effect (rule 608.2c-m) ---
@@ -404,7 +404,7 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            announced: crate::engine::targeting::Announcement::Targets(chosen_targets),
+            announced: crate::engine::announcement::Announcement::Targets(chosen_targets),
             x_value: None,
             effect: std::sync::Arc::new(effect),
             is_spell: true,
@@ -530,7 +530,7 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            announced: crate::engine::targeting::Announcement::NONE,
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
@@ -606,7 +606,7 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            announced: crate::engine::targeting::Announcement::NONE,
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
@@ -664,7 +664,7 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            announced: crate::engine::targeting::Announcement::Targets(chosen_targets),
+            announced: crate::engine::announcement::Announcement::Targets(chosen_targets),
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
@@ -798,7 +798,7 @@ mod tests {
         game.stack_entries.insert(aura_id, StackEntry {
             object_id: aura_id,
             controller: 0,
-            announced: crate::engine::targeting::Announcement::NONE,
+            announced: crate::engine::announcement::Announcement::NONE,
             x_value: None,
             effect: std::sync::Arc::new(Effect::Sequence(Vec::new())),
             is_spell: true,

@@ -323,7 +323,8 @@ use mtgsim::oracle::mana_helpers::activatable_abilities;
 use mtgsim::state::game_state::{Phase, PhaseType};
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::engine::targeting::{Announcement, TargetInstance};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::TargetInstance;
 
 fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
     get_effective_abilities(game, equipment)

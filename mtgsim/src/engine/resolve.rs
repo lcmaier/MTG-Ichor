@@ -8,7 +8,8 @@ use crate::engine::layers::types::{
 };
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::{EventId, GameEvent, ResolutionStamp};
-use crate::engine::targeting::{instance_of, Announcement, ChosenTargets, DeclaredInstances, SurvivingMode};
+use crate::engine::announcement::{Announcement, SurvivingMode};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances};
 use crate::oracle::characteristics::ObjectInformation;
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::{ZoneSet, Zone};

@@ -365,7 +365,7 @@ mod tests {
             cast: Some(CastFacts { by: 0, from: Zone::Hand, mana_spent: ManaSpent::NONE }),
             cost_choices: CostChoices { additional: vec![AdditionalCost::Bargain], ..CostChoices::NONE },
             x_value: Some(3),
-            announced: crate::engine::targeting::Announcement::NONE,
+            announced: crate::engine::announcement::Announcement::NONE,
             identity: None,
             trigger: None,
             began_at: game.events.next_seq(),

@@ -704,7 +704,7 @@ mod tests {
             cast: None,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             x_value: None,
-            announced: crate::engine::targeting::Announcement::NONE,
+            announced: crate::engine::announcement::Announcement::NONE,
             identity: None,
             trigger: None,
             began_at: game.events.next_seq(),

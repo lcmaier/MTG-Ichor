@@ -26,7 +26,8 @@ use mtgsim::cards::printings::{blood_artist, felidar_sovereign, soul_warden, ver
 use mtgsim::engine::actions::{GameAction};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::{Announcement, ChosenTargets};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{could_be_a_mana_ability, visible_to_all};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};

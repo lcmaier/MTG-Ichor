@@ -15,7 +15,7 @@
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::replacement::{BatchMember, SubjectGroup};
-use crate::engine::targeting::Announcement;
+use crate::engine::announcement::Announcement;
 use crate::events::event::EventId;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::state::trace::{render_debug, render_subject, Record, RecordKind};

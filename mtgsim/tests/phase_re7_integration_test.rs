@@ -41,7 +41,8 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::{Announcement, ChosenTargets, TargetInstance};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 
 // ---------------------------------------------------------------------------
 // Helpers

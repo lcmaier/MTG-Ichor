@@ -22,7 +22,8 @@ use mtgsim::cards::authoring::{becomes_attached, becomes_unattached, triggered_a
 use mtgsim::cards::printings::{bonesplitter, bramble_elemental, grafted_wargear, grizzly_bears, holy_strength};
 use mtgsim::cards::authoring::equip;
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::{Announcement, ChosenTargets, TargetInstance};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::GeneratedBy;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::events::cause::{EventCause, StateBasedAction};

@@ -32,7 +32,8 @@ use mtgsim::cards::printings::{
 };
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
-use mtgsim::engine::targeting::{Announcement, ChosenTargets, TargetInstance};
+use mtgsim::engine::announcement::Announcement;
+use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 use mtgsim::events::cause::{EventCause, GeneratedBy};
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};

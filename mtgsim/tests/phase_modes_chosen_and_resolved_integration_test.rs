@@ -26,7 +26,7 @@ use mtgsim::cards::printings::{abrade, casualties_of_war, cryptic_command, fores
 use mtgsim::oracle::mana_helpers::{can_cast, CannotCast};
 use mtgsim::oracle::x_values::{LegalXValues, XStop};
 use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
-use mtgsim::engine::targeting::Announcement;
+use mtgsim::engine::announcement::Announcement;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp};
 use mtgsim::types::effects::ModeIndex;
