@@ -272,8 +272,18 @@ reviewed binary, whose read-only and code segments now share a file page, so its
 list was blank and the growth gate read zero; the same tree linked with `-z separate-code`
 read ×3.94 to ×4.03, unchanged.
 
+**Rerun after the review round (2026-11-09), on `2f526705`** against `046c3d27`, the tree you
+reviewed: "another target" with no instance number, the fixture and five names renamed, the
+announcement's own module, a test helper. Predicted every row `IDENTICAL`: the wrapper
+excludes what the numbered one did on Arc Trail and Incremental Growth, and the rest moves no
+answer. Every gameplay row **IDENTICAL** on both pools at both seats; instructions a decision
+0.7053 M → 0.7046 M, **-0.11%**. The growth gate read the round's own binary this time,
+×3.94 to ×4.03; the function list compares it against the measured binary valgrind could not
+read, so its rows are one arm each and say nothing.
+
 **Size**: 2,445 added and 525 removed in `mtgsim/src` and `mtgsim/tests`, 2,970 touched, and
-3,091 after the pre-review's fixes, against the intake's 1,410–2,380 without the picker: past
+3,091 after the pre-review's fixes and 3,155 after the review round's (632 lines touched in
+the round, most of them the announcement's move and its imports), against the intake's 1,410–2,380 without the picker: past
 the band's top, the engine half 2,426 of it. The picker went to `mode-picker`, as the intake set. Registering the cards moved
 `priority_fork_test`'s delayed-trigger seed (21 → 43, from the sweep: 0 of 13,064 branches
 diverging) and `prompt_subject_test`'s second window (0xA4_0039).
