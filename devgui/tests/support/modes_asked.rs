@@ -1,6 +1,6 @@
 //! A choice of modes as the window is sent it, kept off a game a test builds:
-//! the engine's own offer, for boards no review scenario can make, such as a
-//! fixture's, which no scenario can name.
+//! the engine's own offer, for boards no review scenario can make, such as one
+//! with a fixture the registry leaves out, as Pawprint Parade is.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -36,9 +36,11 @@ impl Asked {
 }
 
 /// A seat that keeps what the window would be sent at the first choice of
-/// modes it is asked, and gives the first legal answer to everything.
+/// modes it is asked, and gives the first legal answer to everything, a
+/// number aside: `x`, where it is in range.
 pub struct Keeping {
     kept: Rc<RefCell<Option<Asked>>>,
+    x: Option<u64>,
 }
 
 impl DecisionProvider for Keeping {
@@ -50,8 +52,8 @@ impl DecisionProvider for Keeping {
         (0..bounds.0).collect()
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
-        min
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.x.map_or(min, |x| x.clamp(min, max))
     }
 
     fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
@@ -66,7 +68,7 @@ impl DecisionProvider for Keeping {
 /// A keeping seat, and where it keeps what it was asked.
 pub fn keeping() -> (Keeping, Rc<RefCell<Option<Asked>>>) {
     let kept = Rc::new(RefCell::new(None));
-    (Keeping { kept: Rc::clone(&kept) }, kept)
+    (Keeping { kept: Rc::clone(&kept), x: None }, kept)
 }
 
 /// The Pawprint Parade fixture's choice of modes, cast at two seats: three
@@ -78,11 +80,16 @@ pub fn pawprint_parade() -> Asked {
 
 /// `card`'s choice of modes, cast by player 0 from `mana` floating.
 pub fn cast(game: &mut GameState, card: Arc<CardData>, mana: &[(ManaType, u64)]) -> Asked {
+    cast_with_x(game, card, mana, None)
+}
+
+/// As [`cast`], with `x` announced for a count of X, which is asked first.
+pub fn cast_with_x(game: &mut GameState, card: Arc<CardData>, mana: &[(ManaType, u64)], x: Option<u64>) -> Asked {
     let id = put_in_hand(game, card, 0);
     for &(mana_type, n) in mana {
         game.players[0].mana_pool.add(mana_type, n);
     }
     let (seat, kept) = keeping();
-    game.cast_spell(0, id, &ManaWindowStop::new(seat)).expect("castable from the mana floating");
+    game.cast_spell(0, id, &ManaWindowStop::new(Keeping { x, ..seat })).expect("castable from the mana floating");
     kept.take().expect("its modes were asked")
 }

@@ -1,6 +1,8 @@
-//! The mode picker over the engine's own offers, one board per count rule the
-//! engine knows: a card cast, or a trigger placed, and the window's prompt kept
-//! as the seat is asked for its modes. Every set of ticks the picker can reach
+//! The mode picker over the engine's own offers, a board for each of
+//! `ModalCount`'s seven arms (exactly, a range, one or more, none or n, X,
+//! pawprints, a raised count) and for the node's rules (a repeat, a mode's own
+//! cost, a different player each): a card cast, or a trigger placed, and the
+//! window's prompt kept as the seat is asked for its modes. Every set of ticks the picker can reach
 //! is walked: Done is live exactly where the ticks are an offered choice and
 //! answers with that option, a tick is live exactly where some offered choice
 //! still holds the ticks with it, and every offered choice is reached.
@@ -13,7 +15,7 @@ use std::collections::BTreeSet;
 
 use devgui::prompt::{Answer, Prompt, Reply};
 use devgui::view_model::{Input, ModeControl, ModeRow, Selection, WindowState};
-use mtgsim::cards::fixtures::echoing_reckoning;
+use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, kindled_option, tally_of_choices};
 use mtgsim::cards::printings::{casualties_of_war, cryptic_command, explosive_derailment, grizzly_bears, vindictive_lich};
 use mtgsim::test_support::{card_of_type, fill_library, lightning_bolt, put_in_hand, put_on_battlefield, setup_game, test_ctx};
 use mtgsim::types::card_types::CardType;
@@ -21,7 +23,7 @@ use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use modes_asked::{cast, keeping};
+use modes_asked::{cast, cast_with_x, keeping};
 
 fn modes(places: &[u8]) -> Vec<ModeIndex> {
     places.iter().map(|&place| ModeIndex::printed(place)).collect()
@@ -174,4 +176,46 @@ fn vindictive_lich_at_three_seats_ticks_one_mode_or_two() {
     assert_eq!(walked.rows.len(), 3);
     assert_eq!(walked.confirmed, 6);
     assert!(walked.reached.iter().all(|ticks| ticks.len() <= 2), "no third mode at two opponents");
+}
+
+/// The Divided Envoy fixture's "you may choose two": Done is live at no
+/// ticks, dead at one, and live again at two.
+#[test]
+fn divided_envoy_ticks_none_or_two() {
+    let mut game = setup_game(2);
+    let envoy = put_in_hand(&mut game, divided_envoy(), 0);
+    for (mana_type, n) in [(ManaType::White, 1), (ManaType::Black, 1), (ManaType::Green, 3)] {
+        game.players[0].mana_pool.add(mana_type, n);
+    }
+    game.cast_spell(0, envoy, &ManaWindowStop::new(keeping().0)).expect("castable from the mana floating");
+    game.resolve_top_of_stack(&keeping().0).expect("it enters");
+    let (seat, kept) = keeping();
+    // The seat's first legal answer is no modes, so CR 603.3c removes the trigger.
+    assert!(!game.place_pending_triggers(&seat).expect("its trigger is asked"));
+    let walked = walk(&kept.take().expect("its modes were asked").prompt);
+    assert_eq!(walked.confirmed, 4, "none, and the three pairs");
+    assert!(walked.reached.contains(&modes(&[2])), "one tick is reached, and the walk found Done dead there");
+}
+
+/// The Tally of Choices fixture's "choose X", X announced first as 2: Done
+/// waits for two ticks, and a third is never live.
+#[test]
+fn tally_of_choices_ticks_x_modes() {
+    let mut game = setup_game(2);
+    let prompt = cast_with_x(&mut game, tally_of_choices(), &[(ManaType::Blue, 3)], Some(2)).prompt;
+    let walked = walk(&prompt);
+    assert_eq!(walked.confirmed, 3);
+    assert!(walked.reached.iter().all(|ticks| ticks.len() <= 2));
+}
+
+/// The Kindled Option fixture's raised count: with an artifact, one mode or
+/// both.
+#[test]
+fn kindled_option_ticks_one_or_both_with_an_artifact() {
+    let mut game = setup_game(2);
+    put_on_battlefield(&mut game, card_of_type("Relic", CardType::Artifact), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let walked = walk(&cast(&mut game, kindled_option(), &[(ManaType::Red, 2)]).prompt);
+    assert_eq!(walked.confirmed, 3);
+    assert!(walked.reached.contains(&modes(&[1, 2])));
 }
