@@ -1346,10 +1346,12 @@ pub enum SelectionFilter {
     /// scope chose (the effect's, or one mode's). CR 601.2c lets one object be
     /// chosen once for each instance "as long as it fits the targeting
     /// criteria", and "another" is how a card puts the exclusion into those
-    /// criteria, over a player as over a permanent (Arc Trail). Every printed
-    /// "another" is other than the targets its sentence named before it, so
-    /// no instance is named: Incremental Growth's second and third clauses
-    /// are the same filter.
+    /// criteria, over a player as over a permanent (Arc Trail). "Another"
+    /// after earlier instances is other than every one of them, so no
+    /// instance is named: Incremental Growth's second and third clauses are
+    /// the same filter. With no "target" before it, a permanent's "another
+    /// target permanent" is other than the permanent itself, which is
+    /// `ObjectFilter::NotSource` (Flickerwisp), not this.
     ///
     /// Identity is not a characteristic, so no layer can change it. Answered
     /// only where the asker holds the instances chosen so far — CR 601.2c's

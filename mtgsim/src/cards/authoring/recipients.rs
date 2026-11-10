@@ -81,7 +81,9 @@ pub fn any_other_target() -> EffectRecipient {
 }
 
 /// "Another target [filter]", "a third target [filter]" (CR 601.2c): one more
-/// instance of "target", other than what the targets before it chose.
+/// instance of "target", other than what the targets before it chose. A
+/// permanent's "another target permanent" with no target before it is other
+/// than the permanent: `target_permanent(another(ObjectFilter::All))`, Flickerwisp's.
 pub fn another_target(filter: SelectionFilter) -> EffectRecipient {
     target(SelectionFilter::Another(Box::new(filter)))
 }
