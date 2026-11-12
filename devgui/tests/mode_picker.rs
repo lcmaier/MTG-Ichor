@@ -86,8 +86,9 @@ fn walk(prompt: &Prompt) -> Walked {
     walked
 }
 
-fn kinds(rows: &[ModeRow]) -> Vec<(String, bool)> {
-    rows.iter().map(|row| (row.label.clone(), matches!(row.control, ModeControl::Count(_)))).collect()
+/// Each row's label, and whether it is a count.
+fn kinds(rows: &[ModeRow]) -> Vec<(&str, bool)> {
+    rows.iter().map(|row| (row.label.as_str(), matches!(row.control, ModeControl::Count(_)))).collect()
 }
 
 /// Cryptic Command's "choose two", each mode with a choice: four checkboxes,
@@ -101,8 +102,13 @@ fn cryptic_command_ticks_two_of_four() {
     game.cast_spell(1, bolt, &ManaWindowStop::new(keeping().0)).expect("a spell to counter");
     let prompt = cast(&mut game, cryptic_command(), &[(ManaType::Blue, 4)]).prompt;
     let walked = walk(&prompt);
-    let checkboxes = (1..=4).map(|mode| (format!("Mode {mode}"), false)).collect::<Vec<_>>();
-    assert_eq!(kinds(&walked.rows), checkboxes);
+    let checkboxes = [
+        ("1. Counter target spell.", false),
+        ("2. Return target permanent to its owner's hand.", false),
+        ("3. Tap all creatures your opponents control.", false),
+        ("4. Draw a card.", false),
+    ];
+    assert_eq!(kinds(&walked.rows), checkboxes, "each mode by its place and its line of the text");
     assert_eq!(walked.confirmed, 6);
     assert!(walked.reached.iter().all(|ticks| ticks.len() <= 2), "no third tick once two are in");
 }
@@ -130,7 +136,7 @@ fn echoing_reckoning_counts_a_mode_chosen_again() {
     put_on_battlefield(&mut game, grizzly_bears(), 1);
     let prompt = cast(&mut game, echoing_reckoning(), &[(ManaType::Red, 3)]).prompt;
     let walked = walk(&prompt);
-    assert_eq!(kinds(&walked.rows), [("Mode 1".to_string(), true), ("Mode 2".to_string(), true)]);
+    assert_eq!(kinds(&walked.rows), [("1. This spell deals 2 damage to target creature.", true), ("2. Draw a card.", true)]);
     assert_eq!(walked.confirmed, 15, "none, then one to four of two");
     assert!(walked.reached.contains(&modes(&[1, 1, 1, 1])));
 }
@@ -141,7 +147,8 @@ fn echoing_reckoning_counts_a_mode_chosen_again() {
 #[test]
 fn pawprint_parade_ticks_within_its_budget() {
     let walked = walk(&modes_asked::pawprint_parade().prompt);
-    assert_eq!(kinds(&walked.rows), [("Mode 1".to_string(), true), ("Mode 2".to_string(), false), ("Mode 3".to_string(), true)]);
+    let rows = [("1. {P} — You gain 1 life.", true), ("2. {P}{P} — Draw a card.", false), ("3. {P} — Target player mills two cards.", true)];
+    assert_eq!(kinds(&walked.rows), rows, "a mode's pawprints are in its words");
     assert!(walked.reached.contains(&modes(&[2, 3])) && walked.reached.contains(&modes(&[1, 1, 3])));
     assert!(!walked.reached.contains(&modes(&[1, 2, 3])), "four pawprints is past three");
 }
@@ -154,7 +161,8 @@ fn explosive_derailment_ticks_one_mode_or_both() {
     put_on_battlefield(&mut game, card_of_type("Relic", CardType::Artifact), 1);
     let prompt = cast(&mut game, explosive_derailment(), &[(ManaType::Red, 5)]).prompt;
     let walked = walk(&prompt);
-    assert_eq!(kinds(&walked.rows), [("Mode 1".to_string(), false), ("Mode 2".to_string(), false)]);
+    let rows = [("1. + {2} — Explosive Derailment deals 4 damage to target creature.", false), ("2. + {2} — Destroy target artifact.", false)];
+    assert_eq!(kinds(&walked.rows), rows, "a mode's own cost is in its words");
     assert_eq!(walked.confirmed, 3);
 }
 

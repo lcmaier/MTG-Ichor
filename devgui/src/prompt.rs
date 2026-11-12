@@ -8,9 +8,9 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
-use mtgsim::ui::display::{option_label, question, rejection, what_the_option_does};
+use mtgsim::ui::display::{mode_label, option_label, question, rejection, what_the_option_does};
 use mtgsim::ui::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
 
 /// An answer, in the shape of the primitive that asked.
@@ -109,8 +109,8 @@ pub struct Prompt {
     pub primitive: Primitive,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
-    /// Each mode some option is a choice of, in printed order, labeled as
-    /// `ui::display` labels the choice of it alone: the mode picker's rows.
+    /// Each mode some option is a choice of, in printed order, labeled by
+    /// `ui::display::mode_label` with its place and words: the mode picker's rows.
     pub mode_labels: Vec<(ModeIndex, String)>,
     /// At CR 601.2g's window, each mana ability it does not offer until the
     /// pool holds its mana, with why.
@@ -166,14 +166,15 @@ impl Prompt {
             why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
             options: options.iter().map(|option| option_view(game, option)).collect(),
-            mode_labels: mode_labels(game, options),
+            mode_labels: mode_labels(&context.kind, options),
             not_offered_yet: not_offered_yet(game, &OpenQuestion { player, context, options }),
         }
     }
 }
 
-/// Each mode some option is a choice of, once, in printed order, with its label.
-fn mode_labels(game: &GameState, options: &[ChoiceOption]) -> Vec<(ModeIndex, String)> {
+/// Each mode some option is a choice of, once, in printed order, with its
+/// label: its place and its words, as the question carries them.
+fn mode_labels(kind: &ChoiceKind, options: &[ChoiceOption]) -> Vec<(ModeIndex, String)> {
     let mut modes: Vec<ModeIndex> = options
         .iter()
         .filter_map(|option| match option {
@@ -185,7 +186,7 @@ fn mode_labels(game: &GameState, options: &[ChoiceOption]) -> Vec<(ModeIndex, St
         .collect();
     modes.sort_unstable();
     modes.dedup();
-    modes.into_iter().map(|mode| (mode, option_label(game, &ChoiceOption::Modes(vec![mode])))).collect()
+    modes.into_iter().map(|mode| (mode, mode_label(kind, mode))).collect()
 }
 
 /// The board things an option names, in the order `OptionView::refs` keeps.
