@@ -1252,8 +1252,10 @@ Where it differs from decisions 2 and 3's words:
 
 ### `mode-picker` — the dev GUI asks for modes one at a time — ✅ landed 2026-11-09
 
-PR #320, the dev GUI's half of `modal-spells-and-abilities`: 828 lines of code and tests
-touched against the guess of 300–600, the brief's 400–700 by parts.
+PR #320, the dev GUI's half of `modal-spells-and-abilities`: 977 lines of code and tests
+touched, 136 of them the engine's for the mode words, against the guess of 300–600 and the
+brief's 400–700 by parts, which held no words. Its close-out: gameplay identical on both pools
+at two seats and four, instructions per decision +0.36%.
 - **The picker** (decision 2's "For the GUIs"): a row per mode some offered choice has, a
   checkbox, or a count where some choice has the mode twice. A tick is live while some offered
   choice still holds the ticks with it, and Done while the ticks are one. It reads the offered
