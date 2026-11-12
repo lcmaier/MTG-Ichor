@@ -10770,19 +10770,11 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
 
 ### Found by `mode-picker` (2026-11-09)
 
-417. **A mode's words reach no client.** The dev GUI's picker labels each row
-     by the mode's printed place ("Mode 2"), as the log and the options'
-     labels do. Decision 2 has a client draw "its modes' text, read off the
-     ability as the layers give it", and `modes-chosen-and-resolved`'s as-built
-     gave each mode's words to the dev GUI PR, but nothing carries them: a
-     `Mode` holds no words, and `ChoiceKind::ChooseModes` names its source,
-     not which of the source's abilities announces. The surface is the
-     announcing ability on the kind, and `ui::display` giving each mode's
-     words off that ability's paragraph on the effective list.
-     **Reachability (2026-11-09):** reachable — not wrong today: a person
-     reads the modes off the card's hover beside the picker.
-     **Sized:** ~100–160 lines: the ability on the kind, the words by mode
-     in `ui::display`, `Prompt::mode_labels` reading them (the rows already
-     do), a test over the picker's cards.
-     **Slotted:** `values-chosen-at-resolution`, which reshapes the choice
-     kinds and the words `ui::display` gives their options.
+417. **A mode's words reach no client yet.** — ✅ closed.
+     The picker labeled each row by its place alone ("Mode 3"). Each `Mode`
+     now holds its line of the ability's text, cut in `AbilityDef::new`;
+     `ChooseModes` carries the words of the node being announced, so a
+     grant's or a copy's are its own, and `ui::display::mode_label` words a
+     row "3. Tap all creatures your opponents control."
+     **Reachability (2026-11-12):** closed — PR #320, at the owner's word in
+     review.

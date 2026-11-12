@@ -44,6 +44,6 @@ merges.
   the point its intake set.
 - `mode-picker` (#320), the dev GUI PR, is handed over: a choice of modes is
   ticked a mode at a time, a checkbox or a count per mode, read off the offered
-  list alone, its as-built in `choices-architecture.md`. Item 417 found: a
-  mode's words reach no client, slotted at `values-chosen-at-resolution`.
+  list alone, each row showing its mode's printed line, its as-built in
+  `choices-architecture.md`. Item 417, a mode's words, found and closed in it.
 - Next: `mana-provenance`'s design, ahead of `costs-and-choices-at-resolution`.

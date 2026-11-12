@@ -1263,6 +1263,11 @@ touched against the guess of 300–600, the brief's 400–700 by parts.
   place answers nothing at the picker, and the digit key n is mode n's click.
 - **Chosen by the options, not the kind**: `OptionView::modes`, as `attacker` is, and a prompt
   whose every option is a choice of modes is a picker. A forced choice is still unasked.
+- **Each mode's words** (item 417, taken into this PR at the owner's word in review): a `Mode`
+  holds its line of the ability's text, cut in `AbilityDef::new`, which every card, grant and
+  copy goes through; `ChooseModes` carries the words of the node being announced, and
+  `ui::display::mode_label` words a row "1. Counter target spell." The engine's one change: no
+  decision reads the words, so no game or log line moves.
 - **Tested over the engine's own offers** for each of `ModalCount`'s seven arms and the
   node's rules (Cryptic Command, Casualties of War, Explosive Derailment, Vindictive Lich at
   three seats; the Echoing Reckoning, Pawprint Parade, Divided Envoy, Tally of Choices and
@@ -1275,8 +1280,10 @@ Where it differs from decision 2's words:
 - **"Choose one" is a tick, then Done**: one click more than the list's button took, since
   Done is live while the ticks are a listed choice, as "B against C" puts it, and a tick
   can be taken back before it goes.
-- **A row is labeled as `ui::display` labels the choice of its mode alone** ("Mode 2"), not
-  by its words: nothing carries a mode's words to a client (`codebase-state.md` item 417).
+- **A mode's words are its printed line, cut, not composed from its effect**: the first line
+  of the ability's text is the count and each line after it a mode. A text with other than a
+  line per mode keeps "Mode 1"; no registered card or castable fixture has one, which a
+  registry test holds.
 
 ## 6. Found while designing
 
