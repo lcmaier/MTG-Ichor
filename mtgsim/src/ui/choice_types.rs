@@ -57,8 +57,10 @@ pub enum ChoiceKind {
     /// in printed order within a set, the smaller sets first. Not asked when
     /// one set is legal. A client may draw it a mode at a time, each mode
     /// enabled while some offered set still holds the picks so far
-    /// (`choices-architecture.md`, decision 2).
-    ChooseModes { source: ObjectId },
+    /// (`choices-architecture.md`, decision 2). `words` is each mode's line
+    /// of the announcing ability's text, by printed place, for a client to
+    /// show the modes by (`ui::display::mode_label`).
+    ChooseModes { source: ObjectId, words: Vec<(ModeIndex, &'static str)> },
     /// CR 601.2b — the value of X for `spell_id`. `values` is what the
     /// engine offers and why (`oracle::x_values`), how many times the cost
     /// pays X among it:
@@ -413,7 +415,7 @@ impl ChoiceKind {
             ChoiceKind::DeclareBlockers => None,
             ChoiceKind::AssignCombatDamage { attacker_id } => Some(*attacker_id),
             ChoiceKind::AssignTrampleDamage { attacker_id, .. } => Some(*attacker_id),
-            ChoiceKind::ChooseModes { source } => Some(*source),
+            ChoiceKind::ChooseModes { source, .. } => Some(*source),
             ChoiceKind::ChooseXValue { spell_id, .. } => Some(*spell_id),
             ChoiceKind::ChooseAlternativeCost { spell_id } => Some(*spell_id),
             ChoiceKind::ChooseAdditionalCosts { spell_id } => Some(*spell_id),

@@ -27,7 +27,7 @@ use crate::state::game_state::{AbilityRef, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::effects::CounterType;
+use crate::types::effects::{CounterType, ModeIndex};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
@@ -433,7 +433,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             n(attacker_id),
             damage_target_name(game, defending_target)
         ),
-        ChoiceKind::ChooseModes { source } => format!("Choose the modes of {}", n(source)),
+        ChoiceKind::ChooseModes { source, .. } => format!("Choose the modes of {}", n(source)),
         ChoiceKind::ChooseXValue { spell_id, .. } => format!("Choose X for {}", n(spell_id)),
         ChoiceKind::ChooseAlternativeCost { spell_id } => format!("Choose how to pay for {}", n(spell_id)),
         ChoiceKind::ChooseAdditionalCosts { spell_id } => format!("Choose additional costs for {}", n(spell_id)),
@@ -564,6 +564,20 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::Replacement(ReplacementOption::Rule { object, rule: GameRuleReplacement::CommanderZone }) => {
             format!("{} · the commander rule", n(&object.id))
         }
+    }
+}
+
+/// One mode as a client lists it at a choice of modes: its printed place and
+/// its words, "1. Counter target spell.", or "Mode 1" where `kind` carries
+/// none for it.
+pub fn mode_label(kind: &ChoiceKind, mode: ModeIndex) -> String {
+    let words = match kind {
+        ChoiceKind::ChooseModes { words, .. } => words.iter().find(|(place, _)| *place == mode).map(|(_, words)| *words),
+        _ => None,
+    };
+    match words {
+        Some(words) => format!("{mode}. {words}"),
+        None => format!("Mode {mode}"),
     }
 }
 
@@ -1436,6 +1450,19 @@ mod tests {
     #[test]
     fn a_target_reads_with_its_share() {
         assert_eq!(target_with_share(&player_name(1), 2), "Player 1 for 2");
+    }
+
+    /// A mode reads as its place and its line of Cryptic Command's text, and
+    /// as its place alone where the question carries no words for it.
+    #[test]
+    fn a_mode_reads_as_its_place_and_its_words() {
+        let cryptic = printings::cryptic_command();
+        let node = cryptic.abilities[0].effect.modal().expect("Cryptic Command is modal");
+        let kind = ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: node.words() };
+        assert_eq!(mode_label(&kind, ModeIndex::printed(1)), "1. Counter target spell.");
+        assert_eq!(mode_label(&kind, ModeIndex::printed(4)), "4. Draw a card.");
+        let wordless = ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() };
+        assert_eq!(mode_label(&wordless, ModeIndex::printed(2)), "Mode 2");
     }
 
     #[test]

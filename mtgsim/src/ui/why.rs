@@ -460,7 +460,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
             format!("how {}'s combat damage is divided among the creatures blocking it and what it attacks", n(attacker_id)),
             Some("702.19b"),
         ),
-        ChoiceKind::ChooseModes { source } => (
+        ChoiceKind::ChooseModes { source, .. } => (
             format!("the groups of {}'s modes its count allows, leaving out a mode whose targets have no legal choice", n(source)),
             Some("700.2a"),
         ),

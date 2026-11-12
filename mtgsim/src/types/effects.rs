@@ -1019,6 +1019,11 @@ pub struct Mode {
     /// additional cost the spell's total includes for each time it is chosen;
     /// empty for a mode that prints none.
     pub cost: Vec<crate::types::costs::Cost>,
+    /// Its line of the ability's text, a bullet's words without the bullet
+    /// ("Counter target spell.", "+ {2} — Destroy target artifact."): what a
+    /// client shows for it. Written by [`ModalNode::take_words_from`] as the
+    /// ability is made; empty where the text does not cut into the modes.
+    pub words: &'static str,
 }
 
 impl Mode {
@@ -1026,7 +1031,7 @@ impl Mode {
     /// and no cost of its own.
     pub fn new(effect: Effect) -> Mode {
         let instances = effect.instances();
-        Mode { effect, instances, pawprints: 1, cost: Vec::new() }
+        Mode { effect, instances, pawprints: 1, cost: Vec::new(), words: "" }
     }
 
     /// `effect` behind its printed cost (CR 700.2h).
@@ -1068,6 +1073,27 @@ impl ModalNode {
     /// Every mode with its printed place, in printed order.
     pub fn indexed_modes(&self) -> impl Iterator<Item = (ModeIndex, &Mode)> {
         self.modes.iter().enumerate().filter_map(|(at, mode)| Some((ModeIndex::from_list_position(at)?, mode)))
+    }
+
+    /// Each mode's words, cut from `text`, the whole ability's: its first
+    /// line is the count ("Choose two —", "Spree"), and each line after it
+    /// one mode, in printed order, a bullet's "• " dropped. A text with other
+    /// than a line per mode after its first writes none, since no line can
+    /// then be told to be a mode's.
+    pub fn take_words_from(&mut self, text: &'static str) {
+        let lines: Vec<&'static str> = text.lines().skip(1).collect();
+        if lines.len() != self.modes.len() {
+            return;
+        }
+        for (mode, line) in self.modes.iter_mut().zip(lines) {
+            mode.words = line.strip_prefix("• ").unwrap_or(line).trim();
+        }
+    }
+
+    /// Each mode with words, by its printed place: what a client is handed
+    /// to show the modes by.
+    pub fn words(&self) -> Vec<(ModeIndex, &'static str)> {
+        self.indexed_modes().filter(|(_, mode)| !mode.words.is_empty()).map(|(place, mode)| (place, mode.words)).collect()
     }
 }
 
@@ -3041,6 +3067,17 @@ impl Effect {
             Effect::Modal(node) => Some(node),
             Effect::FunctionsIn(_, inner) => inner.modal(),
             Effect::Triggered(def) => def.effect.modal(),
+            _ => None,
+        }
+    }
+
+    /// [`Self::modal`], to write: an ability's words onto its modes as it is
+    /// made.
+    pub fn modal_mut(&mut self) -> Option<&mut ModalNode> {
+        match self {
+            Effect::Modal(node) => Some(node),
+            Effect::FunctionsIn(_, inner) => inner.modal_mut(),
+            Effect::Triggered(def) => std::sync::Arc::make_mut(def).effect.modal_mut(),
             _ => None,
         }
     }
