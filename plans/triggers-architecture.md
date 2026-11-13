@@ -319,7 +319,9 @@ the performed record (CR 603).
 a token ceasing to exist (CR 704.5d) and the game ending in a draw (CR 104.4a)
 are proposals no card replaces and no trigger names; each `GameAction`'s doc
 says so. With `Attach`, `Unattach`, `ShuffleLibrary` and `BecomeBlocked` above
-they are every `GameAction` variant with no pattern.
+they are every `GameAction` variant with no pattern: seven, where
+`EventPattern`'s own doc still says "the two without one", to be corrected
+with the next change to `types/replacement.rs`.
 
 **What it says.** Every hole on the pattern side that is not a CR rule is "no
 card", and each is recorded where the proposal is defined. The trigger side
