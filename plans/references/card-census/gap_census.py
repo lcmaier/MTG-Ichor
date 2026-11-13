@@ -11,10 +11,12 @@ line a card in `results/gap-census-records.jsonl`, adding which rows to come
 reshape what the card was written in, read off its source; `report` joins those
 lines to the five lists and to `roadmap-v2.md`'s Sizing table and writes
 `results/gap-census.md`. A row's hunt records what it finds with `amend`, since the
-crate that wrote the cards is not kept. A row the Sizing table splits or renames
-takes its records with it through `rename`: a need naming no row reads as met, so
+crate that wrote the cards is not kept. A row the Sizing table renames takes its
+records with it through `rename`: a need naming no row reads as met, so
 `record_problems` fails one, here and on the board (`check_state_of_play.py`),
-which counts the cards with no need left.
+which counts the cards with no need left. A row split in two is renamed to its
+later part, so no card reads as writable early, and a card that needs only the
+earlier part is moved to it with `amend`.
 
 **A record's fields.** A run's line holds `name`, `made_by` (the function that
 builds it), `needs`, `note`, `loops`, `board` (`passed`, `no board` or `FAILED: …`),
@@ -233,7 +235,9 @@ def amend(card, add, remove):
 
 
 def rename(old, new):
-    """A row split or renamed in the Sizing table, carried into every record."""
+    """A row renamed in the Sizing table, carried into every record. A split
+    row goes to its later part, and `amend` moves a card that needs only the
+    earlier one."""
     records = read_records()
     renamed = 0
     for record in records.values():
@@ -329,7 +333,7 @@ def record_problems(records, rows, landed, unregistered):
         return need.removeprefix(GAP_PREFIX) in GAPS if is_gap(need) else need in rows or need in landed
     unknown = sorted({need for record in records.values() for need in record["needs"] if not known(need)})
     problems = [f"the gap census's records need {need}, which names no row of the Sizing table and no gap; "
-                f"`gap_census.py rename {need} <row>` carries a split or renamed row into them" for need in unknown]
+                f"`gap_census.py rename {need} <row>` carries a renamed row into them, a split row's later part" for need in unknown]
     for name in sorted(set(records) & unregistered):
         if not records[name]["needs"] and unproved(records[name]):
             problems.append(f"the gap census's records claim {name} writable and not proved: {', '.join(unproved(records[name]))}")

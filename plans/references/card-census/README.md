@@ -127,9 +127,10 @@ hunt records a new blocker with `amend`. A gap built ahead of its row joins
 `gap_skeletons.py` writes each card's front face, and each card is written beside its
 board and its needs. The crate is not kept, since no card lands in the tree: each
 card's written tree stays in `gap-census-composition.txt`. A row the Sizing table
-splits or renames is carried into the records with `rename`, and the board's check
-fails until it is: it counts the cards with no need left
-(`plans/state-of-play.md`, "The way to v0.5").
+renames is carried into the records with `rename`, and the board's check fails
+until it is: it counts the cards with no need left (`plans/state-of-play.md`, "The
+way to v0.5"). A row split in two is renamed to its later part, and `amend` moves
+each card that needs only the earlier one, so no card reads as writable early.
 
 ## The held-out draws
 
@@ -145,8 +146,9 @@ python plans/references/card-census/held_out_draw.py cards.json --seed 20261113
 ```
 
 The population is every Commander-legal paper card less the five lists and the
-basic lands. The seed is the day of the draw, so a draw can be made again from the
-same fetch.
+basic lands, and the seed is the day of the draw. The fetch is not kept, so the
+draw is: its 30 cards and the population's size go to
+`results/held-out-draw-<seed>.txt`, which is what a later reading starts from.
 
 | Drawn | Seed | At | A need no row or gap holds | What |
 |---|---|---|---|---|
