@@ -794,6 +794,37 @@ name for, and a phase of the critical path that no Row cell names.
 **What the rows sum to, read 2026-11-06:** 73–138 route PRs, 15–40 of them the
 decks' cards and gaps.
 
+**The forecast: each step's range at that reading**, at #315's merge, the rows
+landed by then at what they took. The table above moves as rows split, land and
+are re-sized; this one stays, so the board can say when a step has passed what
+the date below was computed from. A landed row's PR cell is what it took. A step
+is past its forecast once what it took and the least it has left come to more
+than its range here, and the route is then forecast again: this table is
+rewritten from `python plans/check_state_of_play.py --forecast`, with its date,
+and the date below with it.
+
+<!-- v0.5 forecast: begin -->
+| Step | PRs |
+|---|---|
+| 1 | 1 |
+| 2 | 2 |
+| 3 | 5 |
+| 4 | 1 |
+| 5 | 9–13 |
+| 6 | 3–4 |
+| 7 | 5–8 |
+| 8 | 4–7 |
+| 9 | 8–15 |
+| 10 | 3–6 |
+| 11 | 9–14 |
+| 12 | 3–6 |
+| 14 | 6–9 |
+| 15 | 6–10 |
+| 16 | 3–6 |
+| 17 | 15–39 |
+| 18 | 2–4 |
+<!-- v0.5 forecast: end -->
+
 **Overhead.** A route PR is one that builds a row of this table, or of the cleanup
 plan whose last rows joined it, so work is counted the way the rows left are. Of
 177 merge commits in the eight weeks to #313, 87 were on the route, 27 the dev

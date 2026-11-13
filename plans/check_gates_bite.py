@@ -223,6 +223,18 @@ def state_field(field, ty):
 
 ROADMAP = "plans/roadmap-v2.md"
 SIZING_END = "<!-- v0.5 sizing: end -->"
+FORECAST_END = "<!-- v0.5 forecast: end -->"
+LAST_FORECAST = "| 18 | 2–4 |\n" + FORECAST_END
+BOARD_SCRIPT = "plans/check_state_of_play.py"
+RECORDS = "plans/references/card-census/results/gap-census-records.jsonl"
+
+
+def census_record(needs):
+    """A gap census record of a card with no board and no game, appended whole."""
+    record = {"name": CARD, "needs": needs, "reshaped": [], "loops": False, "note": "", "board": "no board", "reached": 0,
+              "errors": [], "panics": [], "checks_failed": [], "survived": [], "paragraphs": 1, "keyword_paragraphs": 0,
+              "uncovered": [], "composition": [], "stand_ins": 0}
+    return add(RECORDS, json.dumps(record) + "\n")
 ZZ_STRUCT = "pub struct ZzBite {\n    pub at: Timestamp,\n}\n"
 FLOOR_ROW = "| 9. Zz bite | 1 | 2026-11-04 | planted |\n"
 
@@ -288,8 +300,25 @@ PLANTS = [
     plant(BOARD, "a landed section keeps its body in the live doc", "ZZ-9 is landed but keeps",
           add("plans/layers-architecture.md", "\n### ZZ-9 — planted — ✅ landed 2026-11-04\n" + "planted\n" * 50)),
     plant(BOARD, "the parser's selftest fails a rotted item pattern", "selftest:",
-          swap("plans/check_state_of_play.py", r'ITEM_RE = re.compile(r"^(\d+[a-z]?)\.\s", re.M)',
+          swap(BOARD_SCRIPT, r'ITEM_RE = re.compile(r"^(\d+[a-z]?)\.\s", re.M)',
                r'ITEM_RE = re.compile(r"^(\d+)\.\s", re.M)')),
+    plant(BOARD, "a landed row is still sized as a range", "landed, and its PR cell is still a range",
+          swap(ROADMAP, "| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 5 |", "| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 4–5 |")),
+    plant(BOARD, "a step with rows has no forecast", "step 18 has rows in the Sizing table and no forecast",
+          swap(ROADMAP, LAST_FORECAST, FORECAST_END)),
+    plant(BOARD, "the forecast holds a step with no rows", "the forecast holds step 13",
+          swap(ROADMAP, FORECAST_END, "| 13 | 1 |\n" + FORECAST_END)),
+    plant(BOARD, "a forecast that is no count or range", "the forecast wants a step and a PR count or range",
+          swap(ROADMAP, LAST_FORECAST, "| 18 | soon |\n" + FORECAST_END)),
+    plant(BOARD, "the selftest fails a forecast no step can pass", "selftest: steps",
+          swap(BOARD_SCRIPT, "return step.taken + step.left[0] > step.forecast[1]", "return False")),
+    plant(BOARD, "a census record needs a row the route does not have", "which names no row of the Sizing table and no gap",
+          census_record(["zz-no-row"])),
+    plant(BOARD, "a deck card is claimed writable with no proof", f"claim {CARD} writable and not proved",
+          add("mtgsim/decks/tdc-abzan-armor.txt", f"\n1 {CARD}\n"), census_record([])),
+    plant(BOARD, "the census's records are gone", "gap-census-records.jsonl is gone", delete(RECORDS)),
+    plant(BOARD, "the selftest fails a ready count read off the wrong status", "selftest: ready",
+          swap(BOARD_SCRIPT, 'CardsReady(counted["writable"], counted["ready"],', 'CardsReady(counted["ready"], counted["writable"],')),
     # check_rulings.py --check
     plant(RULINGS, "a registered card the ledger has never seen", f"{CARD}: registered, but the ledger has never seen it",
           REGISTERED),

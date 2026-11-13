@@ -36,35 +36,43 @@ v1 is done (2026-10-29), and highly parallel AI games over the CLI. **Write new 
 
 ## The way to v0.5
 
-Each step of `roadmap-v2.md` §3a, its state, and the PRs left in it, from
-the Sizing table (`roadmap-v2.md` §8), which says what each range rests on.
-A row has landed when a ✅ heading or roadmap row records it under its
+Each step of `roadmap-v2.md` §3a, from the Sizing table (`roadmap-v2.md` §8),
+which says what each range rests on. **Taken** is what a step's landed rows
+took, **left** what its rows to come are sized at, and **forecast** the
+step's range when the route was last forecast, in the table under the Sizing
+table. A row has landed when a ✅ heading or roadmap row records it under its
 name, or, with neither, when its own State cell does. Route PRs only: §8
 says what the audits, the dev GUI and the detours beside them have cost.
 
-| Step | Rows | State | PRs left |
-|---:|---|---|---:|
-| 1 | `route-review` | landed | — |
-| 2 | `A6e`, readiness | landed | — |
-| 3 | `card-layer-cleanup` | landed | — |
-| 4 | `pausing-at-a-decision`, the design | landed | — |
-| 5 | `mana-provenance`, the design and 3 more | 7 of 11 landed | 4–7 |
-| 6 | `linked-abilities` | to come | 3–4 |
-| 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
-| 8 | `information-model-design` and 1 more | to come | 4–7 |
-| 9 | `permission-design` and 6 more | to come | 8–15 |
-| 10 | `player-scoped-values` and 2 more | to come | 3–6 |
-| 11 | `combat-restrictions` and 4 more | to come | 9–14 |
-| 12 | `rulings-for-every-card` | to come | 3–6 |
-| 14 | `chosen-color-plus-could-produce` and 3 more | to come | 6–9 |
-| 15 | `casting-from-other-zones` and 3 more | to come | 6–10 |
-| 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
-| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 15–39 |
-| 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **42 rows to come** | **71–135** |
+| Step | Rows | State | PRs taken | PRs left | Forecast |
+|---:|---|---|---:|---:|---:|
+| 1 | `route-review` | landed | 1 | — | 1 |
+| 2 | `A6e`, readiness | landed | 2 | — | 2 |
+| 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
+| 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
+| 5 | `mana-provenance`, the design and 3 more | 7 of 11 landed | 7 | 4–7 | 9–13 |
+| 6 | `linked-abilities` | to come | 0 | 3–4 | 3–4 |
+| 7 | `resolution-recipients-and-amounts` and 3 more | to come | 0 | 5–8 | 5–8 |
+| 8 | `information-model-design` and 1 more | to come | 0 | 4–7 | 4–7 |
+| 9 | `permission-design` and 6 more | to come | 0 | 8–15 | 8–15 |
+| 10 | `player-scoped-values` and 2 more | to come | 0 | 3–6 | 3–6 |
+| 11 | `combat-restrictions` and 4 more | to come | 0 | 9–14 | 9–14 |
+| 12 | `rulings-for-every-card` | to come | 0 | 3–6 | 3–6 |
+| 14 | `chosen-color-plus-could-produce` and 3 more | to come | 0 | 6–9 | 6–9 |
+| 15 | `casting-from-other-zones` and 3 more | to come | 0 | 6–10 | 6–10 |
+| 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
+| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
+| 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
+| | **To v0.5** | **42 rows to come** | **16** | **71–135** | **85–150** |
 
-**Deck cards registered: 9 of 385**,
-the five lists' distinct cards less basics.
+No step is past its forecast: one is when what it took and the least it has
+left come to more than its forecast's top, and the route is forecast again then.
+
+**Deck cards registered: 9 of 385**, the five lists' distinct cards less
+basics. **Ready to write: 91 more**, with no need left on the route:
+91 the gap census proved writable and 0 whose needs have landed since, which a
+registration proves. 285 wait on a row or a gap, and the census left 0 unread
+(`plans/references/card-census/README.md#the-gap-census`).
 
 ## Phases by name
 
@@ -270,17 +278,16 @@ ticket: `python plans/check_state_of_play.py --slotted cant-be-targeted`.
 |---|---|---|
 | Unit | an **atom** — one scenario from the spec corpus | a **migration** — one code change |
 | Looks | **backwards**, at phases already shipped | **forwards**, at systems not yet built |
-| Catches | a phase that closed without testing its own spec | scaffolding that will lie to whatever is built on it |
+| Lists | a scenario a shipped phase was ticketed to test and did not | scaffolding that will lie to whatever is built on it |
 | Reachable now | yes, by construction — the behaviour shipped | usually not, which is why it is easy to forget |
-| Gate | a phase does not close until it is clean | read before a system's first ticket |
+| Read | as a report; a phase reads its rules' atoms when it starts, and no close waits on it | before a system's first ticket |
 
 **The seam between them is real.** A defect in shipped behaviour that has no
 atom is in neither list — RC-5's item 61 is one, because the ruling it violates
-was never written into the corpus. And `owed`'s default scope is `SHIPPED_PHASES`,
-which gained Phase 6 only at the post-RE audit (2026-09-15): until then a
-replacement phase closing against "owed is clean" was making a claim about three
-*other* phases, and what actually gated it was the `// COVERS:` annotation
-discipline. → `engineering-practices.md#the-spec-database`.
+was never written into the corpus. And `owed` reads only atoms ticketed `NEW`
+in `SHIPPED_PHASES` unless `--all` is passed, and a covered atom proves one
+scenario, not its rule, so an empty list is no evidence a rule is right: the
+hunt checks a subsystem at its close. → `engineering-practices.md#the-spec-database`.
 
 ## Half-finished work
 
