@@ -15,6 +15,9 @@ When a comment asks for something beyond fixing this PR's own change (a
 neighboring cleanup, a new rule, another struct with the same problem), ask
 "this PR or the next?" in one line before doing it, unless it blocks the
 merge. The default is the next PR, so a round stays the size of its comments.
+A new gate or rule is a process change: it goes in
+`plans/handoffs/process-pr.md`'s queue for the next process PR unless the
+owner says now, and a bug in a gate is fixed where it is found.
 
 ## Answering
 

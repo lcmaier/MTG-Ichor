@@ -266,6 +266,75 @@ which both `ZoneChange` arms hold since RH-1 (`replacement-architecture.md`
 §2b.7), and `SourcePattern` for damage where the trigger arm has a
 `TriggerSubject`. Never a shared enum. Layers watch nothing.
 
+### 3.3a Parity with `EventPattern`, event kind by event kind
+
+`backlog.md` §2.37's table, owed by the gap census and written 2026-11-13
+against `types/replacement.rs` and `types/triggers.rs`. A kind either has
+both arms, or has one with the reason the other is missing: a CR rule, nothing
+that proposes the event, or no printed card, which is "an arm the pipeline
+cannot apply is worse than a missing one" and waits for the card. No hole
+here is filled ahead of one.
+
+**Both arms.** The pattern reads the proposal (CR 614) and the trigger arm
+the performed record (CR 603).
+
+| Event kind | `EventPattern` | `TriggerEvent` | Shared, or what differs |
+|---|---|---|---|
+| Damage dealt | `DealDamage { source, combat }` | `DamageDealt { source, recipient, combat, excess, multiplicity }` | the pattern's recipient is `ReplacementDef::affected`; excess (CR 120.10) exists only once damage is dealt |
+| A zone change | `ZoneChange { change, object }` | `ZoneChange { subject, change, by, owner, multiplicity }` | both hold `ZoneChangePattern`; a countered spell is its `act: Countered` |
+| Entering the battlefield | `EnterBattlefield { cast }`, and a `ZoneChange` that admits the battlefield | `EntersBattlefield { subject, controller, from, was_cast, multiplicity }` | the pattern's object is `affected`, read in the CR 614.12 frame |
+| Becoming untapped, tapped | `Untap`, `Tap` | `BecomesUntapped`, `BecomesTapped` | `Tap` has no printed replacement. It keeps its arm under `EventPattern`'s growth contract, an arm for each `GameAction` variant, which the seven variants named below are each exempted from in their own docs |
+| One card drawn | `DrawCard { place }` | `DrawsCard { player, multiplicity, place }` | both hold `DrawFilter` |
+| Life gained, life lost | `GainLife`, `LoseLife { cause }` | `GainsLife`, `LosesLife` | the trigger's `cause` waits for CR 727's rad counters |
+| Counters put on, removed | `AddCounters { counter, by }`, `RemoveCounters { counter }` | `CountersPutOn`, `CountersRemovedFrom`, each `{ subject, counter_type, by, multiplicity }` | counters a permanent enters with are put on it, for both (CR 122.6) |
+| A turn, phase or step beginning | `BeginTurn`, `BeginPhase`, `BeginStep` | `TurnBegins`, `PhaseBegins`, `StepBegins` | the pattern is a skip's (CR 614.1b) |
+| Scrying | `Scry` | `Scries { player }` | |
+| A player losing | `PlayerLoses` | `PlayerLoses { player }` | |
+| Mana produced | `ProduceMana` | `ManaAdded { source, tapped_for_mana, mana }` | |
+| Tokens created | `CreateTokens` | `CreatesToken { owner, definition, multiplicity }` | |
+
+**A pattern, and no trigger arm.**
+
+| Event kind | `EventPattern` | Why no `TriggerEvent` arm |
+|---|---|---|
+| An instruction to draw several cards | `DrawCards { at_least }` | CR 121.2: several cards are that many draws of one, and the stream records each, so a trigger sees cards and never the instruction. "Their second card each turn" is `DrawsCard`'s `place`. "If you drew two or more cards this turn" (Archmage Ascension) is a condition on a step's trigger, read off the turn's draws: of the 15 cards that say "two or more cards" about drawing, Alms Collector is the one replacement and none is a trigger on the instruction (Scryfall, `o:"two or more cards" o:draw`, 2026-11-13) |
+| A destruction | `Destroy { source }` | CR 701.8a: to destroy is to move to the graveyard, so its record is the zone change with `act: Destroyed`, which the `ZoneChange` arm reads. The proposal is apart because regeneration replaces the destruction and not the move (CR 614.8) |
+| A player winning | `PlayerWins` | no printed trigger, and the game ends at once (CR 104.1) |
+
+**A trigger arm, and no pattern.**
+
+| Event kind | `TriggerEvent` | Why no `EventPattern` arm |
+|---|---|---|
+| Damage prevented | `DamageIsPrevented` | CR 615.1: a prevention is a replacement being applied, the pipeline's own act and no proposal. "Can't be prevented" (CR 615.12) is a flag on the damage |
+| Attackers declared, blockers declared | `Attacks`, `Blocks` | CR 508.1 and 509.1: a declaration is a turn-based action built whole and checked for legality, never proposed. What changes it is a restriction, a requirement or a cost: `combat-restrictions`, `combat-requirements`. An effect making a creature blocked is the proposal `BecomeBlocked` (CR 509.1h), which no printed replacement watches |
+| A spell cast, an ability activated | `CastsSpell`, `ActivatesAbility` | No proposal, and no card asks for one: casting and activating are processes (CR 601.2, 602.2), the card's move to the stack is made silently and announced when the spell becomes cast, and nothing prints "if a player would cast". What stops one is a "can't" (CR 101.2), `cant-cast-play-or-activate`'s, and what changes its cost is CR 601.2f's |
+| Becoming a target | `BecomesTarget` | CR 115.1: a target is chosen as part of casting or activating, no event of its own. "Can't be the target" is `cant-be-targeted`'s |
+| A spell countered | `IsCountered` | a countered spell's proposal is its move, `ZoneChange` with `act: Countered` (CR 701.6a), and the trigger has its own arm for CR 603.10e's look-back at the spell as it was on the stack. A countered ability makes no move and has no proposal, and no printed card watches one either way |
+| A library shuffled | `ShufflesLibrary` | no card: nothing printed says "would shuffle ... instead" (`GameAction::ShuffleLibrary`'s doc) |
+| Becoming attached, unattached | `BecomesAttached`, `BecomesUnattached` | no card: nothing replaces an attach or an unattach (`GameAction::Attach`'s doc) |
+| Control changing | `ControlChanges` | CR 613.1b: control changes by a Layer 2 effect, which is no proposal, so a pattern has nothing to read |
+| An ability triggering | `AbilityTriggers` | CR 603.2g: an ability triggers when its event occurs, and nothing rewrites that. "An additional time" is the multiplier (CR 603.2d), and "doesn't cause abilities to trigger" is `backlog.md` §2.56 |
+| An ability resolving | `AbilityResolves` | No proposal, and no card asks for one: a resolution is a process (CR 608.2) whose last step writes the record CR 603.7h's count reads |
+
+**Neither arm.** A token created outside the battlefield (`CreateTokenIn`),
+a token ceasing to exist (CR 704.5d) and the game ending in a draw (CR 104.4a)
+are proposals no card replaces and no trigger names; each `GameAction`'s doc
+says so. With `Attach`, `Unattach`, `ShuffleLibrary` and `BecomeBlocked` above
+they are every `GameAction` variant with no pattern: seven, where
+`EventPattern`'s own doc still says "the two without one"
+(`codebase-state.md` item 418).
+
+**What it says.** A kind with no pattern has one of three reasons. A rule
+makes it no event a replacement can watch (prevention, a declaration, a
+target, control, triggering). Or nothing proposes it, so there is nothing to
+watch (casting, activating, resolving). Or a proposal exists and no card
+replaces it: the seven variants, six of which say so in their own docs, with
+`BecomeBlocked`'s saying only that a replacement may watch it. The trigger
+side has no hole of the last kind: each of its three missing arms rests on a
+rule. So the two vocabularies need no parity rule beyond the two growth
+contracts they already keep, an arm per `GameAction` variant and an arm per
+performed record.
+
 ### 3.4 Subjects, "you", and the bound facts — `TriggerBinding`
 
 A trigger's effect refers back to its event: "that creature", "that player",

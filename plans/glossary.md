@@ -181,9 +181,9 @@ A4n and 7a were sized with — and is never merged.
 "a gate, not an answer". It may over-approximate and cost a walk; it may never
 under-approximate, or the answer it guards is silently lost —
 `replacement_ability_sources`, `cost_modification_ability_sources`.
-**(2)** a process checkpoint a phase must pass before it closes: "a gate, not a
-report" — `specdb.py`'s `owed`, the three `check_*.py` scripts. →
-`engineering-practices.md#the-spec-database`.
+**(2)** a process checkpoint a pull request must pass: "a gate, not a report"
+— the `check_*.py` scripts, which CI runs. `specdb.py`'s `owed` was one until
+2026-11-06 and is a report. → `engineering-practices.md#invariant-gates`.
 
 **census** — **(1)** a *card* census: a Scryfall query partitioning printed
 cards by mechanism, to size a phase before designing it.
@@ -797,8 +797,8 @@ departed player there. → `engine/leaving.rs`; `GameState::is_multiplayer`.
 
 **atom** — one atomic test in the spec corpus: a single checkable claim read off
 the CR, with an id like `ATOM-614.9-001`. Tests claim atoms with `// COVERS:` at
-write time, and a phase does not close until `specdb.py`'s `owed` is clean for
-it. → `engineering-practices.md#the-spec-database`.
+write time, and a phase reads its rules' atoms when it starts (`specdb.py next
+--rule`). → `engineering-practices.md#the-spec-database`.
 
 **trace** — one game's records from the trace sink, a JSON object per line,
 and the file that holds them; a *trace page* is tier 1's hand-authored walk

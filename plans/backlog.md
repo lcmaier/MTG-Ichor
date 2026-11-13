@@ -513,6 +513,12 @@ values: a read each, with their mechanics, per the census above. Graduates to
 two share the sweep, the union and the decision-site vocabulary and differ
 only in sign.
 
+- **Owner** — `as-though-effects`: its permission half at the route's step 11,
+  after `combat-requirements`, where it graduates to a doc of its own, and its
+  payment half with `hybrid-and-phyrexian-payment` (the back-stop below). The
+  line was added 2026-11-13: the entry named its home in prose only, so the
+  row's intake could not list it.
+
 **Prior art in this file:** §2.8 (where an ability functions) is the closest
 neighbour and overlaps on the zone shape.
 
@@ -2505,7 +2511,7 @@ take it from.
 | **Atoms** | none |
 | **Owner** | `names-and-hygiene-sweeps`, before release: one spelling for every human-facing line, swept once against a tree that has stopped growing, and the decision log's words with it, since `ChoiceOption::as_logged` writes `#N` too. Nothing on the route reads it. Filed 2026-09-18 from the owner's review of A4c (PR #170) |
 
-### 2.37 Which clause fits which slot — parity at TR-6's close, the matrix with custom-card design
+### 2.37 Which clause fits which slot — parity written 2026-11-13, the matrix at v0.5's close
 
 **Revised 2026-09-24, the day it was filed.** The first version planned one
 docs-only matrix: every clause slot against every vocabulary, run once TR-2 to
@@ -2530,31 +2536,34 @@ the matrix waits for the design that needs it.
   again to the result. "Instead, do any instruction" is `Rewrite::Prevent` plus
   a rider.
 - **"If X would" and "when X"** are `EventPattern` (20 arms, over proposals,
-  CR 614) and `TriggerEvent` (12, over records, CR 603), with no parity rule
-  between them.
+  CR 614) and `TriggerEvent` (12 when this was filed and 30 on 2026-11-13,
+  over records, CR 603), with no parity rule between them.
 - `Condition` leaves, `TemplateAmount` arms and the history log's `RowFact`
   variants grow with the card that needs them, on purpose.
 
 **Two pieces, two times.**
-- **Parity, at TR-6's close.** A table of `EventPattern` against
-  `TriggerEvent`, event kind by event kind. Each kind has both arms, or a
-  recorded reason it doesn't (a CR rule, or no card yet). Commander's pool
-  exercises both sides of most events, and TR-6 adds the trigger vocabulary's
-  last arms.
-- **The matrix, as the first step of custom-card design (post-v1).** Every
+- **Parity, written 2026-11-13.** A table of `EventPattern` against
+  `TriggerEvent`, event kind by event kind, each kind with both arms or the
+  reason it has one: `triggers-architecture.md#33a-parity-with-eventpattern-event-kind-by-event-kind`.
+  It was owed at TR-6's close and then by the gap census, whose intake read
+  items and no backlog entry. Every hole on the pattern side that is not a CR
+  rule is "no card", and each of the trigger side's three rests on a rule, so
+  it found no parity rule to add.
+- **The matrix, at v0.5's close, as a measure and not a fill** (the owner,
+  2026-11-06, #315), ahead of wider card work and of custom-card design. Every
   clause slot against every vocabulary, with each hole marked either CR-forced
-  or incidental. It is measured against whatever format custom cards are
-  authored in, since that format's grammar decides which holes matter. No hole
-  is filled ahead of a card that needs it.
+  or incidental, read against the five decks' cards and the held-out draws, so
+  it says how far the vocabularies reach past the decks. No hole is filled
+  ahead of a card that needs it.
 
 | Field | |
 |---|---|
 | **Rules** | CR 614.1a and 614.6 (a replacement's substitute is an event); 616.1f (the loop re-gathers on it); 603.2 (any game event can be a trigger event); 608.2c (a resolution follows its instructions) |
 | **Verdict** | `Rewrite::Instead` takes `GameActionTemplate` (8 arms), while every other "do X" slot takes `Effect`. `EventPattern` and `TriggerEvent` describe the same events for two readers, and no rule keeps them in parity |
-| **Size** | parity is a table, about an hour. The matrix is a docs pass, about a session. The refactor the entry was first filed to decide is not expected to pay |
-| **Blocks** | the matrix blocks post-v1 custom card support. Nothing on the spine |
+| **Size** | parity is written. The matrix is a docs pass, about a session. The refactor the entry was first filed to decide is not expected to pay |
+| **Blocks** | the matrix informs the order of wider card work at v0.5's close, and post-v1 custom card support. Nothing on the spine |
 | **Atoms** | none; the CR states the slots, not their implementation |
-| **Owner** | parity: `tarkir-dragonstorm-decks`' gap census, in `triggers-architecture.md`, since TR-6 closed without the table and the decks are the first Commander pool, which this entry expected to exercise both sides of most events. The matrix: after v1, with custom-card design, since which holes matter turns on how custom cards are authored; it stays here because it informs designs before then, `remaining-costs`' choice between a cost arm per action and a cost composed of a `GameAction` among them (below). Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
+| **Owner** | parity: written, in `triggers-architecture.md` (above). The matrix: after v0.5, first of what is ordered at its close (`roadmap-v2.md`, "After v0.5"), a measure taken before card breadth and custom cards choose their order (the owner, 2026-11-06, #315); it stays here because it informs designs before then, `remaining-costs`' choice between a cost arm per action and a cost composed of a `GameAction` among them (below). Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
 **Costs are a slot too** (the owner, 2026-10-05, at `codebase-state.md` item
 212's census). `Cost` has ten arms and the cards ask for about fifty actions
@@ -3269,6 +3278,11 @@ is not (113.6j's zone-agnostic activation is §2.8; 115.4's "any target" names a
 `TargetSpec` type the tree does not define). Confirm before annotating.
 
 ### 3.3 The `owed` policy — decided
+
+**Since 2026-11-06 `owed` is a report and gates no close**
+(`engineering-practices.md#the-spec-database`). The re-filing rule below still
+says what to do with an atom it lists; where the text below says "the gate",
+read the query.
 
 `owed` selects atoms in a shipped phase, ticketed `NEW…`, with no test. Its
 docstring says what it is for: `ATOM-400.7-001`'s ticket specified a

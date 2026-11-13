@@ -304,7 +304,10 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 17. **The five decks**, then **`decks-in-fuzz-games`** | `tarkir-dragonstorm-decks`, below | The cards no row has registered, each mechanic they need built from its whole CR section (the family rule, `engineering-practices.md#gaps-a-phase-finds`); then the five lists at one table with nobody at it |
 | 18. **`devgui-at-five-seats`**, then **`mana-payment-solver`** | below, `mana-architecture.md` | The same table in the window, then a person paying at a seat. **Milestone: v0.5** |
 
-**After v0.5, ordered at its close:** `pausing-at-a-decision`'s build with the
+**After v0.5, ordered at its close:** first the slot matrix (`backlog.md`
+§2.37), every clause slot against every vocabulary, as a measure and not a
+fill, since what it finds orders the card work after it (the owner, 2026-11-06,
+#315); `pausing-at-a-decision`'s build with the
 AI harness; `ironworks-loop`; the card model's other
 builds (`double-faced-cards`' modal half, the rest of `split-and-adventure-style-cards`
 and of `face-down-and-morph`, `merging-and-meld`); `loop-detection`;
@@ -794,13 +797,46 @@ name for, and a phase of the critical path that no Row cell names.
 **What the rows sum to, read 2026-11-06:** 73–138 route PRs, 15–40 of them the
 decks' cards and gaps.
 
+**The forecast: each step's range at that reading**, at #315's merge, the rows
+landed by then at what they took. The table above moves as rows split, land and
+are re-sized; this one stays, so the board can say when a step has passed what
+the date below was computed from. A landed row's PR cell is what it took. A step
+is past its forecast once what it took and the least it has left come to more
+than its range here, and the route is then forecast again: this table is
+rewritten from `python plans/check_state_of_play.py --forecast`, with its date,
+and the date below with it.
+
+<!-- v0.5 forecast: begin -->
+| Step | PRs |
+|---|---|
+| 1 | 1 |
+| 2 | 2 |
+| 3 | 5 |
+| 4 | 1 |
+| 5 | 9–13 |
+| 6 | 3–4 |
+| 7 | 5–8 |
+| 8 | 4–7 |
+| 9 | 8–15 |
+| 10 | 3–6 |
+| 11 | 9–14 |
+| 12 | 3–6 |
+| 14 | 6–9 |
+| 15 | 6–10 |
+| 16 | 3–6 |
+| 17 | 15–39 |
+| 18 | 2–4 |
+<!-- v0.5 forecast: end -->
+
 **Overhead.** A route PR is one that builds a row of this table, or of the cleanup
 plan whose last rows joined it, so work is counted the way the rows left are. Of
 177 merge commits in the eight weeks to #313, 87 were on the route, 27 the dev
 GUI, 36 audit, 13 process and docs, and 14 detours: 2.0 merged PRs for each route
 PR, and 36% audit, process and detours. The item 6 audit's plan said 13–20 PRs and
 ran to 28, its cleanup builds among them. At that rate the route is 146–276 merged
-PRs. Held to about 1.5 for each route PR, with audits on a budget, the process PR
+PRs. Held to about 1.5 for each route PR, with audits on a budget (the owner,
+2026-11-13: a hunt of one PR when a subsystem closes and the whole audit once, at
+v0.5's close, `spine-phase-audit.md#when-it-runs`), the process PR
 at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–207. So
 **about 110–275 merged PRs**.
 

@@ -38,7 +38,7 @@ Usage:
     python plans/specdb.py orphans        # COVERS ids with no matching atom
     python plans/specdb.py suspicious     # COVERS ids that exist but look wrong
     python plans/specdb.py gaps --chapter 6   # CR rules the corpus never examined
-    python plans/specdb.py owed           # atoms a shipped phase left uncovered
+    python plans/specdb.py owed           # atoms ticketed NEW a shipped phase left uncovered; --all, every one
     python plans/specdb.py audit --dark --families   # CR rules NOBODY examined
 
 CR snapshots live in MTG-Rules/versions/<version>.txt, one official file per
@@ -238,7 +238,7 @@ def normalize_phase(raw):
     # its phase in digits ("Phase 5 Layers (L10)"), so the branch is
     # unreachable for a second, independent reason. Left as the fallback it
     # was written to be — promoting it above the digit path would relabel
-    # atoms and move what `owed` gates on, which nothing is asking for.
+    # atoms and move what `owed` lists, which nothing is asking for.
     has_l_ticket = bool(re.search(r"\bL\d+", cleaned))
     has_t_ticket = bool(re.search(r"\bT\d+", cleaned))
     has_pre = "5-pre" in lowered or "5 pre" in lowered or "pre" in lowered
@@ -967,14 +967,15 @@ def orphans():
 
 # Phases whose work has shipped. An atom parked in one of these was supposed to
 # be built and is not being waited on by anything -- which is the only way debt
-# goes quiet. Add a phase here when it lands; that is what makes `owed` a gate
-# rather than a report.
+# goes quiet. `owed` reports them. It gated a phase's close until 2026-11-06,
+# when the owner made the corpus a reading list for a phase that is starting
+# (`next --rule`, `engineering-practices.md#the-spec-database`): the list reads
+# NEW tickets only, and a covered atom proves one scenario, not its rule.
 #
 # Phase 6 joined on 2026-09-15, at the post-RE audit: the replacement track
 # (RA–RE, 24 PRs, 2026-08-25 → 2026-09-15) had closed against a scope that did
-# not contain it, so no replacement phase was ever gated by this query
-# (`engineering-practices.md#the-spec-database`). The audit ran it once by hand,
-# triaged every uncovered atom, and armed it.
+# not contain it, so no replacement phase was ever read by this query. The
+# audit ran it once by hand and triaged every uncovered atom.
 SHIPPED_PHASES = ("ALREADY-IMPL", "Phase 5-Pre", "Phase 5-Layers", "Phase 6", "Phase 7")
 
 
@@ -990,27 +991,45 @@ def owed(phase=None, show_all=False):
     A `NEW ...` ticket is the strong signal -- the corpus author judged that the
     atom needed infrastructure that did not exist. `--all` drops that filter and
     shows every uncovered atom in a shipped phase, which is a much longer and
-    much noisier list.
+    much noisier list. The header says how many atoms each reading leaves
+    out, so an empty list is never read as every atom having a test.
+
+    **An atom with only a `COVERS-PARTIAL` is not listed**: the coverage table
+    holds partial links, and one is enough to take an atom off this list. The
+    header counts those apart, since no test builds their whole scenario.
     """
     db = connect()
     phases = (phase,) if phase else SHIPPED_PHASES
     marks = ",".join("?" * len(phases))
-    ticket_filter = "" if show_all else "AND a.ticket LIKE 'NEW%'"
-    rows = db.execute(f"""
+    unlinked = db.execute(f"""
         SELECT a.id, a.rule_num, a.phase, a.summary, a.ticket FROM atoms a
-        WHERE a.phase IN ({marks}) {ticket_filter}
+        WHERE a.phase IN ({marks})
           AND a.id NOT IN (SELECT atom_id FROM coverage)
         ORDER BY a.rule_num, a.id
     """, phases).fetchall()
+    partial_only = db.execute(f"""
+        SELECT COUNT(*) FROM atoms a
+        WHERE a.phase IN ({marks})
+          AND a.id IN (SELECT atom_id FROM coverage)
+          AND a.id NOT IN (SELECT atom_id FROM coverage WHERE partial = 0)
+    """, phases).fetchone()[0]
+    rows = unlinked if show_all else [row for row in unlinked if (row[4] or "").upper().startswith("NEW")]
 
     total = db.execute(
         f"SELECT COUNT(*) FROM atoms WHERE phase IN ({marks})", phases).fetchone()[0]
-    scope = "uncovered" if show_all else "uncovered, ticketed NEW"
-    print(f"shipped phases: {', '.join(phases)}  ({total} atoms)")
-    print(f"{len(rows)} {scope}\n")
+    print(f"shipped phases: {', '.join(phases)}  ({total} atoms: {len(unlinked)} no test names, "
+          f"{partial_only} only a COVERS-PARTIAL names)")
+    if show_all:
+        print(f"listing the {len(rows)} no test names\n")
+    else:
+        print(f"listing the {len(rows)} of them ticketed NEW; --all lists the other {len(unlinked) - len(rows)}\n")
     if not rows:
-        print("nothing owed - every atom in a shipped phase is covered or was")
-        print("explicitly deferred. That is the state to keep it in.")
+        if unlinked:
+            print("no atom ticketed NEW is without a test. That is all this read.")
+        elif partial_only:
+            print(f"every atom in these phases is named by a test, {partial_only} of them only in part.")
+        else:
+            print("every atom in these phases has a test that COVERS it.")
         return
     for aid, rule, ph, summary, ticket in rows:
         print("  %-22s %-10s %s" % (aid, rule or "-", (summary or "")[:66]))
@@ -1242,8 +1261,8 @@ def _scan_citations(exclude_docs=()):
     *output*: a backlog exists to eventually name every rule the query found, so
     leaving it in makes the query converge to zero by being written rather than
     by anything being owned. That is a completion signal guaranteed to fire, and
-    a gate any prose can satisfy is not a gate - contrast `owed`, which needs a
-    `// COVERS:` and therefore a test. Excluding it keeps the 332 re-derivable
+    a gate any prose can satisfy is not a gate - contrast `owed`, whose list
+    only a `// COVERS:`, and therefore a test, shortens. Excluding it keeps the 332 re-derivable
     after the inventory exists, which is the only way the inventory can be
     checked against its own source.
 
@@ -1397,7 +1416,7 @@ def main():
     g.add_argument("--limit", type=int, default=25)
     g.add_argument("--all", action="store_true", dest="show_all")
     o = sub.add_parser("owed",
-                       help="atoms a shipped phase left uncovered (the phase-exit gate)")
+                       help="atoms ticketed NEW that a shipped phase left with no test (a report)")
     o.add_argument("--phase", help="one phase instead of every shipped one")
     o.add_argument("--all", action="store_true", dest="owed_all",
                    help="every uncovered atom, not just those ticketed NEW")

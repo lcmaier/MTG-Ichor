@@ -1573,11 +1573,12 @@ The queries stay. They stopped being the method and became the check.
 
 ```bash
 python plans/specdb.py orphaned    # shipped-phase behavior no test and no doc owns
-python plans/specdb.py owed        # the phase-exit gate — must be clean to close
+python plans/specdb.py owed        # atoms ticketed NEW a shipped phase left with no test
 python plans/specdb.py audit --dark --families   # darkness; in-scope surface is 0
 ```
 
-- **`owed` is a gate**, not a report: a phase does not close until it is clean.
+- **`owed` is a report** since 2026-11-06, and a phase reads its rules' atoms as
+  it starts (`engineering-practices.md#the-spec-database`).
 - **`orphaned` triages by cluster, never by atom**, and it **pre-sorts the read
   that used to be its whole cost.** Separating "a missing `// COVERS:` on code
   that exists" from "genuinely unbuilt" is the expensive half, and a *source*

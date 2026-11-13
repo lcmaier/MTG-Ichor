@@ -21,6 +21,14 @@ everything below it is for the session.
   (`plans/spine-phase-audit.md#the-ci-review`) and put what it finds in the list below.
   The process PR lands beside it, from `plans/handoffs/process-pr.md`: a process
   change goes in that queue, never in the next brief, a bug in a gate excepted.
+- When the merged PR closed a step of the board's "The way to v0.5", the
+  held-out draw is due (`plans/references/card-census/README.md#the-held-out-draws`),
+  and a step the board bolds as past its forecast means the route is forecast
+  again before the next brief. When it landed the row the board's "When each
+  subsystem closes" names for an architecture doc, the hunt is the next PR
+  (`plans/spine-phase-audit.md#when-it-runs`). When it closed step 9, the
+  midpoint hygiene pass is the next PR
+  (`plans/spine-phase-audit.md#the-hygiene-pass-at-a-long-items-midpoint`).
 
 ## Where we stand, in chat, before the brief
 
@@ -47,7 +55,15 @@ number, roadmap row and phase code the first time it appears.
 - the branch (`<subsystem>/<name>`, `plans/engineering-practices.md#naming-a-phase`)
   and its base SHA;
 - what to read first, in order, by file and heading anchor;
-- the intake: `python plans/check_state_of_play.py --slotted <name>`;
+- the intake: `python plans/check_state_of_play.py --slotted <name>`, which
+  lists the open items slotted to the row and the backlog entries it owns;
+- the rules' atoms to read as the work starts, a reading list and a checklist
+  of scenarios to test: `python plans/specdb.py next --rule <rule>` for each
+  CR rule the work names (a prefix, so `702.11` also lists 702.110 to 702.119);
+- from step 9's close, the deck cards the row unlocks and the PR that
+  registers them, a PR of its own after the row: run
+  `python plans/references/card-census/gap_census.py report`, then read
+  "Each row's cards" in `results/gap-census.md`;
 - whether there is a design stop, run as `/design-note` (the note first, a
   draft PR, stop for the owner's review);
 - the gates that can fail for this work, and the close-out's deliverables;

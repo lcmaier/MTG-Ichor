@@ -1,6 +1,6 @@
 # The spine-phase audit
 
-When a critical-path item closes, it is audited before the next one starts
+A stretch of the route that has closed is audited before the next one starts
 (`engineering-practices.md#the-spine-phase-audit`, the owner's decision at the
 post-RE audit, 2026-09-15). This doc is how: the passes, each with its named
 instruments, planned in a `plans/handoffs/` file that the last pass's PR
@@ -16,6 +16,29 @@ catches; each is a claim about the tree that went stale with nothing
 re-reading it. The person closing a phase believes its claims, so the
 audit is its own sitting, run while the material is fresh.
 
+## When it runs
+
+**The hunt when a subsystem closes, and the whole audit once, at v0.5's
+close** (the owner, 2026-11-13). It replaces "when a critical-path item closes,
+audit it before the next starts": after item 6 the route is steps and rows, so
+that rule named no audit before v0.5, and the item 6 audit ran to 28 PRs with
+its cleanup builds, against the 1.5 merged PRs for each route PR that
+`roadmap-v2.md`'s Sizing section holds the route to.
+
+- **A subsystem closes when the last row its architecture doc defines
+  lands.** The board names that row for each doc (`state-of-play.md`, "When
+  each subsystem closes"), and the rows to come that no doc defines yet, which
+  close none until a design names them in one. `/next-brief` reads it at each
+  merge, and the hunt (pass 5) is the next PR: its report and small fixes in
+  one PR, larger findings filed as slotted items, a second PR only on the
+  owner's yes.
+- **The whole audit runs at v0.5's close**, every pass below, with its PR
+  budget stated in its plan as any detour's is
+  (`engineering-practices.md#sizing-a-phase`).
+- The CI review and the process PR keep the clocks their section below gives
+  them, and the hygiene pass runs at the midpoint, after step 9, as its
+  section says.
+
 ## The passes
 
 In this order: the close-out gates the rest, the eviction opens second,
@@ -28,7 +51,8 @@ readiness and the hunt.
    - **the board**: `check_state_of_play.py --write`, then `--check`, whose
      bolded rows are the work;
    - **`specdb owed --phase "<the phase>"`**, once `SHIPPED_PHASES` holds it,
-     a gate: the phase is not closed until it is clean;
+     a report since 2026-11-06: each atom it lists is triaged as a fact or a
+     feature, and no close waits on it (`engineering-practices.md#the-spec-database`);
    - the doc's own findings list, known-missing table and out-of-scope list,
      re-read against what landed;
    - the summaries (`codebase-state.md`'s TL;DR and CR row, the README's
@@ -147,6 +171,10 @@ mutation; which facts the rules fix at a moment the code recomputes later;
 where matching is done outside the one matcher; and what a per-event path
 scans, read off a profile. Item 6's was A6k.
 
+**The run to v0.5 is one such stretch** (the owner, 2026-11-13). Its hygiene
+pass is the PR after step 9 closes, about halfway by steps, with one PR and a
+second on the owner's yes. `/next-brief` says when it falls due.
+
 ## The CI review
 
 Due at each audit, and whenever a merged PR's number crosses a multiple of 20
@@ -158,7 +186,8 @@ on main for where the minutes went, not for whether it passed:
   slowest game: `random_clicks`'s five minutes were one stalled game, which no
   step's time could show;
 - each time a `ci.yml` comment quotes, against what it reads now;
-- the nightly's failures and length, and what Dependabot has open;
+- the nightly's failures and length, when each run started against its cron,
+  and what Dependabot has open;
 - whether a newer Rust is out. If so the pin moves on purpose, in a PR that reads
   no performance: `ci.yml`, `nightly.yml` and the local toolchain together, new
   clippy lints fixed, and each `rust-version` floor re-measured.
@@ -168,6 +197,10 @@ A small finding goes in the next PR; a larger one becomes an item.
 **Process changes land beside this review**, in one PR when a number crosses a
 multiple of 20, queued in `plans/handoffs/process-pr.md`, and never inside an
 engine PR. A bug in a gate is the one exception: it is fixed where it is found.
+**A new gate or rule raised in review is a process change**, so it joins the
+queue unless the owner says now (the owner, 2026-11-13). `/review-round`'s
+default for other new work, the next PR, did not say which of the two a gate
+took.
 
 ## The runs
 

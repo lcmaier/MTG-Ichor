@@ -36,35 +36,61 @@ v1 is done (2026-10-29), and highly parallel AI games over the CLI. **Write new 
 
 ## The way to v0.5
 
-Each step of `roadmap-v2.md` §3a, its state, and the PRs left in it, from
-the Sizing table (`roadmap-v2.md` §8), which says what each range rests on.
-A row has landed when a ✅ heading or roadmap row records it under its
+Each step of `roadmap-v2.md` §3a, from the Sizing table (`roadmap-v2.md` §8),
+which says what each range rests on. **Taken** is what a step's landed rows
+took, **left** what its rows to come are sized at, and **forecast** the
+step's range when the route was last forecast, in the table under the Sizing
+table. A row has landed when a ✅ heading or roadmap row records it under its
 name, or, with neither, when its own State cell does. Route PRs only: §8
 says what the audits, the dev GUI and the detours beside them have cost.
 
-| Step | Rows | State | PRs left |
-|---:|---|---|---:|
-| 1 | `route-review` | landed | — |
-| 2 | `A6e`, readiness | landed | — |
-| 3 | `card-layer-cleanup` | landed | — |
-| 4 | `pausing-at-a-decision`, the design | landed | — |
-| 5 | `mana-provenance`, the design and 3 more | 7 of 11 landed | 4–7 |
-| 6 | `linked-abilities` | to come | 3–4 |
-| 7 | `resolution-recipients-and-amounts` and 3 more | to come | 5–8 |
-| 8 | `information-model-design` and 1 more | to come | 4–7 |
-| 9 | `permission-design` and 6 more | to come | 8–15 |
-| 10 | `player-scoped-values` and 2 more | to come | 3–6 |
-| 11 | `combat-restrictions` and 4 more | to come | 9–14 |
-| 12 | `rulings-for-every-card` | to come | 3–6 |
-| 14 | `chosen-color-plus-could-produce` and 3 more | to come | 6–9 |
-| 15 | `casting-from-other-zones` and 3 more | to come | 6–10 |
-| 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 3–6 |
-| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 15–39 |
-| 18 | `devgui-at-five-seats` and 1 more | to come | 2–4 |
-| | **To v0.5** | **42 rows to come** | **71–135** |
+| Step | Rows | State | PRs taken | PRs left | Forecast |
+|---:|---|---|---:|---:|---:|
+| 1 | `route-review` | landed | 1 | — | 1 |
+| 2 | `A6e`, readiness | landed | 2 | — | 2 |
+| 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
+| 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
+| 5 | `mana-provenance`, the design and 3 more | 7 of 11 landed | 7 | 4–7 | 9–13 |
+| 6 | `linked-abilities` | to come | 0 | 3–4 | 3–4 |
+| 7 | `resolution-recipients-and-amounts` and 3 more | to come | 0 | 5–8 | 5–8 |
+| 8 | `information-model-design` and 1 more | to come | 0 | 4–7 | 4–7 |
+| 9 | `permission-design` and 6 more | to come | 0 | 8–15 | 8–15 |
+| 10 | `player-scoped-values` and 2 more | to come | 0 | 3–6 | 3–6 |
+| 11 | `combat-restrictions` and 4 more | to come | 0 | 9–14 | 9–14 |
+| 12 | `rulings-for-every-card` | to come | 0 | 3–6 | 3–6 |
+| 14 | `chosen-color-plus-could-produce` and 3 more | to come | 0 | 6–9 | 6–9 |
+| 15 | `casting-from-other-zones` and 3 more | to come | 0 | 6–10 | 6–10 |
+| 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
+| 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
+| 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
+| | **To v0.5** | **42 rows to come** | **16** | **71–135** | **85–150** |
 
-**Deck cards registered: 9 of 385**,
-the five lists' distinct cards less basics.
+No step is past its forecast: one is when what it took and the least it has
+left come to more than its forecast's top, and the route is forecast again then.
+
+**Deck cards registered: 9 of 385**, the five lists' distinct cards less
+basics. **Could be written today: 91 more**, with no need left on the route:
+91 the gap census proved writable and 0 whose needs have landed since, which a
+registration proves. 285 wait on a row or a gap, and the census left 0 unread
+(`plans/references/card-census/README.md#the-gap-census`).
+
+### When each subsystem closes
+
+A subsystem closes when the last row its architecture doc defines lands, and
+the hunt is the next PR (`spine-phase-audit.md#when-it-runs`). A doc defines a
+row by naming it in a heading or in a sizing table's first cell, in bold.
+
+| Architecture doc | Rows landed | Closes with | Step |
+|---|---:|---|---:|
+| `choices-architecture.md` | 6 of 8 | `values-chosen-at-resolution` | 5 |
+| `cant-effects-architecture.md` | 0 of 5 | `combat-requirements` | 11 |
+| `cost-architecture.md` | 0 of 2 | `remaining-costs` | 14 |
+| `permission-architecture.md` | 0 of 3 | `casting-from-other-zones` | 15 |
+| `copy-effects-architecture.md` | 0 of 5 | `face-down-and-morph`, manifest | 16 |
+| `mana-architecture.md` | 0 of 5 | `mana-payment-solver` | 18 |
+
+No architecture doc defines these rows to come, so none closes a subsystem
+until its design names it in one: `mana-provenance`, the design; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `mana-provenance`, the build; `information-model-design`; `information-model`; `card-and-object-model`, the design; `text-changing-effects`, the design; `game-formats`; `multiplayer-rules`; `tarkir-dragonstorm-decks`, the cheap gaps; `player-scoped-values`; `as-though-effects`, the permission half; `layers-combat-and-counters`; `rulings-for-every-card`; `card-and-object-model`, an Aura on a player; `tarkir-dragonstorm-decks`, the five decks; `decks-in-fuzz-games`; `devgui-at-five-seats`.
 
 ## Phases by name
 
@@ -231,14 +257,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 467 |
+| Numbered items | 468 |
 | …closed, still recorded | 284 |
 | …open — unreachable, and says why | 123 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 34 |
+| …open — reachable, not wrong (perf, a name, a harness) | 35 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **2** |
-| …open, carrying an explicit `**Sized:**` | 177 of 183 |
+| …open, carrying an explicit `**Sized:**` | 178 of 184 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -252,7 +278,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 170 |
+| …slotted to a phase or roadmap row still to come | 171 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
@@ -270,17 +296,16 @@ ticket: `python plans/check_state_of_play.py --slotted cant-be-targeted`.
 |---|---|---|
 | Unit | an **atom** — one scenario from the spec corpus | a **migration** — one code change |
 | Looks | **backwards**, at phases already shipped | **forwards**, at systems not yet built |
-| Catches | a phase that closed without testing its own spec | scaffolding that will lie to whatever is built on it |
+| Lists | a scenario a shipped phase was ticketed to test and did not | scaffolding that will lie to whatever is built on it |
 | Reachable now | yes, by construction — the behaviour shipped | usually not, which is why it is easy to forget |
-| Gate | a phase does not close until it is clean | read before a system's first ticket |
+| Read | as a report; a phase reads its rules' atoms when it starts, and no close waits on it | before a system's first ticket |
 
 **The seam between them is real.** A defect in shipped behaviour that has no
 atom is in neither list — RC-5's item 61 is one, because the ruling it violates
-was never written into the corpus. And `owed`'s default scope is `SHIPPED_PHASES`,
-which gained Phase 6 only at the post-RE audit (2026-09-15): until then a
-replacement phase closing against "owed is clean" was making a claim about three
-*other* phases, and what actually gated it was the `// COVERS:` annotation
-discipline. → `engineering-practices.md#the-spec-database`.
+was never written into the corpus. And `owed` reads only atoms ticketed `NEW`
+in `SHIPPED_PHASES` unless `--all` is passed, and a covered atom proves one
+scenario, not its rule, so an empty list is no evidence a rule is right: the
+hunt checks a subsystem at its close. → `engineering-practices.md#the-spec-database`.
 
 ## Half-finished work
 

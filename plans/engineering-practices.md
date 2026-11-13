@@ -11,10 +11,10 @@ and the doc this page replaced, are `archive/engineering-practices-records.md`.
 writing docs is [line budgets](#line-budgets) and [counts in docs](#counts-in-docs);
 designing is [the rules pass](#the-rules-pass) and
 [the standing review question](#the-standing-review-question); planning is
-[sizing a phase](#sizing-a-phase); cards are [cards and pools](#cards-and-pools)
-and [rulings](#rulings); measuring is [measuring](#measuring); closing work is
-[the spec database](#the-spec-database), [trace pages](#trace-pages) and
-[the spine-phase audit](#the-spine-phase-audit); the GUI is
+[sizing a phase](#sizing-a-phase) and [the spec database](#the-spec-database);
+cards are [cards and pools](#cards-and-pools) and [rulings](#rulings);
+measuring is [measuring](#measuring); closing work is [trace pages](#trace-pages)
+and [the spine-phase audit](#the-spine-phase-audit); the GUI is
 [the dev GUI](#the-dev-gui); and the checked invariants are
 [invariant gates](#invariant-gates).
 
@@ -243,6 +243,12 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
   fixture for each rule no card at hand prints: one kicker card builds CR
   702.33. A keyword on a base rule builds both whole; a sibling keyword on
   the same base waits for its own row (`route-review`, 2026-10-29).
+- **A deck card places a finding, never excuses one.** Every finding is filed
+  and slotted whichever card brought it; the decks decide only where in v0.5's
+  order it goes, after the test of what building it later would unbuild.
+- **A held-out draw at each step's close**: 30 seeded cards from outside the
+  five lists, each read for a need no row or gap holds, so fitting the engine
+  to the decks is a number. → `references/card-census/README.md#the-held-out-draws`.
 
 ### Landing a phase
 
@@ -490,18 +496,19 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
   the atom's whole scenario, `// COVERS-PARTIAL:` otherwise.
 - **Never claim an atom a test doesn't prove**; a false link is worse than a
   blank. `suspicious` is a smell test, and silence proves nothing.
-- **A phase does not close until `owed` is clean for it**, every atom covered or
-  deferred with a reason; adding the phase to `SHIPPED_PHASES` arms the gate.
-  CI does not run `specdb` (the owner, 2026-08-31).
-- **Triage what `owed` reports as a fact or a feature.** A fact (object
-  identity, who cast it, characteristics an instant ago) is unrecoverable if not
-  captured when it exists, so record it on the first customer; a feature is a
-  normal diff, deferred freely. Count cards to decide when to build a feature,
-  never whether to record a fact.
-- **A defect with no atom is invisible to both `owed` and Deferred Migrations**;
-  that is the review's to find.
-- The command reference is `specdb.py`'s docstring; why it is a gate:
-  `archive/engineering-practices-records.md#5-the-spec-database-as-a-gate`.
+- **A phase reads its rules' atoms when it starts**: `specdb.py next --rule
+  <rule>` in its brief and at its design stop, a reading list and a checklist
+  of scenarios to test. No close waits on it, and CI does not run `specdb`.
+- **`owed` is a report** of the atoms ticketed `NEW` that a shipped phase left
+  with no test (`--all`: every one), each triaged as a fact or a feature. A
+  fact (object identity, who cast it, characteristics an instant ago) is
+  unrecoverable if not captured when it exists, so record it on the first
+  customer; a feature is a normal diff, deferred freely. Count cards to decide
+  when to build a feature, never whether to record a fact.
+- **A covered atom proves one scenario, never its rule**, and a defect with no
+  atom is in no list; the hunt checks a subsystem at its close.
+- The command reference is `specdb.py`'s docstring; why `owed` gated a close
+  until 2026-11-06: `archive/engineering-practices-records.md#5-the-spec-database-as-a-gate`.
 
 ## Module layout
 
@@ -531,18 +538,20 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 
 ## The spine-phase audit
 
-- **When a critical-path item closes, audit it before the next starts**, as
-  passes with named instruments, each its own PR, planned in a `plans/handoffs/`
-  file the last pass's PR deletes. A closing PR is the wrong place: the person
-  closing believes the claims.
+- **The hunt runs when a subsystem closes, and the whole audit at v0.5's
+  close** (the owner, 2026-11-13). The board names the row that closes each
+  subsystem; a hunt has one PR, a second on the owner's yes.
+- **An audit is passes with named instruments, each its own PR**, its budget
+  stated in its plan, a `plans/handoffs/` file the last pass's PR deletes. A
+  closing PR is the wrong place: the person closing believes the claims.
 - **Findings land where the project records them**: a numbered
   `codebase-state.md` item under a dated "Found by" heading, a `backlog.md`
   entry, a stale claim rewritten in place, a rule here.
 - **An audit ships docs and small fixes only**; anything larger is a scheduled
   item with an owner. A pass re-reads what it touches, and a number in its brief
   is a starting point.
-- **A critical-path item longer than about eight PRs gets the hygiene pass at
-  its midpoint**, with a shape review of the code the rest will extend.
+- **A stretch longer than about eight PRs gets the hygiene pass at its
+  midpoint**, the run to v0.5 after step 9, with a shape review of what is left.
 - The passes and their instruments: `spine-phase-audit.md`.
 
 ## The dev GUI
