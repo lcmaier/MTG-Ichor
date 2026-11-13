@@ -3273,6 +3273,11 @@ is not (113.6j's zone-agnostic activation is §2.8; 115.4's "any target" names a
 
 ### 3.3 The `owed` policy — decided
 
+**Since 2026-11-06 `owed` is a report and gates no close**
+(`engineering-practices.md#the-spec-database`). The re-filing rule below still
+says what to do with an atom it lists; where the text below says "the gate",
+read the query.
+
 `owed` selects atoms in a shipped phase, ticketed `NEW…`, with no test. Its
 docstring says what it is for: `ATOM-400.7-001`'s ticket specified a
 `zone_change_epoch` field on `GameObject` **down to the name**, nobody asked at

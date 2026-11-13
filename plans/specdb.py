@@ -993,28 +993,41 @@ def owed(phase=None, show_all=False):
     shows every uncovered atom in a shipped phase, which is a much longer and
     much noisier list. The header says how many atoms each reading leaves
     out, so an empty list is never read as every atom having a test.
+
+    **An atom with only a `COVERS-PARTIAL` is not listed**: the coverage table
+    holds partial links, and one is enough to take an atom off this list. The
+    header counts those apart, since no test builds their whole scenario.
     """
     db = connect()
     phases = (phase,) if phase else SHIPPED_PHASES
     marks = ",".join("?" * len(phases))
-    uncovered = db.execute(f"""
+    unlinked = db.execute(f"""
         SELECT a.id, a.rule_num, a.phase, a.summary, a.ticket FROM atoms a
         WHERE a.phase IN ({marks})
           AND a.id NOT IN (SELECT atom_id FROM coverage)
         ORDER BY a.rule_num, a.id
     """, phases).fetchall()
-    rows = uncovered if show_all else [row for row in uncovered if (row[4] or "").startswith("NEW")]
+    partial_only = db.execute(f"""
+        SELECT COUNT(*) FROM atoms a
+        WHERE a.phase IN ({marks})
+          AND a.id IN (SELECT atom_id FROM coverage)
+          AND a.id NOT IN (SELECT atom_id FROM coverage WHERE partial = 0)
+    """, phases).fetchone()[0]
+    rows = unlinked if show_all else [row for row in unlinked if (row[4] or "").upper().startswith("NEW")]
 
     total = db.execute(
         f"SELECT COUNT(*) FROM atoms WHERE phase IN ({marks})", phases).fetchone()[0]
-    print(f"shipped phases: {', '.join(phases)}  ({total} atoms, {len(uncovered)} with no test that COVERS them)")
+    print(f"shipped phases: {', '.join(phases)}  ({total} atoms: {len(unlinked)} no test names, "
+          f"{partial_only} only a COVERS-PARTIAL names)")
     if show_all:
-        print(f"listing all {len(rows)}\n")
+        print(f"listing the {len(rows)} no test names\n")
     else:
-        print(f"listing the {len(rows)} ticketed NEW; the other {len(uncovered) - len(rows)} were not read, and --all lists them\n")
+        print(f"listing the {len(rows)} of them ticketed NEW; --all lists the other {len(unlinked) - len(rows)}\n")
     if not rows:
-        if uncovered:
+        if unlinked:
             print("no atom ticketed NEW is without a test. That is all this read.")
+        elif partial_only:
+            print(f"every atom in these phases is named by a test, {partial_only} of them only in part.")
         else:
             print("every atom in these phases has a test that COVERS it.")
         return

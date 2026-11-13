@@ -503,7 +503,8 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
   with no test (`--all`: every one), each triaged as a fact or a feature. A
   fact (object identity, who cast it, characteristics an instant ago) is
   unrecoverable if not captured when it exists, so record it on the first
-  customer; a feature is a normal diff, deferred freely.
+  customer; a feature is a normal diff, deferred freely. Count cards to decide
+  when to build a feature, never whether to record a fact.
 - **A covered atom proves one scenario, never its rule**, and a defect with no
   atom is in no list; the hunt checks a subsystem at its close.
 - The command reference is `specdb.py`'s docstring; why `owed` gated a close
