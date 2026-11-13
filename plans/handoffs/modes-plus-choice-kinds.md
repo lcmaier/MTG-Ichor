@@ -46,8 +46,8 @@ merges.
   ticked a mode at a time, a checkbox or a count per mode, read off the offered
   list alone, each row showing its mode's printed line, its as-built in
   `choices-architecture.md`. Item 417, a mode's words, found and closed in it.
-- `mana-provenance`'s design is at its design stop (2026-11-13), a draft PR
-  on `mana/mana-provenance-design`:
+- `mana-provenance`'s design is at its design stop (2026-11-13), draft PR
+  #323 on `mana/mana-provenance-design`:
   `mana-architecture.md#11-mana-provenance-what-a-unit-of-mana-keeps`, nine
   decisions for the owner. Its decision 9 answers no: its build does not come
   before `costs-and-choices-at-resolution`, whose `Pay` reaches the payment
