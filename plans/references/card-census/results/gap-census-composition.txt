@@ -1,4 +1,4 @@
-=== Abrade (whole, blocked)
+=== Abrade (whole, ready)
 [spell] "Choose one —\n• Abrade deals 3 damage to target creature.\n• Destroy target artifact." costs [] => Modal { count: Exactly(1), modes: [Atom(DealDamage { amount: Fixed(3), unpreventable: false }, Target(Creature, Exactly(1))), Atom(Destroy, Target(Permanent(ByType(Artifact)), Exactly(1)))] }
 
 === Access Tunnel (part, blocked)
@@ -203,7 +203,7 @@ unwritten: {U/R}, {T}: Add {U}{U}, {U}{R}, or {R}{R}.
 [mana] "{T}: Add {R}." costs [TapSelf] => Atom(ProduceMana(ManaOutput { mana: [(Red, Fixed(1))], special: [] }), Implicit)
 [activated] "{1}{R}{R}, {T}: Creatures you control get +1/+0 until end of turn." costs [Mana(ManaCost { symbols: [Generic, Colored(Red), Colored(Red)] }), TapSelf] => Atom(ModifyPowerToughness(Fixed(1), Fixed(0), UntilEndOfTurn), FilteredPermanents(And(ByType(Creature), ByController(You))))
 
-=== Casualties of War (part, blocked)
+=== Casualties of War (part, ready)
 [spell] "Choose one or more —\n• Destroy target artifact.\n• Destroy target creature.\n• Destroy target enchantment.\n• Destroy target land.\n• Destroy target planeswalker." costs [] => Modal { count: Any, modes: [Atom(Destroy, Target(Permanent(ByType(Artifact)), Exactly(1))), Atom(Destroy, Target(Creature, Exactly(1))), Atom(Destroy, Target(Permanent(ByType(Land)), Exactly(1)))] }
 
 === Caves of Koilos (whole, blocked)

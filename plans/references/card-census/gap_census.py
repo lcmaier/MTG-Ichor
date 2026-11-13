@@ -3,6 +3,7 @@
     python plans/references/card-census/gap_census.py ingest <run.jsonl>... --crate <src/cards>
     python plans/references/card-census/gap_census.py report
     python plans/references/card-census/gap_census.py amend "<card>" --add <need> --remove <need>
+    python plans/references/card-census/gap_census.py rename <need> <row>
 
 A card's needs are the record. Everything else here is derived, so a row landing
 clears its cards on the next `report` with no card re-read: `ingest` keeps one
@@ -10,7 +11,10 @@ line a card in `results/gap-census-records.jsonl`, adding which rows to come
 reshape what the card was written in, read off its source; `report` joins those
 lines to the five lists and to `roadmap-v2.md`'s Sizing table and writes
 `results/gap-census.md`. A row's hunt records what it finds with `amend`, since the
-crate that wrote the cards is not kept.
+crate that wrote the cards is not kept. A row the Sizing table splits or renames
+takes its records with it through `rename`: a need naming no row reads as met, so
+`record_problems` fails one, here and on the board (`check_state_of_play.py`),
+which counts the cards with no need left.
 
 **A record's fields.** A run's line holds `name`, `made_by` (the function that
 builds it), `needs`, `note`, `loops`, `board` (`passed`, `no board` or `FAILED: …`),
@@ -74,7 +78,7 @@ RESHAPES = [
     ("resolution-recipients-and-amounts", r"AmountExpr::(Source|Target|Triggering)|TriggeringPlayer|PlayerRef::Owner"),
     ("linked-abilities", r"EnterWith|EnterModsTemplate|enters_tapped"),
     ("permission-design", r"AdditionalCost|AlternativeCost|additional_cost|alternative_cost"),
-    ("modal-spells-and-abilities", r"Effect::Modal"),
+    ("mode-rules-and-costs", r"Effect::Modal"),
 ]
 
 
@@ -200,7 +204,7 @@ def read_records():
 
 def write_records(records):
     RECORDS.parent.mkdir(exist_ok=True)
-    RECORDS.write_text("".join(json.dumps(records[n], ensure_ascii=False) + "\n" for n in sorted(records)), encoding="utf-8")
+    RECORDS.write_text("".join(json.dumps(records[n], ensure_ascii=False) + "\n" for n in sorted(records)), encoding="utf-8", newline="\n")
 
 
 def ingest(runs, crate):
@@ -228,17 +232,40 @@ def amend(card, add, remove):
     print(f"{card}: {', '.join(record['needs']) or 'no needs'}")
 
 
+def rename(old, new):
+    """A row split or renamed in the Sizing table, carried into every record."""
+    records = read_records()
+    renamed = 0
+    for record in records.values():
+        for key in ("needs", "reshaped"):
+            if old in record[key]:
+                record[key] = list(dict.fromkeys(new if n == old else n for n in record[key]))
+                renamed += 1
+    write_records(records)
+    print(f"{old} is {new} in {renamed} lists")
+
+
 def row_name(sized):
-    return CHEAP_GAPS if CHEAP_GAPS in sized.row else re.match(r"`([^`]+)`", sized.row).group(1)
+    """A Sizing row's name: its first backticked word, or the cell as written
+    for a row with none, which no record can name."""
+    if CHEAP_GAPS in sized.row:
+        return CHEAP_GAPS
+    named = re.match(r"`([^`]+)`", sized.row)
+    return named.group(1) if named else sized.row
 
 
 def route():
-    """The rows to come by name as `SizedRow`s, the names landed, and the rows to
-    come in order. A name's last row wins, so `mana-provenance` is its build and
-    not its design."""
+    """`rows_of` the Sizing table, which must read clean."""
     parsed, problems = sizing()
     if problems:
         sys.exit("\n".join(problems))
+    return rows_of(parsed)
+
+
+def rows_of(parsed):
+    """The rows to come by name as `SizedRow`s, the names landed, and the rows to
+    come in order. A name's last row wins, so `mana-provenance` is its build and
+    not its design."""
     rows, landed = {}, set()
     for sized in parsed:
         name = row_name(sized)
@@ -293,6 +320,25 @@ def status(needs, record):
     if not needs:
         return "ready" if record["needs"] else "writable"
     return "gap" if any(is_gap(n) for n in needs) else "blocked"
+
+
+def record_problems(records, rows, landed, unregistered):
+    """What makes the records misstate a card: a need naming no row and no gap,
+    which `needs_left` reads as met, and a card claimed writable with no proof."""
+    def known(need):
+        return need.removeprefix(GAP_PREFIX) in GAPS if is_gap(need) else need in rows or need in landed
+    unknown = sorted({need for record in records.values() for need in record["needs"] if not known(need)})
+    problems = [f"the gap census's records need {need}, which names no row of the Sizing table and no gap; "
+                f"`gap_census.py rename {need} <row>` carries a split or renamed row into them" for need in unknown]
+    for name in sorted(set(records) & unregistered):
+        if not records[name]["needs"] and unproved(records[name]):
+            problems.append(f"the gap census's records claim {name} writable and not proved: {', '.join(unproved(records[name]))}")
+    return problems
+
+
+def tally(records, rows, unregistered):
+    """How many unregistered deck cards stand at each `status` today."""
+    return Counter(status(needs_left(records[name], rows), records[name]) for name in set(records) & unregistered)
 
 
 def last_step(needs, rows):
@@ -422,30 +468,27 @@ def card_table(records, needs_by_card):
 def report():
     records = read_records()
     rows, landed, to_come = route()
-    misnamed = sorted({n for r in records.values() for n in r["needs"] if (n.removeprefix(GAP_PREFIX) not in GAPS if is_gap(n) else n not in rows and n not in landed)})
-    if misnamed:
-        sys.exit("needs naming no row and no gap: " + ", ".join(misnamed))
     registered = registered_cards()
     lists = [(deck_title(path), names) for path, names in deck_lists()]
     unregistered = {n for _, names in lists for n in names if n not in registered}
+    problems = record_problems(records, rows, landed, unregistered)
+    if problems:
+        sys.exit("\n".join(problems))
     needs_by_card = {name: needs_left(r, rows) for name, r in records.items()}
-    unproved_claims = {name: unproved(r) for name, r in records.items() if not r["needs"] and name in unregistered and unproved(r)}
-    if unproved_claims:
-        sys.exit("claimed writable and not proved:\n" + "\n".join(f"  {n}: {', '.join(why)}" for n, why in sorted(unproved_claims.items())))
 
-    tally = Counter(status(needs, records[name]) for name, needs in needs_by_card.items() if name in unregistered)
+    counted = tally(records, rows, unregistered)
     out = ["<!-- GENERATED by gap_census.py report. Do not hand-edit. -->", "", "# The gap census's tables", "",
            "Each card written against the tree and played; `plans/references/card-census/README.md#the-gap-census` says how far to trust it. **The census sees a card's blockers only up to its first row not built**, so a list below is not complete past that row, and a row's hunt finishes it.", "",
            f"{len(set(records) & unregistered)} of {len(unregistered)} unregistered cards read.", "",
-           "| | Cards |", "|---|---:|", f"| Writable today, proved | {tally['writable']} |", f"| Ready: its needs have landed, not yet proved | {tally['ready']} |",
-           f"| Blocked by a named row | {tally['blocked']} |", f"| A gap no row owned | {tally['gap']} |", ""]
+           "| | Cards |", "|---|---:|", f"| Writable today, proved | {counted['writable']} |", f"| Ready: its needs have landed, not yet proved | {counted['ready']} |",
+           f"| Blocked by a named row | {counted['blocked']} |", f"| A gap no row owned | {counted['gap']} |", ""]
     ratings = sorted((rate(title, names, registered, needs_by_card, rows, to_come) for title, names in lists), key=lambda d: (d.cost, len(d.gaps), d.title))
     out += deck_tables(ratings, registered, needs_by_card, rows, to_come)
     out += row_table(needs_by_card, rows, to_come)
     gaps, gap_count = gap_table(needs_by_card)
     out += gaps
     out += card_table(records, needs_by_card)
-    REPORT.write_text("\n".join(out), encoding="utf-8")
+    REPORT.write_text("\n".join(out), encoding="utf-8", newline="\n")
 
     composed = []
     for name in sorted(records):
@@ -454,15 +497,15 @@ def report():
         composed += [f"unwritten: {paragraph}" for paragraph in r["uncovered"]]
         composed += r["composition"]
         composed.append("")
-    COMPOSITION.write_text("\n".join(composed), encoding="utf-8")
-    print(f"{REPORT.name}: {len(records)} cards; writable {tally['writable']}, blocked {tally['blocked']}, gap {tally['gap']}; {gap_count} gaps")
+    COMPOSITION.write_text("\n".join(composed), encoding="utf-8", newline="\n")
+    print(f"{REPORT.name}: {len(records)} cards; writable {counted['writable']}, ready {counted['ready']}, blocked {counted['blocked']}, gap {counted['gap']}; {gap_count} gaps")
 
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["ingest", "report", "amend"])
-    parser.add_argument("runs", nargs="*", help="`ingest`'s run files, or `amend`'s card")
+    parser.add_argument("command", choices=["ingest", "report", "amend", "rename"])
+    parser.add_argument("runs", nargs="*", help="`ingest`'s run files, `amend`'s card, or `rename`'s need and its row")
     parser.add_argument("--crate")
     parser.add_argument("--add", action="append", default=[])
     parser.add_argument("--remove", action="append", default=[])
@@ -471,6 +514,8 @@ def main():
         ingest(args.runs, args.crate)
     elif args.command == "amend":
         amend(args.runs[0], args.add, args.remove)
+    elif args.command == "rename":
+        rename(*args.runs)
     else:
         report()
 
