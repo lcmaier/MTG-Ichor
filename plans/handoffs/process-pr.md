@@ -64,7 +64,17 @@ arm built at an older commit would compile with that commit's compiler.
 
 ## Open, for the owner
 
-Nothing open. The question raised at #322 was answered at its merge, as the two
+**Should the mana pool join the write gate's fields?** Raised at
+`mana-provenance`'s design (2026-11-13). `check_invariants.py`'s `EVENT_FIELDS`
+does not list a player's mana pool, so `turns.rs` empties pools and `costs.rs`
+spends from them outside `perform_action` with no tag. That design routes the
+emptying through the chokepoint and tags the spending
+(`mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`
+and its decision 4). The gate would then keep it so: a pool written anywhere
+but those two places fails. If yes, it lands with `mana-kept-and-lost`, the row
+that removes the last untagged write.
+
+Nothing else open. The question raised at #322 was answered at its merge, as the two
 entries above. The two this queue opened with were answered in #321's review and
 built there: the hygiene pass runs at the midpoint of the run to v0.5, after
 step 9, and a backlog entry with no Owner line fails the board's check.

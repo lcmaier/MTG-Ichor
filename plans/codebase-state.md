@@ -1666,6 +1666,11 @@ section never asked.
     and the source axis stay this item's pass, after MA-1.
     **Slotted:** `mana-provenance`: the per-unit record, T12c's
     `SpendContext` routing and T12d's cards, after its design pass.
+    **Designed 2026-11-13**, at its design stop for the owner's review:
+    `mana-architecture.md#11-mana-provenance-what-a-unit-of-mana-keeps`. It
+    proposes one list of counted units in place of the two-track pool, a
+    payment that asks only where units differ, and three build rows,
+    `snow-mana`, `restricted-mana-plus-spend-riders` and `mana-kept-and-lost`.
     **Noted at TR-4a (2026-10-14):** `Lki` carries no `cast`
     (`triggers-architecture.md` §3.11), since no condition leaf reads mana
     spent. The first such leaf adds it to the `Lki` beside itself, so an
@@ -4284,6 +4289,12 @@ The layer system's designated single-point change site is `oracle/characteristic
    much life" changes the same two expiry sites, as life lost at the moment the
    mana is (its 2020-11-10 ruling: no stack, one loss however many Yurloks).
    The only printed card that says it (Scryfall, `o:"losing unspent mana"`).
+   **Designed 2026-11-13**, for the owner's review:
+   `mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`
+   proposes the emptying as an event, since a kept set read at a direct write
+   holds 7 of the 14 printed cards that keep, replace or follow the loss. It
+   re-counts the 31 above as 12 by that query and 63 by clause. Main item
+   403's second half is this same build.
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
@@ -5580,6 +5591,11 @@ closed. **The last of RE's ten PRs.**
      mana at once, decided by the CR 106.6a reading that row makes (the owner,
      at #293's review, 2026-10-25: a filed gap with printed customers takes a
      route row).
+     **Designed 2026-11-13**, for the owner's review:
+     `mana-architecture.md#decision-7-item-135-a-mixed-production-under-a-fixed-amount`.
+     The per-unit record does not decide it, and no printed ability makes the
+     mix (Scryfall, three phrasings, 0 each), so it proposes keeping the
+     refusal and re-slotting this item to its first card.
 
 136. **The chokepoint's fixed cost per event is the whole of what a proposal
      with nothing watching it costs, and the one lever §8 pre-approved cannot
@@ -10606,6 +10622,11 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Reachability (2026-11-06):** unreachable — no registered card prints either.
      **Sized:** ~100–160 lines: a query at the untap, and the emptying's event.
      **Slotted:** `tarkir-dragonstorm-decks`.
+     **Noted at `mana-provenance`'s design (2026-11-13):** the emptying's event
+     is "Before Layers" item 4's build too, designed in
+     `mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`.
+     That design proposes this half move to its row `mana-kept-and-lost`, for
+     the owner's review; the untap's half stays.
 
 404. **Six words one card each asks.** "If that spell is countered this way, exile
      it instead" (Transcendent Dragon): a replacement made first does not reach the
