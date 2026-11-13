@@ -48,13 +48,8 @@ pub fn should_deal_damage_this_step(
     if first_strike_only {
         has_first_or_double_strike(game, creature_id)
     } else {
-        // Normal step: skip if already dealt FS damage and not double strike
-        if game.dealt_first_strike_damage.contains(&creature_id)
-            && !has_keyword(game, creature_id, KeywordFlag::DoubleStrike)
-        {
-            return false;
-        }
-        true
+        !game.dealt_first_strike_damage.contains(&creature_id)
+            || has_keyword(game, creature_id, KeywordFlag::DoubleStrike)
     }
 }
 
