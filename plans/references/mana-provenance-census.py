@@ -46,7 +46,9 @@ RESTRICTION = re.compile(r"spend this mana only|this mana can't be spent|can be 
 RESTRICTION_READS = [
     ("the purpose is casting a spell", r"\bcast\b"),
     ("the purpose is activating an ability", r"activate|equip abilit|power-up abilit|gain a class level"),
-    ("the purpose is another cost or action", r"cumulative upkeep|costs? that contains? \{|face up|morph cost|unlock|foretell a card|foretell cards|disturb cost"),
+    ("the cost itself, by a symbol in it ({X}, {C})", r"costs? that contains? \{"),
+    ("the purpose is a special action (turn face up, unlock a door, foretell)", r"face up|morph cost|unlock|foretell a card|foretell cards"),
+    ("the purpose is a keyword's cost paid as its trigger resolves (cumulative upkeep)", r"cumulative upkeep"),
     ("one part of a cost (generic)", r"generic mana costs"),
     ("a spell's type line (card type, subtype, supertype)",
      r"cast (?:an? |the )?(?:[A-Z][\w'-]+|creature|artifact|instant|sorcery|enchantment|planeswalker|noncreature|nonartifact|legendary|outlaw|colorless [A-Z])"),
@@ -54,7 +56,7 @@ RESTRICTION_READS = [
     ("a spell's color, mana value, cost symbols, keywords or abilities",
      r"multicolored|monocolored|colorless|exactly three colors|one or more colors|mana value|\{X\} in (?:its|their) mana cost|with devoid|no abilities|that has freerunning|that have foretell|with flashback"),
     ("how the spell is cast (zone, kicked, face down, owner, a named card)",
-     r"from (?:your |a )?(?:graveyard|hand|exile)|anywhere other than|kicked|face-down|you don't own|your commander|last card exiled"),
+     r"from (?:your |a )?(?:graveyard|hand|exile)|anywhere other than|kicked|face-down|you don't own|your commander|last card exiled|disturb cost"),
     ("an ability's source, by its type line or color", r"abilit(?:y|ies) of"),
     ("an ability by its kind (equip, power-up, Class level)", r"equip abilit|power-up abilit|gain a class level"),
     ("stated as what it can't pay", r"can't be spent"),
@@ -75,6 +77,7 @@ KEEPS = [
     ("unspent mana is kept, by a static ability", r"don't lose unspent|doesn't empty|don't empty|doesn't lose unspent"),
     ("losing unspent mana is replaced (it changes type)", r"would lose unspent mana"),
     ("losing unspent mana has a result (life lost, moved to another player)", r"losing unspent mana|mana lost this way"),
+    ("an effect makes a player lose unspent mana, outside a step's end", r"loses? all unspent mana"),
 ]
 
 SNOW_COST = [
@@ -135,7 +138,7 @@ def main():
         if "{S}" in (card.get("mana") or ""):
             put("3. {S} in a cost, and what makes snow mana", SNOW_COST[0][0], card, card["mana"])
         if "Snow" in card["type"] and card.get("produced"):
-            put("3. {S} in a cost, and what makes snow mana", "a snow permanent that makes mana (a snow source)", card, card["type"])
+            put("3. {S} in a cost, and what makes snow mana", "a snow source that makes mana (a permanent or a spell, CR 106.3)", card, card["type"])
         for keyword in card.get("kw") or []:
             if keyword in ("Converge", "Sunburst"):
                 put("4. What reads the mana a payment spent", "its colors or types", card, f"kw: {keyword}")
