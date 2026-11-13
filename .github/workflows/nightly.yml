@@ -5,9 +5,23 @@
 # to do with one.
 name: Nightly sweep
 
+# The cron is UTC, with no time zone to set, and it is when GitHub queues the
+# run, not when it starts. It read `23 7`, which is 2:23 am Eastern (06:23 UTC
+# would be, in daylight time), and all eight nights from 2026-11-06 started 6 h
+# 46 min to 10 h 15 min after it, at 9:09 am to 12:38 pm Eastern, earliest on
+# the weekend. So it is queued at 00:23 UTC, 7:23 pm Eastern the evening
+# before: the same delay would start it at 2:09 to 5:38 am Eastern, with the
+# run done by morning. Minute 23 keeps it off the top of the hour. Read the
+# next nights' start times (`gh run list --workflow nightly.yml`): if they
+# have not moved, no cron will move them, and what is left is a scheduler
+# outside GitHub calling `workflow_dispatch`, or a midday run.
+#
+# Not earlier than 00:00 UTC: tonight's seed is the UTC day the run starts
+# on, so a run that could start either side of midnight could play one day's
+# games twice.
 on:
   schedule:
-    - cron: "23 7 * * *"
+    - cron: "23 0 * * *"
   workflow_dispatch:
     inputs:
       seed:
@@ -23,8 +37,9 @@ env:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    # Twice the estimate below, so a hang stops rather than a slow night.
-    timeout-minutes: 45
+    # About twice the longest night below, so a hang stops rather than a slow
+    # night.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: mtgsim
@@ -52,11 +67,11 @@ jobs:
           echo "MTGSIM_HASH_SEED=$seed" >> "$GITHUB_ENV"
           echo "Master seed $seed"
 
-      # About 20 minutes together on a runner, estimated from 16-thread local
-      # runs (300 audited stress games in 89 s, 4 audited four-seat games in
-      # 47 s, 300 unaudited fixture games in 88 s). Correct these against the
-      # first nights. A failed sweep leaves the others running, so one failure
-      # hides nothing.
+      # 7 to 32 minutes a night over the first eight (2026-11-06 to 11-13),
+      # 15 at the median, each night's seeds being new: the four-seat sweep
+      # took 3 to 23 minutes, the two-seat one 2 to 6, the fixtures 1 to 3 and
+      # the build under one. A failed sweep leaves the others running, so one
+      # failure hides nothing.
       - name: Sweep — stress pool, two seats
         run: target/release-checked/fuzz_games --games 300 --seed "$MASTER_SEED" --pool stress --audit
 
