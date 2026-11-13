@@ -834,7 +834,9 @@ plan whose last rows joined it, so work is counted the way the rows left are. Of
 GUI, 36 audit, 13 process and docs, and 14 detours: 2.0 merged PRs for each route
 PR, and 36% audit, process and detours. The item 6 audit's plan said 13–20 PRs and
 ran to 28, its cleanup builds among them. At that rate the route is 146–276 merged
-PRs. Held to about 1.5 for each route PR, with audits on a budget, the process PR
+PRs. Held to about 1.5 for each route PR, with audits on a budget (the owner,
+2026-11-13: a hunt of one PR when a subsystem closes and the whole audit once, at
+v0.5's close, `spine-phase-audit.md#when-it-runs`), the process PR
 at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–207. So
 **about 110–275 merged PRs**.
 

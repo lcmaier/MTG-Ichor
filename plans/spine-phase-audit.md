@@ -1,12 +1,31 @@
 # The spine-phase audit
 
-When a critical-path item closes, it is audited before the next one starts
+A stretch of the route that has closed is audited before the next one starts
 (`engineering-practices.md#the-spine-phase-audit`, the owner's decision at the
 post-RE audit, 2026-09-15). This doc is how: the passes, each with its named
 instruments, planned in a `plans/handoffs/` file that the last pass's PR
 deletes, each pass its own PR. The run's own record is a
 `### … — audited YYYY-MM-DD` heading in `codebase-state.md`, pointers and
 not prose, written when the handoff goes.
+
+## When it runs
+
+**The hunt when a subsystem closes, and the whole audit once, at v0.5's
+close** (the owner, 2026-11-13). It replaces "when a critical-path item closes,
+audit it before the next starts": after item 6 the route is steps and rows, so
+that rule named no audit before v0.5, and the item 6 audit ran to 28 PRs with
+its cleanup builds, against the 1.5 merged PRs for each route PR that
+`roadmap-v2.md`'s Sizing section holds the route to.
+
+- **A subsystem closes when the last phase its architecture doc owes v0.5
+  lands**, by `roadmap-v2.md`'s Sizing table. `/next-brief` says so, and the
+  hunt (pass 5) is the next PR: its report and small fixes in one PR, larger
+  findings filed as slotted items, a second PR only on the owner's yes.
+- **The whole audit runs at v0.5's close**, every pass below, with its PR
+  budget stated in its plan as any detour's is
+  (`engineering-practices.md#sizing-a-phase`).
+- The CI review, the process PR and the hygiene pass at a midpoint keep the
+  clocks their sections below give them.
 
 **Why it is a practice and not a checklist in the closing PR.** The first run
 found "done" defined in five places and collected in none, `owed` never run
@@ -169,6 +188,10 @@ A small finding goes in the next PR; a larger one becomes an item.
 **Process changes land beside this review**, in one PR when a number crosses a
 multiple of 20, queued in `plans/handoffs/process-pr.md`, and never inside an
 engine PR. A bug in a gate is the one exception: it is fixed where it is found.
+**A new gate or rule raised in review is a process change**, so it joins the
+queue unless the owner says now (the owner, 2026-11-13). `/review-round`'s
+default for other new work, the next PR, did not say which of the two a gate
+took.
 
 ## The runs
 
