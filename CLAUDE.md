@@ -153,8 +153,8 @@ v1 is done (2026-10-29), and highly parallel AI games over the CLI. **Write new 
 `plans/specdb.py` joins the corpus to the test suite and the CR; `build` regenerates `spec.sqlite`
 and the index markdowns — never hand-edit those, fix the session file and rebuild.
 **Annotate at write time** (`// COVERS:` above the `#[test]`, `// COVERS-PARTIAL:` when it does not
-build the whole atom), **never claim an atom a test doesn't prove**, and **a phase does not close
-until `owed` is clean for it** — a gate, not a report. → `engineering-practices.md#the-spec-database`.
+build the whole atom), **never claim an atom a test doesn't prove**, and **a phase reads its rules'
+atoms when it starts** (`next --rule`): a reading list, not a closing gate. → `engineering-practices.md#the-spec-database`.
 
 ## Git workflow
 

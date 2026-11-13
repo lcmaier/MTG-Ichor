@@ -28,7 +28,8 @@ readiness and the hunt.
    - **the board**: `check_state_of_play.py --write`, then `--check`, whose
      bolded rows are the work;
    - **`specdb owed --phase "<the phase>"`**, once `SHIPPED_PHASES` holds it,
-     a gate: the phase is not closed until it is clean;
+     a report since 2026-11-06: each atom it lists is triaged as a fact or a
+     feature, and no close waits on it (`engineering-practices.md#the-spec-database`);
    - the doc's own findings list, known-missing table and out-of-scope list,
      re-read against what landed;
    - the summaries (`codebase-state.md`'s TL;DR and CR row, the README's

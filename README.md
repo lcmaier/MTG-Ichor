@@ -222,9 +222,10 @@ python plans/specdb.py stats
 ```
 
 `specdb` joins the atomic-test corpus to the test suite and to the CR, so "what is covered"
-is a query rather than hand-maintained prose. Also available: `next --phase`,
-`show <ATOM-ID>`, `gaps --chapter N`, `orphans`, `suspicious`, and `owed` — the gate a
-phase does not close until it is clean.
+is a query rather than hand-maintained prose. Also available: `next --rule`, which
+lists a rule's atoms for a phase to read as it starts, `show <ATOM-ID>`,
+`gaps --chapter N`, `orphans`, `suspicious`, and `owed`, a report of the atoms a
+shipped phase left with no test.
 
 ---
 

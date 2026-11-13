@@ -1700,6 +1700,30 @@ query could have asked for it. That is what the review pass is for, and it is
 the argument for `plans/state-of-play.md` rendering the contrast rather than
 letting the two words blur.
 
+### 5.2 Why it stopped being a gate — 2026-11-06
+
+The owner's decision, in the brief for `v0.5-sizing`, landed in the process PR
+after #320: **the corpus is a reading list and a checklist for a phase that is
+starting, and no close waits on `owed`.** Three readings behind it:
+
+- **The gate read less than its message said.** `owed` selects atoms ticketed
+  `NEW` and printed "every atom in a shipped phase is covered or was explicitly
+  deferred" when that list was empty. Shipped phases held 447 atoms with no
+  test on 2026-11-13, and it listed 8. It now prints both counts.
+- **The corpus was written once.** Its atoms date from 2026-08, so the rules a
+  phase touches today have few atoms and those are covered: a new test has
+  nothing to cite, and "owed is clean" was true of every close without checking
+  that phase.
+- **A covered atom proves one scenario, not its rule.** Of the eight defects
+  the hunt of 2026-11-04 found, five sat on rules whose atoms were all
+  covered, two on rules with untested atoms and one on a rule with no atom
+  (read 2026-11-06).
+
+So the atoms moved to where they still pay: `specdb.py next --rule` lists a
+rule's atoms in every phase, and a phase reads them in its brief and at its
+design stop as scenarios to test. What checks a subsystem at its close is the
+hunt (`spine-phase-audit.md`).
+
 ## 6. Module layout — a `mod.rs` declares and re-exports; it does not define
 
 **Checked, not trusted:** `python plans/check_module_layout.py`, in CI beside the

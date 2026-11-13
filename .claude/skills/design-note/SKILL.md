@@ -13,7 +13,10 @@ in order, then stop.
 ## 1. Intake and re-count
 
 - `python plans/check_state_of_play.py --slotted <name>`, then each item's
-  body; take each item or re-slot it.
+  body and each backlog entry it lists; take each or re-slot it.
+- `python plans/specdb.py next --rule <rule>` for each rule the phase names.
+  Its atoms are the scenarios the note's tests are checked against: each is
+  covered by a planned test, or the note says why not.
 - Re-count each item's **Sized:** line against the tree, code and tests apart
   (`plans/engineering-practices.md#sizing-a-phase`).
 
