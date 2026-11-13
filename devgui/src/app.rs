@@ -15,7 +15,7 @@ use crate::editor::{
 use crate::launch::Start;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, DIVERGED, Input, Item, KEYS, Key, Mode, NO_SAVESTATES, NumberField, OptionButton, PromptView,
+    Amount, BoardView, DIVERGED, Input, Item, Key, Mode, ModeControl, ModeRow, NO_SAVESTATES, NumberField, OptionButton, PromptView,
     SeatButton, ToolButton, ToolsView, TypeLineView, TypeWordView, WhyView, WindowState, ZoneView,
 };
 
@@ -772,6 +772,10 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
             }
         });
     }
+    // A row per mode, in the order the digit keys count.
+    for row in &prompt.modes {
+        ui.horizontal(|ui| mode_control(ui, row, inputs));
+    }
     for not_yet in &prompt.not_offered_yet {
         ui.horizontal_wrapped(|ui| {
             ui.add_enabled(false, egui::Button::new(&not_yet.label));
@@ -809,7 +813,7 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
             }
         });
     }
-    ui.weak(KEYS);
+    ui.weak(prompt.keys);
 }
 
 fn option_control(ui: &mut egui::Ui, i: usize, option: &OptionButton, inputs: &mut Vec<Input>) {
@@ -833,6 +837,28 @@ fn option_control(ui: &mut egui::Ui, i: usize, option: &OptionButton, inputs: &m
             };
             if ui.add_enabled(option.live, egui::Button::new(label).selected(option.chosen)).clicked() {
                 inputs.push(Input::OptionButton(i));
+            }
+        }
+    }
+}
+
+fn mode_control(ui: &mut egui::Ui, row: &ModeRow, inputs: &mut Vec<Input>) {
+    match &row.control {
+        ModeControl::Checkbox { ticked, click, live } => {
+            // A copy for egui to flip: the tick is the view model's, from the click.
+            let mut shown = *ticked;
+            if ui.add_enabled(*live, egui::Checkbox::new(&mut shown, &row.label)).clicked() {
+                inputs.push(click.clone());
+            }
+        }
+        ModeControl::Count(Amount { value, can_lower, can_raise }) => {
+            ui.label(&row.label);
+            if ui.add_enabled(*can_lower, egui::Button::new("−")).clicked() {
+                inputs.push(Input::UntickMode(row.mode));
+            }
+            ui.strong(value.to_string());
+            if ui.add_enabled(*can_raise, egui::Button::new("+")).clicked() {
+                inputs.push(Input::TickMode(row.mode));
             }
         }
     }

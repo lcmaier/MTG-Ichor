@@ -217,10 +217,14 @@ impl AbilityDef {
     /// `cards::authoring`'s ability words build, and what the engine builds
     /// an ability it makes with. Its id is [`AbilityId::UNASSIGNED`] until
     /// `CardDataBuilder::build` stamps it or [`Self::with_id`] sets it.
-    pub fn new(ability_type: AbilityType, rules_text: impl Into<AbilityText>, effect: Effect) -> AbilityDef {
+    pub fn new(ability_type: AbilityType, rules_text: impl Into<AbilityText>, mut effect: Effect) -> AbilityDef {
+        let rules_text = rules_text.into();
+        if let Some(node) = effect.modal_mut() {
+            node.take_words_from(rules_text.words);
+        }
         AbilityDef {
             id: AbilityId::UNASSIGNED,
-            rules_text: rules_text.into(),
+            rules_text,
             ability_type,
             instances: effect.instances(),
             effect,

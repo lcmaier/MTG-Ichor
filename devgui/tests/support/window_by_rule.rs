@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use devgui::bridge::{Outcome, Play, ToWindow, spawn_game};
 use devgui::prompt::{BoardRef, Primitive};
-use devgui::view_model::{Input, WindowState};
+use devgui::view_model::{Input, Selection, WindowState};
 
 use crate::games::next;
 
@@ -20,6 +20,11 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
     };
     let last = prompt.options.len().checked_sub(1);
     match &prompt.primitive {
+        // The mode picker: the last choice's modes ticked, then Done.
+        Primitive::PickN { .. } if matches!(state.selection, Some(Selection::Modes(_))) => {
+            let modes = prompt.options.last().and_then(|option| option.modes.clone()).unwrap_or_default();
+            modes.into_iter().map(Input::TickMode).chain([Input::Done]).collect()
+        }
         Primitive::PickN { max: 1, .. } => vec![last.map_or(Input::Done, Input::OptionButton)],
         Primitive::PickN { min, max } => {
             let mut actors: Vec<BoardRef> = Vec::new();

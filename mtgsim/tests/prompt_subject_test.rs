@@ -258,7 +258,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseDelayedTriggerEvent { source: id },
         ChoiceKind::ChooseEnteringDefender { object: id },
         ChoiceKind::DivideAmong { source: id },
-        ChoiceKind::ChooseModes { source: id },
+        ChoiceKind::ChooseModes { source: id, words: Vec::new() },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();

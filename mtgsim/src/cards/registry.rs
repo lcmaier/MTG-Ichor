@@ -1509,6 +1509,34 @@ mod tests {
         }
     }
 
+    /// A client shows each mode by its line of the ability's text, cut as the
+    /// ability is made (`ModalNode::take_words_from`): every modal ability of
+    /// a registered card or a castable fixture has a line for each mode, its
+    /// bullet dropped, so none falls back to its place alone.
+    #[test]
+    fn every_mode_has_its_line_of_the_text() {
+        let registry = CardRegistry::fixture_pool();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        let mut modal = 0;
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            for (i, ability) in card.abilities.iter().enumerate() {
+                let Some(node) = ability.effect.modal() else { continue };
+                modal += 1;
+                for (place, mode) in node.indexed_modes() {
+                    assert!(!mode.words.is_empty(), "{name} ability #{i}: mode {place} has no words in {:?}", ability.rules_text.words);
+                    assert!(!mode.words.starts_with('•'), "{name} ability #{i}: mode {place} keeps its bullet");
+                }
+            }
+        }
+        assert!(modal >= 12, "only {modal} modal abilities found");
+        let cryptic = crate::cards::printings::cryptic_command();
+        let words = cryptic.abilities[0].effect.modal().map(crate::types::effects::ModalNode::words);
+        let first = words.as_deref().and_then(<[_]>::first).map(|(_, words)| *words);
+        assert_eq!(first, Some("Counter target spell."));
+    }
+
     /// Every event role a registered trigger names is one every arm of its
     /// condition has (TR-5a's decision 2): "that creature" after a dies
     /// trigger is the card that moved, and no dies record has a recipient. A

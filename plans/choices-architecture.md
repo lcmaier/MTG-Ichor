@@ -1250,6 +1250,43 @@ Where it differs from decisions 2 and 3's words:
   which existed, not decision 7's `ChoosePlayer`. A random chooser is item 416's.
 - **The picker is a PR of its own**, `mode-picker`, the split the intake set.
 
+### `mode-picker` — the dev GUI asks for modes one at a time — ✅ landed 2026-11-09
+
+PR #320, the dev GUI's half of `modal-spells-and-abilities`: 977 lines of code and tests
+touched, 136 of them the engine's for the mode words, against the guess of 300–600 and the
+brief's 400–700 by parts, which held no words. Its close-out: gameplay identical on both pools
+at two seats and four, instructions per decision +0.36%.
+- **The picker** (decision 2's "For the GUIs"): a row per mode some offered choice has, a
+  checkbox, or a count where some choice has the mode twice. A tick is live while some offered
+  choice still holds the ticks with it, and Done while the ticks are one. It reads the offered
+  list alone, never the count, `may_repeat` or a pawprint, so a new count rule needs nothing
+  in the window.
+- **The answer is the option whose modes are the ticks**, found by what it holds; an option's
+  place answers nothing at the picker, and the digit key n is mode n's click.
+- **Chosen by the options, not the kind**: `OptionView::modes`, as `attacker` is, and a prompt
+  whose every option is a choice of modes is a picker. A forced choice is still unasked.
+- **Each mode's words** (item 417, taken into this PR at the owner's word in review): a `Mode`
+  holds its line of the ability's text, cut in `AbilityDef::new`, which every card, grant and
+  copy goes through; `ChooseModes` carries the words of the node being announced, and
+  `ui::display::mode_label` words a row "1. Counter target spell." The engine's one change: no
+  decision reads the words, so no game or log line moves.
+- **Tested over the engine's own offers** for each of `ModalCount`'s seven arms and the
+  node's rules (Cryptic Command, Casualties of War, Explosive Derailment, Vindictive Lich at
+  three seats; the Echoing Reckoning, Pawprint Parade, Divided Envoy, Tally of Choices and
+  Kindled Option fixtures), every reachable set of ticks walked; `modes.scenario` under random
+  clicks; two pictures. At 126 choices the picker's view costs 1.6 µs a repaint (`prompt_cost`).
+
+Where it differs from decision 2's words:
+- **A mode in no offered choice has no row**: the list cannot say it exists, so Cryptic
+  Command with no spell to counter shows three rows, not a fourth greyed.
+- **"Choose one" is a tick, then Done**: one click more than the list's button took, since
+  Done is live while the ticks are a listed choice, as "B against C" puts it, and a tick
+  can be taken back before it goes.
+- **A mode's words are its printed line, cut, not composed from its effect**: the first line
+  of the ability's text is the count and each line after it a mode. A text with other than a
+  line per mode keeps "Mode 1"; no registered card or castable fixture has one, which a
+  registry test holds.
+
 ## 6. Found while designing
 
 1. **The brief cited CR 500.4 for a pool emptying at a step's end**; it is

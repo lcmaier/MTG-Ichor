@@ -1,0 +1,33 @@
+# Modes ticked one at a time: player 1 has cast Lightning Bolt at player 0's
+# Vindictive Lich, and player 0 holds priority with Cryptic Command, whose four
+# modes each have a choice (counter the Bolt, return a permanent, tap the
+# opponents' creatures, draw), and Explosive Derailment (spree). Casualties of
+# War, one or more of five modes, waits for the stack to empty. When the Lich
+# dies, its trigger chooses one mode or two at three seats, each targeting a
+# different opponent.
+players 3
+turn 3
+active 0
+step precombat main
+
+hand 0: Cryptic Command
+hand 0: Explosive Derailment
+hand 0: Casualties of War
+hand 1: Lightning Bolt
+hand 2: Grizzly Bears | x2
+library 0: Island | x8
+library 1: Mountain | x8
+library 2: Forest | x8
+
+battlefield: Island | controller 0, x4
+battlefield: Swamp | controller 0, x2
+battlefield: Forest | controller 0, x2
+battlefield: Mountain | controller 0, x3
+battlefield: Vindictive Lich | controller 0
+battlefield: Mountain | controller 1
+battlefield: Grizzly Bears | controller 1
+battlefield: Mind Stone | controller 1
+battlefield: Glorious Anthem | controller 2
+battlefield: Loyalty Probe | controller 2
+
+then: player 1 casts Lightning Bolt | targeting Vindictive Lich

@@ -24,11 +24,12 @@ use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow};
 use devgui::editor::{BoardNumber, EditButton, Editor, EditorInput, EditorView, Source, Stepper, Typed};
 use devgui::prompt::{Primitive, Reply};
 use devgui::view_model::{
-    Amount, BoardView, DoneButton, Input, Item, Key, NumberField, SETTLE_SECONDS, SeatButton, WindowState,
+    Amount, BoardView, DoneButton, Input, Item, Key, ModeControl, NumberField, SETTLE_SECONDS, SeatButton, Selection, WindowState,
 };
 use games::{dealt, from_board, next, spawn};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
+use mtgsim::types::effects::ModeIndex;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
@@ -87,6 +88,8 @@ struct Reached {
     /// Prompts with a division on the stack, and with an option's words beside it.
     shares_on_the_stack: usize,
     words_beside_an_option: usize,
+    /// Choices of modes answered through the mode picker.
+    modes_picked: usize,
 }
 
 #[test]
@@ -110,12 +113,14 @@ fn random_clicks_finish_dealt_games_from_both_pools() {
 /// The review boards reach what a dealt game reaches only now and then: a
 /// blocker with two attackers to choose between, damage to divide, blocks
 /// declared illegally and asked for again, a spell's division on the stack,
-/// and a counter's row at CR 616.1's question. The four-seat sample has three
-/// seats the window plays and one that has left the game.
+/// a counter's row at CR 616.1's question, and modes ticked in the picker.
+/// The four-seat sample has three seats the window plays and one that has
+/// left the game.
 #[test]
 fn random_clicks_finish_games_from_the_review_boards() {
     let mut reached = Reached::default();
-    for board in ["main.scenario", "blocks.scenario", "damage.scenario", "reask.scenario", "division.scenario", "finality-counter.scenario"] {
+    let boards = ["main.scenario", "blocks.scenario", "damage.scenario", "reask.scenario", "division.scenario", "finality-counter.scenario", "modes.scenario"];
+    for board in boards {
         for seed in SEEDS {
             play_at_random(from_board(board), seed, &mut reached);
         }
@@ -127,6 +132,7 @@ fn random_clicks_finish_games_from_the_review_boards() {
     assert!(reached.primitives.iter().any(|p| matches!(p, Primitive::Allocate { .. })), "no allocation reached");
     assert!(reached.shares_on_the_stack > 0, "no division reached the stack");
     assert!(reached.words_beside_an_option > 0, "no option carried its words");
+    assert!(reached.modes_picked > 0, "no choice of modes was ticked");
 }
 
 /// Plays a whole game by random clicks, adding what it reached.
@@ -169,10 +175,12 @@ fn play_at_random(setup: GameSetup, seed: u64, reached: &mut Reached) {
         assert_eq!(state.clone().input(Input::OptionButton(0)), None, "{game}: a click in the beat");
         state.tick(clock + 2.0 * SETTLE_SECONDS);
         let prompt = state.prompt.clone();
+        let picker = matches!(state.selection, Some(Selection::Modes(_)));
         let reply = click_until_answered(&mut state, &engine, &mut rng, reached)
             .unwrap_or_else(|| panic!("{game}: no answer in {CLICK_CAP} clicks to {prompt:?}"));
         last = format!("answering {prompt:?} with {reply:?}");
         reached.yields += usize::from(matches!(reply, Reply::Yield(_)));
+        reached.modes_picked += usize::from(picker && matches!(reply, Reply::Answer(_)));
         // What `Session::input` does with the header's switch. Flipped while
         // the engine waits on this answer, so the prompts after it all read
         // the flip: flipped after the answer, it lands wherever the engine
@@ -294,9 +302,9 @@ fn live_stop(state: &WindowState) -> Option<Input> {
 
 /// What `app::draw` lets a person click now, besides "Start over", the
 /// yields and "Stop yielding": each option's button or an allocation's live
-/// "−" and "+", the number's field, the confirm button while it is live, each
-/// board item marked clickable, and the key for each live button that has
-/// one.
+/// "−" and "+", each mode's live checkbox or "−" and "+", the number's field,
+/// the confirm button while it is live, each board item marked clickable,
+/// and the key for each live button that has one.
 fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
     let Some(prompt) = state.prompt_view() else {
         return Vec::new();
@@ -309,6 +317,22 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
                 inputs.extend(can_raise.then_some(Input::OneMore(i)));
             }
             None => inputs.extend(option.live.then_some(Input::OptionButton(i))),
+        }
+    }
+    // A mode's digit key is its checkbox's click, or its count's "+".
+    let mut mode_keys = Vec::new();
+    for row in &prompt.modes {
+        let digit = (1..=9).find(|&place| ModeIndex::printed(place) == row.mode);
+        match &row.control {
+            ModeControl::Checkbox { click, live, .. } => {
+                inputs.extend(live.then(|| click.clone()));
+                mode_keys.extend(digit.filter(|_| *live));
+            }
+            ModeControl::Count(Amount { can_lower, can_raise, .. }) => {
+                inputs.extend(can_lower.then_some(Input::UntickMode(row.mode)));
+                inputs.extend(can_raise.then_some(Input::TickMode(row.mode)));
+                mode_keys.extend(digit.filter(|_| *can_raise));
+            }
         }
     }
     if let Some(NumberField { min, max, live: true, .. }) = prompt.number {
@@ -325,6 +349,7 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
             Input::Done => Some(key(Key::Enter)),
             _ => None,
         })
+        .chain(mode_keys.into_iter().map(|digit| key(Key::Digit(digit))))
         .collect();
     if let Some(pass) = state.prompt.as_ref().and_then(|prompt| prompt.pass)
         && inputs.contains(&Input::OptionButton(pass))

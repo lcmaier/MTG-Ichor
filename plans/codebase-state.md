@@ -10767,3 +10767,14 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~30–50 lines: the arm, a draw from the game's generator over
      the listed sets, and a fixture.
      **Slotted:** `breadth-features`, with its first card.
+
+### Found by `mode-picker` (2026-11-09)
+
+417. **A mode's words reach no client yet.** — ✅ closed.
+     The picker labeled each row by its place alone ("Mode 3"). Each `Mode`
+     now holds its line of the ability's text, cut in `AbilityDef::new`;
+     `ChooseModes` carries the words of the node being announced, so a
+     grant's or a copy's are its own, and `ui::display::mode_label` words a
+     row "3. Tap all creatures your opponents control."
+     **Reachability (2026-11-12):** closed — PR #320, at the owner's word in
+     review.

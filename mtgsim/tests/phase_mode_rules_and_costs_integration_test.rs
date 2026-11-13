@@ -118,7 +118,7 @@ impl<D: DecisionProvider> DecisionProvider for Showing<D> {
 
 /// The script's next answer: the modes printed at `places`.
 fn chooses_modes(answers: &ScriptedDecisionProvider, places: &[u8]) {
-    answers.expect_choice(ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::modes(places)]);
+    answers.expect_choice(ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() }, vec![ChoiceOption::modes(places)]);
 }
 
 /// The modes the stack object `id` announced, by printed place.

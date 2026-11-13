@@ -13,9 +13,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mtgsim::events::event::EventId;
+use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
+use mtgsim::ui::choice_types::modes_as_logged;
 use mtgsim::ui::display::{delayed_trigger_in_log, target_with_share};
 use mtgsim::ui::waiting::{TriggersIn, Waiting};
 use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
@@ -48,6 +50,11 @@ pub enum Input {
     OneMore(usize),
     /// One fewer in bucket `i` of an allocation.
     OneFewer(usize),
+    /// One more tick on a mode in the mode picker: its checkbox ticked, or
+    /// its count raised.
+    TickMode(ModeIndex),
+    /// One fewer tick on a mode in the mode picker.
+    UntickMode(ModeIndex),
     /// The confirm button.
     Done,
     /// Start the answer over.
@@ -105,8 +112,22 @@ pub enum Key {
     F6,
 }
 
-/// What each key does, for the prompt's foot.
-pub const KEYS: &str = "Keys: 1–9 an option · Enter confirm · Space pass · Esc start over · F2 pass until the stack changes · F4 until end of turn · F6 until this player's next turn";
+/// What each key does, for the prompt's foot, after what a digit clicks.
+macro_rules! keys_line {
+    ($digit_clicks:literal) => {
+        concat!(
+            "Keys: 1–9 ",
+            $digit_clicks,
+            " · Enter confirm · Space pass · Esc start over · F2 pass until the stack changes · F4 until end of turn · F6 until this player's next turn"
+        )
+    };
+}
+
+/// The prompt's keys, where a digit is an option's button.
+const KEYS: &str = keys_line!("an option");
+
+/// The mode picker's, where a digit is a mode's click.
+const MODE_KEYS: &str = keys_line!("a mode");
 
 /// How long after a prompt arrives its input is dropped (`codebase-state.md`
 /// item 201): egui's double-click window, so the second click of a double
@@ -129,11 +150,16 @@ pub enum Selection {
     Number(u64),
     Allocation(Vec<u64>),
     Order(Vec<usize>),
+    /// A choice of modes ticked a mode at a time (`choices-architecture.md`,
+    /// decision 2's "For the GUIs"): the modes ticked so far, in printed
+    /// order, a mode ticked twice there twice.
+    Modes(Vec<ModeIndex>),
 }
 
 impl Selection {
     pub fn start(prompt: &Prompt) -> Selection {
         match &prompt.primitive {
+            Primitive::PickN { min: 1, max: 1 } if is_a_choice_of_modes(prompt) => Selection::Modes(Vec::new()),
             Primitive::PickN { .. } => Selection::Picks { chosen: Vec::new(), half: None },
             Primitive::Number { min, .. } => Selection::Number(*min),
             Primitive::Allocate { mins, .. } => Selection::Allocation(mins.clone()),
@@ -160,6 +186,7 @@ impl Selection {
             (Primitive::PickN { min, max }, Selection::Picks { chosen, half }) => {
                 pick(prompt, (*min, *max), chosen, half, input)
             }
+            (Primitive::PickN { .. }, Selection::Modes(ticked)) => pick_modes(prompt, ticked, input),
             (Primitive::Number { min, max }, Selection::Number(value)) => match input {
                 Input::Number(n) => {
                     *value = n.clamp(*min, *max);
@@ -219,6 +246,68 @@ fn pick(
         chosen.push(clicked);
     }
     None
+}
+
+/// Whether every option is a choice of modes, which the window asks for a
+/// mode at a time.
+fn is_a_choice_of_modes(prompt: &Prompt) -> bool {
+    !prompt.options.is_empty() && prompt.options.iter().all(|option| option.modes.is_some())
+}
+
+/// The modes of each choice the engine offers.
+fn offered_choices(prompt: &Prompt) -> impl Iterator<Item = &[ModeIndex]> {
+    prompt.options.iter().filter_map(|option| option.modes.as_deref())
+}
+
+/// How often `mode` is among `modes`.
+fn times(modes: &[ModeIndex], mode: ModeIndex) -> usize {
+    modes.iter().filter(|&&m| m == mode).count()
+}
+
+/// Whether `choice` has every mode ticked, each at least as often as ticked:
+/// the ticks can still grow into it.
+fn holds(choice: &[ModeIndex], ticked: &[ModeIndex]) -> bool {
+    ticked.iter().all(|&mode| times(ticked, mode) <= times(choice, mode))
+}
+
+/// A click in the mode picker. A tick is taken while some offered choice still
+/// holds the ticks with it; an untick always is, since a choice holding the
+/// ticks holds fewer. Done answers with the option whose modes are the ticks,
+/// found by what it holds, never by its place in the list.
+fn pick_modes(prompt: &Prompt, ticked: &mut Vec<ModeIndex>, input: Input) -> Option<Answer> {
+    match input {
+        Input::TickMode(mode) => {
+            let mut more = ticked.clone();
+            more.insert(ticked.partition_point(|&m| m <= mode), mode);
+            if offered_choices(prompt).any(|choice| holds(choice, &more)) {
+                *ticked = more;
+            }
+            None
+        }
+        Input::UntickMode(mode) => {
+            if let Some(at) = ticked.iter().position(|&m| m == mode) {
+                ticked.remove(at);
+            }
+            None
+        }
+        Input::Done => {
+            let is_the_ticks = |choice: &[ModeIndex]| choice.len() == ticked.len() && holds(choice, ticked);
+            let option = prompt.options.iter().position(|option| option.modes.as_deref().is_some_and(is_the_ticks))?;
+            Some(Answer::Picks(vec![option]))
+        }
+        _ => None,
+    }
+}
+
+/// What a click on `mode`'s checkbox, or its digit key, does: unticks a
+/// ticked checkbox, and otherwise ticks, a count's "+".
+fn mode_click(prompt: &Prompt, ticked: &[ModeIndex], mode: ModeIndex) -> Input {
+    if !repeats(prompt, mode) && ticked.contains(&mode) { Input::UntickMode(mode) } else { Input::TickMode(mode) }
+}
+
+/// Whether some offered choice has `mode` more than once, so its row is a count.
+fn repeats(prompt: &Prompt, mode: ModeIndex) -> bool {
+    offered_choices(prompt).any(|choice| times(choice, mode) > 1)
 }
 
 /// Whether two options send one creature to attack, so the later replaces the
@@ -543,7 +632,11 @@ impl WindowState {
     fn click_for(&self, key: Key) -> Option<Input> {
         let prompt = self.prompt.as_ref()?;
         match key {
-            Key::Digit(n) => Some(Input::OptionButton(usize::from(n).checked_sub(1)?)),
+            // The mode picker's rows are its modes: `3` is mode 3's click.
+            Key::Digit(n) => match self.selection.as_ref()? {
+                Selection::Modes(ticked) => Some(mode_click(prompt, ticked, ModeIndex::printed(n))),
+                _ => Some(Input::OptionButton(usize::from(n).checked_sub(1)?)),
+            },
             Key::Enter => Some(Input::Done),
             Key::Space => prompt.pass.map(Input::OptionButton),
             Key::Escape => Some(Input::Reset),
@@ -929,7 +1022,7 @@ impl Marks {
         let chosen = match selection {
             Selection::Picks { chosen, half } => chosen.iter().filter_map(first).chain(*half).collect(),
             Selection::Order(order) => order.iter().filter_map(first).collect(),
-            Selection::Allocation(_) | Selection::Number(_) => Vec::new(),
+            Selection::Allocation(_) | Selection::Number(_) | Selection::Modes(_) => Vec::new(),
         };
         Marks { clickable, chosen, subject: prompt.subject.map(BoardRef::Object), asked: Some(prompt.player), why_is_live: true }
     }
@@ -1167,6 +1260,26 @@ pub struct Amount {
     pub can_raise: bool,
 }
 
+/// A mode's row in the mode picker, one for each mode some offered choice has,
+/// in printed order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModeRow {
+    pub mode: ModeIndex,
+    /// `Prompt::mode_labels`' label: `Mode 2`.
+    pub label: String,
+    pub control: ModeControl,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ModeControl {
+    /// A mode no offered choice has twice. A click on it is `click`, live
+    /// while ticked, or while some offered choice holds it with the ticks.
+    Checkbox { ticked: bool, click: Input, live: bool },
+    /// A mode some offered choice has more than once, drawn between "−",
+    /// which is `UntickMode`, and "+", which is `TickMode`.
+    Count(Amount),
+}
+
 /// A `pick_number`'s field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NumberField {
@@ -1214,6 +1327,8 @@ pub struct PromptView {
     /// What makes an answer complete.
     pub rule: String,
     pub options: Vec<OptionButton>,
+    /// The mode picker, in place of the options, at a choice of modes.
+    pub modes: Vec<ModeRow>,
     pub not_offered_yet: Vec<NotOfferedYetView>,
     pub number: Option<NumberField>,
     /// The confirm button, when the prompt has one.
@@ -1226,6 +1341,8 @@ pub struct PromptView {
     pub yielding: Option<(String, SeatButton)>,
     /// `WindowState::prompts` when this prompt arrived.
     pub serial: u64,
+    /// What each key does here, for the prompt's foot.
+    pub keys: &'static str,
 }
 
 impl PromptView {
@@ -1262,6 +1379,9 @@ impl PromptView {
                 };
                 (rule, options, None, done)
             }
+            (Primitive::PickN { .. }, Selection::Modes(ticked)) => {
+                (format!("tick the modes: {} ticked", modes_as_logged(ticked)), Vec::new(), None, Some(done_button("Done")))
+            }
             (Primitive::Number { min, max }, Selection::Number(value)) => {
                 let top = if *max == u64::MAX { "any".to_string() } else { max.to_string() };
                 let field = NumberField { min: *min, max: *max, value: *value, live: true };
@@ -1290,13 +1410,22 @@ impl PromptView {
             }
             _ => (String::new(), Vec::new(), None, None),
         };
-        let has_reset = !matches!(prompt.primitive, Primitive::PickN { max: 1, .. } | Primitive::Number { .. });
+        let modes = match selection {
+            Selection::Modes(ticked) => mode_rows(prompt, ticked, &live),
+            _ => Vec::new(),
+        };
+        let has_reset = match selection {
+            Selection::Picks { .. } => !matches!(prompt.primitive, Primitive::PickN { max: 1, .. }),
+            Selection::Number(_) => false,
+            Selection::Allocation(_) | Selection::Order(_) | Selection::Modes(_) => true,
+        };
         let can_reset = has_reset && live(Input::Reset);
         PromptView {
             question: format!("Player {}: {}", prompt.player, prompt.question),
             rejected: prompt.rejected.clone(),
             rule,
             options,
+            modes,
             not_offered_yet: prompt
                 .not_offered_yet
                 .iter()
@@ -1312,6 +1441,7 @@ impl PromptView {
             yields: Vec::new(),
             yielding: None,
             serial: 0,
+            keys: if matches!(selection, Selection::Modes(_)) { MODE_KEYS } else { KEYS },
         }
     }
 
@@ -1321,6 +1451,12 @@ impl PromptView {
             option.live = false;
             if let Some(amount) = &mut option.amount {
                 (amount.can_lower, amount.can_raise) = (false, false);
+            }
+        }
+        for row in &mut self.modes {
+            match &mut row.control {
+                ModeControl::Checkbox { live, .. } => *live = false,
+                ModeControl::Count(amount) => (amount.can_lower, amount.can_raise) = (false, false),
             }
         }
         if let Some(done) = &mut self.done {
@@ -1335,6 +1471,24 @@ impl PromptView {
         }
         self
     }
+}
+
+/// The mode picker's rows: each mode some offered choice has, as the prompt
+/// labels it, a count where some choice has it twice, each control live as
+/// `live` finds it.
+fn mode_rows(prompt: &Prompt, ticked: &[ModeIndex], live: &dyn Fn(Input) -> bool) -> Vec<ModeRow> {
+    let row = |(mode, label): &(ModeIndex, String)| {
+        let mode = *mode;
+        let control = if repeats(prompt, mode) {
+            let value = times(ticked, mode) as u64;
+            ModeControl::Count(Amount { value, can_lower: live(Input::UntickMode(mode)), can_raise: live(Input::TickMode(mode)) })
+        } else {
+            let click = mode_click(prompt, ticked, mode);
+            ModeControl::Checkbox { ticked: ticked.contains(&mode), live: live(click.clone()), click }
+        };
+        ModeRow { mode, label: label.clone(), control }
+    };
+    prompt.mode_labels.iter().map(row).collect()
 }
 
 fn pick_rule(min: usize, max: usize) -> String {
@@ -1425,13 +1579,22 @@ mod tests {
             rejected: None,
             why_reads_the_trace: false,
             primitive,
+            mode_labels: mode_labels(&options),
             options,
             not_offered_yet: Vec::new(),
         }
     }
 
+    /// Each mode the options are choices of, labeled as the engine labels it.
+    fn mode_labels(options: &[OptionView]) -> Vec<(ModeIndex, String)> {
+        let mut modes: Vec<ModeIndex> = options.iter().filter_map(|option| option.modes.as_deref()).flatten().copied().collect();
+        modes.sort_unstable();
+        modes.dedup();
+        modes.into_iter().map(|mode| (mode, format!("Mode {mode}"))).collect()
+    }
+
     fn option(label: &str, refs: Vec<BoardRef>) -> OptionView {
-        OptionView { label: label.to_string(), what_it_does: None, refs, attacker: None }
+        OptionView { label: label.to_string(), what_it_does: None, refs, attacker: None, modes: None }
     }
 
     fn unnamed(count: usize) -> Vec<OptionView> {
@@ -1811,6 +1974,63 @@ mod tests {
         assert_eq!(state.input(Input::Number(2)), None, "dropped, as the field shows");
         state.tick(10.0 + 2.0 * SETTLE_SECONDS);
         assert!(state.prompt_view().unwrap().number.unwrap().live);
+    }
+
+    /// A choice of modes as the engine offers it: one option per whole choice,
+    /// each naming its modes by printed place.
+    fn choices(lists: &[&[u8]]) -> Vec<OptionView> {
+        let modes = |places: &[u8]| places.iter().map(|&place| ModeIndex::printed(place)).collect::<Vec<_>>();
+        lists.iter().map(|places| OptionView { modes: Some(modes(places)), ..option(&format!("{places:?}"), Vec::new()) }).collect()
+    }
+
+    /// The answer is the option whose modes are the ticks, whatever order the
+    /// list is in and the modes were ticked in; a click on an option's place
+    /// answers nothing.
+    #[test]
+    fn a_choice_of_modes_answers_with_the_option_holding_the_ticks_wherever_the_list_puts_it() {
+        let b = board();
+        let mut state = deciding(&b, prompt(Primitive::PickN { min: 1, max: 1 }, choices(&[&[2, 3], &[1, 3], &[1, 2]])));
+        assert_eq!(state.clone().input(Input::OptionButton(1)), None, "no option button at a mode picker");
+        assert!(state.prompt_view().unwrap().options.is_empty());
+        assert!(state.prompt_view().unwrap().keys.starts_with("Keys: 1–9 a mode ·"), "a digit is a mode's click here");
+        assert_eq!(state.input(Input::TickMode(ModeIndex::printed(3))), None);
+        assert_eq!(state.input(Input::TickMode(ModeIndex::printed(1))), None);
+        assert_eq!(state.prompt_view().unwrap().rule, "tick the modes: modes 1, 3 ticked");
+        assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Picks(vec![1]))));
+    }
+
+    /// A row is a checkbox unless some offered choice has its mode twice; a
+    /// digit key clicks mode n's checkbox or raises its count; Escape starts
+    /// over; and in the beat after the prompt arrives nothing is live.
+    #[test]
+    fn a_mode_is_a_checkbox_or_a_count_and_its_digit_key_clicks_it() {
+        let b = board();
+        let mut state = WindowState::default();
+        state.tick(10.0);
+        let modal = prompt(Primitive::PickN { min: 1, max: 1 }, choices(&[&[], &[1], &[2], &[1, 1], &[1, 2]]));
+        state.receive(ToWindow::Prompt { snapshot: Box::new(b.snapshot.clone()), prompt: modal, yielding: None, why: None });
+        let unlive = |row: &ModeRow| !matches!(row.control, ModeControl::Checkbox { live: true, .. } | ModeControl::Count(Amount { can_raise: true, .. }));
+        assert!(state.prompt_view().unwrap().modes.iter().all(unlive), "the beat");
+        state.tick(10.0 + 2.0 * SETTLE_SECONDS);
+        let digit = |n| Input::Key { key: Key::Digit(n), repeat: false };
+        let (one, two) = (ModeIndex::printed(1), ModeIndex::printed(2));
+        let controls = |state: &WindowState| state.prompt_view().unwrap().modes.into_iter().map(|row| row.control).collect::<Vec<_>>();
+        let count = |value, can_lower, can_raise| ModeControl::Count(Amount { value, can_lower, can_raise });
+        let checkbox = |ticked, live| ModeControl::Checkbox { ticked, click: if ticked { Input::UntickMode(two) } else { Input::TickMode(two) }, live };
+        assert_eq!(controls(&state), [count(0, false, true), checkbox(false, true)]);
+        assert!(state.prompt_view().unwrap().done.unwrap().live, "no modes is a choice");
+        assert_eq!(state.input(digit(2)), None);
+        assert_eq!(controls(&state), [count(0, false, true), checkbox(true, true)], "1, 2 is a choice; 2, 2 is not");
+        assert_eq!(state.input(digit(1)), None);
+        assert_eq!(controls(&state), [count(1, true, false), checkbox(true, true)]);
+        assert_eq!(state.input(digit(2)), None);
+        assert_eq!(state.input(digit(1)), None);
+        assert_eq!(state.selection, Some(Selection::Modes(vec![one, one])));
+        assert!(state.prompt_view().unwrap().can_reset);
+        assert_eq!(state.input(Input::Key { key: Key::Escape, repeat: false }), None);
+        assert_eq!(state.selection, Some(Selection::Modes(Vec::new())));
+        assert_eq!(state.input(digit(3)), None, "no mode 3 is offered");
+        assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Picks(vec![0]))));
     }
 
     /// The why panel opening or closing slides the board under the pointer,

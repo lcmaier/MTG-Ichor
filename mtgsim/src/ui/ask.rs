@@ -657,18 +657,20 @@ pub fn ask_choose_trample_damage_assignment(
 // ===========================================================================
 
 /// CR 601.2b, 603.3c — the modes of `source`, one of `groups`, the legal
-/// choices `oracle::modes` listed (CR 700.2a). One legal group is announced
-/// without asking, and recorded. `groups` is never empty: no legal choice is
-/// the caller's rewind or removal, not a question.
+/// choices `oracle::modes` listed (CR 700.2a), each mode shown by its `words`.
+/// One legal group is announced without asking, and recorded. `groups` is
+/// never empty: no legal choice is the caller's rewind or removal, not a
+/// question.
 pub fn ask_choose_modes(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     source: ObjectId,
+    words: Vec<(ModeIndex, &'static str)>,
     mut groups: Vec<Vec<ModeIndex>>,
 ) -> Vec<ModeIndex> {
     let options: Vec<ChoiceOption> = groups.iter().cloned().map(ChoiceOption::Modes).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseModes { source });
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseModes { source, words });
     let picked = pick_unless_forced(dp, game, player, ctx, &options, (1, 1), "choose_modes");
     groups.swap_remove(picked[0])
 }

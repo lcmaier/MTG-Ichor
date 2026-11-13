@@ -499,7 +499,7 @@ impl GameState {
                 several => crate::ui::ask::ask_choose_opponent(dp, self, player_id, source_id, several),
             },
         };
-        Ok(ask_choose_modes(dp, self, chooser, source_id, groups))
+        Ok(ask_choose_modes(dp, self, chooser, source_id, node.words(), groups))
     }
 
     /// CR 601.2c for the chosen `modes` of `node`: each mode announces its own

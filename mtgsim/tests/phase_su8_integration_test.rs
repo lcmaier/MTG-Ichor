@@ -235,7 +235,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::DivideAmong { source: object },
         ChoiceKind::OrderCostPayments { spell_or_ability_id: object },
         ChoiceKind::OrderSimultaneousEntries { player: 0 },
-        ChoiceKind::ChooseModes { source: object },
+        ChoiceKind::ChooseModes { source: object, words: Vec::new() },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,

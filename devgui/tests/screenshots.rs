@@ -12,6 +12,8 @@
 mod games;
 #[path = "support/window_by_rule.rs"]
 mod window_by_rule;
+#[path = "support/modes_asked.rs"]
+mod modes_asked;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -26,7 +28,7 @@ use devgui::launch::Start;
 use devgui::prompt::{Answer, BoardRef, Prompt, Reply};
 use devgui::save::{Destination, Tools};
 use devgui::session::Session;
-use devgui::view_model::{Input, Mode, Progress, WindowState};
+use devgui::view_model::{Amount, Input, Key, Mode, ModeControl, Progress, WindowState};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
 use games::{from_board, next, play, spawn};
@@ -114,6 +116,9 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     results.add(picture(&partway(divided_on_the_stack()), &header("division.scenario"), None, "division_on_stack"));
     results.add(picture(&partway(division_resolving()), &header("division-resolving.scenario"), None, "division_resolving"));
     results.add(picture(&partway(finality_counter_row()), &header("finality-counter.scenario"), None, "finality_counter_words"));
+    results.add(picture(&partway(cryptic_command_ticked()), &header("modes.scenario"), None, "modes"));
+    let fixture = ("Pawprint Parade, a fixture, cast on a board the test builds".to_string(), PathBuf::new());
+    results.add(picture(&partway(pawprint_parade_counted()), &fixture, None, "modes_counted"));
     results.add(editor_picture("four-seats-commander.scenario", &["Isamaru, Hound of Konda"], &[], 800.0, "editor"));
     results.add(editor_picture("holy-strength.scenario", &["precombat main", "Grizzly Bears [a]"], &[], 800.0, "editor_refused"));
     // Taller, to reach the third seat's commander damage.
@@ -505,6 +510,57 @@ fn blocks_rejected() -> WindowState {
     assert!(state.prompt.as_ref().is_some_and(|prompt| prompt.rejected.is_some()), "the re-ask says why");
     finish(engine);
     state
+}
+
+/// The click script's board, `modes.scenario`: Cryptic Command cast in answer
+/// to the Bolt, its first and third modes ticked, so the other two are greyed
+/// and Done is live.
+fn cryptic_command_ticked() -> WindowState {
+    let engine = spawn(from_board("modes.scenario"));
+    let mut state = WindowState::default();
+    loop {
+        state.receive(next(&engine));
+        let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
+        if prompt.kind == "ChooseModes" {
+            break;
+        }
+        let cryptic = prompt.options.iter().position(|option| option.label.contains("Cryptic Command"));
+        let input = Input::OptionButton(cryptic.or(prompt.pass).unwrap_or_else(|| panic!("nothing to take at {}", state.status())));
+        engine.answers.send(state.input(input).expect("one option answers")).unwrap();
+    }
+    tick(&mut state, &[1, 3]);
+    let view = state.prompt_view().expect("the question is open");
+    let live: Vec<bool> = view.modes.iter().map(|row| matches!(row.control, ModeControl::Checkbox { live: true, .. })).collect();
+    assert_eq!(live, [true, false, true, false], "a ticked mode can be unticked; a third cannot be ticked");
+    assert!(view.done.is_some_and(|done| done.live));
+    finish(engine);
+    state
+}
+
+/// The Pawprint Parade fixture's question, its first mode ticked twice: two
+/// pawprints spent of three, so the two-pawprint mode is greyed and each
+/// one-pawprint count can take one more.
+fn pawprint_parade_counted() -> WindowState {
+    let mut state = modes_asked::pawprint_parade().window();
+    tick(&mut state, &[1, 1]);
+    let view = state.prompt_view().expect("the question is open");
+    let controls: Vec<&ModeControl> = view.modes.iter().map(|row| &row.control).collect();
+    assert!(matches!(controls[..], [
+        ModeControl::Count(Amount { value: 2, can_raise: true, .. }),
+        ModeControl::Checkbox { ticked: false, live: false, .. },
+        ModeControl::Count(Amount { value: 0, can_raise: true, .. }),
+    ]), "{controls:?}");
+    state
+}
+
+/// The modes printed at `places` ticked in order, each by its digit key, which
+/// is that mode's click.
+fn tick(state: &mut WindowState, places: &[u8]) {
+    for &place in places {
+        let before = state.selection.clone();
+        assert_eq!(state.input(Input::Key { key: Key::Digit(place), repeat: false }), None);
+        assert_ne!(state.selection, before, "mode {place} was not ticked");
+    }
 }
 
 /// Close a game waiting on the window and let its thread end, so none is

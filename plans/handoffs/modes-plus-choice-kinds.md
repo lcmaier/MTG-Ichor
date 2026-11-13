@@ -16,7 +16,7 @@ order. The first, `options-named-by-what-they-are`, is built on this branch
 after the design; each later one on its own branch once the one before
 merges.
 
-**Where it stands** (2026-11-07):
+**Where it stands** (2026-11-09):
 - The first PR, `options-named-by-what-they-are`, landed on #307: items 336
   and 361 closed. The owner's rule from its review: name by ids of game things
   (objects, the resolving stack object), never by positions or the engine's
@@ -42,7 +42,8 @@ merges.
   and 413 closed, Shadrix Silverquill moved to `multiplayer-rules` (item 415),
   Vindictive Lich in its place. Past the band's top, so the picker split off at
   the point its intake set.
-- Next: `mode-picker`, the dev GUI PR that asks for modes through a picker
-  (decision 2's "For the GUIs": a checkbox or a count per mode, its logic plain
-  Rust over the offered list under tests, egui only drawing); then
-  `mana-provenance`'s design.
+- `mode-picker` (#320), the dev GUI PR, is handed over: a choice of modes is
+  ticked a mode at a time, a checkbox or a count per mode, read off the offered
+  list alone, each row showing its mode's printed line, its as-built in
+  `choices-architecture.md`. Item 417, a mode's words, found and closed in it.
+- Next: `mana-provenance`'s design, ahead of `costs-and-choices-at-resolution`.

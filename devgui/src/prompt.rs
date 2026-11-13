@@ -5,11 +5,12 @@
 
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
+use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
-use mtgsim::ui::display::{option_label, question, rejection, what_the_option_does};
+use mtgsim::ui::display::{mode_label, option_label, question, rejection, what_the_option_does};
 use mtgsim::ui::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
 
 /// An answer, in the shape of the primitive that asked.
@@ -82,6 +83,9 @@ pub struct OptionView {
     pub refs: Vec<BoardRef>,
     /// The creature an attack option declares, which takes one target.
     pub attacker: Option<ObjectId>,
+    /// A choice of modes' modes, by printed place, in the engine's order: what
+    /// the window's mode picker ticks, and what its answer is matched by.
+    pub modes: Option<Vec<ModeIndex>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -105,6 +109,9 @@ pub struct Prompt {
     pub primitive: Primitive,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
+    /// Each mode some option is a choice of, in printed order, labeled by
+    /// `ui::display::mode_label` with its place and words: the mode picker's rows.
+    pub mode_labels: Vec<(ModeIndex, String)>,
     /// At CR 601.2g's window, each mana ability it does not offer until the
     /// pool holds its mana, with why.
     pub not_offered_yet: Vec<NotOfferedYet>,
@@ -159,9 +166,27 @@ impl Prompt {
             why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
             options: options.iter().map(|option| option_view(game, option)).collect(),
+            mode_labels: mode_labels(&context.kind, options),
             not_offered_yet: not_offered_yet(game, &OpenQuestion { player, context, options }),
         }
     }
+}
+
+/// Each mode some option is a choice of, once, in printed order, with its
+/// label: its place and its words, as the question carries them.
+fn mode_labels(kind: &ChoiceKind, options: &[ChoiceOption]) -> Vec<(ModeIndex, String)> {
+    let mut modes: Vec<ModeIndex> = options
+        .iter()
+        .filter_map(|option| match option {
+            ChoiceOption::Modes(modes) => Some(modes),
+            _ => None,
+        })
+        .flatten()
+        .copied()
+        .collect();
+    modes.sort_unstable();
+    modes.dedup();
+    modes.into_iter().map(|mode| (mode, mode_label(kind, mode))).collect()
 }
 
 /// The board things an option names, in the order `OptionView::refs` keeps.
@@ -194,7 +219,11 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         | ChoiceOption::CounterType(_)
         | ChoiceOption::ManaType(_) => vec![],
     };
-    OptionView { label: option_label(game, option), what_it_does: what_the_option_does(option), refs, attacker: option.attacker() }
+    let modes = match option {
+        ChoiceOption::Modes(modes) => Some(modes.clone()),
+        _ => None,
+    };
+    OptionView { label: option_label(game, option), what_it_does: what_the_option_does(option), refs, attacker: option.attacker(), modes }
 }
 
 fn attack_target_ref(target: &AttackTarget) -> BoardRef {
