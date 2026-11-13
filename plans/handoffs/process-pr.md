@@ -46,7 +46,22 @@ first at step 7, so this lands at #340 and no later.
 
 ## Open, for the owner
 
-Nothing yet. The two questions this queue opened with were answered in #321's
-review and built there: the hygiene pass runs at the midpoint of the run to
-v0.5, after step 9, and a backlog entry with no Owner line fails the board's
-check.
+**Whether the engine's floor follows the pin, and whether a pin move rides
+here.** The owner asked at the move to 1.100.0 (2026-11-13) whether the
+project should keep up with each Rust release. It already does, through the
+CI review's last bullet: the review has come every 8 to 13 days (#280 to
+#320) against Rust's six weeks, so a release is picked up within about two.
+An unpinned `stable` was weighed and not proposed: every warning is an
+error here, so each release's new lints would fail whichever PR was open.
+Two changes are open. `rust-version` could follow the pin rather than stay at
+the measured 1.88, since a newer feature such as the never type raises the
+real floor and nothing notices until the next re-measure; following the pin
+drops that re-measure from every move. And a pin move could land in this PR
+when a release is out at a multiple of 20, rather than in a PR of its own,
+since neither reads performance. A `rust-toolchain.toml` was also weighed and
+not proposed: an A/B arm built at an older commit would compile with that
+commit's compiler.
+
+The two questions this queue opened with were answered in #321's review and
+built there: the hygiene pass runs at the midpoint of the run to v0.5, after
+step 9, and a backlog entry with no Owner line fails the board's check.
