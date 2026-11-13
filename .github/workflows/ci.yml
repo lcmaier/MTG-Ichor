@@ -89,14 +89,13 @@ jobs:
       # those is release-only (`cfg_attr(debug_assertions, ignore)`) and has
       # a step in the `release` job.
       #
-      # 31 to 77 s over the six runs to 2026-11-13, and half of it is
-      # `priority_fork_test`'s five whole games: 34 s on 2026-11-12. They stay
-      # here. Timed one at a time in debug they are 0.3, 7.4, 6.8, 5.9 and
-      # 14.0 s of one core, the Commander-scale game the 5.9, so no test is
-      # most of it; and a runner's four threads do about two cores' work, so
-      # the binary takes its tests' sum and not its slowest. Moving one game
-      # to the `release` job would save about 5 s here and cost a test binary's
-      # build there.
+      # 31 to 77 s over the six runs to 2026-11-13. Half of it is
+      # `priority_fork_test`, five whole games forked at every round start:
+      # 34 s on the runner, and 0.3, 7.4, 6.8, 5.9 and 14.0 s a test on one
+      # local core. No one test is most of it, so none is release-only: the
+      # runner's threads already run them side by side, and moving the
+      # Commander-scale game, the 5.9, would save about 5 s here for a test
+      # binary's build in the `release` job.
       - name: Test
         if: steps.changes.outputs.code == 'true'
         run: cargo test --locked

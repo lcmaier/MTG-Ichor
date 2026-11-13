@@ -6,19 +6,17 @@
 name: Nightly sweep
 
 # The cron is UTC, with no time zone to set, and it is when GitHub queues the
-# run, not when it starts. It read `23 7`, which is 2:23 am Eastern (06:23 UTC
-# would be, in daylight time), and all eight nights from 2026-11-06 started 6 h
-# 46 min to 10 h 15 min after it, at 9:09 am to 12:38 pm Eastern, earliest on
-# the weekend. So it is queued at 00:23 UTC, 7:23 pm Eastern the evening
-# before: the same delay would start it at 2:09 to 5:38 am Eastern, with the
-# run done by morning. Minute 23 keeps it off the top of the hour. Read the
-# next nights' start times (`gh run list --workflow nightly.yml`): if they
-# have not moved, no cron will move them, and what is left is a scheduler
-# outside GitHub calling `workflow_dispatch`, or a midday run.
+# run, not when it starts: the first eight nights started 6 h 46 min to 10 h
+# 15 min after their cron. So the run is queued at 00:23 UTC, 7:23 pm Eastern
+# the evening before (8:23 pm in daylight time), for a start between about 2
+# and 6 am Eastern and a result by morning. 2:23 am Eastern itself would be
+# 07:23 UTC, 06:23 in daylight time. If the start does not follow the cron,
+# no cron gives a morning run: a scheduler outside GitHub calling
+# `workflow_dispatch` would, or the run is a midday one.
 #
-# Not earlier than 00:00 UTC: tonight's seed is the UTC day the run starts
-# on, so a run that could start either side of midnight could play one day's
-# games twice.
+# Not before 00:00 UTC: tonight's seed is the UTC day the run starts on, so a
+# run that could start either side of midnight could play one day's games
+# twice.
 on:
   schedule:
     - cron: "23 0 * * *"

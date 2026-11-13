@@ -181,7 +181,8 @@ on main for where the minutes went, not for whether it passed:
   slowest game: `random_clicks`'s five minutes were one stalled game, which no
   step's time could show;
 - each time a `ci.yml` comment quotes, against what it reads now;
-- the nightly's failures and length, and what Dependabot has open;
+- the nightly's failures and length, when each run started against its cron,
+  and what Dependabot has open;
 - whether a newer Rust is out. If so the pin moves on purpose, in a PR that reads
   no performance: `ci.yml`, `nightly.yml` and the local toolchain together, new
   clippy lints fixed, and each `rust-version` floor re-measured.

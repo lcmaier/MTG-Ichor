@@ -18,6 +18,13 @@ choice, and perhaps a spend restriction on {X}. The step 5 draw files what it
 finds, and those five where they hold
 (`plans/references/card-census/README.md#the-held-out-draws`).
 
+**The nightly's start times, read at the next CI review.** Its cron moved from
+07:23 to 00:23 UTC on a trial: each of its first eight runs started 6 h 46 min
+to 10 h 15 min late. If the runs after this PR's merge still start between 9 am
+and 1 pm Eastern, no cron moves them, and the choice is a scheduler outside
+GitHub calling `workflow_dispatch`, or a midday run
+(`.github/workflows/nightly.yml`'s opening comment).
+
 ## Open, for the owner
 
 1. **Whether the hygiene pass at a midpoint applies to the run to v0.5.** The
@@ -26,3 +33,7 @@ finds, and those five where they hold
    cadence of 2026-11-13 names the hunt at each subsystem's close and the whole
    audit at v0.5. Read onto the route, the midpoint is about step 10 of 18. Left
    as written until the owner says.
+2. **Whether a backlog entry with no Owner line should fail the board's
+   check.** `--slotted` lists such entries since this PR. `backlog.md` §2.24
+   named its home in prose only until then, so `as-though-effects`' intake
+   could not have listed it. A failing check is a new gate, so it waits here.
