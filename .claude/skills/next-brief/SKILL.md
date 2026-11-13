@@ -24,8 +24,8 @@ everything below it is for the session.
 - When the merged PR closed a step of the board's "The way to v0.5", the
   held-out draw is due (`plans/references/card-census/README.md#the-held-out-draws`),
   and a step the board bolds as past its forecast means the route is forecast
-  again before the next brief. When it landed the last phase a subsystem's
-  architecture doc owes v0.5, the hunt is the next PR
+  again before the next brief. When it landed the row the board's "When each
+  subsystem closes" names for an architecture doc, the hunt is the next PR
   (`plans/spine-phase-audit.md#when-it-runs`).
 
 ## Where we stand, in chat, before the brief

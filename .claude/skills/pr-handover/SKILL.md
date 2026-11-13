@@ -45,10 +45,12 @@ into any doc only after the PR exists. Lead with engine changes and their
 `file:line` when the PR also touches the dev GUI.
 
 When the PR lands a row of `roadmap-v2.md`'s Sizing table, set the row's
-State cell to `✅ <date> (PR #N)` and its PR cell to the PRs it took, then
+State cell to `✅ <date> (PR #N)`, or `(PRs #N, #M)`, and its PR cell to how
+many PRs it took, a count such as `2`; then
 `python plans/check_state_of_play.py --write`. A row that is half a phase or a
-§C paragraph has no ✅ heading to land it, so that cell is its only record;
-the check fails a landed row whose PR cell is still a range.
+§C paragraph has no ✅ heading to land it, so that cell is its only record.
+The check fails a State cell it cannot read and a landed row whose PR cell is
+still a range.
 
 When the diff is mostly a sweep or a move, open "How to read this PR" with
 "N files carry the design; everything else is mechanical", list those files,

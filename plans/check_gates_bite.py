@@ -224,7 +224,9 @@ def state_field(field, ty):
 ROADMAP = "plans/roadmap-v2.md"
 SIZING_END = "<!-- v0.5 sizing: end -->"
 FORECAST_END = "<!-- v0.5 forecast: end -->"
-LAST_FORECAST = "| 18 | 2–4 |\n" + FORECAST_END
+#: The forecast's first row, a step that landed before the first forecast, so
+#: no later forecast rewrites it.
+FIRST_FORECAST = "| 1 | 1 |\n"
 BOARD_SCRIPT = "plans/check_state_of_play.py"
 RECORDS = "plans/references/card-census/results/gap-census-records.jsonl"
 
@@ -304,12 +306,18 @@ PLANTS = [
                r'ITEM_RE = re.compile(r"^(\d+)\.\s", re.M)')),
     plant(BOARD, "a landed row is still sized as a range", "landed, and its PR cell is still a range",
           swap(ROADMAP, "| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 5 |", "| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 4–5 |")),
-    plant(BOARD, "a step with rows has no forecast", "step 18 has rows in the Sizing table and no forecast",
-          swap(ROADMAP, LAST_FORECAST, FORECAST_END)),
-    plant(BOARD, "the forecast holds a step with no rows", "the forecast holds step 13",
-          swap(ROADMAP, FORECAST_END, "| 13 | 1 |\n" + FORECAST_END)),
+    plant(BOARD, "a landed row's State cell the board cannot read", "has a State cell the board cannot read",
+          swap(ROADMAP, "| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 5 |", "| 3 | `card-layer-cleanup` | ✅ 2026-11-01, PR #301 | 5 |")),
+    plant(BOARD, "a step with rows has no forecast", "step 1 has rows in the Sizing table and no forecast",
+          swap(ROADMAP, FIRST_FORECAST, "")),
+    plant(BOARD, "the forecast holds a step with no rows", "the forecast holds step 99",
+          swap(ROADMAP, FORECAST_END, "| 99 | 1 |\n" + FORECAST_END)),
     plant(BOARD, "a forecast that is no count or range", "the forecast wants a step and a PR count or range",
-          swap(ROADMAP, LAST_FORECAST, "| 18 | soon |\n" + FORECAST_END)),
+          swap(ROADMAP, FIRST_FORECAST, "| 1 | soon |\n")),
+    plant(BOARD, "a forecast that runs down", "the forecast's step 1 runs 2 down to 1",
+          swap(ROADMAP, FIRST_FORECAST, "| 1 | 2–1 |\n")),
+    plant(BOARD, "a step forecast twice", "the forecast holds step 1 twice",
+          swap(ROADMAP, FIRST_FORECAST, FIRST_FORECAST + FIRST_FORECAST)),
     plant(BOARD, "the selftest fails a forecast no step can pass", "selftest: steps",
           swap(BOARD_SCRIPT, "return step.taken + step.left[0] > step.forecast[1]", "return False")),
     plant(BOARD, "a census record needs a row the route does not have", "which names no row of the Sizing table and no gap",
@@ -317,8 +325,8 @@ PLANTS = [
     plant(BOARD, "a deck card is claimed writable with no proof", f"claim {CARD} writable and not proved",
           add("mtgsim/decks/tdc-abzan-armor.txt", f"\n1 {CARD}\n"), census_record([])),
     plant(BOARD, "the census's records are gone", "gap-census-records.jsonl is gone", delete(RECORDS)),
-    plant(BOARD, "the selftest fails a ready count read off the wrong status", "selftest: ready",
-          swap(BOARD_SCRIPT, 'CardsReady(counted["writable"], counted["ready"],', 'CardsReady(counted["ready"], counted["writable"],')),
+    plant(BOARD, "the selftest fails cards to write read off the wrong status", "selftest: cards to write",
+          swap(BOARD_SCRIPT, 'CardsToWrite(counted["writable"], counted["ready"],', 'CardsToWrite(counted["ready"], counted["writable"],')),
     # check_rulings.py --check
     plant(RULINGS, "a registered card the ledger has never seen", f"{CARD}: registered, but the ledger has never seen it",
           REGISTERED),

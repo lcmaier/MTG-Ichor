@@ -69,10 +69,28 @@ No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.
 
 **Deck cards registered: 9 of 385**, the five lists' distinct cards less
-basics. **Ready to write: 91 more**, with no need left on the route:
+basics. **Could be written today: 91 more**, with no need left on the route:
 91 the gap census proved writable and 0 whose needs have landed since, which a
 registration proves. 285 wait on a row or a gap, and the census left 0 unread
 (`plans/references/card-census/README.md#the-gap-census`).
+
+### When each subsystem closes
+
+A subsystem closes when the last row its architecture doc defines lands, and
+the hunt is the next PR (`spine-phase-audit.md#when-it-runs`). A doc defines a
+row by naming it in a heading or in a sizing table's first cell, in bold.
+
+| Architecture doc | Rows landed | Closes with | Step |
+|---|---:|---|---:|
+| `choices-architecture.md` | 6 of 8 | `values-chosen-at-resolution` | 5 |
+| `cant-effects-architecture.md` | 0 of 5 | `combat-requirements` | 11 |
+| `cost-architecture.md` | 0 of 2 | `remaining-costs` | 14 |
+| `permission-architecture.md` | 0 of 3 | `casting-from-other-zones` | 15 |
+| `copy-effects-architecture.md` | 0 of 5 | `face-down-and-morph`, manifest | 16 |
+| `mana-architecture.md` | 0 of 5 | `mana-payment-solver` | 18 |
+
+No architecture doc defines these rows to come, so none closes a subsystem
+until its design names it in one: `mana-provenance`, the design; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `mana-provenance`, the build; `information-model-design`; `information-model`; `card-and-object-model`, the design; `text-changing-effects`, the design; `game-formats`; `multiplayer-rules`; `tarkir-dragonstorm-decks`, the cheap gaps; `player-scoped-values`; `as-though-effects`, the permission half; `layers-combat-and-counters`; `rulings-for-every-card`; `card-and-object-model`, an Aura on a player; `tarkir-dragonstorm-decks`, the five decks; `decks-in-fuzz-games`; `devgui-at-five-seats`.
 
 ## Phases by name
 

@@ -8,6 +8,14 @@ deletes, each pass its own PR. The run's own record is a
 `### … — audited YYYY-MM-DD` heading in `codebase-state.md`, pointers and
 not prose, written when the handoff goes.
 
+**Why it is a practice and not a checklist in the closing PR.** The first run
+found "done" defined in five places and collected in none, `owed` never run
+for the phase, the comment sweep eighty PRs overdue, and the performance
+levers ranked by argument rather than by a profile. None is a bug a test
+catches; each is a claim about the tree that went stale with nothing
+re-reading it. The person closing a phase believes its claims, so the
+audit is its own sitting, run while the material is fresh.
+
 ## When it runs
 
 **The hunt when a subsystem closes, and the whole audit once, at v0.5's
@@ -17,23 +25,18 @@ that rule named no audit before v0.5, and the item 6 audit ran to 28 PRs with
 its cleanup builds, against the 1.5 merged PRs for each route PR that
 `roadmap-v2.md`'s Sizing section holds the route to.
 
-- **A subsystem closes when the last phase its architecture doc owes v0.5
-  lands**, by `roadmap-v2.md`'s Sizing table. `/next-brief` says so, and the
-  hunt (pass 5) is the next PR: its report and small fixes in one PR, larger
-  findings filed as slotted items, a second PR only on the owner's yes.
+- **A subsystem closes when the last row its architecture doc defines
+  lands.** The board names that row for each doc (`state-of-play.md`, "When
+  each subsystem closes"), and the rows to come that no doc defines yet, which
+  close none until a design names them in one. `/next-brief` reads it at each
+  merge, and the hunt (pass 5) is the next PR: its report and small fixes in
+  one PR, larger findings filed as slotted items, a second PR only on the
+  owner's yes.
 - **The whole audit runs at v0.5's close**, every pass below, with its PR
   budget stated in its plan as any detour's is
   (`engineering-practices.md#sizing-a-phase`).
 - The CI review, the process PR and the hygiene pass at a midpoint keep the
   clocks their sections below give them.
-
-**Why it is a practice and not a checklist in the closing PR.** The first run
-found "done" defined in five places and collected in none, `owed` never run
-for the phase, the comment sweep eighty PRs overdue, and the performance
-levers ranked by argument rather than by a profile. None is a bug a test
-catches; each is a claim about the tree that went stale with nothing
-re-reading it. The person closing a phase believes its claims, so the
-audit is its own sitting, run while the material is fresh.
 
 ## The passes
 

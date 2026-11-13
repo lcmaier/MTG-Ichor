@@ -65,10 +65,10 @@ out of the generated file.
    route was last forecast at, so a landed row's cell is what it took, and
    every step with rows has a forecast.
 
-9. **The gap census's records misstating a card** — the ready count is the
-   deck cards with no need left, and a need naming no row reads as met, so a
-   row the Sizing table renamed fails here until `gap_census.py rename`
-   carries it into the records.
+9. **The gap census's records misstating a card** — the cards that could be
+   written today are the deck cards with no need left, and a need naming no
+   row reads as met, so a row the Sizing table renamed fails here until
+   `gap_census.py rename` carries it into the records.
 
 It does **not** derive per-phase status for the "can't" and copy tracks,
 because those docs record their phases only in sizing tables with no status
@@ -146,29 +146,30 @@ def gap_census():
 
 
 #: The deck cards not registered, by what stands between each and being
-#: written: nothing since the census proved it, nothing since its needs
-#: landed, a row or a gap, or no record.
-CardsReady = namedtuple("CardsReady", "proved landed_since waiting unread")
+#: written: nothing since the census proved it (its `writable`), nothing since
+#: its needs landed (its `ready`), a row or a gap, or no record. The first two
+#: together could be written today.
+CardsToWrite = namedtuple("CardsToWrite", "proved landed_since waiting unread")
 
 
-def cards_ready(records, parsed, unregistered):
-    """`unregistered` as a `CardsReady` by the gap census's `records` against
+def cards_to_write(records, parsed, unregistered):
+    """`unregistered` as a `CardsToWrite` by the gap census's `records` against
     the Sizing table's `parsed` rows, and what is wrong with the records."""
     census = gap_census()
     rows, landed, _ = census.rows_of(parsed)
     counted = census.tally(records, rows, unregistered)
-    ready = CardsReady(counted["writable"], counted["ready"], counted["blocked"] + counted["gap"],
-                       len(unregistered - set(records)))
-    return ready, census.record_problems(records, rows, landed, unregistered)
+    to_write = CardsToWrite(counted["writable"], counted["ready"], counted["blocked"] + counted["gap"],
+                            len(unregistered - set(records)))
+    return to_write, census.record_problems(records, rows, landed, unregistered)
 
 
-def deck_cards_ready():
-    """The five lists' unregistered cards as `cards_ready` reads them today."""
+def deck_cards_to_write():
+    """The five lists' unregistered cards as `cards_to_write` reads them today."""
     census = gap_census()
     unregistered = deck_cards() - registered_cards()
     if not census.RECORDS.exists():
-        return CardsReady(0, 0, 0, len(unregistered)), [f"{census.RECORDS.relative_to(ROOT).as_posix()} is gone"]
-    return cards_ready(census.read_records(), sizing()[0], unregistered)
+        return CardsToWrite(0, 0, 0, len(unregistered)), [f"{census.RECORDS.relative_to(ROOT).as_posix()} is gone"]
+    return cards_to_write(census.read_records(), sizing()[0], unregistered)
 
 
 def counts():
@@ -422,14 +423,17 @@ OWNER_RE = re.compile(r"^(?:- \*\*Owner\*\* — |\| \*\*Owner\*\* \| )(.+(?:\n  
 
 
 def backlog_owners(text):
-    """Each `backlog.md` entry's Owner line as `(file line, heading, owner)`."""
+    """Each `backlog.md` entry's Owner line as `(file line, heading, owner)`,
+    `owner` being `None` for an entry with no line this reads, which no
+    intake can list by its home."""
     out = []
     for entry in re.finditer(r"^### (2\.\d+ .+)$", text, re.M):
         rest = text[entry.end():]
         end = re.search(r"^#{2,3} ", rest, re.M)
-        for owner in OWNER_RE.finditer(rest[:end.start()] if end else rest):
-            words = " ".join(owner.group(1).rstrip("| ").split())
-            out.append((text.count("\n", 0, entry.start()) + 1, entry.group(1), words))
+        owners = [" ".join(owner.group(1).rstrip("| ").split())
+                  for owner in OWNER_RE.finditer(rest[:end.start()] if end else rest)]
+        line = text.count("\n", 0, entry.start()) + 1
+        out += [(line, entry.group(1), owner) for owner in owners or [None]]
     return out
 
 
@@ -461,11 +465,17 @@ def slotted(codes):
     print(f"\nNamed in {len(mentioned)} more, whose Slotted line points elsewhere:")
     for citation, line, title, text in mentioned:
         print(f"- {citation} (codebase-state.md:{line}) {title}")
-    owned = [entry for entry in backlog_owners(read("plans/backlog.md"))
-             if any(intake_names(token, code) for token in ROUTE_TOKEN_RE.findall(entry[2]) for code in codes)]
+    entries = backlog_owners(read("plans/backlog.md"))
+    owned = [entry for entry in entries if entry[2] is not None
+             and any(intake_names(token, code) for token in ROUTE_TOKEN_RE.findall(entry[2]) for code in codes)]
     print(f"\nBacklog entries whose Owner line names {', '.join(codes)} — {len(owned)}:")
     for line, heading, owner in owned:
         print(f"\n- §{heading} (backlog.md:{line})\n  Owner: {owner}")
+    # A shipped or graduated entry has left the backlog's care, with or without the line.
+    ownerless = [entry for entry in entries if entry[2] is None and "✅" not in entry[1] and "shipped" not in entry[1]]
+    print(f"\nBacklog entries with no Owner line, which may be this row's and are not listed above — {len(ownerless)}:")
+    for line, heading, _ in ownerless:
+        print(f"- §{heading} (backlog.md:{line})")
 
 
 def selftest():
@@ -567,10 +577,20 @@ def selftest():
              ["8", "`route-review`", "", "1–2", "", "", ""]]
     assert len(sized_rows(wrong, known)[1]) == 4, f"selftest: {sized_rows(wrong, known)[1]}"
     own = [["1", "`token-copies`, a half", "✅ 2026-11-13 (PRs #321, #322)", "2", "", "", ""], ["1", "`token-copies`, the rest", "✅ soon", "1", "", "", ""]]
-    assert [r.landed for r in sized_rows(own, known)[0]] == [True, False], "selftest: a row's own State cell"
-    # The ready count: two cards the census proved, one whose need has landed
-    # since, one waiting and one with no record; and the two ways the records
-    # misstate a card.
+    own_rows, own_problems = sized_rows(own, known)
+    assert [r.landed for r in own_rows] == [True, False], "selftest: a row's own State cell"
+    assert len(own_problems) == 1 and "cannot read" in own_problems[0], f"selftest: an unreadable State cell {own_problems}"
+    assert len(forecast_rows([["1", "3–2"], ["1", "1"]], {1})[1]) == 2, "selftest: a forecast running down, and a step twice"
+    # A subsystem closes with the last row its doc defines; a row to come that
+    # no doc defines closes none.
+    closing, undefined = subsystems(parsed, {"card-layer-cleanup": "x.md", "token-copies": "y.md"})
+    assert [(doc, landed_rows, rows, last.step, last.landed) for doc, landed_rows, rows, last in closing] == [
+        ("x.md", 1, 1, 2, True), ("y.md", 0, 2, 5, False),
+    ], f"selftest: subsystems {closing}"
+    assert undefined == ["`double-faced-cards`, the transform half"], f"selftest: undefined rows {undefined}"
+    # The cards to write: two the census proved, one whose need has landed
+    # since, one waiting on a row, one on a gap and one with no record; and
+    # the two ways the records misstate a card.
     proved = {"needs": [], "board": "passed", "uncovered": [], "stand_ins": 0, "paragraphs": 1, "keyword_paragraphs": 0,
               "checks_failed": [], "survived": [], "errors": [], "panics": [], "reached": 3}
     records = {
@@ -580,12 +600,16 @@ def selftest():
         "Waiting": {"name": "Waiting", **proved, "needs": ["card-layer-cleanup", "token-copies"]},
         "Registered": {"name": "Registered", **proved, "needs": ["zz-no-row"], "board": "no board"},
     }
-    unregistered = {"Proved", "Also Proved", "Landed Since", "Waiting", "Unread"}
-    ready, record_problems = cards_ready(records, parsed, unregistered)
-    assert ready == CardsReady(2, 1, 1, 1), f"selftest: ready {ready}"
+    census = gap_census()
+    gap, homed = next((gap, home) for gap, home in census.GAPS.items() if home.row != census.CHEAP_GAPS and gap not in census.BUILT_GAPS)
+    records["On A Gap"] = {"name": "On A Gap", **proved, "needs": [census.GAP_PREFIX + gap]}
+    with_the_gaps_row = parsed + [SizedRow(6, f"`{homed.row}`", False, 1, 1)]
+    unregistered = {"Proved", "Also Proved", "Landed Since", "Waiting", "On A Gap", "Unread"}
+    to_write, record_problems = cards_to_write(records, with_the_gaps_row, unregistered)
+    assert to_write == CardsToWrite(2, 1, 2, 1), f"selftest: cards to write {to_write}"
     assert len(record_problems) == 1 and "zz-no-row" in record_problems[0], f"selftest: record problems {record_problems}"
     records["Proved"]["board"] = "no board"
-    unproved = cards_ready(records, parsed, unregistered)[1]
+    unproved = cards_to_write(records, with_the_gaps_row, unregistered)[1]
     assert len(unproved) == 2 and "Proved writable and not proved" in unproved[1], f"selftest: unproved {unproved}"
     # An entry's Owner line, as a bullet with its continuation and as a table row.
     backlog = "\n".join([
@@ -595,6 +619,7 @@ def selftest():
     ])
     assert backlog_owners(backlog) == [
         (4, "2.1 A bullet", "`token-copies`, which builds it."), (8, "2.2 A table", "after v0.5, with A6e"),
+        (10, "2.3 No owner", None),
     ], f"selftest: backlog owners {backlog_owners(backlog)}"
     path = ["**After 6, in order** x:", "`route-review`; `token-copies`; `roadmap-v2.md`", "**v0.5 is** `not-yet-sized`"]
     assert unsized_route_rows(path, ["`route-review`"]) == ["token-copies"], "selftest: an unsized route row"
@@ -692,6 +717,9 @@ def sized_rows(rows, route):
         if low > high:
             problems.append(f"the Sizing table's {row} runs {low} down to {high}")
         landed = bool(status) or bool(OWN_LANDED_RE.match(state))
+        if state and not OWN_LANDED_RE.match(state):
+            problems.append(f"the Sizing table's {row} has a State cell the board cannot read, {state!r}: "
+                            "leave it empty, or write `✅ <date>` or `✅ <date> (PR #N)`")
         if landed and low != high:
             problems.append(f"the Sizing table's {row} landed, and its PR cell is still a range: write what it took")
         parsed.append(SizedRow(int(step), row, landed, low, high))
@@ -708,7 +736,12 @@ def forecast_rows(rows, steps):
         if not step.isdigit() or not size:
             problems.append(f"the forecast wants a step and a PR count or range, not {step!r} and {prs!r}")
             continue
-        forecast[int(step)] = (int(size.group(1)), int(size.group(2) or size.group(1)))
+        low, high = int(size.group(1)), int(size.group(2) or size.group(1))
+        if low > high:
+            problems.append(f"the forecast's step {step} runs {low} down to {high}")
+        if int(step) in forecast:
+            problems.append(f"the forecast holds step {step} twice")
+        forecast[int(step)] = (low, high)
     problems += [f"step {step} has rows in the Sizing table and no forecast" for step in sorted(steps - set(forecast))]
     problems += [f"the forecast holds step {step}, which has no rows in the Sizing table" for step in sorted(set(forecast) - steps)]
     return forecast, problems
@@ -733,7 +766,7 @@ def sizing():
     return parsed, problems
 
 
-def forecast():
+def forecast_by_step():
     """The forecast as `forecast_rows` reads it, and every problem with it."""
     rows = table_rows("plans/roadmap-v2.md", "v0.5 forecast", FORECAST_COLUMNS)
     return forecast_rows(rows, {sized.step for sized in sizing()[0]})
@@ -769,6 +802,31 @@ def way_to_v05(parsed, forecast):
 def past_forecast(step):
     """Whether what a step took and the least it has left pass its forecast's top."""
     return step.taken + step.left[0] > step.forecast[1]
+
+
+def defined_in():
+    """The architecture doc that defines each phase, by its code or name."""
+    landed, to_build = phase_index()
+    docs = {code: doc for _, _, code, doc in landed if code}
+    docs.update({code: doc for _, code, doc in to_build if code not in docs})
+    return docs
+
+
+def subsystems(parsed, defined_in):
+    """Each architecture doc that defines a row of the Sizing table, as `(doc,
+    rows landed, rows, the row that closes it)`, the last of its rows in the
+    table's order, soonest to close first; and the rows to come no doc
+    defines, which close none until a design names them in one."""
+    by_doc, undefined = {}, []
+    for sized in parsed:
+        token = ROUTE_TOKEN_RE.search(sized.row)
+        doc = defined_in.get(token.group(0)) if token else None
+        if doc:
+            by_doc.setdefault(doc, []).append(sized)
+        elif not sized.landed:
+            undefined.append(sized.row)
+    closing = [(doc, sum(r.landed for r in rows), len(rows), rows[-1]) for doc, rows in by_doc.items()]
+    return sorted(closing, key=lambda subsystem: (subsystem[3].step, subsystem[0])), undefined
 
 
 def floors():
@@ -948,7 +1006,7 @@ def render():
     L.append("")
     L.append("| Step | Rows | State | PRs taken | PRs left | Forecast |")
     L.append("|---:|---|---|---:|---:|---:|")
-    steps, rows_to_come = way_to_v05(sizing()[0], forecast()[0])
+    steps, rows_to_come = way_to_v05(sizing()[0], forecast_by_step()[0])
     for step in steps:
         cells = [str(step.taken), span(*step.left) if step.left[1] else "—", span(*step.forecast)]
         if past_forecast(step):
@@ -968,12 +1026,27 @@ def render():
         L.append("No step is past its forecast: one is when what it took and the least it has")
         L.append("left come to more than its forecast's top, and the route is forecast again then.")
     L.append("")
-    ready = deck_cards_ready()[0]
+    to_write = deck_cards_to_write()[0]
     L.append(f"**Deck cards registered: {c['deck_cards_registered']} of {c['deck_cards']}**, the five lists' distinct cards less")
-    L.append(f"basics. **Ready to write: {ready.proved + ready.landed_since} more**, with no need left on the route:")
-    L.append(f"{ready.proved} the gap census proved writable and {ready.landed_since} whose needs have landed since, which a")
-    L.append(f"registration proves. {ready.waiting} wait on a row or a gap, and the census left {ready.unread} unread")
+    L.append(f"basics. **Could be written today: {to_write.proved + to_write.landed_since} more**, with no need left on the route:")
+    L.append(f"{to_write.proved} the gap census proved writable and {to_write.landed_since} whose needs have landed since, which a")
+    L.append(f"registration proves. {to_write.waiting} wait on a row or a gap, and the census left {to_write.unread} unread")
     L.append("(`plans/references/card-census/README.md#the-gap-census`).")
+    L.append("")
+    L.append("### When each subsystem closes")
+    L.append("")
+    L.append("A subsystem closes when the last row its architecture doc defines lands, and")
+    L.append("the hunt is the next PR (`spine-phase-audit.md#when-it-runs`). A doc defines a")
+    L.append("row by naming it in a heading or in a sizing table's first cell, in bold.")
+    L.append("")
+    L.append("| Architecture doc | Rows landed | Closes with | Step |")
+    L.append("|---|---:|---|---:|")
+    closing, undefined = subsystems(sizing()[0], defined_in())
+    for doc, landed_rows, rows, last in closing:
+        L.append(f"| `{doc_name(doc)}` | {landed_rows} of {rows} | {'closed, with ' if last.landed else ''}{last.row} | {last.step} |")
+    L.append("")
+    L.append("No architecture doc defines these rows to come, so none closes a subsystem")
+    L.append(f"until its design names it in one: {'; '.join(undefined)}.")
     L.append("")
     L.append("## Phases by name")
     L.append("")
@@ -1223,7 +1296,7 @@ def main():
         for run, number, lines in duplicate_numbers(block):
             where = ", ".join(str(start_line + l) for l in lines)
             problems.append(f"codebase-state.md: {cite(run, number)} is numbered twice (lines {where})")
-        problems += sizing()[1] + forecast()[1] + deck_cards_ready()[1]
+        problems += sizing()[1] + forecast_by_step()[1] + deck_cards_to_write()[1]
         for doc, code, n in oversized_landed():
             problems.append(
                 f"{doc}: {code} is landed but keeps {n} lines in the live doc "

@@ -513,6 +513,12 @@ values: a read each, with their mechanics, per the census above. Graduates to
 two share the sweep, the union and the decision-site vocabulary and differ
 only in sign.
 
+- **Owner** — `as-though-effects`: its permission half at the route's step 11,
+  after `combat-requirements`, where it graduates to a doc of its own, and its
+  payment half with `hybrid-and-phyrexian-payment` (the back-stop below). The
+  line was added 2026-11-13: the entry named its home in prose only, so the
+  row's intake could not list it.
+
 **Prior art in this file:** §2.8 (where an ability functions) is the closest
 neighbour and overlaps on the zone shape.
 

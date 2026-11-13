@@ -539,8 +539,8 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 ## The spine-phase audit
 
 - **The hunt runs when a subsystem closes, and the whole audit at v0.5's
-  close** (the owner, 2026-11-13). A subsystem closes when the last phase its
-  architecture doc owes v0.5 lands; a hunt has one PR, a second on the owner's yes.
+  close** (the owner, 2026-11-13). The board names the row that closes each
+  subsystem; a hunt has one PR, a second on the owner's yes.
 - **An audit is passes with named instruments, each its own PR**, its budget
   stated in its plan, a `plans/handoffs/` file the last pass's PR deletes. A
   closing PR is the wrong place: the person closing believes the claims.
