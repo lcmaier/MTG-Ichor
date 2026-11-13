@@ -126,4 +126,28 @@ hunt records a new blocker with `amend`. A gap built ahead of its row joins
 `BUILT_GAPS`. `ingest` needs a crate: `pilot_fetch.py` fetches the cards,
 `gap_skeletons.py` writes each card's front face, and each card is written beside its
 board and its needs. The crate is not kept, since no card lands in the tree: each
-card's written tree stays in `gap-census-composition.txt`.
+card's written tree stays in `gap-census-composition.txt`. A row the Sizing table
+splits or renames is carried into the records with `rename`, and the board's check
+fails until it is: it counts the cards with no need left
+(`plans/state-of-play.md`, "The way to v0.5").
+
+## The held-out draws
+
+**How far the engine is fitted to the five decks, as a number.** At each step's
+close (`plans/engineering-practices.md#gaps-a-phase-finds`), 30 cards are drawn by
+seed from outside the lists, and each is read against the route for a need no row
+and no gap holds. A need found is filed and slotted as any finding is, and the
+count joins the table.
+
+```bash
+python plans/references/card-census/fetch_scryfall.py cards.json
+python plans/references/card-census/held_out_draw.py cards.json --seed 20261113
+```
+
+The population is every Commander-legal paper card less the five lists and the
+basic lands. The seed is the day of the draw, so a draw can be made again from the
+same fetch.
+
+| Drawn | Seed | At | A need no row or gap holds | What |
+|---|---|---|---|---|
+| 2026-11-06 | not kept | the gap census's close, #315 | 4–5 of 30 | Read by hand before this was a rule, its draw not kept and its needs named and not filed: emblems, populate, a target that is a player or a planeswalker, villainous choice, and perhaps a spend restriction on {X} |

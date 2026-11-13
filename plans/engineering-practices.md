@@ -243,6 +243,12 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
   fixture for each rule no card at hand prints: one kicker card builds CR
   702.33. A keyword on a base rule builds both whole; a sibling keyword on
   the same base waits for its own row (`route-review`, 2026-10-29).
+- **A deck card places a finding, never excuses one.** Every finding is filed
+  and slotted whichever card brought it; the decks decide only where in v0.5's
+  order it goes, after the test of what building it later would unbuild.
+- **A held-out draw at each step's close**: 30 seeded cards from outside the
+  five lists, each read for a need no row or gap holds, so fitting the engine
+  to the decks is a number. → `references/card-census/README.md#the-held-out-draws`.
 
 ### Landing a phase
 
