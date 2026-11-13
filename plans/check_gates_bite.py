@@ -325,6 +325,8 @@ PLANTS = [
     plant(BOARD, "a deck card is claimed writable with no proof", f"claim {CARD} writable and not proved",
           add("mtgsim/decks/tdc-abzan-armor.txt", f"\n1 {CARD}\n"), census_record([])),
     plant(BOARD, "the census's records are gone", "gap-census-records.jsonl is gone", delete(RECORDS)),
+    plant(BOARD, "a backlog entry has no Owner line", "§2.999 Zz planted has no Owner line",
+          add(BACKLOG, "\n### 2.999 Zz planted\n\nplanted\n")),
     plant(BOARD, "the selftest fails cards to write read off the wrong status", "selftest: cards to write",
           swap(BOARD_SCRIPT, 'CardsToWrite(counted["writable"], counted["ready"],', 'CardsToWrite(counted["ready"], counted["writable"],')),
     # check_rulings.py --check

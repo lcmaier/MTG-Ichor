@@ -27,13 +27,7 @@ GitHub calling `workflow_dispatch`, or a midday run
 
 ## Open, for the owner
 
-1. **Whether the hygiene pass at a midpoint applies to the run to v0.5.** The
-   rule reads "a critical-path item longer than about eight PRs gets the
-   hygiene pass at its midpoint" (`plans/spine-phase-audit.md`), and the owner's
-   cadence of 2026-11-13 names the hunt at each subsystem's close and the whole
-   audit at v0.5. Read onto the route, the midpoint is about step 10 of 18. Left
-   as written until the owner says.
-2. **Whether a backlog entry with no Owner line should fail the board's
-   check.** `--slotted` lists such entries since this PR. `backlog.md` §2.24
-   named its home in prose only until then, so `as-though-effects`' intake
-   could not have listed it. A failing check is a new gate, so it waits here.
+Nothing yet. The two questions this queue opened with were answered in #321's
+review and built there: the hygiene pass runs at the midpoint of the run to
+v0.5, after step 9, and a backlog entry with no Owner line fails the board's
+check.

@@ -70,6 +70,10 @@ out of the generated file.
    row reads as met, so a row the Sizing table renamed fails here until
    `gap_census.py rename` carries it into the records.
 
+10. **A backlog entry with no Owner line** — an entry is homed by that line
+    and has no item, so a row's intake can list it by nothing else. A shipped
+    or graduated entry is exempt.
+
 It does **not** derive per-phase status for the "can't" and copy tracks,
 because those docs record their phases only in sizing tables with no status
 marker. The replacement track has heading markers and is checked; the others
@@ -437,6 +441,14 @@ def backlog_owners(text):
     return out
 
 
+def ownerless(entries):
+    """The live entries of `backlog_owners` with no Owner line, as `(file
+    line, heading)`. A shipped or graduated entry has left the backlog's care,
+    with or without the line."""
+    return [(line, heading) for line, heading, owner in entries
+            if owner is None and "✅" not in heading and "shipped" not in heading]
+
+
 def slotted(codes):
     """The intake list a phase reads at its first ticket: every open item
     whose Slotted line names one of `codes`, then those naming one only
@@ -471,10 +483,9 @@ def slotted(codes):
     print(f"\nBacklog entries whose Owner line names {', '.join(codes)} — {len(owned)}:")
     for line, heading, owner in owned:
         print(f"\n- §{heading} (backlog.md:{line})\n  Owner: {owner}")
-    # A shipped or graduated entry has left the backlog's care, with or without the line.
-    ownerless = [entry for entry in entries if entry[2] is None and "✅" not in entry[1] and "shipped" not in entry[1]]
-    print(f"\nBacklog entries with no Owner line, which may be this row's and are not listed above — {len(ownerless)}:")
-    for line, heading, _ in ownerless:
+    unhomed = ownerless(entries)
+    print(f"\nBacklog entries with no Owner line, which may be this row's and are not listed above — {len(unhomed)}:")
+    for line, heading in unhomed:
         print(f"- §{heading} (backlog.md:{line})")
 
 
@@ -616,11 +627,13 @@ def selftest():
         "## 0. What an entry is", "| **Owner** | where it will be built |",
         "## 2. Entries", "### 2.1 A bullet", "- **Owner** — `token-copies`, which", "  builds it.", "- **Atoms** — none",
         "### 2.2 A table", "| **Owner** | after v0.5, with A6e |", "### 2.3 No owner", "text",
+        "### 2.4 Gone — ✅ graduated 2026-11-13", "text",
     ])
     assert backlog_owners(backlog) == [
         (4, "2.1 A bullet", "`token-copies`, which builds it."), (8, "2.2 A table", "after v0.5, with A6e"),
-        (10, "2.3 No owner", None),
+        (10, "2.3 No owner", None), (12, "2.4 Gone — ✅ graduated 2026-11-13", None),
     ], f"selftest: backlog owners {backlog_owners(backlog)}"
+    assert ownerless(backlog_owners(backlog)) == [(10, "2.3 No owner")], "selftest: a live entry with no Owner line"
     path = ["**After 6, in order** x:", "`route-review`; `token-copies`; `roadmap-v2.md`", "**v0.5 is** `not-yet-sized`"]
     assert unsized_route_rows(path, ["`route-review`"]) == ["token-copies"], "selftest: an unsized route row"
     # The phase index's parser: coded and plain-named ✅ headings, a parent
@@ -1297,6 +1310,8 @@ def main():
             where = ", ".join(str(start_line + l) for l in lines)
             problems.append(f"codebase-state.md: {cite(run, number)} is numbered twice (lines {where})")
         problems += sizing()[1] + forecast_by_step()[1] + deck_cards_to_write()[1]
+        for line, heading in ownerless(backlog_owners(read("plans/backlog.md"))):
+            problems.append(f"backlog.md:{line}: §{heading} has no Owner line, so no row's intake can list it")
         for doc, code, n in oversized_landed():
             problems.append(
                 f"{doc}: {code} is landed but keeps {n} lines in the live doc "

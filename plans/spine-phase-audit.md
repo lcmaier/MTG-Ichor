@@ -35,8 +35,9 @@ its cleanup builds, against the 1.5 merged PRs for each route PR that
 - **The whole audit runs at v0.5's close**, every pass below, with its PR
   budget stated in its plan as any detour's is
   (`engineering-practices.md#sizing-a-phase`).
-- The CI review, the process PR and the hygiene pass at a midpoint keep the
-  clocks their sections below give them.
+- The CI review and the process PR keep the clocks their section below gives
+  them, and the hygiene pass runs at the midpoint, after step 9, as its
+  section says.
 
 ## The passes
 
@@ -169,6 +170,10 @@ the item will extend. Which lists hand a position across a call or a
 mutation; which facts the rules fix at a moment the code recomputes later;
 where matching is done outside the one matcher; and what a per-event path
 scans, read off a profile. Item 6's was A6k.
+
+**The run to v0.5 is one such stretch** (the owner, 2026-11-13). Its hygiene
+pass is the PR after step 9 closes, about halfway by steps, with one PR and a
+second on the owner's yes. `/next-brief` says when it falls due.
 
 ## The CI review
 

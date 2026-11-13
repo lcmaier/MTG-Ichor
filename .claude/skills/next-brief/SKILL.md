@@ -26,7 +26,9 @@ everything below it is for the session.
   and a step the board bolds as past its forecast means the route is forecast
   again before the next brief. When it landed the row the board's "When each
   subsystem closes" names for an architecture doc, the hunt is the next PR
-  (`plans/spine-phase-audit.md#when-it-runs`).
+  (`plans/spine-phase-audit.md#when-it-runs`). When it closed step 9, the
+  midpoint hygiene pass is the next PR
+  (`plans/spine-phase-audit.md#the-hygiene-pass-at-a-long-items-midpoint`).
 
 ## Where we stand, in chat, before the brief
 

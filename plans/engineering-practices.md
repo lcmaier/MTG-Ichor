@@ -550,8 +550,8 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 - **An audit ships docs and small fixes only**; anything larger is a scheduled
   item with an owner. A pass re-reads what it touches, and a number in its brief
   is a starting point.
-- **A critical-path item longer than about eight PRs gets the hygiene pass at
-  its midpoint**, with a shape review of the code the rest will extend.
+- **A stretch longer than about eight PRs gets the hygiene pass at its
+  midpoint**, the run to v0.5 after step 9, with a shape review of what is left.
 - The passes and their instruments: `spine-phase-audit.md`.
 
 ## The dev GUI
