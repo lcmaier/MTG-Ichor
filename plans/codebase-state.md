@@ -4291,10 +4291,11 @@ The layer system's designated single-point change site is `oracle/characteristic
    The only printed card that says it (Scryfall, `o:"losing unspent mana"`).
    **Designed 2026-11-13**, for the owner's review:
    `mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`
-   proposes the emptying as an event, since a kept set read at a direct write
-   holds 7 of the 14 printed cards that keep, replace or follow the loss. It
-   re-counts the 31 above as 12 by that query and 63 by clause. Main item
-   403's second half is this same build.
+   proposes losing mana as an event, since a kept set read at a direct write
+   holds 7 of the 19 printed cards that keep mana by a static ability or an
+   effect, or replace, follow or cause its loss. It re-counts the 31 above as
+   12 by that query and 67 by clause, 50 of them mana kept by its own text.
+   Main item 403's second half is this same build.
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half

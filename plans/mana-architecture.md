@@ -469,6 +469,8 @@ come with item 33's build.
   and the source axis on the generic split. Designed 2026-11-13 in
   `#11-mana-provenance-what-a-unit-of-mana-keeps`: the entry's restriction
   and the purpose argument are its second row's, and snow's bit its first's.
+  There the purpose is the payment's `EventCause`, which the engine already
+  carries, and `SpendPurpose` goes with the rest of the dormant types.
 
 ### 3.7 X (decision 6)
 
@@ -1165,15 +1167,16 @@ and all 121 restriction sentences.
 | a restriction on what it may pay | 175 | Mishra's Workshop, Cavern of Souls | `ManaRestriction`, four arms, dormant |
 | a rider on what it is spent on | 22 | Boseiju, Who Shelters All; Path of Ancestry | `ManaGrant`, one arm, dormant |
 | that it is kept until end of turn or combat | 50 | Savage Ventmaw; firebending (26 by keyword) | `ManaPersistence`, dormant |
-| that a snow source made it | 34 sources, 39 cards with `{S}` in a cost, 7 reading `{S}` spent | Icehide Golem, Graven Lore | nothing |
-| that another kind of source made it | 23: a Treasure 16, a creature 2, an artifact 2, a basic land 1, a Cave 1, a Desert 1 | Hired Hexblade, Imperiosaur | nothing |
+| that a snow source made it, a permanent or a spell (CR 106.3, 109.2c) | 34 sources, one of them a sorcery (Tundra Fumarole); 39 cards with `{S}` in a cost; 7 reading `{S}` spent | Icehide Golem, Graven Lore | nothing |
+| that a source with another part of a type line made it | 23: a Treasure 16, a creature 2, an artifact 2, a basic land 1, a Cave 1, a Desert 1 | Hired Hexblade, Imperiosaur | nothing |
+| …and whether that source was a permanent | of the 23, all but one ask a permanent (CR 109.2: "a Treasure", "creatures"); Coin of Mastery asks "an artifact source", any zone | Myr Superion's ruling (2011-06-01): Elvish Spirit Guide's mana, made from a hand, is not "produced by creatures" | nothing |
 
 **The brief's counts, re-counted on Scryfall, 2026-11-13.** `o:"this mana"`
 is 229 with no filter (the 227 of 2026-08-31) and 213 under `game:paper
 -is:funny`. `o:"{S}"` is 43 and `o:"was spent to cast"` is 102, as carried.
 `o:"lose unspent"` is 12, not 31: the 31 does not reproduce, and counted by
-clause the family of kept and lost mana is 63 cards, in decision 5's table
-(one of them in two of its rows).
+clause the family of kept and lost mana is 67 cards, in decision 5's table
+(two of them in two of its rows).
 
 **The rulings** read for timing and for which object is which (Scryfall,
 2026-11-13): Imperiosaur, Myr Superion, Boreal Outrider, Cavern of Souls,
@@ -1185,17 +1188,19 @@ Leyline Tyrant. What they settle is cited where it is used.
 
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
-| The kinds of source that made a unit | as `ProduceMana` is performed, from the source's characteristics then, or as it last existed if its own cost moved it (a Treasure, CR 608.2h) | latched | on the unit, in the pool | a `{S}` pip; a cost that names its mana; the spent record | when the unit is spent or lost. Drain Power moves it intact (CR 106.13) |
-| A unit's terms: its restriction, its riders, how long it is kept, and the existence of the object that made it | at the same moment, from the ability's text. A type or color the source chose as it entered is read then | latched. A restriction's or rider's own condition reads the spell as the mana is spent (Path of Ancestry's ruling, 2023-07-28) | on the unit | the payment's edge test; the existence check; the emptying | with the unit. A change of type keeps them (Kruphix's ruling, 2014-04-26) |
-| What a payment spent | as the payment is performed | latched | on the stack entry, then on the permanent it becomes (`CastFacts`), then in its last known information | conditions and amounts on the spell, on the permanent, and on other objects' triggers | with that existence. A copy of a spell has none (Boseiju's ruling, 2004-12-01) |
+| What a unit's source was: its answers to the watched questions | as `ProduceMana` is performed, from the source's characteristics then, or as it last existed if its own cost moved it (a Treasure, CR 608.2h) | latched (decision 1 puts this to the owner as a rules question) | on the unit, in the pool | a `{S}` pip; a cost that names its mana (decision 3); the spent record | when the unit is spent or lost. Drain Power moves it intact (CR 106.13) |
+| A unit's restriction and its riders | at the same moment, from the ability's text. A type or color the source chose as it entered is read then | latched. A restriction's or rider's own condition reads the spell as the mana is spent (Path of Ancestry's ruling, 2023-07-28) | on the unit | the payment's edge test; the existence check | with the unit. A change of type keeps them (Kruphix's ruling, 2014-04-26) |
+| A delayed-trigger rider's source and controller | at the same moment: the source of the ability that made the mana, as an existence, and the player who controlled that ability (CR 603.7d–e) | latched | on that rider alone, so mana with only a restriction keeps no object | the trigger, as it is put on the stack | with the unit |
+| How long a unit is kept | at the same moment | latched | on the unit | the emptying | **ahead of the unit**: when its turn or combat ends, the effect expires before the mana empties (CR 500.5). If something else then keeps the unit, it stays without this term and regroups with mana like it |
+| What a payment spent | as the payment is performed | latched | on the stack entry, then on the permanent it becomes (`CastFacts`), then in that permanent's last known information, which `snow-mana` adds beside the first reader | conditions and amounts on the spell, on the permanent, and on other objects' triggers | with that existence. A copy of a spell has none (Boseiju's ruling, 2004-12-01) |
 | Which mana a player keeps | not stored: asked as the mana would be lost | live | the "can't" registry and the effective ability lists it already reads | the emptying | when its ability or effect does (Upwelling's ruling, 2009-10-01) |
 
-**Why the source's kinds are latched.** CR 106.3 defines a mana's source at
-the moment it is made, and a Treasure is already in the graveyard by then, so
-its facts are last known information either way. No ruling covers a source
-that changes after it made mana, a snow land that stops being snow. Reading
-the source live would need each unit to keep which object made it, which
-decision 1's option C prices.
+**Last known information holds a spell's spent mana today and a permanent's
+never.** A spell that left the stack keeps its stack entry there, with the
+record on it. A permanent that left the battlefield keeps `PermanentFacts`,
+which has no cast facts. Item 33 says the first reader adds them, and
+`snow-mana` has one: a creature whose enters trigger asks what was spent, and
+is asked again after the creature has left.
 
 ### 11.5 The decisions
 
@@ -1211,32 +1216,54 @@ Changing it after the build re-opens all three build rows.
 **The problem.** The pool must tell units apart by what the rules can read
 of them, and no further: every difference the pool keeps is a difference the
 payment may have to ask about (decision 2). The table above says what can be
-read: a type, the kinds of source, and the terms.
+read: a type, parts of the source's type line, whether the source was a
+permanent, and the terms.
 
-- **A. One list of counted groups; a unit is its type, a set of source
-  kinds, and its terms behind a pointer.**
+- **A. One list of counted units; a unit is its type, what its source was,
+  and its terms behind a pointer.**
   ```rust
-  struct ManaUnit { mana_type: ManaType, made_by: SourceKinds, terms: Option<Arc<ManaTerms>> }
-  struct ManaPool { units: Vec<(ManaUnit, u64)> }   // alike units are one group
-  enum ManaSourceKind { Snow /* an arm per kind a rule or a registered card reads */ }
+  struct ManaUnit { mana_type: ManaType, source_was: SourceAnswers, terms: Option<Arc<ManaTerms>> }
+  struct ManaUnits { unit: ManaUnit, count: u64 }      // one class of unit, counted
+  struct ManaPool { units: Vec<ManaUnits> }            // alike units are one entry
+  struct SourceAnswers(u32);                           // a bit for each question on the watch list
+  struct SourceQuestion { all_of: &'static [SourceTrait], a_permanent: bool }
+  enum SourceTrait { Supertype(Supertype), CardType(CardType), Subtype(Subtype) }
+  struct ManaTerms { restriction: Option<SpendRestriction>, riders: Vec<SpendRider>, kept_until: Option<KeptUntil> }
   ```
-  `SourceKinds` is a set of `ManaSourceKind`, sixteen bits. The arm that
-  performs `ProduceMana` asks each kind's question of the source once and
-  stores the answers. **Two units with equal records are ones no rule can
-  tell apart**, because the record holds the answer to every question the
-  engine can ask. A new kind is a new arm: `Snow` is CR 107.4h's, and
-  `Treasure` arrives with Treasure tokens and their first reader. `ManaTerms`
-  holds the restriction, the riders, the kept-until and the source's
-  existence (`ObjectRef`), which a rider's delayed trigger needs for its
-  source (CR 603.7d–f). The two-track pool, `ManaAtom`, `ManaPaymentPlan`,
-  `pay_with_plan`, `SpendContext` and their unit tests go.
-- **B. Keep today's two tracks and key the plain one by type and kinds.**
+  **Every printed question about a mana's source reads its type line**:
+  snow is a supertype, a Treasure, a Cave and a Desert are subtypes, a
+  creature and an artifact are card types, and a basic land is two of them
+  together. So there is no arm for each noun. One table, the **watch list**,
+  holds the questions a rule or a registered card asks, each a few type-line
+  traits and whether it asks a permanent. CR 109.2 makes "a Treasure" a
+  permanent and "a snow source" an object in any zone (109.2c), so a snow
+  sorcery's mana pays `{S}`, and a creature card's mana made from a hand is
+  not "produced by creatures". The unit holds a bit for each question: its
+  source's answer as the mana was made. The list starts with "a snow
+  source", CR 107.4h's. A card that asks a new question adds it, and a
+  reader can name only a question on the list. The printed readers ask
+  eight: a snow source, a Treasure, a Cave, a Desert, a creature, an
+  artifact, an artifact source, a basic land. The bits are a `u32`, and a
+  thirty-third question widens it.
+  **Two units with equal records are ones no rule can tell apart**, because
+  the record holds the answer to every question the engine can ask. The
+  converse holds but for two restrictions written differently that permit
+  the same spends, which costs a question with one outcome and loses
+  nothing. `ManaTerms` holds no object: only a delayed-trigger rider keeps
+  its source's existence and its controller (decision 4), so two Mishra's
+  Workshops' mana is one entry. `terms` is `None` exactly when a unit has no
+  restriction, rider or kept-until, and a `ManaTerms` with all three empty is
+  never built. `ManaUnits` is the one spelling of a counted class, in the
+  pool, in the action that loses mana, in the event of spending and in the
+  record of what was spent. The two-track pool, `ManaAtom`,
+  `ManaPaymentPlan`, `pay_with_plan`, `SpendContext` and their unit tests go.
+- **B. Keep today's two tracks and key the plain one by type and answers.**
   Less of `types/mana.rs` is rewritten. The payment, the check and the
   emptying each keep two paths for one concept, which is the shape the
   dormant code already has and nothing exercised.
 - **C. A unit keeps which object made it, and readers ask that object.** No
-  kind vocabulary: "mana from a Cave" needs no arm. But two Forests' mana are
-  then two records, so groups never merge, the pool grows with the lands
+  watch list: "mana from a Cave" needs no entry. But two Forests' mana are
+  then two records, so entries never merge, the pool grows with the lands
   tapped, and decision 2 has no way to know which differences matter. Each
   production would also capture its source as it last existed, where today
   only a source its own cost moved is captured.
@@ -1248,9 +1275,9 @@ allocator around one `clone()`):
 | Pool | Never written | Holding mana | After it emptied |
 |---|---:|---:|---:|
 | Today: a `HashMap` by type, zeroed entries kept | 0 | 1 allocation, 84 bytes | **1 allocation, 84 bytes** |
-| A: a `Vec` of groups | 0 | 1 allocation, 72 bytes for three groups | **0** |
+| A: a `Vec` of counted units | 0 | 1 allocation, 72 bytes for three entries of 24 | **0** |
 | B | as today | as today, plus 1 while restricted mana floats | as today |
-| C | 0 | 1, larger: a group per source | 0 |
+| C | 0 | 1, larger: an entry per source | 0 |
 
 Today a pool costs every later clone one allocation from the first mana its
 player makes, four at four seats, since the map keeps its table when its
@@ -1258,6 +1285,21 @@ counts are zero. A's list is empty at every decision where no mana floats,
 which is most of them, so **A lowers floor 2's count by up to one a seat**
 and holds it while mana floats. Terms are behind an `Arc`, so a clone copies
 a pointer.
+
+The probe's unit held a 16-bit set where this holds a `u32`. Both are 16
+bytes, and an entry 24.
+
+**A rules question inside it: is what the source was read once, as the mana
+is made?** CR 106.3 names a mana's source at the moment it is made, and a
+Treasure is already in the graveyard by then, so its facts are last known
+information either way (CR 608.2h). No ruling covers a source that changes
+afterward: a Snow-Covered Forest makes `{G}`, Arcum's Weathervane makes the
+land no longer snow, and the `{G}` is still in the pool. Read once, it pays
+`{S}`. Read live, it does not, and the unit must keep which object made it,
+which is option C. **Recommended: read once**, as the production's own
+event already reads its source. `snow-mana` tests both directions, with
+Arcum's Weathervane or a fixture with its two abilities, so the reading is
+one test's assertion to change.
 
 **Recommended: A.** It is the only option where "which units differ" has an
 answer the engine can compute, and it is cheaper than today for a clone.
@@ -1283,7 +1325,7 @@ the total cost the snow mana was spent on". So a payment is a choice of
 units, legal when some assignment of them to the pips exists, and the engine
 finds the assignment.
 
-- **A. One split, over classes of unit.** The buckets are the pool's groups
+- **A. One split, over classes of unit.** The buckets are the pool's entries
   that this payment may spend (decision 3), and the answer is how many of
   each to spend. Units every legal payment must spend are taken first and
   are not asked, so the question covers only what is free, with each
@@ -1311,15 +1353,15 @@ finds the assignment.
 `ChoiceKind::WhichManaPays`, its options `ChoiceOption::Mana(ManaUnit)`, one
 option kind for a plain unit and a snow one. That is a counted sweep by
 `replace_exact.py`, 21 kind sites and 13 option sites in the crate and one
-in the dev GUI, with no answer re-scripted. A client gets each bucket as a `ManaUnit` and draws its
-type, what made it and its terms.
+in the dev GUI, with no answer re-scripted. A client gets each bucket as a
+`ManaUnit` and draws its type, what its source was and its terms.
 
 **How A is kept right.** Decision 1's record makes the elision exact rather
 than argued: two units are one bucket only when their records are equal, and
 equal records answer every question alike. What can go wrong is a reader
-added without its kind, a card that asks "mana from a Cave" by some other
-route. So a reader of spent mana can name only a `ManaSourceKind`, and there
-is no second route to add.
+added without its question, a card that asks "mana from a Cave" by some
+other route. So a reader can name only a question on the watch list, and
+there is no second route to add.
 
 **Recommended: A.** It asks only where the answers differ, changes no
 question a game asks today, and is what makes decision 9 a "no".
@@ -1338,12 +1380,14 @@ predicate reads; a card is in every row it reads.
 | that the payment casts a spell | 155 | "only to cast creature spells" |
 | …the spell's type line | 124 | Mishra's Workshop; Haven of the Spirit Dragon (`tdc`, the five decks' set) |
 | …its color, mana value, cost symbols, keywords or abilities | 17 | "with mana value 4 or greater", "with devoid", "with no abilities" |
-| …how it is cast: its zone, kicked, face down, its owner, one named card | 16 | Lord of the Forsaken (`tdc`): "from your graveyard" |
+| …how it is cast: its zone, kicked, face down, its owner, one named card, an alternative cost by name | 17 | Lord of the Forsaken (`tdc`): "from your graveyard"; "a disturb cost" |
 | …a type its source chose as it entered | 6 | Cavern of Souls |
 | that the payment activates an ability | 53 | "only to activate abilities" |
 | …the ability's source, by type line or color | 38 | "abilities of artifacts" |
 | …the ability's kind | 4 | equip, power-up, a Class level |
-| another cost or action | 15 | cumulative upkeep; "costs that contain {X}"; turning a permanent face up; unlocking a door; foretelling |
+| that the payment is a special action's (CR 116.2b, 116.2h, 116.2m) | 7 | turning a permanent face up; foretelling a card; unlocking a door |
+| the cost itself, by a symbol in it, whatever it is for | 5 | Rosheen Meanderer: "costs that contain {X}"; Cultivator Drone: "a cost that contains {C}" |
+| that the payment is a keyword's cost, paid as its trigger resolves | 2 | "only to pay cumulative upkeep costs" (CR 702.24a) |
 | one part of a cost | 1 | Jegantha: "can't be spent to pay generic mana costs" |
 | stated as what it cannot pay | 10 | a Powerstone |
 
@@ -1353,29 +1397,72 @@ old plan named: it can say "creature spells", "abilities of artifacts" and
 Cavern's chosen type, and nothing from the color row down.
 
 - **A. A restriction is a list of spends it permits, or a list it forbids,
-  each a purpose with a filter on its subject.**
+  each an arm for one row of the table.**
   ```rust
   enum SpendRestriction { Only(Vec<SpendFilter>), Never(Vec<SpendFilter>) }
-  enum SpendFilter { Spell(SpellFilter), AbilityOf(ObjectFilter), AbilityKind(..), Cost(CostFilter) }
-  enum SpendPurpose { Spell(ObjectId), Ability(AbilityRef), SpecialAction(..), EffectCost { source: ObjectId } }
+  enum SpendFilter {
+      Spell { is: ObjectFilter, cast: Option<CastFilter> },  // its zone, kicked, face down, an alternative cost by name
+      Ability { of: ObjectFilter, keyword: Option<AbilityKeyword> },  // equip, power-up, a Class level
+      SpecialAction(SpecialAction),   // the engine's CR 116 enum
+      KeywordCost(CostKeyword),       // cumulative upkeep
+      CostContains(ManaSymbol),       // "costs that contain {X}"
+  }
+  struct Spend<'a> { cause: EventCause, ability: Option<AbilityRef>, keyword: Option<CostKeyword>, cost: &'a ManaCost }
+  fn may_pay(unit: &ManaUnit, spend: &Spend, pip: &Pip) -> bool
   ```
-  The payment names its purpose, and one function answers whether a unit may
-  pay a pip of it: `may_pay(unit, purpose, pip)`. A spell is read as it
-  stands on the stack, through the one `ObjectFilter` leaf table every other
-  filter uses, plus how it was cast, which its stack entry already records
-  (zone, additional and alternative costs). A leaf the table lacks, mana
-  value or a keyword, arrives with its first card, for every filter at once.
-  Jegantha's is the function's `pip` argument, one arm when its card comes.
-  **`EffectCost` is the purpose `Primitive::Pay` passes**, a cost paid as an
-  effect resolves: mana "only to cast creature spells" cannot pay Rhystic
-  Study's `{1}`, and Rosheen Meanderer's can pay Condescend's `{X}` (its
-  ruling, 2017-11-17).
+  **What a payment is for is its cause, which the engine already has.**
+  Every proposal names an `EventCause`, and a payment's is `Cost { player,
+  paying_for }` for a spell or an ability, `Effect` for a cost a resolution
+  asks for (CR 118.12), and `SpecialAction`. A restriction reads that value,
+  so `SpendPurpose` goes with `SpendContext` and nothing re-spells it.
+  `Spend` adds the three things the cause does not hold: which ability, where
+  the payment is an activation's; the keyword whose cost a `Pay` is, where a
+  keyword defines it; and the mana cost being paid, which Rosheen's "costs
+  that contain {X}" reads. The first two are named as the engine names them,
+  `AbilityRef` and a keyword, never a position. A spell is read through the
+  one `ObjectFilter` leaf table every other filter uses. `CastFilter` reads
+  what the stack entry already records of a cast: its zone, its additional
+  costs and its alternative cost.
+  **A cost paid as an effect resolves has `Effect` as its cause**, so mana
+  "only to cast creature spells" cannot pay Rhystic Study's `{1}`, and
+  Rosheen Meanderer's can pay Condescend's `{X}` (its ruling, 2017-11-17):
+  `Primitive::Pay` passes the cause it resolves under and adds nothing.
 - **B. An arm per printed phrasing on today's enum.** No new filter type.
   121 sentences is where that ends, each arm restating a predicate
   `ObjectFilter` already has.
 
-**Recommended: A.** Every row of the table is a purpose and a filter, and
-the filter is the one the engine already reads spells and permanents with.
+**At the offer the spell is still a card.** The existence check asks before
+anything is proposed, so it builds the cause the payment would have, and
+that cause names a card in a hand or a graveyard. The card's type line,
+color and mana value are read as they are, and its zone is known, since the
+offer is for a cast from that zone. A choice CR 601.2b has not made yet,
+kicked or face down or an alternative cost, is read as met: mana "only to
+cast kicked spells" counts toward a kickable spell's offer. That over-offers,
+which costs a rewind, where the other reading would hide a legal play (the
+owner's rule for the check, 2026-09-30). The payment at CR 601.2h reads the
+choices as made. `restricted-mana-plus-spend-riders` tests one of each at
+the offer and at the payment.
+
+**The other side of the edge: a cost that names its mana.** Ten cards
+restrict from the cost's side.
+
+| The cost says | Cards | Example |
+|---|---:|---|
+| only mana of a color pays its X | 6 | Consume Spirit: "Spend only black mana on X" |
+| only mana from a kind of source pays it | 3 | Imperiosaur, Myr Superion, Security Rhox |
+| no mana pays it | 1 | Hogaak, Arisen Necropolis |
+
+`may_pay`'s third argument is the pip, and a pip says what it accepts: which
+types, and which answers of the source. `{S}` is the first such pip (decision 6):
+any type, from a snow source. Consume Spirit's X is pips that accept black
+alone; Rosheen's ruling says the limit is on that part of the cost and no
+other. Imperiosaur's whole cost accepts units whose source was a basic land
+on the battlefield. Hogaak's accepts none, so convoke and delve pay all of
+it. Jegantha's mana is the same argument from the unit's side.
+
+**Recommended: A.** Every row of the table is one arm, the purpose is a
+value the engine already carries, and the filter is the one it already
+reads spells and permanents with.
 
 #### Decision 4: riders, and the event of spending
 
@@ -1397,20 +1484,38 @@ each unit. The engine detects triggers from performed events, and spending
 mana emits none: `pay_single_cost` writes the pool directly.
 
 - **A. The rider stays on the unit, and the payment announces what it
-  spent.** `pay_costs` performs the removal and emits one
-  `GameEvent::ManaSpent { player, on: SpendPurpose, units }`. The dispatcher
-  reads the riders off the event's units: a delayed trigger is queued once
-  for each unit spent whose condition the purpose meets, with the unit's
-  source as its source, and the other three kinds are handed to the
-  subsystem that owns each. A million mana from one loop is one group and
-  one rider. Spending is not replaceable (no effect says "if you would spend
+  spent.**
+  ```rust
+  struct SpendRider { when: SpendFilter, then: RiderEffect }
+  enum RiderEffect {
+      Trigger { effect: Effect, source: ObjectRef, controller: PlayerId },
+      SpellCantBeCountered,
+      PermanentGains { keyword: KeywordFlag, until: Duration },
+      EntersWithCounters { kind: CounterType, amount: AmountExpr },
+  }
+  ```
+  One arm for each row of the table, and `when` is decision 3's filter, so
+  "if that mana is spent on a creature spell" is written once. `pay_costs`
+  performs the removal and emits one `GameEvent::ManaSpent { player, units
+  }`, whose stamp already carries the cause, what it was spent on. Each rider
+  applies **once for each unit spent** whose `when` the spend meets (CR
+  106.6a's "a separate effect … for each mana"): two of Path of Ancestry's
+  mana on one creature spell are two triggers (its ruling, 2020-11-10). The
+  pool holds the rider once and the count beside it, so a million mana from
+  one loop is one entry. A trigger's source and controller are the ability's
+  that made the mana, fixed then (CR 603.7e), which differs from the spender
+  only once Drain Power has moved the mana. The other three kinds are handed
+  to the subsystem that owns each: the "can't" registry; a continuous effect
+  on the spell, which the engine already carries onto the permanent it
+  becomes (CR 400.7a, `engine/zones.rs`); and a replacement of that spell's
+  entry. Spending is not replaceable (no effect says "if you would spend
   mana"), so the write stays where it is, takes the `// NOT REPLACEABLE:`
-  tag, and gains the event the rule needs. Expend (CR 700.14, 12 cards)
-  later reads the same event. An ability is named by the engine's
-  `AbilityRef`, its source's existence and which ability, never a position.
+  tag, and gains the event the rule needs. **The event takes the name**: it
+  is `ManaSpent` beside `ManaAdded` and `ManaLost`, and the record of what a
+  payment spent, `ManaSpent` today, becomes `SpentMana` (decision 6).
 - **B. Register a delayed trigger for each unit as it is made.** The CR's
   own wording, and the trigger registry's existing shape. A registration per
-  unit is what the counted groups exist to avoid, and each emptying would
+  unit is what counting alike units exists to avoid, and each emptying would
   have to retire the triggers of the mana it lost.
 
 **Recommended: A.** The unit is the one place the rider lives, and the event
@@ -1430,31 +1535,51 @@ which nothing reads until this row's cards.
 | …kept by a resolved effect with a duration | 1 | The Last Agni Kai | nothing |
 | the loss replaced: the mana changes type and stays | 5 | Kruphix, God of Horizons | nothing |
 | the loss has a result | 2 | Yurlok of Scorch Thrash (life lost); Drain Power (the mana moves) | nothing |
+| an effect makes a player lose unspent mana, at no step's end | 5 | Mana Short, Power Sink, Worldpurge | nothing |
 
 **The problem.** `empty_mana_pools` writes every pool directly, so no
 replacement can watch it (Kruphix), no "can't" can stop it (Omnath), and
 nothing can follow it (Yurlok). `CLAUDE.md`'s chokepoint rule already says a
-direct write is invisible to CR 614.
+direct write is invisible to CR 614. And the last row loses mana by an
+effect, which Kruphix replaces and Yurlok follows as they do the step's, and
+which "you don't lose unspent red mana as steps and phases end" does not
+stop.
 
-- **A. The emptying is a proposal, and each family is the subsystem that
+- **A. Losing mana is a proposal, and each family is the subsystem that
   already owns its kind of statement.** As a step or phase ends, the engine
   proposes one batch through `execute_actions`, a member for each player and
-  class of unit still due to be lost: `GameAction::LoseUnspentMana { player,
-  unit, count }`. A unit still inside its own kept-until is not proposed.
-  "You don't lose unspent red mana" is a `Restriction::Event` on that action
-  for that player and type, in the "can't" registry, which already holds
-  static abilities and effects with durations and re-checks that a static
-  one still exists. Kruphix is an `EventPattern::LoseUnspentMana` arm whose
-  rewrite changes the unit's type and keeps its terms. Yurlok's loss is
-  proposed once for each player, for the total the batch took from them, in
-  the same batch (its ruling, 2020-11-10: at the same time, no stack, one
-  loss however many Yurloks). A pool with nothing to lose proposes nothing.
+  class of unit: `GameAction::LoseUnspentMana(player, ManaUnits)`, under the
+  turn-based action's cause (CR 703.4q). Mana Short proposes the same action
+  under its own effect's cause.
+  - **A unit's own kept-until.** A unit still inside it is not proposed at a
+    step's end. Once its turn or combat has ended it is proposed like any
+    other, and if something else keeps it, the term is dropped and the unit
+    regroups with mana like it (CR 500.5: the effect expires, then mana
+    empties). A firebender's `{R}` under Leyline Tyrant is plain `{R}` next
+    turn.
+  - **Kept by a static ability or an effect.** "You don't lose unspent red
+    mana as steps and phases end" is a `Restriction::Event` on that action
+    for that player and type, in the "can't" registry, which already holds
+    static abilities and effects with durations and re-checks that a static
+    one still exists. Its pattern names the turn-based action's cause, which
+    every proposal carries, so it does not stop Mana Short.
+  - **Replaced.** Kruphix is an `EventPattern::LoseUnspentMana` arm that
+    names no cause, so it matches both. Its rewrite is `Rewrite::Instead`,
+    CR 614.1a's arm, of a second new action that changes those units' type
+    and leaves their terms (its ruling, 2014-04-26). The closed algebra
+    gains no arm.
+  - **Followed.** Yurlok's loss is a result of the batch, as lifelink's gain
+    is of a damage batch (CR 120.3f, `engine/actions.rs`): the batch performs
+    after its replacements are decided, so it knows what each player lost,
+    and proposes one life loss for each player for that total (its ruling,
+    2020-11-10: at the same time, no stack, one loss however many Yurloks).
+  A pool with nothing to lose proposes nothing.
 - **B. As item 4 was sized: read a kept set off a registry row at the two
-  sites, and keep the direct write.** About 50 lines. It holds Upwelling and
-  Omnath, and cannot hold Kruphix or Yurlok, whose 6 cards need the event
-  anyway.
+  sites, and keep the direct write.** About 50 lines. It holds the 7 cards
+  that keep mana by a static ability or an effect, and none of the 12 that
+  replace, follow or cause a loss.
 
-**Recommended: A.** One event serves all five families, and each family
+**Recommended: A.** One action serves all six families, and each family
 lands in the registry that already knows how to ask whether its source still
 has the ability.
 
@@ -1469,8 +1594,8 @@ every permanent that was cast.
 |---|---:|---|
 | its colors or types | 112 | converge and sunburst (44 by keyword); adamant; "if `{U}` was spent" |
 | how much, of any kind | 55 | "if no mana was spent to cast it" |
-| which kind of source made it | 27 | "if mana from a Treasure was spent" |
-| a type and a kind together | 1 | Boreal Outrider: "`{S}` of any of that spell's colors" |
+| what its source was | 27 | "if mana from a Treasure was spent" |
+| its type and its source together | 1 | Boreal Outrider: "`{S}` of any of that spell's colors" |
 | how much this turn | 12 | expend; decision 4's event |
 
 Where, by the sentence's shape, so approximate: 99 on the permanent the
@@ -1479,27 +1604,31 @@ by the spell as it resolves, 8 of an ability's activation (Forsworn
 Paladin). The engine records a cast's spent mana today and an activation's
 never.
 
-**The problem.** `ManaSpent` is six counts by type, held inline. It must now
-answer by kind, and by type and kind together.
+**The problem.** The record is six counts by type, held inline. It must now
+answer by what the source was, and by type and source together.
 
-- **A. The units themselves, shared.** `ManaSpent(Option<Arc<[(ManaType,
-  SourceKinds, u64)]>>)`: the classes spent, written once by the payment and
-  never edited. It answers every row of the table, and any question a later
-  kind brings. An activation records one too.
-- **B. Inline counts, by type and by kind.** `{ by_type: [u64; 6], of_kind:
-  [[u64; 6]; K] }`, 48 bytes for each kind.
+- **A. The units as they were spent, shared.** `SpentMana(Option<Arc<[ManaUnits]>>)`:
+  the same slice the `ManaSpent` event carries, written once by the payment
+  and never edited. It answers every row of the table and whatever a later
+  question on the watch list asks. The units keep their terms, which nothing reads once
+  they are spent; dropping them would make a second type for one value.
+  `None` is the only empty, today's `ManaSpent::NONE`: a payment that spends
+  no mana writes `None`, and an empty slice is never built. An activation
+  records one too.
+- **B. Inline counts, by type and by answer.** `{ by_type: [u64; 6],
+  answering: [[u64; 6]; N] }`, 48 bytes for each watched question.
 
 | | Allocations a clone | Bytes inline, each stack entry and cast permanent | Grows with |
 |---|---:|---:|---|
 | Today | 0 | 48 | nothing |
 | A | 0: a pointer is copied | 8 | nothing |
-| B | 0 | 96 with `Snow` alone, 384 with the seven printed kinds | each new kind |
+| B | 0 | 96 with snow alone, 432 with the eight printed questions | each new question |
 
 A costs one allocation when a payment spends mana, beside the payment's
 existing list of what it used.
 
 **`{S}` itself** is a pip any type pays and only a snow unit may:
-`#32-the-check-halls-condition`'s seventh bit, set on a snow permanent's
+`#32-the-check-halls-condition`'s seventh bit, set on a snow source's
 entries and on the pool's snow units. A generic reduction never touches it,
 since the reduction removes `Generic` symbols and `{S}` is its own. It is
 paid by decision 2's split.
@@ -1534,7 +1663,8 @@ each 0).
 
 **Retrofit cost: none; it is the plan.** In "The build, sized" below: the
 record under `{S}` first, then restrictions and riders, then kept and lost
-mana, each with printed cards that need no later row.
+mana, each with printed cards that need no later row. The first two sit at
+the band's top, so each names where it splits.
 
 #### Decision 9: whether the build comes before `costs-and-choices-at-resolution`
 
@@ -1552,7 +1682,7 @@ payment. Would building `Pay` first unbuild something?
    the activation make (`put_on_stack.rs`, CR 601.2g to 601.2h): the mana
    window, the check that the cost is payable, then `plan_payment` and
    `pay_costs`. The build changes what those do inside and gives each one
-   more argument, the purpose. A third caller gains it in the same edit the
+   more argument, what the payment is for (decision 3's `Spend`). A third caller gains it in the same edit the
    other two do.
 2. **A plain pool is asked what it is asked today** (decision 2's A). No
    snow or restricted mana can exist before the build, so every fixture
@@ -1584,9 +1714,16 @@ this document's own record, MA-1 at 1.6 times its sizing and MA-2 at 1.4.
 
 | PR | What it builds | Consumer | Code, raw | Tests, raw | At the doc's ratio |
 |---|---|---|---:|---:|---:|
-| **`snow-mana` — a unit keeps what made it, and `{S}` is paid** | Decision 1's record and pool, with the dormant types and their tests removed; `ProduceMana` carrying units, stamped with kinds by its arm; decision 2's split and its sweep; decision 6's spent record, on activations too; `{S}` in the demand, the check and the window | The five Snow-Covered basics; Icehide Golem (`{S}` in a mana cost); one of the 35 cards with `{S}` in an activation cost and Graven Lore (`{S}` spent), each checked by the row's card hunt | 550–750 | 450–600 | 1,400–2,150 |
-| **`restricted-mana-plus-spend-riders` — mana that pays only some things, and mana that does something when spent** | Decision 3's restriction, purpose and edge test, through the payment, the window and the check (the entry's restriction and the purpose argument of `#36-item-33s-seam-an-edge-refused-decision-2`); decision 4's event, the delayed trigger and "can't be countered" | Mishra's Workshop; Soldevi Machinist (abilities of artifacts); a Powerstone maker; Boseiju, Who Shelters All; Scaled Nurturer (a delayed trigger); each checked by the row's hunt | 450–650 | 450–600 | 1,250–2,000 |
-| **`mana-kept-and-lost` — the emptying as an event** | Decision 5: the action and its batch at the two expiry sites, the kept "can't", the unit's own kept-until, the replacement arm, Yurlok's loss | Upwelling; Omnath, Locus of Mana; Leyline Tyrant; Savage Ventmaw; Horizon Stone; Yurlok of Scorch Thrash | 300–450 | 350–450 | 900–1,450 |
+| **`snow-mana` — a unit keeps what its source was, and `{S}` is paid** | Decision 1's record and pool, with the dormant types and their tests removed; `ProduceMana` carrying units, their answers read by its arm; decision 2's split and its sweep; decision 6's spent record with its rename, on activations and in a permanent's last known information; `{S}` in the demand, the check and the window | The five Snow-Covered basics; Icehide Golem (`{S}` in a mana cost); one of the 35 cards with `{S}` in an activation cost; Graven Lore (`{S}` spent); Steamcore Weird (a creature asking what was spent, asked again once it has left); Arcum's Weathervane or its fixture (the source read once). Each checked by the row's card hunt | 650–850 | 500–650 | 1,600–2,400 |
+| **`restricted-mana-plus-spend-riders` — mana that pays only some things, and mana that does something when spent** | Decision 3's restriction, `Spend` and edge test, through the payment, the window and the check (the entry's restriction and the purpose argument of `#36-item-33s-seam-an-edge-refused-decision-2`); the cost's side, a pip that says what it accepts, with X's bound for such a pip; decision 4's event and three of its four riders | Mishra's Workshop; Soldevi Machinist (abilities of artifacts); a Powerstone maker; Consume Spirit (black mana on X); Scaled Nurturer (a delayed trigger); Boseiju, Who Shelters All (can't be countered); Hall of the Bandit Lord (haste). Each checked by the row's hunt | 600–800 | 550–700 | 1,600–2,400 |
+| **`mana-kept-and-lost` — losing mana as an event** | Decision 5: the action and its batch at the two expiry sites and from an effect, the kept "can't" scoped to the step's end, the unit's own kept-until and its regrouping, the replacement and the action it rewrites to, Yurlok's loss | Upwelling; Omnath, Locus of Mana; Leyline Tyrant; Savage Ventmaw; Horizon Stone; Yurlok of Scorch Thrash; Mana Short | 350–500 | 400–500 | 1,050–1,600 |
+
+**Where the first two split**, if a brief's re-count puts one past the band
+(1,500 to 2,500 lines). `snow-mana`: the record, the pool and the spent
+record first, with Steamcore Weird and every game `IDENTICAL`; then the
+watch list, `{S}`, the split over classes and the snow cards.
+`restricted-mana-plus-spend-riders`: the restriction and the cost's side
+first; then the event and the riders.
 
 **What the raw counts rest on** (the tree at `8c96e41a`): `types/mana.rs`
 holds about 660 lines of pool and restriction code and 675 of tests, of
@@ -1601,24 +1738,33 @@ at 1–2 PRs: T12c (the archived plan's label for routing restricted mana into
 the cast) at 150–250 lines, three items summing 200–320, and an unsized
 source axis and migration. Re-counted, T12c's routing is the second row's
 purpose plumbing, at seven call sites and the check; item 4's 40–60 lines is
-decision 5's B, which holds 7 of its 14 static, replaced and resulting
-cards; and the axis is the first row. **Three PRs, about 3,550 to 5,600
-lines.**
+decision 5's B, which holds 7 of the 19 cards that keep mana by a static
+ability or an effect, or replace, follow or cause its loss; and the axis is
+the first row. **Three PRs, about 4,250 to 6,400 lines.**
 
-**What does not ride.** The three `tdc` cards that need this row each wait
-on another: Haven of the Spirit Dragon and Path of Ancestry on any-color
-mana, Path also on the commander's designation, Lord of the Forsaken on
-casting from a graveyard. Each registers with the row that frees it, on the
-restriction or rider built here. The rider kinds with no card in a row
-above (an ability gained, counters as it enters) arrive with their first
-card. Drain Power's move is the record's (CR 106.13) and waits for its card,
-which also forces mana abilities.
+**What waits, and the row it waits in.** Each is designed above and has no
+card in a row of this build.
+
+| What | Cards | Waits for | Row |
+|---|---:|---|---|
+| Haven of the Spirit Dragon, Path of Ancestry, Lord of the Forsaken (`tdc`) | 3 | any-color mana; the commander's designation; casting from a graveyard | the row that frees each: `any-color-plus-painlands-plus-signets`, `game-formats`, `casting-from-other-zones` |
+| "a Treasure" on the watch list, and its readers | 16 | Treasure tokens | `any-color-plus-painlands-plus-signets`, which makes the token, with Hired Hexblade as its reader |
+| a type the source chose as it entered | 6 | the as-enters record's creature type (`#310-what-a-mana-ability-makes-decision-5`) | `chosen-color-plus-could-produce`, with Cavern of Souls |
+| the questions for a creature, an artifact, an artifact source, a basic land, a Cave and a Desert | 7 | nothing built: each widens what every pool tells apart, measured by its first card | `breadth-features`, with its first card |
+| filter leaves a restriction reads: mana value, a keyword, "no abilities", a count of colors | 17 | the shared `ObjectFilter` table's leaf | `breadth-features`, with its first card |
+| the special actions a restriction names | 7 | each action: turning face up, foretelling, unlocking a door | `face-down-and-morph` for turning face up; `breadth-features` for the other two |
+| a rider that puts counters on the permanent | 4 | any-color mana (3 cards), a commander (Opal Palace) | `breadth-features`, with its first card |
+| expend (CR 700.14) | 12 | a count of mana spent on spells this turn, read off decision 4's event | `breadth-features`, with its first card |
+| Jegantha's mana, which pays no generic cost | 1 | companion | `breadth-features`, with its card |
+| Drain Power's move between pools (CR 106.13) | 1 | forcing a player's mana abilities | `breadth-features`, with its card |
+| Hogaak's cost, which no mana pays | 1 | convoke and delve | `convoke-delve-improvise` |
 
 ### 11.7 The fuzz games, predicted
 
 - **`snow-mana`, with its cards unregistered:** every gameplay row
   `IDENTICAL` to `main`. A plain pool is asked the same question with the
-  same buckets in the same order (decision 2), and no unit has a kind.
+  same buckets in the same order (decision 2), and with no snow source in a
+  game every unit answers the one watched question alike.
   Instructions per decision within ±0.3%: derived, not measured. A payment
   reads a short list where it read a map, and there are about 70 payments a
   game on the budget's board (`#23-what-an-exact-check-changes-the-probe`'s
@@ -1645,7 +1791,8 @@ which also forces mana abilities.
   random agent's answer.
 - **Renamed by a counted sweep:** `GenericManaAllocation`, 11 sites in
   `src` and 10 in `tests`; `ChoiceOption::ManaType`, 7 and 6, and one in the
-  dev GUI.
+  dev GUI; the record `ManaSpent`, which gives its name to the event, 43
+  sites.
 - **Removed:** `types/mana.rs`'s thirty unit tests of the dormant subsystem.
   The atoms they could have covered are covered by integration tests today.
 - **Moved:** `mana_supply`'s two tests that build a `ManaAtom`, onto the new
@@ -1671,14 +1818,15 @@ which also forces mana abilities.
   is the owner's to reword or keep.
 - **Myr Superion's ruling (2011-06-01) narrows "produced by creatures"** to
   creatures on the battlefield: Elvish Spirit Guide's mana, made from a
-  hand, does not count. So a kind's question is asked of the source as a
-  permanent, and each `ManaSourceKind` arm says so.
+  hand, does not count. CR 109.2 is why, and 109.2c is why "a snow source"
+  is wider: Tundra Fumarole, a snow sorcery, makes mana that pays `{S}`. So
+  each question on the watch list says whether it asks a permanent.
 - **Imperiosaur's ruling (2021-03-19)** confirms CR 106.3 for triggered
   mana: Wild Growth's `{G}` is Wild Growth's, not the Forest's. The
   production's source is already the trigger's, so nothing changes.
-- **A card-level kind widens what every game asks.** Registering Myr
-  Superion adds a `Creature` arm, and from then a pool holding an Elf's
-  `{G}` beside a Forest's asks which pays, in games with no Myr Superion.
+- **A card's question widens what every game asks.** Registering Myr
+  Superion adds "a creature" to the watch list, and from then a pool holding
+  an Elf's `{G}` beside a Forest's asks which pays, in games with no Myr Superion.
   That is the CR's choice once such a card exists, and it is asked only on a
   surplus. Six printed cards read a creature, an artifact or a basic land
   this way. The first to register measures the questions it adds in its own

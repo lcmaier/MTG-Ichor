@@ -226,9 +226,9 @@ cell, and no ✅ heading records, in the docs' order.
 | The chosen color and "could produce" | `chosen-color-plus-could-produce` | `mana-architecture.md` |
 | Paying with permanents or cards | `convoke-delve-improvise` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `mana-payment-solver` | `mana-architecture.md` |
-| A unit keeps what made it, and `{S}` is paid | `snow-mana` | `mana-architecture.md` |
+| A unit keeps what its source was, and `{S}` is paid | `snow-mana` | `mana-architecture.md` |
 | Mana that pays only some things, and mana that does something when spent | `restricted-mana-plus-spend-riders` | `mana-architecture.md` |
-| The emptying as an event | `mana-kept-and-lost` | `mana-architecture.md` |
+| Losing mana as an event | `mana-kept-and-lost` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `permission-design` | `permission-architecture.md` |
 | Casting from the command zone | `command-zone-casting` | `permission-architecture.md` |
 | Flashback and the other casts from elsewhere | `casting-from-other-zones` | `permission-architecture.md` |
