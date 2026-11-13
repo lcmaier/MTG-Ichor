@@ -10778,3 +10778,21 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      row "3. Tap all creatures your opponents control."
      **Reachability (2026-11-12):** closed — PR #320, at the owner's word in
      review.
+
+### Found by the process PR at #320 (2026-11-13)
+
+418. **`EventPattern`'s doc counts two `GameAction` variants with no arm, and
+     there are seven.** `types/replacement.rs`, "One arm per variant, and the
+     two without one", names `Attach` and `CreateTokenIn`, and
+     `engine/actions.rs` calls `CreateTokenIn` "the second exemption".
+     `Unattach`, `TokenCeasesToExist`, `ShuffleLibrary`, `GameEndsInADraw` and
+     `BecomeBlocked` have no arm either; the first four say so in their own
+     docs, and `BecomeBlocked`'s says only that a replacement may watch it.
+     Found writing the parity table
+     (`triggers-architecture.md#33a-parity-with-eventpattern-event-kind-by-event-kind`),
+     in a PR that touches no engine source.
+     **Reachability (2026-11-13):** reachable but not wrong today — two doc
+     comments, which no game reads; the next arm's author reads them.
+     **Slotted:** `costs-and-choices-at-resolution`, the next PR that builds
+     engine code: the two comments ride it.
+     **Sized:** about 8 comment lines in two files.
