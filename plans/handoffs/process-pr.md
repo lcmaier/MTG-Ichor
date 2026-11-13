@@ -25,6 +25,25 @@ and 1 pm Eastern, no cron moves them, and the choice is a scheduler outside
 GitHub calling `workflow_dispatch`, or a midday run
 (`.github/workflows/nightly.yml`'s opening comment).
 
+**The midpoint hygiene pass gains a docs leg** (the owner, 2026-11-13), limited
+to the facts the gates and the board read: ✅ headings, the Sizing and forecast
+tables, Slotted lines, backlog Owner lines and the gap census's records. The
+docs pass ran only at v0.5's close. `plans/spine-phase-audit.md`'s midpoint
+section and the practices page say so.
+
+**A backlog Owner line naming only landed rows fails the board's check** (the
+owner, 2026-11-13), as a Slotted line does. Four live entries do today and are
+re-homed or marked shipped first: §2.12, §2.17, §2.22 and §2.44. It is the
+lapse that lost §2.37's parity table.
+
+**Each Sizing row names its subsystem, as a column** (the owner, 2026-11-13),
+and the board's "When each subsystem closes" reads it in place of the docs'
+headings. 20 of the 42 rows to come are defined in no architecture doc, and
+five have no design stop ahead to name them: `resolution-recipients-and-amounts`,
+`game-formats`, `multiplayer-rules`, `player-scoped-values` and
+`layers-combat-and-counters`. Their subsystems would never show as closed, the
+first at step 7, so this lands at #340 and no later.
+
 ## Open, for the owner
 
 Nothing yet. The two questions this queue opened with were answered in #321's
