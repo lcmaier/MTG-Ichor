@@ -304,7 +304,10 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 17. **The five decks**, then **`decks-in-fuzz-games`** | `tarkir-dragonstorm-decks`, below | The cards no row has registered, each mechanic they need built from its whole CR section (the family rule, `engineering-practices.md#gaps-a-phase-finds`); then the five lists at one table with nobody at it |
 | 18. **`devgui-at-five-seats`**, then **`mana-payment-solver`** | below, `mana-architecture.md` | The same table in the window, then a person paying at a seat. **Milestone: v0.5** |
 
-**After v0.5, ordered at its close:** `pausing-at-a-decision`'s build with the
+**After v0.5, ordered at its close:** first the slot matrix (`backlog.md`
+§2.37), every clause slot against every vocabulary, as a measure and not a
+fill, since what it finds orders the card work after it (the owner, 2026-11-06,
+#315); `pausing-at-a-decision`'s build with the
 AI harness; `ironworks-loop`; the card model's other
 builds (`double-faced-cards`' modal half, the rest of `split-and-adventure-style-cards`
 and of `face-down-and-morph`, `merging-and-meld`); `loop-detection`;
