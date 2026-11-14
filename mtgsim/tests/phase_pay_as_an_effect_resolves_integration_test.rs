@@ -52,8 +52,13 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 // Boards
 // ---------------------------------------------------------------------------
 
-/// A payment's question, matched by its kind alone.
+/// A payment's question, matched by its kind alone: a script compares the
+/// variant and never its fields, so `UNASSIGNED` fills them. A test that
+/// means a field reads it back off `asked()`.
 const PAY: ChoiceKind = ChoiceKind::PayAsItResolves { source: ObjectId::UNASSIGNED, offer: Vec::new(), any_amount_of: None };
+
+/// "You may [do something]"'s question, matched by its kind alone.
+const OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED };
 
 /// A mana window's question, matched by its kind alone.
 fn window() -> ChoiceKind {
@@ -240,7 +245,7 @@ fn rhystic_study_shape_draws_when_that_player_declines() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(PAY, Vec::new());
-    dp.expect_take(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED });
+    dp.expect_take(OPTIONAL);
     resolve_with(&mut game, dp);
     assert_eq!(hand(&game, 0), before + 1);
 }
@@ -398,11 +403,12 @@ fn ward_ignores_its_controllers_own_spell() {
 }
 
 /// Waterfall Aerialist's ruling: a spell targeting two ward creatures
-/// triggers both, and is countered unless both are paid for.
+/// triggers both, and is countered unless both are paid for. The first ward
+/// is paid on both boards, so the second board is one paid and one not.
 // RULING: Waterfall Aerialist #1 - "If a player casts a spell that targets multiple permanents their opponent controls with ward, each of those ward abilities will trigger. If that player doesn't pay for all of them, the spell will be countered."
 #[test]
 fn a_spell_targeting_two_ward_creatures_pays_for_each() {
-    for pays_both in [true, false] {
+    for pays_the_second in [true, false] {
         let mut game = stocked(2);
         let first = put_on_battlefield(&mut game, waterfall_aerialist(), 0);
         let second = put_on_battlefield(&mut game, waterfall_aerialist(), 0);
@@ -414,7 +420,7 @@ fn a_spell_targeting_two_ward_creatures_pays_for_each() {
         // The two triggers are one tier of one player's, and no order of
         // them changes the game: placed unasked.
         dp.expect_take(PAY);
-        if pays_both {
+        if pays_the_second {
             dp.expect_take(PAY);
         } else {
             dp.expect_choice(PAY, Vec::new());
@@ -422,8 +428,9 @@ fn a_spell_targeting_two_ward_creatures_pays_for_each() {
         let dp = resolve_with(&mut game, dp);
         assert_eq!(paid_asked(&dp), vec![1, 1], "two triggers, each asked");
         assert_eq!(game.objects[&shock].zone, Zone::Graveyard);
+        assert_eq!(game.players[1].mana_pool.amount(ManaType::Colorless), if pays_the_second { 0 } else { 2 }, "the first {{2}} paid");
         let survived = [first, second].iter().filter(|id| game.battlefield.contains_key(id)).count();
-        assert_eq!(survived, if pays_both { 0 } else { 2 }, "paid for both: {pays_both}");
+        assert_eq!(survived, if pays_the_second { 0 } else { 2 }, "one paid of two counters it: {pays_the_second}");
     }
 }
 
@@ -443,27 +450,34 @@ fn wild_might_shape() -> Arc<CardData> {
         .build()
 }
 
-/// "Any player" is asked in APNAP order (CR 101.4), the active player first,
-/// until one pays: the first declines, the second pays, and the creature gets
-/// +1/+1 alone. Played with each player active, so the order is the turn's
+/// "Any player" asks each player at most once, in APNAP order (CR 101.4), the
+/// active player first, and stops at the first who pays. The first declines;
+/// the second pays and the creature gets +1/+1 alone, or declines too and it
+/// gets +5/+5. Played with each player active, so the order is the turn's
 /// and not the seats'.
 #[test]
-fn any_player_is_asked_in_apnap_order_until_one_pays() {
+fn any_player_asks_each_player_at_most_once_in_apnap_order() {
     for active in [0, 1] {
-        let mut game = stocked(2);
-        let bears = put_on_battlefield(&mut game, grizzly_bears(), active);
-        set_active_player(&mut game, active);
-        cast(&mut game, active, wild_might_shape(), &[(ManaType::Green, 1)], &[]);
-        game.players[0].mana_pool.add(ManaType::Colorless, 2);
-        game.players[1].mana_pool.add(ManaType::Colorless, 2);
-        let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PAY, Vec::new());
-        dp.expect_take(PAY);
-        let dp = resolve_with(&mut game, dp);
-        let other = 1 - active;
-        assert_eq!(paid_asked(&dp), vec![active, other], "the active player first");
-        assert_eq!(get_effective_power(&game, bears), Some(3), "paid, so +1/+1 alone");
-        assert_eq!(game.players[other].mana_pool.amount(ManaType::Colorless), 0, "the second player paid");
+        for second_pays in [true, false] {
+            let mut game = stocked(2);
+            let bears = put_on_battlefield(&mut game, grizzly_bears(), active);
+            set_active_player(&mut game, active);
+            cast(&mut game, active, wild_might_shape(), &[(ManaType::Green, 1)], &[]);
+            game.players[0].mana_pool.add(ManaType::Colorless, 2);
+            game.players[1].mana_pool.add(ManaType::Colorless, 2);
+            let dp = ScriptedDecisionProvider::new();
+            dp.expect_choice(PAY, Vec::new());
+            if second_pays {
+                dp.expect_take(PAY);
+            } else {
+                dp.expect_choice(PAY, Vec::new());
+            }
+            let dp = resolve_with(&mut game, dp);
+            let other = 1 - active;
+            assert_eq!(paid_asked(&dp), vec![active, other], "the active player first, each once");
+            assert_eq!(get_effective_power(&game, bears), Some(if second_pays { 3 } else { 7 }), "paid: {second_pays}");
+            assert_eq!(game.players[other].mana_pool.amount(ManaType::Colorless), if second_pays { 0 } else { 2 });
+        }
     }
 }
 
