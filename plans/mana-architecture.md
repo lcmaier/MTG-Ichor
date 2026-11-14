@@ -1059,10 +1059,13 @@ block.
 
 ## 11. Mana provenance: what a unit of mana keeps
 
-> **Status:** design, 2026-11-13, at its design stop: nothing here is built,
-> and each decision under "The decisions" waits for the owner. It is
-> `roadmap-v2.md`'s row `mana-provenance`, the design, for `codebase-state.md`
-> item 33 (the tested restricted-mana subsystem that no payment calls).
+> **Status:** design, 2026-11-13, under the owner's review on #323: nothing
+> here is built. Round 1 (2026-11-13) settled decisions 6 and 7 and the
+> reading inside decision 1, renamed the types of decisions 1, 3 and 4, and
+> opened one question inside decision 1 and one inside decision 8. Decisions
+> 2, 3 and 9 are still being discussed. It is `roadmap-v2.md`'s row
+> `mana-provenance`, the design, for `codebase-state.md` item 33 (the tested
+> restricted-mana subsystem that no payment calls).
 
 ### 11.1 Where it sits
 
@@ -1930,6 +1933,9 @@ and its cover test, which `mana-ability-costs` reshapes first (the owner,
 for "pay any amount of `{R}`". Its other ability keeps red mana, decision
 5's, so the card is registered by `mana-kept-and-lost`, and
 `costs-and-choices-at-resolution` tests the payment on a fixture.
+
+**Round 1** (the owner, 2026-11-13): yes to the recommendation, once
+decisions 2 and 3 are settled, and they are still being discussed.
 
 ### 11.6 The build, sized
 
