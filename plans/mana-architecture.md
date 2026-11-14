@@ -1416,12 +1416,21 @@ own pips leave, and skipped when only one split is legal. Colored pips are
 never asked, since one type pays each.
 
 **What the game can read of a payment** is which units were spent and which
-are left, never which pip a unit paid. Cavern of Souls' and Boseiju's
-rulings say "any cost of the spell", Rosheen Meanderer's "any part of a
-cost", and Boreal Outrider's (2021-02-05) "it doesn't matter which part of
-the total cost the snow mana was spent on". So a payment is a choice of
-units, legal when some assignment of them to the pips exists, and the engine
-finds the assignment.
+are left, and with one printed exception never which pip a unit paid.
+Cavern of Souls' and Boseiju's rulings say "any cost of the spell", Rosheen
+Meanderer's "any part of a cost", and Boreal Outrider's (2021-02-05) "it
+doesn't matter which part of the total cost the snow mana was spent on". So
+a payment is a choice of units, legal when some assignment of them to the
+pips exists, and the engine finds the assignment.
+
+**The exception is Soul Burn**, `{X}{2}{B}`: its life gain is capped by "the
+amount of `{B}` spent on X", so the same four units spent with one `{B}` on
+X or with none are two games. Round 1's wider net found it, and a search of
+the corpus for "spent on" found no second card that reads a part of a cost.
+Where a reader names a part, the split is asked for that part first, over
+the units the part accepts, then for the rest, and the record of what was
+spent keeps that part's units apart. Both wait for the card, in "What
+waits".
 
 - **A. One split, over classes of unit.** The buckets are the pool's entries
   that this payment may spend (decision 3), and the answer is how many of
@@ -1441,8 +1450,8 @@ finds the assignment.
   every fixture that scripts a split is re-scripted, the random agent draws
   differently in every game with a generic cost, and decisions per game
   rise.
-- **C. A unit for each pip.** The literal reading. Two answers that differ
-  only in which pip a unit paid give one game, which `choices-architecture.md`'s
+- **C. A unit for each pip.** The literal reading. Outside Soul Burn, two
+  answers that differ only in which pip a unit paid give one game, which `choices-architecture.md`'s
   decision 6 ruled out for an order: a question whose answers all give one
   game is not asked.
 
@@ -1709,8 +1718,9 @@ answer by what the source was, and by type and source together.
 
 - **A. The units as they were spent, shared.** `SpentMana(Option<Arc<[ManaUnits]>>)`:
   the same slice the `ManaSpent` event carries, written once by the payment
-  and never edited. It answers every row of the table and whatever a later
-  question on the watch list asks. The units keep their terms, which nothing reads once
+  and never edited. It answers every row of the table but Soul Burn's, whose
+  card adds which of the units paid X, and whatever a later kind on the
+  watch list asks. The units keep their terms, which nothing reads once
   they are spent; dropping them would make a second type for one value.
   `None` is the only empty, today's `ManaSpent::NONE`: a payment that spends
   no mana writes `None`, and an empty slice is never built. An activation
