@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
-    any_player, draw_cards, gets, may_pay, may_pay_any_amount_of, spell_ability, target_creature, that_target, triggered_ability, unless,
+    any_player, draw_cards, gets, may_pay, may_pay_any_amount_of, spell_ability, target_creature, the_target, triggered_ability,
     whenever, you,
 };
 use mtgsim::cards::printings::{
@@ -161,7 +161,7 @@ fn rhystic_study_shape() -> Arc<CardData> {
     let cast = TriggerEvent::CastsSpell { caster: Some(PlayerRef::Opponent), spell: None };
     CardDataBuilder::new("Fixture Rhystic Study")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(cast, unless(mtgsim::cards::authoring::that_player(), vec![generic(1)], may_draw))))
+        .ability(triggered_ability("", whenever(cast, may_draw.unless(mtgsim::cards::authoring::that_player(), vec![generic(1)]))))
         .build()
 }
 
@@ -439,13 +439,13 @@ fn a_spell_targeting_two_ward_creatures_pays_for_each() {
 /// pays {2}." A fixture, not the card, as Rhystic Study's is: the brief's
 /// cards are Mana Leak and one ward creature.
 fn wild_might_shape() -> Arc<CardData> {
-    let more = gets(that_target(0), 4, 4).until_end_of_turn();
+    let more = gets(the_target(), 4, 4).until_end_of_turn();
     CardDataBuilder::new("Fixture Wild Might")
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .card_type(CardType::Instant)
         .ability(spell_ability(
             "",
-            Effect::Sequence(vec![gets(target_creature(), 1, 1).until_end_of_turn(), unless(any_player(), vec![generic(2)], more)]),
+            Effect::Sequence(vec![gets(target_creature(), 1, 1).until_end_of_turn(), more.unless(any_player(), vec![generic(2)])]),
         ))
         .build()
 }

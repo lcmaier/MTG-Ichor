@@ -10,7 +10,6 @@
 //! Some(Discarded)`) already does, and reads correctly, because its fields
 //! are `Some`. → `triggers-architecture.md` §15 item 14.
 
-use super::instructions::unless;
 use super::recipients::{creature, other_than_this, planeswalker, that_player};
 use crate::types::costs::Cost;
 use crate::objects::card_data::{AbilityDef, AbilityText, AbilityType};
@@ -268,7 +267,7 @@ pub fn undying() -> AbilityDef {
 pub fn ward(text: &'static str, costs: Vec<Cost>) -> AbilityDef {
     let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Triggering(EventRole::SpellOrAbility));
     let targeted = becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent));
-    triggered_ability(text, whenever(targeted, unless(that_player(), costs, counter)))
+    triggered_ability(text, whenever(targeted, counter.unless(that_player(), costs)))
 }
 
 /// The shape both keywords expand to. "It had" is read as the permanent left

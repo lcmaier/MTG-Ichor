@@ -39,7 +39,7 @@ pub use instructions::{
     gain_life, gains_ability, gains_keyword, get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life,
     lose_the_game, loses_all_abilities, may_pay, may_pay_any_amount_of, mill, prevent_the_next_damage_divided, prevent_the_next_n_damage_this_turn,
     put_counters, remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
-    shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, unless, untap, win_the_game, ContinuousChange,
+    shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange,
     ContinuousRuleChange,
 };
 pub use modes::{
@@ -50,7 +50,7 @@ pub use recipients::{
     an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, color, creature,
     creatures_you_control, divided_among, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
     nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_opponent, target_permanent, target_player,
-    target_spell, targets, that_player, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
+    target_spell, targets, that_player, that_target, the_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
     you_control, your_opponents_control,
 };
 pub use replacements::{

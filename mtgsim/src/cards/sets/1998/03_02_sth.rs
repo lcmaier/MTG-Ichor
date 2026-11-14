@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{counter_spell, its_controller, spell_ability, target_spell, that_target, unless};
+use crate::cards::authoring::{counter_spell, its_controller, spell_ability, target_spell, the_target};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -31,6 +31,6 @@ pub fn mana_leak() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell_ability(text, unless(its_controller(that_target(0)), three, counter_spell(target_spell()))))
+        .ability(spell_ability(text, counter_spell(target_spell()).unless(its_controller(the_target()), three)))
         .build()
 }

@@ -69,6 +69,13 @@ pub fn that_target(ix: usize) -> EffectRecipient {
     EffectRecipient::SameInstanceAs(ix)
 }
 
+/// "It", "that creature", "its controller"'s "it": what the effect's one
+/// instance of "target" chose. A card with two names which with
+/// [`that_target`].
+pub fn the_target() -> EffectRecipient {
+    that_target(0)
+}
+
 /// "Any target" (CR 115.4): a creature, player, planeswalker or battle.
 pub fn any_target() -> EffectRecipient {
     target(SelectionFilter::Any)

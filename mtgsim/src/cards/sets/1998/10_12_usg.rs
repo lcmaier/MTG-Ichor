@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     add_mana, all_damage_to_you, at_beginning_of, creature, creatures_you_control, deal_damage_divided, each, gains_ability, gets, land,
-    mana_ability, sacrifice, spell_ability, static_ability, static_replacement, tapped_for_mana, this_object, triggered_ability, unless,
-    whenever, Whose,
+    mana_ability, sacrifice, spell_ability, static_ability, static_replacement, tapped_for_mana, this_object, triggered_ability, whenever,
+    Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -138,7 +138,7 @@ pub fn contamination() -> Arc<CardData> {
             upkeep,
             whenever(
                 at_beginning_of(StepType::Upkeep, Whose::Yours),
-                unless(PlayerRef::You, vec![Cost::Sacrifice(creature(), 1)], sacrifice(this_object())),
+                sacrifice(this_object()).unless(PlayerRef::You, vec![Cost::Sacrifice(creature(), 1)]),
             ),
         ))
         .ability(static_replacement(

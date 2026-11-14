@@ -1299,8 +1299,8 @@ Where it differs from decision 2's words:
 
 PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
 - **The payment** (option A): `Primitive::Pay { costs, any_amount_of }` is the whole of an
-  `Effect::Optional`, whose chooser pays; `cards::authoring::unless` writes CR 118.12a's
-  sentence, `may_pay` and `may_pay_any_amount_of` the "may". The `Optional` arm offers it only
+  `Effect::Optional`, whose chooser pays; `Effect::unless` writes CR 118.12a's sentence in the
+  card's order, `may_pay` and `may_pay_any_amount_of` the "may". The `Optional` arm offers it only
   when the payer can pay (`can_pay_as_it_resolves`: the pool and what their mana abilities could
   add, castability's own check), so one who cannot is not asked and answers `Doesnt`. Taken: the
   amount, the cast's own mana window (CR 605.3a), `plan_payment_as_written` (608.2c, no ranks

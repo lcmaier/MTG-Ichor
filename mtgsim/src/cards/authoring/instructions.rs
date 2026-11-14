@@ -141,10 +141,15 @@ pub fn may_pay_any_amount_of(player: PlayerRef, each: ManaCost) -> Effect {
     Effect::Optional { chooser: player, effect: Box::new(Effect::Atom(pay, EffectRecipient::Implicit)) }
 }
 
-/// "[Effect] unless [player] pays [costs]" (CR 118.12a), which "means the same
-/// thing as" "[player] may pay [costs]. If they don't, [effect]".
-pub fn unless(player: PlayerRef, costs: Vec<Cost>, effect: Effect) -> Effect {
-    Effect::Sequence(vec![may_pay(player, costs), Effect::Conditional(Condition::CostAnswer(CostAnswer::Doesnt), Box::new(effect))])
+impl Effect {
+    /// "[This effect] unless [player] pays [costs]" (CR 118.12a), written in
+    /// the order the card prints it: Mana Leak is
+    /// `counter_spell(target_spell()).unless(its_controller(the_target()), three)`.
+    /// It "means the same thing as" "[player] may pay [costs]. If they don't,
+    /// [this effect]", and is built as that sentence.
+    pub fn unless(self, player: PlayerRef, costs: Vec<Cost>) -> Effect {
+        Effect::Sequence(vec![may_pay(player, costs), Effect::Conditional(Condition::CostAnswer(CostAnswer::Doesnt), Box::new(self))])
+    }
 }
 
 /// "[Recipient] gains [amount] life" (CR 119.3).
