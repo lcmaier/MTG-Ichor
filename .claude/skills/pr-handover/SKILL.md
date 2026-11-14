@@ -35,7 +35,11 @@ Launch the `owner-review` agent with the base commit and the design note's
 path, and nothing about why the code is the way it is. For each finding:
 fix a defect (its own commit when it is its own concept), answer a false
 alarm in a line, and put a genuine choice to the owner with its tradeoffs.
-Record all of it in the PR body's "Review before handover" section.
+Record it in the PR body's "Review before handover" section, a line per
+finding with its consequence and one outcome: **fixed**, **test added**,
+**kept** (why), **false alarm** (why) or **for the owner**; then the polish in
+one line, how many taken and why any were left. The fixed words are what a
+later review of the agent counts.
 
 ## 4. Open the PR
 
