@@ -1476,8 +1476,30 @@ added without its kind, a card that asks "mana from a Cave" by some
 other route. So a reader can name only a kind on the watch list, and
 there is no second route to add.
 
-**Recommended: A.** It asks only where the answers differ, changes no
-question a game asks today, and is what makes decision 9 a "no".
+**The engine and the solver** (round 1's discussion, agreed in round 2).
+The engine never picks between two payments a rule could tell apart. A
+preference, such as a wheel of colors to spend first, lives in
+`mana-payment-solver`'s solver, a wrapper around a seat's provider
+(`#312-the-solver-a-payment-not-existence`). It answers the two payment
+questions for a person and passes the rest through, and the engine sees
+only an answer, which it checks.
+
+| Step | Who decides |
+|---|---|
+| whether the cost can be paid at all | the engine, exactly |
+| which sources to tap | the provider, or its solver by preference |
+| which floating units to spend, where two legal payments differ | the provider, or its solver: this decision's question |
+| a unit every legal payment spends; which of two alike units; which pip a unit pays | the engine, since no rule can tell the outcomes apart (Soul Burn's part aside) |
+| whether the answer is legal | the engine, which refuses and asks again |
+
+A preference over colors no longer orders every choice, since two `{G}` can
+differ. How a solver ranks classes of one type is that row's to design.
+This decision fixes what it is handed: each bucket as a `ManaUnit`, with
+its exact cap.
+
+**Settled: A** (the owner, 2026-11-13). It asks only where the answers
+differ, changes no question a game asks today, and is what makes decision 9
+a "no".
 
 #### Decision 3: what a restriction is, and what it is asked about
 
@@ -1620,7 +1642,7 @@ only where a pool or a source has terms. So the plain path is the fast
 path: a game with no restricted mana and no cost that names its mana runs
 today's instructions and one test of `terms.is_none()` for each class.
 
-**Recommended: A.** Every row of the table is a filter inside one of five
+**Settled: A** (the owner, 2026-11-13). Every row of the table is a filter inside one of five
 arms, the purpose is a value the engine already carries, and the filter is
 the one it already reads spells and permanents with.
 
@@ -1937,8 +1959,9 @@ for "pay any amount of `{R}`". Its other ability keeps red mana, decision
 5's, so the card is registered by `mana-kept-and-lost`, and
 `costs-and-choices-at-resolution` tests the payment on a fixture.
 
-**Round 1** (the owner, 2026-11-13): yes to the recommendation, once
-decisions 2 and 3 are settled, and they are still being discussed.
+**Settled: no** (the owner, 2026-11-13, once decisions 2 and 3 were). The
+build does not come before `costs-and-choices-at-resolution`, and
+`mana-ability-costs` does not move.
 
 ### 11.6 The build, sized
 
