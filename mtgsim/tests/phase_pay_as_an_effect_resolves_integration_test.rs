@@ -69,7 +69,7 @@ fn window() -> ChoiceKind {
 fn amount() -> ChoiceKind {
     ChoiceKind::ChooseAmountToPay {
         source: ObjectId::UNASSIGNED,
-        of: AmountOf::CopiesOf(ManaCost::zero()),
+        of: AmountOf::AnyAmountOf(ManaCost::zero()),
         values: Box::new(XOffer::Interval { at_least: 0, at_most: 0 }),
     }
 }
@@ -443,10 +443,13 @@ fn clash_of_wills_for_more_than_they_can_pay_counters_unasked() {
     assert_eq!(game.objects[&bears].zone, Zone::Graveyard);
 }
 
-/// An X no one has chosen, in a payment asked of a player who does not
-/// control the resolving spell, is refused: CR 107.3f gives the choice to
-/// the controller, and no printed payment asks another player for it.
-/// Invented, as the shape has no card.
+/// "Unless its controller pays {X}" on a spell with no X of its own: the X is
+/// undefined, CR 107.3f gives it to the spell's controller to choose, and
+/// the payer is someone else, so the payment is refused rather than guessed.
+/// No card is this shape. Champions of Minas Tirith's "that opponent may pay
+/// {X}" defines its X in its text (CR 107.3c; item 422), and Alliance of
+/// Arms' "each player may pay any amount of mana" is each payer's own
+/// amount, no X (item 424). Invented, as the refused shape has no card.
 #[test]
 fn an_x_no_one_chose_is_not_asked_of_another_player() {
     let x = vec![Cost::Mana(ManaCost::from_symbols(vec![ManaSymbol::X]))];
@@ -687,7 +690,7 @@ fn any_amount_of_red_is_paid_in_red() {
         ChoiceKind::ChooseAmountToPay { values, of, .. } => Some((*values, of)),
         _ => None,
     });
-    assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 3 }, AmountOf::CopiesOf(red()))));
+    assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 3 }, AmountOf::AnyAmountOf(red()))));
     assert!(game.battlefield[&land].tapped);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0, "three red paid");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1, "the green paid nothing");

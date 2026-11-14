@@ -395,8 +395,9 @@ pub enum EntryOffer {
 pub enum AmountOf {
     /// The X in this cost, as written: "you may pay {X}{U}" (CR 107.3f).
     XIn(crate::types::mana::ManaCost),
-    /// Copies of this unit: "you may pay any amount of {R}".
-    CopiesOf(crate::types::mana::ManaCost),
+    /// As many of this unit as the payer chooses: "you may pay any amount
+    /// of {R}".
+    AnyAmountOf(crate::types::mana::ManaCost),
 }
 
 /// What the player [`ChoiceKind::ChoosePlayerAsObjectEnters`] asks for will be.

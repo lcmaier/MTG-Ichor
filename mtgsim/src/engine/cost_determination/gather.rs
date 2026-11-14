@@ -181,7 +181,7 @@ fn applies_to(
             // others, and the bound `oracle::x_values` reads in closed form
             // is no longer one piece (`mana-architecture.md` §3.7).
             debug_assert!(
-                !(frame.mana_cost.as_ref().is_some_and(|cost| cost.x_count() > 0) && filter_reads_mana_value(filter)),
+                !(frame.mana_cost.as_ref().is_some_and(|cost| cost.x_symbol_count() > 0) && filter_reads_mana_value(filter)),
                 "a cost change whose filter reads the mana value of an X spell needs the bound's thresholds \
                  (CR 202.3e; mana-architecture.md §3.7, \"Owed\")"
             );

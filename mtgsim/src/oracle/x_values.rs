@@ -227,7 +227,7 @@ pub fn payable_amounts_of_any_amount(
     let non_mana = NonManaCosts { source, costs: &others };
     let supply = std::cell::OnceCell::new();
     let payable =
-        |amount: u64| crate::oracle::mana_helpers::mana_payable(game, payer, &fixed.with_copies_of(unit, amount), &non_mana, &supply);
+        |amount: u64| crate::oracle::mana_helpers::mana_payable(game, payer, &fixed.plus_amount_of(unit, amount), &non_mana, &supply);
     let (mut most, mut past) = (0, 1);
     while payable(past) {
         most = past;

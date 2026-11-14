@@ -138,7 +138,7 @@ fn can_cast_with(
     // PRE-LAYER ZONE: printed abilities on purpose, the card still in hand, as
     // `cast_spell` reads them.
     if let Some(node) = crate::objects::card_data::spell_modes(&obj.card_data.abilities) {
-        let least_x = obj.card_data.mana_cost.as_ref().filter(|cost| cost.x_count() > 0).map(|_| u64::from(obj.card_data.x_cant_be_zero));
+        let least_x = obj.card_data.mana_cost.as_ref().filter(|cost| cost.x_symbol_count() > 0).map(|_| u64::from(obj.card_data.x_cant_be_zero));
         // CR 700.2h: a mode's own cost is in the total, so where modes carry
         // costs the spell is castable when some legal group's total is
         // payable, asked group by group, the smaller groups first.
@@ -204,7 +204,7 @@ fn total_is_payable(
     // never costs less (`oracle::x_values`), so the least is the one asked:
     // 0, or 1 under "X can't be 0" (CR 107.3a, 601.2b).
     let at_the_least_x;
-    let printed = if printed.x_count() > 0 {
+    let printed = if printed.x_symbol_count() > 0 {
         at_the_least_x = printed.with_x_as(u64::from(obj.card_data.x_cant_be_zero));
         &at_the_least_x
     } else {

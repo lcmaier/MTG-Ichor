@@ -266,7 +266,7 @@ fn every_variant_decides_its_subject() {
         },
         ChoiceKind::ChooseAmountToPay {
             source: id,
-            of: AmountOf::CopiesOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
+            of: AmountOf::AnyAmountOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Set(vec![0, 2])),
         },
     ];

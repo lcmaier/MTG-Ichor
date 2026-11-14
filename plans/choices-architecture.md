@@ -1307,7 +1307,7 @@ PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
   and no order asked), then `pay_costs` under the resolution's cause, and only then X. A window
   that ends unpaid is a decline, and the mana made stays. Every prompt names the resolving object.
 - **The kinds**: `PayAsItResolves { source, offer, any_amount_of }`, a take or leave, and
-  `ChooseAmountToPay { source, of, values }` (`AmountOf::XIn` or `CopiesOf`), a `pick_number`
+  `ChooseAmountToPay { source, of, values }` (`AmountOf::XIn` or `AnyAmountOf`), a `pick_number`
   as `ChooseXValue` is, each with its words, its why and its setup line.
 - **Who pays**: `PlayerRef::NamedBy(recipient)`, an object naming its controller: "its
   controller" is an instance's (Mana Leak), "that player" a trigger's (ward). `PlayerRef::AnyPlayer`

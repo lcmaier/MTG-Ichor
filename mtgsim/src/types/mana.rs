@@ -204,24 +204,24 @@ impl ManaCost {
     }
 
     /// Count how many X symbols appear.
-    pub fn x_count(&self) -> u8 {
+    pub fn x_symbol_count(&self) -> u8 {
         self.symbols.iter().filter(|s| matches!(s, ManaSymbol::X)).count() as u8
     }
 
     /// The cost with each X as `x` generic mana, generic first: what CR
     /// 601.2f's first step makes of an announced X (CR 107.3a).
     pub fn with_x_as(&self, x: u64) -> ManaCost {
-        let generic = self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Generic)).count() as u64 + x * u64::from(self.x_count());
+        let generic = self.symbols.iter().filter(|s| matches!(s, ManaSymbol::Generic)).count() as u64 + x * u64::from(self.x_symbol_count());
         let mut symbols = vec![ManaSymbol::Generic; generic as usize];
         symbols.extend(self.symbols.iter().copied().filter(|s| !matches!(s, ManaSymbol::Generic | ManaSymbol::X)));
         ManaCost { symbols }
     }
 
-    /// The cost with `n` copies of `unit` after it: "any amount of [unit]"
-    /// once the amount is chosen (CR 107.3f).
-    pub fn with_copies_of(&self, unit: &ManaCost, n: u64) -> ManaCost {
+    /// The cost with `amount` of `unit` after it: "any amount of [unit]"
+    /// once the amount is chosen.
+    pub fn plus_amount_of(&self, unit: &ManaCost, amount: u64) -> ManaCost {
         let mut symbols = self.symbols.clone();
-        for _ in 0..n {
+        for _ in 0..amount {
             symbols.extend_from_slice(&unit.symbols);
         }
         ManaCost { symbols }

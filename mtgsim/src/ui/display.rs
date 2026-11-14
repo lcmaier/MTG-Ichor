@@ -475,7 +475,7 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
             format!("{}: {}?", n(source), payment_words(offer, any_amount_of.as_ref()))
         }
         ChoiceKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => format!("{}: choose X for {cost}", n(source)),
-        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::CopiesOf(unit), .. } => {
+        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::AnyAmountOf(unit), .. } => {
             format!("{}: how many {unit} do you pay?", n(source))
         }
         ChoiceKind::AllocateNextDamage { source, remaining } => {

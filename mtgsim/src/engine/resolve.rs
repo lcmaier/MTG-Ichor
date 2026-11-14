@@ -3061,7 +3061,7 @@ impl GameState {
         // prompt names what is paid for, the resolving spell or ability.
         let source = ctx.effect_source();
         let announced_x = self.resolving_for(ctx).and_then(|resolving| resolving.x_value);
-        let x_to_choose = mana.filter(|mana| mana.x_count() > 0 && announced_x.is_none());
+        let x_to_choose = mana.filter(|mana| mana.x_symbol_count() > 0 && announced_x.is_none());
         if x_to_choose.is_some() && any_amount_of.is_some() {
             return Err(format!("{:?}'s payment has an X and an \"any amount\", and one payment chooses one amount", ctx.source));
         }
@@ -3092,8 +3092,8 @@ impl GameState {
             }
             (None, Some(unit)) => {
                 let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, &offer, unit, on_the_battlefield);
-                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, AmountOf::CopiesOf(unit.clone()), values);
-                let mana = as_offered.unwrap_or_else(ManaCost::zero).with_copies_of(unit, amount);
+                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, AmountOf::AnyAmountOf(unit.clone()), values);
+                let mana = as_offered.unwrap_or_else(ManaCost::zero).plus_amount_of(unit, amount);
                 (mana_then(Some(mana), others), Some(amount))
             }
             (None, None) => (offer, None),

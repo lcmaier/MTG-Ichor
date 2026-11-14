@@ -515,7 +515,7 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => {
             (format!("the X in {cost} as {} resolves, each X one {who} can pay", n(source)), Some("107.3f"))
         }
-        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::CopiesOf(unit), .. } => {
+        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::AnyAmountOf(unit), .. } => {
             (format!("how many {unit} {who} pays as {} resolves, each amount one {who} can pay", n(source)), Some("107.3f"))
         }
         ChoiceKind::DivideAmong { source } => (format!("the targets {} divides among, each receiving at least one", n(source)), Some("601.2d")),

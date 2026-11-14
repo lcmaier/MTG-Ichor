@@ -196,7 +196,7 @@ impl GameState {
         let base_mana_cost = card_data.mana_cost.clone()
             .unwrap_or_else(ManaCost::zero);
         let total_in_x = total_cost_in_x(self, card_id, &base_mana_cost, chosen_alt, &chosen_additional);
-        let has_x = base_mana_cost.x_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
+        let has_x = base_mana_cost.x_symbol_count() > 0 || total_in_x.mana.x_symbol_count() > 0;
         // "Choose X" whose modes are each chosen once takes no X past them.
         let most_modes = effect.modal().and_then(|node| most_modes_for_x(self, node, player_id, card_id, ConditionReferents::NONE));
         let x_value = if has_x {
