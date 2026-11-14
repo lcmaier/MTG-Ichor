@@ -123,7 +123,9 @@ pub fn citanul_hierophants() -> Arc<CardData> {
 ///   not, then you sacrifice Contamination. You can choose to not sacrifice
 ///   even if you no longer control Contamination on resolution."* (#3) →
 ///   `contamination_asks_as_its_trigger_resolves`,
-///   `contamination_lost_to_an_opponent_is_not_sacrificed_on_a_decline`.
+///   `contamination_gone_before_its_trigger_resolves_may_be_declined`;
+///   `contamination_lost_to_an_opponent_is_not_sacrificed_on_a_decline` is
+///   the same answer under another player's control, by CR 701.21a.
 pub fn contamination() -> Arc<CardData> {
     let upkeep = "At the beginning of your upkeep, sacrifice this enchantment unless you sacrifice a creature.";
     let black = "If a land is tapped for mana, it produces {B} instead of any other type and amount.";

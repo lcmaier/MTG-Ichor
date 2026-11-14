@@ -31,7 +31,10 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
 use mtgsim::oracle::x_values::XOffer;
 use mtgsim::state::game_state::{GameState, StepType};
-use mtgsim::test_support::{fill_library, lightning_bolt, put_in_hand, put_on_battlefield, set_active_player, setup_game, setup_two_player_game};
+use mtgsim::engine::actions::GameAction;
+use mtgsim::test_support::{
+    fill_library, lightning_bolt, put_in_hand, put_on_battlefield, set_active_player, setup_game, setup_two_player_game, test_ctx,
+};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
@@ -732,11 +735,33 @@ fn contamination_with_no_creature_is_sacrificed_unasked() {
     assert_eq!(game.objects[&contamination].zone, Zone::Graveyard);
 }
 
-/// The ruling's last sentence: control of Contamination lost before its
-/// trigger resolves, its controller may still decline, and then sacrifices
-/// nothing, since no player sacrifices what they don't control (CR
-/// 701.21a).
+/// The ruling's last sentence: Contamination destroyed before its trigger
+/// resolves, its controller is still asked and may decline, and then nothing
+/// is sacrificed: "this enchantment" was the permanent, and the card in the
+/// graveyard is a new object (CR 400.7).
 // RULING: Contamination #3 - "You choose whether to sacrifice a creature or not on resolution. If not, then you sacrifice Contamination. You can choose to not sacrifice even if you no longer control Contamination on resolution."
+#[test]
+fn contamination_gone_before_its_trigger_resolves_may_be_declined() {
+    let mut game = stocked(2);
+    let contamination = put_on_battlefield(&mut game, contamination(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    to_player_0s_upkeep(&mut game);
+    game.perform_sba_and_triggers(&ScriptedDecisionProvider::new()).unwrap();
+    assert_eq!(game.stack.len(), 1, "the upkeep trigger waits");
+    game.execute_action(GameAction::Destroy { object: contamination }, &test_ctx()).unwrap();
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(PAY, Vec::new());
+    let dp = resolve_with(&mut game, dp);
+    assert_eq!(paid_asked(&dp), vec![0], "asked all the same");
+    assert!(game.battlefield.contains_key(&bears), "declined, and the creature stays");
+    assert_eq!(game.objects[&contamination].zone, Zone::Graveyard);
+}
+
+/// The same answer when another player controls Contamination as its
+/// trigger resolves. It is the same object (a change of control is no zone
+/// change, CR 400.7), so "this enchantment" names it, and player 0 can't
+/// sacrifice what they don't control (CR 701.21a).
 #[test]
 fn contamination_lost_to_an_opponent_is_not_sacrificed_on_a_decline() {
     let mut game = stocked(2);
