@@ -297,7 +297,13 @@ unrelated change happens to inline them. Growth ×3.94 to ×4.03. Reachability: 
 cast 125 in 50% of two-seat games, 112 in 49% of four-seat ones. The copy check's one grouping,
 `from_symbols` beside `symbols` in three functions at 44× chance, is a shared idiom. 280 s.
 
-**Size**: 1,936 added and 112 removed in `mtgsim/src` and `mtgsim/tests`, 2,048 touched, against
+**The retry (2026-11-14), on `254a3d5b`** against `f017df6d`, the renames' head: an amount chosen
+at resolution and not paid is asked again below it. Predicted every row `IDENTICAL`, since no
+registered card pays a chosen amount. Every gameplay row **IDENTICAL** on both pools at both
+seats; instructions a decision 0.7371 M → 0.7368 M, **-0.05%**; growth ×3.94 to ×4.03; no copy.
+202 s.
+
+**Size**: 2,012 added and 119 removed in `mtgsim/src` and `mtgsim/tests`, 2,131 touched, against
 the brief's 1,350–2,100: 1,494 before the pre-review's fixes and boards, 1,616 at handover, the
 rest the owner's review rounds.
 
