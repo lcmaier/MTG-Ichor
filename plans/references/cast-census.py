@@ -86,7 +86,8 @@ REGISTRY = os.path.join(SRC, "cards", "registry.rs")
 CHOICE_TYPES = os.path.join(SRC, "ui", "choice_types.rs")
 WHY = os.path.join(SRC, "ui", "why.rs")
 
-UA = "mtgsim-research/1.0 (contact: maiercluke@gmail.com)"
+# A contact address is optional for Scryfall and none is held in the tree.
+UA = "mtgsim-research/1.0" + (f" (contact: {os.environ['SCRYFALL_CONTACT']})" if os.environ.get("SCRYFALL_CONTACT") else "")
 BASE = "legal:commander -t:token game:paper -is:funny"
 PAPER = "game:paper -is:funny"
 DELAY = 0.35

@@ -95,7 +95,8 @@ REGISTRY = os.path.join(CRATE, "src", "cards", "registry.rs")
 PRACTICES = os.path.join(ROOT, "plans", "engineering-practices.md")
 BACKLOG = os.path.join(ROOT, "plans", "backlog.md")
 
-UA = "mtgsim-research/1.0 (contact: maiercluke@gmail.com)"
+# A contact address is optional for Scryfall and none is held in the tree.
+UA = "mtgsim-research/1.0" + (f" (contact: {os.environ['SCRYFALL_CONTACT']})" if os.environ.get("SCRYFALL_CONTACT") else "")
 BASE = "legal:commander -t:token game:paper -is:funny"
 DELAY = 0.35
 

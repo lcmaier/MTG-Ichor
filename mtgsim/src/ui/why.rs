@@ -37,7 +37,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryRole, Rejection};
+use crate::ui::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, EntryRole, Rejection};
 use crate::ui::decision::PriorityAction;
 use crate::ui::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
@@ -356,6 +356,8 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::OrderTriggers { .. }
             | ChoiceKind::ApplyOptionalReplacement { .. }
             | ChoiceKind::ApplyOptionalEffect { .. }
+            | ChoiceKind::PayAsItResolves { .. }
+            | ChoiceKind::ChooseAmountToPay { .. }
             | ChoiceKind::AllocateNextDamage { .. }
             | ChoiceKind::ChooseDamageSource { .. }
             | ChoiceKind::ChooseDelayedTriggerEvent { .. }
@@ -502,6 +504,20 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::ApplyOptionalReplacement { source, .. } => (format!("whether {}'s effect applies", n(source)), Some("614.1a")),
         ChoiceKind::ApplyOptionalEffect { source } => (format!("whether {} does what it says {who} may", n(source)), Some("603.5")),
+        ChoiceKind::PayAsItResolves { source, offer, any_amount_of } => (
+            format!(
+                "whether {who} pays {}'s cost as it resolves: {}",
+                n(source),
+                crate::ui::display::payment_words(offer, any_amount_of.as_ref())
+            ),
+            Some("118.12"),
+        ),
+        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => {
+            (format!("the X in {cost} as {} resolves, each X one {who} can pay", n(source)), Some("107.3f"))
+        }
+        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::AnyAmountOf(unit), .. } => {
+            (format!("how many {unit} {who} pays as {} resolves, each amount one {who} can pay", n(source)), Some("107.3f"))
+        }
         ChoiceKind::DivideAmong { source } => (format!("the targets {} divides among, each receiving at least one", n(source)), Some("601.2d")),
         ChoiceKind::AllocateNextDamage { source, remaining } => {
             (format!("the damage {}'s effect prevents, {remaining} at most", n(source)), Some("615.7"))

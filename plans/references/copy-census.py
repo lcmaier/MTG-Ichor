@@ -64,7 +64,8 @@ import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 
-UA = "mtgsim-research/1.0 (contact: maiercluke@gmail.com)"
+# A contact address is optional for Scryfall and none is held in the tree.
+UA = "mtgsim-research/1.0" + (f" (contact: {os.environ['SCRYFALL_CONTACT']})" if os.environ.get("SCRYFALL_CONTACT") else "")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(HERE, ".census-copy.json")
 COUNTS_CACHE = os.path.join(HERE, ".census-copy-counts.json")

@@ -3,15 +3,17 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    any_target, at_beginning_of, choose_one_not_chosen_before, create_replacement, creature, deal_damage, discard, draw_cards, draw_two_instead,
-    gain_life, lose_the_game, spell_ability, static_replacement, target_opponent, triggered_ability, whenever, you, Whose,
+    any_target, at_beginning_of, choose_one_not_chosen_before, counter_spell, create_replacement, creature, deal_damage, discard, draw_cards,
+    draw_two_instead, gain_life, its_controller, lose_the_game, spell_ability, static_replacement, target_opponent, target_spell, the_target,
+    triggered_ability, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{ChosenBefore, DiscardChooser, Effect, ObjectSet, PlayerSet};
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::costs::Cost;
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount};
 use crate::types::zones::{DrawFilter, Zone};
 
@@ -59,6 +61,30 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
             ),
         ))
         .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawFilter::NotFirstInDrawStep))))
+        .build()
+}
+
+/// Clash of Wills — {X}{U}
+/// Instant
+///
+/// > Counter target spell unless its controller pays {X}.
+///
+/// The X its controller pays is the X announced as Clash of Wills was cast
+/// (CR 107.3a; 107.3i makes every X on it that one), so nothing is chosen as
+/// it resolves: the payment is offered at that X.
+///
+/// It exercises an X in a payment read off the resolving spell.
+///
+/// Scryfall lists no rulings (2026-11-14).
+pub fn clash_of_wills() -> Arc<CardData> {
+    let text = "Counter target spell unless its controller pays {X}.";
+    let x = vec![Cost::Mana(ManaCost::from_symbols(vec![ManaSymbol::X]))];
+    CardDataBuilder::new("Clash of Wills")
+        .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Blue)]))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(text, counter_spell(target_spell()).unless(its_controller(the_target()), x)))
         .build()
 }
 

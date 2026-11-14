@@ -62,6 +62,22 @@ release still lands within about two. An unpinned `stable` and a
 error here, so each release's lints would fail whichever PR was open, and an A/B
 arm built at an older commit would compile with that commit's compiler.
 
+**Where a read-only query goes, in `engine-map.md`** (the owner, at #324's
+review, 2026-11-14). `oracle/` holds the queries a client or the priority
+question asks: characteristics through the layers, castability and
+activatability, the mana inventory, the legal values of X. A procedure's own
+check stays beside it in `engine/`, as `can_pay_costs` beside `pay_costs`,
+which re-checks with the same function just before it pays. The line is
+written today only in `oracle/`'s file headers and the historical
+`design_doc.md`, so the owner read `can_pay_costs` in `engine/` as drift. One
+paragraph in `engine-map.md`, and the practices page points at it.
+
+**An error a caller branches on is a typed enum** (the owner, at #324's
+review, 2026-11-14), as `CannotPay` and `CannotCast` are; a wiring error, such
+as a card written against a surface that cannot express it or a broken
+invariant, stays a `String`. A sentence on the practices page. The migration of
+the rest waits in `backlog.md` §2.38, designed with what a client is handed.
+
 ## Open, for the owner
 
 **Should the mana pool join the write gate's fields?** Raised at

@@ -164,10 +164,10 @@ const RANK_MOVES_AN_OBJECT: u8 = 2;
 ///   the answer; and nothing after it can fail, because nothing after it
 ///   exists that a removal could invalidate.
 ///
-/// **This is 601.2h and 602.2b only.** A resolving spell's instructions are
-/// CR 608.2c's — "in the order written" — and reach `resolve_effect`, never
-/// this function; a resolution-time payment routed through `pay_costs` would
-/// be silently reordered by it. 601.2h's *own* two groups are not modeled
+/// **This is 601.2h and 602.2b only.** A cost paid as an effect resolves is
+/// CR 608.2c's, "in the order written", and is planned by
+/// [`GameState::plan_payment_as_written`], which neither ranks nor asks.
+/// 601.2h's *own* two groups are not modeled
 /// because the second is empty for every `Cost` arm; `codebase-state.md`
 /// item 80 owns the day it stops being.
 ///
@@ -216,6 +216,21 @@ impl GameState {
             self.check_cost_resource(cost, player_id, source_id)?;
         }
         Ok(())
+    }
+
+    /// CR 118.3 for a cost paid as an effect resolves: whether `player_id`
+    /// has the resources `costs` take, mana counted as their pool and what
+    /// their mana abilities could add (CR 605.3a), with what the other costs
+    /// take kept out of it. A payment is offered only when this holds.
+    /// `source_id` is the object whose text asks.
+    pub(crate) fn can_pay_as_it_resolves(&self, costs: &[Cost], player_id: PlayerId, source_id: ObjectId) -> bool {
+        let others: Vec<Cost> = costs.iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
+        if self.can_pay_costs(&others, player_id, source_id).is_err() {
+            return false;
+        }
+        let source = self.battlefield.contains_key(&source_id).then_some(source_id);
+        let non_mana = crate::oracle::mana_supply::NonManaCosts { source, costs: &others };
+        crate::oracle::mana_helpers::mana_payable(self, player_id, &Cost::mana_part(costs), &non_mana, &std::cell::OnceCell::new())
     }
 
     /// Resource check: does the player have the resources to pay this cost?
@@ -338,7 +353,38 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<PaymentPlan, String> {
         let ordered: Vec<Cost> = ordered_for_payment(costs).into_iter().cloned().collect();
+        let mut plan = self.plan_in_order(ordered, player_id, source_id, source_id, ctx)?;
+        self.settle_payment_order(&mut plan, player_id, source_id, ctx)?;
+        Ok(plan)
+    }
 
+    /// [`Self::plan_payment`] for a cost paid as an effect resolves (CR
+    /// 118.12): its mana, then its other parts in the order written (CR
+    /// 608.2c), as `Primitive::Pay` holds them, so none is ranked and no
+    /// order is asked. `source_id` is the object whose text
+    /// asks, its costs' "this" (CR 113.7a); `paying_for` the resolving
+    /// spell or ability, which the prompts name.
+    pub fn plan_payment_as_written(
+        &self,
+        costs: &[Cost],
+        player_id: PlayerId,
+        source_id: ObjectId,
+        paying_for: ObjectId,
+        ctx: &ActionContext,
+    ) -> Result<PaymentPlan, String> {
+        self.plan_in_order(costs.to_vec(), player_id, source_id, paying_for, ctx)
+    }
+
+    /// The generic split and each sacrifice's permanents, for `ordered` paid
+    /// in that order, the prompts naming `paying_for`.
+    fn plan_in_order(
+        &self,
+        ordered: Vec<Cost>,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        paying_for: ObjectId,
+        ctx: &ActionContext,
+    ) -> Result<PaymentPlan, String> {
         // The mana component's generic part, split across the pool.
         let mana_cost = Cost::mana_part(&ordered);
         let generic_allocation = if mana_cost.generic_count() == 0 {
@@ -346,7 +392,7 @@ impl GameState {
         } else {
             let available = self.generic_split_buckets(player_id);
             ask_choose_generic_mana_allocation(
-                ctx.dp, self, player_id, source_id, &mana_cost, &available,
+                ctx.dp, self, player_id, paying_for, &mana_cost, &available,
                 mana_cost.generic_count(),
             )
         };
@@ -362,14 +408,12 @@ impl GameState {
                         n, candidates.len()
                     ));
                 }
-                let chosen = ask_choose_sacrifice_for_cost(ctx.dp, self, player_id, source_id, *count, &candidates);
+                let chosen = ask_choose_sacrifice_for_cost(ctx.dp, self, player_id, paying_for, *count, &candidates);
                 sacrifices.insert(idx, chosen);
             }
         }
 
-        let mut plan = PaymentPlan { ordered, generic_allocation, sacrifices };
-        self.settle_payment_order(&mut plan, player_id, source_id, ctx)?;
-        Ok(plan)
+        Ok(PaymentPlan { ordered, generic_allocation, sacrifices })
     }
 
     /// Pay a planned total cost (CR 601.2h).

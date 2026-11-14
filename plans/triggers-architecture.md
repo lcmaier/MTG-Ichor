@@ -2907,12 +2907,15 @@ its damage prevented and the card still drawn, is ATOM-118.12-002's partial;
 Standstill's board answers `Cant` (ATOM-118.12-001). CR 603.2h's gate is
 written on `Does` alone (§6.4).
 
-**What waits.** "Any player may … if a player does" asks each player in APNAP
-order (CR 101.4) and is `Does` if any did; it is built with its first card.
-Item 24's sized `IfYouDo { did, didnt }` is not built, since two conditionals
-read one answer. "Unless [a player] pays [cost]" is a payment inside a
-resolution, which `modes-plus-choice-kinds` owns. Strict
-Proctor, Frost Titan and every ward wait for it (§13).
+**The payment** (`pay-as-an-effect-resolves`, `choices-architecture.md`'s
+decision 4). "Unless [a player] pays [cost]" is `Optional { chooser, Pay }`
+and a `Conditional` on `Doesnt`, the payment offered only to a payer who can
+pay, its kinds `PayAsItResolves` and `ChooseAmountToPay`. "Any player may"
+asks each player in APNAP order (CR 101.4) until one pays, and is `Does` if
+one did. Ward is built on it. Strict Proctor's and Frost Titan's "unless its
+controller pays {2}" is this payment too, so neither waits on it now; neither
+is registered (§13). Item 24's sized `IfYouDo { did, didnt }` is not built,
+since two conditionals read one answer.
 
 ### 6.3 The bound facts, LKI, and CR 603.6's "unable to be found"
 

@@ -25,7 +25,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+use mtgsim::ui::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -259,6 +259,16 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseEnteringDefender { object: id },
         ChoiceKind::DivideAmong { source: id },
         ChoiceKind::ChooseModes { source: id, words: Vec::new() },
+        ChoiceKind::PayAsItResolves {
+            source: id,
+            offer: vec![Cost::Sacrifice(mtgsim::types::effects::ObjectFilter::All, 1)],
+            any_amount_of: Some(ManaCost::build(&[], 1)),
+        },
+        ChoiceKind::ChooseAmountToPay {
+            source: id,
+            of: AmountOf::AnyAmountOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
+            values: Box::new(mtgsim::oracle::x_values::XOffer::Set(vec![0, 2])),
+        },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();
@@ -306,7 +316,9 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::OrderCostPayments { .. } => 32,
         ChoiceKind::OrderSimultaneousEntries { .. } => 33,
         ChoiceKind::ChooseModes { .. } => 34,
+        ChoiceKind::PayAsItResolves { .. } => 35,
+        ChoiceKind::ChooseAmountToPay { .. } => 36,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
-    assert_eq!(reached, (0..35).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
+    assert_eq!(reached, (0..37).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

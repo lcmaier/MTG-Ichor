@@ -10,7 +10,7 @@ use crate::cards::authoring::{
     choose_each_targeting_a_different_player, choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_repeatable, choose_up_to,
     creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, dies, discard, distribute_counters, draw_cards, each, enters,
     exile, gain_life, gets, has_base_power_and_toughness, lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield,
-    spell_ability, spree, static_ability, tap, target_creature, target_permanent, target_player, targets, that_target, this_object,
+    spell_ability, spree, static_ability, tap, target_creature, target_permanent, target_player, targets, the_target, this_object,
     triggered_ability, whenever, you, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -196,7 +196,7 @@ pub fn scattering_flicker() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 exile(EffectRecipient::Target(SelectionFilter::Creature, TargetCount::AnyNumber)),
-                return_to_the_battlefield(that_target(0), ReturnUnder::Owner),
+                return_to_the_battlefield(the_target(), ReturnUnder::Owner),
             ]),
         ))
         .build()
@@ -501,7 +501,7 @@ pub fn tribute_offering() -> Arc<CardData> {
 /// enters trigger in place of the Dragon's beginning of combat.
 pub fn divided_envoy() -> Arc<CardData> {
     let text = "When this creature enters, you may choose two. Each mode must target a different player.\n• Target player mills two cards.\n• Target player draws a card and loses 1 life.\n• Target player gains 2 life.";
-    let draws_and_loses = Effect::Sequence(vec![draw_cards(target_player(), 1), lose_life(that_target(0), 1)]);
+    let draws_and_loses = Effect::Sequence(vec![draw_cards(target_player(), 1), lose_life(the_target(), 1)]);
     CardDataBuilder::new("Divided Envoy")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::Black], 3))
         .color(Color::White)
@@ -557,7 +557,7 @@ pub fn twofold_tithe() -> Arc<CardData> {
 pub fn kindled_option() -> Arc<CardData> {
     let text = "Choose one. If you control an artifact as you cast this spell, you may choose both instead.\n• This spell deals 2 damage to target creature.\n• Target player draws a card, then discards a card.";
     let draws_then_discards =
-        Effect::Sequence(vec![draw_cards(target_player(), 1), discard(that_target(0), 1, DiscardChooser::Affected)]);
+        Effect::Sequence(vec![draw_cards(target_player(), 1), discard(the_target(), 1, DiscardChooser::Affected)]);
     CardDataBuilder::new("Kindled Option")
         .mana_cost(ManaCost::build(&[ManaType::Red], 1))
         .color(Color::Red)

@@ -156,7 +156,10 @@ From the census's rules pass (`cast-census.md` §2):
   ability's root, which `functioning_zones` already reads for any kind of
   ability (item 296); 113.6m's inference from the effect is
   `functioning_zones`' to derive, beside its 113.6k arm. What is missing is
-  the offer: `activatable_abilities` reads permanents only.
+  the offer: `activatable_abilities` reads permanents only. So does the mana
+  inventory, `ManaSupply::read`: a mana ability from a hand (Elvish Spirit
+  Guide) needs a leg there too, or castability and a payment as an effect
+  resolves under-count (`codebase-state.md` item 213).
 - **The land count** (305.2): additional land drops, which `lands_per_turn`
   holds and nothing sets. It is the first consumer of `backlog.md` §2.15's
   effective-value query, which its PR builds; max hand size and player

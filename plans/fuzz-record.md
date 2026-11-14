@@ -202,6 +202,111 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-13 for `pay-as-an-effect-resolves`, a cost paid as an effect resolves**
+(`choices/pay-as-an-effect-resolves`, PR #324: CR 118.12, 118.12a, 605.3a, 107.3f, 702.21a, items
+418 and 219's half). Mana Leak joins the performance pool (126 → 127), and Mana Leak, Waterfall Aerialist
+and Contamination the registry, so both §3 columns are new baselines. One `close_out.py` sitting
+against **main** `6b99c6ce`: **engine** `a295a52a`, the last commit before the cards, and
+**shipped** `3c68c509`.
+
+**Predictions, before any arm ran**:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seats. No registered card
+  has a payment, a `NamedBy` or `AnyPlayer` chooser, or a target under a `Conditional`, so the
+  walk's new arm and the `Optional` arm's payment reach no game;
+- shipped: both pools move, the payment asked on both; 0 errors, panics and turn limits;
+- instructions per decision, engine vs `main`, within 0.3 points; no growth shape past ×4.35.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,672 / 173,574 | 428,501 / 430,772 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 180,968 / 172,748 | 428,998 / 455,688 |
+| `Memo hits`, `main` → shipped, performance / stress | 51,488 → 52,581 / 56,521 → 53,531 | 235,348 → 232,743 / 243,581 → 266,197 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7072 M → 0.7058 M, **-0.21%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**Every prediction held.** The functions past half a point are inlinings that moved
+(`shared_entering_frame`'s `OnceCell`, `ChosenTargets::push`'s monomorphs, `seed_frame`).
+Reachability, shipped, 200 games at two seats: Mana Leak cast 118 and resolved 116 in 48% of
+games, Waterfall Aerialist 104 (97) in 41%, Contamination 142 (141) in 52%; at four seats 89,
+102 and 89. Before registering, 200 four-seat stress games with Contamination in every deck read
+64.7 turns a game against 63.5 and 48.4 spells cast against 49.3. **No ladder shape is added**:
+the payment's check is castability's, which every priority question reads at each rung.
+
+**§3, shipped, 50 games at seed 12345**, the new baseline; its stress column re-recorded at the
+owner's second review round on `b2e264d3`, Rhystic Study, Wild Might and Clash of Wills
+registered:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 23 / 26 | 33 / 17 |
+| Wins by effect | 1 | 0 |
+| Avg turns | 30.0 | 25.7 |
+| Spells cast | 23.9 | 19.8 |
+| Creatures died | 8.9 | 5.3 |
+| Total damage | 61.5 | 52.5 |
+| **Layer walks** | **364** | **364** |
+| **Memo hits** | **59,347** | **48,076** |
+| **Frames/walk** | **12.69** | **9.99** |
+| **Dependency checks** | **11** | **6** |
+| Decisions | 212 | 203 |
+
+**Rerun after the pre-review (2026-11-13), on `2558693a`** against shipped `3c68c509`: the
+prompts naming the resolving object, the offer carrying its unit, X written once paid, one
+payability check, and the merged ask of an X and an amount (`da5f38b4`, the copy the first
+sitting found). Predicted every row `IDENTICAL`, since no registered card pays an amount and no
+seat reads a prompt's subject. Every gameplay row **IDENTICAL** on both pools at both seats;
+instructions a decision 0.7355 M → 0.7327 M, **-0.39%**; growth ×3.94 to ×4.03; no copy left;
+143 s.
+
+**Rerun after the owner's review (2026-11-14)**: against **base** `828c64c3`, the first round's
+head, **engine** `09792eba` (`Effect::unless` in the card's order, `the_target()`, `Pay`'s one
+mana component) and **shipped** `759767e0`, Rhystic Study and Wild Might registered and no card
+pooled. Predicted, before any arm ran: engine every gameplay row `IDENTICAL` on both pools at
+both seats, since each change rewrites how a card is built and not what it does; shipped,
+performance `IDENTICAL` (neither card is pooled) and stress moved; 0 errors, panics and turn
+limits past the baseline's; instructions a decision, engine vs base, within 0.3 points.
+
+Engine **IDENTICAL** to base on both pools at both seats; shipped performance **IDENTICAL**,
+stress moved, audit agreed on every arm. Instructions a decision 0.7330 M → 0.7365 M,
+**+0.47%**, past the prediction by 0.17 points and inside the 2.5-point budget: type sizes
+unchanged (`Primitive` 424 bytes, `Effect` 520, both arms), and every moved row a symbol present
+in one arm only (`mana_payable` out of line, `total_is_payable` and `CardRegistry::create`
+inlined). The copy check paired two loops adding copies of a unit, now
+`ManaCost::with_copies_of` (`f8c77461`); its sitting against shipped read every row
+**IDENTICAL** and 0.7370 M → 0.7334 M, **-0.49%**, unrelated closures moving back, so the
+round nets +0.05% against base. Growth ×3.94 to ×4.03. Reachability, 200 games: Rhystic Study
+cast 134 in 54% of games and Wild Might 159 in 61% at two seats, 115 and 102 at four; forced
+into every four-seat deck, 60.9 and 62.5 turns a game against 61.6. 235 s and 162 s.
+
+**Rerun for the owner's second round (2026-11-14)**: an {X} in a payment's cost, and Clash of
+Wills registered, against **base** `d18b33f5`: **engine** `107c374e`, the X before the card, and
+**shipped** the round's last commit. Predicted, before any arm ran: engine every gameplay row
+`IDENTICAL` on both pools at both seats, since no registered card pays an X or an amount and the
+payability check reads the same symbols in another order; shipped, performance `IDENTICAL`
+(Clash of Wills is not pooled) and stress moved; instructions a decision within 0.3 points.
+
+Engine **IDENTICAL** on both pools at both seats; shipped performance **IDENTICAL**, stress moved;
+audit agreed on every arm. Instructions a decision 0.7336 M → 0.7366 M, **+0.41%**, past the
+prediction and inside the budget, with `Primitive`, `Effect`, `ChoiceKind` and `ChoiceContext` the
+same size in both arms (424, 520, 104 and 152 bytes). The moved rows are the same symbols the last
+sitting moved back (`affected_members`' closure, `mana_payable`, `total_is_payable`): across the
+three sittings the board reads one of two layouts, about 0.7333 M or 0.7367 M a decision, as an
+unrelated change happens to inline them. Growth ×3.94 to ×4.03. Reachability: Clash of Wills
+cast 125 in 50% of two-seat games, 112 in 49% of four-seat ones. The copy check's one grouping,
+`from_symbols` beside `symbols` in three functions at 44× chance, is a shared idiom. 280 s.
+
+**The retry (2026-11-14), on `254a3d5b`** against `f017df6d`, the renames' head: an amount chosen
+at resolution and not paid is asked again below it. Predicted every row `IDENTICAL`, since no
+registered card pays a chosen amount. Every gameplay row **IDENTICAL** on both pools at both
+seats; instructions a decision 0.7371 M → 0.7368 M, **-0.05%**; growth ×3.94 to ×4.03; no copy.
+202 s.
+
+**Size**: 2,012 added and 119 removed in `mtgsim/src` and `mtgsim/tests`, 2,131 touched, against
+the brief's 1,350–2,100: 1,494 before the pre-review's fixes and boards, 1,616 at handover, the
+rest the owner's review rounds.
+
 **Recorded 2026-11-07 for `mode-rules-and-costs`, the modal node's rules and a mode's own cost**
 (`choices/mode-rules-and-costs`, PR #319: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
 345, 412 and 413). Arc Trail, Explosive Derailment, Demonic Pact and Vindictive Lich join the

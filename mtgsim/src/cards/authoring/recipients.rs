@@ -69,6 +69,13 @@ pub fn that_target(ix: usize) -> EffectRecipient {
     EffectRecipient::SameInstanceAs(ix)
 }
 
+/// "It", "that creature", "its controller"'s "it": what the effect's one
+/// instance of "target" chose. A card with two names which with
+/// [`that_target`].
+pub fn the_target() -> EffectRecipient {
+    that_target(0)
+}
+
 /// "Any target" (CR 115.4): a creature, player, planeswalker or battle.
 pub fn any_target() -> EffectRecipient {
     target(SelectionFilter::Any)
@@ -160,6 +167,28 @@ pub fn triggering_object(role: EventRole) -> EffectRecipient {
 /// the effect applies.
 pub fn chosen_by(choice: Choice) -> EffectRecipient {
     EffectRecipient::ChosenBy(Box::new(choice))
+}
+
+// ---------------------------------------------------------------------------
+// The player who does a resolving instruction
+// ---------------------------------------------------------------------------
+
+/// "Its controller" (CR 108.4): the player who controls what `it` names as
+/// the instruction applies, Mana Leak's target spell's.
+pub fn its_controller(it: EffectRecipient) -> PlayerRef {
+    PlayerRef::NamedBy(Box::new(it))
+}
+
+/// "That player" on a triggered ability: the player of its triggering
+/// event, ward's opponent whose spell or ability targeted (CR 702.21a).
+pub fn that_player() -> PlayerRef {
+    PlayerRef::NamedBy(Box::new(EffectRecipient::TriggeringPlayer))
+}
+
+/// "Any player" (CR 118.12a's "unless any player pays"): each player, asked
+/// in APNAP order (CR 101.4) until one does.
+pub fn any_player() -> PlayerRef {
+    PlayerRef::AnyPlayer
 }
 
 // ---------------------------------------------------------------------------

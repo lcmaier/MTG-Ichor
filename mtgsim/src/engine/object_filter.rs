@@ -416,5 +416,7 @@ pub(crate) fn player_ref_names(
         PlayerRef::Player(pid) => player == *pid,
         PlayerRef::DefendingPlayer(creature) => referents.defending_player(game, *creature) == Some(player),
         PlayerRef::AnyDefendingPlayer => game.is_defending_player(player),
+        // A resolving instruction's payer, never a predicate's.
+        PlayerRef::NamedBy(_) | PlayerRef::AnyPlayer => return None,
     })
 }

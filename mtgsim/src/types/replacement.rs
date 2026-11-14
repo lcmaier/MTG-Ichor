@@ -178,10 +178,12 @@ pub struct ReplacementDef {
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
 ///
-/// # One arm per variant, and the two without one
+/// # One arm per variant, and the ones without one
 ///
-/// `Attach` has no arm, since nothing replaces an attach, and `CreateTokenIn`
-/// none, since nothing prints "if a token would be created in exile".
+/// Seven `GameAction` variants have none, each because nothing printed
+/// replaces it: `Attach` and `Unattach`, `CreateTokenIn` ("if a token would
+/// be created in exile"), `TokenCeasesToExist`, `ShuffleLibrary`,
+/// `GameEndsInADraw` and `BecomeBlocked`. Each says so in its own doc.
 /// Adding an arm is a normal diff — this enum is matched exhaustively and is
 /// not `#[non_exhaustive]`, so every reader fails to compile rather than
 /// defaulting. **`gather::pattern_watches` is the reader that does not**: it

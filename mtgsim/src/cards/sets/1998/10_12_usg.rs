@@ -3,16 +3,18 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    add_mana, all_damage_to_you, creatures_you_control, deal_damage_divided, each, gains_ability, gets, mana_ability, spell_ability, static_ability,
-    static_replacement,
+    add_mana, all_damage_to_you, at_beginning_of, creature, creatures_you_control, deal_damage_divided, each, gains_ability, gets, land,
+    mana_ability, sacrifice, spell_ability, static_ability, static_replacement, tapped_for_mana, this_object, triggered_ability, whenever,
+    Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
+use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{AmountExpr, ManaOutput, ObjectSet, SelectionFilter, TargetCount};
+use crate::types::effects::{AmountExpr, ManaOutput, ObjectSet, PlayerRef, PlayerSet, SelectionFilter, TargetCount};
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::RetargetSpec;
+use crate::types::replacement::{GameActionTemplate, ReplacementDef, RetargetSpec, Rewrite, TemplateAmount};
 
 /// Arc Lightning — {2}{R}
 /// Sorcery
@@ -85,6 +87,67 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         .ability(static_ability(
             "Creatures you control have \"{T}: Add {G}.\"",
             gains_ability(each(creatures_you_control()), granted),
+        ))
+        .build()
+}
+
+/// Contamination — {2}{B}
+/// Enchantment
+///
+/// > At the beginning of your upkeep, sacrifice this enchantment unless you
+/// > sacrifice a creature.
+/// > If a land is tapped for mana, it produces {B} instead of any other type
+/// > and amount.
+///
+/// CR 118.12a's sentence, the action a cost that is not mana: "you may
+/// sacrifice a creature. If you don't, sacrifice this enchantment", offered
+/// only when you control a creature (CR 118.3). Its second line is CR
+/// 106.12b's retype at a fixed amount, which `phase_re9_integration_test`
+/// plays beside Mana Reflection.
+///
+/// It exercises a payment that sacrifices, chosen as the effect resolves.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"The second ability of this card is a replacement effect, not a
+///   triggered ability."* (#1) → `contamination_line_beside_mana_reflection_is_a_real_choice`,
+///   where it and Mana Reflection are two replacements CR 616.1 orders.
+/// - *"External effects that generate more mana still generate their
+///   additional mana as directed without being affected by this card.
+///   Effects which generate more mana based on what type of mana the land
+///   produces will be affected in color but not in amount."* (#2) →
+///   `contamination_leaves_an_auras_additional_mana_as_it_is` (Wild Growth's
+///   {G}). The second sentence is mana added "of any type that land
+///   produced" (Mana Flare), which no registered card adds.
+/// - *"You choose whether to sacrifice a creature or not on resolution. If
+///   not, then you sacrifice Contamination. You can choose to not sacrifice
+///   even if you no longer control Contamination on resolution."* (#3) →
+///   `contamination_asks_as_its_trigger_resolves`,
+///   `contamination_gone_before_its_trigger_resolves_may_be_declined`;
+///   `contamination_lost_to_an_opponent_is_not_sacrificed_on_a_decline` is
+///   the same answer under another player's control, by CR 701.21a.
+pub fn contamination() -> Arc<CardData> {
+    let upkeep = "At the beginning of your upkeep, sacrifice this enchantment unless you sacrifice a creature.";
+    let black = "If a land is tapped for mana, it produces {B} instead of any other type and amount.";
+    CardDataBuilder::new("Contamination")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 2))
+        .color(Color::Black)
+        .card_type(CardType::Enchantment)
+        .rules_text("At the beginning of your upkeep, sacrifice this enchantment unless you sacrifice a creature.\nIf a land is tapped for mana, it produces {B} instead of any other type and amount.")
+        .ability(triggered_ability(
+            upkeep,
+            whenever(
+                at_beginning_of(StepType::Upkeep, Whose::Yours),
+                sacrifice(this_object()).unless(PlayerRef::You, vec![Cost::Sacrifice(creature(), 1)]),
+            ),
+        ))
+        .ability(static_replacement(
+            black,
+            ReplacementDef::new(
+                tapped_for_mana(Some(land())),
+                PlayerSet::Everyone,
+                Rewrite::Instead(GameActionTemplate::ProduceMana { mana_type: ManaType::Black, amount: TemplateAmount::Fixed(1) }),
+            ),
         ))
         .build()
 }

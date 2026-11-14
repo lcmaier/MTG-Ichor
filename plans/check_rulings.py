@@ -160,6 +160,7 @@ ruling is two answers, and fails.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -180,7 +181,9 @@ REGISTER_HEADING = "### When a ruling and the CR disagree"
 REGISTRY = ROOT / "mtgsim" / "src" / "cards" / "registry.rs"
 CODE_DIRS = [ROOT / "mtgsim" / "src", ROOT / "mtgsim" / "tests"]
 
-UA = "MTG-Ichor-Research/1.0 (contact: maiercluke@gmail.com)"
+# Scryfall asks for a User-Agent naming the client; a contact address is
+# optional, and none is held in the tree. One set in SCRYFALL_CONTACT is sent.
+UA = "MTG-Ichor-Research/1.0" + (f" (contact: {os.environ['SCRYFALL_CONTACT']})" if os.environ.get("SCRYFALL_CONTACT") else "")
 CHUNK = 75      # Scryfall's documented maximum per /cards/collection request
 SLEEP = 0.15    # <10 req/s is asked for and meant: 80ms earned a 60-second ban
 
