@@ -11,8 +11,8 @@ mana a payment spent, and mana kept past a step's end.
 WHAT IT COUNTS
 --------------
 A card is in a family when one of its sentences *does* the thing: restricts
-"this mana", gives it a rider, keeps it, asks {S} in a cost, or reads what was
-spent. Reminder text is stripped first, so a keyword counts by its keyword
+"this mana", gives it a rider, keeps it, asks {S} in a cost, reads what was
+spent, or reads the unspent mana in a pool. Reminder text is stripped first, so a keyword counts by its keyword
 (`kw`), never by the words of its reminder. A card with two such sentences is
 in two families, and the totals at the foot of each section are distinct cards.
 
@@ -87,28 +87,42 @@ SNOW_COST = [
     ("reads {S} spent", r"\{S\}[^.]*(?:was|were) spent|for each \{S\} spent|\{S\} spent"),
 ]
 
-SPENT = re.compile(r"(?:was|were|been) spent|mana spent|spent to (?:cast|activate)|\bexpend", re.I)
+SPENT = re.compile(
+    r"(?:was|were|been) spent|mana spent|spent to (?:cast|activate)|\bexpend|using mana produced by|mana you spent"
+    r"|\} spent on x", re.I)
 SPENT_READS = [
+    ("which object made it (mana produced by this permanent)", r"using mana produced by"),
+    ("how much of a type paid one part of the cost ({B} spent on X)", r"\} spent on x"),
     ("which source made it, and its type with it ({S} of a color)", r"\{s\} of [^.]*spent"),
     ("which source made it (a Treasure, a snow source)", r"mana from [^.]*spent|\{s\}[^.]*spent|produced by [^.]*spent|produce is spent"),
-    ("its colors or types", r"colors? of mana spent|\{[wubrgc]\}[^.]*(?:was|were|wasn't) spent|\{[wubrgc]\} spent|(?:white|blue|black|red|green|colorless|colored) mana (?:was|were) spent|(?:white|blue|black|red|green|colorless) mana spent|color with the mana spent|type of mana spent|mana of the same color"),
+    ("its colors or types", r"colors? of mana spent|\{[wubrgc]\}[^.]*(?:was|were|wasn't) spent|\{[wubrgc]\} spent|(?:white|blue|black|red|green|colorless|colored) mana (?:was|were) spent|(?:white|blue|black|red|green|colorless) mana spent|color with the mana spent|type of mana spent|mana of the same color|could be paid by [^.]*mana you spent"),
     ("how much, of any kind", r"amount of mana spent|\bmana (?:was|were) spent|mana spent to|total mana|much mana"),
     ("how much this turn (expend, CR 700.14)", r"\bexpend"),
 ]
 SPENT_WHERE = [
-    ("read of an ability's activation", r"spent to activate|activation cost"),
+    ("read of an ability's activation", r"spent to activate|activation cost|mana you spent on \{x\}"),
     ("read by a trigger or effect while the spell is on the stack", r"^(?:[a-z ]+ — )?(?:whenever|when) (?:you|a player|an opponent|one or more)[^,]*(?:casts?|activates?)\b|that spell|cast them\b|cast that|\bexpend|spells? you cast|other creatures"),
     ("read as the permanent it became enters, or after", r"enters|this creature|this permanent|this artifact|^~|\bit\b"),
-    ("read by the spell as it resolves", r"this spell"),
+    ("read by the spell as it resolves", r"this spell|\} spent on x"),
 ]
 
 COST_NAMES_ITS_MANA = [
-    ("a cost that takes only mana of a color", r"spend only (?:white|blue|black|red|green|colorless|colored) mana"),
+    ("a cost that takes only mana of a color",
+     r"spend only (?:(?:white|blue|black|red|green|colorless|colored)(?: and/or | or )?)+ mana|spend only mana of the chosen color"),
     ("a cost that takes only mana from a kind of source", r"spend only mana produced by"),
+    ("a cost that takes at most one mana of each color", r"no more than one mana of each color"),
     ("a spell no mana may pay for", r"can't spend mana to cast"),
 ]
 
-AS_THOUGH = re.compile(r"spend mana as though|as though it were mana|mana of any type can be spent|can spend mana of any type", re.I)
+AS_THOUGH = re.compile(
+    r"spend mana as though|as though it were mana|mana of any type can be spent|can spend mana of any type"
+    r"|spend (?:\w+ )?mana (?:only )?as though it were", re.I)
+
+# What reads the pool itself, with nothing spent.
+UNSPENT_READS = [
+    ("an ability doubles each type of unspent mana", r"each type of unspent mana"),
+    ("how much unspent mana a player has, of a type or in all", r"unspent (?:\w+ )?mana you have|amount of unspent mana|or (?:more|fewer) unspent mana"),
+]
 
 
 def strip_reminder(text):
@@ -175,6 +189,10 @@ def main():
                     put("5. A cost that names the mana that may pay it", family, card, clause)
             if AS_THOUGH.search(clause):
                 put("6. Mana spent as though another type (CR 609.4b), counted only", "any", card, clause)
+            for family, pattern in UNSPENT_READS:
+                if re.search(pattern, low):
+                    put("7. What reads the unspent mana in a pool", family, card, clause)
+                    break
 
     print(f"corpus: {data['query']}, fetched {data['fetched']}, {len(data['cards'])} cards\n")
     for section in sorted(sections):

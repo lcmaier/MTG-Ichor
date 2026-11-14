@@ -1170,6 +1170,8 @@ and all 121 restriction sentences.
 | that a snow source made it, a permanent or a spell (CR 106.3, 109.2c) | 34 sources, one of them a sorcery (Tundra Fumarole); 39 cards with `{S}` in a cost; 7 reading `{S}` spent | Icehide Golem, Graven Lore | nothing |
 | that a source with another part of a type line made it | 23: a Treasure 16, a creature 2, an artifact 2, a basic land 1, a Cave 1, a Desert 1 | Hired Hexblade, Imperiosaur | nothing |
 | …and whether that source was a permanent | of the 23, all but one ask a permanent (CR 109.2: "a Treasure", "creatures"); Coin of Mastery asks "an artifact source", any zone | Myr Superion's ruling (2011-06-01): Elvish Spirit Guide's mana, made from a hand, is not "produced by creatures" | nothing |
+| which object made it | 3 | Tecutlan, the Searing Rift: "Whenever you cast a permanent spell using mana produced by Tecutlan" | nothing |
+| nothing new: the pool is read for how much unspent mana a player has | 5 | Omnath, Locus of Mana; Doubling Cube, whose ruling (2004-12-01) says the mana it adds carries no restriction | `AmountExpr::UnspentMana`, a count by type |
 
 **The brief's counts, re-counted on Scryfall, 2026-11-13.** `o:"this mana"`
 is 229 with no filter (the 227 of 2026-08-31) and 213 under `game:paper
@@ -1178,11 +1180,32 @@ is 229 with no filter (the 227 of 2026-08-31) and 213 under `game:paper
 clause the family of kept and lost mana is 67 cards, in decision 5's table
 (two of them in two of its rows).
 
+**A wider net, at the owner's review (2026-11-13).** The owner asked whether
+a card that says "that mana" (Domri, Chaos Bringer) could be missed. Domri
+is counted: the table above is the clause classifier's, whose gates match
+"this" and "that" mana, and the Scryfall phrases only re-count the brief's
+numbers. The question still found something. Every sentence that names mana
+beside "spend", "spent", "unspent", "produced by" or "mana from" was listed,
+and the ones no gate had claimed were read. Five things had been missed and
+are now counted by the script:
+- three lands that read **which object** made the mana (the row above),
+  which no type line answers;
+- five cards that read the unspent mana in a pool (the row above);
+- two more costs that name their mana (Soul Burn, Throne of Eldraine) and
+  one that caps it (Emblazoned Golem), in decision 3's second table;
+- Soul Burn's "the amount of `{B}` spent on X", the one printed reader of
+  which part of a cost a unit paid, which decision 2 had said no card reads;
+- Illusionary Mask's reader of the mana an activation spent.
+
+What the net still leaves unclaimed is sentences about mana value and about
+losing abilities.
+
 **The rulings** read for timing and for which object is which (Scryfall,
 2026-11-13): Imperiosaur, Myr Superion, Boreal Outrider, Cavern of Souls,
 Boseiju, Jegantha, Rosheen Meanderer, Omnath, Locus of Mana, Kruphix,
-Yurlok, Path of Ancestry, Pyromancer's Goggles, Hall of the Bandit Lord and
-Leyline Tyrant. What they settle is cited where it is used.
+Yurlok, Path of Ancestry, Pyromancer's Goggles, Hall of the Bandit Lord,
+Leyline Tyrant, Upwelling, Doubling Cube and Tecutlan, the Searing Rift.
+What they settle is cited where it is used.
 
 **The binding table**, one row for each piece of rules state the design adds.
 
@@ -1588,21 +1611,23 @@ has the ability.
 **Retrofit cost: medium.** The spent record sits on every stack entry and
 every permanent that was cast.
 
-**The table.** 207 cards read the mana a payment spent.
+**The table.** 212 cards read the mana a payment spent.
 
 | They read | Cards | Example |
 |---|---:|---|
-| its colors or types | 112 | converge and sunburst (44 by keyword); adamant; "if `{U}` was spent" |
+| its colors or types | 113 | converge and sunburst (44 by keyword); adamant; "if `{U}` was spent" |
 | how much, of any kind | 55 | "if no mana was spent to cast it" |
-| what its source was | 27 | "if mana from a Treasure was spent" |
+| what kind of source made it | 27 | "if mana from a Treasure was spent" |
+| which object made it | 3 | Tecutlan, the Searing Rift (decision 1's open question) |
 | its type and its source together | 1 | Boreal Outrider: "`{S}` of any of that spell's colors" |
+| how much of a type paid one part of the cost | 1 | Soul Burn: "the amount of `{B}` spent on X" (decision 2) |
 | how much this turn | 12 | expend; decision 4's event |
 
 Where, by the sentence's shape, so approximate: 99 on the permanent the
-spell became, 64 by a trigger or effect while the spell is on the stack, 55
-by the spell as it resolves, 8 of an ability's activation (Forsworn
-Paladin). The engine records a cast's spent mana today and an activation's
-never.
+spell became, 67 by a trigger or effect while the spell is on the stack, 56
+by the spell as it resolves, 9 of an ability's activation (Forsworn
+Paladin, Illusionary Mask). The engine records a cast's spent mana today
+and an activation's never.
 
 **The problem.** The record is six counts by type, held inline. It must now
 answer by what the source was, and by type and source together.
@@ -1758,6 +1783,11 @@ card in a row of this build.
 | Jegantha's mana, which pays no generic cost | 1 | companion | `breadth-features`, with its card |
 | Drain Power's move between pools (CR 106.13) | 1 | forcing a player's mana abilities | `breadth-features`, with its card |
 | Hogaak's cost, which no mana pays | 1 | convoke and delve | `convoke-delve-improvise` |
+| which object made a unit, and the three lands that read it | 3 | transforming double-faced cards, which all three are; decision 1's open question | `breadth-features`, with its first card |
+| a restriction that names a keyword: equip, power-up, a Class level, cumulative upkeep | 6 | `AbilityKeyword`, the tag on an ability's definition | `breadth-features`, with its first card |
+| Soul Burn's `{B}` spent on X: the split asked for a part of the cost, and the record keeping that part's units apart | 1 | nothing built | `breadth-features`, with its card |
+| Emblazoned Golem's cap of one mana of each color on X | 1 | a capacity in the cover test | `breadth-features`, with its card |
+| Throne of Eldraine's cost, which takes only mana of a chosen color | 1 | the as-enters record's color | `chosen-color-plus-could-produce` |
 
 ### 11.7 The fuzz games, predicted
 
