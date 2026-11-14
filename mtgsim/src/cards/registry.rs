@@ -1827,6 +1827,15 @@ mod instance_references {
             match effect {
                 Effect::Sequence(subs) => {
                     for pair in subs.windows(2) {
+                        // "Choose a creature. It gets … and gains …": "it" names what a choice
+                        // made as the effect applies chose, which no recipient names yet, and
+                        // the chain's second change would choose again.
+                        if let [Effect::Atom(first, chosen @ EffectRecipient::Choose(..)), Effect::Atom(second, again)] = pair {
+                            assert!(
+                                duration(first).is_none() || duration(first) != duration(second) || chosen != again,
+                                "{what}: a change chained to a choice made as the effect applies chooses again"
+                            );
+                        }
                         if let [Effect::Atom(first, recipient), Effect::Atom(second, EffectRecipient::SameInstanceAs(ix))] = pair
                             && let Some(own) = declared_at(recipient)
                             && duration(first).is_some()

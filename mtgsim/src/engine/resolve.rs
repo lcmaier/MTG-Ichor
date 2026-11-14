@@ -213,14 +213,14 @@ impl ResolutionWalk {
 /// What one atom's verb acts on, as [`GameState::recipients_for`] finds it.
 enum Recipients<'a> {
     /// Nothing, and the instruction does nothing: an attack that has ended,
-    /// no defending player.
+    /// no defending player, a division with nothing to divide among.
     Nothing,
     /// The objects and players the verb acts on in one instruction (CR
     /// 608.2f), read with `clause`: for a back-reference, the clause that
     /// declared its instance.
     Each(&'a EffectRecipient, Cow<'a, [ObjectOrPlayerId]>),
-    /// Each target with its share of a division announced with the targets
-    /// (CR 601.2d).
+    /// Each object or player with its share of a division: announced with
+    /// the targets (CR 601.2d), or chosen as the effect applies (608.2d).
     Divided(&'a EffectRecipient, Vec<(ObjectOrPlayerId, u64)>),
 }
 
@@ -606,6 +606,7 @@ impl GameState {
             // checked against the verb's own event (CR 101.2), so a "can't"
             // removes a candidate rather than refusing a choice.
             EffectRecipient::ChosenBy(choice) => each(self.choose_as_it_applies(primitive, choice, declared, walk, ctx, dp)?),
+            EffectRecipient::Choose(filter, count) => self.chosen_by_the_controller(recipient, filter, count, ctx, dp),
             _ => match instance_of(recipient, declared, &mut walk.instance_cursor) {
                 // The atom that declared the division acts by the shares;
                 // a later one naming its instance ("each of those
@@ -630,8 +631,50 @@ impl GameState {
         }
     }
 
-    /// An atom CR 601.2d divided, acting in one instruction on each surviving
-    /// target by that target's share (`shares`). A target CR 608.2b found
+    /// [`EffectRecipient::Choose`]: the controller picks from what the filter
+    /// matches now (CR 608.2d), and for a division then splits the amount
+    /// among the picks, at least one each. "Distribute three counters among
+    /// any number of creatures" places all three, so a division takes at
+    /// least one object while there is one; fewer than the most is the
+    /// player's (CR 608.2d).
+    fn chosen_by_the_controller<'a>(
+        &self,
+        recipient: &'a EffectRecipient,
+        filter: &SelectionFilter,
+        count: &TargetCount,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Recipients<'a>, String> {
+        // "Choose a player" is a value with its own kind (`ChoosePlayer`,
+        // `choices-architecture.md`'s decision 7), and "another" reads the
+        // targets an announcement chose before it, which a choice has none of.
+        if matches!(filter, SelectionFilter::Player(_) | SelectionFilter::Any | SelectionFilter::Another(_)) {
+            return Err(format!("{recipient:?} on {:?} is not built: a choice here names objects", ctx.source));
+        }
+        let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+        let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
+        let candidates =
+            crate::oracle::legality::enumerate_legal_selections_excluding(self, filter, Some(ctx.source), ctx.controller, identity);
+        let bounds = count.bounds(&|amount| self.evaluate_amount(amount, ctx, None))?;
+        let most = bounds.most.min(candidates.len());
+        let ask = |fewest: usize| {
+            crate::ui::ask::ask_select_recipients(dp, self, ctx.controller, recipient, ctx.source, &candidates, fewest.min(most), most)
+        };
+        let TargetCount::Divided(divided) = count else {
+            return Ok(Recipients::Each(recipient, Cow::Owned(ask(bounds.fewest))));
+        };
+        let chosen = ask(bounds.fewest.max(1));
+        if chosen.is_empty() {
+            return Ok(Recipients::Nothing);
+        }
+        let total = self.evaluate_amount(&divided.total, ctx, None)?;
+        let shares = crate::ui::ask::ask_divide_among(dp, self, ctx.controller, ctx.source, &chosen, total);
+        Ok(Recipients::Divided(recipient, chosen.into_iter().zip(shares).collect()))
+    }
+
+    /// A divided atom, acting in one instruction on each recipient by its
+    /// share (`shares`): a division announced with the targets (CR 601.2d),
+    /// or made as the effect applies (608.2d). A target CR 608.2b found
     /// illegal is not among them, and the rest keep the shares announced:
     /// Arc Lightning's ruling, "the original division of damage still applies".
     /// A verb no text divides is refused rather than given the whole amount.
@@ -2389,7 +2432,7 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<ObjectOrPlayerId>, String> {
         let choosers: Vec<PlayerId> = match &choice.chooser {
-            chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
+            chooser @ (EffectRecipient::Target(..) | EffectRecipient::SameInstanceAs(_)) => {
                 match instance_of(chooser, declared, &mut walk.instance_cursor) {
                     Some((ix, _)) => ctx
                         .targets

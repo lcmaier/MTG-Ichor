@@ -302,14 +302,15 @@ fn one_target_chosen_for_several_instances_is_one_line() {
     assert_eq!(targeted, [&line]);
 }
 
-/// A creature chosen as the spell is cast, not targeted: no line, since a
-/// choice that does not use the word "target" is not one (CR 115.10a).
+/// A creature chosen, not targeted: no line, since a choice that does not
+/// use the word "target" is not one (CR 115.10a), and it is made as the
+/// spell resolves (608.2d), so casting it announces nothing.
 #[test]
 fn a_choice_that_does_not_target_announces_nothing() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     let pump = cast_at(&mut game, 0, chosen_pump(), &[(ManaType::Green, 1)], &[]);
-    assert!(!game.stack_entries[&pump].announced.targets().next().unwrap().is_targeted());
+    assert!(game.stack_entries[&pump].announced.targets().next().is_none());
 
     let log = format_event_log(&game);
     assert!(log.iter().any(|l| l.starts_with("SpellCast")));

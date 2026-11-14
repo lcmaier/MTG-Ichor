@@ -438,12 +438,12 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::ChooseAlternativeCost { spell_id } => format!("Choose how to pay for {}", n(spell_id)),
         ChoiceKind::ChooseAdditionalCosts { spell_id } => format!("Choose additional costs for {}", n(spell_id)),
         // "Choose" is no targeting (CR 115.10): an edict's pick, an Aura's
-        // host as it enters (CR 303.4f).
+        // host as it enters (CR 303.4f), a choice as an effect applies (608.2d).
         ChoiceKind::SelectRecipients { recipient: crate::types::effects::EffectRecipient::Choose(..), spell_id } => {
             format!("Choose for {}", n(spell_id))
         }
         ChoiceKind::SelectRecipients { spell_id, .. } => format!("Choose targets for {}", n(spell_id)),
-        ChoiceKind::DivideAmong { source } => format!("Divide {} among its targets, at least one each", n(source)),
+        ChoiceKind::DivideAmong { source } => format!("Divide {} among those chosen, at least one each", n(source)),
         ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
             format!("Split the generic part of {mana_cost} for {}", n(spell_or_ability_id))
         }

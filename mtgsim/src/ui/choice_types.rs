@@ -79,10 +79,12 @@ pub enum ChoiceKind {
     /// Select recipients for an effect (covers both MTG "target" and non-targeting
     /// "choose" — the `EffectRecipient` field distinguishes them).
     SelectRecipients { recipient: EffectRecipient, spell_id: ObjectId },
-    /// CR 601.2d — how `source`, the spell or ability on the stack, divides
-    /// an effect among its targets. The buckets are the targets, each
-    /// receiving at least one, and the total is what the text divides; asked
-    /// after every target is chosen, and not at all when one split is left.
+    /// How `source`, the spell or ability on the stack, divides an effect:
+    /// among its targets as it is announced (CR 601.2d), after every target
+    /// is chosen, or among the objects chosen as it resolves (608.2d). The
+    /// buckets are those objects and players, each receiving at least one,
+    /// and the total is what the text divides; not asked when one split is
+    /// left.
     DivideAmong { source: ObjectId },
     /// CR 601.2h — how the generic part of `mana_cost` is split across the
     /// types in the payer's pool, each pip's own type reserved first. The
