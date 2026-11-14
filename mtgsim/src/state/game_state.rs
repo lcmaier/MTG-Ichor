@@ -251,6 +251,13 @@ pub(crate) fn in_timestamp_order(mut pairs: Vec<(Timestamp, ObjectId)>) -> Vec<O
     pairs.into_iter().map(|(_, id)| id).collect()
 }
 
+/// `entries` in CR 613.7 timestamp order, [`in_timestamp_order`]'s sort for a
+/// sweep that keeps each entry: unstable, since no two timestamps tie.
+fn sort_by_timestamp(entries: &mut [(ObjectId, &PermanentState)]) {
+    entries.sort_unstable_by_key(|(_, entry)| entry.timestamp);
+    debug_assert!(entries.windows(2).all(|pair| pair[0].1.timestamp < pair[1].1.timestamp), "two permanents share a CR 613.7 timestamp");
+}
+
 /// Which ability of which object — the durable identity of an activated ability,
 /// as opposed to the ephemeral stack object representing one activation. To
 /// [`AbilityId`] what [`ObjectRef`] is to `ObjectId`: the bare id names one
@@ -1422,8 +1429,50 @@ impl GameState {
         // ORDER-FREE: sorted by timestamp next.
         let mut entries: Vec<(ObjectId, &PermanentState)> =
             self.battlefield.iter().collect();
-        entries.sort_by_key(|(_, e)| e.timestamp);
+        sort_by_timestamp(&mut entries);
         entries
+    }
+
+    /// The permanents `keeps` keeps, oldest first: what filtering
+    /// [`GameState::battlefield_ordered`] gives, with only the kept ones sorted.
+    ///
+    /// `keeps` is asked of every permanent once, in the map's order, so its
+    /// answer may read the permanent and the board and nothing it was asked
+    /// before; `fuzz_games --audit` asks again in timestamp order and compares.
+    /// A traced game asks in timestamp order, since a layer walk writes a trace
+    /// record.
+    #[track_caller]
+    pub fn battlefield_ordered_where(&self, keeps: impl Fn(ObjectId, &PermanentState) -> bool) -> Vec<(ObjectId, &PermanentState)> {
+        if self.trace_on() {
+            return self.battlefield_ordered().into_iter().filter(|&(id, entry)| keeps(id, entry)).collect();
+        }
+        // ORDER-FREE: what it keeps is sorted by timestamp next, and nothing
+        // but the trace sees the order `keeps` is asked in.
+        let mut kept: Vec<(ObjectId, &PermanentState)> = self.battlefield.iter().filter(|&(id, entry)| keeps(id, entry)).collect();
+        sort_by_timestamp(&mut kept);
+        if self.audit_on() {
+            self.audit_ordered_sweep(&kept, &keeps);
+        }
+        kept
+    }
+
+    /// `--audit`'s check of [`GameState::battlefield_ordered_where`]: the
+    /// sweep it replaced, every permanent sorted and then asked, keeps the same
+    /// permanents in the same order. Asked unobserved, so the audited game's
+    /// counters are an unaudited one's.
+    #[track_caller]
+    fn audit_ordered_sweep(&self, kept: &[(ObjectId, &PermanentState)], keeps: &impl Fn(ObjectId, &PermanentState) -> bool) {
+        let swept: Vec<ObjectId> =
+            self.unobserved(|| self.battlefield_ordered().into_iter().filter(|&(id, entry)| keeps(id, entry)).map(|(id, _)| id).collect());
+        let kept: Vec<ObjectId> = kept.iter().map(|&(id, _)| id).collect();
+        let site = std::panic::Location::caller();
+        // Each list as one string, so the order is compared as well as the members.
+        crate::engine::audit::assert_shortcut_agrees(
+            "an ordered sweep",
+            || format!("which permanents the sweep at {site} keeps"),
+            vec![format!("{kept:?}")],
+            vec![format!("{swept:?}")],
+        );
     }
 
     /// The battlefield's object ids, oldest permanent first.

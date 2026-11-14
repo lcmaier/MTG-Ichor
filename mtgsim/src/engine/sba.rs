@@ -12,6 +12,7 @@ use crate::oracle::characteristics::{
     get_effective_controller, get_effective_name, get_effective_toughness,
     has_subtype, has_supertype, has_type, is_creature,
 };
+use crate::state::battlefield::PermanentState;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{ArtifactType, CardType, EnchantmentType, Subtype, Supertype};
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
@@ -307,11 +308,9 @@ impl GameState {
         // the batch's head, so each is performed while its permanent is still
         // there; one the check also moves is framed before any member performs
         // (CR 704.8), with every counter it had. No player removes them.
-        for (id, entry) in self.battlefield_ordered() {
-            let pairs = entry.counter_count(CounterType::PlusOnePlusOne).min(entry.counter_count(CounterType::MinusOneMinusOne));
-            if pairs == 0 {
-                continue;
-            }
+        let annihilating = |entry: &PermanentState| entry.counter_count(CounterType::PlusOnePlusOne).min(entry.counter_count(CounterType::MinusOneMinusOne));
+        for (id, entry) in self.battlefield_ordered_where(|_, entry| annihilating(entry) > 0) {
+            let pairs = annihilating(entry);
             for counter in [CounterType::PlusOnePlusOne, CounterType::MinusOneMinusOne] {
                 let removal = GameAction::RemoveCounters { subject: ObjectOrPlayerId::Object(id), counter, n: pairs, by: None };
                 batch.push((removal, StateBasedAction::CountersAnnihilate));
@@ -342,47 +341,38 @@ impl GameState {
         }
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
-        for id in self.battlefield_ids_ordered() {
-            if !is_creature(self, id) {
-                continue;
-            }
-            if get_effective_toughness(self, id).unwrap_or(0) <= 0 {
-                batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroToughness));
-            }
+        for (id, _) in self.battlefield_ordered_where(|id, _| is_creature(self, id) && get_effective_toughness(self, id).unwrap_or(0) <= 0) {
+            batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroToughness));
         }
 
         // 704.5g — Creature with lethal damage is destroyed
         // Also handles deathtouch (rule 702.2b): any nonzero damage from a
         // deathtouch source is lethal.
-        for id in self.battlefield_ids_ordered() {
+        let lethally_damaged = |id: ObjectId, entry: &PermanentState| {
             if !is_creature(self, id) {
-                continue;
+                return false;
             }
             let effective_t = get_effective_toughness(self, id).unwrap_or(0);
             if effective_t <= 0 {
-                continue; // handled by 704.5f
+                return false; // handled by 704.5f
             }
             // Indestructible is not checked here: CR 704.5g's condition is lethal
             // damage, and CR 702.12b is a "can't" (CR 614.17) asked once in
             // `engine::restriction::is_prohibited` for both of CR 701.8b's routes.
             // Regeneration is not checked either: a shield is a registered
             // replacement effect watching `GameAction::Destroy`, which this proposal is.
-            let entry = self.battlefield.get(&id).unwrap();
-            let lethal = entry.damage_marked >= effective_t as u32
-                || (entry.damage_marked > 0 && dealt_deathtouch_damage.contains(&id));
-            if lethal {
-                batch.push((sba_destroy(id), StateBasedAction::LethalDamage));
-            }
+            entry.damage_marked >= effective_t as u32 || (entry.damage_marked > 0 && dealt_deathtouch_damage.contains(&id))
+        };
+        for (id, _) in self.battlefield_ordered_where(lethally_damaged) {
+            batch.push((sba_destroy(id), StateBasedAction::LethalDamage));
         }
 
         // 704.5i — Planeswalker with 0 loyalty is put into owner's graveyard
-        for id in self.battlefield_ids_ordered() {
-            if !self.objects.contains_key(&id) || !has_type(self, id, CardType::Planeswalker) {
-                continue;
-            }
-            if self.battlefield[&id].counter_count(CounterType::Loyalty) == 0 {
-                batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroLoyalty));
-            }
+        let out_of_loyalty = |id: ObjectId, entry: &PermanentState| {
+            self.objects.contains_key(&id) && has_type(self, id, CardType::Planeswalker) && entry.counter_count(CounterType::Loyalty) == 0
+        };
+        for (id, _) in self.battlefield_ordered_where(out_of_loyalty) {
+            batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroLoyalty));
         }
 
         // 704.5j — Legend rule: if a player controls two or more legendary
@@ -394,18 +384,15 @@ impl GameState {
             // per group, so group order is decision order, and `ids` is the option
             // list they pick from by index.
             let mut legend_groups: BTreeMap<(usize, String), Vec<ObjectId>> = BTreeMap::new();
-            for (id, _entry) in self.battlefield_ordered() {
-                if self.objects.contains_key(&id)
-                    && has_supertype(self, id, Supertype::Legendary) {
-                    let name = get_effective_name(self, id);
-                    // CR 704.5j groups by controller, so it has to be the
-                    // effective one: taking an opponent's copy of a legend
-                    // you already control is what creates the conflict.
-                    let Some(controller) = get_effective_controller(self, id) else {
-                        continue;
-                    };
-                    legend_groups.entry((controller, name)).or_default().push(id);
-                }
+            for (id, _) in self.battlefield_ordered_where(|id, _| self.objects.contains_key(&id) && has_supertype(self, id, Supertype::Legendary)) {
+                let name = get_effective_name(self, id);
+                // CR 704.5j groups by controller, so it has to be the
+                // effective one: taking an opponent's copy of a legend
+                // you already control is what creates the conflict.
+                let Some(controller) = get_effective_controller(self, id) else {
+                    continue;
+                };
+                legend_groups.entry((controller, name)).or_default().push(id);
             }
 
             // The controller keeps one of each group, on a board still holding this
@@ -448,39 +435,34 @@ impl GameState {
 
         // 704.5m — an Aura attached to an illegal object or player, **or** not
         // attached at all, is put into its owner's graveyard (704.5n is the
-        // Equipment rule further down). IDs collected in one pass: `&self.objects`
-        // for the subtype checks, `&mut self` for the move.
-        let auras_to_graveyard: Vec<ObjectId> = self.battlefield_ordered()
-            .into_iter()
-            .filter_map(|(id, entry)| {
-                let obj = self.objects.get(&id)?;
-                if !has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura)) {
-                    return None;
-                }
-                match entry.attached_to {
-                    // Not attached to anything.
-                    None => Some(id),
-                    Some(host_id) => {
-                        // Attached to an illegal object: gone from the battlefield,
-                        if !self.battlefield.contains_key(&host_id) {
-                            return Some(id);
-                        }
-                        // or no longer matching the enchant restriction, whose "you" is
-                        // the Aura's controller (CR 109.5), not the enchanted creature's
-                        // (CR 303.4e).
-                        if let Some(filter) = &obj.card_data.enchant_filter {
-                            let you = get_effective_controller(self, id)?;
-                            if !self.can_enchant(filter, id, host_id, you) {
-                                return Some(id);
-                            }
-                        }
-                        None
+        // Equipment rule further down).
+        let attached_illegally = |id: ObjectId, entry: &PermanentState| {
+            let Some(obj) = self.objects.get(&id) else { return false };
+            if !has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura)) {
+                return false;
+            }
+            match entry.attached_to {
+                // Not attached to anything.
+                None => true,
+                Some(host_id) => {
+                    // Attached to an illegal object: gone from the battlefield,
+                    if !self.battlefield.contains_key(&host_id) {
+                        return true;
                     }
+                    // or no longer matching the enchant restriction, whose "you" is
+                    // the Aura's controller (CR 109.5), not the enchanted creature's
+                    // (CR 303.4e).
+                    if let Some(filter) = &obj.card_data.enchant_filter {
+                        let Some(you) = get_effective_controller(self, id) else { return false };
+                        if !self.can_enchant(filter, id, host_id, you) {
+                            return true;
+                        }
+                    }
+                    false
                 }
-            })
-            .collect();
-
-        for id in auras_to_graveyard {
+            }
+        };
+        for (id, _) in self.battlefield_ordered_where(attached_illegally) {
             batch.push((sba_put_into_graveyard(id), StateBasedAction::AuraAttachedIllegally));
         }
 
@@ -494,11 +476,11 @@ impl GameState {
         // here, and 704.5m moves it on the next check.
         let mut illegal_host: Vec<(GameAction, StateBasedAction)> = Vec::new();
         let mut not_an_attachment: Vec<(GameAction, StateBasedAction)> = Vec::new();
-        for (id, entry) in self.battlefield_ordered() {
-            // `attached_to` first: it is a field read, and the questions below
-            // each compute a characteristics frame. Asking them of every
-            // permanent on the battlefield, almost none of which is attached, is
-            // what made this sweep expensive.
+        // `attached_to` first: it is a field read, and the questions below
+        // each compute a characteristics frame. Asking them of every
+        // permanent on the battlefield, almost none of which is attached, is
+        // what made this sweep expensive.
+        for (id, entry) in self.battlefield_ordered_where(|_, entry| entry.attached_to.is_some()) {
             let Some(host) = entry.attached_to else { continue };
             let member = GameAction::Unattach { attachment: id };
             // Effective types, never printed: the rule is about what a
