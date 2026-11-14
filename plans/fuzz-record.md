@@ -202,6 +202,41 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-14 for `ordered-sweeps-sort-their-matches`, an ordered sweep sorts what it keeps**
+(`state/ordered-sweeps-sort-their-matches`, a detour off the route: `codebase-state.md` item 77's
+first part). No card moves and no pool changes, so neither §3 column is re-recorded. One
+`close_out.py` sitting against **main** `b8e010ab` (#324's merge): **sorted** `08432489`,
+measured as `51622aa2`, its tree but for the generated board each commit since carries.
+
+**Predictions, before any arm ran**:
+- every gameplay row `IDENTICAL` on both pools at both seats, the cost rows too: a sweep asks
+  each permanent once against one board, as the sorted sweep did, so the same walks and hits
+  happen in another order (the order #247 let the replacement gather ask in);
+- the audit agreeing on every arm, the ordered sweeps' new audit among them;
+- instructions per decision **6 to 11% lower**. From the 2026-11-14 profile of this board: the
+  stable sort was 8.27% of all instructions, and `check_state_based_actions` and
+  `activatable_abilities_with` are 12.32 of `battlefield_ordered`'s 12.59 inclusive points. The
+  state-based sweeps keep nothing on most boards, so their sort and their `Vec` go, and three of
+  `battlefield_ids_ordered`'s 2.37 points with them; the priority list still sorts the half of
+  the board its player controls, unstably; every other caller keeps a full sort, unstably;
+- growth within ×4.35, as #324 left it (×3.94 to ×4.03): no shape's class changes.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, sorted vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, sorted, dispatches agreed, performance / stress | 180,968 / 175,678 | 428,998 / 455,538 |
+| instructions / decision, sorted vs `main`, callgrind, the Commander board | | 0.7370 M → 0.6584 M, **-10.66%** |
+| the battlefield's stable sort (`driftsort`), inclusive, `main` → sorted | | 8.3 points → none; the unstable sort under the listing's half point |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**Every prediction held**, the instructions at the top of their range. Every counter file matches
+`main`'s line for line but its timings, the cost rows included, on both pools at both seats.
+The moved functions are the sweeps' code changing places: `check_state_based_actions`' symbol
+and two `Vec` collects of a filtered walk, which hold the filters' layer queries, appear in the
+sorted arm only, and `battlefield_ordered` and `driftsort` leave the profile. The one shape the
+copy check names, `assert_shortcut_agrees` beside `unobserved`, is each audited shortcut's own
+check, the fifth of its kind, and stays. 194 s.
+
 **Re-recorded 2026-11-13 for `pay-as-an-effect-resolves`, a cost paid as an effect resolves**
 (`choices/pay-as-an-effect-resolves`, PR #324: CR 118.12, 118.12a, 605.3a, 107.3f, 702.21a, items
 418 and 219's half). Mana Leak joins the performance pool (126 → 127), and Mana Leak, Waterfall Aerialist
