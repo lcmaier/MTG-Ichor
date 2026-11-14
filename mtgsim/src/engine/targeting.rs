@@ -417,8 +417,7 @@ impl GameState {
                  clause `Effect::instances` lists at that index."
             )),
 
-            // Hexproof, shroud and protection are not checked yet —
-            // `codebase-state.md`, "Before card breadth" item 7, which is
+            // Hexproof, shroud and protection are not checked yet: that is
             // `cant-be-targeted`'s.
             EffectRecipient::Target(filter, count) => {
                 validate_target_count(count, bounds, targets.len())?;

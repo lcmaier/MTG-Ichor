@@ -1510,8 +1510,10 @@ pub enum TargetCount {
     Between(u32, u32),
     /// "Any number of targets".
     AnyNumber,
-    /// "Divided as you choose among one, two, or three targets" (CR 601.2d).
-    /// Boxed, since every recipient carries a count and few divide.
+    /// "Divided as you choose among one, two, or three targets" (CR 601.2d),
+    /// or on a `Choose`, "distribute … among any number of creatures you
+    /// control" (608.2d). Boxed, since every recipient carries a count and
+    /// few divide.
     Divided(Box<DividedCount>),
 }
 
@@ -1537,14 +1539,16 @@ impl EffectRecipient {
     }
 }
 
-/// CR 601.2d's count: how many targets a clause may divide among, and what it
-/// divides.
+/// A division's count: how many objects or players a clause may divide
+/// among, and what it divides. Among targets it is announced with them (CR
+/// 601.2d); among objects chosen, made as the effect applies (608.2d).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DividedCount {
     pub among: TargetCount,
-    /// The amount divided, read as the targets are announced, which fixes it
-    /// (CR 608.2d's last sentence). The announcement is its reader: the atom
-    /// that prints the amount acts by each target's share.
+    /// The amount divided. Among targets it is read as they are announced,
+    /// which fixes it (CR 608.2d's last sentence); among objects chosen, as
+    /// the effect applies. The announcement or the choice is its reader: the
+    /// atom that prints the amount acts by each share.
     pub total: AmountExpr,
 }
 

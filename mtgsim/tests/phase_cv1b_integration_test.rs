@@ -457,8 +457,8 @@ fn a_choice_made_as_the_spell_resolves_finds_an_object_that_moved_before() {
 }
 
 /// **Fixture.** "Choose a creature. It gets +2/+2 until end of turn": Final
-/// Showdown's "choose a creature you control" with a pump for its verb, so
-/// the change shows in power and toughness.
+/// Showdown's choice, over any creature rather than one you control, with a
+/// pump for its verb, so the change shows in power and toughness.
 fn chosen_pump() -> Arc<CardData> {
     CardDataBuilder::new("Chosen Pump")
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))

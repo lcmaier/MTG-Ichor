@@ -372,8 +372,9 @@ impl ContinuousChange {
     /// The instructions, each lasting `duration`.
     pub(super) fn lasting(self, duration: Duration) -> Effect {
         // "It" after "choose a creature" names what a choice made as the
-        // effect applies chose, which no recipient names yet: a second change
-        // would choose again, and the registry refuses the chain.
+        // effect applies chose, a word `values-chosen-at-resolution` designs:
+        // until then a second change would choose again, and the registry
+        // refuses the chain.
         let again = match &self.recipient {
             EffectRecipient::Target(..) => EffectRecipient::SameInstanceAs(0),
             recipient => recipient.clone(),
