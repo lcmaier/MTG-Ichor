@@ -59,6 +59,11 @@ made (`plans/engineering-practices.md#key-a-concept-before-storing-it`).
   instead of asking about it.
 - Lead with where the work sits on the event path. Gloss every item number,
   row and phase code once, and cite docs by heading anchor.
+- Audit every name a code block proposes, before the fresh read: each type,
+  field, arm and function is read against
+  `plans/engineering-practices.md#names`, carries its subsystem's noun
+  (`ManaSpendFilter`, not `SpendFilter`), and is grepped against `mtgsim/src`
+  for the bare word and for a near name already taken.
 - The note is `plans/handoffs/<name>.md`; regenerate the board with
   `python plans/check_state_of_play.py --write`.
 
