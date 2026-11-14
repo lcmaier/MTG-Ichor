@@ -1061,9 +1061,10 @@ block.
 
 > **Status:** design, 2026-11-13, under the owner's review on #323: nothing
 > here is built. Round 1 (2026-11-13) settled decisions 6 and 7 and the
-> reading inside decision 1, renamed the types of decisions 1, 3 and 4, and
-> opened one question inside decision 1 and one inside decision 8. Decisions
-> 2, 3 and 9 are still being discussed. It is `roadmap-v2.md`'s row
+> reading inside decision 1, and renamed the types of decisions 1, 3 and 4.
+> Round 2 settled decisions 2, 3 and 9 and when a unit keeps which object
+> made it. Open: decision 5, priced now on a board that stores mana, and
+> whether decision 8's first row keeps `{S}`. It is `roadmap-v2.md`'s row
 > `mana-provenance`, the design, for `codebase-state.md` item 33 (the tested
 > restricted-mana subsystem that no payment calls).
 
