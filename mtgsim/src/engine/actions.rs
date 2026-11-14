@@ -273,7 +273,8 @@ pub enum GameAction {
 
     /// CR 509.1h's "an effect says that it becomes blocked": an unblocked
     /// attacking creature becomes a blocked one that no creature blocks. A
-    /// replacement effect may watch it, as it may any event (CR 614.1).
+    /// replacement effect may watch it, as it may any event (CR 614.1), and
+    /// none printed does, so it has no `EventPattern` arm yet.
     BecomeBlocked {
         attacker: ObjectId,
     },
@@ -463,11 +464,11 @@ pub enum GameAction {
     /// every card move for one token's sake — so `pipeline::substitute`
     /// returns this instead, and CR 704.5d takes it from there.
     ///
-    /// **No `EventPattern` arm, deliberately** — the second exemption from
-    /// `replacement-architecture.md` §3.2a's one-arm-per-variant, after
-    /// [`Self::Attach`]. Nothing prints "if a token would be created in
-    /// exile", and an arm the pipeline cannot apply is worse than a missing
-    /// one. `substitute` is its only producer.
+    /// **No `EventPattern` arm, deliberately** — one of the exemptions from
+    /// `replacement-architecture.md` §3.2a's one-arm-per-variant, which
+    /// `EventPattern`'s doc lists. Nothing prints "if a token would be
+    /// created in exile", and an arm the pipeline cannot apply is worse than
+    /// a missing one. `substitute` is its only producer.
     CreateTokenIn {
         object: ObjectId,
         zone: Zone,
