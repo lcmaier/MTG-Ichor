@@ -190,11 +190,12 @@ pub enum ChoiceKind {
     /// a gift without the card.
     PayAsItResolves { source: ObjectId, offer: Vec<Cost>, any_amount_of: Option<crate::types::mana::ManaCost> },
 
-    /// CR 107.3f — how many of `unit` the payer pays of an "any amount" as
-    /// `source` resolves, which is the resolution's X: a `pick_number` over
-    /// the interval of amounts they can pay, as [`Self::ChooseXValue`] asks.
-    /// One amount is answered unasked.
-    ChooseAmountToPay { source: ObjectId, unit: crate::types::mana::ManaCost, values: Box<crate::oracle::x_values::XOffer> },
+    /// CR 107.3f — how much is paid as `source` resolves, which is the
+    /// resolution's X: the X in a payment's cost, or how many of an "any
+    /// amount" (`of` says which). A `pick_number` over the amounts the payer
+    /// can pay, as [`Self::ChooseXValue`] asks; one amount is answered
+    /// unasked.
+    ChooseAmountToPay { source: ObjectId, of: AmountOf, values: Box<crate::oracle::x_values::XOffer> },
 
     /// CR 615.7 — a "prevent the next N damage" effect applies to damage from
     /// two or more sources at once, and the affected player (or the affected
@@ -387,6 +388,15 @@ pub enum EntryOffer {
     /// "That player may put N counters on it as it enters", the putter's own
     /// choice (tribute, CR 702.104a).
     PutCounters { counter: CounterType, n: u32 },
+}
+
+/// What a [`ChoiceKind::ChooseAmountToPay`] counts.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AmountOf {
+    /// The X in this cost, as written: "you may pay {X}{U}" (CR 107.3f).
+    XIn(crate::types::mana::ManaCost),
+    /// Copies of this unit: "you may pay any amount of {R}".
+    CopiesOf(crate::types::mana::ManaCost),
 }
 
 /// What the player [`ChoiceKind::ChoosePlayerAsObjectEnters`] asks for will be.

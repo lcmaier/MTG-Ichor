@@ -33,7 +33,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::choice_types::{
-    AbilityAsRead, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
+    AbilityAsRead, AmountOf, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
 use crate::ui::decision::PriorityAction;
 
@@ -474,7 +474,10 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::PayAsItResolves { source, offer, any_amount_of } => {
             format!("{}: {}?", n(source), payment_words(offer, any_amount_of.as_ref()))
         }
-        ChoiceKind::ChooseAmountToPay { source, unit, .. } => format!("{}: how many {unit} do you pay?", n(source)),
+        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => format!("{}: choose X for {cost}", n(source)),
+        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::CopiesOf(unit), .. } => {
+            format!("{}: how many {unit} do you pay?", n(source))
+        }
         ChoiceKind::AllocateNextDamage { source, remaining } => {
             format!("Choose the damage {} prevents ({remaining} left)", n(source))
         }

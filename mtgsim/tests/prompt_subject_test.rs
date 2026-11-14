@@ -25,7 +25,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+use mtgsim::ui::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -266,7 +266,7 @@ fn every_variant_decides_its_subject() {
         },
         ChoiceKind::ChooseAmountToPay {
             source: id,
-            unit: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
+            of: AmountOf::CopiesOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Set(vec![0, 2])),
         },
     ];

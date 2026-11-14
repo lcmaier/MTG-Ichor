@@ -17,7 +17,10 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{any_player, draw_cards, may_pay, may_pay_any_amount_of, spell_ability, triggered_ability, whenever, you};
+use mtgsim::cards::authoring::{
+    any_player, counter_spell, draw_cards, its_controller, may_pay, may_pay_any_amount_of, spell_ability, target_spell, the_target,
+    triggered_ability, whenever, you,
+};
 use mtgsim::cards::printings::{
     contamination, giant_growth, grizzly_bears, island, jagged_lightning, mana_leak, mountain, rhystic_study, waterfall_aerialist,
     wild_might,
@@ -39,10 +42,10 @@ use mtgsim::types::effects::{
     AmountExpr, Condition, CostAnswer, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::choice_types::{AmountOf, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -66,7 +69,7 @@ fn window() -> ChoiceKind {
 fn amount() -> ChoiceKind {
     ChoiceKind::ChooseAmountToPay {
         source: ObjectId::UNASSIGNED,
-        unit: ManaCost::zero(),
+        of: AmountOf::CopiesOf(ManaCost::zero()),
         values: Box::new(XOffer::Interval { at_least: 0, at_most: 0 }),
     }
 }
@@ -380,6 +383,27 @@ fn mana_leak_counters_a_tapped_out_players_spell_unasked() {
     assert_eq!(game.objects[&bears].zone, Zone::Graveyard);
 }
 
+/// An X no one has chosen, in a payment asked of a player who does not
+/// control the resolving spell, is refused: CR 107.3f gives the choice to
+/// the controller, and no printed payment asks another player for it.
+/// Invented, as the shape has no card.
+#[test]
+fn an_x_no_one_chose_is_not_asked_of_another_player() {
+    let x = vec![Cost::Mana(ManaCost::from_symbols(vec![ManaSymbol::X]))];
+    let unchosen = CardDataBuilder::new("Fixture Unchosen Will")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .card_type(CardType::Instant)
+        .ability(spell_ability("", counter_spell(target_spell()).unless(its_controller(the_target()), x)))
+        .build();
+    let mut game = stocked(2);
+    set_active_player(&mut game, 1);
+    cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
+    cast(&mut game, 0, unchosen, &[(ManaType::Blue, 1)], &[]);
+    game.players[1].mana_pool.add(ManaType::Colorless, 2);
+    let refused = game.resolve_top_of_stack(&ManaWindowStop::new(ScriptedDecisionProvider::new())).unwrap_err();
+    assert!(refused.contains("107.3f"), "{refused}");
+}
+
 /// ATOM-702.21a-001: ward triggers above the Bolt, and its controller pays
 /// {2} or the Bolt is countered — both branches.
 // COVERS: ATOM-702.21a-001
@@ -513,22 +537,17 @@ fn any_player_with_no_payer_does_the_rest() {
 // How much
 // ---------------------------------------------------------------------------
 
+/// "{X}{U}", the payment as Elenda and Azor print it.
+fn x_and_blue() -> ManaCost {
+    ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Blue)])
+}
+
 /// Elenda and Azor's shape, the mana its own: "You may pay {X}{U}. If you
-/// do, draw X cards." X is in no cost, so it is chosen as the payment is
-/// made (CR 107.3f), from what the payer can pay.
+/// do, draw X cards." The sorcery has no X of its own, so X is chosen as the
+/// payment is made (CR 107.3f), by its controller, from what they can pay.
 fn paid_insight() -> Arc<CardData> {
     let draw = Effect::Conditional(Condition::CostAnswer(CostAnswer::Does), Box::new(draw_cards(you(), AmountExpr::X)));
-    let pay = Effect::Optional {
-        chooser: PlayerRef::You,
-        effect: Box::new(Effect::Atom(
-            Primitive::Pay {
-                mana: Some(ManaCost::build(&[ManaType::Blue], 0)),
-                others: Vec::new(),
-                any_amount_of: Some(ManaCost::build(&[], 1)),
-            },
-            EffectRecipient::Implicit,
-        )),
-    };
+    let pay = may_pay(PlayerRef::You, vec![Cost::Mana(x_and_blue())]);
     CardDataBuilder::new("Fixture Paid Insight")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .card_type(CardType::Sorcery)
@@ -557,10 +576,10 @@ fn an_amount_is_chosen_as_it_is_paid_and_is_x() {
     let dp = resolve_with(&mut game, dp);
 
     let offered = dp.asked().into_iter().find_map(|kind| match kind {
-        ChoiceKind::ChooseAmountToPay { values, .. } => Some(*values),
+        ChoiceKind::ChooseAmountToPay { values, of, .. } => Some((*values, of)),
         _ => None,
     });
-    assert_eq!(offered, Some(XOffer::Interval { at_least: 0, at_most: 2 }));
+    assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 2 }, AmountOf::XIn(x_and_blue()))));
     assert_eq!(hand(&game, 0), before + 2, "X is 2");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 0, "{{2}}{{U}} paid");
     assert!(islands.iter().all(|land| game.battlefield[land].tapped));
@@ -605,10 +624,10 @@ fn any_amount_of_red_is_paid_in_red() {
     let dp = resolve_with(&mut game, dp);
 
     let offered = dp.asked().into_iter().find_map(|kind| match kind {
-        ChoiceKind::ChooseAmountToPay { values, unit, .. } => Some((*values, unit)),
+        ChoiceKind::ChooseAmountToPay { values, of, .. } => Some((*values, of)),
         _ => None,
     });
-    assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 3 }, red())));
+    assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 3 }, AmountOf::CopiesOf(red()))));
     assert!(game.battlefield[&land].tapped);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0, "three red paid");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1, "the green paid nothing");
@@ -643,9 +662,11 @@ fn an_amount_of_none_taken_is_paid() {
     assert_eq!(hand(&game, 0), before);
 }
 
-/// "Any player may pay {X}. If a player does, draw X cards": invented, to
-/// put an amount beside "any player". The active player picks 2 and lets the
-/// window end unpaid, which leaves no X behind; the next pays 1, and X is 1.
+/// "Any player may pay any amount of mana. If a player does, draw that
+/// many cards": invented, to put an amount beside "any player", each payer
+/// choosing their own. "Any amount of mana" is generic, so its top is the
+/// closed form's. The active player picks 2 and lets the window end unpaid,
+/// which leaves no X behind; the next pays 1, and X is 1.
 #[test]
 fn an_amount_left_unpaid_leaves_no_x_for_the_next_payer() {
     let draw = Effect::Conditional(Condition::CostAnswer(CostAnswer::Does), Box::new(draw_cards(you(), AmountExpr::X)));

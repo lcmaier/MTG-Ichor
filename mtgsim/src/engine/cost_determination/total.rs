@@ -203,6 +203,15 @@ pub struct TotalCostInX {
 }
 
 impl TotalCostInX {
+    /// A payment made as an effect resolves (CR 118.12), `mana` as written
+    /// with its X a variable and `others` beside it. No cost change applies:
+    /// CR 601.2f modifies the total of a cast, and 602.2b of an activation.
+    pub fn of_a_payment(mana: &ManaCost, others: &[Cost]) -> TotalCostInX {
+        let mut component = ManaComponent::EMPTY;
+        component.add_base(mana);
+        TotalCostInX { mana: component, non_mana: others.to_vec(), has_mana_cost: true }
+    }
+
     /// The locked total at an announced X, with the mana component **first**.
     /// CR 601.2h lets the player pay the first group's costs "in any order"
     /// and the engine picks one: the mana payment is the one that can still

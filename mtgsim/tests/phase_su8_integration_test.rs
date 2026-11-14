@@ -24,7 +24,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+use mtgsim::ui::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -239,7 +239,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::PayAsItResolves { source: object, offer: vec![Cost::Mana(ManaCost::build(&[], 3))], any_amount_of: None },
         ChoiceKind::ChooseAmountToPay {
             source: object,
-            unit: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
+            of: AmountOf::CopiesOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 2 }),
         },
     ];

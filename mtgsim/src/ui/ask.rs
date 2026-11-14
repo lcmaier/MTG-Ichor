@@ -41,7 +41,7 @@ use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef,
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection};
+use super::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
@@ -1279,25 +1279,26 @@ pub fn ask_pay_as_it_resolves(
     ask_take_or_leave(dp, game, payer, source, kind, "pay_as_it_resolves")
 }
 
-/// CR 107.3f — how many of `unit` `payer` pays of an "any amount" as `source`
-/// resolves, from `values`, each an amount they can pay. One value is
-/// answered unasked, and recorded; otherwise asked as an X is.
+/// CR 107.3f — how much `payer` pays as `source` resolves, `of` the X in its
+/// cost or the copies of an "any amount", from `values`, each an amount they
+/// can pay. One value is answered unasked, and recorded; otherwise asked as
+/// an X is.
 pub fn ask_choose_amount_to_pay(
     dp: &dyn DecisionProvider,
     game: &GameState,
     payer: PlayerId,
     source: ObjectId,
-    unit: ManaCost,
+    of: AmountOf,
     values: XOffer,
 ) -> u64 {
     if values.has_one_value() {
         let amount = values.at_least();
         game.note_unasked(payer, Unasked::OneLegalAnswer, || {
-            (ChoiceKind::ChooseAmountToPay { source, unit, values: Box::new(values) }, UnaskedAnswer::Number(amount))
+            (ChoiceKind::ChooseAmountToPay { source, of, values: Box::new(values) }, UnaskedAnswer::Number(amount))
         });
         return amount;
     }
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseAmountToPay { source, unit, values: Box::new(values.clone()) });
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseAmountToPay { source, of, values: Box::new(values.clone()) });
     pick_from_offer(dp, game, payer, &ctx, values, "choose_amount_to_pay")
 }
 

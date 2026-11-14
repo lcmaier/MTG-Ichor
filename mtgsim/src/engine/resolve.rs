@@ -35,7 +35,7 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
-use crate::ui::choice_types::ChoiceKind;
+use crate::ui::choice_types::{AmountOf, ChoiceKind};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -3037,11 +3037,13 @@ impl GameState {
         player.ok_or_else(|| format!("{recipient:?} names no one as {:?}'s instruction applies", ctx.source))
     }
 
-    /// CR 118.12 — `payer` may pay `costs` as the effect resolves; whether
-    /// they did. Offered only when they can (CR 118.3), so one who can't is
-    /// not asked and doesn't: Mana Leak counters a tapped-out player's spell.
-    /// Taken, the amount of an "any amount" is chosen (CR 107.3f), mana
-    /// abilities are activated (CR 605.3a), and the costs are paid in the
+    /// CR 118.12 — `payer` may pay `mana` and `others` as the effect resolves;
+    /// whether they did. Offered only when they can (CR 118.3), so one who
+    /// can't is not asked and doesn't: Mana Leak counters a tapped-out
+    /// player's spell. An X in `mana` is the one the resolving spell or
+    /// ability has (CR 107.3a, 107.3i: Clash of Wills' {X}); with none, it is
+    /// chosen as the payment is taken (107.3f), as an "any amount" is. Then
+    /// mana abilities are activated (CR 605.3a), and the costs are paid in the
     /// order written (CR 608.2c) under the resolution's own cause. A window
     /// that ends with the cost unpaid is the payer declining: what they made
     /// stays in their pool (CR 106.4), and nothing is reversed, since CR
@@ -3058,22 +3060,43 @@ impl GameState {
         // "This" in a cost is the object whose text asks (CR 113.7a); every
         // prompt names what is paid for, the resolving spell or ability.
         let source = ctx.effect_source();
-        let offer = mana_then(mana.cloned(), others);
-        if !self.in_game(payer) || !self.can_pay_as_it_resolves(&offer, payer, source) {
+        let announced_x = self.resolving_for(ctx).and_then(|resolving| resolving.x_value);
+        let x_to_choose = mana.filter(|mana| mana.x_count() > 0 && announced_x.is_none());
+        if x_to_choose.is_some() && any_amount_of.is_some() {
+            return Err(format!("{:?}'s payment has an X and an \"any amount\", and one payment chooses one amount", ctx.source));
+        }
+        if x_to_choose.is_some() && payer != ctx.controller {
+            return Err(format!(
+                "{:?} asks player {payer} to pay an X no one has chosen: CR 107.3f gives that choice to the controller, and no card asks another payer for it",
+                ctx.source
+            ));
+        }
+        let as_offered = mana.map(|mana| match announced_x {
+            Some(x) => mana.with_x_as(x),
+            None => mana.clone(),
+        });
+        let offer = mana_then(as_offered.clone(), others);
+        let least = mana_then(as_offered.as_ref().map(|mana| mana.with_x_as(0)), others);
+        if !self.in_game(payer) || !self.can_pay_as_it_resolves(&least, payer, source) {
             return Ok(false);
         }
         if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, offer.clone(), any_amount_of.cloned()) {
             return Ok(false);
         }
-        let (costs, amount) = match any_amount_of {
-            Some(unit) => {
-                let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
+        let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
+        let (costs, amount) = match (x_to_choose, any_amount_of) {
+            (Some(with_x), _) => {
+                let values = crate::oracle::x_values::payable_values_of_x(self, payer, with_x, others, on_the_battlefield);
+                let x = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, AmountOf::XIn(with_x.clone()), values);
+                (mana_then(Some(with_x.with_x_as(x)), others), Some(x))
+            }
+            (None, Some(unit)) => {
                 let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, &offer, unit, on_the_battlefield);
-                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, unit.clone(), values);
-                let mana = mana.cloned().unwrap_or_else(ManaCost::zero).with_copies_of(unit, amount);
+                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, AmountOf::CopiesOf(unit.clone()), values);
+                let mana = as_offered.unwrap_or_else(ManaCost::zero).with_copies_of(unit, amount);
                 (mana_then(Some(mana), others), Some(amount))
             }
-            None => (offer, None),
+            (None, None) => (offer, None),
         };
         self.run_mana_ability_window(payer, ctx.source, &costs, dp);
         if self.can_pay_costs(&costs, payer, source).is_err() {
