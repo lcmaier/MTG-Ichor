@@ -22,7 +22,7 @@ use mtgsim::cards::authoring::{
     triggered_ability, whenever, you,
 };
 use mtgsim::cards::printings::{
-    contamination, giant_growth, grizzly_bears, island, jagged_lightning, mana_leak, mountain, rhystic_study, waterfall_aerialist,
+    clash_of_wills, contamination, giant_growth, grizzly_bears, island, jagged_lightning, mana_leak, mountain, rhystic_study, waterfall_aerialist,
     wild_might,
 };
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, ObjectSet};
@@ -30,7 +30,7 @@ use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
-use mtgsim::oracle::x_values::XOffer;
+use mtgsim::oracle::x_values::{LegalXValues, XOffer};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::test_support::{
@@ -380,6 +380,66 @@ fn mana_leak_counters_a_tapped_out_players_spell_unasked() {
     let dp = ScriptedDecisionProvider::new();
     let dp = resolve_with(&mut game, dp);
     assert!(paid_asked(&dp).is_empty(), "two mana cannot pay {{3}}");
+    assert_eq!(game.objects[&bears].zone, Zone::Graveyard);
+}
+
+/// Player 0 casts Clash of Wills for `x` at the one spell on the stack.
+fn cast_clash_of_wills(game: &mut GameState, x: u64) -> ObjectId {
+    let id = put_in_hand(game, clash_of_wills(), 0);
+    pool_of(game, 0, &[(ManaType::Blue, 1), (ManaType::Colorless, x)]);
+    let aim = ScriptedDecisionProvider::new();
+    aim.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
+    game.cast_spell(0, id, &ManaWindowStop::new(aim)).expect("castable for X");
+    id
+}
+
+/// The payments `dp` offered, each as its offer.
+fn offers(dp: &ScriptedDecisionProvider) -> Vec<Vec<Cost>> {
+    dp.asked()
+        .into_iter()
+        .filter_map(|kind| match kind {
+            ChoiceKind::PayAsItResolves { offer, .. } => Some(offer),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Clash of Wills' {X} is the X it was cast with (CR 107.3a, 107.3i): cast
+/// for 2, the Bears' controller is offered {2}, and no X is chosen as it
+/// resolves. Paid, the Bears resolve; declined, they are countered.
+#[test]
+fn clash_of_wills_offers_the_x_it_was_cast_with() {
+    for pays in [true, false] {
+        let mut game = stocked(2);
+        set_active_player(&mut game, 1);
+        let bears = cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
+        cast_clash_of_wills(&mut game, 2);
+        game.players[1].mana_pool.add(ManaType::Colorless, 2);
+        let dp = ScriptedDecisionProvider::new();
+        if pays {
+            dp.expect_take(PAY);
+        } else {
+            dp.expect_choice(PAY, Vec::new());
+        }
+        let dp = resolve_with(&mut game, dp);
+        assert_eq!(offers(&dp), vec![vec![Cost::Mana(ManaCost::build(&[], 2))]], "the X it was cast with");
+        assert!(dp.asked().iter().all(|kind| !matches!(kind, ChoiceKind::ChooseAmountToPay { .. })), "no X chosen as it resolves");
+        assert_eq!(game.battlefield.contains_key(&bears), pays, "paid: {pays}");
+    }
+}
+
+/// Cast for more than the Bears' controller can pay, Clash of Wills
+/// counters them unasked (CR 118.3).
+#[test]
+fn clash_of_wills_for_more_than_they_can_pay_counters_unasked() {
+    let mut game = stocked(2);
+    set_active_player(&mut game, 1);
+    let bears = cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
+    cast_clash_of_wills(&mut game, 2);
+    game.players[1].mana_pool.add(ManaType::Colorless, 1);
+    let dp = ScriptedDecisionProvider::new();
+    let dp = resolve_with(&mut game, dp);
+    assert!(paid_asked(&dp).is_empty(), "{{1}} cannot pay {{2}}");
     assert_eq!(game.objects[&bears].zone, Zone::Graveyard);
 }
 

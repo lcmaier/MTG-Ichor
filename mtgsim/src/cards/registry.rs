@@ -1224,6 +1224,8 @@ impl CardRegistry {
         registry.register("Contamination", usg::contamination);
         registry.register("Rhystic Study", pcy::rhystic_study);
         registry.register("Wild Might", pcy::wild_might);
+        // An X in the payment, the X announced for the spell (CR 107.3a).
+        registry.register("Clash of Wills", ori::clash_of_wills);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);
