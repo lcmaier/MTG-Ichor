@@ -1503,37 +1503,58 @@ card types, one creature type, and "any of". It was drawn from the cards the
 old plan named: it can say "creature spells", "abilities of artifacts" and
 Cavern's chosen type, and nothing from the color row down.
 
-- **A. A restriction is a list of spends it permits, or a list it forbids,
-  each an arm for one row of the table.**
+- **A. A restriction is a list of payments it permits, or a list it
+  forbids. There is an arm for each thing a payment of mana can be for, and
+  the filters inside an arm say which.**
   ```rust
-  enum SpendRestriction { Only(Vec<SpendFilter>), Never(Vec<SpendFilter>) }
-  enum SpendFilter {
-      Spell { is: ObjectFilter, cast: Option<CastFilter> },  // its zone, kicked, face down, an alternative cost by name
-      Ability { of: ObjectFilter, keyword: Option<AbilityKeyword> },  // equip, power-up, a Class level
-      SpecialAction(SpecialAction),   // the engine's CR 116 enum
-      KeywordCost(CostKeyword),       // cumulative upkeep
-      CostContains(ManaSymbol),       // "costs that contain {X}"
+  enum ManaSpendRestriction { Only(Vec<ManaSpendFilter>), Never(Vec<ManaSpendFilter>) }
+  enum ManaSpendFilter {
+      /// Casting a spell (CR 601.2h): which spell, and how it is cast.
+      Spell { is: ObjectFilter, cast: Option<CastFilter> },
+      /// Activating an ability (CR 602.2b): of which object, and which keyword's, where one is named.
+      Activation { of: ObjectFilter, keyword: Option<AbilityKeyword> },
+      /// A cost a resolving spell or ability asks for (CR 118.12): of which object, and which keyword's.
+      EffectCost { of: ObjectFilter, keyword: Option<AbilityKeyword> },
+      /// A special action (CR 116), by the engine's own enum.
+      SpecialAction(SpecialAction),
+      /// Any of those whose cost holds this symbol: "costs that contain {X}".
+      CostContains(ManaSymbol),
   }
-  struct Spend<'a> { cause: EventCause, ability: Option<AbilityRef>, keyword: Option<CostKeyword>, cost: &'a ManaCost }
-  fn may_pay(unit: &ManaUnit, spend: &Spend, pip: &Pip) -> bool
+  struct ManaPayment<'a> { cause: EventCause, ability: Option<AbilityRef>, cost: &'a ManaCost }
+  impl ManaUnit { fn may_be_spent_on(&self, payment: &ManaPayment) -> bool }  // its restriction, once for each class of unit
+  impl ManaPip { fn accepts(&self, unit: &ManaUnit) -> bool }                 // two mask tests, once for each kind of pip
   ```
   **What a payment is for is its cause, which the engine already has.**
   Every proposal names an `EventCause`, and a payment's is `Cost { player,
   paying_for }` for a spell or an ability, `Effect` for a cost a resolution
   asks for (CR 118.12), and `SpecialAction`. A restriction reads that value,
   so `SpendPurpose` goes with `SpendContext` and nothing re-spells it.
-  `Spend` adds the three things the cause does not hold: which ability, where
-  the payment is an activation's; the keyword whose cost a `Pay` is, where a
-  keyword defines it; and the mana cost being paid, which Rosheen's "costs
-  that contain {X}" reads. The first two are named as the engine names them,
-  `AbilityRef` and a keyword, never a position. A spell is read through the
-  one `ObjectFilter` leaf table every other filter uses. `CastFilter` reads
-  what the stack entry already records of a cast: its zone, its additional
-  costs and its alternative cost.
+  `ManaPayment` adds the two things the cause does not hold: which ability
+  the payment is for, an activation's or the one resolving, named as the
+  engine names an ability (`AbilityRef`, never a position); and the mana
+  cost being paid, which Rosheen's "costs that contain {X}" reads. A spell
+  is read through the one `ObjectFilter` leaf table every other filter uses.
+  `CastFilter` reads what the stack entry already records of a cast: its
+  zone, its additional costs and its alternative cost. The struct is not
+  `ManaSpend`, which is one letter from decision 4's event, `ManaSpent`.
+  **The arms are the four things the CR lets mana pay for, and the cost
+  itself**, so a custom card's restriction is a new combination of filters
+  inside an arm, not a new arm (the owner, 2026-11-13). The first draft had
+  `KeywordCost(CostKeyword)` for "only to pay cumulative upkeep costs", an
+  arm shaped by its two cards. Cumulative upkeep's cost is one a resolving
+  ability asks for, so it is `EffectCost { of: All, keyword:
+  Some(CumulativeUpkeep) }`, and the same arm says "only to pay ward costs"
+  or "only to pay costs your opponents' spells and abilities ask of you"
+  with no engine change. `AbilityKeyword` is the one tag for which keyword
+  an ability is, read off the ability through its `AbilityRef`: equip and a
+  Class level for an activation, cumulative upkeep and ward for a cost at
+  resolution. Six printed restrictions name one, the table's rows of four
+  and two.
   **A cost paid as an effect resolves has `Effect` as its cause**, so mana
   "only to cast creature spells" cannot pay Rhystic Study's `{1}`, and
   Rosheen Meanderer's can pay Condescend's `{X}` (its ruling, 2017-11-17):
-  `Primitive::Pay` passes the cause it resolves under and adds nothing.
+  `Primitive::Pay` passes the cause it resolves under and the ability that
+  is resolving.
 - **B. An arm per printed phrasing on today's enum.** No new filter type.
   121 sentences is where that ends, each arm restating a predicate
   `ObjectFilter` already has.
@@ -1550,26 +1571,52 @@ owner's rule for the check, 2026-09-30). The payment at CR 601.2h reads the
 choices as made. `restricted-mana-plus-spend-riders` tests one of each at
 the offer and at the payment.
 
-**The other side of the edge: a cost that names its mana.** Ten cards
+**The other side of the edge: a cost that names its mana.** Twelve cards
 restrict from the cost's side.
 
 | The cost says | Cards | Example |
 |---|---:|---|
-| only mana of a color pays its X | 6 | Consume Spirit: "Spend only black mana on X" |
+| only mana of a color pays it, or pays its X | 8 | Consume Spirit: "Spend only black mana on X"; Soul Burn: "black and/or red"; Throne of Eldraine: "only mana of the chosen color to activate this ability" |
+| …and at most one mana of each color | 1 of the 8 | Emblazoned Golem |
 | only mana from a kind of source pays it | 3 | Imperiosaur, Myr Superion, Security Rhox |
 | no mana pays it | 1 | Hogaak, Arisen Necropolis |
 
-`may_pay`'s third argument is the pip, and a pip says what it accepts: which
-types, and which answers of the source. `{S}` is the first such pip (decision 6):
-any type, from a snow source. Consume Spirit's X is pips that accept black
-alone; Rosheen's ruling says the limit is on that part of the cost and no
-other. Imperiosaur's whole cost accepts units whose source was a basic land
-on the battlefield. Hogaak's accepts none, so convoke and delve pay all of
-it. Jegantha's mana is the same argument from the unit's side.
+A pip says what it accepts, as a `ManaPip`: which types, and which kinds of
+source. `{S}` is the first such pip (decision 6): any type, from a snow
+source. Consume Spirit's X is pips that accept black alone; Rosheen's ruling
+says the limit is on that part of the cost and no other. Imperiosaur's whole
+cost accepts units whose source was a basic land on the battlefield.
+Hogaak's accepts none, so convoke and delve pay all of it. Emblazoned
+Golem's cap is not a pip's: it bounds how much of one type a part of the
+cost takes, a capacity in the cover test, and waits for the card. Jegantha's
+mana, "can't be spent to pay generic mana costs", is the one printed
+restriction that reads the pip from the unit's side. Its arm comes with the
+card and is read where the pip is.
 
-**Recommended: A.** Every row of the table is one arm, the purpose is a
-value the engine already carries, and the filter is the one it already
-reads spells and permanents with.
+**What the edge test costs** (the owner asked whether it needs a fast path,
+2026-11-13). It is two questions, and neither is asked of each unit for
+each pip.
+- *Does this unit's restriction permit this payment?* `may_be_spent_on`,
+  asked once for each class of unit in a payment, and only of a class that
+  has terms. A filter reads the spell or the ability's source, which is the
+  same for every pip.
+- *Does this pip accept this unit?* `accepts`: a pip is two small sets, the
+  types it takes and the kinds of source it asks for, and a unit holds one
+  of each, so it is two mask tests. For a plain pip and a plain unit it is
+  today's test of one bit.
+
+The existence check already works on classes. It groups the supply into
+entries by type set and the cost into kinds of pip, and visits neither a
+unit nor a pip (`#32-the-check-halls-condition`, about 100 instructions a
+cost). Restricted entries are filtered once ahead of it, the 2,100
+instructions `#36-item-33s-seam-an-edge-refused-decision-2` priced, paid
+only where a pool or a source has terms. So the plain path is the fast
+path: a game with no restricted mana and no cost that names its mana runs
+today's instructions and one test of `terms.is_none()` for each class.
+
+**Recommended: A.** Every row of the table is a filter inside one of five
+arms, the purpose is a value the engine already carries, and the filter is
+the one it already reads spells and permanents with.
 
 #### Decision 4: riders, and the event of spending
 
