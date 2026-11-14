@@ -10848,12 +10848,17 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      {3}{U}{U}. If you don't, you lose the game." So does "any player" around
      an action that is not a `Cost`: Browbeat's "Any player may have Browbeat
      deal 5 damage to them. If no one does, target player draws three cards."
+     And so does an X no one has chosen, in a payment asked of a player who
+     does not control the resolving object: CR 107.3f gives that choice to
+     the controller, and every printed "unless … pays {X}" has its X in its
+     own cost, which the payment reads (CR 107.3a).
      **Reachability (2026-11-13):** unreachable — every registered payment is
      a "may" or an "unless", and no registered card asks any player for
      another action.
      **Slotted:** `breadth-features`, with each shape's first card.
-     **Sized:** ~20–40 lines each: the answer of a mandatory payment, and the
-     walk over players for a non-payment `Optional`.
+     **Sized:** ~20–40 lines each: the answer of a mandatory payment, the
+     walk over players for a non-payment `Optional`, and the controller's X
+     chosen before the payer is asked.
 
 421. **A payment of a cost the engine cannot check is never offered.**
      `Cost::Discard`, `ExileFromGraveyard`, `RemoveCounters` and `AddCounters`

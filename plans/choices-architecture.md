@@ -1307,31 +1307,31 @@ PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
   and no order asked), then `pay_costs` under the resolution's cause, and only then X. A window
   that ends unpaid is a decline, and the mana made stays. Every prompt names the resolving object.
 - **The kinds**: `PayAsItResolves { source, offer, any_amount_of }`, a take or leave, and
-  `ChooseAmountToPay { source, unit, values }`, a `pick_number` as `ChooseXValue` is, each with
-  its words, its why and its setup line.
+  `ChooseAmountToPay { source, of, values }` (`AmountOf::XIn` or `CopiesOf`), a `pick_number`
+  as `ChooseXValue` is, each with its words, its why and its setup line.
 - **Who pays**: `PlayerRef::NamedBy(recipient)`, an object naming its controller: "its
   controller" is an instance's (Mana Leak), "that player" a trigger's (ward). `PlayerRef::AnyPlayer`
   is asked in APNAP order until one pays (CR 101.4; the Prophecy rulings agree).
-- **An amount** (CR 107.3f): every amount from none to the most the payer can make beside the
-  rest, so an interval, its top found by doubling and halving over the check; the amount chosen
-  is the resolution's X, which "draw X cards" reads and a delayed trigger carries (107.3n).
+- **An amount**: an {X} stays in the payment's mana. The resolving spell's X is it (CR 107.3a,
+  107.3i: Clash of Wills); with none, its controller chooses it as the payment is taken (107.3f)
+  from MA-2's closed form (`payable_values_of_x`). "Any amount of mana" reads the same form, and
+  only a colored unit is searched. The amount chosen is the resolution's X (107.3n).
 - **Item 219's half**: a target under a `Conditional` that names no kicker or mode is announced
   (CR 601.2c), so Mana Leak's "if they don't, counter target spell" has its target.
 - **The cards**: Mana Leak (pooled), Waterfall Aerialist (`cards::authoring::ward`, on TR-5c's
-  event), Contamination, its RE-9 fixture retired, Rhystic Study and Wild Might; fixtures of
-  Elenda and Azor's and Leyline Tyrant's payments.
+  event), Contamination, its RE-9 fixture retired, Rhystic Study, Wild Might and Clash of Wills;
+  fixtures of Elenda and Azor's and Leyline Tyrant's payments.
 
 Where it differs from decision 4's words:
 - **The offer is the costs, a list**, where `EntryOffer::Pay` carries one, and the unit of an
   "any amount" beside them.
-- **"Any amount" is a mana unit, `any_amount_of: Option<ManaCost>`**, not an {X} in the cost,
-  since "any amount of {R}" is no generic mana; life and energy wait (item 423). Its values are
-  searched, not MA-2's closed form, with no why for an amount past the top.
+- **"Any amount of" a colored unit is searched**, not read in closed form, with no why for an
+  amount past the top: Leyline Tyrant's {R}, one card. Life and energy wait (item 423).
 - **Leyline Tyrant's "when you do" waits** for the record of mana spent (item 419); its
   payment is tested here, as the brief set.
-- **Refused, not built**: a payment outside an `Optional` and "any player" around another
-  action (item 420); a cost the engine cannot check is never offered (item 421); ward {X} (item
-  422).
+- **Refused, not built**: a payment outside an `Optional`, "any player" around another action,
+  and an X no one chose asked of another payer (item 420); a cost the engine cannot check is never
+  offered (item 421); ward {X} (item 422).
 - **An amount of none, taken, is a payment** (`Does`, X = 0), CR 118.3a's "players can always
   pay 0 mana": kept at review, every printed ruling on zero agreeing (Halo Forager's).
 

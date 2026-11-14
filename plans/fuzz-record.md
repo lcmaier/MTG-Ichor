@@ -279,6 +279,13 @@ round nets +0.05% against base. Growth ×3.94 to ×4.03. Reachability, 200 games
 cast 134 in 54% of games and Wild Might 159 in 61% at two seats, 115 and 102 at four; forced
 into every four-seat deck, 60.9 and 62.5 turns a game against 61.6. 235 s and 162 s.
 
+**Rerun for the owner's second round (2026-11-14)**: an {X} in a payment's cost, and Clash of
+Wills registered, against **base** `d18b33f5`: **engine** `107c374e`, the X before the card, and
+**shipped** the round's last commit. Predicted, before any arm ran: engine every gameplay row
+`IDENTICAL` on both pools at both seats, since no registered card pays an X or an amount and the
+payability check reads the same symbols in another order; shipped, performance `IDENTICAL`
+(Clash of Wills is not pooled) and stress moved; instructions a decision within 0.3 points.
+
 **Size**: 1,718 added and 97 removed in `mtgsim/src` and `mtgsim/tests`, 1,815 touched, against
 the brief's 1,350–2,100: 1,494 before the pre-review's fixes and boards, 1,616 at handover, the
 rest the owner's two review rounds.
