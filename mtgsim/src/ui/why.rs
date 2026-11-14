@@ -356,6 +356,8 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::OrderTriggers { .. }
             | ChoiceKind::ApplyOptionalReplacement { .. }
             | ChoiceKind::ApplyOptionalEffect { .. }
+            | ChoiceKind::PayAsItResolves { .. }
+            | ChoiceKind::ChooseAmountToPay { .. }
             | ChoiceKind::AllocateNextDamage { .. }
             | ChoiceKind::ChooseDamageSource { .. }
             | ChoiceKind::ChooseDelayedTriggerEvent { .. }
@@ -502,6 +504,17 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         }
         ChoiceKind::ApplyOptionalReplacement { source, .. } => (format!("whether {}'s effect applies", n(source)), Some("614.1a")),
         ChoiceKind::ApplyOptionalEffect { source } => (format!("whether {} does what it says {who} may", n(source)), Some("603.5")),
+        ChoiceKind::PayAsItResolves { source, offer, any_amount_of } => (
+            format!(
+                "whether {who} pays {}'s cost as it resolves: {}",
+                n(source),
+                crate::ui::display::payment_words(offer, any_amount_of.as_ref())
+            ),
+            Some("118.12"),
+        ),
+        ChoiceKind::ChooseAmountToPay { source, unit, .. } => {
+            (format!("how many {unit} {who} pays as {} resolves, each amount one {who} can pay", n(source)), Some("107.3f"))
+        }
         ChoiceKind::DivideAmong { source } => (format!("the targets {} divides among, each receiving at least one", n(source)), Some("601.2d")),
         ChoiceKind::AllocateNextDamage { source, remaining } => {
             (format!("the damage {}'s effect prevents, {remaining} at most", n(source)), Some("615.7"))

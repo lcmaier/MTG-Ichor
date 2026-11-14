@@ -236,6 +236,12 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::OrderCostPayments { spell_or_ability_id: object },
         ChoiceKind::OrderSimultaneousEntries { player: 0 },
         ChoiceKind::ChooseModes { source: object, words: Vec::new() },
+        ChoiceKind::PayAsItResolves { source: object, offer: vec![Cost::Mana(ManaCost::build(&[], 3))], any_amount_of: None },
+        ChoiceKind::ChooseAmountToPay {
+            source: object,
+            unit: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
+            values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 2 }),
+        },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -273,9 +279,11 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::OrderCostPayments { .. } => 32,
         ChoiceKind::OrderSimultaneousEntries { .. } => 33,
         ChoiceKind::ChooseModes { .. } => 34,
+        ChoiceKind::PayAsItResolves { .. } => 35,
+        ChoiceKind::ChooseAmountToPay { .. } => 36,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..35).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..37).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

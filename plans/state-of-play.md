@@ -50,7 +50,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | 2 | — | 2 |
 | 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
 | 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
-| 5 | `costs-and-choices-at-resolution` and 2 more | 8 of 11 landed | 8 | 3–6 | 9–13 |
+| 5 | `choose-as-an-effect-resolves`, the second and 2 more | 9 of 12 landed | 9 | 3–5 | 9–13 |
 | 6 | `linked-abilities` | to come | 0 | 3–4 | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 0 | 4–7 | 4–7 |
@@ -63,15 +63,15 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
-| | **To v0.5** | **43 rows to come** | **17** | **72–135** | **85–150** |
+| | **To v0.5** | **43 rows to come** | **18** | **72–134** | **85–150** |
 
 No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.
 
 **Deck cards registered: 9 of 385**, the five lists' distinct cards less
-basics. **Could be written today: 91 more**, with no need left on the route:
-91 the gap census proved writable and 0 whose needs have landed since, which a
-registration proves. 285 wait on a row or a gap, and the census left 0 unread
+basics. **Could be written today: 95 more**, with no need left on the route:
+91 the gap census proved writable and 4 whose needs have landed since, which a
+registration proves. 281 wait on a row or a gap, and the census left 0 unread
 (`plans/references/card-census/README.md#the-gap-census`).
 
 ### When each subsystem closes
@@ -82,7 +82,7 @@ row by naming it in a heading or in a sizing table's first cell, in bold.
 
 | Architecture doc | Rows landed | Closes with | Step |
 |---|---:|---|---:|
-| `choices-architecture.md` | 6 of 8 | `values-chosen-at-resolution` | 5 |
+| `choices-architecture.md` | 7 of 9 | `values-chosen-at-resolution` | 5 |
 | `cant-effects-architecture.md` | 0 of 5 | `combat-requirements` | 11 |
 | `cost-architecture.md` | 0 of 2 | `remaining-costs` | 14 |
 | `permission-architecture.md` | 0 of 3 | `casting-from-other-zones` | 15 |
@@ -198,6 +198,7 @@ is derived.
 | 2026-11-07 | A mode chosen, targeted and resolved | `modes-chosen-and-resolved` | `choices-architecture.md` |
 | 2026-11-07 | The node's rules, its other choosers and a mode's own cost | `mode-rules-and-costs` | `choices-architecture.md` |
 | 2026-11-09 | The dev GUI asks for modes one at a time | `mode-picker` | `choices-architecture.md` |
+| 2026-11-13 | A cost paid as an effect resolves | `pay-as-an-effect-resolves` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -211,7 +212,7 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| A payment and a choice as an effect resolves | `costs-and-choices-at-resolution` | `choices-architecture.md` |
+| An object chosen and a division made as an effect resolves | `choose-as-an-effect-resolves` | `choices-architecture.md` |
 | A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
 | Token copies | `token-copies` | `copy-effects-architecture.md` |
 | Spell copies | `spell-copies` | `copy-effects-architecture.md` |
@@ -237,9 +238,9 @@ cell, and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 226 |
-| …of them in `PERFORMANCE_POOL` | 126 |
-| `#[test]` functions | 3065 |
+| Cards registered | 231 |
+| …of them in `PERFORMANCE_POOL` | 127 |
+| `#[test]` functions | 3094 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -260,14 +261,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 468 |
-| …closed, still recorded | 284 |
-| …open — unreachable, and says why | 123 |
+| Numbered items | 473 |
+| …closed, still recorded | 285 |
+| …open — unreachable, and says why | 128 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 35 |
+| …open — reachable, not wrong (perf, a name, a harness) | 34 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **2** |
-| …open, carrying an explicit `**Sized:**` | 178 of 184 |
+| …open, carrying an explicit `**Sized:**` | 182 of 188 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -281,7 +282,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 171 |
+| …slotted to a phase or roadmap row still to come | 175 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

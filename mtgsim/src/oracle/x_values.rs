@@ -16,7 +16,8 @@ use std::num::NonZeroU64;
 use crate::engine::cost_determination::TotalCostInX;
 use crate::oracle::mana_supply::{ManaSupply, NonManaCosts};
 use crate::state::game_state::GameState;
-use crate::types::ids::PlayerId;
+use crate::types::costs::Cost;
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::ManaCost;
 
 /// The values of X a caster may announce for a spell, and the facts the why
@@ -170,6 +171,49 @@ pub fn legal_x_values(
             x_symbol_count: x_symbol_count.get(),
         })),
     })
+}
+
+/// CR 107.3f — the amounts of "any amount of `unit`" `payer` can pay beside
+/// `costs` as an effect resolves, which they can pay alone (the caller's CR
+/// 118.3 check): from none to the most their pool and mana abilities can make
+/// (CR 605.3a). One more `unit` is never easier to pay than one fewer, so
+/// every amount between is payable and the offer is an interval, its top
+/// found by doubling and halving over the check that asks the payment is
+/// payable. [`legal_x_values`]' closed form counts the generic mana an {X}
+/// adds, and a unit may be colored (Leyline Tyrant's {R}), so the check
+/// itself is asked. `source` is the permanent whose text asks, which a cost of its
+/// own rules out as a mana source. A unit of no mana value, which any amount
+/// of pays, offers none but 0, so the search always ends.
+pub fn payable_amounts_of_any_amount(
+    game: &GameState,
+    payer: PlayerId,
+    costs: &[Cost],
+    unit: &ManaCost,
+    source: Option<ObjectId>,
+) -> XOffer {
+    if unit.symbols.iter().all(|symbol| symbol.mana_value() == 0) {
+        return XOffer::Interval { at_least: 0, at_most: 0 };
+    }
+    let others: Vec<Cost> = costs.iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
+    let non_mana = NonManaCosts { source, costs: &others };
+    let fixed = Cost::mana_part(costs);
+    let supply = std::cell::OnceCell::new();
+    let payable =
+        |amount: u64| crate::oracle::mana_helpers::mana_payable(game, payer, &fixed.with_copies_of(unit, amount), &non_mana, &supply);
+    let (mut most, mut past) = (0, 1);
+    while payable(past) {
+        most = past;
+        past *= 2;
+    }
+    while past - most > 1 {
+        let between = most + (past - most) / 2;
+        if payable(between) {
+            most = between;
+        } else {
+            past = between;
+        }
+    }
+    XOffer::Interval { at_least: 0, at_most: most }
 }
 
 /// The closed form, asked again by the check it stands for: every X up to a
@@ -378,6 +422,26 @@ mod tests {
         let (game, spell) = board(5, sorcery(&[X, R]).build());
         assert_eq!(values_with(&game, spell, None, &[&kicker(2)]).unwrap().offered, XOffer::Interval { at_least: 0, at_most: 2 });
         assert_eq!(values_with(&game, spell, None, &[&kicker(5)]), None);
+    }
+
+    /// "Any amount of {R}" is what the board makes of red: three Mountains up
+    /// to three, a pool of {R}{R} two more, still five past a {W} the Plains
+    /// pays; and a unit of no mana value offers 0 alone, so the search ends.
+    #[test]
+    fn any_amount_of_red_is_the_red_the_board_makes() {
+        let red = ManaCost::from_symbols(vec![R]);
+        let mut game = setup_two_player_game();
+        for _ in 0..3 {
+            put_on_battlefield(&mut game, mountain(), 0);
+        }
+        put_on_battlefield(&mut game, plains(), 0);
+        let upto = |most| XOffer::Interval { at_least: 0, at_most: most };
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &[], &red, None), upto(3));
+        game.players[0].mana_pool.add(ManaType::Red, 2);
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &[], &red, None), upto(5));
+        let white = [Cost::Mana(ManaCost::from_symbols(vec![W]))];
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &white, &red, None), upto(5), "the Plains pays the {{W}}");
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &[], &ManaCost::from_symbols(vec![X]), None), upto(0));
     }
 
     #[test]

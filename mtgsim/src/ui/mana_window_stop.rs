@@ -46,6 +46,11 @@ impl<D: DecisionProvider> ManaWindowStop<D> {
     pub fn inner(&self) -> &D {
         &self.inner
     }
+
+    /// The wrapped provider, given back.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
 }
 
 impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {

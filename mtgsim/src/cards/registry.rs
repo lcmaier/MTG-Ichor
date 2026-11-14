@@ -7,8 +7,8 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, thb, tmp, tor, tsp, uds, ulg,
-    usg,
+    mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
+    uds, ulg, usg,
     vis, war, wth, wwk, zen, znr,
 };
 
@@ -28,7 +28,7 @@ use super::sets::{
 /// seed-deterministic rows — turns, spells cast, creatures died — are what an
 /// addition invalidates and what still has to be re-measured. Registering a
 /// card is still not the same act as adding one here.
-const PERFORMANCE_POOL: [&str; 126] = [
+const PERFORMANCE_POOL: [&str; 127] = [
     "Plains",
     "Island",
     "Swamp",
@@ -558,6 +558,14 @@ const PERFORMANCE_POOL: [&str; 126] = [
     // decides which of its two modes can be chosen. Cryptic Command and
     // Casualties of War are registered and stay out: the same path.
     "Abrade",
+    // CR 118.12's payment as an effect resolves: the check that offers it,
+    // the take or leave, the mana window at resolution and the plan in the
+    // order written, asked of an opponent whenever it counters a spell. Two
+    // mana and an instant, so it is cast at the spells the pool casts most.
+    // Waterfall Aerialist (ward) and Contamination (a sacrifice for one) are
+    // registered and stay out: the same payment, and Contamination turns
+    // every land's mana black.
+    "Mana Leak",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1208,6 +1216,14 @@ impl CardRegistry {
         registry.register("Explosive Derailment", otj::explosive_derailment);
         registry.register("Demonic Pact", ori::demonic_pact);
         registry.register("Vindictive Lich", c17::vindictive_lich);
+        // CR 118.12's cost paid as an effect resolves: "unless its controller
+        // pays" a target spell's, ward's on a trigger, and a sacrifice for
+        // one; "that player" around a "you may", and "any player".
+        registry.register("Mana Leak", sth::mana_leak);
+        registry.register("Waterfall Aerialist", stx::waterfall_aerialist);
+        registry.register("Contamination", usg::contamination);
+        registry.register("Rhystic Study", pcy::rhystic_study);
+        registry.register("Wild Might", pcy::wild_might);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);

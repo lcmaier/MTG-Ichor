@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     an_opponent_controls, at_beginning_of, color, counters_removed_from, create_delayed_trigger, create_replacement, creature, creatures_you_control,
     destroy, gain_control_of, gain_life, gains_keyword, non, put_counters, remove_counters, spell_ability, static_replacement, target_creature,
-    target_permanent, that_target, this_object, triggered_ability, untap, whenever, you, Whose,
+    target_permanent, the_target, this_object, triggered_ability, untap, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -49,8 +49,8 @@ pub fn act_of_treason() -> Arc<CardData> {
                 // card says "target creature" once, and "that creature" and
                 // "it" are back-references to it, not new clauses.
                 gain_control_of(target_creature()).until_end_of_turn(),
-                untap(that_target(0)),
-                gains_keyword(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
+                untap(the_target()),
+                gains_keyword(the_target(), KeywordFlag::Haste).until_end_of_turn(),
             ]),
         ))
         .build()

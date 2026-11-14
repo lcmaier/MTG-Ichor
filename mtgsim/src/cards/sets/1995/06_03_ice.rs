@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     an_opponent_controls, at_beginning_of, create_delayed_trigger, creature, deal_damage, draw_cards, each, gain_control_of, gain_life, gains_keyword,
-    referred, spell_ability, tap, target_permanent, that_target, untap, whenever, you, you_lose_control_of, Whose,
+    referred, spell_ability, tap, target_permanent, the_target, untap, whenever, you, you_lose_control_of, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -139,8 +139,8 @@ pub fn ray_of_command() -> Arc<CardData> {
             // are back-references to it.
             Effect::Sequence(vec![
                 untap(target_permanent(creature_an_opponent_controls)),
-                Effect::Remember(Box::new(gain_control_of(that_target(0)).until_end_of_turn())),
-                gains_keyword(that_target(0), KeywordFlag::Haste).until_end_of_turn(),
+                Effect::Remember(Box::new(gain_control_of(the_target()).until_end_of_turn())),
+                gains_keyword(the_target(), KeywordFlag::Haste).until_end_of_turn(),
                 create_delayed_trigger(you(), tap_it),
             ]),
         ))

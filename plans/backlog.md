@@ -1450,7 +1450,7 @@ mechanic rather than a migration, which is why it is here and not in
   `performance` and found a live bug on `stress` (`codebase-state.md` item 152).
 - **CR 601.2d shipped as `divided-among-targets`**: its as-built is
   `choices-architecture.md`'s, and what is left of a division is the untargeted
-  half (CR 608.2d), `costs-and-choices-at-resolution`'s.
+  half (CR 608.2d), `choose-as-an-effect-resolves`'s.
 - **The rest of this entry is the record of the design as it was sized**, kept
   because the atoms and the card counts are still what A4j is sized against.
 
@@ -2639,6 +2639,14 @@ things wait on it:
   a repeat can't be written. Today it is a pick of (creature, target) pairs, one
   per creature by `attacks_fit`. A client's gestures, such as Arena's one click on
   a target for every attacker, read off that data (the owner, 2026-11-05, #310).
+- **The error a client is handed** (the owner, 2026-11-14, at #324's review).
+  About 200 engine signatures return `Result<_, String>`. Nearly every string is
+  a wiring error no caller branches on, and where one does the engine already
+  has a typed enum (`CannotPay`, `CannotCast`), which the process PR at #340
+  makes the rule (`plans/handoffs/process-pr.md`). The migration to a typed engine error is
+  mechanical and moves no game; it is designed with what a client is handed, so
+  a client's error is shaped once. A suspend by replay (open question 1) needs a
+  typed error too.
 
 **Open question 1: where the engine runs.** `roadmap-v2.md` §E and §6 named
 Wasm; they point here now and leave it open. In a browser tab the blocking

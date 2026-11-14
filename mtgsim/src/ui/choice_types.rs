@@ -181,6 +181,21 @@ pub enum ChoiceKind {
     /// object.
     ApplyOptionalEffect { source: ObjectId },
 
+    /// CR 118.12 — a cost paid as `source` resolves: "you may pay {1}",
+    /// "unless its controller pays {3}" (118.12a), ward's (702.21a). Pay or
+    /// don't, asked of the payer as [`Self::ApplyOptionalEffect`] is, and only
+    /// of one who can pay (CR 118.3). `offer` is the costs, in the order they
+    /// are paid, and `any_amount_of` the unit an amount chosen next pays
+    /// ({X}'s {1}, Leyline Tyrant's {R}), so a client can tell a payment from
+    /// a gift without the card.
+    PayAsItResolves { source: ObjectId, offer: Vec<Cost>, any_amount_of: Option<crate::types::mana::ManaCost> },
+
+    /// CR 107.3f — how many of `unit` the payer pays of an "any amount" as
+    /// `source` resolves, which is the resolution's X: a `pick_number` over
+    /// the interval of amounts they can pay, as [`Self::ChooseXValue`] asks.
+    /// One amount is answered unasked.
+    ChooseAmountToPay { source: ObjectId, unit: crate::types::mana::ManaCost, values: Box<crate::oracle::x_values::XOffer> },
+
     /// CR 615.7 — a "prevent the next N damage" effect applies to damage from
     /// two or more sources at once, and the affected player (or the affected
     /// permanent's controller) chooses which damage it prevents.
@@ -435,6 +450,8 @@ impl ChoiceKind {
             ChoiceKind::ChooseReplacementEffect { affected_object } => *affected_object,
             ChoiceKind::ApplyOptionalReplacement { source, .. } => Some(*source),
             ChoiceKind::ApplyOptionalEffect { source } => Some(*source),
+            ChoiceKind::PayAsItResolves { source, .. } => Some(*source),
+            ChoiceKind::ChooseAmountToPay { source, .. } => Some(*source),
             ChoiceKind::AllocateNextDamage { source, .. } => Some(*source),
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseDelayedTriggerEvent { source } => Some(*source),
@@ -480,6 +497,8 @@ impl ChoiceKind {
             ChoiceKind::ChooseReplacementEffect { .. } => "ChooseReplacementEffect",
             ChoiceKind::ApplyOptionalReplacement { .. } => "ApplyOptionalReplacement",
             ChoiceKind::ApplyOptionalEffect { .. } => "ApplyOptionalEffect",
+            ChoiceKind::PayAsItResolves { .. } => "PayAsItResolves",
+            ChoiceKind::ChooseAmountToPay { .. } => "ChooseAmountToPay",
             ChoiceKind::AllocateNextDamage { .. } => "AllocateNextDamage",
             ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
             ChoiceKind::ChooseDelayedTriggerEvent { .. } => "ChooseDelayedTriggerEvent",

@@ -1018,7 +1018,8 @@ division.
 | **`modes-chosen-and-resolved` — a mode chosen, targeted and resolved**, the first of `modal-spells-and-abilities`' two | decisions 2 and 3's core: the node's count (fixed, a range, X asked first, a count a condition raises) and its chooser as a field, the enumerator over the legal sets and castability that reads it, `ModeIndex`, `chosen_modes` written under decision 3's A (items 31 and 153), each mode's own instance list, the resolution of the chosen modes, CR 603.3c's removal | Abrade, Prismari Command, Casualties of War; fixtures for a modal trigger, a modal activation, a count of X and a raised count; Momentous Fall registered, its fixture removed | ~1,500–2,300 with its tests, by the brief | |
 | **`mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost**, the second | CR 700.2e's opponent choosing, a mode repeated past the number of modes (700.2d), pawprints (700.2i), the record of what an ability chose before, a mode's own cost (item 81, 700.2h), both halves of item 154 | Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost | ~1,410–2,380 with its tests and the brief's additions, re-counted at its intake; ~1,710–2,980 with the picker | |
 | **`mode-picker` — the dev GUI asks for modes one at a time**, split from the second at its intake's point | decision 2's "For the GUIs": `ChooseModes` drawn as a checkbox per mode, or a count where modes repeat, each enabled while some offered set still holds the picks, Confirm while the picks are one; plain Rust over the offered list under tests, egui only drawing | the dev GUI, with a review path: files by review mode, a click script, pictures | ~300–600, a guess from #312 | |
-| **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~600–950 | ~550–850 |
+| **`pay-as-an-effect-resolves` — a cost paid as an effect resolves**, the first of `costs-and-choices-at-resolution`'s two | decision 4: `Pay`, the window at resolution, an amount chosen as it is paid, "any player may", ward; item 418's two comments | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~1,350–2,100 with its tests, by the brief | |
+| **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted | ~600–950 with its tests, the row's rest | |
 | **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
 **The estimates run low, so read them against the first PR's.** #306's
@@ -1047,6 +1048,13 @@ commander as you cast this spell" needs CR 903.3's designation, which no
 filter reads and nothing outside tests sets (`GameObject.is_commander`), so
 the first PR builds the raised count with a fixture whose condition the engine
 reads.
+
+**`costs-and-choices-at-resolution` split at its brief** (2026-11-13), since
+the row read 2,000–3,050 at the table's 1.7×. The payment is decision 4 whole
+and every card the row names; the second PR is decision 8's `Choose` and the
+division among objects not targeted, which share no code with it. Re-counted
+at the first's intake against `6b99c6ce`: item 418 rides the first, item 240's
+upkeep halves are the first's (Contamination), item 28 is the second's.
 
 **`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
 (the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's
@@ -1286,6 +1294,46 @@ Where it differs from decision 2's words:
   of the ability's text is the count and each line after it a mode. A text with other than a
   line per mode keeps "Mode 1"; no registered card or castable fixture has one, which a
   registry test holds.
+
+### `pay-as-an-effect-resolves` — a cost paid as an effect resolves — ✅ landed 2026-11-13
+
+PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
+- **The payment** (option A): `Primitive::Pay { mana, others, any_amount_of }`, its one mana
+  component paid first, is the whole of an `Effect::Optional`, whose chooser pays; `Effect::unless`
+  writes CR 118.12a's sentence in the card's order, `may_pay` the "may". The `Optional` arm offers it only
+  when the payer can pay (`can_pay_as_it_resolves`: the pool and what their mana abilities could
+  add, castability's own check), so one who cannot is not asked and answers `Doesnt`. Taken: the
+  amount, the cast's own mana window (CR 605.3a), `plan_payment_as_written` (608.2c, no ranks
+  and no order asked), then `pay_costs` under the resolution's cause, and only then X. A window
+  that ends unpaid is a decline, and the mana made stays. Every prompt names the resolving object.
+- **The kinds**: `PayAsItResolves { source, offer, any_amount_of }`, a take or leave, and
+  `ChooseAmountToPay { source, unit, values }`, a `pick_number` as `ChooseXValue` is, each with
+  its words, its why and its setup line.
+- **Who pays**: `PlayerRef::NamedBy(recipient)`, an object naming its controller: "its
+  controller" is an instance's (Mana Leak), "that player" a trigger's (ward). `PlayerRef::AnyPlayer`
+  is asked in APNAP order until one pays (CR 101.4; the Prophecy rulings agree).
+- **An amount** (CR 107.3f): every amount from none to the most the payer can make beside the
+  rest, so an interval, its top found by doubling and halving over the check; the amount chosen
+  is the resolution's X, which "draw X cards" reads and a delayed trigger carries (107.3n).
+- **Item 219's half**: a target under a `Conditional` that names no kicker or mode is announced
+  (CR 601.2c), so Mana Leak's "if they don't, counter target spell" has its target.
+- **The cards**: Mana Leak (pooled), Waterfall Aerialist (`cards::authoring::ward`, on TR-5c's
+  event), Contamination, its RE-9 fixture retired, Rhystic Study and Wild Might; fixtures of
+  Elenda and Azor's and Leyline Tyrant's payments.
+
+Where it differs from decision 4's words:
+- **The offer is the costs, a list**, where `EntryOffer::Pay` carries one, and the unit of an
+  "any amount" beside them.
+- **"Any amount" is a mana unit, `any_amount_of: Option<ManaCost>`**, not an {X} in the cost,
+  since "any amount of {R}" is no generic mana; life and energy wait (item 423). Its values are
+  searched, not MA-2's closed form, with no why for an amount past the top.
+- **Leyline Tyrant's "when you do" waits** for the record of mana spent (item 419); its
+  payment is tested here, as the brief set.
+- **Refused, not built**: a payment outside an `Optional` and "any player" around another
+  action (item 420); a cost the engine cannot check is never offered (item 421); ward {X} (item
+  422).
+- **An amount of none, taken, is a payment** (`Does`, X = 0), CR 118.3a's "players can always
+  pay 0 mana": kept at review, every printed ruling on zero agreeing (Halo Forager's).
 
 ## 6. Found while designing
 

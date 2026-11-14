@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     activated_ability, as_long_as, becomes_color, color, copy, creature, draw_cards, draw_two_instead, gains_ability, gains_keyword,
     nonlegendary_creature, persist, remove_counters, spell_ability, static_ability, static_replacement, tapped_for_mana, target_creature,
-    target_permanent, that_target, this_object, untap, you, you_have, ContinuousChange,
+    target_permanent, the_target, this_object, untap, you, you_have, ContinuousChange,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
@@ -43,7 +43,7 @@ pub fn cerulean_wisps() -> Arc<CardData> {
             "Target creature becomes blue until end of turn. Untap that creature.",
             Effect::Sequence(vec![
                 becomes_color(target_creature(), [Color::Blue]).until_end_of_turn(),
-                untap(that_target(0)),
+                untap(the_target()),
             ]),
         ))
         .ability(spell_ability(

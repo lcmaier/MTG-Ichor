@@ -10,13 +10,15 @@ that words the same reading differently is missed, never counted twice.
 Counted 2026-10-19: 124 cards in the union.
 """
 import json
+import os
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
-UA = "MTG-Ichor-Research/1.0 (contact: maiercluke@gmail.com)"
+# A contact address is optional for Scryfall and none is held in the tree.
+UA = "MTG-Ichor-Research/1.0" + (f" (contact: {os.environ['SCRYFALL_CONTACT']})" if os.environ.get("SCRYFALL_CONTACT") else "")
 
 PHRASINGS = [
     # spells cast, narrowed by what they were

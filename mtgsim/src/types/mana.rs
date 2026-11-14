@@ -217,6 +217,16 @@ impl ManaCost {
         ManaCost { symbols }
     }
 
+    /// The cost with `n` copies of `unit` after it: "any amount of [unit]"
+    /// once the amount is chosen (CR 107.3f).
+    pub fn with_copies_of(&self, unit: &ManaCost, n: u64) -> ManaCost {
+        let mut symbols = self.symbols.clone();
+        for _ in 0..n {
+            symbols.extend_from_slice(&unit.symbols);
+        }
+        ManaCost { symbols }
+    }
+
     /// Whether any symbol requires player choice (hybrid, Phyrexian, X, generic).
     pub fn has_choices(&self) -> bool {
         self.symbols.iter().any(|s| matches!(s,

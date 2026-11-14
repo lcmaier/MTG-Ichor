@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::authoring::{
     at_beginning_of, create_delayed_trigger, deal_damage, deal_damage_divided, destroy, distribute_counters, divided_among, draw_cards,
-    prevent_the_next_damage_divided, referred, spell_ability, that_target, whenever, you, Whose,
+    prevent_the_next_damage_divided, referred, spell_ability, the_target, whenever, you, Whose,
 };
 use mtgsim::cards::fixtures::{
     dragonlord_atarka_fixture, elven_rite_fixture, magma_opus_fixture, meteor_swarm_fixture, mogg_mob_fixture, remedy_fixture, rolling_thunder_fixture,
@@ -284,7 +284,7 @@ fn a_later_atom_naming_the_instance_reads_no_share() {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            Effect::Sequence(vec![deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 2), 3), deal_damage(that_target(0), 1)]),
+            Effect::Sequence(vec![deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 2), 3), deal_damage(the_target(), 1)]),
         ))
         .build();
     let spell = put_in_hand(&mut game, card, 0);

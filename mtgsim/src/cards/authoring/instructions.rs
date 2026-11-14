@@ -20,10 +20,12 @@
 
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::PhaseType;
+use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, ColorChange, CopyException, CopyRoles, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
+    AmountExpr, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
     ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
+use crate::types::mana::ManaCost;
 use super::recipients::divided_among;
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
@@ -123,6 +125,39 @@ pub fn add_mana(output: ManaOutput) -> Effect {
 /// recipient names, Wild Growth's enchanted land.
 pub fn its_controller_adds(recipient: EffectRecipient, output: ManaOutput) -> Effect {
     Effect::Atom(Primitive::ProduceMana(output), recipient)
+}
+
+/// "[Player] may pay [costs]" (CR 118.12): a cost paid as the effect
+/// resolves, offered only when that player can pay (CR 118.3). An "if [they]
+/// do" or "if [they] don't" after it reads their answer. The costs are
+/// written as the card prints them; their mana is gathered into the one
+/// component `Primitive::Pay` holds.
+pub fn may_pay(player: PlayerRef, costs: Vec<Cost>) -> Effect {
+    let (mana, others) = Cost::split_out_mana_costs(costs);
+    offered_to(player, Primitive::Pay { mana: mana.map(ManaCost::from_symbols), others, any_amount_of: None })
+}
+
+/// "[Player] may pay any amount of [each]" (CR 107.3f): how many is chosen as
+/// they pay, and it is the resolution's X.
+pub fn may_pay_any_amount_of(player: PlayerRef, each: ManaCost) -> Effect {
+    offered_to(player, Primitive::Pay { mana: None, others: Vec::new(), any_amount_of: Some(each) })
+}
+
+/// `pay` offered to `player`: the `Effect::Optional` a payment is the whole
+/// of, its chooser the payer and its recipient the instruction's own player.
+fn offered_to(player: PlayerRef, pay: Primitive) -> Effect {
+    Effect::Optional { chooser: player, effect: Box::new(Effect::Atom(pay, EffectRecipient::Implicit)) }
+}
+
+impl Effect {
+    /// "[This effect] unless [player] pays [costs]" (CR 118.12a), written in
+    /// the order the card prints it: Mana Leak is
+    /// `counter_spell(target_spell()).unless(its_controller(the_target()), three)`.
+    /// It "means the same thing as" "[player] may pay [costs]. If they don't,
+    /// [this effect]", and is built as that sentence.
+    pub fn unless(self, player: PlayerRef, costs: Vec<Cost>) -> Effect {
+        Effect::Sequence(vec![may_pay(player, costs), Effect::Conditional(Condition::CostAnswer(CostAnswer::Doesnt), Box::new(self))])
+    }
 }
 
 /// "[Recipient] gains [amount] life" (CR 119.3).
