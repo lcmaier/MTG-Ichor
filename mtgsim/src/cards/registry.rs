@@ -7,7 +7,7 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
+    mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
     uds, ulg, usg,
     vis, war, wth, wwk, zen, znr,
 };
@@ -28,7 +28,7 @@ use super::sets::{
 /// seed-deterministic rows — turns, spells cast, creatures died — are what an
 /// addition invalidates and what still has to be re-measured. Registering a
 /// card is still not the same act as adding one here.
-const PERFORMANCE_POOL: [&str; 127] = [
+const PERFORMANCE_POOL: [&str; 128] = [
     "Plains",
     "Island",
     "Swamp",
@@ -566,6 +566,13 @@ const PERFORMANCE_POOL: [&str; 127] = [
     // registered and stay out: the same payment, and Contamination turns
     // every land's mana black.
     "Mana Leak",
+    // CR 608.2d's choice and division as an effect applies: a "choose" asked
+    // of its controller as it resolves, never at placement, and the split
+    // among what was chosen. Two mana, no target, and its end step trigger
+    // comes up whenever a creature has died that turn. Final Showdown is
+    // registered and stays out: the same choice behind spree, and its third
+    // mode wipes the board.
+    "Feast of the Victorious Dead",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1226,6 +1233,10 @@ impl CardRegistry {
         registry.register("Wild Might", pcy::wild_might);
         // An X in the payment, the X announced for the spell (CR 107.3a).
         registry.register("Clash of Wills", ori::clash_of_wills);
+        // CR 608.2d's choices as an effect applies: a creature chosen behind
+        // a spree mode, and counters divided among creatures not targeted.
+        registry.register("Final Showdown", otj::final_showdown);
+        registry.register("Feast of the Victorious Dead", mat::feast_of_the_victorious_dead);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);
@@ -1756,8 +1767,9 @@ mod instance_references {
         }
     }
 
-    /// CR 601.2d's total has two homes: the clause carries it to the
-    /// announcement and the atom prints it. Nothing reads the atom's copy, so
+    /// A division's total has two homes: the clause carries it to the
+    /// announcement (CR 601.2d) or to the choice made as the effect applies
+    /// (608.2d), and the atom prints it. Nothing reads the atom's copy, so
     /// this is what keeps them one number, on every card and castable fixture.
     /// A shield prints none, each row's count being its target's share.
     #[test]
@@ -1770,7 +1782,10 @@ mod instance_references {
         for name in names {
             for ability in (pool.cards[name.as_str()])().abilities.iter() {
                 for_each_atom(&ability.effect, &mut |primitive, recipient| {
-                    let EffectRecipient::Target(_, TargetCount::Divided(clause)) = recipient else { return };
+                    let (EffectRecipient::Target(_, TargetCount::Divided(clause)) | EffectRecipient::Choose(_, TargetCount::Divided(clause))) = recipient
+                    else {
+                        return;
+                    };
                     divided += 1;
                     match primitive {
                         Primitive::DealDamage { amount, .. } | Primitive::AddCounters { amount, .. } => {
@@ -1782,7 +1797,7 @@ mod instance_references {
                 });
             }
         }
-        assert!(divided >= 8, "the walk found {divided} divided atoms, and Arc Lightning and seven fixtures print one each");
+        assert!(divided >= 9, "the walk found {divided} divided atoms; Arc Lightning, Feast of the Victorious Dead and seven fixtures print one each");
     }
 
     /// A second change in one sentence ("gets +1/+0 and gains first strike

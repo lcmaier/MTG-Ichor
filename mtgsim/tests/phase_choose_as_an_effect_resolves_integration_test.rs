@@ -6,20 +6,22 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{creatures_you_control, spell_ability};
-use mtgsim::cards::printings::{grizzly_bears, savannah_lions};
+use mtgsim::cards::printings::{feast_of_the_victorious_dead, final_showdown, grizzly_bears, savannah_lions};
+use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::oracle::mana_helpers::castable_spells;
-use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game, test_dp, vanilla_creature};
+use mtgsim::state::game_state::{GameState, StepType};
+use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_game, test_ctx, test_dp, vanilla_creature};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, DividedCount, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, CounterType, DividedCount, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -219,4 +221,172 @@ fn a_division_with_one_object_to_choose_puts_everything_on_it() {
     game.resolve_top_of_stack(&at_resolution).expect("the spell resolves");
     assert!(the_asked(&at_resolution).is_empty(), "one choice and one split are no question");
     assert_eq!(plus_ones(&game, bears), 3);
+}
+
+// ---------------------------------------------------------------------------
+// The printed cards
+// ---------------------------------------------------------------------------
+
+/// The script's next answer: the spree modes at `places`.
+fn chooses_modes(answers: &ScriptedDecisionProvider, places: &[u8]) {
+    answers.expect_choice(ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() }, vec![ChoiceOption::modes(places)]);
+}
+
+/// Final Showdown cast by player 0 with the modes at `places`, from enough
+/// white mana for every mode. What casting it asked.
+fn cast_final_showdown(game: &mut GameState, places: &[u8]) -> Vec<&'static str> {
+    let showdown = put_in_hand(game, final_showdown(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 8);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, places);
+    let seat = ManaWindowStop::new(answers);
+    game.cast_spell(0, showdown, &seat).expect("castable");
+    the_asked(&seat.into_inner())
+}
+
+// RULING: Final Showdown #1 - "The second mode of Final Showdown doesn't target the creature. You don't choose which creature will gain indestructible until the spell is resolving. At that point, it's too late for anyone to respond to the spell."
+#[test]
+fn final_showdown_chooses_its_creature_as_it_resolves() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
+
+    assert_eq!(cast_final_showdown(&mut game, &[2]), ["ChooseModes"], "no creature is named as it is cast");
+    let at_resolution = ScriptedDecisionProvider::new();
+    picks(&at_resolution, vec![ChoiceOption::Object(lions)]);
+    game.resolve_top_of_stack(&at_resolution).expect("it resolves");
+
+    assert_eq!(the_asked(&at_resolution), ["SelectRecipients"]);
+    assert!(has_keyword(&game, lions, KeywordFlag::Indestructible));
+    assert!(!has_keyword(&game, bears, KeywordFlag::Indestructible));
+}
+
+/// All three modes, in printed order (CR 700.2): every creature loses its
+/// abilities, then the creature chosen gains indestructible, later than the
+/// loss (CR 613.7), then every creature is destroyed. The chosen one stays;
+/// player 0's other creature and player 1's printed-indestructible one die.
+// RULING: Final Showdown #2 - "If an effect grants a creature an ability after Final Showdown causes all creatures to lose all abilities, that creature won't lose that ability."
+// RULING: Final Showdown #8 - "No matter which modes you choose, you always follow the instructions in the order they are written."
+#[test]
+fn final_showdown_spares_the_creature_it_chose() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Indestructible]), 1);
+
+    cast_final_showdown(&mut game, &[1, 2, 3]);
+    let at_resolution = ScriptedDecisionProvider::new();
+    picks(&at_resolution, vec![ChoiceOption::Object(bears)]);
+    game.resolve_top_of_stack(&at_resolution).expect("it resolves");
+    game.perform_sba_and_triggers(&test_dp()).unwrap();
+
+    assert!(game.battlefield.contains_key(&bears), "the creature chosen survives");
+    assert!(!game.battlefield.contains_key(&lions));
+    assert!(!game.battlefield.contains_key(&theirs), "its indestructible was lost before the wipe");
+}
+
+/// `creature` dies: put into its owner's graveyard from the battlefield (CR
+/// 700.4).
+fn dies(game: &mut GameState, creature: ObjectId) {
+    game.change_zone(creature, Zone::Graveyard, ZoneChangeAct::Sacrificed, &test_ctx()).unwrap();
+}
+
+/// Walk the turn to player 0's end step, its triggers placed; libraries are
+/// filled so a draw on the way is not a loss.
+fn to_the_end_step(game: &mut GameState) {
+    for p in 0..game.num_players() {
+        fill_library(game, p, 10);
+    }
+    for _ in 0..20 {
+        game.advance_turn(&test_dp()).expect("advancing");
+        if game.active_player == 0 && game.phase.step == Some(StepType::End) {
+            game.perform_sba_and_triggers(&test_dp()).unwrap();
+            return;
+        }
+    }
+    panic!("player 0's end step never began");
+}
+
+/// Feast of the Victorious Dead on player 0's side with the Bears and the
+/// Lions, and two creatures of player 1's: the board and the creatures.
+fn feast_board() -> (GameState, ObjectId, ObjectId, [ObjectId; 2]) {
+    let mut game = setup_game(2);
+    put_on_battlefield(&mut game, feast_of_the_victorious_dead(), 0);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
+    let theirs = [put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1), put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1)];
+    (game, bears, lions, theirs)
+}
+
+/// The trigger announces nothing, and its controller divides the counters
+/// as it resolves: three deaths, three life and three counters split two
+/// and one.
+// RULING: Feast of the Victorious Dead #3 - "The ability doesn't target any creatures. You choose how the counters are distributed as the ability resolves."
+#[test]
+fn feast_of_the_victorious_dead_divides_its_counters_as_it_resolves() {
+    let (mut game, bears, lions, theirs) = feast_board();
+    let third = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    theirs.into_iter().chain([third]).for_each(|creature| dies(&mut game, creature));
+    to_the_end_step(&mut game);
+    let feast = *game.stack.last().expect("Feast triggered");
+    assert!(game.stack_entries[&feast].announced.targets().next().is_none(), "no creature is named as it is put on the stack");
+
+    let at_resolution = ScriptedDecisionProvider::new();
+    picks(&at_resolution, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
+    divides(&at_resolution, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Object(lions), 2)]);
+    game.resolve_top_of_stack(&at_resolution).expect("it resolves");
+
+    assert_eq!(the_asked(&at_resolution), ["SelectRecipients", "DivideAmong"]);
+    assert_eq!(game.players[0].life_total, 23);
+    assert_eq!((plus_ones(&game, bears), plus_ones(&game, lions)), (1, 2));
+}
+
+/// One death before the end step makes it trigger; a second, in response,
+/// counts too, since the deaths are counted as it resolves.
+// RULING: Feast of the Victorious Dead #1 - "If no creatures have died by the time your end step begins, the ability of Feast of the Victorious Dead won't trigger at all. Provided the ability does trigger, it will count the number of creatures that have died as the ability resolves. In other words, creatures that die in response to the ability will count as long as at least one died previously to have the ability trigger in the first place."
+#[test]
+fn feast_of_the_victorious_dead_counts_the_deaths_as_it_resolves() {
+    let (mut game, bears, lions, theirs) = feast_board();
+    dies(&mut game, theirs[0]);
+    to_the_end_step(&mut game);
+    assert_eq!(game.stack.len(), 1, "one death made it trigger");
+    dies(&mut game, theirs[1]);
+
+    let at_resolution = ScriptedDecisionProvider::new();
+    picks(&at_resolution, vec![ChoiceOption::Object(lions)]);
+    game.resolve_top_of_stack(&at_resolution).expect("it resolves");
+
+    assert_eq!(game.players[0].life_total, 22);
+    assert_eq!((plus_ones(&game, bears), plus_ones(&game, lions)), (0, 2), "both counters on the one creature chosen");
+}
+
+/// No death, no trigger: the intervening "if" (CR 603.4).
+#[test]
+fn feast_of_the_victorious_dead_does_not_trigger_without_a_death() {
+    let (mut game, _, _, _) = feast_board();
+    to_the_end_step(&mut game);
+    assert!(game.stack.is_empty());
+    assert_eq!(game.players[0].life_total, 20);
+}
+
+/// A token that died counts, and so does a card exiled from the graveyard
+/// since it died.
+// RULING: Feast of the Victorious Dead #2 - "The ability will count any creature that died, including token creatures. For nontoken creatures that died, it doesn't matter if the cards are still in the graveyard."
+#[test]
+fn feast_of_the_victorious_dead_counts_a_token_and_a_card_no_longer_in_the_graveyard() {
+    let (mut game, bears, _, theirs) = feast_board();
+    let before = game.battlefield_ids_ordered();
+    let token = TokenDef::creature(1, 1, &[Color::White], &[]);
+    game.execute_action(GameAction::CreateTokens { defs: vec![token], controller: 1, attacking: None }, &test_ctx()).unwrap();
+    let token = game.battlefield_ids_ordered().into_iter().find(|id| !before.contains(id)).expect("the token entered");
+    dies(&mut game, token);
+    dies(&mut game, theirs[0]);
+    game.change_zone(theirs[0], Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    to_the_end_step(&mut game);
+
+    let at_resolution = ScriptedDecisionProvider::new();
+    picks(&at_resolution, vec![ChoiceOption::Object(bears)]);
+    game.resolve_top_of_stack(&at_resolution).expect("it resolves");
+    assert_eq!(game.players[0].life_total, 22, "the token and the exiled card both count");
+    assert_eq!(plus_ones(&game, bears), 2);
 }

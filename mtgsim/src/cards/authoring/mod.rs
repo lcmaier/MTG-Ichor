@@ -35,7 +35,7 @@ pub use abilities::{
 pub use instructions::{
     add_mana, add_phases, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, cant_for, copy, counter_spell,
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, create_tokens, deal_damage,
-    deal_damage_divided, deal_damage_unpreventable, destroy, discard, distribute_counters, draw_cards, exile, exile_until, gain_control_of,
+    deal_damage_divided, deal_damage_unpreventable, destroy, discard, distribute_counters, distribute_counters_among_chosen, draw_cards, exile, exile_until, gain_control_of,
     gain_life, gains_ability, gains_keyword, get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life,
     lose_the_game, loses_all_abilities, may_pay, may_pay_any_amount_of, mill, prevent_the_next_damage_divided, prevent_the_next_n_damage_this_turn,
     put_counters, remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
@@ -47,8 +47,8 @@ pub use modes::{
     choose_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to, spree,
 };
 pub use recipients::{
-    an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, color, creature,
-    creatures_you_control, divided_among, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
+    an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, chosen_permanent, color,
+    creature, creatures_you_control, divided_among, divided_among_chosen, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
     nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_opponent, target_permanent, target_player,
     target_spell, targets, that_player, that_target, the_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
     you_control, your_opponents_control,

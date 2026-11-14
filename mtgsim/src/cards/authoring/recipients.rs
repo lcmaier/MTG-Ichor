@@ -96,6 +96,23 @@ pub fn another_target(filter: SelectionFilter) -> EffectRecipient {
 }
 
 // ---------------------------------------------------------------------------
+// CR 115.10's objects chosen, not targeted
+// ---------------------------------------------------------------------------
+
+/// "Choose a [permanent the filter describes]": its controller picks one as
+/// the instruction applies (CR 608.2d), and it is no target (CR 115.10a).
+pub fn chosen_permanent(filter: ObjectFilter) -> EffectRecipient {
+    EffectRecipient::Choose(SelectionFilter::Permanent(filter), TargetCount::Exactly(1))
+}
+
+/// `total` distributed among `among` objects matching `what`, none of them
+/// targets: chosen and divided as the instruction applies, at least one
+/// each (CR 608.2d). [`divided_among`] is the targets' division.
+pub fn divided_among_chosen(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
+    EffectRecipient::Choose(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
+}
+
+// ---------------------------------------------------------------------------
 // Every other recipient, by its rule
 // ---------------------------------------------------------------------------
 

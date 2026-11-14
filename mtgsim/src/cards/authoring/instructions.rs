@@ -26,7 +26,7 @@ use crate::types::effects::{
     ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use crate::types::mana::ManaCost;
-use super::recipients::divided_among;
+use super::recipients::{divided_among, divided_among_chosen};
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
@@ -199,10 +199,19 @@ pub fn deal_damage_divided(what: SelectionFilter, among: TargetCount, total: imp
     deal_damage(divided_among(what, among, total.clone()), total)
 }
 
-/// "Distribute [total] [counter]s among [among] [what]" (CR 601.2d), put by you.
+/// "Distribute [total] [counter]s among [among] target [what]" (CR 601.2d),
+/// put by you.
 pub fn distribute_counters(what: SelectionFilter, among: TargetCount, counter: CounterType, total: impl Into<AmountExpr>) -> Effect {
     let total = total.into();
     put_counters(divided_among(what, among, total.clone()), counter, total)
+}
+
+/// "Distribute [total] [counter]s among [among] [what]", none of them
+/// targets: chosen and divided as the instruction applies (CR 608.2d), put
+/// by you.
+pub fn distribute_counters_among_chosen(what: SelectionFilter, among: TargetCount, counter: CounterType, total: impl Into<AmountExpr>) -> Effect {
+    let total = total.into();
+    put_counters(divided_among_chosen(what, among, total.clone()), counter, total)
 }
 
 /// "Prevent the next [total] damage that would be dealt this turn to [among]
