@@ -1211,7 +1211,8 @@ What they settle is cited where it is used.
 
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
-| What a unit's source was: its answers to the watched questions | as `ProduceMana` is performed, from the source's characteristics then, or as it last existed if its own cost moved it (a Treasure, CR 608.2h) | latched (decision 1 puts this to the owner as a rules question) | on the unit, in the pool | a `{S}` pip; a cost that names its mana (decision 3); the spent record | when the unit is spent or lost. Drain Power moves it intact (CR 106.13) |
+| What a unit's source was: which of the watched kinds of source | as `ProduceMana` is performed, from the source's characteristics then, or as it last existed if its own cost moved it (a Treasure, CR 608.2h) | latched: read once, as the mana is made (the owner, 2026-11-13, with the judges' answer) | on the unit, in the pool | a `{S}` pip; a cost that names its mana (decision 3); the spent record | when the unit is spent or lost. Drain Power moves it intact (CR 106.13) |
+| Which object a unit's source was | at the same moment, and only where an ability then reads that object's own mana (decision 1's open question is whether it is kept always) | latched | on the unit | a trigger that asks for mana its own source produced (Tecutlan, the Searing Rift) | with the unit, then with the record of what was spent |
 | A unit's restriction and its riders | at the same moment, from the ability's text. A type or color the source chose as it entered is read then | latched. A restriction's or rider's own condition reads the spell as the mana is spent (Path of Ancestry's ruling, 2023-07-28) | on the unit | the payment's edge test; the existence check | with the unit. A change of type keeps them (Kruphix's ruling, 2014-04-26) |
 | A delayed-trigger rider's source and controller | at the same moment: the source of the ability that made the mana, as an existence, and the player who controlled that ability (CR 603.7d–e) | latched | on that rider alone, so mana with only a restriction keeps no object | the trigger, as it is put on the stack | with the unit |
 | How long a unit is kept | at the same moment | latched | on the unit | the emptying | **ahead of the unit**: when its turn or combat ends, the effect expires before the mana empties (CR 500.5). If something else then keeps the unit, it stays without this term and regroups with mana like it |
@@ -1240,34 +1241,42 @@ Changing it after the build re-opens all three build rows.
 of them, and no further: every difference the pool keeps is a difference the
 payment may have to ask about (decision 2). The table above says what can be
 read: a type, parts of the source's type line, whether the source was a
-permanent, and the terms.
+permanent, for three cards which object the source was, and the terms.
 
 - **A. One list of counted units; a unit is its type, what its source was,
   and its terms behind a pointer.**
   ```rust
-  struct ManaUnit { mana_type: ManaType, source_was: SourceAnswers, terms: Option<Arc<ManaTerms>> }
+  struct ManaUnit { mana_type: ManaType, source: ManaSourceFacts, terms: Option<Arc<ManaTerms>> }
   struct ManaUnits { unit: ManaUnit, count: u64 }      // one class of unit, counted
   struct ManaPool { units: Vec<ManaUnits> }            // alike units are one entry
-  struct SourceAnswers(u32);                           // a bit for each question on the watch list
-  struct SourceQuestion { all_of: &'static [SourceTrait], a_permanent: bool }
-  enum SourceTrait { Supertype(Supertype), CardType(CardType), Subtype(Subtype) }
-  struct ManaTerms { restriction: Option<SpendRestriction>, riders: Vec<SpendRider>, kept_until: Option<KeptUntil> }
+  /// What was true of a unit's source as the mana was made (CR 106.3).
+  struct ManaSourceFacts {
+      kinds: ManaSourceKinds,       // which of the watched kinds of source it was
+      object: Option<ObjectRef>,    // which object it was, where an ability reads that
+  }
+  struct ManaSourceKinds(u32);      // a bit for each kind on the watch list
+  /// One kind of source a rule or a card asks about: "a snow source", "a Treasure".
+  struct ManaSourceKind { has_all_of: &'static [ManaSourceCharacteristic], permanents_only: bool }
+  enum ManaSourceCharacteristic { Supertype(Supertype), CardType(CardType), Subtype(Subtype) }
+  struct ManaTerms { restriction: Option<ManaSpendRestriction>, riders: Vec<ManaRider>, lifetime: Option<ManaLifetime> }
+  enum ManaLifetime { UntilEndOfTurn, UntilEndOfCombat }   // `None`: lost as the step or phase ends (CR 106.4)
   ```
-  **Every printed question about a mana's source reads its type line**:
-  snow is a supertype, a Treasure, a Cave and a Desert are subtypes, a
-  creature and an artifact are card types, and a basic land is two of them
-  together. So there is no arm for each noun. One table, the **watch list**,
-  holds the questions a rule or a registered card asks, each a few type-line
-  traits and whether it asks a permanent. CR 109.2 makes "a Treasure" a
-  permanent and "a snow source" an object in any zone (109.2c), so a snow
-  sorcery's mana pays `{S}`, and a creature card's mana made from a hand is
-  not "produced by creatures". The unit holds a bit for each question: its
-  source's answer as the mana was made. The list starts with "a snow
-  source", CR 107.4h's. A card that asks a new question adds it, and a
-  reader can name only a question on the list. The printed readers ask
-  eight: a snow source, a Treasure, a Cave, a Desert, a creature, an
-  artifact, an artifact source, a basic land. The bits are a `u32`, and a
-  thirty-third question widens it.
+  **The watch list.** One table holds each kind of source a rule or a
+  registered card asks about, as a `ManaSourceKind`: the characteristics a
+  source of that kind has, and whether only a permanent counts. CR 109.2
+  makes "a Treasure" a permanent and "a snow source" an object in any zone
+  (109.2c), so a snow sorcery's mana pays `{S}`, and a creature card's mana
+  made from a hand is not "produced by creatures". A unit holds a bit for
+  each kind: whether its source was one as the mana was made. The list
+  starts with "a snow source", CR 107.4h's. The printed readers name eight
+  kinds: a snow source, a Treasure, a Cave, a Desert, a creature, an
+  artifact, an artifact source, a basic land. A reader names a kind on the
+  list and nothing else, and a thirty-third kind widens the `u32`.
+  **Which object.** Three lands ask for mana their own permanent produced
+  (Tecutlan, the Searing Rift), which no kind answers. `object` holds it,
+  and is `None` on every unit whose source nothing asks about, so two
+  Forests' mana is one entry and two Tecutlans' is two. When it is set is
+  the open question below.
   **Two units with equal records are ones no rule can tell apart**, because
   the record holds the answer to every question the engine can ask. The
   converse holds but for two restrictions written differently that permit
@@ -1275,7 +1284,7 @@ permanent, and the terms.
   nothing. `ManaTerms` holds no object: only a delayed-trigger rider keeps
   its source's existence and its controller (decision 4), so two Mishra's
   Workshops' mana is one entry. `terms` is `None` exactly when a unit has no
-  restriction, rider or kept-until, and a `ManaTerms` with all three empty is
+  restriction, rider or lifetime, and a `ManaTerms` with all three empty is
   never built. `ManaUnits` is the one spelling of a counted class, in the
   pool, in the action that loses mana, in the event of spending and in the
   record of what was spent. The two-track pool, `ManaAtom`,
@@ -1309,20 +1318,86 @@ which is most of them, so **A lowers floor 2's count by up to one a seat**
 and holds it while mana floats. Terms are behind an `Arc`, so a clone copies
 a pointer.
 
-The probe's unit held a 16-bit set where this holds a `u32`. Both are 16
-bytes, and an entry 24.
+The probe's unit held a 16-bit set and no object. With `object` an entry is
+about 48 bytes where the probe's was 24: counted from the fields, not
+measured. The allocation count is the same.
 
-**A rules question inside it: is what the source was read once, as the mana
-is made?** CR 106.3 names a mana's source at the moment it is made, and a
-Treasure is already in the graveyard by then, so its facts are last known
-information either way (CR 608.2h). No ruling covers a source that changes
-afterward: a Snow-Covered Forest makes `{G}`, Arcum's Weathervane makes the
-land no longer snow, and the `{G}` is still in the pool. Read once, it pays
-`{S}`. Read live, it does not, and the unit must keep which object made it,
-which is option C. **Recommended: read once**, as the production's own
-event already reads its source. `snow-mana` tests both directions, with
-Arcum's Weathervane or a fixture with its two abilities, so the reading is
-one test's assertion to change.
+**A pool's size is its kinds of mana, never its amount** (the owner asked
+about Nyxbloom Ancient and loops that make mana without limit, 2026-11-13).
+A million `{G}` from Forests is one entry whose count is a million, and a
+clone copies the same 48 bytes for it as for one `{G}`, in the same one
+allocation. Entries number the classes floating: a type, with the kinds of
+source and the terms that are actually in the pool. That is a handful on a
+busy board, a few hundred bytes against floor 3's 128 KB. A tripled
+production adds to a count, since CR 106.6a gives the new mana the same
+terms. `count` is a `u64` because every count of mana in the engine is one
+today. It is the field `GameNumber` takes when `backlog.md`'s loops capture
+gives the engine a number for "arbitrarily large", and nothing else in the
+record changes then.
+
+**How A widens.** The eight printed kinds all read the type line, so
+`ManaSourceCharacteristic` starts with three arms. That is where it starts,
+not what it can hold: a custom card may ask more (the owner, 2026-11-13),
+and each wider question has one place to go.
+
+| A card asks about | It needs | Where |
+|---|---|---|
+| another kind over the type line ("a Gate") | a row | the watch list |
+| a kind over another characteristic of the source ("a red source", "a source with mana value 3 or less") | an arm | `ManaSourceCharacteristic`, read by the one function that fills the bits |
+| which object the source was | nothing new | `ManaSourceFacts::object` |
+| a comparison with the reader, which a yes or no fixed at production cannot hold ("a source that shares a color with this spell") | a field holding the value, here the source's colors | `ManaSourceFacts`, so that equal facts still mean alike units |
+
+What it cannot hold is a question about the source after the mana was made,
+which the rules do not ask (the reading below). The engine's general
+`ObjectFilter` was the other candidate for a kind's description, and is
+wider on day one. It was not taken because several of its leaves ask about
+a live object or about the filter's own source (`ThisTurn`, `NotSource`,
+`ByController`), which a source read once cannot answer, and because a kind
+built from it is not a constant. `ManaSource` is already the inventory's row
+for an ability that can make mana, the same CR 106.3 noun, so these names
+extend it.
+
+**The reading, settled: what the source was is read once, as the mana is
+made** (the owner, 2026-11-13, with the judges' answer). A Snow-Covered
+Forest makes `{G}`, Arcum's Weathervane makes the land no longer snow, and
+the `{G}` in the pool still pays `{S}`. The other direction follows: mana a
+land made before it became snow does not. `snow-mana` tests both, with
+Arcum's Weathervane or a fixture with its two abilities. CR 106.3 names the
+source at that moment, and a Treasure is already in the graveyard by then,
+so its facts are last known information (CR 608.2h).
+
+**An open question, found in round 1: when does a unit keep which object
+made it?** Retrofit cost: low. The field is there under either answer. What
+moves is one function at the production and the payment's grouping of
+entries, about a hundred lines, and no fixture.
+
+Three printed lands read it, each by a trigger on the land itself:
+"Whenever you cast a permanent spell using mana produced by Tecutlan". Two
+Forests' units must be one class, or every payment with spare mana would
+ask which Forest's `{G}` to spend. A Tecutlan's units must not merge with a
+Mountain's, because spending one triggers and spending the other does not.
+
+- **1a. Keep the object where an ability reads it as the mana is made.**
+  The production asks whether its source then has an ability that reads its
+  own mana, and sets `object` if so. Equal records still mean alike units,
+  and a pool has as many entries as it has kinds of mana. It misses one
+  board: a Thespian's Stage makes `{C}`, Upwelling keeps it, the Stage
+  becomes a copy of Tecutlan, and the old `{C}` pays for a permanent spell.
+  A card's name in its text means that object (CR 201.5) and a mana's source
+  is the object that made it (CR 106.3), so the trigger should fire and
+  would not. No ruling covers it.
+- **1b. Keep the object on every unit made by a permanent that is still on
+  the battlefield, and group the entries as the payment asks.** No miss. A
+  pool then has an entry for each land tapped, and "alike" stops being
+  equality of records: the payment groups entries by what an ability on the
+  battlefield can tell apart at that moment, a second definition to keep in
+  step with the readers. A source that has left, a sacrificed Treasure,
+  keeps no object under either answer, since nothing can come to read it.
+
+**Recommended: 1a**, built with the first of the three lands, and the board
+it misses filed as an item with its three cards. It keeps the one
+definition of alike that decision 2 rests on, and 1b is the change above if
+that board is wanted.
 
 **Recommended: A.** It is the only option where "which units differ" has an
 answer the engine can compute, and it is cheaper than today for a clone.
