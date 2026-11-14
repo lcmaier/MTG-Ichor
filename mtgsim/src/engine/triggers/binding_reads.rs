@@ -464,7 +464,7 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         | Primitive::CounterSpell
         | Primitive::CounterAbility
         | Primitive::Counter => TriggerBindingReads::NONE,
-        Primitive::Pay { costs, .. } => costs.iter().fold(TriggerBindingReads::NONE, |reads, cost| reads | cost_reads(cost)),
+        Primitive::Pay { others, .. } => others.iter().fold(TriggerBindingReads::NONE, |reads, cost| reads | cost_reads(cost)),
         Primitive::Mill(n)
         | Primitive::PutTopCardsIntoHand(n)
         | Primitive::Discard(n, _)

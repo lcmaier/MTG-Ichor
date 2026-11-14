@@ -520,7 +520,11 @@ fn paid_insight() -> Arc<CardData> {
     let pay = Effect::Optional {
         chooser: PlayerRef::You,
         effect: Box::new(Effect::Atom(
-            Primitive::Pay { costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Blue], 0))], any_amount_of: Some(ManaCost::build(&[], 1)) },
+            Primitive::Pay {
+                mana: Some(ManaCost::build(&[ManaType::Blue], 0)),
+                others: Vec::new(),
+                any_amount_of: Some(ManaCost::build(&[], 1)),
+            },
             EffectRecipient::Implicit,
         )),
     };
@@ -646,7 +650,10 @@ fn an_amount_left_unpaid_leaves_no_x_for_the_next_payer() {
     let draw = Effect::Conditional(Condition::CostAnswer(CostAnswer::Does), Box::new(draw_cards(you(), AmountExpr::X)));
     let pay = Effect::Optional {
         chooser: any_player(),
-        effect: Box::new(Effect::Atom(Primitive::Pay { costs: Vec::new(), any_amount_of: Some(ManaCost::build(&[], 1)) }, EffectRecipient::Implicit)),
+        effect: Box::new(Effect::Atom(
+            Primitive::Pay { mana: None, others: Vec::new(), any_amount_of: Some(ManaCost::build(&[], 1)) },
+            EffectRecipient::Implicit,
+        )),
     };
     let shared_insight = CardDataBuilder::new("Fixture Shared Insight")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))

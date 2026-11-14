@@ -359,8 +359,9 @@ impl GameState {
     }
 
     /// [`Self::plan_payment`] for a cost paid as an effect resolves (CR
-    /// 118.12): its parts in the order written (CR 608.2c), so none is
-    /// ranked and no order is asked. `source_id` is the object whose text
+    /// 118.12): its mana, then its other parts in the order written (CR
+    /// 608.2c), as `Primitive::Pay` holds them, so none is ranked and no
+    /// order is asked. `source_id` is the object whose text
     /// asks, its costs' "this" (CR 113.7a); `paying_for` the resolving
     /// spell or ability, which the prompts name.
     pub fn plan_payment_as_written(

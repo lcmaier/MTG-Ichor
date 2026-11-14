@@ -528,14 +528,14 @@ impl GameState {
             Effect::Optional { chooser, effect: inner } => {
                 // CR 118.12's payment, and "any player may" asked of each in
                 // turn until one pays (CR 101.4).
-                if let Effect::Atom(Primitive::Pay { costs, any_amount_of }, _) = inner.as_ref() {
+                if let Effect::Atom(Primitive::Pay { mana, others, any_amount_of }, _) = inner.as_ref() {
                     let payers = match chooser {
                         PlayerRef::AnyPlayer => self.players_in_game_apnap(),
                         one => vec![self.player_the_instruction_names(one, &[], ctx, dp)?],
                     };
                     let mut answer = CostAnswer::Doesnt;
                     for payer in payers {
-                        if self.offer_payment(payer, costs, any_amount_of.as_ref(), ctx, dp)? {
+                        if self.offer_payment(payer, mana.as_ref(), others, any_amount_of.as_ref(), ctx, dp)? {
                             answer = CostAnswer::Does;
                             break;
                         }
@@ -3049,31 +3049,30 @@ impl GameState {
     fn offer_payment(
         &mut self,
         payer: PlayerId,
-        costs: &[Cost],
+        mana: Option<&ManaCost>,
+        others: &[Cost],
         any_amount_of: Option<&ManaCost>,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<bool, String> {
-        if costs.iter().filter(|cost| matches!(cost, Cost::Mana(_))).count() > 1 {
-            return Err(format!("{:?}'s payment writes its mana as several costs, which one plan cannot split", ctx.source));
-        }
         // "This" in a cost is the object whose text asks (CR 113.7a); every
         // prompt names what is paid for, the resolving spell or ability.
         let source = ctx.effect_source();
-        if !self.in_game(payer) || !self.can_pay_as_it_resolves(costs, payer, source) {
+        let offer = mana_then(mana.cloned(), others);
+        if !self.in_game(payer) || !self.can_pay_as_it_resolves(&offer, payer, source) {
             return Ok(false);
         }
-        if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, costs.to_vec(), any_amount_of.cloned()) {
+        if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, offer.clone(), any_amount_of.cloned()) {
             return Ok(false);
         }
         let (costs, amount) = match any_amount_of {
             Some(unit) => {
                 let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
-                let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, costs, unit, on_the_battlefield);
+                let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, &offer, unit, on_the_battlefield);
                 let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, unit.clone(), values);
-                (with_amount_of(costs, unit, amount), Some(amount))
+                (mana_then(Some(with_amount_of(mana, unit, amount)), others), Some(amount))
             }
-            None => (costs.to_vec(), None),
+            None => (offer, None),
         };
         self.run_mana_ability_window(payer, ctx.source, &costs, dp);
         if self.can_pay_costs(&costs, payer, source).is_err() {
@@ -3420,19 +3419,19 @@ fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> Strin
     )
 }
 
-/// `costs` with `amount` of `each` added to its mana, which is one cost
-/// (`offer_payment` refuses two), or a mana cost of its own after the rest.
-fn with_amount_of(costs: &[Cost], each: &ManaCost, amount: u64) -> Vec<Cost> {
-    let more = (0..amount).flat_map(|_| each.symbols.iter().copied());
-    let mut costs = costs.to_vec();
-    match costs.iter_mut().find_map(|cost| match cost {
-        Cost::Mana(mana) => Some(mana),
-        _ => None,
-    }) {
-        Some(mana) => mana.symbols.extend(more),
-        None => costs.push(Cost::Mana(ManaCost::from_symbols(more.collect()))),
+/// A payment's costs as `plan_payment_as_written` pays them: its mana
+/// component first, then the rest in the order written.
+fn mana_then(mana: Option<ManaCost>, others: &[Cost]) -> Vec<Cost> {
+    mana.map(Cost::Mana).into_iter().chain(others.iter().cloned()).collect()
+}
+
+/// `mana` with `amount` of `each` added: an "any amount" chosen (CR 107.3f).
+fn with_amount_of(mana: Option<&ManaCost>, each: &ManaCost, amount: u64) -> ManaCost {
+    let mut symbols = mana.map(|mana| mana.symbols.clone()).unwrap_or_default();
+    for _ in 0..amount {
+        symbols.extend_from_slice(&each.symbols);
     }
-    costs
+    ManaCost::from_symbols(symbols)
 }
 
 /// Each target CR 608.2b left in `survivors` with its share of `division`,

@@ -128,16 +128,24 @@ pub fn its_controller_adds(recipient: EffectRecipient, output: ManaOutput) -> Ef
 }
 
 /// "[Player] may pay [costs]" (CR 118.12): a cost paid as the effect
-/// resolves, in the order written, offered only when that player can pay (CR
-/// 118.3). An "if [they] do" or "if [they] don't" after it reads their answer.
+/// resolves, offered only when that player can pay (CR 118.3). An "if [they]
+/// do" or "if [they] don't" after it reads their answer. The costs are
+/// written as the card prints them; their mana is gathered into the one
+/// component `Primitive::Pay` holds.
 pub fn may_pay(player: PlayerRef, costs: Vec<Cost>) -> Effect {
-    Effect::Optional { chooser: player, effect: Box::new(Effect::Atom(Primitive::Pay { costs, any_amount_of: None }, EffectRecipient::Implicit)) }
+    let (mana, others) = Cost::split_out_mana_costs(costs);
+    offered_to(player, Primitive::Pay { mana: mana.map(ManaCost::from_symbols), others, any_amount_of: None })
 }
 
 /// "[Player] may pay any amount of [each]" (CR 107.3f): how many is chosen as
 /// they pay, and it is the resolution's X.
 pub fn may_pay_any_amount_of(player: PlayerRef, each: ManaCost) -> Effect {
-    let pay = Primitive::Pay { costs: Vec::new(), any_amount_of: Some(each) };
+    offered_to(player, Primitive::Pay { mana: None, others: Vec::new(), any_amount_of: Some(each) })
+}
+
+/// `pay` offered to `player`: the `Effect::Optional` a payment is the whole
+/// of, its chooser the payer and its recipient the instruction's own player.
+fn offered_to(player: PlayerRef, pay: Primitive) -> Effect {
     Effect::Optional { chooser: player, effect: Box::new(Effect::Atom(pay, EffectRecipient::Implicit)) }
 }
 

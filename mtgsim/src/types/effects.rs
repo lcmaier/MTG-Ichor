@@ -2714,13 +2714,24 @@ pub enum Primitive {
 
     // === A cost paid as the effect resolves (CR 118.12) ===
     /// "You may pay {1}", "unless its controller pays {3}" (CR 118.12a), ward's
-    /// (702.21a), "sacrifice this unless you sacrifice a creature": `costs`, paid
-    /// as the effect resolves, in the order written (CR 608.2c), by the chooser
-    /// of the `Effect::Optional` it is the whole of. Offered only when that
-    /// player can pay (CR 118.3), with mana abilities activated first (CR
-    /// 605.3a). `any_amount_of` is "any amount of {R}": the payer chooses how
-    /// many of it they pay as they pay (CR 107.3f), which is the resolution's X.
-    Pay { costs: Vec<crate::types::costs::Cost>, any_amount_of: Option<super::mana::ManaCost> },
+    /// (702.21a), "sacrifice this unless you sacrifice a creature": paid as the
+    /// effect resolves by the chooser of the `Effect::Optional` it is the whole
+    /// of, offered only when that player can pay (CR 118.3), with mana
+    /// abilities activated first (CR 605.3a).
+    ///
+    /// `mana` is the payment's one mana component, `None` where it has none,
+    /// since one payment plan splits one component's generic part. It is paid
+    /// first, and `others` after it in the order written (CR 608.2c): where a
+    /// card prints its mana among the rest is no order anyone sees, since the
+    /// window that makes the mana runs before anything is paid.
+    /// `any_amount_of` is "any amount of {R}": the payer chooses how many of
+    /// it they add to `mana` as they pay (CR 107.3f), which is the
+    /// resolution's X.
+    Pay {
+        mana: Option<super::mana::ManaCost>,
+        others: Vec<crate::types::costs::Cost>,
+        any_amount_of: Option<super::mana::ManaCost>,
+    },
 }
 
 impl Primitive {
