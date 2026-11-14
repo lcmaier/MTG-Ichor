@@ -843,6 +843,32 @@ impl Condition {
             | Condition::CostAnswer(_) => false,
         }
     }
+
+    /// Does this name a choice made casting the spell, a cost (a kicker's)
+    /// or a mode, which CR 601.2c lets a target be required only under? A
+    /// target under any other condition is announced always, and read past
+    /// when the condition is false. Matched in full, so a new leaf says which
+    /// it is.
+    pub fn names_a_casting_choice(&self) -> bool {
+        match self {
+            Condition::SpellWasKicked | Condition::ModeChosen(_) => true,
+            Condition::All(clauses) => clauses.iter().any(Condition::names_a_casting_choice),
+            Condition::Not(clause) => clause.names_a_casting_choice(),
+            Condition::Player { .. }
+            | Condition::DefendingPlayer { .. }
+            | Condition::HostMatches(_)
+            | Condition::SourceUntapped
+            | Condition::SourceTapped
+            | Condition::CounterCount { .. }
+            | Condition::ThisTurn(..)
+            | Condition::LastTurn(..)
+            | Condition::SinceYourLastTurn(..)
+            | Condition::ThisGame(..)
+            | Condition::ResolvedThisTurn(_)
+            | Condition::CounterCountReached { .. }
+            | Condition::CostAnswer(_) => false,
+        }
+    }
 }
 
 /// CR 118.12's answer, in the rule's words: whether the player "does,
@@ -3077,6 +3103,10 @@ impl Effect {
             // chosen as the ability is put on the stack and the choice made as
             // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
             Effect::Optional { effect, .. } => effect.for_each_instance(f),
+            // CR 601.2c: a target under "if they don't" is announced as any
+            // other is. One a kicker or a mode requires is `remaining-costs`'
+            // (`codebase-state.md` item 219), and not walked.
+            Effect::Conditional(condition, effect) if !condition.names_a_casting_choice() => effect.for_each_instance(f),
             // Remembering what an instruction acts on changes nothing about
             // what it targets.
             Effect::Remember(effect) => effect.for_each_instance(f),

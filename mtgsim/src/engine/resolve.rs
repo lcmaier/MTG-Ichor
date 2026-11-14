@@ -505,6 +505,10 @@ impl GameState {
                     let answer = walk.last_cost_answer;
                     self.resolve_effect_at(inner, ctx, dp, declared, walk)?;
                     walk.last_cost_answer = answer;
+                } else if !condition.names_a_casting_choice() {
+                    // Its targets were announced all the same (CR 601.2c), so
+                    // the instances after it are read past them.
+                    walk.instance_cursor += inner.instances().len();
                 }
                 Ok(())
             }

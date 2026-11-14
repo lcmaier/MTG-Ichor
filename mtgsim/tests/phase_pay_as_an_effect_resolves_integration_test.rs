@@ -21,7 +21,7 @@ use mtgsim::cards::authoring::{
     any_player, deal_damage, draw_cards, gets, may_pay, may_pay_any_amount_of, spell_ability, target_creature, targets, that_target,
     triggered_ability, unless, whenever, you,
 };
-use mtgsim::cards::printings::{contamination, giant_growth, grizzly_bears, island, mountain, waterfall_aerialist};
+use mtgsim::cards::printings::{contamination, giant_growth, grizzly_bears, island, mana_leak, mountain, waterfall_aerialist};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, ObjectSet};
 use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::GameEvent;
@@ -238,6 +238,27 @@ fn rhystic_study_shape_draws_when_that_player_declines() {
     assert_eq!(hand(&game, 0), before + 1);
 }
 
+/// A window that ends with the cost unpaid is the payer declining: the mana
+/// made stays in the pool (CR 106.4), and nothing is reversed.
+#[test]
+fn a_window_that_ends_unpaid_is_a_decline() {
+    let mut game = stocked(2);
+    let lands: Vec<ObjectId> = (0..3).map(|_| put_on_battlefield(&mut game, mountain(), 1)).collect();
+    set_active_player(&mut game, 1);
+    let bears = cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
+    cast(&mut game, 0, mana_leak(), &[(ManaType::Blue, 2)], &[]);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_take(PAY);
+    let tap = get_effective_abilities(&game, lands[0])[0].id;
+    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(lands[0], tap))]);
+    dp.expect_choice(window(), Vec::new());
+    resolve_with(&mut game, dp);
+
+    assert_eq!(game.objects[&bears].zone, Zone::Graveyard, "unpaid, so countered");
+    assert_eq!(game.players[1].mana_pool.amount(ManaType::Red), 1, "the mana made stays");
+}
+
 /// "You may sacrifice a creature and pay 2 life": paid in the order written
 /// (CR 608.2c), never CR 601.2h's ranks, which would pay the life first; and
 /// both records are the resolution's own, a cost a resolution asks for being
@@ -283,6 +304,52 @@ fn the_costs_are_paid_in_the_order_written_under_the_resolutions_cause() {
 // ---------------------------------------------------------------------------
 // Who pays
 // ---------------------------------------------------------------------------
+
+/// Player 1 casts Grizzly Bears with exactly its cost and `spare` left over,
+/// and player 0 casts Mana Leak at it.
+fn mana_leak_at_bears(spare: u64) -> (GameState, ObjectId, ObjectId) {
+    let mut game = stocked(2);
+    set_active_player(&mut game, 1);
+    let bears = cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
+    game.players[1].mana_pool.add(ManaType::Colorless, spare);
+    // The one spell it can target.
+    let leak = cast(&mut game, 0, mana_leak(), &[(ManaType::Blue, 2)], &[]);
+    (game, bears, leak)
+}
+
+/// "Its controller" is the target spell's: player 1 is asked, pays {3}, and
+/// the Bears resolve.
+#[test]
+fn mana_leak_asks_the_target_spells_controller_who_pays() {
+    let (mut game, bears, leak) = mana_leak_at_bears(3);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_take(PAY);
+    let dp = resolve_with(&mut game, dp);
+    assert_eq!(paid_asked(&dp), vec![1]);
+    assert!(game.battlefield.contains_key(&bears), "paid, so the Bears resolved");
+    assert_eq!(game.objects[&leak].zone, Zone::Graveyard);
+    assert_eq!(game.players[1].mana_pool.amount(ManaType::Colorless), 0);
+}
+
+#[test]
+fn mana_leak_counters_a_spell_whose_controller_declines() {
+    let (mut game, bears, _) = mana_leak_at_bears(3);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(PAY, Vec::new());
+    resolve_with(&mut game, dp);
+    assert_eq!(game.objects[&bears].zone, Zone::Graveyard, "countered");
+    assert_eq!(game.players[1].mana_pool.amount(ManaType::Colorless), 3, "nothing paid");
+}
+
+/// A tapped-out player is not asked, and their spell is countered.
+#[test]
+fn mana_leak_counters_a_tapped_out_players_spell_unasked() {
+    let (mut game, bears, _) = mana_leak_at_bears(2);
+    let dp = ScriptedDecisionProvider::new();
+    let dp = resolve_with(&mut game, dp);
+    assert!(paid_asked(&dp).is_empty(), "two mana cannot pay {{3}}");
+    assert_eq!(game.objects[&bears].zone, Zone::Graveyard);
+}
 
 /// ATOM-702.21a-001: ward triggers above the Bolt, and its controller pays
 /// {2} or the Bolt is countered — both branches.
