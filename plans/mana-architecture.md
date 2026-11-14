@@ -65,6 +65,29 @@ window, and 702.51's family of payments. It graduates three backlog entries
 and two items. `cost-architecture.md` §0 made the same call on the same
 count. `CLAUDE.md`'s architecture row gains a name, not a line.
 
+### What a shortcut in the check may get wrong
+
+The owner's rule, written down at #324's review (2026-11-14), for every
+place the engine decides ahead what to offer.
+
+- **Whether to offer an action is asked at its least amount.** A cast with
+  an X at its least X (§3.7), a payment as an effect resolves at an X or an
+  amount of 0 (`can_pay_as_it_resolves`). The top of an offered range is a
+  convenience for the picker, not the gate.
+- **A shortcut may err only toward offering.** A search cap
+  (`MAX_CHOICE_LEAVES`, which counts the ways sources that pay more than one
+  way combine, not mana), a closed form or a search: past what it can read
+  it answers yes. It never hides a legal play.
+- **Every over-offer has a recovery that costs a retry, never an outcome.** A
+  cast that cannot be paid reverses (CR 732.1) and the player may cast
+  again. An amount chosen at resolution that cannot be paid is asked again,
+  below the amount that failed, the payer still free to decline. A fixed
+  cost that cannot be paid at resolution is a decline, since nothing smaller
+  could have been paid.
+
+So a cutoff is good enough when its errors land on a retry; how often they
+do is what fuzz reads, and a new shortcut says which retry catches it.
+
 ---
 
 ## 1. The rules this reads

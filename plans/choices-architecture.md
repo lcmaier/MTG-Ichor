@@ -1305,7 +1305,7 @@ PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
   add, castability's own check), so one who cannot is not asked and answers `Doesnt`. Taken: the
   amount, the cast's own mana window (CR 605.3a), `plan_payment_as_written` (608.2c, no ranks
   and no order asked), then `pay_costs` under the resolution's cause, and only then X. A window
-  that ends unpaid is a decline, and the mana made stays. Every prompt names the resolving object.
+  ending unpaid is a decline, a chosen amount asked again below it (`mana-architecture.md#what-a-shortcut-in-the-check-may-get-wrong`).
 - **The kinds**: `PayAsItResolves { source, offer, any_amount_of }`, a take or leave, and
   `ChooseAmountToPay { source, of, values }` (`AmountOf::XIn` or `AnyAmountOf`), a `pick_number`
   as `ChooseXValue` is, each with its words, its why and its setup line.
