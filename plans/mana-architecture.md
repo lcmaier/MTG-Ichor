@@ -1640,8 +1640,8 @@ mana emits none: `pay_single_cost` writes the pool directly.
 - **A. The rider stays on the unit, and the payment announces what it
   spent.**
   ```rust
-  struct SpendRider { when: SpendFilter, then: RiderEffect }
-  enum RiderEffect {
+  struct ManaRider { when: ManaSpendFilter, then: ManaRiderEffect }
+  enum ManaRiderEffect {
       Trigger { effect: Effect, source: ObjectRef, controller: PlayerId },
       SpellCantBeCountered,
       PermanentGains { keyword: KeywordFlag, until: Duration },
@@ -1649,9 +1649,12 @@ mana emits none: `pay_single_cost` writes the pool directly.
   }
   ```
   One arm for each row of the table, and `when` is decision 3's filter, so
-  "if that mana is spent on a creature spell" is written once. `pay_costs`
-  performs the removal and emits one `GameEvent::ManaSpent { player, units
-  }`, whose stamp already carries the cause, what it was spent on. Each rider
+  "if that mana is spent on a creature spell" is written once. The names
+  carry `Mana` because `Rider` alone is the replacement pipeline's word, for
+  an effect queued behind a replaced event. `pay_costs` performs the removal
+  and emits one `GameEvent::ManaSpent { player, units }` **for each payment
+  that spends mana, not for each unit**, whose stamp already carries the
+  cause, what it was spent on. Each rider
   applies **once for each unit spent** whose `when` the spend meets (CR
   106.6a's "a separate effect … for each mana"): two of Path of Ancestry's
   mana on one creature spell are two triggers (its ruling, 2020-11-10). The
@@ -1671,6 +1674,20 @@ mana emits none: `pay_single_cost` writes the pool directly.
   own wording, and the trigger registry's existing shape. A registration per
   unit is what counting alike units exists to avoid, and each emptying would
   have to retire the triggers of the mana it lost.
+
+**What the event adds to a game** (the owner asked whether every spend is
+now logged, 2026-11-13). Yes: one record for each payment that spends mana,
+about 70 a game on the budget's board. Each production already announces a
+`ManaAdded`, and a payment is usually several productions, so the stream
+gains fewer records than it holds for mana today. A record is what the
+engine finds triggers from, so it is the only way a rule can react to
+spending: the ten delayed triggers above, and expend (CR 700.14, twelve
+cards), which counts the mana spent on spells in a turn. The record holds a
+pointer to the slice the spent record keeps (decision 6) and copies
+nothing. It is not a proposal. Nothing can replace or stop spending, so it
+does not pass the replacement pipeline, and where no unit has a rider and
+no trigger watches spending its cost is the append and the matcher's look
+for a trigger on that kind of event.
 
 **Recommended: A.** The unit is the one place the rider lives, and the event
 is one a second rule already needs.
