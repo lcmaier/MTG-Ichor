@@ -1297,7 +1297,7 @@ Where it differs from decision 2's words:
 
 ### `pay-as-an-effect-resolves` — a cost paid as an effect resolves — ✅ landed 2026-11-13
 
-The first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
+PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
 - **The payment** (option A): `Primitive::Pay { costs, any_amount_of }` is the whole of an
   `Effect::Optional`, whose chooser pays; `cards::authoring::unless` writes CR 118.12a's
   sentence, `may_pay` and `may_pay_any_amount_of` the "may". The `Optional` arm offers it only

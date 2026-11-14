@@ -203,8 +203,8 @@ one means the engine's cost model moved
 ## The records, newest first
 
 **Re-recorded 2026-11-13 for `pay-as-an-effect-resolves`, a cost paid as an effect resolves**
-(`choices/pay-as-an-effect-resolves`: CR 118.12, 118.12a, 605.3a, 107.3f, 702.21a, items 418 and
-219's half). Mana Leak joins the performance pool (126 → 127), and Mana Leak, Waterfall Aerialist
+(`choices/pay-as-an-effect-resolves`, PR #324: CR 118.12, 118.12a, 605.3a, 107.3f, 702.21a, items
+418 and 219's half). Mana Leak joins the performance pool (126 → 127), and Mana Leak, Waterfall Aerialist
 and Contamination the registry, so both §3 columns are new baselines. One `close_out.py` sitting
 against **main** `6b99c6ce`: **engine** `a295a52a`, the last commit before the cards, and
 **shipped** `3c68c509`.

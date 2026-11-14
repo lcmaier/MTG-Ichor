@@ -10809,7 +10809,7 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      there are seven.** — ✅ closed. The doc names the seven and why each has
      none, `CreateTokenIn` no longer calls itself "the second exemption", and
      `BecomeBlocked`'s own doc says why it has none.
-     **Reachability (2026-11-13):** closed — `pay-as-an-effect-resolves`.
+     **Reachability (2026-11-13):** closed — PR #324.
 
 ### Found by `pay-as-an-effect-resolves` (2026-11-13)
 
