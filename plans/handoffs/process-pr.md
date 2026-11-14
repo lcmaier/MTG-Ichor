@@ -74,6 +74,20 @@ and its decision 4). The gate would then keep it so: a pool written anywhere
 but those two places fails. If yes, it lands with `mana-kept-and-lost`, the row
 that removes the last untagged write.
 
+**Should a design note's proposed names be audited before the owner reads
+them?** Raised at #323's review (2026-11-13), where the owner asked for most of
+the note's proposed types to be renamed: bare `Spend`, `Rider`, `Source` and
+`Pip` words, two beside names the tree already has (`Rider` in the replacement pipeline,
+`SourceFilter` in the "can't" registry). The rule exists
+(`engineering-practices.md#names`), and the `owner-review` agent's first check
+is that rule, with "rider" among its own examples. But at a design stop the
+agent applies checks 2, 4, 6, 12 and 17 only, and `/design-note` has no step
+for names, so a note's code blocks reach the owner unaudited. Proposed: the
+agent's design-stop list gains check 1, read over every type, field and arm
+the note proposes, and `/design-note`'s step 3 gains a line: each proposed
+name carries its subsystem's noun and is grepped against `src` for a taken or
+a near name. If yes, it lands in the next process PR.
+
 Nothing else open. The question raised at #322 was answered at its merge, as the two
 entries above. The two this queue opened with were answered in #321's review and
 built there: the hygiene pass runs at the midpoint of the run to v0.5, after
