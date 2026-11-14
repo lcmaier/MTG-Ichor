@@ -1811,30 +1811,12 @@ mod instance_references {
     /// this one reads the shape the chain leaves, a
     /// declaring change and then a change of the same duration on
     /// `SameInstanceAs`, and asks that the reference is to the instance the
-    /// change before it declared.
+    /// change before it declared. It refuses a chain on a choice made as the
+    /// effect applies ([`chains_on_a_choice`]): the second change would
+    /// choose again, "it" after "choose" being a word
+    /// `values-chosen-at-resolution` designs.
     #[test]
     fn a_chained_change_refers_to_the_target_its_first_change_declared() {
-        use crate::types::effects::{Duration, Primitive};
-
-        fn duration(primitive: &Primitive) -> Option<Duration> {
-            match primitive {
-                Primitive::SetPowerToughness(_, _, d)
-                | Primitive::ModifyPowerToughness(_, _, d)
-                | Primitive::SwitchPowerToughness(d)
-                | Primitive::GrantKeywordFlag(_, d)
-                | Primitive::RemoveKeywordFlag(_, d)
-                | Primitive::GrantAbility(_, d)
-                | Primitive::LoseAbility(_, d)
-                | Primitive::LoseAllAbilities(d)
-                | Primitive::ChangeColor(_, d)
-                | Primitive::ChangeType(_, d)
-                | Primitive::GainControl { duration: d, .. }
-                | Primitive::Copy { duration: d, .. }
-                | Primitive::Restrict(_, d)
-                | Primitive::CreateReplacement(_, d, _) => Some(*d),
-                _ => None,
-            }
-        }
         fn check(what: &str, whole: &Effect, effect: &Effect, chains: &mut usize) {
             let declared_at = |recipient: &EffectRecipient| {
                 (0..).map_while(|ix| whole.instance(ix).map(|r| (ix, r))).find(|(_, r)| std::ptr::eq(*r, recipient)).map(|(ix, _)| ix)
@@ -1842,19 +1824,11 @@ mod instance_references {
             match effect {
                 Effect::Sequence(subs) => {
                     for pair in subs.windows(2) {
-                        // "Choose a creature. It gets … and gains …": "it" names what a choice
-                        // made as the effect applies chose, which no recipient names yet, and
-                        // the chain's second change would choose again.
-                        if let [Effect::Atom(first, chosen @ EffectRecipient::Choose(..)), Effect::Atom(second, again)] = pair {
-                            assert!(
-                                duration(first).is_none() || duration(first) != duration(second) || chosen != again,
-                                "{what}: a change chained to a choice made as the effect applies chooses again"
-                            );
-                        }
+                        assert!(!chains_on_a_choice(pair), "{what}: a change chained to a choice made as the effect applies chooses again");
                         if let [Effect::Atom(first, recipient), Effect::Atom(second, EffectRecipient::SameInstanceAs(ix))] = pair
                             && let Some(own) = declared_at(recipient)
-                            && duration(first).is_some()
-                            && duration(first) == duration(second)
+                            && change_duration(first).is_some()
+                            && change_duration(first) == change_duration(second)
                         {
                             assert_eq!(*ix, own, "{what}: a change chained to instance {own} of \"target\" names instance {ix}");
                             *chains += 1;
@@ -1888,6 +1862,52 @@ mod instance_references {
         }
         // Crimson Wisps' "becomes red and gains haste" is one.
         assert!(chains > 0, "no registered card chains a change to a target, so this check reads nothing");
+    }
+
+    /// How long the continuous change a primitive makes lasts; `None` for a
+    /// primitive that makes none.
+    fn change_duration(primitive: &crate::types::effects::Primitive) -> Option<crate::types::effects::Duration> {
+        use crate::types::effects::Primitive;
+        match primitive {
+            Primitive::SetPowerToughness(_, _, d)
+            | Primitive::ModifyPowerToughness(_, _, d)
+            | Primitive::SwitchPowerToughness(d)
+            | Primitive::GrantKeywordFlag(_, d)
+            | Primitive::RemoveKeywordFlag(_, d)
+            | Primitive::GrantAbility(_, d)
+            | Primitive::LoseAbility(_, d)
+            | Primitive::LoseAllAbilities(d)
+            | Primitive::ChangeColor(_, d)
+            | Primitive::ChangeType(_, d)
+            | Primitive::GainControl { duration: d, .. }
+            | Primitive::Copy { duration: d, .. }
+            | Primitive::Restrict(_, d)
+            | Primitive::CreateReplacement(_, d, _) => Some(*d),
+            _ => None,
+        }
+    }
+
+    /// Whether `pair` is a second change chained to a choice made as the
+    /// effect applies: the same `Choose` and the same duration twice, which
+    /// would ask the choice twice.
+    fn chains_on_a_choice(pair: &[Effect]) -> bool {
+        matches!(pair, [Effect::Atom(first, chosen @ EffectRecipient::Choose(..)), Effect::Atom(second, again)]
+            if change_duration(first).is_some() && change_duration(first) == change_duration(second) && chosen == again)
+    }
+
+    /// The refusal bites: "choose a creature you control; it gains
+    /// indestructible and gets +1/+1 until end of turn", written as
+    /// `ContinuousChange` writes a chain, is the shape it refuses, and the
+    /// one change Final Showdown writes is not.
+    #[test]
+    fn a_change_chained_to_a_choice_is_refused() {
+        use crate::cards::authoring::{chosen_permanent, creatures_you_control, gains_keyword};
+        use crate::types::keywords::KeywordFlag;
+        let chained = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).and_gets(1, 1).until_end_of_turn();
+        let Effect::Sequence(atoms) = &chained else { panic!("two changes are a sequence: {chained:?}") };
+        assert!(chains_on_a_choice(atoms));
+        let one = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn();
+        assert!(!matches!(one, Effect::Sequence(_)), "one change is one atom, nothing chained");
     }
 
     /// For every registered card, the stored lists of instances of "target"
