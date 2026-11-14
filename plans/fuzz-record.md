@@ -237,6 +237,19 @@ sorted arm only, and `battlefield_ordered` and `driftsort` leave the profile. Th
 copy check names, `assert_shortcut_agrees` beside `unobserved`, is each audited shortcut's own
 check, the fifth of its kind, and stays. 194 s.
 
+**Rerun after the pre-review (2026-11-14)**, against **main** `b8e010ab`: **reviewed** `bc31f6a7`,
+`permanents_controlled_by` through the ordered sweep, one timestamp sort with a key, and names.
+Predicted, before any arm ran: every gameplay and counter row `IDENTICAL` on both pools at both
+seats, since each sweep keeps what it kept; instructions per decision within 0.3 points of the
+first sitting's -10.66%, the controller's sweep paying one table probe a permanent where it read
+a field.
+
+Every gameplay row **IDENTICAL** on both pools at both seats and every counter file `main`'s but
+its timings; audit agreed; instructions a decision 0.7371 M → 0.6603 M, **-10.42%**, 0.24 points
+above the first sitting; growth ×3.94 to ×4.03. The copy check adds one composition, `controller`
+beside `settled_holds()`, in four functions this branch does not touch: `board.rs`'s two reads of
+`controller` left, so the pair now clears the check's chance threshold. 158 s.
+
 **Re-recorded 2026-11-13 for `pay-as-an-effect-resolves`, a cost paid as an effect resolves**
 (`choices/pay-as-an-effect-resolves`, PR #324: CR 118.12, 118.12a, 605.3a, 107.3f, 702.21a, items
 418 and 219's half). Mana Leak joins the performance pool (126 → 127), and Mana Leak, Waterfall Aerialist

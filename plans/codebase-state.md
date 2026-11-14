@@ -2780,10 +2780,11 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     above was the two-seat `performance` board at n=16, where the allocations
     led; at Commander scale the sort does, so "sort less" was worth taking
     after all, where it needs no argument about who observes order. The
-    state-based check's seven sweeps and the activatable half of the priority
-    list ask their filter of each permanent in the map's order and sort only
-    what they keep (`GameState::battlefield_ordered_where`, audited under
-    `--audit`, `elisions.md` §4), and every full sort is unstable. Each output
+    state-based check's seven sweeps, the activatable half of the priority
+    list and `permanents_controlled_by` ask their filter of each permanent in
+    id order and sort only what they keep
+    (`GameState::battlefield_ordered_where`, audited under `--audit`,
+    `elisions.md` §4), and every full sort is unstable. Each output
     is what filtering the sorted list gives, so no site's observability was
     argued. Instructions per decision **-10.66%**, every counter identical
     (`fuzz-record.md`'s block for it).
