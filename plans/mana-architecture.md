@@ -1864,10 +1864,33 @@ slot moved with this answer.
 
 #### Decision 8: the build, in three rows
 
-**Retrofit cost: none; it is the plan.** In "The build, sized" below: the
-record under `{S}` first, then restrictions and riders, then kept and lost
-mana, each with printed cards that need no later row. The first two sit at
-the band's top, so each names where it splits.
+**Not a choice between options** (the owner asked what there was to decide,
+2026-11-13). It is the sizing the brief asked for, in "The build, sized"
+below, numbered here so its answer has a place: a yes puts three named rows
+on the route where one was carried at 1–2 PRs. The record under `{S}`
+first, then restrictions and riders, then kept and lost mana, each with
+printed cards that need no later row. The first two sit at the band's top,
+so each names where it splits.
+
+**One real question inside it, found in round 1: does `{S}` wait until
+after v0.5?** Retrofit cost: none. The record is designed with its source
+facts under either answer, and what moves is which PR builds them. None of
+the five decks holds a snow card, a `{S}` or a reader of a mana's source:
+`mana-provenance-census.py --names` against `tdc-names.txt` finds the decks
+in restricted mana (Haven of the Spirit Dragon, Lord of the Forsaken), one
+rider (Path of Ancestry), kept mana (Leyline Tyrant) and the amount spent
+(Manaform Hellkite). The route's rule for work no deck needs is
+`breadth-features`, after v0.5.
+- **As drawn: `snow-mana` first.** `{S}` is the smallest proof that the
+  record's source facts work, built while the record is new. Its `{S}` half
+  is about half a PR ahead of v0.5 that no deck needs.
+- **Snow after v0.5.** The first row becomes the record, the pool and the
+  spent record alone, with every game `IDENTICAL`. The split over classes
+  moves to the restricted row, whose first card is its first consumer. The
+  watch list, `{S}` and the snow cards become a fourth row after v0.5.
+
+**Recommended: snow after v0.5**, by the route's own rule. The table below
+is as drawn until the owner answers, and is re-cut and re-sized on a yes.
 
 #### Decision 9: whether the build comes before `costs-and-choices-at-resolution`
 
