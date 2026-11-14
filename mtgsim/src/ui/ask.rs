@@ -696,16 +696,22 @@ pub fn ask_choose_x_value(
     }
     let offered = values.offered.clone();
     let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, values: Box::new(values) });
+    pick_from_offer(dp, game, player, &ctx, offered, "choose_x_value")
+}
+
+/// One number of `offered`, asked as `ctx`: an interval is a `pick_number`;
+/// a set with a gap, which only a rule cuts, a `pick_n` over its numbers.
+fn pick_from_offer(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId, ctx: &ChoiceContext, offered: XOffer, asking: &str) -> u64 {
     match offered {
         XOffer::Interval { at_least, at_most } => {
-            let value = dp.pick_number(game, player, &ctx, at_least, at_most);
-            validate_pick_number(value, at_least, at_most, "choose_x_value", game, player, &ctx);
+            let value = dp.pick_number(game, player, ctx, at_least, at_most);
+            validate_pick_number(value, at_least, at_most, asking, game, player, ctx);
             value
         }
         XOffer::Set(values) => {
             let options: Vec<ChoiceOption> = values.iter().map(|&x| ChoiceOption::Number(x)).collect();
-            let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-            validate_pick_n(&index, &options, (1, 1), "choose_x_value", game, player, &ctx);
+            let index = dp.pick_n(game, player, ctx, &options, (1, 1));
+            validate_pick_n(&index, &options, (1, 1), asking, game, player, ctx);
             values[index[0]]
         }
     }
@@ -1268,8 +1274,7 @@ pub fn ask_pay_as_it_resolves(dp: &dyn DecisionProvider, game: &GameState, payer
 
 /// CR 107.3f — how many of `each` `payer` pays of an "any amount" as `source`
 /// resolves, from `values`, each an amount they can pay. One value is
-/// answered unasked, and recorded; otherwise asked as an X is
-/// ([`ask_choose_x_value`]).
+/// answered unasked, and recorded; otherwise asked as an X is.
 pub fn ask_choose_amount_to_pay(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -1286,19 +1291,7 @@ pub fn ask_choose_amount_to_pay(
         return amount;
     }
     let ctx = ChoiceContext::new(ChoiceKind::ChooseAmountToPay { source, each, values: Box::new(values.clone()) });
-    match values {
-        XOffer::Interval { at_least, at_most } => {
-            let amount = dp.pick_number(game, payer, &ctx, at_least, at_most);
-            validate_pick_number(amount, at_least, at_most, "choose_amount_to_pay", game, payer, &ctx);
-            amount
-        }
-        XOffer::Set(amounts) => {
-            let options: Vec<ChoiceOption> = amounts.iter().map(|&amount| ChoiceOption::Number(amount)).collect();
-            let index = dp.pick_n(game, payer, &ctx, &options, (1, 1));
-            validate_pick_n(&index, &options, (1, 1), "choose_amount_to_pay", game, payer, &ctx);
-            amounts[index[0]]
-        }
-    }
+    pick_from_offer(dp, game, payer, &ctx, values, "choose_amount_to_pay")
 }
 
 /// CR 608.2d — choose which of `candidates`, the opponents still in the game,
