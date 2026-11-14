@@ -1295,6 +1295,46 @@ Where it differs from decision 2's words:
   line per mode keeps "Mode 1"; no registered card or castable fixture has one, which a
   registry test holds.
 
+### `pay-as-an-effect-resolves` — a cost paid as an effect resolves — ✅ landed 2026-11-13
+
+The first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
+- **The payment** (option A): `Primitive::Pay { costs, any_amount_of }` is the whole of an
+  `Effect::Optional`, whose chooser pays; `cards::authoring::unless` writes CR 118.12a's
+  sentence, `may_pay` and `may_pay_any_amount_of` the "may". The `Optional` arm offers it only
+  when the payer can pay (`can_pay_as_it_resolves`: the pool and what their mana abilities could
+  add, castability's own check), so one who cannot is not asked and answers `Doesnt`. Taken: the
+  amount, the cast's own mana window (CR 605.3a), `plan_payment_as_written` (608.2c, no ranks
+  and no order asked), then `pay_costs` under the resolution's cause. A window that ends unpaid
+  is a decline, and the mana made stays.
+- **The kinds**: `PayAsItResolves { source, offer }`, a take or leave, and `ChooseAmountToPay
+  { source, each, values }`, a `pick_number` as `ChooseXValue` is, each with its words, its why
+  and its setup line.
+- **Who pays**: `PlayerRef::NamedBy(recipient)`, an object naming its controller: "its
+  controller" is an instance's (Mana Leak), "that player" a trigger's (ward). `PlayerRef::AnyPlayer`
+  is asked in APNAP order until one pays (CR 101.4; the Prophecy rulings agree).
+- **An amount** (CR 107.3f): every amount from none to the most the payer can make beside the
+  rest, so an interval, its top found by doubling and halving over the check; the amount chosen
+  is the resolution's X, which "draw X cards" reads and a delayed trigger carries (107.3n).
+- **Item 219's half**: a target under a `Conditional` that names no kicker or mode is announced
+  (CR 601.2c), so Mana Leak's "if they don't, counter target spell" has its target.
+- **The cards**: Mana Leak (pooled), Waterfall Aerialist (`cards::authoring::ward`, on TR-5c's
+  event), Contamination, its RE-9 fixture retired; fixtures of Rhystic Study's, Wild Might's,
+  Elenda and Azor's and Leyline Tyrant's payments.
+
+Where it differs from decision 4's words:
+- **The offer is the costs, a list**, where `EntryOffer::Pay` carries one; for "any amount",
+  the part that is the same at every amount.
+- **"Any amount" is a unit, `any_amount_of: Option<ManaCost>`**, not an {X} in the cost, since
+  "any amount of {R}" is no generic mana; its values are searched, not MA-2's closed form, and
+  `ChooseAmountToPay` carries the `XOffer` alone, with no why for an amount past the top.
+- **Leyline Tyrant's "when you do" waits** for the record of mana spent (item 419); its
+  payment is tested here, as the brief set.
+- **Refused, not built**: a payment outside an `Optional` and "any player" around another
+  action (item 420); a cost the engine cannot check is never offered (item 421); ward {X} (item
+  422).
+- **No ladder shape**: the payment's check is castability's, which every priority question
+  already reads at each rung.
+
 ## 6. Found while designing
 
 1. **The brief cited CR 500.4 for a pool emptying at a step's end**; it is

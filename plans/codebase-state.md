@@ -5558,9 +5558,10 @@ closed. **The last of RE's ten PRs.**
      constant, ~40 lines; Harvest Mage is `substitute` gaining a `ctx` and a
      prompt, ~80 lines and a design question about which prompts a
      substitution may ask. Contamination and Infernal Darkness need none of
-     this — their lines are fixtures in `tests/phase_re9_integration_test.rs`.
-     Their upkeep halves wait on a cost paid at resolution, "sacrifice it
-     unless you ..." and cumulative upkeep, which `modes-plus-choice-kinds` owns.
+     this. Contamination is registered whole since `pay-as-an-effect-resolves`
+     built its "sacrifice this unless you sacrifice a creature"; Infernal
+     Darkness's line is a fixture in `tests/phase_re9_integration_test.rs`,
+     its cumulative upkeep `breadth-features`'.
      **Slotted:** `chosen-color-plus-could-produce` and `any-color-plus-painlands-plus-signets`, at the card-homed triage (2026-10-23): Hall
      of Gemstone's chosen color is `chosen-color-plus-could-produce`'s (`backlog.md` §2.2's record on the
      permanent); Harvest Mage's "one mana of a color of your choice" inside a
@@ -8192,16 +8193,21 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by CV-1b (2026-10-06)
 
-219. **A target inside an `Effect::Conditional` is never announced.**
-     `Effect::instances` (`for_each_instance`) walks into `Optional` since
-     CV-1b, and into a sequence, a remembered effect and a reflexive trigger's,
-     but never into `Conditional`. CR 601.2c announces a target that a cost or
-     a mode requires only when that cost was paid or mode chosen (a kicker's),
-     and any other target always, so the walk needs to know which kind of
-     condition it is in.
-     **Reachability (2026-10-22):** unreachable — every registered
-     `Conditional` is a static ability's "as long as", with no target in it.
-     **Sized:** ~20–40 lines, the condition's kind read by the walk.
+219. **A target inside an `Effect::Conditional` a kicker or a mode gates is
+     never announced.** `Effect::instances` (`for_each_instance`) walks into
+     `Optional` since CV-1b, and into a sequence, a remembered effect and a
+     reflexive trigger's. CR 601.2c announces a target that a cost or a mode
+     requires only when that cost was paid or mode chosen (a kicker's), and
+     any other target always. The second half landed with
+     `pay-as-an-effect-resolves`, which Mana Leak's "if they don't, counter
+     target spell" needed: the walk enters a `Conditional` unless
+     `Condition::names_a_casting_choice`, and a false one steps the cursor
+     past its targets. A target under `SpellWasKicked` or `ModeChosen` is
+     still not walked.
+     **Reachability (2026-11-13):** unreachable — no registered card has a
+     target under a kicker's or a mode's condition.
+     **Sized:** ~20–40 lines: the walk asks whether the cost or mode was
+     chosen, which the instance list, stored on the def, cannot know.
      **Slotted:** `remaining-costs`, the cost actions (`cost-architecture.md`), which
      announces what each cost requires at CR 601.2b, and with it the first
      target a cost can make conditional (`backlog.md` §4's CR 601 cluster).
@@ -10800,17 +10806,56 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
 ### Found by the process PR at #320 (2026-11-13)
 
 418. **`EventPattern`'s doc counts two `GameAction` variants with no arm, and
-     there are seven.** `types/replacement.rs`, "One arm per variant, and the
-     two without one", names `Attach` and `CreateTokenIn`, and
-     `engine/actions.rs` calls `CreateTokenIn` "the second exemption".
-     `Unattach`, `TokenCeasesToExist`, `ShuffleLibrary`, `GameEndsInADraw` and
-     `BecomeBlocked` have no arm either; the first four say so in their own
-     docs, and `BecomeBlocked`'s says only that a replacement may watch it.
-     Found writing the parity table
-     (`triggers-architecture.md#33a-parity-with-eventpattern-event-kind-by-event-kind`),
-     in a PR that touches no engine source.
-     **Reachability (2026-11-13):** reachable but not wrong today — two doc
-     comments, which no game reads; the next arm's author reads them.
-     **Slotted:** `pay-as-an-effect-resolves`, the next PR that builds
-     engine code: the two comments ride it.
-     **Sized:** about 8 comment lines in two files.
+     there are seven.** — ✅ closed. The doc names the seven and why each has
+     none, `CreateTokenIn` no longer calls itself "the second exemption", and
+     `BecomeBlocked`'s own doc says why it has none.
+     **Reachability (2026-11-13):** closed — `pay-as-an-effect-resolves`.
+
+### Found by `pay-as-an-effect-resolves` (2026-11-13)
+
+419. **A reflexive "when you do" after a payment of mana has no record to
+     see.** CR 603.12's trigger matches its event among the records of the
+     instruction before it, and spending mana leaves none: `pay_costs`
+     writes the pool, and `GameEvent::ManaSpent` is
+     `mana-architecture.md`'s decision 4. Leyline Tyrant's "you may pay any
+     amount of {R}. When you do, it deals that much damage" is tested on its
+     payment alone. A sacrifice or life paid this way has its record, and
+     "that much" can read the X the payment chose (CR 107.3f, carried by
+     107.3n) or the record's amount.
+     **Reachability (2026-11-13):** unreachable — no registered card makes a
+     reflexive trigger after a payment of mana; Leyline Tyrant is registered
+     by `mana-kept-and-lost`, after the event exists.
+     **Slotted:** `restricted-mana-plus-spend-riders`, whose `ManaSpent` the
+     trigger matches; the fixture gains its reflexive half there.
+     **Sized:** ~20–40 lines: the reflexive half of the fixture and its test.
+
+420. **Two shapes of CR 118.12 are refused, not built.** A payment that is
+     not the whole of an `Effect::Optional` (a mandatory "pay [cost]", whose
+     answer is "started to pay") errs at resolution, and so does "any player"
+     around an action that is not a payment.
+     **Reachability (2026-11-13):** unreachable — every registered payment is
+     a "may" or an "unless", and no registered card asks any player for
+     another action.
+     **Slotted:** `breadth-features`, with each shape's first card.
+     **Sized:** ~20–40 lines each: the answer of a mandatory payment, and the
+     walk over players for a non-payment `Optional`.
+
+421. **A payment of a cost the engine cannot check is never offered.**
+     `Cost::Discard`, `ExileFromGraveyard`, `RemoveCounters` and `AddCounters`
+     answer `CannotPay::Unchecked`, so "unless they discard a land card"
+     (Compulsive Research, the gap census's) and "Ward—Discard a card" would
+     always do what follows, the payer never asked.
+     **Reachability (2026-11-13):** unreachable — no registered payment asks
+     one of the four.
+     **Slotted:** `remaining-costs`, which builds the four as costs.
+     **Sized:** none here: the payment reads `can_pay_costs` and pays through
+     `pay_costs`, so the four work at resolution once they work at a cast.
+
+422. **Ward reads no X as it resolves (CR 702.21b).** `ward` takes fixed
+     costs; "ward {X}, where X is …" needs a cost whose amount is read as the
+     trigger resolves (ATOM-702.21b-001).
+     **Reachability (2026-11-13):** unreachable — no registered card has one,
+     and `tdc`'s ward is {2}.
+     **Slotted:** `breadth-features`, with its first card.
+     **Sized:** ~30–50 lines: an amount in a payment's cost, evaluated as it
+     is offered.

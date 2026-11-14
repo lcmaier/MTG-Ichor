@@ -53,6 +53,10 @@ merges.
   `costs-and-choices-at-resolution`, whose `Pay` reaches the payment through
   the cast's three calls and asks nothing about mana itself. The build is
   three rows at step 7, after `mana-ability-costs`.
-- Next: `costs-and-choices-at-resolution`. For its brief: Leyline Tyrant's
-  payment is tested on a fixture, since the card's other ability is
-  `mana-kept-and-lost`'s.
+- `costs-and-choices-at-resolution` split at its brief (2026-11-13): the
+  payment first. `pay-as-an-effect-resolves` is handed over, its as-built in
+  `choices-architecture.md`: decision 4 whole, Mana Leak, Waterfall
+  Aerialist and Contamination, items 418 and half of 219 closed, items 419
+  to 422 found.
+- Next: `choose-as-an-effect-resolves`, decision 8's `Choose` at resolution
+  (item 28) and the division among objects not targeted.
