@@ -1059,13 +1059,10 @@ block.
 
 ## 11. Mana provenance: what a unit of mana keeps
 
-> **Status:** design, 2026-11-13, under the owner's review on #323: nothing
-> here is built. Round 1 (2026-11-13) settled decisions 6 and 7 and the
-> reading inside decision 1, and renamed the types of decisions 1, 3 and 4.
-> Round 2 settled decisions 2, 3 and 9 and when a unit keeps which object
-> made it. Round 3 settled decisions 1, 4 and 8. Open: decision 5, measured
-> in round 3 on a board that stores mana and changed so that mana an effect
-> keeps is not proposed. It is `roadmap-v2.md`'s row
+> **Status:** design, decided 2026-11-13: every decision is the owner's,
+> after three review rounds on #323, and each says "Settled" where it
+> stands. Nothing here is built. The build is the three rows of "The build,
+> sized", after `mana-ability-costs`. It is `roadmap-v2.md`'s row
 > `mana-provenance`, the design, for `codebase-state.md` item 33 (the tested
 > restricted-mana subsystem that no payment calls).
 
@@ -1117,7 +1114,7 @@ sized".
 |---|---|---|
 | main item 33 | the dormant subsystem; the per-unit record; restricted mana; `{S}`; readers of a mana's source | decisions 1 to 4 and 6; rows **`snow-mana`** and **`restricted-mana-plus-spend-riders`** |
 | "Before Layers" item 4 | mana kept past a step's end; Yurlok of Scorch Thrash's life loss | decision 5; row **`mana-kept-and-lost`** |
-| main item 403, its second half | CR 500.5's emptying has no event, so Leyline Tyrant cannot keep its mana. Slotted to `tarkir-dragonstorm-decks`, not to this row | found here: the same build as the item above. Proposed to move to `mana-kept-and-lost` with decision 5, the gap census's record with it. Its first half, Seedborn Muse's untap, stays where it is |
+| main item 403, its second half | CR 500.5's emptying has no event, so Leyline Tyrant cannot keep its mana. Slotted to `tarkir-dragonstorm-decks`, not to this row | found here: the same build as the item above. Moved to `mana-kept-and-lost` with decision 5 (the owner, 2026-11-13), the gap census's record with it. Its first half, Seedborn Muse's untap, stays where it is |
 | main item 135 | one ability making restricted and unrestricted mana at once, under a replacement that fixes the amount | decision 7, settled (the owner, 2026-11-13): it stays refused, re-slotted to `breadth-features` with its first card |
 | main item 162 | the tap solver, which names this row | not taken: its solver is `mana-payment-solver`'s. Decision 2 says what that solver will answer |
 
@@ -1849,9 +1846,10 @@ B plays only the second row, at a set lookup. It cannot play the third or
 fourth at all, so there A's cost is the card's own, under any design that
 lets a replacement see the loss.
 
-**Recommended: A.** One action serves all six families, and each family
-lands in the registry that already knows how to ask whether its source still
-has the ability.
+**Settled: A, with mana an effect keeps not proposed** (the owner,
+2026-11-13). One action serves all six families, and each family lands in
+the registry that already knows how to ask whether its source still has the
+ability.
 
 #### Decision 6: `{S}`, and the record of what was spent
 
@@ -2133,7 +2131,7 @@ card in a row of this build.
 - **Item 403's second half and "Before Layers" item 4 are one build**, filed
   twice: once from the layers audit and once from the decks' gap census.
   Each item carries a line saying so. Their Slotted lines, and item 135's,
-  move at the owner's answers, not before.
+  moved at the owner's answers (2026-11-13).
 - **The emptying is a direct write no gate sees.** `check_invariants.py`
   gates a list of fields, and a mana pool is not on it, so `turns.rs` and
   `costs.rs` write pools outside `perform_action` untagged. Decision 5 routes
