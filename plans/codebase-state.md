@@ -10830,9 +10830,13 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~20–40 lines: the reflexive half of the fixture and its test.
 
 420. **Two shapes of CR 118.12 are refused, not built.** A payment that is
-     not the whole of an `Effect::Optional` (a mandatory "pay [cost]", whose
-     answer is "started to pay") errs at resolution, and so does "any player"
-     around an action that is not a payment.
+     not the whole of an `Effect::Optional` errs at resolution: a mandatory
+     "pay [cost]", whose "if you don't" asks whether the player started to
+     pay, and who may still decline by not activating mana abilities (CR
+     118.3c): Pact of Negation's "At the beginning of your next upkeep, pay
+     {3}{U}{U}. If you don't, you lose the game." So does "any player" around
+     an action that is not a `Cost`: Browbeat's "Any player may have Browbeat
+     deal 5 damage to them. If no one does, target player draws three cards."
      **Reachability (2026-11-13):** unreachable — every registered payment is
      a "may" or an "unless", and no registered card asks any player for
      another action.
