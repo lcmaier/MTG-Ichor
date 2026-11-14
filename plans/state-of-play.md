@@ -50,9 +50,9 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | 2 | — | 2 |
 | 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
 | 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
-| 5 | `mana-provenance`, the design and 3 more | 7 of 11 landed | 7 | 4–7 | 9–13 |
+| 5 | `costs-and-choices-at-resolution` and 2 more | 8 of 11 landed | 8 | 3–6 | 9–13 |
 | 6 | `linked-abilities` | to come | 0 | 3–4 | 3–4 |
-| 7 | `resolution-recipients-and-amounts` and 3 more | to come | 0 | 5–8 | 5–8 |
+| 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 5–8 |
 | 8 | `information-model-design` and 1 more | to come | 0 | 4–7 | 4–7 |
 | 9 | `permission-design` and 6 more | to come | 0 | 8–15 | 8–15 |
 | 10 | `player-scoped-values` and 2 more | to come | 0 | 3–6 | 3–6 |
@@ -63,7 +63,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
-| | **To v0.5** | **42 rows to come** | **16** | **71–135** | **85–150** |
+| | **To v0.5** | **43 rows to come** | **17** | **72–135** | **85–150** |
 
 No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.
@@ -87,10 +87,10 @@ row by naming it in a heading or in a sizing table's first cell, in bold.
 | `cost-architecture.md` | 0 of 2 | `remaining-costs` | 14 |
 | `permission-architecture.md` | 0 of 3 | `casting-from-other-zones` | 15 |
 | `copy-effects-architecture.md` | 0 of 5 | `face-down-and-morph`, manifest | 16 |
-| `mana-architecture.md` | 0 of 5 | `mana-payment-solver` | 18 |
+| `mana-architecture.md` | 0 of 8 | `mana-payment-solver` | 18 |
 
 No architecture doc defines these rows to come, so none closes a subsystem
-until its design names it in one: `mana-provenance`, the design; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `mana-provenance`, the build; `information-model-design`; `information-model`; `card-and-object-model`, the design; `text-changing-effects`, the design; `game-formats`; `multiplayer-rules`; `tarkir-dragonstorm-decks`, the cheap gaps; `player-scoped-values`; `as-though-effects`, the permission half; `layers-combat-and-counters`; `rulings-for-every-card`; `card-and-object-model`, an Aura on a player; `tarkir-dragonstorm-decks`, the five decks; `decks-in-fuzz-games`; `devgui-at-five-seats`.
+until its design names it in one: `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`; `information-model`; `card-and-object-model`, the design; `text-changing-effects`, the design; `game-formats`; `multiplayer-rules`; `tarkir-dragonstorm-decks`, the cheap gaps; `player-scoped-values`; `as-though-effects`, the permission half; `layers-combat-and-counters`; `rulings-for-every-card`; `card-and-object-model`, an Aura on a player; `tarkir-dragonstorm-decks`, the five decks; `decks-in-fuzz-games`; `devgui-at-five-seats`.
 
 ## Phases by name
 
@@ -226,6 +226,9 @@ cell, and no ✅ heading records, in the docs' order.
 | The chosen color and "could produce" | `chosen-color-plus-could-produce` | `mana-architecture.md` |
 | Paying with permanents or cards | `convoke-delve-improvise` | `mana-architecture.md` |
 | A person's seat: the solver and item 211 | `mana-payment-solver` | `mana-architecture.md` |
+| A unit keeps what its source was, and `{S}` is paid | `snow-mana` | `mana-architecture.md` |
+| Mana that pays only some things, and mana that does something when spent | `restricted-mana-plus-spend-riders` | `mana-architecture.md` |
+| Losing mana as an event | `mana-kept-and-lost` | `mana-architecture.md` |
 | Who may cast, play or activate: the design | `permission-design` | `permission-architecture.md` |
 | Casting from the command zone | `command-zone-casting` | `permission-architecture.md` |
 | Flashback and the other casts from elsewhere | `casting-from-other-zones` | `permission-architecture.md` |

@@ -348,7 +348,12 @@ record, corrected where it was wrong.*
   **mid-combat keyword change** (702.4c/d, 702.7c — gaining or losing
   first/double strike between damage steps re-decides who participates) and
   **LKI for a damage source that changed zones** (702.2e, 702.15c, 702.90d),
-  which is item 6's LKI formalization.
+  which is item 6's LKI formalization. The first also owns when the engine
+  reads who had first or double strike: `dealt_first_strike_damage` is filled
+  just after the first-strike step's damage, from who has either keyword then,
+  where CR 510.4 asks who had one as that step began. The two differ when that
+  damage itself turns a static first or double strike on or off (found at
+  #322, 2026-11-13; no registered card checked for it).
 - **Size** — the keywords are Phase 8 breadth. The mid-combat re-check is one
   focused change to the combat damage step; the LKI half rides item 6.
   **Infect/wither/toxic: ~200–300 with the first infect card** — three

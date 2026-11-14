@@ -26,7 +26,11 @@ design note's path. Read, in order:
 
 **At a design stop** the prompt gives only the note, and there is no diff
 yet. Read the note whole, open the code its decisions name, and apply checks
-2, 4, 6, 12 and 17 to the decisions. Check 17 reads the note's binding table.
+1, 2, 4, 6, 12 and 17 to the decisions. Check 1 reads every type, field, arm
+and function the note's code blocks propose: each carries its subsystem's noun
+(`ManaSpendFilter`, not `SpendFilter`), and you grep `mtgsim/src` for the bare
+word and for a near name already taken. Check 17 reads the note's binding
+table.
 
 Use Bash for `git diff`, `git log`, `git show` and `grep` only. Never change
 the working copy, the index or a branch, and never build or run tests; the

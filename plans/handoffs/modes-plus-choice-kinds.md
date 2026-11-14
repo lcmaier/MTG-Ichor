@@ -46,4 +46,13 @@ merges.
   ticked a mode at a time, a checkbox or a count per mode, read off the offered
   list alone, each row showing its mode's printed line, its as-built in
   `choices-architecture.md`. Item 417, a mode's words, found and closed in it.
-- Next: `mana-provenance`'s design, ahead of `costs-and-choices-at-resolution`.
+- `mana-provenance`'s design is decided (#323, 2026-11-13), every decision
+  the owner's after three review rounds:
+  `mana-architecture.md#11-mana-provenance-what-a-unit-of-mana-keeps`. Its
+  decision 9 answers no: its build does not come before
+  `costs-and-choices-at-resolution`, whose `Pay` reaches the payment through
+  the cast's three calls and asks nothing about mana itself. The build is
+  three rows at step 7, after `mana-ability-costs`.
+- Next: `costs-and-choices-at-resolution`. For its brief: Leyline Tyrant's
+  payment is tested on a fixture, since the card's other ability is
+  `mana-kept-and-lost`'s.

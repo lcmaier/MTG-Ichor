@@ -44,24 +44,40 @@ five have no design stop ahead to name them: `resolution-recipients-and-amounts`
 `layers-combat-and-counters`. Their subsystems would never show as closed, the
 first at step 7, so this lands at #340 and no later.
 
+**Each crate's `rust-version` follows the pin** (the owner, at #322's merge,
+2026-11-13), rather than staying at a measured floor. A newer feature such as
+the never type raises the real floor, and nothing notices until the next
+re-measure; nobody builds the tree on an older compiler. Both `Cargo.toml`s
+take the pinned version, and the comments on the pin in `ci.yml` and on
+`rust-version` in `mtgsim/Cargo.toml` stop asking for a floor to be read, as
+does the CI review's last bullet in `plans/spine-phase-audit.md#the-ci-review`.
+
+**A pin move lands in this PR** (the owner, at #322's merge, 2026-11-13). When
+the CI review finds a newer Rust out, the move rides here instead of costing a
+PR of its own: neither reads performance, and the next engine PR's baseline is
+built on the new compiler either way. The same bullet says so. Rust ships every
+six weeks and the review has come every 8 to 13 days (#280 to #320), so a
+release still lands within about two. An unpinned `stable` and a
+`rust-toolchain.toml` were weighed at #322 and not proposed: every warning is an
+error here, so each release's lints would fail whichever PR was open, and an A/B
+arm built at an older commit would compile with that commit's compiler.
+
 ## Open, for the owner
 
-**Whether the engine's floor follows the pin, and whether a pin move rides
-here.** The owner asked at the move to 1.100.0 (2026-11-13) whether the
-project should keep up with each Rust release. It already does, through the
-CI review's last bullet: the review has come every 8 to 13 days (#280 to
-#320) against Rust's six weeks, so a release is picked up within about two.
-An unpinned `stable` was weighed and not proposed: every warning is an
-error here, so each release's new lints would fail whichever PR was open.
-Two changes are open. `rust-version` could follow the pin rather than stay at
-the measured 1.88, since a newer feature such as the never type raises the
-real floor and nothing notices until the next re-measure; following the pin
-drops that re-measure from every move. And a pin move could land in this PR
-when a release is out at a multiple of 20, rather than in a PR of its own,
-since neither reads performance. A `rust-toolchain.toml` was also weighed and
-not proposed: an A/B arm built at an older commit would compile with that
-commit's compiler.
+**Should the mana pool join the write gate's fields?** Raised at
+`mana-provenance`'s design (2026-11-13). `check_invariants.py`'s `EVENT_FIELDS`
+does not list a player's mana pool, so `turns.rs` empties pools and `costs.rs`
+spends from them outside `perform_action` with no tag. That design routes the
+emptying through the chokepoint and tags the spending
+(`mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`
+and its decision 4). The gate would then keep it so: a pool written anywhere
+but those two places fails. If yes, it lands with `mana-kept-and-lost`, the row
+that removes the last untagged write.
 
-The two questions this queue opened with were answered in #321's review and
+Nothing else open. The naming question raised at #323's review (2026-11-13)
+was answered there and built in that PR, at the owner's word: the
+`owner-review` agent applies its naming check at a design stop, and
+`/design-note` audits each name a note proposes. The question raised at #322
+was answered at its merge, as the two entries above. The two this queue opened with were answered in #321's review and
 built there: the hygiene pass runs at the midpoint of the run to v0.5, after
 step 9, and a backlog entry with no Owner line fails the board's check.

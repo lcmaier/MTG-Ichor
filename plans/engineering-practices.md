@@ -78,7 +78,7 @@ and [the spine-phase audit](#the-spine-phase-audit); the GUI is
 
 A name is read where it is used: a card file, a match arm, a struct literal,
 with no doc comment and often no type prefix. If the use alone does not say what
-it is, rename it. Every name a PR adds is read against this list:
+it is, rename it. Every name a PR adds or a design note proposes is read against this list:
 
 1. **Name the noun**: `ThisObject`, not `This`; a flag says it is one,
    `is_state_trigger`.
