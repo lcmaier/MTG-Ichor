@@ -179,10 +179,12 @@ pub fn legal_x_values(
 /// (CR 605.3a). One more `unit` is never easier to pay than one fewer, so
 /// every amount between is payable and the offer is an interval, its top
 /// found by doubling and halving over the check that asks the payment is
-/// payable. `source` is the permanent whose text asks, which a cost of its
+/// payable. [`legal_x_values`]' closed form counts the generic mana an {X}
+/// adds, and a unit may be colored (Leyline Tyrant's {R}), so the check
+/// itself is asked. `source` is the permanent whose text asks, which a cost of its
 /// own rules out as a mana source. A unit of no mana value, which any amount
 /// of pays, offers none but 0, so the search always ends.
-pub fn legal_amounts_to_pay(
+pub fn payable_amounts_of_any_amount(
     game: &GameState,
     payer: PlayerId,
     costs: &[Cost],
@@ -439,12 +441,12 @@ mod tests {
         }
         put_on_battlefield(&mut game, plains(), 0);
         let upto = |most| XOffer::Interval { at_least: 0, at_most: most };
-        assert_eq!(legal_amounts_to_pay(&game, 0, &[], &red, None), upto(3));
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &[], &red, None), upto(3));
         game.players[0].mana_pool.add(ManaType::Red, 2);
-        assert_eq!(legal_amounts_to_pay(&game, 0, &[], &red, None), upto(5));
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &[], &red, None), upto(5));
         let white = [Cost::Mana(ManaCost::from_symbols(vec![W]))];
-        assert_eq!(legal_amounts_to_pay(&game, 0, &white, &red, None), upto(5), "the Plains pays the {{W}}");
-        assert_eq!(legal_amounts_to_pay(&game, 0, &[], &ManaCost::from_symbols(vec![X]), None), upto(0));
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &white, &red, None), upto(5), "the Plains pays the {{W}}");
+        assert_eq!(payable_amounts_of_any_amount(&game, 0, &[], &ManaCost::from_symbols(vec![X]), None), upto(0));
     }
 
     #[test]

@@ -3069,7 +3069,7 @@ impl GameState {
         let (costs, amount) = match any_amount_of {
             Some(unit) => {
                 let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
-                let values = crate::oracle::x_values::legal_amounts_to_pay(self, payer, costs, unit, on_the_battlefield);
+                let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, costs, unit, on_the_battlefield);
                 let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, unit.clone(), values);
                 (with_amount_of(costs, unit, amount), Some(amount))
             }
