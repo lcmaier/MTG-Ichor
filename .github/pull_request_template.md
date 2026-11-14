@@ -42,5 +42,6 @@ here. The A/B, the budget and the floors when the engine changed. -->
 
 ## Review before handover
 
-<!-- What the owner-review agent found, and what was done about each finding;
-anything left for the owner to decide. -->
+<!-- A line per owner-review finding: its consequence, and fixed, test added,
+kept (why), false alarm (why) or for the owner. Then the polish in one line:
+how many taken, and why any were left. -->

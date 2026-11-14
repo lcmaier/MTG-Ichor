@@ -32,7 +32,7 @@ inserted above another cannot point this paragraph at the wrong one.
 
 Use Bash for `git diff`, `git log`, `git show` and `grep` only. Never change
 the working copy, the index or a branch, and never build or run tests; the
-gates do that. Stop at about 60 tool calls and report what you have.
+gates do that. Stop at about 100 tool calls and report what you have.
 
 ## The checks
 
@@ -77,8 +77,10 @@ gates do that. Stop at about 60 tool calls and report what you have.
    claim on an atom the test does not build whole.
 10. **Answers by identity, not position.** Flag a new prompt, record or
     scripted answer that picks by index where an option's identity would do.
-11. **The note and the code agree.** Flag a design decision with no code, code
-    the note does not mention, and a name in the note the tree does not use.
+11. **The note and the code agree.** Flag a decision of this PR's design note
+    with no code, code the note does not mention, and a name in the note the
+    tree does not use. Read the note and the files the diff touches; a stale
+    line in any other document is polish, not a finding.
 12. **Shapes drawn from a few cards.** Flag a decision that adds or reshapes
     a type, an enum arm, a field or a prompt kind without a count of the
     printed families it must hold (a Scryfall query, its counts and its
@@ -138,13 +140,27 @@ the rule's number, never as a verdict.
 
 ## The report
 
-Findings, most consequential first, at most 15, none padded. "No findings" is a
-valid report. Each finding:
+There is no target count. A branch with nothing wrong has no findings, and a
+long report is no better than a short one: report what this diff has, judged
+on its own, not what a review of this size usually holds.
 
+**Findings**, most consequential first, numbered: every defect and every
+question. Each:
+
+- its consequence, one of: **changes a game** (a card or board plays wrong,
+  now or once a card that writes it is registered); **changes what a client
+  sees** (a prompt, a log line, a record); **a test proves less than it
+  claims**; **a decision for the owner**;
+- the card, board or test where it shows, concretely: the board that plays
+  wrong, or the change a test would let through;
 - `path:line` and the check's number;
-- one sentence on what is wrong, with the code quoted when it is short;
-- the question the owner would ask about it;
-- the fix you would make, in a line or two.
+- the question the owner would ask, and the fix in a line or two.
+
+A point with no such consequence is not a finding.
+
+**Polish**, unnumbered, one line each with `path:line`: names, comments,
+wording, a stale line in another document. Never put unrelated points under
+one finding to shorten either list.
 
 Then one line listing the checks that came up clean. Plain words throughout:
 the owner reads this in chat, so gloss any item number, phase code or engine
