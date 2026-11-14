@@ -1406,8 +1406,9 @@ is not filed as a wrong answer. 1a keeps the one definition of alike that
 decision 2 rests on, and 1b is the change above if a ruling ever says
 otherwise.
 
-**Recommended: A.** It is the only option where "which units differ" has an
-answer the engine can compute, and it is cheaper than today for a clone.
+**Settled: A** (the owner, 2026-11-13). It is the only option where "which
+units differ" has an answer the engine can compute, and it is cheaper than
+today for a clone.
 
 #### Decision 2: which unit pays, and what the engine asks
 
@@ -1718,8 +1719,8 @@ does not pass the replacement pipeline, and where no unit has a rider and
 no trigger watches spending its cost is the append and the matcher's look
 for a trigger on that kind of event.
 
-**Recommended: A.** The unit is the one place the rider lives, and the event
-is one a second rule already needs.
+**Settled: A** (the owner, 2026-11-13). The unit is the one place the rider
+lives, and the event is one a second rule already needs.
 
 #### Decision 5: mana kept past a step's end, and mana lost
 
@@ -1947,8 +1948,9 @@ rider (Path of Ancestry), kept mana (Leyline Tyrant) and the amount spent
   moves to the restricted row, whose first card is its first consumer. The
   watch list, `{S}` and the snow cards become a fourth row after v0.5.
 
-**Recommended: as drawn**, changed in round 2 on the owner's question
-whether snow first helps the build. It does, in three ways.
+**Settled: as drawn** (the owner, 2026-11-13). The recommendation changed
+in round 2, on the owner's question whether snow first helps the build. It
+does, in three ways.
 - `{S}` is the only consumer before v0.5 of the record's source half: the
   watch list, the read at production, and a sacrificed source's last known
   information. Without it that half ships with nothing reading it, or is
