@@ -10859,3 +10859,18 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Slotted:** `breadth-features`, with its first card.
      **Sized:** ~30–50 lines: an amount in a payment's cost, evaluated as it
      is offered.
+
+423. **An amount paid as an effect resolves is paid in mana alone.**
+     `Primitive::Pay`'s `any_amount_of` is a `ManaCost`, the unit of {X}'s
+     {1} and Leyline Tyrant's {R}. "Any amount of life" (Necrodominance,
+     Plague of Vermin) and "any amount of {E}" (Harnessed Lightning, Galvanic
+     Discharge) pay another unit. On Scryfall (2026-11-13), "may pay any
+     amount of" reads 7 cards for energy, 7 for life and 10 for mana, beside
+     31 that pay {X} and 14 that pay X life, many of those last as a cost to
+     cast.
+     **Reachability (2026-11-13):** unreachable — no registered card pays an
+     amount at resolution.
+     **Slotted:** `breadth-features`, with each unit's first card; energy
+     with `remaining-costs`' counters as costs.
+     **Sized:** ~30–50 lines: the unit a `Cost`, its amounts read off the
+     payer's life or counters. Found by the pre-review.

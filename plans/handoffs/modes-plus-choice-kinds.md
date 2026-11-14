@@ -57,6 +57,6 @@ merges.
   payment first. `pay-as-an-effect-resolves` is handed over, its as-built in
   `choices-architecture.md`: decision 4 whole, Mana Leak, Waterfall
   Aerialist and Contamination, items 418 and half of 219 closed, items 419
-  to 422 found.
+  to 423 found.
 - Next: `choose-as-an-effect-resolves`, decision 8's `Choose` at resolution
   (item 28) and the division among objects not targeted.

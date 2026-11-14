@@ -1304,11 +1304,11 @@ The first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
   when the payer can pay (`can_pay_as_it_resolves`: the pool and what their mana abilities could
   add, castability's own check), so one who cannot is not asked and answers `Doesnt`. Taken: the
   amount, the cast's own mana window (CR 605.3a), `plan_payment_as_written` (608.2c, no ranks
-  and no order asked), then `pay_costs` under the resolution's cause. A window that ends unpaid
-  is a decline, and the mana made stays.
-- **The kinds**: `PayAsItResolves { source, offer }`, a take or leave, and `ChooseAmountToPay
-  { source, each, values }`, a `pick_number` as `ChooseXValue` is, each with its words, its why
-  and its setup line.
+  and no order asked), then `pay_costs` under the resolution's cause, and only then X. A window
+  that ends unpaid is a decline, and the mana made stays. Every prompt names the resolving object.
+- **The kinds**: `PayAsItResolves { source, offer, any_amount_of }`, a take or leave, and
+  `ChooseAmountToPay { source, unit, values }`, a `pick_number` as `ChooseXValue` is, each with
+  its words, its why and its setup line.
 - **Who pays**: `PlayerRef::NamedBy(recipient)`, an object naming its controller: "its
   controller" is an instance's (Mana Leak), "that player" a trigger's (ward). `PlayerRef::AnyPlayer`
   is asked in APNAP order until one pays (CR 101.4; the Prophecy rulings agree).
@@ -1322,18 +1322,18 @@ The first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
   Elenda and Azor's and Leyline Tyrant's payments.
 
 Where it differs from decision 4's words:
-- **The offer is the costs, a list**, where `EntryOffer::Pay` carries one; for "any amount",
-  the part that is the same at every amount.
-- **"Any amount" is a unit, `any_amount_of: Option<ManaCost>`**, not an {X} in the cost, since
-  "any amount of {R}" is no generic mana; its values are searched, not MA-2's closed form, and
-  `ChooseAmountToPay` carries the `XOffer` alone, with no why for an amount past the top.
+- **The offer is the costs, a list**, where `EntryOffer::Pay` carries one, and the unit of an
+  "any amount" beside them.
+- **"Any amount" is a mana unit, `any_amount_of: Option<ManaCost>`**, not an {X} in the cost,
+  since "any amount of {R}" is no generic mana; life and energy wait (item 423). Its values are
+  searched, not MA-2's closed form, with no why for an amount past the top.
 - **Leyline Tyrant's "when you do" waits** for the record of mana spent (item 419); its
   payment is tested here, as the brief set.
 - **Refused, not built**: a payment outside an `Optional` and "any player" around another
   action (item 420); a cost the engine cannot check is never offered (item 421); ward {X} (item
   422).
-- **No ladder shape**: the payment's check is castability's, which every priority question
-  already reads at each rung.
+- **An amount of none, taken, is a payment** (`Does`, X = 0), CR 118.3a's "players can always
+  pay 0 mana"; a question for the owner at handover.
 
 ## 6. Found while designing
 

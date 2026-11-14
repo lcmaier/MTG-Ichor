@@ -202,6 +202,65 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-13 for `pay-as-an-effect-resolves`, a cost paid as an effect resolves**
+(`choices/pay-as-an-effect-resolves`: CR 118.12, 118.12a, 605.3a, 107.3f, 702.21a, items 418 and
+219's half). Mana Leak joins the performance pool (126 → 127), and Mana Leak, Waterfall Aerialist
+and Contamination the registry, so both §3 columns are new baselines. One `close_out.py` sitting
+against **main** `6b99c6ce`: **engine** `a295a52a`, the last commit before the cards, and
+**shipped** `3c68c509`.
+
+**Predictions, before any arm ran**:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seats. No registered card
+  has a payment, a `NamedBy` or `AnyPlayer` chooser, or a target under a `Conditional`, so the
+  walk's new arm and the `Optional` arm's payment reach no game;
+- shipped: both pools move, the payment asked on both; 0 errors, panics and turn limits;
+- instructions per decision, engine vs `main`, within 0.3 points; no growth shape past ×4.35.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, dispatches agreed, performance / stress | 176,672 / 173,574 | 428,501 / 430,772 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 180,968 / 172,748 | 428,998 / 455,688 |
+| `Memo hits`, `main` → shipped, performance / stress | 51,488 → 52,581 / 56,521 → 53,531 | 235,348 → 232,743 / 243,581 → 266,197 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.7072 M → 0.7058 M, **-0.21%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**Every prediction held.** The functions past half a point are inlinings that moved
+(`shared_entering_frame`'s `OnceCell`, `ChosenTargets::push`'s monomorphs, `seed_frame`).
+Reachability, shipped, 200 games at two seats: Mana Leak cast 118 and resolved 116 in 48% of
+games, Waterfall Aerialist 104 (97) in 41%, Contamination 142 (141) in 52%; at four seats 89,
+102 and 89. Before registering, 200 four-seat stress games with Contamination in every deck read
+64.7 turns a game against 63.5 and 48.4 spells cast against 49.3. **No ladder shape is added**:
+the payment's check is castability's, which every priority question reads at each rung.
+
+**§3, shipped, 50 games at seed 12345**, the new baseline:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 23 / 26 | 26 / 22 |
+| Wins by effect | 1 | 2 |
+| Avg turns | 30.0 | 25.7 |
+| Spells cast | 23.9 | 20.2 |
+| Creatures died | 8.9 | 5.1 |
+| Total damage | 61.5 | 48.7 |
+| **Layer walks** | **364** | **347** |
+| **Memo hits** | **59,347** | **48,231** |
+| **Frames/walk** | **12.69** | **10.91** |
+| **Dependency checks** | **11** | **8** |
+| Decisions | 212 | 201 |
+
+**Rerun after the pre-review (2026-11-13), on `2558693a`** against shipped `3c68c509`: the
+prompts naming the resolving object, the offer carrying its unit, X written once paid, one
+payability check, and the merged ask of an X and an amount (`da5f38b4`, the copy the first
+sitting found). Predicted every row `IDENTICAL`, since no registered card pays an amount and no
+seat reads a prompt's subject. Every gameplay row **IDENTICAL** on both pools at both seats;
+instructions a decision 0.7355 M → 0.7327 M, **-0.39%**; growth ×3.94 to ×4.03; no copy left;
+143 s.
+
+**Size**: 1,533 added and 83 removed in `mtgsim/src` and `mtgsim/tests`, 1,616 touched, 1,494
+before the pre-review's fixes and boards, against the brief's 1,350–2,100.
+
 **Recorded 2026-11-07 for `mode-rules-and-costs`, the modal node's rules and a mode's own cost**
 (`choices/mode-rules-and-costs`, PR #319: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
 345, 412 and 413). Arc Trail, Explosive Derailment, Demonic Pact and Vindictive Lich join the
