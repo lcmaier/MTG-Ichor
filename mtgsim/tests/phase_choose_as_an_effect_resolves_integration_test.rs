@@ -94,28 +94,84 @@ fn plus_ones(game: &GameState, id: ObjectId) -> u32 {
     game.battlefield[&id].counter_count(CounterType::PlusOnePlusOne)
 }
 
-/// CR 608.2d: "choose a creature you control" asks nothing as the spell is
-/// cast, and asks its controller as it resolves, which is when the creature
-/// is chosen. Final Showdown's first ruling: "You don't choose which creature
-/// will gain indestructible until the spell is resolving."
-// COVERS-PARTIAL: ATOM-608.2d-001
+/// **A walk's shape, not a card.** Final Showdown's "Choose a creature you
+/// control. It gains indestructible until end of turn." before Explosive
+/// Derailment's "deals 4 damage to target creature", then "tap it": a choice
+/// beside a target, the target's back-reference after both.
+fn chosen_beside_a_target() -> Arc<CardData> {
+    let text = "Choose a creature you control. It gains indestructible until end of turn. This spell deals 4 damage to target creature. Tap it.";
+    CardDataBuilder::new("Fixture Showdown Derailment")
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::GrantKeywordFlag(KeywordFlag::Indestructible, Duration::UntilEndOfTurn),
+                    EffectRecipient::Choose(SelectionFilter::Permanent(creatures_you_control()), TargetCount::Exactly(1)),
+                ),
+                Effect::Atom(
+                    Primitive::DealDamage { amount: AmountExpr::Fixed(4), unpreventable: false },
+                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                ),
+                Effect::Atom(Primitive::Tap, EffectRecipient::SameInstanceAs(0)),
+            ]),
+        ))
+        .build()
+}
+
+/// A choice beside a target: the target is the one instance announced as
+/// the spell is cast, and the choice is asked as it resolves. Each atom
+/// reaches its own object: the choice takes no place among the instances,
+/// so the target's back-reference still names the target.
 #[test]
-fn a_choice_is_asked_as_the_spell_resolves_and_not_as_it_is_cast() {
+fn a_choice_beside_a_target_is_asked_as_it_resolves_and_the_target_keeps_its_place() {
     let mut game = setup_game(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
 
-    let (spell, at_cast) = cast(&mut game, showdown_fixture(), ManaType::White, ScriptedDecisionProvider::new());
-    assert!(the_asked(&at_cast).is_empty(), "casting it asks nothing: {:?}", the_asked(&at_cast));
-    assert!(game.stack_entries[&spell].announced.targets().next().is_none(), "no instance of \"target\"");
+    let at_cast = ScriptedDecisionProvider::new();
+    picks(&at_cast, vec![ChoiceOption::Object(theirs)]);
+    let (spell, at_cast) = cast(&mut game, chosen_beside_a_target(), ManaType::White, at_cast);
+    assert_eq!(the_asked(&at_cast), ["SelectRecipients"], "the target, and nothing else");
+    assert_eq!(game.stack_entries[&spell].announced.targets().count(), 1);
 
     let at_resolution = ScriptedDecisionProvider::new();
     picks(&at_resolution, vec![ChoiceOption::Object(lions)]);
     game.resolve_top_of_stack(&at_resolution).expect("the spell resolves");
 
-    assert_eq!(the_asked(&at_resolution), ["SelectRecipients"]);
-    assert!(has_keyword(&game, lions, KeywordFlag::Indestructible));
-    assert!(!has_keyword(&game, bears, KeywordFlag::Indestructible));
+    assert_eq!(the_asked(&at_resolution), ["SelectRecipients"], "the choice");
+    assert!(has_keyword(&game, lions, KeywordFlag::Indestructible) && !has_keyword(&game, bears, KeywordFlag::Indestructible));
+    assert_eq!(game.battlefield[&theirs].damage_marked, 4);
+    assert!(game.battlefield[&theirs].tapped, "\"tap it\" is the target's");
+    assert!(!game.battlefield[&lions].tapped && game.battlefield[&lions].damage_marked == 0, "the choice's creature is the choice's only");
+}
+
+/// With its one target gone the spell does not resolve (CR 608.2b), so the
+/// choice is never asked: a choice is no target to keep the spell alive.
+/// Crashing Wave's ruling says it: with all its targets illegal "you will not
+/// distribute any stun counters, even if the opponent still controls some
+/// tapped creatures".
+#[test]
+fn a_choice_beside_a_target_is_never_asked_when_the_target_is_gone() {
+    let mut game = setup_game(2);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
+    let at_cast = ScriptedDecisionProvider::new();
+    picks(&at_cast, vec![ChoiceOption::Object(theirs)]);
+    let (_, _) = cast(&mut game, chosen_beside_a_target(), ManaType::White, at_cast);
+
+    game.change_zone(theirs, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    let at_resolution = ScriptedDecisionProvider::new();
+    game.resolve_top_of_stack(&at_resolution).expect("removed from the stack");
+
+    assert!(the_asked(&at_resolution).is_empty(), "nothing chosen for a spell that does not resolve");
+    assert!(!has_keyword(&game, lions, KeywordFlag::Indestructible));
+    assert!(game.stack.is_empty());
 }
 
 /// A choice is no target, so CR 601.2c's "you can't cast this spell unless
@@ -138,23 +194,31 @@ fn a_spell_that_chooses_is_castable_with_nothing_to_choose() {
 }
 
 /// Shroud stops targeting by its own controller too (CR 702.18a), and a
-/// choice is no targeting (CR 115.10a): the creature with shroud is chosen.
-/// Blessing of Frost's ruling says the same of protection: "Because none of
-/// the creatures are targeted, you can choose to put +1/+1 counters on a
-/// creature with protection from green."
+/// choice is no targeting (CR 115.10a): the creature with shroud is offered
+/// beside the Bears and chosen, the script's pick being found among the
+/// options or refused. Blessing of Frost's ruling says the same of
+/// protection: "Because none of the creatures are targeted, you can choose to
+/// put +1/+1 counters on a creature with protection from green." Nothing
+/// checks shroud for a target yet either (`cant-be-targeted`), so this passes
+/// without the choice's change too: it guards the day something does.
 #[test]
 fn shroud_does_not_stop_a_choice() {
     let mut game = setup_game(2);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
     let shrouded = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Shroud]), 0);
     let (_, _) = cast(&mut game, showdown_fixture(), ManaType::White, ScriptedDecisionProvider::new());
-    game.resolve_top_of_stack(&test_dp()).expect("the spell resolves");
-    assert!(has_keyword(&game, shrouded, KeywordFlag::Indestructible), "the one creature, chosen unasked");
+    let at_resolution = ScriptedDecisionProvider::new();
+    picks(&at_resolution, vec![ChoiceOption::Object(shrouded)]);
+    game.resolve_top_of_stack(&at_resolution).expect("the spell resolves");
+    assert_eq!(the_asked(&at_resolution), ["SelectRecipients"]);
+    assert!(has_keyword(&game, shrouded, KeywordFlag::Indestructible));
 }
 
 /// CR 608.2d: a division among objects not targeted is chosen and divided as
 /// the effect applies, each chosen object receiving at least one. Nothing is
-/// asked as the spell is cast.
-// COVERS: ATOM-608.2d-002
+/// asked as the spell is cast. Partial: the atom's 3/0 refusal is the next
+/// test but one.
+// COVERS-PARTIAL: ATOM-608.2d-002
 #[test]
 fn a_division_among_creatures_not_targeted_is_made_as_the_spell_resolves() {
     let mut game = setup_game(2);
@@ -195,6 +259,7 @@ fn a_division_may_be_among_fewer_objects_than_it_could_be() {
 
 /// CR 608.2d's "each chosen ... receives at least one": three counters
 /// divided 3/0 between two chosen creatures is no answer.
+// COVERS-PARTIAL: ATOM-608.2d-002
 #[test]
 #[should_panic(expected = "ask_divide_among: DP")]
 fn a_chosen_object_receives_at_least_one() {
@@ -244,7 +309,10 @@ fn cast_final_showdown(game: &mut GameState, places: &[u8]) -> Vec<&'static str>
     the_asked(&seat.into_inner())
 }
 
+/// CR 608.2d: "choose a creature you control" asks nothing as the spell is
+/// cast, and asks its controller as it resolves.
 // RULING: Final Showdown #1 - "The second mode of Final Showdown doesn't target the creature. You don't choose which creature will gain indestructible until the spell is resolving. At that point, it's too late for anyone to respond to the spell."
+// COVERS-PARTIAL: ATOM-608.2d-001
 #[test]
 fn final_showdown_chooses_its_creature_as_it_resolves() {
     let mut game = setup_game(2);
@@ -358,6 +426,23 @@ fn feast_of_the_victorious_dead_counts_the_deaths_as_it_resolves() {
 
     assert_eq!(game.players[0].life_total, 22);
     assert_eq!((plus_ones(&game, bears), plus_ones(&game, lions)), (0, 2), "both counters on the one creature chosen");
+}
+
+/// Every creature of its controller's died: the life is gained, and the
+/// counters have nothing to be divided among, so nothing is asked and none
+/// is put.
+#[test]
+fn feast_of_the_victorious_dead_gains_the_life_with_no_creature_to_divide_among() {
+    let (mut game, bears, lions, _) = feast_board();
+    dies(&mut game, bears);
+    dies(&mut game, lions);
+    to_the_end_step(&mut game);
+
+    let at_resolution = ScriptedDecisionProvider::new();
+    game.resolve_top_of_stack(&at_resolution).expect("it resolves");
+    assert!(the_asked(&at_resolution).is_empty(), "no creature to choose, and no split");
+    assert_eq!(game.players[0].life_total, 22);
+    assert!(game.stack.is_empty());
 }
 
 /// No death, no trigger: the intervening "if" (CR 603.4).

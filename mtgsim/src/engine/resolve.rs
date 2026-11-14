@@ -212,16 +212,16 @@ impl ResolutionWalk {
 
 /// What one atom's verb acts on, as [`GameState::recipients_for`] finds it.
 enum Recipients<'a> {
-    /// Nothing, and the instruction does nothing: an attack that has ended,
-    /// no defending player, a division with nothing to divide among.
+    /// Nothing, and the instruction does nothing, not even a player verb's
+    /// default player: an attack that has ended, no defending player.
     Nothing,
     /// The objects and players the verb acts on in one instruction (CR
     /// 608.2f), read with `clause`: for a back-reference, the clause that
     /// declared its instance.
-    Each(&'a EffectRecipient, Cow<'a, [ObjectOrPlayerId]>),
+    Each { clause: &'a EffectRecipient, found: Cow<'a, [ObjectOrPlayerId]> },
     /// Each object or player with its share of a division: announced with
     /// the targets (CR 601.2d), or chosen as the effect applies (608.2d).
-    Divided(&'a EffectRecipient, Vec<(ObjectOrPlayerId, u64)>),
+    Divided { clause: &'a EffectRecipient, shares: Vec<(ObjectOrPlayerId, u64)> },
 }
 
 impl GameState {
@@ -337,8 +337,8 @@ impl GameState {
         match effect {
             Effect::Atom(primitive, recipient) => match self.recipients_for(primitive, recipient, declared, walk, ctx, dp)? {
                 Recipients::Nothing => Ok(()),
-                Recipients::Each(clause, found) => self.resolve_primitive(primitive, clause, &found, ctx, dp, walk),
-                Recipients::Divided(clause, shares) => self.resolve_divided(primitive, clause, &shares, ctx, dp, walk),
+                Recipients::Each { clause, found } => self.resolve_primitive(primitive, clause, &found, ctx, dp, walk),
+                Recipients::Divided { clause, shares } => self.resolve_divided(primitive, clause, &shares, ctx, dp, walk),
             },
 
             Effect::Sequence(effects) => {
@@ -526,14 +526,17 @@ impl GameState {
         }
     }
 
-    /// What an atom's verb acts on: the one route from a recipient to the
-    /// objects and players its verb reaches, so a verb reads its slice and
-    /// never its recipient to find them.
+    /// What an atom's verb acts on: the one route from an atom's recipient
+    /// to the objects and players its verb reaches, so a verb reads its slice
+    /// and never its recipient to find them.
     ///
-    /// **The one place `ctx.targets` is indexed.** Each atom is handed its own
+    /// **Where an atom's own instance is indexed.** Each atom is handed its
     /// instance as a flat slice, so no primitive can reach a neighboring
     /// instance's targets, and an atom whose instance fizzled is handed an
-    /// empty one rather than the spell's first (CR 608.2b).
+    /// empty one rather than the spell's first (CR 608.2b). A player an
+    /// instruction names beside its recipient ("that player" as a payer, an
+    /// edict's chooser, "until that enchantment leaves") reads its own
+    /// instance where it is named.
     fn recipients_for<'a>(
         &mut self,
         primitive: &Primitive,
@@ -543,7 +546,7 @@ impl GameState {
         ctx: &'a ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<Recipients<'a>, String> {
-        let each = |found: Vec<ObjectOrPlayerId>| Ok(Recipients::Each(recipient, Cow::Owned(found)));
+        let each = |found: Vec<ObjectOrPlayerId>| Ok(Recipients::Each { clause: recipient, found: Cow::Owned(found) });
         match recipient {
             // "That creature", "that player": not an instance of "target" but
             // a fact bound at dispatch — empty when CR 603.6 finds nothing.
@@ -611,11 +614,11 @@ impl GameState {
                 // The atom that declared the division acts by the shares;
                 // a later one naming its instance ("each of those
                 // creatures") reads the targets alone, as `clause` does.
-                Some((ix, clause)) if recipient.is_divided() => Ok(Recipients::Divided(
+                Some((ix, clause)) if recipient.is_divided() => Ok(Recipients::Divided {
                     clause,
-                    shares_of_surviving_targets(declared.division(ix), ctx.targets.instance(ix), ctx)?,
-                )),
-                Some((ix, clause)) => Ok(Recipients::Each(clause, Cow::Borrowed(ctx.targets.instance(ix)))),
+                    shares: shares_of_surviving_targets(declared.division(ix), ctx.targets.instance(ix), ctx)?,
+                }),
+                Some((ix, clause)) => Ok(Recipients::Each { clause, found: Cow::Borrowed(ctx.targets.instance(ix)) }),
                 // `Instance(ix)` naming a clause that does not exist: a
                 // card-authoring error, loud rather than silently
                 // targetless. `cards::registry`'s own test refuses one at
@@ -635,8 +638,16 @@ impl GameState {
     /// matches now (CR 608.2d), and for a division then splits the amount
     /// among the picks, at least one each. "Distribute three counters among
     /// any number of creatures" places all three, so a division takes at
-    /// least one object while there is one; fewer than the most is the
-    /// player's (CR 608.2d).
+    /// least one object while there is one, and no more than the amount;
+    /// fewer than the most is the player's (CR 608.2d). A choice of nothing
+    /// hands the verb nothing, as a fizzled instance does.
+    ///
+    /// The candidates are the filter's, as a target's are: the choice is made
+    /// before the verb, and a "can't" on the verb is checked as it acts, so
+    /// "choose a creature; put a counter on it" may choose one that can't
+    /// have counters put on it. An edict's pick differs because the pick is
+    /// the sacrifice, and CR 701.21a lets no player sacrifice what can't be
+    /// sacrificed.
     fn chosen_by_the_controller<'a>(
         &self,
         recipient: &'a EffectRecipient,
@@ -646,30 +657,36 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<Recipients<'a>, String> {
         // "Choose a player" is a value with its own kind (`ChoosePlayer`,
-        // `choices-architecture.md`'s decision 7), and "another" reads the
-        // targets an announcement chose before it, which a choice has none of.
+        // `values-chosen-at-resolution`'s), and "another" reads the targets an
+        // announcement chose before it, which a choice has none of.
         if matches!(filter, SelectionFilter::Player(_) | SelectionFilter::Any | SelectionFilter::Another(_)) {
             return Err(format!("{recipient:?} on {:?} is not built: a choice here names objects", ctx.source));
         }
-        let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
-        let candidates =
-            crate::oracle::legality::enumerate_legal_selections_excluding(self, filter, Some(ctx.source), ctx.controller, identity);
-        let bounds = count.bounds(&|amount| self.evaluate_amount(amount, ctx, None))?;
-        let most = bounds.most.min(candidates.len());
-        let ask = |fewest: usize| {
+        let candidates = crate::oracle::legality::enumerate_legal_selections_excluding(
+            self,
+            filter,
+            Some(ctx.source),
+            ctx.controller,
+            self.filter_identity_for(ctx),
+        );
+        let amount = |amount: &AmountExpr| self.evaluate_amount(amount, ctx, None);
+        let ask = |fewest: usize, most: usize| {
+            let most = most.min(candidates.len());
             crate::ui::ask::ask_select_recipients(dp, self, ctx.controller, recipient, ctx.source, &candidates, fewest.min(most), most)
         };
         let TargetCount::Divided(divided) = count else {
-            return Ok(Recipients::Each(recipient, Cow::Owned(ask(bounds.fewest))));
+            let bounds = count.bounds(&amount)?;
+            return Ok(Recipients::Each { clause: recipient, found: Cow::Owned(ask(bounds.fewest, bounds.most)) });
         };
-        let chosen = ask(bounds.fewest.max(1));
-        if chosen.is_empty() {
-            return Ok(Recipients::Nothing);
-        }
-        let total = self.evaluate_amount(&divided.total, ctx, None)?;
-        let shares = crate::ui::ask::ask_divide_among(dp, self, ctx.controller, ctx.source, &chosen, total);
-        Ok(Recipients::Divided(recipient, chosen.into_iter().zip(shares).collect()))
+        let total = amount(&divided.total)?;
+        let among = divided.among.bounds(&amount)?;
+        let chosen = ask(among.fewest.max(1), among.most.min(total as usize));
+        let shares = if chosen.is_empty() {
+            Vec::new()
+        } else {
+            crate::ui::ask::ask_divide_among(dp, self, ctx.controller, ctx.source, &chosen, total)
+        };
+        Ok(Recipients::Divided { clause: recipient, shares: chosen.into_iter().zip(shares).collect() })
     }
 
     /// A divided atom, acting in one instruction on each recipient by its
@@ -752,13 +769,14 @@ impl GameState {
         Ok(())
     }
 
-    /// Resolve a single primitive action against its targets.
+    /// Resolve a single primitive action against what its atom acts on.
     ///
-    /// `targets` is **this atom's instance** of "target" (CR 115.3), already
-    /// filtered by CR 608.2b — not the spell's whole list. `recipient` is the
-    /// clause that instance was announced with, which for an
-    /// `EffectRecipient::SameInstanceAs` atom is the *declaring* atom's clause, so
-    /// the two atoms of Ensoul Artifact behave identically.
+    /// `targets` is what [`Self::recipients_for`] found for this atom: its own
+    /// instance of "target" (CR 115.3), already filtered by CR 608.2b and not
+    /// the spell's whole list, or the objects and players a sweep, a choice or
+    /// a bound fact names. `recipient` is the clause it was found with, which
+    /// for an `EffectRecipient::SameInstanceAs` atom is the *declaring* atom's
+    /// clause, so the two atoms of Ensoul Artifact behave identically.
     fn resolve_primitive(
         &mut self,
         primitive: &Primitive,
@@ -1230,12 +1248,12 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // CR 701.26b, a sweep's members in timestamp order: stun counters (CR
-                // 122.1d) make two effects want one untap, so the members reach a CR
-                // 616.1 prompt. CR 608.2b: a spell whose targets are not *all* illegal still resolves
-                // and does as much as it can, so a target that has left is skipped.
-                // The performer is loud, which makes checking here the caller's job —
-                // the shape `Primitive::Destroy` above has.
+                // CR 701.26b, in the order found (a sweep's by timestamp): stun
+                // counters (CR 122.1d) make two effects want one untap, so the members
+                // reach a CR 616.1 prompt. CR 608.2b: a spell whose targets are not *all*
+                // illegal still resolves and does as much as it can, so a target that
+                // has left is skipped. The performer is loud, which makes checking here
+                // the caller's job — the shape `Primitive::Destroy` above has.
                 let ids = self.permanents_among(targets);
                 if ids.is_empty() {
                     return Ok(());
@@ -1800,10 +1818,7 @@ impl GameState {
             Primitive::GainControl { to, duration } => {
                 // A filter names permanents (Mob Rule); a target may also be a
                 // spell, which has a controller too (CR 108.4).
-                let affected = match recipient {
-                    EffectRecipient::FilteredPermanents(_) => self.permanents_among(targets),
-                    _ => self.collect_permanent_or_spell_targets(targets),
-                };
+                let affected = self.collect_permanent_or_spell_targets(targets);
                 // Nothing to take is no choice of who takes it.
                 if affected.is_empty() {
                     return Ok(());
@@ -2586,9 +2601,15 @@ impl GameState {
     /// object `ResolutionContext::effect_source` names (`codebase-state.md`
     /// item 229).
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
-        let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
+        let identity = self.filter_identity_for(ctx);
         self.object_matches_filter(ObjectInformation::Current(id), filter, &mut TextReferents { game: self, you: ctx.controller, identity })
+    }
+
+    /// The identities a filter in this resolution's text reads: "another" is
+    /// other than its source, and its trigger's event names "that creature".
+    fn filter_identity_for<'a>(&'a self, ctx: &'a ResolutionContext) -> FilterIdentity<'a> {
+        let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+        FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named)
     }
 
     /// CR 701.6a — a spell countered goes to its owner's graveyard, through
@@ -2673,8 +2694,8 @@ impl GameState {
 
     /// The permanents among what an atom acts on, those on the battlefield
     /// now: a target that left is CR 608.2b's illegal one, and gets nothing.
-    fn permanents_among(&self, targets: &[ObjectOrPlayerId]) -> Vec<ObjectId> {
-        targets.iter()
+    fn permanents_among(&self, found: &[ObjectOrPlayerId]) -> Vec<ObjectId> {
+        found.iter()
             .filter_map(|t| {
                 if let ObjectOrPlayerId::Object(id) = t
                     && self.battlefield.contains_key(id) {
