@@ -1794,10 +1794,39 @@ at four, in games of 191 and 478 decisions. The record's last readings of
 one decision are 0.65 to 0.85 million instructions, on the Commander board,
 so a game's whole cost of A is under a tenth of one decision. An emptying
 with nothing to lose proposes nothing and costs what it does today, and B
-costs what today does. The probe does not separate them, so the choice is
-on what each can express. The random agent rarely leaves mana floating; a
-deck built around Omnath or Upwelling would, and there the proposal is the
-card working.
+costs what today does.
+
+**That average answers one question only** (the owner, round 2: floating
+mana is inconsequential in most games and the whole point in a few). It
+says a game with none of these cards pays nothing for A. It says nothing
+about a board that stores mana, where a pool is full at every emptying.
+That board is derived here, from two measured numbers: the probe's 13.5
+emptyings a turn, at either table size, and 22,500 instructions as the most
+a proposal costs.
+
+| On the board | Cards | What each emptying does under A | Cost a turn, for each class of mana a player holds |
+|---|---:|---|---|
+| a unit inside its own lifetime (firebending) | 50 | nothing: it is not proposed | none |
+| mana kept by a static ability or an effect (Omnath, Upwelling, Leyline Tyrant) | 7 | a proposal that the "can't" refuses ahead of the pipeline | at most 300,000 instructions. A refusal should cost less than a performed proposal; by how much is not measured |
+| the loss replaced (Kruphix, Horizon Stone) | 5 | a proposal, rewritten and performed | about 300,000 |
+| the loss followed (Yurlok) | 2 | a proposal and a life loss, only when mana is in fact lost | two proposals a loss, which a player avoids |
+
+A turn is about seven decisions, 4.4 to 6.1 million instructions on the
+record's readings, so one class of stored mana costs at most 5 to 7% of
+each turn it is held. The board to watch is Upwelling at four seats: with
+eight classes held around the table it would be about half a turn's cost at
+that bound. B plays only the second row, at a set lookup. It cannot play
+the third or fourth at all, so there A's cost is the card's own, under any
+design that lets a replacement see the loss.
+
+**So the build measures the boards, not the average.**
+`mana-kept-and-lost`'s close-out reads the budget on three boards made for
+it: Omnath holding green, Kruphix holding colorless, and Upwelling at four
+seats with every pool full. If a refusal there costs more than a few
+percent of a turn, the emptying asks the "can't" itself for each player and
+type and proposes only what would be lost. That is the engine's own rule
+that a caller checks legality, and it costs one registry question where it
+cost a proposal.
 
 **Recommended: A.** One action serves all six families, and each family
 lands in the registry that already knows how to ask whether its source still
@@ -2047,7 +2076,9 @@ card in a row of this build.
   measured price for a production's). Decision 5's probe counted it: 1.3
   proposals a game at two seats and 2.7 at four, under a tenth of one
   decision's instructions a game, so the budget's reading should not move
-  past its noise.
+  past its noise. That is the board with none of the row's cards. The three
+  boards that store mana are read apart, against decision 5's bound of 5 to
+  7% of a turn for each class held.
 
 ### 11.8 The fixtures
 
