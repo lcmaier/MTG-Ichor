@@ -2723,10 +2723,11 @@ pub enum Primitive {
     /// since one payment plan splits one component's generic part. It is paid
     /// first, and `others` after it in the order written (CR 608.2c): where a
     /// card prints its mana among the rest is no order anyone sees, since the
-    /// window that makes the mana runs before anything is paid.
+    /// window that makes the mana runs before anything is paid. An X in
+    /// `mana` is the resolving spell's or ability's (CR 107.3a, 107.3i), or,
+    /// with none, its controller's choice as the payment is taken (107.3f).
     /// `any_amount_of` is "any amount of {R}": the payer chooses how many of
-    /// it they add to `mana` as they pay (CR 107.3f), which is the
-    /// resolution's X.
+    /// it they add to `mana` as they pay, which is the resolution's X.
     Pay {
         mana: Option<super::mana::ManaCost>,
         others: Vec<crate::types::costs::Cost>,

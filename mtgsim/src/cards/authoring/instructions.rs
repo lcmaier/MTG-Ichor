@@ -130,8 +130,8 @@ pub fn its_controller_adds(recipient: EffectRecipient, output: ManaOutput) -> Ef
 /// "[Player] may pay [costs]" (CR 118.12): a cost paid as the effect
 /// resolves, offered only when that player can pay (CR 118.3). An "if [they]
 /// do" or "if [they] don't" after it reads their answer. The costs are
-/// written as the card prints them; their mana is gathered into the one
-/// component `Primitive::Pay` holds.
+/// written as the card prints them, an {X} among them; their mana is
+/// gathered into the one component `Primitive::Pay` holds.
 pub fn may_pay(player: PlayerRef, costs: Vec<Cost>) -> Effect {
     let (mana, others) = Cost::split_out_mana_costs(costs);
     offered_to(player, Primitive::Pay { mana: mana.map(ManaCost::from_symbols), others, any_amount_of: None })
