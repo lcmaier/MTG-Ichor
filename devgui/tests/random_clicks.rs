@@ -33,7 +33,12 @@ use mtgsim::types::effects::ModeIndex;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-const SEEDS: [u64; 3] = [1, 2, 3];
+/// The deals played. The coverage assertions read what these deals reach,
+/// and a card pooled reshapes every deal: closing the why panel is one input
+/// among a board's items and the panel's links, and an option with its words
+/// beside it is a modal card's, so a triple can miss either and is re-picked
+/// when the pool changes.
+const SEEDS: [u64; 3] = [13, 14, 15];
 
 /// The prompts a game is played for. Every other game finishes in under 700,
 /// and only a stress game may stall past this, on the board its pool builds. It
