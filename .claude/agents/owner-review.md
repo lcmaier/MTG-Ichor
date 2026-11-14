@@ -25,12 +25,10 @@ design note's path. Read, in order:
    surrounding code with Read where a hunk needs context.
 
 **At a design stop** the prompt gives only the note, and there is no diff
-yet. Read the note whole, open the code its decisions name, and apply checks
-1, 2, 4, 6, 12 and 17 to the decisions. Check 1 reads every type, field, arm
-and function the note's code blocks propose: each carries its subsystem's noun
-(`ManaSpendFilter`, not `SpendFilter`), and you grep `mtgsim/src` for the bare
-word and for a near name already taken. Check 17 reads the note's binding
-table.
+yet. Read the note whole, open the code its decisions name, and apply to the
+decisions each check marked **At a design stop**, which says what it reads
+there. The mark is on the check, never a list of numbers here, so a check
+inserted above another cannot point this paragraph at the wrong one.
 
 Use Bash for `git diff`, `git log`, `git show` and `grep` only. Never change
 the working copy, the index or a branch, and never build or run tests; the
@@ -42,24 +40,28 @@ gates do that. Stop at about 60 tool calls and report what you have.
    Flag a name whose use alone does not say what it is (a generic noun such as
    "entry", "bucket", "rider" or "info" without its subject), a variable named
    for a different concept than it holds (`seq` holding an id), or a name
-   that needs its doc comment to be understood.
+   that needs its doc comment to be understood. **At a design stop**: every
+   type, field, arm and function the note's code blocks propose carries its
+   subsystem's noun (`ManaSpendFilter`, not `SpendFilter`); grep `mtgsim/src`
+   for the bare word and for a near name already taken.
 2. **One concept, one owner** (`plans/engineering-practices.md#records-and-concepts`).
    Flag a new field, type or variant that holds a Comprehensive Rules concept
    something else already holds; two spellings of one thing; a fact kept per
    consumer instead of once, keyed by what the rules key it by (an object's
-   existence, not its id).
+   existence, not its id). **At a design stop.**
 3. **One ability's concern goes on the ability.** Flag an `Option` field added
    to a shared arm or struct for a fact few abilities read; that is a
    `Condition` the ability carries.
 4. **Shapes that mislead.** Flag a struct whose main member is optional while a
    secondary one is not, two members that should be one enum, and a catch-all
-   variant nobody marked as one.
+   variant nobody marked as one. **At a design stop.**
 5. **Magic numbers and pins.** Flag an unexplained constant or threshold, and a
    test that pins a size or count the PR itself bumped to pass.
 6. **Deferrals without a home.** Flag "later", "with the first card that …" or
    "the engine does not do X yet" with no named phase or roadmap row
    (`plans/engineering-practices.md#gaps-a-phase-finds`). Comments state the
    rule the way the Comprehensive Rules state it, not today's engine.
+   **At a design stop.**
 7. **Panics in the engine.** Flag any new `.expect` or `.unwrap` in
    `mtgsim/src` outside `#[cfg(test)]`, `src/bin` and `test_support.rs`, even
    one that cannot fire: pass the value in instead.
@@ -84,33 +86,47 @@ gates do that. Stop at about 60 tool calls and report what you have.
     for the cards the note discusses where the count groups them by what
     they do. The owner has caught this on devour, on sacrifice verbs and on
     entry prompts (`plans/engineering-practices.md#what-a-new-type-must-express`).
-13. **Empty values by name.** Flag `X::default()`, `Default::default()` or a
+    **At a design stop.**
+13. **The client of each new surface.** Flag a new public function, type,
+    field or prompt kind whose v1 client the note does not name: a person at
+    the four-seat GUI, an AI client, or neither. Flag one that serves only a
+    test, the random agent or an existing function and sits in the engine,
+    not outside it (`ui/random`, the harness, the tests): the shape of
+    `available_mana_sources`, which only the random agent calls, in `oracle/`.
+    **At a design stop.**
+14. **A shape cut to one card.** Flag a new field, enum variant or arm only one
+    printed card needs, where the note does not ask the owner whether the
+    general shape is right; one with no count at all is "Shapes drawn from a
+    few cards". #324's `any_amount_of` was cut to fit Leyline Tyrant's {R},
+    one card of 46. **At a design stop.**
+15. **Empty values by name.** Flag `X::default()`, `Default::default()` or a
     new `#[derive(Default)]` where the value is an engine type's empty or
     neutral case: the project names those (`EnterMods::NONE`,
     `AppliedReplacements::EMPTY`, `ChosenTargets::NONE`), so a reader sees
     what the empty one means. Grep the diff's added lines for `default()`.
     A `Default` derive kept only so a containing type can derive it is fine
     when its doc says so. The owner caught this twice at #294.
-14. **A negative test reaches its code.** Flag a "does not happen" assertion
+16. **A negative test reaches its code.** Flag a "does not happen" assertion
     (no trigger, no prompt, no counter) with no arm showing the same input
     gets there when the condition flips. An early return upstream passes it
     for the wrong reason, so a negative needs its positive twin.
-15. **Fixtures take the branch a game takes.** For each fixture the diff adds,
+17. **Fixtures take the branch a game takes.** For each fixture the diff adds,
     name the branch it takes through the changed function. Flag a real branch
     no fixture takes, and a fixture so simple it takes a shortcut a played
     game would not.
-16. **"This way" is carried, not rescanned.** Flag a resolution that finds what
+18. **"This way" is carried, not rescanned.** Flag a resolution that finds what
     an earlier step chose by searching the board. "This way", "that source",
     "the chosen" and "from among them" name what that step selected, which
     the step must hand on.
-17. **Fixed when the rules fix it.** Flag a live read where the rules fix a
+19. **Fixed when the rules fix it.** Flag a live read where the rules fix a
     value at a moment (as a spell resolves, as a replacement applies, as a
     duration begins), a stored value where they read live, and a test that
-    never changes the input after that moment.
-18. **The empty and declined paths.** Flag an optional choice or tracked set
+    never changes the input after that moment. **At a design stop**: the
+    note's binding table.
+20. **The empty and declined paths.** Flag an optional choice or tracked set
     whose declined or empty answer leaves different state from a non-empty
     one: a count, a record, a flag the next step reads.
-19. **Fixtures from printed text.** Flag a fixture whose rules text is invented
+21. **Fixtures from printed text.** Flag a fixture whose rules text is invented
     where a printed card has that shape: search for one, and name it. Flag one
     wearing a real card's name while it behaves differently. A rule no card
     prints may have an invented fixture, and its doc says so.

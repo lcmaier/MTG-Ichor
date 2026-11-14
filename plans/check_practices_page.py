@@ -38,8 +38,10 @@ ROOT = Path(__file__).resolve().parent.parent
 PAGE = "plans/engineering-practices.md"
 #: Raised from 645 on 2026-11-13 for rules with no line to replace: a deck card placing a
 #: finding and the held-out draw (six lines), the audit's cadence as two bullets (two), and
-#: the spec database's reading rule beside the triage sentence it kept (one).
-BUDGET = 654
+#: the spec database's reading rule beside the triage sentence it kept (one). Raised from 654
+#: on 2026-11-14 for the design note's two guards, a surface's client and a one-card shape (six),
+#: with no line to replace: the section's three questions each ask something else.
+BUDGET = 660
 TEXT_SUFFIXES = (".md", ".rs", ".py", ".yml", ".yaml", ".toml", ".sh", ".html", ".txt", ".json")
 # Records, not read for citations: the archive and the docs `CLAUDE.md` calls
 # historical, accurate as they stood; the pinned trace pages, never edited; and

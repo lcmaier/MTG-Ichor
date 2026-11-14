@@ -56,7 +56,7 @@ pub struct CostModificationInstance {
 /// does.
 pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModificationInstance> {
     let found = cost_modifications_sweeping(game, spell, Sweep::Gated);
-    if game.audit_on() {
+    if game.audit_is_on() {
         let everything = game.unobserved(|| cost_modifications_sweeping(game, spell, Sweep::Everything));
         let named = |found: &[CostModificationInstance]| found.iter().map(|m| format!("{:?} {:?}", m.source, m.def)).collect();
         assert_shortcut_agrees("the cost sweep's gate", || format!("the cost of {spell}"), named(&found), named(&everything));

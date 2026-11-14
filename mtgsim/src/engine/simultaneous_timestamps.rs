@@ -92,7 +92,7 @@ impl GameState {
                 let objects = read.iter().map(|id| ChoiceOption::Object(*id)).collect();
                 (ChoiceKind::OrderSimultaneousEntries { player }, UnaskedAnswer::Order(objects))
             });
-            if self.audit_on() {
+            if self.audit_is_on() {
                 self.audit_entry_orders(&read);
             }
             return theirs;

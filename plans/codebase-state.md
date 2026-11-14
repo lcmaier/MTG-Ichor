@@ -2771,15 +2771,37 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     count — and LK was a rules change whose reviewer would have had to check
     two unrelated arguments at once. Not because the fold is wrong.
 
+    **Re-measured 2026-11-14 on the Commander board, where the sort is the
+    cost, and its first part taken** (`ordered-sweeps-sort-their-matches`, a
+    detour at the owner's word). Callgrind on the close-out's four-seat board,
+    about 40 permanents whose ids follow deck order, so each sort was a full
+    one: `battlefield_ordered` 12.59% of all instructions inclusive, its stable
+    sort alone 8.27%, `battlefield_ids_ordered` 2.37%. The 2026-09-07 reading
+    above was the two-seat `performance` board at n=16, where the allocations
+    led; at Commander scale the sort does, so "sort less" was worth taking
+    after all, where it needs no argument about who observes order. The
+    state-based check's seven sweeps, the activatable half of the priority
+    list and `permanents_controlled_by` ask their filter of each permanent in
+    id order and sort only what they keep
+    (`GameState::battlefield_ordered_where`, audited under `--audit`,
+    `elisions.md` §4), and every full sort is unstable. Each output
+    is what filtering the sorted list gives, so no site's observability was
+    argued. Instructions per decision **-10.66%**, every counter identical
+    (`fuzz-record.md`'s block for it).
+
+    **What is left is the kept order**, for every other caller, which still
+    derives the order fresh with an unstable sort; a maintained vector would
+    also serve the converted sweeps, filtered in order with no sort at all.
+    What it is worth now was not measured; the next profile reads it.
+
     **Sized:** one field, three maintenance points, one debug audit, and a
-    mechanical return-type change across 52 call sites (most become a borrow,
-    the ones that mutate while iterating become the 27 ns clone). ~1 PR,
-    medium risk — the risk is drift between the kept order and the truth,
-    which is what the debug audit is for. Nothing depends on it; take it when
-    ~5% is worth a PR.
+    mechanical return-type change across the remaining call sites (about 50
+    on 2026-11-14; most become a borrow, the ones that mutate while iterating
+    become the 27 ns clone). ~1 PR, medium risk — the risk is drift between
+    the kept order and the truth, which is what the debug audit is for.
+    Nothing depends on it.
     **Slotted:** Phase 10's profile-driven performance: a maintained
-    battlefield order in place of the per-call sort, ~5% of a game, with a
-    debug audit.
+    battlefield order in place of the per-call sort, with a debug audit.
 
 ### Found by CM-3 — lock-in's payment side (2026-09-07)
 

@@ -212,7 +212,7 @@ fn the_sink_changes_nothing_the_game_does() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
     game.process_combat_damage(&dp, false).unwrap();
-    assert!(!game.trace_on());
+    assert!(!game.trace_is_on());
 
     let rendered = |g: &GameState| mtgsim::ui::display::format_event_log(g);
     assert_eq!(rendered(&traced), rendered(&game));

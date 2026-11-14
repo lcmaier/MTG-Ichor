@@ -810,7 +810,7 @@ impl GameState {
 
     /// Is a sink attached? The one branch an emit point pays when it is not.
     #[inline]
-    pub fn trace_on(&self) -> bool {
+    pub fn trace_is_on(&self) -> bool {
         self.trace.is_some()
     }
 
@@ -849,7 +849,7 @@ impl GameState {
     /// by id alone. Sorted by id: the store is a hash map and its order is
     /// the process's.
     pub fn trace_objects(&self) {
-        if !self.trace_on() {
+        if !self.trace_is_on() {
             return;
         }
         // ORDER-FREE: sorted by id next.

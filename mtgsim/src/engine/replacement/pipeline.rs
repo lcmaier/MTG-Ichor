@@ -524,7 +524,7 @@ pub(crate) fn apply_replacements(
         let frame = EntryFrame::new(game, &first);
         // The trace sink's record of this iteration: built only in a traced
         // game, filled as the loop decides, written at whichever exit it takes.
-        let mut trace = game.trace_on().then(|| IterationTrace::new(iteration, &first, &subject));
+        let mut trace = game.trace_is_on().then(|| IterationTrace::new(iteration, &first, &subject));
 
         // CR 614.4 — gathered against live state at proposal, per member, keyed by
         // CR 614.5's identity: one instance over two members is one candidate.
@@ -818,7 +818,7 @@ fn give_applied_set(group: &mut [BatchMember], applied: AppliedReplacements) {
 /// Accumulated rather than written in one place because an iteration has
 /// three exits — nothing gathered, an optional declined, an effect applied —
 /// and each is a different verdict on the same candidates. Exists only in a
-/// traced game (`game.trace_on()`), so the untraced path allocates nothing.
+/// traced game (`game.trace_is_on()`), so the untraced path allocates nothing.
 struct IterationTrace {
     iteration: u64,
     event: String,

@@ -435,14 +435,14 @@ impl GameState {
                 let order = (0..n).map(|part| ChoiceOption::CostPart(plan.part(part))).collect();
                 (ChoiceKind::OrderCostPayments { spell_or_ability_id: source }, UnaskedAnswer::Order(order))
             });
-            if self.audit_on() {
+            if self.audit_is_on() {
                 self.audit_payment_orders(plan, &must, &[], player, source);
             }
             return Ok(());
         }
 
         let chosen = self.ask_payment_order(plan, &must, &items, player, source, ctx);
-        if self.audit_on() {
+        if self.audit_is_on() {
             self.audit_payment_orders(plan, &must, &chosen, player, source);
         }
         plan.pay_in(&must.whole_order_with(&chosen));

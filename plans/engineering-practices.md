@@ -188,6 +188,12 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
 3. **Which card families override it, and how many cards?** A default the engine
    hard-codes is a family with no owner until its first card arrives.
 
+- **Each new surface names its v1 client**: a person at the four-seat GUI, an AI
+  client, or neither; one serving only a test, the random agent or an existing
+  function lives outside the engine (`/design-note`, step 2).
+- **A new field, variant or arm only one printed card needs** has the note ask
+  whether the general shape is right (`/design-note`, step 2).
+
 ## The standing review question
 
 - **"What does this actually check, and what happens if it runs twice?"** Ask it
@@ -620,7 +626,7 @@ or trailing on its line.
 - **A count is not order-free if its closure walks the layers**, since a walk
   writes a trace record.
 - **On a hot path, order is paid for only while tracing**: sort under
-  `trace_on()` alone, in one block (the owner, #247).
+  `trace_is_on()` alone, in one block (the owner, #247).
 
 ### Performers and known violations
 

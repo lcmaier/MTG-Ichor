@@ -107,7 +107,7 @@ impl GameState {
     /// stream last announced, as one event, and dispatch it.
     pub(crate) fn announce_control_changes(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let sweep = self.settle_announced_controllers();
-        if self.audit_on() {
+        if self.audit_is_on() {
             self.audit_announced_controllers();
         }
         if sweep.changes.is_empty() {

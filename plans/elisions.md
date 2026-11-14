@@ -144,6 +144,7 @@ takes each gate's printed leg away and sees the panic
 | walking every object for commanders that changed zones (CR 704.6d) | `arrivals_since_last_sba_check`, kept as objects arrive | every arrival the state-based check needs is noted | `moved_since` `engine/sba.rs:142` walks every object in debug builds and compares |
 | asking an event's object about a keyword that forbids it | `keyword_restrictions` `engine/restriction/predicate.rs:367` | a keyword's restriction watches only its pattern's kinds of action, so an event of another kind cannot be forbidden by it | its audit: `prohibition_sweeping` asks the keyword of every event |
 | walking CR 614.12's frame, and asking CR 111.5's question, for each token of a run | `shared_entering_frame` `engine/layers/lookahead.rs:205`; `create_tokens` `engine/actions.rs:2582` | a run of equal tokens is one definition of one creation, nothing on the board names an id just minted, and no entity exists to count or filter, so at one epoch two equal proposals have one frame; a frame holding an ability derived on its object is kept out, and such a run still walks per token (`codebase-state.md` item 381) | every served frame is walked again and compared, in every debug test and game while the memo's audit is on and under `--audit`; `create_tokens`' answer under `--audit`. `tests/phase_board_scale_integration_test.rs` holds a board for each input of the key, and a test serves a frame no walk would find and sees the panic |
+| sorting the permanents an ordered sweep does not keep, and asking the rest in timestamp order | `battlefield_ordered_where` `state/game_state.rs:1444`: the state-based check's sweeps, the activatable half of the priority list, and `permanents_controlled_by` `oracle/board.rs:11` | the sweep's filter answers each permanent alone, reading it and a board nothing writes while the sweep runs, so asked in id order it keeps the permanents the sorted sweep keeps. Only the trace sees the order it is asked in, and a traced game asks in timestamp order | its audit, `audit_ordered_sweep` `state/game_state.rs:1463`: the sorted sweep answered again and compared, order included. The filter is `Fn`, so one that counts what it asked needs a `Cell`; a test's filter that does sees the panic |
 | the four feedback loops' skipped work | `references/feedback-loops.md` §2, §3, §4, §5 | loop 1's is the CR 616.1 row above; loop 2's pre-check covers every filter, condition and amount; loop 3 skips nothing; loop 4's is the dispatcher row | there |
 
 ## 5. What checks what
@@ -152,7 +153,8 @@ takes each gate's printed leg away and sees the panic
 - **Every debug test and game**: the memo's audit, the shared look-ahead's,
   `check_order_invariance`, the trigger check, the commanders' walk.
 - **`--audit`**: the dispatcher's, the three gates', the control sweep's, the
-  castability fold's and the shared look-ahead's audits, and the two orders'.
+  castability fold's, the shared look-ahead's and the ordered sweeps' audits,
+  and the two orders'.
 - **Only an argument and tests**: the source read by a route the trigger check
   does not note (§3); `get_effective_controller` between two sweeps; and CR
   616.1's second to fourth properties outside the two tests that reach every
