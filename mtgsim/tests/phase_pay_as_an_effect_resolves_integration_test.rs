@@ -18,10 +18,12 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
-    any_player, deal_damage, draw_cards, gets, may_pay, may_pay_any_amount_of, spell_ability, target_creature, targets, that_target,
-    triggered_ability, unless, whenever, you,
+    any_player, draw_cards, gets, may_pay, may_pay_any_amount_of, spell_ability, target_creature, that_target, triggered_ability, unless,
+    whenever, you,
 };
-use mtgsim::cards::printings::{contamination, giant_growth, grizzly_bears, island, mana_leak, mountain, waterfall_aerialist};
+use mtgsim::cards::printings::{
+    contamination, giant_growth, grizzly_bears, island, jagged_lightning, mana_leak, mountain, waterfall_aerialist,
+};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, ObjectSet};
 use mtgsim::events::cause::EventCause;
 use mtgsim::events::event::GameEvent;
@@ -33,7 +35,7 @@ use mtgsim::test_support::{fill_library, lightning_bolt, put_in_hand, put_on_bat
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CostAnswer, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive, SelectionFilter,
+    AmountExpr, Condition, CostAnswer, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -48,7 +50,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 // ---------------------------------------------------------------------------
 
 /// A payment's question, matched by its kind alone.
-const PAY: ChoiceKind = ChoiceKind::PayAsItResolves { source: ObjectId::UNASSIGNED, offer: Vec::new() };
+const PAY: ChoiceKind = ChoiceKind::PayAsItResolves { source: ObjectId::UNASSIGNED, offer: Vec::new(), any_amount_of: None };
 
 /// A mana window's question, matched by its kind alone.
 fn window() -> ChoiceKind {
@@ -58,7 +60,7 @@ fn window() -> ChoiceKind {
 fn amount() -> ChoiceKind {
     ChoiceKind::ChooseAmountToPay {
         source: ObjectId::UNASSIGNED,
-        each: ManaCost::zero(),
+        unit: ManaCost::zero(),
         values: Box::new(XOffer::Interval { at_least: 0, at_most: 0 }),
     }
 }
@@ -131,6 +133,8 @@ fn hand(game: &GameState, player: PlayerId) -> usize {
 
 /// "Sorcery — you may pay {1}. If you do, draw a card": the shape of the
 /// 460 "you may pay … if you do" cards (`choices-architecture.md` §3.2).
+/// Invented: the printed ones are triggers or carry more text, and a sorcery
+/// with the clause alone puts the payment first on the stack.
 fn tithe_of_insight() -> Arc<CardData> {
     let draw = Effect::Conditional(Condition::CostAnswer(CostAnswer::Does), Box::new(draw_cards(you(), 1)));
     CardDataBuilder::new("Fixture Tithe of Insight")
@@ -141,7 +145,9 @@ fn tithe_of_insight() -> Arc<CardData> {
 }
 
 /// Rhystic Study's shape, ATOM-605.3a-002's board: "Whenever an opponent
-/// casts a spell, you may draw a card unless that player pays {1}."
+/// casts a spell, you may draw a card unless that player pays {1}." A
+/// fixture, not the card: the brief registers Mana Leak and one ward
+/// creature, and the atom's board is what this test builds.
 fn rhystic_study_shape() -> Arc<CardData> {
     let may_draw = Effect::Optional { chooser: PlayerRef::You, effect: Box::new(draw_cards(you(), 1)) };
     let cast = TriggerEvent::CastsSpell { caster: Some(PlayerRef::Opponent), spell: None };
@@ -157,7 +163,6 @@ fn rhystic_study_shape() -> Arc<CardData> {
 
 /// "You may pay {1}. If you do, draw a card": taken, the cost is paid and
 /// "if you do" reads `Does`.
-// COVERS-PARTIAL: ATOM-118.12-002
 #[test]
 fn you_may_pay_pays_and_if_you_do_reads_it() {
     let mut game = stocked(2);
@@ -184,7 +189,6 @@ fn declining_reads_doesnt_and_pays_nothing() {
 }
 
 /// CR 118.3: a player with nothing to pay with is not asked, and doesn't.
-// COVERS: ATOM-118.3-001
 #[test]
 fn a_player_who_cannot_pay_is_not_asked() {
     let mut game = stocked(2);
@@ -262,7 +266,8 @@ fn a_window_that_ends_unpaid_is_a_decline() {
 /// "You may sacrifice a creature and pay 2 life": paid in the order written
 /// (CR 608.2c), never CR 601.2h's ranks, which would pay the life first; and
 /// both records are the resolution's own, a cost a resolution asks for being
-/// an effect's (Sigarda's Mogis ruling).
+/// an effect's (Sigarda's Mogis ruling). Invented: a payment whose two parts
+/// a cast would reorder, which no printed "you may" pairs this way.
 #[test]
 fn the_costs_are_paid_in_the_order_written_under_the_resolutions_cause() {
     let offering = CardDataBuilder::new("Fixture Blood Offering")
@@ -394,20 +399,13 @@ fn ward_ignores_its_controllers_own_spell() {
 // RULING: Waterfall Aerialist #1 - "If a player casts a spell that targets multiple permanents their opponent controls with ward, each of those ward abilities will trigger. If that player doesn't pay for all of them, the spell will be countered."
 #[test]
 fn a_spell_targeting_two_ward_creatures_pays_for_each() {
-    let twin_shock = || {
-        CardDataBuilder::new("Fixture Twin Shock")
-            .mana_cost(ManaCost::build(&[ManaType::Red], 0))
-            .card_type(CardType::Instant)
-            .ability(spell_ability("", deal_damage(targets(2, SelectionFilter::Creature), 1)))
-            .build()
-    };
     for pays_both in [true, false] {
         let mut game = stocked(2);
         let first = put_on_battlefield(&mut game, waterfall_aerialist(), 0);
         let second = put_on_battlefield(&mut game, waterfall_aerialist(), 0);
         set_active_player(&mut game, 1);
-        // The two creatures there are.
-        let shock = cast(&mut game, 1, twin_shock(), &[(ManaType::Red, 1)], &[]);
+        // Jagged Lightning's two targets are the two creatures there are.
+        let shock = cast(&mut game, 1, jagged_lightning(), &[(ManaType::Red, 5)], &[]);
         game.players[1].mana_pool.add(ManaType::Colorless, 4);
         let dp = ScriptedDecisionProvider::new();
         // The two triggers are one tier of one player's, and no order of
@@ -428,7 +426,8 @@ fn a_spell_targeting_two_ward_creatures_pays_for_each() {
 
 /// Wild Might's shape: "Target creature gets +1/+1 until end of turn. That
 /// creature gets an additional +4/+4 until end of turn unless any player
-/// pays {2}."
+/// pays {2}." A fixture, not the card, as Rhystic Study's is: the brief's
+/// cards are Mana Leak and one ward creature.
 fn wild_might_shape() -> Arc<CardData> {
     let more = gets(that_target(0), 4, 4).until_end_of_turn();
     CardDataBuilder::new("Fixture Wild Might")
@@ -463,6 +462,21 @@ fn any_player_is_asked_in_apnap_order_until_one_pays() {
         assert_eq!(get_effective_power(&game, bears), Some(3), "paid, so +1/+1 alone");
         assert_eq!(game.players[other].mana_pool.amount(ManaType::Colorless), 0, "the second player paid");
     }
+}
+
+/// The active player, who can't pay, is passed over unasked, and the next
+/// player is asked.
+#[test]
+fn any_player_passes_over_one_who_cannot_pay() {
+    let mut game = stocked(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    cast(&mut game, 0, wild_might_shape(), &[(ManaType::Green, 1)], &[]);
+    game.players[1].mana_pool.add(ManaType::Colorless, 2);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(PAY, Vec::new());
+    let dp = resolve_with(&mut game, dp);
+    assert_eq!(paid_asked(&dp), vec![1], "player 0 is not asked");
+    assert_eq!(get_effective_power(&game, bears), Some(7));
 }
 
 /// Nobody who can pay: nobody is asked, and the creature gets +5/+5.
@@ -569,7 +583,7 @@ fn any_amount_of_red_is_paid_in_red() {
     let dp = resolve_with(&mut game, dp);
 
     let offered = dp.asked().into_iter().find_map(|kind| match kind {
-        ChoiceKind::ChooseAmountToPay { values, each, .. } => Some((*values, each)),
+        ChoiceKind::ChooseAmountToPay { values, unit, .. } => Some((*values, unit)),
         _ => None,
     });
     assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 3 }, red())));
@@ -578,8 +592,8 @@ fn any_amount_of_red_is_paid_in_red() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 1, "the green paid nothing");
 }
 
-/// A part that is the same at every amount and cannot be paid leaves no
-/// amount to offer, and nothing is asked.
+/// A part that is the same at every amount and cannot be paid makes the
+/// whole payment one the payer cannot make (CR 118.3), and nothing is asked.
 #[test]
 fn an_amount_beside_an_unpayable_part_is_not_offered() {
     let mut game = stocked(2);
@@ -590,11 +604,65 @@ fn an_amount_beside_an_unpayable_part_is_not_offered() {
     assert!(paid_asked(&dp).is_empty(), "no {{U}} to pay");
 }
 
+/// An amount of none, once taken, is a payment: the {U} is paid and "if you
+/// do" reads it, drawing X = 0 cards.
+#[test]
+fn an_amount_of_none_taken_is_paid() {
+    let mut game = stocked(2);
+    cast(&mut game, 0, paid_insight(), &[(ManaType::Blue, 1)], &[]);
+    pool_of(&mut game, 0, &[(ManaType::Blue, 1), (ManaType::Colorless, 1)]);
+    let before = hand(&game, 0);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_take(PAY);
+    dp.expect_number(amount(), 0);
+    resolve_with(&mut game, dp);
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 0, "the {{U}} was paid");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Colorless), 1);
+    assert_eq!(hand(&game, 0), before);
+}
+
+/// "Any player may pay {X}. If a player does, draw X cards": invented, to
+/// put an amount beside "any player". The active player picks 2 and lets the
+/// window end unpaid, which leaves no X behind; the next pays 1, and X is 1.
+#[test]
+fn an_amount_left_unpaid_leaves_no_x_for_the_next_payer() {
+    let draw = Effect::Conditional(Condition::CostAnswer(CostAnswer::Does), Box::new(draw_cards(you(), AmountExpr::X)));
+    let pay = Effect::Optional {
+        chooser: any_player(),
+        effect: Box::new(Effect::Atom(Primitive::Pay { costs: Vec::new(), any_amount_of: Some(ManaCost::build(&[], 1)) }, EffectRecipient::Implicit)),
+    };
+    let shared_insight = CardDataBuilder::new("Fixture Shared Insight")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+        .card_type(CardType::Sorcery)
+        .ability(spell_ability("", Effect::Sequence(vec![pay, draw])))
+        .build();
+    let mut game = stocked(2);
+    let islands: Vec<ObjectId> = (0..2).map(|_| put_on_battlefield(&mut game, island(), 0)).collect();
+    cast(&mut game, 0, shared_insight, &[(ManaType::Blue, 1)], &[]);
+    game.players[1].mana_pool.add(ManaType::Colorless, 1);
+    let before = hand(&game, 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_take(PAY);
+    dp.expect_number(amount(), 2);
+    let tap = get_effective_abilities(&game, islands[0])[0].id;
+    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(islands[0], tap))]);
+    dp.expect_choice(window(), Vec::new());
+    dp.expect_take(PAY);
+    dp.expect_number(amount(), 1);
+    let dp = resolve_with(&mut game, dp);
+
+    assert_eq!(paid_asked(&dp), vec![0, 1]);
+    assert_eq!(hand(&game, 0), before + 1, "X is the 1 player 1 paid");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 1, "player 0's mana stays");
+}
+
 // ---------------------------------------------------------------------------
 // Contamination
 // ---------------------------------------------------------------------------
 
-/// Player 0's next upkeep, Contamination's trigger waiting.
+/// Player 0's next upkeep, Contamination's trigger waiting: about a dozen
+/// steps from a precombat main, and 40 a bound past any turn's.
 fn to_player_0s_upkeep(game: &mut GameState) {
     for _ in 0..40 {
         game.advance_turn(&ScriptedDecisionProvider::new()).expect("advancing");
@@ -625,6 +693,31 @@ fn contamination_asks_as_its_trigger_resolves() {
         assert_eq!(game.battlefield.contains_key(&bears), !sacrifices, "the creature paid: {sacrifices}");
         assert_eq!(game.battlefield.contains_key(&contamination), sacrifices, "Contamination stays: {sacrifices}");
     }
+}
+
+/// With two creatures, which one pays is asked as the trigger resolves, and
+/// the prompt names the trigger, not Contamination.
+#[test]
+fn contamination_asks_which_creature_pays() {
+    let mut game = stocked(2);
+    let contamination = put_on_battlefield(&mut game, contamination(), 0);
+    let first = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let second = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    to_player_0s_upkeep(&mut game);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_take(PAY);
+    dp.expect_choice(
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ObjectId::UNASSIGNED, count: 1 },
+        vec![ChoiceOption::Object(second)],
+    );
+    let dp = resolve_with(&mut game, dp);
+    assert!(game.battlefield.contains_key(&first) && !game.battlefield.contains_key(&second));
+    assert!(game.battlefield.contains_key(&contamination));
+    let named = dp.asked().into_iter().find_map(|kind| match kind {
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => Some(spell_or_ability_id),
+        _ => None,
+    });
+    assert!(named.is_some_and(|id| id != contamination), "the resolving trigger, {named:?}");
 }
 
 /// With no creature to sacrifice nobody is asked, and Contamination goes.

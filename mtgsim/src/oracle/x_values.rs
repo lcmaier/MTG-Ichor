@@ -173,21 +173,25 @@ pub fn legal_x_values(
     })
 }
 
-/// CR 107.3f — the amounts of "any amount of `each`" `payer` can pay beside
-/// `costs` as an effect resolves: from none to the most their pool and mana
-/// abilities can make (CR 605.3a). One more `each` is never easier to pay than
-/// one fewer, so every amount between is payable and the offer is an
-/// interval, its top found by doubling and halving over the check that asks
-/// the payment is payable. `source` is the permanent whose text asks, which
-/// a cost of its own rules out as a mana source. `None` when `costs` alone
-/// cannot be paid.
+/// CR 107.3f — the amounts of "any amount of `unit`" `payer` can pay beside
+/// `costs` as an effect resolves, which they can pay alone (the caller's CR
+/// 118.3 check): from none to the most their pool and mana abilities can make
+/// (CR 605.3a). One more `unit` is never easier to pay than one fewer, so
+/// every amount between is payable and the offer is an interval, its top
+/// found by doubling and halving over the check that asks the payment is
+/// payable. `source` is the permanent whose text asks, which a cost of its
+/// own rules out as a mana source. A unit of no mana value, which any amount
+/// of pays, offers none but 0, so the search always ends.
 pub fn legal_amounts_to_pay(
     game: &GameState,
     payer: PlayerId,
     costs: &[Cost],
-    each: &ManaCost,
+    unit: &ManaCost,
     source: Option<ObjectId>,
-) -> Option<XOffer> {
+) -> XOffer {
+    if unit.symbols.iter().all(|symbol| symbol.mana_value() == 0) {
+        return XOffer::Interval { at_least: 0, at_most: 0 };
+    }
     let others: Vec<Cost> = costs.iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
     let non_mana = NonManaCosts { source, costs: &others };
     let fixed = Cost::mana_part(costs);
@@ -195,16 +199,10 @@ pub fn legal_amounts_to_pay(
     let payable = |amount: u64| {
         let mut symbols = fixed.symbols.clone();
         for _ in 0..amount {
-            symbols.extend_from_slice(&each.symbols);
+            symbols.extend_from_slice(&unit.symbols);
         }
         crate::oracle::mana_helpers::mana_payable(game, payer, &ManaCost::from_symbols(symbols), &non_mana, &supply)
     };
-    if !payable(0) {
-        return None;
-    }
-    if each.symbols.is_empty() {
-        return Some(XOffer::Interval { at_least: 0, at_most: 0 });
-    }
     let (mut most, mut past) = (0, 1);
     while payable(past) {
         most = past;
@@ -218,7 +216,7 @@ pub fn legal_amounts_to_pay(
             past = between;
         }
     }
-    Some(XOffer::Interval { at_least: 0, at_most: most })
+    XOffer::Interval { at_least: 0, at_most: most }
 }
 
 /// The closed form, asked again by the check it stands for: every X up to a
@@ -430,8 +428,8 @@ mod tests {
     }
 
     /// "Any amount of {R}" is what the board makes of red: three Mountains up
-    /// to three, a pool of {R}{R} two more, past a part beside it the Plains
-    /// pays, and none at all beside a part nothing pays.
+    /// to three, a pool of {R}{R} two more, still five past a {W} the Plains
+    /// pays; and a unit of no mana value offers 0 alone, so the search ends.
     #[test]
     fn any_amount_of_red_is_the_red_the_board_makes() {
         let red = ManaCost::from_symbols(vec![R]);
@@ -440,13 +438,13 @@ mod tests {
             put_on_battlefield(&mut game, mountain(), 0);
         }
         put_on_battlefield(&mut game, plains(), 0);
-        let upto = |most| Some(XOffer::Interval { at_least: 0, at_most: most });
+        let upto = |most| XOffer::Interval { at_least: 0, at_most: most };
         assert_eq!(legal_amounts_to_pay(&game, 0, &[], &red, None), upto(3));
         game.players[0].mana_pool.add(ManaType::Red, 2);
         assert_eq!(legal_amounts_to_pay(&game, 0, &[], &red, None), upto(5));
-        let white = |n| [Cost::Mana(ManaCost::from_symbols(vec![W; n]))];
-        assert_eq!(legal_amounts_to_pay(&game, 0, &white(1), &red, None), upto(5), "the Plains pays the {{W}}");
-        assert_eq!(legal_amounts_to_pay(&game, 0, &white(2), &red, None), None, "nothing pays a second {{W}}");
+        let white = [Cost::Mana(ManaCost::from_symbols(vec![W]))];
+        assert_eq!(legal_amounts_to_pay(&game, 0, &white, &red, None), upto(5), "the Plains pays the {{W}}");
+        assert_eq!(legal_amounts_to_pay(&game, 0, &[], &ManaCost::from_symbols(vec![X]), None), upto(0));
     }
 
     #[test]

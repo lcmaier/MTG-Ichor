@@ -259,10 +259,14 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseEnteringDefender { object: id },
         ChoiceKind::DivideAmong { source: id },
         ChoiceKind::ChooseModes { source: id, words: Vec::new() },
-        ChoiceKind::PayAsItResolves { source: id, offer: vec![Cost::Sacrifice(mtgsim::types::effects::ObjectFilter::All, 1)] },
+        ChoiceKind::PayAsItResolves {
+            source: id,
+            offer: vec![Cost::Sacrifice(mtgsim::types::effects::ObjectFilter::All, 1)],
+            any_amount_of: Some(ManaCost::build(&[], 1)),
+        },
         ChoiceKind::ChooseAmountToPay {
             source: id,
-            each: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
+            unit: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Set(vec![0, 2])),
         },
     ];

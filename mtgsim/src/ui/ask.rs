@@ -1267,12 +1267,19 @@ pub fn ask_accept_as_object_enters(
 /// CR 118.12 — whether `payer` pays `offer` as `source` resolves: "unless its
 /// controller pays {3}", ward's, "you may pay {1}". Asked only of a payer who
 /// can pay (CR 118.3); the caller has checked.
-pub fn ask_pay_as_it_resolves(dp: &dyn DecisionProvider, game: &GameState, payer: PlayerId, source: ObjectId, offer: Vec<Cost>) -> bool {
-    let kind = ChoiceKind::PayAsItResolves { source, offer };
+pub fn ask_pay_as_it_resolves(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    payer: PlayerId,
+    source: ObjectId,
+    offer: Vec<Cost>,
+    any_amount_of: Option<ManaCost>,
+) -> bool {
+    let kind = ChoiceKind::PayAsItResolves { source, offer, any_amount_of };
     ask_take_or_leave(dp, game, payer, source, kind, "pay_as_it_resolves")
 }
 
-/// CR 107.3f — how many of `each` `payer` pays of an "any amount" as `source`
+/// CR 107.3f — how many of `unit` `payer` pays of an "any amount" as `source`
 /// resolves, from `values`, each an amount they can pay. One value is
 /// answered unasked, and recorded; otherwise asked as an X is.
 pub fn ask_choose_amount_to_pay(
@@ -1280,17 +1287,17 @@ pub fn ask_choose_amount_to_pay(
     game: &GameState,
     payer: PlayerId,
     source: ObjectId,
-    each: ManaCost,
+    unit: ManaCost,
     values: XOffer,
 ) -> u64 {
     if values.has_one_value() {
         let amount = values.at_least();
         game.note_unasked(payer, Unasked::OneLegalAnswer, || {
-            (ChoiceKind::ChooseAmountToPay { source, each, values: Box::new(values) }, UnaskedAnswer::Number(amount))
+            (ChoiceKind::ChooseAmountToPay { source, unit, values: Box::new(values) }, UnaskedAnswer::Number(amount))
         });
         return amount;
     }
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseAmountToPay { source, each, values: Box::new(values.clone()) });
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseAmountToPay { source, unit, values: Box::new(values.clone()) });
     pick_from_offer(dp, game, payer, &ctx, values, "choose_amount_to_pay")
 }
 

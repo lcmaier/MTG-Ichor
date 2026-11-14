@@ -31,7 +31,7 @@ use crate::types::effects::{CounterType, ModeIndex};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
-use crate::types::mana::{ManaSymbol, ManaType};
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::choice_types::{
     AbilityAsRead, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
@@ -471,8 +471,10 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         }
         ChoiceKind::ApplyOptionalReplacement { source, .. } => format!("Apply {}'s replacement effect?", n(source)),
         ChoiceKind::ApplyOptionalEffect { source } => format!("{}: you may", n(source)),
-        ChoiceKind::PayAsItResolves { source, offer } => format!("{}: {}?", n(source), payment_words(offer)),
-        ChoiceKind::ChooseAmountToPay { source, each, .. } => format!("{}: how much {each} do you pay?", n(source)),
+        ChoiceKind::PayAsItResolves { source, offer, any_amount_of } => {
+            format!("{}: {}?", n(source), payment_words(offer, any_amount_of.as_ref()))
+        }
+        ChoiceKind::ChooseAmountToPay { source, unit, .. } => format!("{}: how many {unit} do you pay?", n(source)),
         ChoiceKind::AllocateNextDamage { source, remaining } => {
             format!("Choose the damage {} prevents ({remaining} left)", n(source))
         }
@@ -899,14 +901,15 @@ pub(crate) fn cost_words(cost: &Cost) -> String {
     entry_offer_words(&EntryOffer::Pay(cost.clone()))
 }
 
-/// A payment's costs as a sentence says them, in the order they are paid:
-/// "pay {3}", "sacrifice 1", and "pay any amount" for an "any amount" whose
-/// every part is chosen with the amount.
-pub(crate) fn payment_words(costs: &[Cost]) -> String {
-    match costs {
-        [] => "pay any amount".to_string(),
-        costs => costs.iter().map(cost_words).collect::<Vec<_>>().join(" and "),
+/// A payment's costs as a sentence says them, in the order they are paid,
+/// then the "any amount" chosen next: "pay {3}", "sacrifice 1 and pay 2
+/// life", "pay {U} and any amount of {1}", "pay any amount of {R}".
+pub(crate) fn payment_words(costs: &[Cost], any_amount_of: Option<&ManaCost>) -> String {
+    let mut parts: Vec<String> = costs.iter().map(cost_words).collect();
+    if let Some(unit) = any_amount_of {
+        parts.push(if costs.is_empty() { format!("pay any amount of {unit}") } else { format!("any amount of {unit}") });
     }
+    parts.join(" and ")
 }
 
 pub(crate) fn additional_cost_label(cost: &AdditionalCost) -> String {

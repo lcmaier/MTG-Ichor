@@ -353,31 +353,35 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<PaymentPlan, String> {
         let ordered: Vec<Cost> = ordered_for_payment(costs).into_iter().cloned().collect();
-        let mut plan = self.plan_in_order(ordered, player_id, source_id, ctx)?;
+        let mut plan = self.plan_in_order(ordered, player_id, source_id, source_id, ctx)?;
         self.settle_payment_order(&mut plan, player_id, source_id, ctx)?;
         Ok(plan)
     }
 
     /// [`Self::plan_payment`] for a cost paid as an effect resolves (CR
     /// 118.12): its parts in the order written (CR 608.2c), so none is
-    /// ranked and no order is asked.
+    /// ranked and no order is asked. `source_id` is the object whose text
+    /// asks, its costs' "this" (CR 113.7a); `paying_for` the resolving
+    /// spell or ability, which the prompts name.
     pub fn plan_payment_as_written(
         &self,
         costs: &[Cost],
         player_id: PlayerId,
         source_id: ObjectId,
+        paying_for: ObjectId,
         ctx: &ActionContext,
     ) -> Result<PaymentPlan, String> {
-        self.plan_in_order(costs.to_vec(), player_id, source_id, ctx)
+        self.plan_in_order(costs.to_vec(), player_id, source_id, paying_for, ctx)
     }
 
     /// The generic split and each sacrifice's permanents, for `ordered` paid
-    /// in that order.
+    /// in that order, the prompts naming `paying_for`.
     fn plan_in_order(
         &self,
         ordered: Vec<Cost>,
         player_id: PlayerId,
         source_id: ObjectId,
+        paying_for: ObjectId,
         ctx: &ActionContext,
     ) -> Result<PaymentPlan, String> {
         // The mana component's generic part, split across the pool.
@@ -387,7 +391,7 @@ impl GameState {
         } else {
             let available = self.generic_split_buckets(player_id);
             ask_choose_generic_mana_allocation(
-                ctx.dp, self, player_id, source_id, &mana_cost, &available,
+                ctx.dp, self, player_id, paying_for, &mana_cost, &available,
                 mana_cost.generic_count(),
             )
         };
@@ -403,7 +407,7 @@ impl GameState {
                         n, candidates.len()
                     ));
                 }
-                let chosen = ask_choose_sacrifice_for_cost(ctx.dp, self, player_id, source_id, *count, &candidates);
+                let chosen = ask_choose_sacrifice_for_cost(ctx.dp, self, player_id, paying_for, *count, &candidates);
                 sacrifices.insert(idx, chosen);
             }
         }

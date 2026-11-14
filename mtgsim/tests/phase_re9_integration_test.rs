@@ -631,7 +631,6 @@ fn deep_water_and_mana_reflection_commute() {
 /// beside Mana Reflection is CR 616.1's real question: doubled first is one
 /// black, fixed first is two. The tapping player chooses.
 // RULING: Contamination #1 - "The second ability of this card is a replacement effect, not a triggered ability."
-// RULING: Contamination #2 - "External effects that generate more mana still generate their additional mana as directed without being affected by this card. Effects which generate more mana based on what type of mana the land produces will be affected in color but not in amount."
 #[test]
 fn contamination_line_beside_mana_reflection_is_a_real_choice() {
     let doubled_first = {

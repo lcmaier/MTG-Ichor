@@ -117,8 +117,8 @@ pub fn citanul_hierophants() -> Arc<CardData> {
 ///   Effects which generate more mana based on what type of mana the land
 ///   produces will be affected in color but not in amount."* (#2) →
 ///   `contamination_leaves_an_auras_additional_mana_as_it_is` (Wild Growth's
-///   {G}), and the same Mana Reflection test, Contamination applied first:
-///   two {B}.
+///   {G}). The second sentence is mana added "of any type that land
+///   produced" (Mana Flare), which no registered card adds.
 /// - *"You choose whether to sacrifice a creature or not on resolution. If
 ///   not, then you sacrifice Contamination. You can choose to not sacrifice
 ///   even if you no longer control Contamination on resolution."* (#3) →

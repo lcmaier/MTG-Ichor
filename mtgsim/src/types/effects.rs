@@ -192,9 +192,9 @@ pub enum PlayerRef {
     /// instruction applies, and only by a resolution.
     NamedBy(Box<EffectRecipient>),
     /// "Any player may", "unless any player pays" (CR 118.12a): each player in
-    /// the game, asked in APNAP order (CR 101.4) until one does. Only an
-    /// `Effect::Optional`'s chooser, which walks them; every other reader
-    /// refuses it.
+    /// the game, asked in APNAP order (CR 101.4) until one does. Read only as
+    /// the chooser of an `Effect::Optional` whose effect is a payment; every
+    /// other reader refuses it.
     AnyPlayer,
 }
 
@@ -3104,8 +3104,9 @@ impl Effect {
             // it resolves (CR 603.3d, 603.5; Cryptoplasm's first ruling).
             Effect::Optional { effect, .. } => effect.for_each_instance(f),
             // CR 601.2c: a target under "if they don't" is announced as any
-            // other is. One a kicker or a mode requires is `remaining-costs`'
-            // (`codebase-state.md` item 219), and not walked.
+            // other is. One a kicker or a mode requires is announced only when
+            // it was chosen, which a list stored on the def cannot know, so it
+            // is not walked.
             Effect::Conditional(condition, effect) if !condition.names_a_casting_choice() => effect.for_each_instance(f),
             // Remembering what an instruction acts on changes nothing about
             // what it targets.

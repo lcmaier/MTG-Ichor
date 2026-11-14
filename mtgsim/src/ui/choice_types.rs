@@ -185,16 +185,16 @@ pub enum ChoiceKind {
     /// "unless its controller pays {3}" (118.12a), ward's (702.21a). Pay or
     /// don't, asked of the payer as [`Self::ApplyOptionalEffect`] is, and only
     /// of one who can pay (CR 118.3). `offer` is the costs, in the order they
-    /// are paid, so a client can tell a payment from a gift without the card;
-    /// for "any amount", the part that is the same at every amount.
-    PayAsItResolves { source: ObjectId, offer: Vec<Cost> },
+    /// are paid, and `any_amount_of` the unit an amount chosen next pays
+    /// ({X}'s {1}, Leyline Tyrant's {R}), so a client can tell a payment from
+    /// a gift without the card.
+    PayAsItResolves { source: ObjectId, offer: Vec<Cost>, any_amount_of: Option<crate::types::mana::ManaCost> },
 
-    /// CR 107.3f — how many of `each` the payer pays of "any amount of {R}"
-    /// as `source` resolves, which is the resolution's X: a `pick_number`
-    /// over an interval, or a pick of `Number` options when a rule cuts a gap,
-    /// as [`Self::ChooseXValue`] asks. Every amount offered is one they can
-    /// pay. One amount is answered unasked.
-    ChooseAmountToPay { source: ObjectId, each: crate::types::mana::ManaCost, values: Box<crate::oracle::x_values::XOffer> },
+    /// CR 107.3f — how many of `unit` the payer pays of an "any amount" as
+    /// `source` resolves, which is the resolution's X: a `pick_number` over
+    /// the interval of amounts they can pay, as [`Self::ChooseXValue`] asks.
+    /// One amount is answered unasked.
+    ChooseAmountToPay { source: ObjectId, unit: crate::types::mana::ManaCost, values: Box<crate::oracle::x_values::XOffer> },
 
     /// CR 615.7 — a "prevent the next N damage" effect applies to damage from
     /// two or more sources at once, and the affected player (or the affected

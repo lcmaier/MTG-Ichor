@@ -259,15 +259,16 @@ pub fn undying() -> AbilityDef {
     returns_unless_it_had("Undying", CounterType::PlusOnePlusOne)
 }
 
-/// Ward (CR 702.21a), `keyword` its printed words ("Ward {2}"): "Whenever
-/// this permanent becomes the target of a spell or ability an opponent
-/// controls, counter that spell or ability unless that player pays [cost]."
-/// Once for each spell or ability however many of its instances chose it, as
-/// any "becomes the target" (CR 115.9a's count is not ward's).
-pub fn ward(keyword: &'static str, costs: Vec<Cost>) -> AbilityDef {
+/// Ward (CR 702.21a), `text` its printed words ("Ward {2}") and `costs` what
+/// they say is paid: "Whenever this permanent becomes the target of a spell
+/// or ability an opponent controls, counter that spell or ability unless
+/// that player pays [cost]." Once for each spell or ability however many of
+/// its instances chose it, as any "becomes the target" (CR 115.9a's count is
+/// not ward's).
+pub fn ward(text: &'static str, costs: Vec<Cost>) -> AbilityDef {
     let counter = Effect::Atom(Primitive::Counter, EffectRecipient::Triggering(EventRole::SpellOrAbility));
     let targeted = becomes_the_target_of(TriggerSubject::ThisObject, TargetedBy::SpellOrAbility, Some(PlayerRef::Opponent));
-    triggered_ability(keyword, whenever(targeted, unless(that_player(), costs, counter)))
+    triggered_ability(text, whenever(targeted, unless(that_player(), costs, counter)))
 }
 
 /// The shape both keywords expand to. "It had" is read as the permanent left

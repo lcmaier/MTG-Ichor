@@ -274,7 +274,7 @@ pub enum GameAction {
     /// CR 509.1h's "an effect says that it becomes blocked": an unblocked
     /// attacking creature becomes a blocked one that no creature blocks. A
     /// replacement effect may watch it, as it may any event (CR 614.1), and
-    /// none printed does, so it has no `EventPattern` arm yet.
+    /// none printed does, so it has no `EventPattern` arm.
     BecomeBlocked {
         attacker: ObjectId,
     },

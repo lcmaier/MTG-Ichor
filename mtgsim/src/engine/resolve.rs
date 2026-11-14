@@ -1130,8 +1130,8 @@ impl GameState {
             }
 
             // CR 118.12's payment is the whole of an `Effect::Optional`, whose
-            // arm offers it to its chooser; a mandatory one, whose answer is
-            // "started to pay", has no card.
+            // arm offers it to its chooser. A mandatory one answers "started
+            // to pay" whatever the payment then does, and is not built.
             Primitive::Pay { .. } => Err(format!(
                 "a payment on {:?} is not the whole of an `Effect::Optional`: \"[a player] may pay\" and \"unless [a player] pays\" are, \
                  their chooser paying (CR 118.12a)",
@@ -2951,9 +2951,9 @@ impl GameState {
     /// recipients when one is, else the only opponent still in the game;
     /// with several, an instruction asks
     /// ([`Self::player_the_instruction_names`]), and a read, which cannot
-    /// ask, is loud. Bold Plagiarist's
-    /// "*they* put" is the printed customer, a trigger whose effect names the
-    /// player who triggered it — `Player(id)` once CR 603 fills it.
+    /// ask, is loud. `NamedBy` is the player a recipient names: a trigger's
+    /// "that player" (Bold Plagiarist's "*they* put", ward's payer), or an
+    /// instance's object's controller (Mana Leak's "its controller").
     fn resolve_player_ref(
         &self,
         by: &PlayerRef,
@@ -3057,40 +3057,35 @@ impl GameState {
         if costs.iter().filter(|cost| matches!(cost, Cost::Mana(_))).count() > 1 {
             return Err(format!("{:?}'s payment writes its mana as several costs, which one plan cannot split", ctx.source));
         }
-        // "This" in a cost is the object whose text asks (CR 113.7a), and it
-        // names the payment's prompts.
+        // "This" in a cost is the object whose text asks (CR 113.7a); every
+        // prompt names what is paid for, the resolving spell or ability.
         let source = ctx.effect_source();
         if !self.in_game(payer) || !self.can_pay_as_it_resolves(costs, payer, source) {
             return Ok(false);
         }
-        let amounts = match any_amount_of {
-            Some(each) => {
-                let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
-                match crate::oracle::x_values::legal_amounts_to_pay(self, payer, costs, each, on_the_battlefield) {
-                    Some(values) => Some((each, values)),
-                    None => return Ok(false),
-                }
-            }
-            None => None,
-        };
-        if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, costs.to_vec()) {
+        if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, costs.to_vec(), any_amount_of.cloned()) {
             return Ok(false);
         }
-        let costs = match amounts {
-            Some((each, values)) => {
-                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, each.clone(), values);
-                self.choose_x_as_it_resolves(amount, ctx)?;
-                with_amount_of(costs, each, amount)
+        let (costs, amount) = match any_amount_of {
+            Some(unit) => {
+                let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
+                let values = crate::oracle::x_values::legal_amounts_to_pay(self, payer, costs, unit, on_the_battlefield);
+                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, unit.clone(), values);
+                (with_amount_of(costs, unit, amount), Some(amount))
             }
-            None => costs.to_vec(),
+            None => (costs.to_vec(), None),
         };
-        self.run_mana_ability_window(payer, source, &costs, dp);
+        self.run_mana_ability_window(payer, ctx.source, &costs, dp);
         if self.can_pay_costs(&costs, payer, source).is_err() {
             return Ok(false);
         }
         let actx = ActionContext::resolving(dp, ctx);
-        let plan = self.plan_payment_as_written(&costs, payer, source, &actx)?;
+        let plan = self.plan_payment_as_written(&costs, payer, source, ctx.source, &actx)?;
         self.pay_costs(&plan, payer, source, &actx)?;
+        // Once paid, so a decline leaves no X behind for the next payer.
+        if let Some(amount) = amount {
+            self.choose_x_as_it_resolves(amount, ctx)?;
+        }
         Ok(true)
     }
 

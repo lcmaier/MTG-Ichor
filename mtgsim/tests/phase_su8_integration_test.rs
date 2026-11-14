@@ -236,10 +236,10 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::OrderCostPayments { spell_or_ability_id: object },
         ChoiceKind::OrderSimultaneousEntries { player: 0 },
         ChoiceKind::ChooseModes { source: object, words: Vec::new() },
-        ChoiceKind::PayAsItResolves { source: object, offer: vec![Cost::Mana(ManaCost::build(&[], 3))] },
+        ChoiceKind::PayAsItResolves { source: object, offer: vec![Cost::Mana(ManaCost::build(&[], 3))], any_amount_of: None },
         ChoiceKind::ChooseAmountToPay {
             source: object,
-            each: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
+            unit: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 2 }),
         },
     ];
