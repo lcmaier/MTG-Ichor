@@ -1466,8 +1466,8 @@ in the dev GUI, with no answer re-scripted. A client gets each bucket as a
 **How A is kept right.** Decision 1's record makes the elision exact rather
 than argued: two units are one bucket only when their records are equal, and
 equal records answer every question alike. What can go wrong is a reader
-added without its question, a card that asks "mana from a Cave" by some
-other route. So a reader can name only a question on the watch list, and
+added without its kind, a card that asks "mana from a Cave" by some
+other route. So a reader can name only a kind on the watch list, and
 there is no second route to add.
 
 **Recommended: A.** It asks only where the answers differ, changes no
@@ -1722,7 +1722,7 @@ stop.
   class of unit: `GameAction::LoseUnspentMana(player, ManaUnits)`, under the
   turn-based action's cause (CR 703.4q). Mana Short proposes the same action
   under its own effect's cause.
-  - **A unit's own kept-until.** A unit still inside it is not proposed at a
+  - **A unit's own lifetime.** A unit still inside it is not proposed at a
     step's end. Once its turn or combat has ended it is proposed like any
     other, and if something else keeps it, the term is dropped and the unit
     regroups with mana like it (CR 500.5: the effect expires, then mana
@@ -1790,13 +1790,13 @@ answer by what the source was, and by type and source together.
   no mana writes `None`, and an empty slice is never built. An activation
   records one too.
 - **B. Inline counts, by type and by answer.** `{ by_type: [u64; 6],
-  answering: [[u64; 6]; N] }`, 48 bytes for each watched question.
+  answering: [[u64; 6]; N] }`, 48 bytes for each watched kind.
 
 | | Allocations a clone | Bytes inline, each stack entry and cast permanent | Grows with |
 |---|---:|---:|---|
 | Today | 0 | 48 | nothing |
 | A | 0: a pointer is copied | 8 | nothing |
-| B | 0 | 96 with snow alone, 432 with the eight printed questions | each new question |
+| B | 0 | 96 with snow alone, 432 with the eight printed kinds | each new kind |
 
 A costs one allocation when a payment spends mana, beside the payment's
 existing list of what it used.
@@ -1856,7 +1856,7 @@ payment. Would building `Pay` first unbuild something?
    the activation make (`put_on_stack.rs`, CR 601.2g to 601.2h): the mana
    window, the check that the cost is payable, then `plan_payment` and
    `pay_costs`. The build changes what those do inside and gives each one
-   more argument, what the payment is for (decision 3's `Spend`). A third caller gains it in the same edit the
+   more argument, what the payment is for (decision 3's `ManaPayment`). A third caller gains it in the same edit the
    other two do.
 2. **A plain pool is asked what it is asked today** (decision 2's A). No
    snow or restricted mana can exist before the build, so every fixture
@@ -1888,9 +1888,9 @@ this document's own record, MA-1 at 1.6 times its sizing and MA-2 at 1.4.
 
 | PR | What it builds | Consumer | Code, raw | Tests, raw | At the doc's ratio |
 |---|---|---|---:|---:|---:|
-| **`snow-mana` — a unit keeps what its source was, and `{S}` is paid** | Decision 1's record and pool, with the dormant types and their tests removed; `ProduceMana` carrying units, their answers read by its arm; decision 2's split and its sweep; decision 6's spent record with its rename, on activations and in a permanent's last known information; `{S}` in the demand, the check and the window | The five Snow-Covered basics; Icehide Golem (`{S}` in a mana cost); one of the 35 cards with `{S}` in an activation cost; Graven Lore (`{S}` spent); Steamcore Weird (a creature asking what was spent, asked again once it has left); Arcum's Weathervane or its fixture (the source read once). Each checked by the row's card hunt | 650–850 | 500–650 | 1,600–2,400 |
-| **`restricted-mana-plus-spend-riders` — mana that pays only some things, and mana that does something when spent** | Decision 3's restriction, `Spend` and edge test, through the payment, the window and the check (the entry's restriction and the purpose argument of `#36-item-33s-seam-an-edge-refused-decision-2`); the cost's side, a pip that says what it accepts, with X's bound for such a pip; decision 4's event and three of its four riders | Mishra's Workshop; Soldevi Machinist (abilities of artifacts); a Powerstone maker; Consume Spirit (black mana on X); Scaled Nurturer (a delayed trigger); Boseiju, Who Shelters All (can't be countered); Hall of the Bandit Lord (haste). Each checked by the row's hunt | 600–800 | 550–700 | 1,600–2,400 |
-| **`mana-kept-and-lost` — losing mana as an event** | Decision 5: the action and its batch at the two expiry sites and from an effect, the kept "can't" scoped to the step's end, the unit's own kept-until and its regrouping, the replacement and the action it rewrites to, Yurlok's loss | Upwelling; Omnath, Locus of Mana; Leyline Tyrant; Savage Ventmaw; Horizon Stone; Yurlok of Scorch Thrash; Mana Short | 350–500 | 400–500 | 1,050–1,600 |
+| **`snow-mana` — a unit keeps what its source was, and `{S}` is paid** | Decision 1's record and pool, with the dormant types and their tests removed; `ProduceMana` carrying units, their source facts read by its arm; decision 2's split and its sweep; decision 6's spent record with its rename, on activations and in a permanent's last known information; `{S}` in the demand, the check and the window | The five Snow-Covered basics; Icehide Golem (`{S}` in a mana cost); one of the 35 cards with `{S}` in an activation cost; Graven Lore (`{S}` spent); Steamcore Weird (a creature asking what was spent, asked again once it has left); Arcum's Weathervane or its fixture (the source read once). Each checked by the row's card hunt | 650–850 | 500–650 | 1,600–2,400 |
+| **`restricted-mana-plus-spend-riders` — mana that pays only some things, and mana that does something when spent** | Decision 3's restriction, `ManaPayment` and edge test, through the payment, the window and the check (the entry's restriction and the purpose argument of `#36-item-33s-seam-an-edge-refused-decision-2`); the cost's side, a pip that says what it accepts, with X's bound for such a pip; decision 4's event and three of its four riders | Mishra's Workshop; Soldevi Machinist (abilities of artifacts); a Powerstone maker; Consume Spirit (black mana on X); Scaled Nurturer (a delayed trigger); Boseiju, Who Shelters All (can't be countered); Hall of the Bandit Lord (haste). Each checked by the row's hunt | 600–800 | 550–700 | 1,600–2,400 |
+| **`mana-kept-and-lost` — losing mana as an event** | Decision 5: the action and its batch at the two expiry sites and from an effect, the kept "can't" scoped to the step's end, the unit's own lifetime and its regrouping, the replacement and the action it rewrites to, Yurlok's loss | Upwelling; Omnath, Locus of Mana; Leyline Tyrant; Savage Ventmaw; Horizon Stone; Yurlok of Scorch Thrash; Mana Short | 350–500 | 400–500 | 1,050–1,600 |
 
 **Where the first two split**, if a brief's re-count puts one past the band
 (1,500 to 2,500 lines). `snow-mana`: the record, the pool and the spent
@@ -1924,7 +1924,7 @@ card in a row of this build.
 | Haven of the Spirit Dragon, Path of Ancestry, Lord of the Forsaken (`tdc`) | 3 | any-color mana; the commander's designation; casting from a graveyard | the row that frees each: `any-color-plus-painlands-plus-signets`, `game-formats`, `casting-from-other-zones` |
 | "a Treasure" on the watch list, and its readers | 16 | Treasure tokens | `any-color-plus-painlands-plus-signets`, which makes the token, with Hired Hexblade as its reader |
 | a type the source chose as it entered | 6 | the as-enters record's creature type (`#310-what-a-mana-ability-makes-decision-5`) | `chosen-color-plus-could-produce`, with Cavern of Souls |
-| the questions for a creature, an artifact, an artifact source, a basic land, a Cave and a Desert | 7 | nothing built: each widens what every pool tells apart, measured by its first card | `breadth-features`, with its first card |
+| the kinds for a creature, an artifact, an artifact source, a basic land, a Cave and a Desert | 7 | nothing built: each widens what every pool tells apart, measured by its first card | `breadth-features`, with its first card |
 | filter leaves a restriction reads: mana value, a keyword, "no abilities", a count of colors | 17 | the shared `ObjectFilter` table's leaf | `breadth-features`, with its first card |
 | the special actions a restriction names | 7 | each action: turning face up, foretelling, unlocking a door | `face-down-and-morph` for turning face up; `breadth-features` for the other two |
 | a rider that puts counters on the permanent | 4 | any-color mana (3 cards), a commander (Opal Palace) | `breadth-features`, with its first card |
@@ -1943,7 +1943,7 @@ card in a row of this build.
 - **`snow-mana`, with its cards unregistered:** every gameplay row
   `IDENTICAL` to `main`. A plain pool is asked the same question with the
   same buckets in the same order (decision 2), and with no snow source in a
-  game every unit answers the one watched question alike.
+  game every unit's source is alike on the one watched kind.
   Instructions per decision within ±0.3%: derived, not measured. A payment
   reads a short list where it read a map, and there are about 70 payments a
   game on the budget's board (`#23-what-an-exact-check-changes-the-probe`'s
@@ -1999,11 +1999,11 @@ card in a row of this build.
   creatures on the battlefield: Elvish Spirit Guide's mana, made from a
   hand, does not count. CR 109.2 is why, and 109.2c is why "a snow source"
   is wider: Tundra Fumarole, a snow sorcery, makes mana that pays `{S}`. So
-  each question on the watch list says whether it asks a permanent.
+  each kind on the watch list says whether only a permanent counts.
 - **Imperiosaur's ruling (2021-03-19)** confirms CR 106.3 for triggered
   mana: Wild Growth's `{G}` is Wild Growth's, not the Forest's. The
   production's source is already the trigger's, so nothing changes.
-- **A card's question widens what every game asks.** Registering Myr
+- **A card's kind of source widens what every game asks.** Registering Myr
   Superion adds "a creature" to the watch list, and from then a pool holding
   an Elf's `{G}` beside a Forest's asks which pays, in games with no Myr Superion.
   That is the CR's choice once such a card exists, and it is asked only on a
