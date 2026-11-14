@@ -58,5 +58,11 @@ merges.
   `choices-architecture.md`: decision 4 whole, Mana Leak, Waterfall
   Aerialist and Contamination, items 418 and half of 219 closed, items 419
   to 423 found.
-- Next: `choose-as-an-effect-resolves`, decision 8's `Choose` at resolution
-  (item 28) and the division among objects not targeted.
+- Its second, `choose-as-an-effect-resolves`, is handed over, its as-built in
+  `choices-architecture.md`: decision 8 whole, through one route from a
+  recipient to what its verb acts on (item 28 closed), and the division among
+  objects not targeted. Final Showdown registered, Feast of the Victorious Dead
+  pooled; items 425 to 427 found, a player chosen, "it" after a choice and
+  the dev GUI's click tests' deals.
+- Next: `values-chosen-at-resolution`, decision 7's kinds, which closes the
+  subsystem; item 425 is its, and item 426 asks its design.

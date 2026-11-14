@@ -128,7 +128,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
 | 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
-| 601.2d | Distribution (damage/counters among targets) | ✅ `divided-among-targets`: announced after every instance's targets, on a cast, an activation and a trigger alike; damage, counters and a damage shield read each target's share. The untargeted half (CR 608.2d) is `choose-as-an-effect-resolves`'s | `engine/put_on_stack.rs` (`announce_targets`), `engine/resolve.rs` (`resolve_divided`) |
+| 601.2d | Distribution (damage/counters among targets) | ✅ `divided-among-targets`: announced after every instance's targets, on a cast, an activation and a trigger alike; damage, counters and a damage shield read each target's share. The untargeted half (CR 608.2d) ✅ `choose-as-an-effect-resolves`: chosen and divided as the effect applies, at least one each | `engine/put_on_stack.rs` (`announce_targets`), `engine/resolve.rs` (`resolve_divided`, `recipients_for`) |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
@@ -1358,54 +1358,12 @@ section never asked.
     **Reachability (2026-10-09):** closed — PR #238.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 27".
 
-28. **A rider reaches exactly one object — its subject — because
-    `resolve_primitive` ignores the `EffectRecipient` for everything that
-    affects an object.** Of its 29 arms, **24 reach objects only through
-    `ctx.targets`** (directly, via `collect_battlefield_targets` /
-    `collect_permanent_or_spell_targets`, or via
-    `register_resolution_ability_effect`), **4 are player-directed** through
-    `resolve_player_for_self`, and one — `ProduceMana` — is neither. The
-    recipient's `SelectionFilter` and `TargetCount` are read at *cast* time and
-    nowhere else: `EffectRecipient::Choose` has no generic resolution-time
-    enumeration path (the only such call in the tree is the Aura-host special
-    case in `resolve.rs`), and `FilteredPermanents`'s own doc scopes it to ETB
-    registration.
-
-    For a rider that means an `Effect::Sequence` can do several *things*, but
-    only ever to the one object the event was about. A rider phrased over a set
-    — item 24's "put a +1/+1 counter on each of them" — cannot be written at
-    all. **The visible symptom is inert data:** `regeneration_rider`'s
-    `Target(Permanent(All), Exactly(1))` filter and count satisfy the type and
-    are read by nothing.
-
-    **Not replacement-shaped, and recorded here so it is not mistaken for one.**
-    This is owed by the `Effect` tree on behalf of the whole card pool, exactly
-    as item 24's "if you do" is, and nothing in `types/replacement.rs` changes
-    when it lands. **Deliberately unsized:** `ask_select_recipients` and
-    `enumerate_legal_selections` both exist already, so the number that decides
-    the phase is how many of the 24 arms want per-arm treatment rather than a
-    shared helper. Count that before committing to one.
-    → `replacement-architecture.md` §11 item 17.
-
-    **Reachability (2026-10-23):** unreachable — no registered rider is
-    phrased over a set, and `regeneration_rider`'s unread filter is inert
-    rather than wrong.
-
-    **Sized:** counted 2026-09-03: `resolve_primitive` has 41 arms
-    now (29 when this was written). The shared route — one `recipients_for(ctx,
-    recipient)` that resolves `EffectRecipient::Choose` and `FilteredPermanents`
-    at resolution time, with the object-reaching arms reading `ctx.targets`
-    through it — is ~150–250 lines; lands with the first set-phrased rider
-    (RD/RE) or the first mass-removal spell, whichever comes first.
-    **Slotted:** `modes-plus-choice-kinds` (`route-review`, 2026-10-29): what
-    is left is a design, `EffectRecipient::Choose` answered at resolution (CR
-    608.2d) across the object-reaching arms and a set the event names ("each of
-    them"), with the count above first, which decides between one
-    `recipients_for` and per-arm treatment.
-    **Partly built (2026-10-14, A6m's first PR, #249):** `affected_permanents`
-    resolves a `FilteredPermanents` recipient as the effect resolves, for every
-    arm that writes a row, regenerates or removes from combat or damage.
-    `Choose` and a set named by the event ("each of them") remain.
+28. **~~A rider reaches exactly one object — its subject — because `resolve_primitive` ignores the `EffectRecipient` for everything that affects an object.~~ — ✅ CLOSED 2026-11-14 (`choose-as-an-effect-resolves`).** — archived.
+    `recipients_for` is the one route from a recipient to what its verb acts
+    on, `EffectRecipient::Choose` asked there as the effect applies; no printed
+    rider acts on a set, and a rider's subject is its one instance.
+    **Reachability (2026-11-14):** closed — `choose-as-an-effect-resolves`.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 28".
 
 29. **~~`apply_replacements`'s `inherited` applied-set is empty at its only
     call.~~ — ✅ CLOSED 2026-10-09 (PR #238).** — archived.
@@ -10932,3 +10890,56 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Slotted:** `breadth-features`, with its first card.
      **Sized:** ~40–70 lines: an `Optional` chooser walking every player,
      and the amounts kept per payer and summed.
+
+### Found by `choose-as-an-effect-resolves` (2026-11-14)
+
+425. **A player chosen as an effect applies is refused.**
+     `EffectRecipient::Choose` over `SelectionFilter::Player` or `Any` errs at
+     resolution: "choose a player" is decision 7's `ChoosePlayer`, a value with
+     its own kind and words, and a player verb finds its player through
+     `resolve_player_for_self`, which no choice reaches. The Black Gate's
+     "choose a player with the most life or tied for most life" is one, and
+     decision 7 counts 38 such cards.
+     **Reachability (2026-11-14):** unreachable — no registered card chooses a
+     player as an effect applies.
+     **Slotted:** `values-chosen-at-resolution`, with decision 7's
+     `ChoosePlayer`.
+     **Sized:** ~40–80 lines beside that kind: the arm, its player verbs'
+     reads, and the error removed.
+
+426. **"It" after a choice made as the effect applies has no word.** A later
+     instruction naming what a `Choose` chose cannot be written:
+     `SameInstanceAs` names an instance of "target", which a choice is not,
+     and nothing keeps a resolution's picks for a later atom. A chained
+     change ("choose a creature you control; it gets +2/+2 and gains
+     trample") would choose again, so the registry refuses the chain. 68 of
+     the 75 cards in `Choose`'s census family name the chosen object again
+     within the clause that follows (a word read, so approximate): Crush
+     Underfoot's "it deals damage equal to its power", Season of Weaving's
+     "a copy of it", Gideon's Sacrifice's "the chosen permanent", The
+     Elderspell's "put two loyalty counters on it", and The Black Gate's
+     "that player".
+     **Reachability (2026-11-14):** unreachable — Final Showdown names its
+     creature once, and no registered card chains on a choice.
+     **Slotted:** `values-chosen-at-resolution`, whose "that player" and "the
+     chosen [type]" need the same word; its design decides the shape, such
+     as a recipient naming an earlier choice of the resolution as
+     `SameInstanceAs` names an earlier target.
+     **Sized:** ~80–150 lines: the walk keeps each choice's picks by its
+     place, a recipient reads them, and `ContinuousChange` chains on it.
+
+427. **The dev GUI's click tests reach their coverage on some deals only.**
+     `devgui/tests/random_clicks.rs` asserts that its dealt games close the
+     why panel and show an option's words, and a pooled card reshapes every
+     deal. With Feast of the Victorious Dead pooled, seeds 1–3 asked 213 whys
+     and closed the panel none of the times, and three of seven triples tried
+     from 4 to 27 failed one assertion or two; 4–6 fails on the tree before
+     the pool changed too. The close is one input among a board's items and
+     the panel's links, so a pool change can fail the test with no defect in
+     the window.
+     **Reachability (2026-11-14):** reached on this branch, the seeds
+     re-picked to 13–15.
+     **Slotted:** `devgui-at-five-seats`, the dev GUI's next row.
+     **Sized:** ~15–30 lines: an open panel closed at a rate of its own
+     rather than as one link among many, and an option's words read off a
+     review board's modal card rather than a deal.

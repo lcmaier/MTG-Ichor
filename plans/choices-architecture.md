@@ -1019,7 +1019,7 @@ division.
 | **`mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost**, the second | CR 700.2e's opponent choosing, a mode repeated past the number of modes (700.2d), pawprints (700.2i), the record of what an ability chose before, a mode's own cost (item 81, 700.2h), both halves of item 154 | Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost | ~1,410–2,380 with its tests and the brief's additions, re-counted at its intake; ~1,710–2,980 with the picker | |
 | **`mode-picker` — the dev GUI asks for modes one at a time**, split from the second at its intake's point | decision 2's "For the GUIs": `ChooseModes` drawn as a checkbox per mode, or a count where modes repeat, each enabled while some offered set still holds the picks, Confirm while the picks are one; plain Rust over the offered list under tests, egui only drawing | the dev GUI, with a review path: files by review mode, a click script, pictures | ~300–600, a guess from #312 | |
 | **`pay-as-an-effect-resolves` — a cost paid as an effect resolves**, the first of `costs-and-choices-at-resolution`'s two | decision 4: `Pay`, the window at resolution, an amount chosen as it is paid, "any player may", ward; item 418's two comments | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~1,350–2,100 with its tests, by the brief | |
-| **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted | ~600–950 with its tests, the row's rest | |
+| **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted; built on Final Showdown and Feast of the Victorious Dead | 450 measured (−290), the row's rest sized ~600–950 with its tests | 621 measured |
 | **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
 **The estimates run low, so read them against the first PR's.** #306's
@@ -1334,6 +1334,42 @@ Where it differs from decision 4's words:
   offered (item 421); ward {X} (item 422).
 - **An amount of none, taken, is a payment** (`Does`, X = 0), CR 118.3a's "players can always
   pay 0 mana": kept at review, every printed ruling on zero agreeing (Halo Forager's).
+
+### `choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves — ✅ landed 2026-11-14
+
+PR #326, the second of `costs-and-choices-at-resolution`'s two: decision 8 whole and decision 5's
+untargeted half.
+- **The family, counted** (`choice-kinds-census.py`, 2026-11-14, the 2026-10-05 cache): 300 cards
+  choose an object as an effect applies. 75 have the controller choose a permanent, `Choose`'s
+  family (23 beside a target, 16 acting on the rest, 4 at random); 83 have another player choose,
+  an edict's `ChosenBy`; 149 choose a card in a zone.
+- **A choice leaves the instances**: `Effect::instances`, the announcement, castability and CR
+  608.2b's re-check no longer see a `Choose`, and `TargetInstance::is_targeted` went with them.
+- **One route** (item 28): `recipients_for` turns an atom's recipient into what its verb acts on,
+  nothing, or each with its share, and indexes the atom's own instance; a payer or an edict's
+  chooser still reads its instance where it is named. The arms that re-derived a sweep read their
+  slice (`permanents_among`), the filter matched once (`permanents_matching`); a "can't" keeps its
+  filter as its set (CR 611.2c). The atom arms already found every other recipient's objects, so
+  it came out as one route, not per-arm treatment.
+- **The choice**: the controller picks from what the filter matches as the instruction applies,
+  through `SelectRecipients`. The candidates are the filter's, as a target's are, the verb's
+  "can't" checked as it acts; an edict differs, its pick being the sacrifice (CR 701.21a). A
+  choice of nothing hands the verb nothing, as a fizzled instance does.
+- **The untargeted division**: at least one object while there is one and no more than the amount
+  ("distribute three counters" places all three), fewer than the most if the player likes (CR
+  608.2d), split through `DivideAmong`, whose words fit both divisions; gone with the atom.
+- **The cards**: Final Showdown and Feast of the Victorious Dead (pooled, 127 → 128); the words
+  `chosen_permanent`, `divided_among_chosen` and `distribute_counters_among_chosen`.
+
+Where it differs from the design's words:
+- **The Black Gate and Invoke Justice wait**: The Black Gate needs decision 7's `ChoosePlayer`
+  (item 425) and "that player" (item 426), Invoke Justice a target card in a graveyard (item 392)
+  and "creatures … target player controls" (item 415). A printed board for a choice beside a
+  target is the handover's question.
+- **"It" after "choose"** has no word (item 426), so the registry refuses a chain on a choice.
+- **A rider's "each of them" needs no recipient**: no printed rider acts on a set, and a replaced
+  event has one subject, which a rider's `Target` instance names through the route.
+- **Shroud**: nothing checks it for a target yet (`cant-be-targeted`), so its test is a guard.
 
 ## 6. Found while designing
 
