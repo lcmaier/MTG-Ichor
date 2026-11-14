@@ -261,14 +261,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 473 |
+| Numbered items | 474 |
 | …closed, still recorded | 285 |
-| …open — unreachable, and says why | 128 |
+| …open — unreachable, and says why | 129 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 34 |
 | …open — nothing to build, a record for a later phase | 19 |
 | **…open — reachability *not* stated** | **2** |
-| …open, carrying an explicit `**Sized:**` | 182 of 188 |
+| …open, carrying an explicit `**Sized:**` | 183 of 189 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -282,7 +282,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 175 |
+| …slotted to a phase or roadmap row still to come | 176 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

@@ -10871,18 +10871,21 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** none here: the payment reads `can_pay_costs` and pays through
      `pay_costs`, so the four work at resolution once they work at a cast.
 
-422. **Ward reads no X as it resolves (CR 702.21b).** `ward` takes fixed
-     costs; "ward {X}, where X is …" needs a cost whose amount is read as the
-     trigger resolves (ATOM-702.21b-001).
-     **Reachability (2026-11-13):** unreachable — no registered card has one,
+422. **A payment reads no X its text defines (CR 107.3c, 702.21b).** `ward`
+     takes fixed costs; "ward {X}, where X is …" needs a cost whose amount is
+     read as the trigger resolves (ATOM-702.21b-001). So does Champions of
+     Minas Tirith's "that opponent may pay {X}, where X is the number of
+     cards in their hand". Written as a bare {X} today, either is refused
+     (item 420's third shape), not chosen by the payer.
+     **Reachability (2026-11-14):** unreachable — no registered card has one,
      and `tdc`'s ward is {2}.
      **Slotted:** `breadth-features`, with its first card.
      **Sized:** ~30–50 lines: an amount in a payment's cost, evaluated as it
      is offered.
 
 423. **An amount paid as an effect resolves is paid in mana alone.**
-     `Primitive::Pay`'s `any_amount_of` is a `ManaCost`, the unit of {X}'s
-     {1} and Leyline Tyrant's {R}. "Any amount of life" (Necrodominance,
+     `Primitive::Pay`'s `any_amount_of` is a `ManaCost`, the unit of "any
+     amount of mana" ({1}) and Leyline Tyrant's {R}. "Any amount of life" (Necrodominance,
      Plague of Vermin) and "any amount of {E}" (Harnessed Lightning, Galvanic
      Discharge) pay another unit. On Scryfall (2026-11-13), "may pay any
      amount of" reads 7 cards for energy, 7 for life and 10 for mana, beside
@@ -10894,3 +10897,16 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      with `remaining-costs`' counters as costs.
      **Sized:** ~30–50 lines: the unit a `Cost`, its amounts read off the
      payer's life or counters. Found by the pre-review.
+
+424. **"Each player may pay any amount" is not written.** Join forces
+     (Alliance of Arms, Collective Voyage, Minds Aglow, Shared Trauma,
+     Mana-Charged Dragon) asks every player in turn, starting with you, and
+     reads the total "paid this way"; Liege of the Hollows gives each player
+     their own amount. `PlayerRef::AnyPlayer` stops at the first payer and
+     the resolution keeps one X, so neither is either shape. Found at the
+     owner's review of #324.
+     **Reachability (2026-11-14):** unreachable — no registered card has
+     either.
+     **Slotted:** `breadth-features`, with its first card.
+     **Sized:** ~40–70 lines: an `Optional` chooser walking every player,
+     and the amounts kept per payer and summed.
