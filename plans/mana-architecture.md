@@ -1763,7 +1763,9 @@ stop.
     for that player and type, in the "can't" registry, which already holds
     static abilities and effects with durations and re-checks that a static
     one still exists. Its pattern names the turn-based action's cause, which
-    every proposal carries, so it does not stop Mana Short.
+    every proposal carries, so it does not stop Mana Short. The emptying
+    asks it before it proposes, so mana that is kept makes no proposal
+    (round 3's measurement, below).
   - **Replaced.** Kruphix is an `EventPattern::LoseUnspentMana` arm that
     names no cause, so it matches both. Its rewrite is `Rewrite::Instead`,
     CR 614.1a's arm, of a second new action that changes those units' type
@@ -1801,34 +1803,50 @@ costs what today does.
 **That average answers one question only** (the owner, round 2: floating
 mana is inconsequential in most games and the whole point in a few). It
 says a game with none of these cards pays nothing for A. It says nothing
-about a board that stores mana, where a pool is full at every emptying.
-That board is derived here, from two measured numbers: the probe's 13.5
-emptyings a turn, at either table size, and 22,500 instructions as the most
-a proposal costs.
+about a board that stores mana, where some pool still holds mana at every
+emptying. What that board costs depends on how many classes of mana are
+held, a class being one player's mana of one type from one kind of source,
+and never on how much: a pool of a million `{G}` is one class.
 
-| On the board | Cards | What each emptying does under A | Cost a turn, for each class of mana a player holds |
+**Measured in round 3** (the owner asked whether the worst case is a worry,
+since a Commander table can reach it). A scratch probe at four seats and
+forty permanents, with a static "players can't gain life" standing in for
+Upwelling and a life gain for the loss, timed beside a performed
+production. Three runs agreed within 5%.
+
+| Proposal | Time each | Beside a performed production |
+|---|---:|---:|
+| a production, performed, its own batch | 0.97 µs | 1.00 |
+| refused by the static "can't", its own batch | 0.53 µs | 0.54 |
+| refused, one of eight in a batch | 0.29 µs | 0.30 |
+| refused, one of twenty-four in a batch | 0.28 µs | 0.29 |
+
+With the first probe's 13.5 emptyings a turn, and a turn of about seven
+decisions at 50 µs each (a board that size sits between the record's 39 µs
+at 32 rows and 66 µs at 64):
+
+| On the board | Cards | What each emptying does | Cost a turn |
 |---|---:|---|---|
 | a unit inside its own lifetime (firebending) | 50 | nothing: it is not proposed | none |
-| mana kept by a static ability or an effect (Omnath, Upwelling, Leyline Tyrant) | 7 | a proposal that the "can't" refuses ahead of the pipeline | at most 300,000 instructions. A refusal should cost less than a performed proposal; by how much is not measured |
-| the loss replaced (Kruphix, Horizon Stone) | 5 | a proposal, rewritten and performed | about 300,000 |
+| mana kept by a static ability or an effect (Omnath, Upwelling, Leyline Tyrant) | 7 | a refusal, if it were proposed | 4 µs for each class held, about 1% of the turn. Eight classes around an Upwelling table is 9%. All six types in all four pools, twenty-four classes, is 26% |
+| the loss replaced (Kruphix, Horizon Stone) | 5 | a proposal, rewritten and performed | 13 µs or a little more for each class held, about 4% of the turn. Kruphix leaves its player one class, colorless |
 | the loss followed (Yurlok) | 2 | a proposal and a life loss, only when mana is in fact lost | two proposals a loss, which a player avoids |
 
-A turn is about seven decisions, 4.4 to 6.1 million instructions on the
-record's readings, so one class of stored mana costs at most 5 to 7% of
-each turn it is held. The board to watch is Upwelling at four seats: with
-eight classes held around the table it would be about half a turn's cost at
-that bound. B plays only the second row, at a set lookup. It cannot play
-the third or fourth at all, so there A's cost is the card's own, under any
-design that lets a replacement see the loss.
-
-**So the build measures the boards, not the average.**
-`mana-kept-and-lost`'s close-out reads the budget on three boards made for
-it: Omnath holding green, Kruphix holding colorless, and Upwelling at four
-seats with every pool full. If a refusal there costs more than a few
-percent of a turn, the emptying asks the "can't" itself for each player and
-type and proposes only what would be lost. That is the engine's own rule
-that a caller checks legality, and it costs one registry question where it
-cost a proposal.
+**So mana that is kept is not proposed at all.** 9% of every turn at an
+Upwelling table is a cost a real Commander game would pay, for an answer
+that does not change from one emptying to the next. The emptying asks the
+"can't" itself, for each player and type held, and proposes only what would
+be lost. That is the engine's own rule that a caller checks legality, with
+the predicate the pipeline would have asked, so the game is the same. It
+costs at most the 0.29 above and should cost well under it, since the batch
+and its record are gone. `mana-kept-and-lost`'s close-out reads it on three
+boards made for the purpose: Omnath holding green, Kruphix holding
+colorless, and Upwelling at four seats with every player holding several
+types. If the question still shows there, its answer is kept until the
+board changes, on the layer epoch that already guards what the layers read.
+B plays only the second row, at a set lookup. It cannot play the third or
+fourth at all, so there A's cost is the card's own, under any design that
+lets a replacement see the loss.
 
 **Recommended: A.** One action serves all six families, and each family
 lands in the registry that already knows how to ask whether its source still
@@ -2092,8 +2110,8 @@ card in a row of this build.
   proposals a game at two seats and 2.7 at four, under a tenth of one
   decision's instructions a game, so the budget's reading should not move
   past its noise. That is the board with none of the row's cards. The three
-  boards that store mana are read apart, against decision 5's bound of 5 to
-  7% of a turn for each class held.
+  boards that store mana are read apart, against decision 5's probe: under
+  1% of a turn for each class kept, and about 4% for each class replaced.
 
 ### 11.8 The fixtures
 
