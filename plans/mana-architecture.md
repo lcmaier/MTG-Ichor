@@ -1113,7 +1113,7 @@ sized".
 | main item 33 | the dormant subsystem; the per-unit record; restricted mana; `{S}`; readers of a mana's source | decisions 1 to 4 and 6; rows **`snow-mana`** and **`restricted-mana-plus-spend-riders`** |
 | "Before Layers" item 4 | mana kept past a step's end; Yurlok of Scorch Thrash's life loss | decision 5; row **`mana-kept-and-lost`** |
 | main item 403, its second half | CR 500.5's emptying has no event, so Leyline Tyrant cannot keep its mana. Slotted to `tarkir-dragonstorm-decks`, not to this row | found here: the same build as the item above. Proposed to move to `mana-kept-and-lost` with decision 5, the gap census's record with it. Its first half, Seedborn Muse's untap, stays where it is |
-| main item 135 | one ability making restricted and unrestricted mana at once, under a replacement that fixes the amount | decision 7: proposed to stay refused, re-slotted to its first card |
+| main item 135 | one ability making restricted and unrestricted mana at once, under a replacement that fixes the amount | decision 7, settled (the owner, 2026-11-13): it stays refused, re-slotted to `breadth-features` with its first card |
 | main item 162 | the tap solver, which names this row | not taken: its solver is `mana-payment-solver`'s. Decision 2 says what that solver will answer |
 
 **The rules' atoms** (`python plans/specdb.py next --rule`, for 106.4, 106.6,
@@ -1828,8 +1828,14 @@ entries and on the pool's snow units. A generic reduction never touches it,
 since the reduction removes `Generic` symbols and `{S}` is its own. It is
 paid by decision 2's split.
 
-**Recommended: A.** It is smaller than today on the state and does not grow
-with the vocabulary.
+**What B has over A** (the owner asked, 2026-11-13): a payment allocates
+nothing, where A allocates one slice for each payment that spends mana,
+about 70 a game; and the record stays `Copy`. Neither is on a path that is
+counted: a clone copies a pointer under A, and a reader walks a slice of a
+few entries. B cannot answer the row for which object.
+
+**Settled: A** (the owner, 2026-11-13). It is smaller than today on the
+state and does not grow with the vocabulary.
 
 #### Decision 7: item 135, a mixed production under a fixed amount
 
@@ -1852,7 +1858,9 @@ each 0).
   wrong answer hides: a restriction that vanishes from a pool, or one that
   appears.
 
-**Recommended: A.**
+**Settled: A** (the owner, 2026-11-13): the reading is ill-defined without
+a card that makes the mix, which is likely why none is printed. Item 135's
+slot moved with this answer.
 
 #### Decision 8: the build, in three rows
 

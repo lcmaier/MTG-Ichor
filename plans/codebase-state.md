@@ -5587,16 +5587,14 @@ closed. **The last of RE's ten PRs.**
      the ruling that decides it. Recorded rather than guessed because a wrong
      answer here is a restriction that vanishes from a pool with nothing
      pointing at it.
-     **Slotted:** `mana-provenance`, which owns what restricted mana carries:
-     the `Fixed` leg's arm for an ability making restricted and unrestricted
-     mana at once, decided by the CR 106.6a reading that row makes (the owner,
-     at #293's review, 2026-10-25: a filed gap with printed customers takes a
-     route row).
-     **Designed 2026-11-13**, for the owner's review:
-     `mana-architecture.md#decision-7-item-135-a-mixed-production-under-a-fixed-amount`.
-     The per-unit record does not decide it, and no printed ability makes the
-     mix (Scryfall, three phrasings, 0 each), so it proposes keeping the
-     refusal and re-slotting this item to its first card.
+     **Slotted:** `breadth-features`, with its first card, whose ruling
+     decides the `Fixed` leg's arm.
+     **Decided 2026-11-13** (the owner, at #323's review): the refusal stays.
+     `mana-architecture.md#decision-7-item-135-a-mixed-production-under-a-fixed-amount`
+     found that the per-unit record does not decide it and that no printed
+     ability makes the mix (Scryfall, three phrasings, 0 each). The reading
+     is ill-defined without such a card, which is likely why none is printed,
+     so the route row that held this item until then no longer does.
 
 136. **The chokepoint's fixed cost per event is the whole of what a proposal
      with nothing watching it costs, and the one lever §8 pre-approved cannot
