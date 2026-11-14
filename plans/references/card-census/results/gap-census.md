@@ -19,11 +19,11 @@ A card in several lists counts in each. **Left** is the cards still waiting and 
 
 | Deck | Registered | Writable | Left | On a gap | Gaps | Gap PRs | Last step | PRs | Rows done | To it | Rows it needs |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Abzan Armor | 2 | 23 | 57 | 31 | 22 | 1.6–2.4 | 17 | 69–131 | 14 | 45–76 | 21 |
-| Mardu Surge | 4 | 24 | 57 | 19 | 12 | 0.7–1.1 | 17 | 69–131 | 15 | 51–86 | 21 |
-| Sultai Arisen | 3 | 13 | 69 | 27 | 12 | 1.1–1.8 | 17 | 69–131 | 15 | 51–86 | 19 |
-| Jeskai Striker | 4 | 17 | 65 | 14 | 13 | 0.6–1.0 | 17 | 69–131 | 16 | 54–92 | 21 |
-| Temur Roar | 1 | 22 | 63 | 25 | 17 | 1.2–1.9 | 17 | 69–131 | 16 | 54–92 | 25 |
+| Abzan Armor | 2 | 23 | 57 | 31 | 22 | 1.6–2.4 | 17 | 70–131 | 14 | 46–76 | 21 |
+| Mardu Surge | 4 | 24 | 57 | 19 | 12 | 0.7–1.1 | 17 | 70–131 | 15 | 52–86 | 21 |
+| Sultai Arisen | 3 | 13 | 69 | 27 | 12 | 1.1–1.8 | 17 | 70–131 | 15 | 52–86 | 19 |
+| Jeskai Striker | 4 | 17 | 65 | 14 | 13 | 0.6–1.0 | 17 | 70–131 | 16 | 55–92 | 21 |
+| Temur Roar | 1 | 22 | 63 | 25 | 17 | 1.1–1.7 | 17 | 70–131 | 16 | 55–92 | 25 |
 
 ## Each deck's cards by step
 
@@ -35,7 +35,7 @@ How many of a deck's cards could be written once a step closes, registered cards
 | Mardu Surge | 85 | 28 | 30 | 30 | 39 | 42 | 54 | 56 | 60 | 60 | 69 | 73 | 73 | 85 | 85 |
 | Sultai Arisen | 85 | 16 | 16 | 16 | 25 | 35 | 49 | 52 | 55 | 55 | 67 | 78 | 78 | 85 | 85 |
 | Jeskai Striker | 86 | 21 | 22 | 22 | 34 | 36 | 43 | 44 | 47 | 47 | 56 | 76 | 78 | 86 | 86 |
-| Temur Roar | 86 | 23 | 24 | 24 | 33 | 40 | 52 | 53 | 56 | 56 | 65 | 71 | 74 | 86 | 86 |
+| Temur Roar | 86 | 23 | 24 | 24 | 34 | 41 | 53 | 54 | 57 | 57 | 66 | 72 | 75 | 86 | 86 |
 
 ## The gaps each deck needs
 
@@ -58,8 +58,9 @@ How many of a deck's cards could be written once a step closes, registered cards
 | 6 | `linked-abilities` | 10 | 0 |  |
 | 7 | `any-color-plus-painlands-plus-signets` | 51 | 26 | Adarkar Wastes, Azorius Signet, Battlefield Forge, Boros Signet, Caves of Koilos, Darkwater Catacombs, Deadly Dispute, Ferrous Lake, Izzet Signet, Karplusan Forest, Llanowar Wastes, Mossfire Valley, Orzhov Signet, Prismari Command, Rapacious Dragon, Selesnya Signet, Shivan Reef, Skycloud Expanse, Sungrass Prairie, Talisman of Conviction, Talisman of Creativity, Talisman of Hierarchy, Talisman of Impulse, Talisman of Progress, Teval's Judgment, Yavimaya Coast |
 | 7 | `mana-ability-costs` | 2 | 0 |  |
-| 7 | `mana-provenance` | 3 | 0 |  |
+| 7 | `mana-kept-and-lost` | 1 | 1 | Leyline Tyrant |
 | 7 | `resolution-recipients-and-amounts` | 44 | 18 | Arboreal Grazer, Beast Within, Bojuka Bog, Colossal Grave-Reaver, Disciple of Bolas, Feed the Swarm, Grapple with the Past, Living Death, Necromantic Selection, Pongify, Rapid Hybridization, Skullclamp, Stroke of Midnight, Swords to Plowshares, Teval, the Balanced Scale, Tip the Scales, Wall of Limbs, Wall of Reverence |
+| 7 | `restricted-mana-plus-spend-riders` | 3 | 0 |  |
 | 8 | `information-model` | 39 | 20 | Chaos Warp, Cultivate, Encroaching Dragonstorm, Evolving Wilds, Farseek, Fortified Village, Grisly Salvage, Harrow, Kodama's Reach, Myriad Landscape, Ponder, Rampant Growth, Sakura-Tribe Elder, Satyr Wayfinder, Selvala's Stampede, Solemn Simulacrum, Springbloom Druid, Terramorphic Expanse, Ureni of the Unwritten, Wayfarer's Bauble |
 | 9 | `command-zone-casting` | 6 | 1 | Cephalid Coliseum |
 | 9 | `game-formats` | 17 | 10 | Ainok Strike Leader, Arcane Signet, Command Beacon, Command Tower, Commander's Insignia, Hellkite Courser, Loyal Apprentice, Path of Ancestry, Will of the Mardu, Will of the Sultai |
@@ -83,9 +84,9 @@ How many of a deck's cards could be written once a step closes, registered cards
 | 16 | `card-and-object-model` | 1 | 1 | Curse of Opulence |
 | 16 | `face-down-and-morph` | 1 | 1 | Reality Shift |
 | 16 | `split-and-adventure-style-cards` | 3 | 3 | Expansion // Explosion, Stormshriek Feral // Flush Out, Whirlwing Stormbrood // Dynamic Soar |
-| 17 | `tarkir-dragonstorm-decks` | 53 | 53 | Aligned Heart, Arbor Adherent, Blade of Selves, Bone Devourer, Canopy Gargantuan, Chittering Witch, Crawling Sensation, Curse of the Swine, Dismantling Wave, Dragon Tempest, Eshki, Temur's Roar, Essence Anchor, Faeburrow Elder, Glorybringer, Goldlust Triad, Idol of Oblivion, Ironwill Forger, Jaws of Defeat, Kaya, Geist Hunter, Legion Loyalty, Lethal Scheme, Leyline Tyrant, Life from the Loam, Manaform Hellkite, Mangara, the Diplomat, Mosswort Bridge, Neriv, Crackling Vanguard, Protector of the Wastes, Redoubled Stormsinger, Reunion of the House, Scourge of the Throne, Seedborn Muse, Shadrix Silverquill, Shiko and Narset, Unified, Skarrgan Hellkite, Slaughter the Strong, Staff of Compleation, Steel Hellkite, Steward of the Harvest, Stormbreath Dragon, Tear Asunder, Territorial Hellkite, Thalisse, Reverent Medium, Towering Titan, Transcendent Dragon, Tree of Redemption, Vengeful Ancestor, Voracious Bibliophile, Weathered Sentinels, Welcome the Dead, Will of the Abzan, Will of the Temur, Zurgo Stormrender |
+| 17 | `tarkir-dragonstorm-decks` | 52 | 52 | Aligned Heart, Arbor Adherent, Blade of Selves, Bone Devourer, Canopy Gargantuan, Chittering Witch, Crawling Sensation, Curse of the Swine, Dismantling Wave, Dragon Tempest, Eshki, Temur's Roar, Essence Anchor, Faeburrow Elder, Glorybringer, Goldlust Triad, Idol of Oblivion, Ironwill Forger, Jaws of Defeat, Kaya, Geist Hunter, Legion Loyalty, Lethal Scheme, Life from the Loam, Manaform Hellkite, Mangara, the Diplomat, Mosswort Bridge, Neriv, Crackling Vanguard, Protector of the Wastes, Redoubled Stormsinger, Reunion of the House, Scourge of the Throne, Seedborn Muse, Shadrix Silverquill, Shiko and Narset, Unified, Skarrgan Hellkite, Slaughter the Strong, Staff of Compleation, Steel Hellkite, Steward of the Harvest, Stormbreath Dragon, Tear Asunder, Territorial Hellkite, Thalisse, Reverent Medium, Towering Titan, Transcendent Dragon, Tree of Redemption, Vengeful Ancestor, Voracious Bibliophile, Weathered Sentinels, Welcome the Dead, Will of the Abzan, Will of the Temur, Zurgo Stormrender |
 
-**No card named these rows.** The census stops at a card's first row not built, so this is what it saw and no more: `fork-test-at-every-decision`, `information-model-design`, `text-changing-effects`, the design, `cant-pay-costs`, `rulings-for-every-card`, `double-faced-cards`, the transform half, `decks-in-fuzz-games`, `devgui-at-five-seats`, `mana-payment-solver`.
+**No card named these rows.** The census stops at a card's first row not built, so this is what it saw and no more: `fork-test-at-every-decision`, `snow-mana`, the first of `mana-provenance`'s build, `information-model-design`, `text-changing-effects`, the design, `cant-pay-costs`, `rulings-for-every-card`, `double-faced-cards`, the transform half, `decks-in-fuzz-games`, `devgui-at-five-seats`, `mana-payment-solver`.
 
 ## Each gap no row owned
 
@@ -131,7 +132,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | filter-tapped | 1 | `the cheap gaps` | item 394 | Mana Geyser |
 | filter-toughness | 1 | `the cheap gaps` | item 394 | Colfenor's Urn |
 | has-activated-abilities-of-cards | 1 | `tarkir-dragonstorm-decks` | item 404 | Steward of the Harvest |
-| mana-keeps-between-steps | 1 | `tarkir-dragonstorm-decks` | item 403 | Leyline Tyrant |
+| mana-keeps-between-steps | 1 | `mana-kept-and-lost` | item 403 | Leyline Tyrant |
 | modes-target-different-players | 1 | `tarkir-dragonstorm-decks` | item 393 | Shadrix Silverquill |
 | proliferate | 1 | `tarkir-dragonstorm-decks` | item 402 | Staff of Compleation |
 | protection | 1 | `tarkir-dragonstorm-decks` | item 402 | Stormbreath Dragon |
@@ -298,7 +299,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Harrow | face | blocked | information-model | — | no | — | 0 | As the pilot found. |
 | Haughty Djinn | part | gap | layers-combat-and-counters, gap:count-off-the-battlefield | — | no | failed | 0 | Item 190: a CDA cannot define one side. A static count of a graveyard panics as it lowers. |
 | Haunted Mire | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
-| Haven of the Spirit Dragon | face | gap | any-color-plus-painlands-plus-signets, mana-provenance, gap:target-card-in-a-zone | — | no | — | 18 |  |
+| Haven of the Spirit Dragon | face | gap | any-color-plus-painlands-plus-signets, restricted-mana-plus-spend-riders, gap:target-card-in-a-zone | — | no | — | 18 |  |
 | Hedron Crab | whole | writable | — | — | no | passed | 75 |  |
 | Hellkite Courser | face | blocked | game-formats | — | no | — | 24 |  |
 | Hero of Bladehold | whole | writable | — | — | no | passed | 28 | Battle cry spelled out. |
@@ -338,7 +339,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Living Death | face | blocked | resolution-recipients-and-amounts, linked-abilities | — | no | — | 0 | Item 350's sweep, and the cards it exiled back. |
 | Llanowar Wastes | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
 | Lord of Extinction | face | gap | gap:count-off-the-battlefield | — | no | — | 33 |  |
-| Lord of the Forsaken | part | blocked | mana-provenance, casting-from-other-zones | — | no | — | 52 | The mill plays. Mana only for a spell from a graveyard. |
+| Lord of the Forsaken | part | blocked | restricted-mana-plus-spend-riders, casting-from-other-zones | — | no | — | 52 | The mill plays. Mana only for a spell from a graveyard. |
 | Loyal Apprentice | face | blocked | game-formats | — | no | — | 33 | Lieutenant. |
 | Magma Opus | part | blocked | hybrid-and-phyrexian-payment, remaining-costs, any-color-plus-painlands-plus-signets, permission-design | — | no | — | 44 | As the pilot found. |
 | Mana Geyser | face | gap | gap:filter-tapped | — | no | — | 0 | No filter asks whether a permanent is tapped. |
@@ -376,7 +377,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Overgrown Battlement | face | gap | gap:filter-by-keyword | — | no | — | 33 |  |
 | Overgrown Farmland | part | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
 | Parapet Thrasher | face | gap | casting-from-other-zones, resolution-recipients-and-amounts, gap:exile-top-cards, multiplayer-rules | — | no | — | 30 | A mode per turn; that opponent's artifact. |
-| Path of Ancestry | part | blocked | any-color-plus-painlands-plus-signets, game-formats, mana-provenance | linked-abilities | no | — | 18 |  |
+| Path of Ancestry | part | blocked | any-color-plus-painlands-plus-signets, game-formats, restricted-mana-plus-spend-riders | linked-abilities | no | — | 18 |  |
 | Perilous Landscape | part | blocked | information-model, permission-design, remaining-costs | any-color-plus-painlands-plus-signets | no | — | 18 |  |
 | Phyrexian Reclamation | face | gap | gap:target-card-in-a-zone | — | no | — | 33 |  |
 | Ponder | face | blocked | information-model | — | no | — | 0 |  |

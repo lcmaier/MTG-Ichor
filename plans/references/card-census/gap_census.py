@@ -134,7 +134,7 @@ GAPS = {
     "protection": Gap(DECKS_ROW, "item 402", 120, 200),
     "myriad": Gap(DECKS_ROW, "item 402", 100, 160),
     "untap-on-another-players-untap-step": Gap(DECKS_ROW, "item 403", 40, 60),
-    "mana-keeps-between-steps": Gap(DECKS_ROW, "item 403", 60, 100),
+    "mana-keeps-between-steps": Gap("mana-kept-and-lost", "item 403", 60, 100),
     "counter-then-exile": Gap(DECKS_ROW, "item 404", 40, 70),
     "when-you-cycle": Gap(DECKS_ROW, "item 404", 30, 50),
     "random-opponent": Gap(DECKS_ROW, "item 404", 30, 50),

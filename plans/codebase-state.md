@@ -1664,13 +1664,14 @@ section never asked.
     An inventory entry carries its restriction and the check takes the
     cost's purpose; `{S}` is a type bit. The per-unit record, its payment
     and the source axis stay this item's pass, after MA-1.
-    **Slotted:** `mana-provenance`: the per-unit record, T12c's
-    `SpendContext` routing and T12d's cards, after its design pass.
-    **Designed 2026-11-13**, at its design stop for the owner's review:
-    `mana-architecture.md#11-mana-provenance-what-a-unit-of-mana-keeps`. It
-    proposes one list of counted units in place of the two-track pool, a
-    payment that asks only where units differ, and three build rows,
-    `snow-mana`, `restricted-mana-plus-spend-riders` and `mana-kept-and-lost`.
+    **Slotted:** `snow-mana`, which builds the per-unit record, the pool and
+    the spent record under `{S}` and removes the dormant types; then
+    `restricted-mana-plus-spend-riders`, which makes restricted mana
+    spendable and builds its riders (T12c's routing and T12d's cards).
+    **Designed and decided 2026-11-13** (the owner, three review rounds on
+    #323): `mana-architecture.md#11-mana-provenance-what-a-unit-of-mana-keeps`.
+    One list of counted units replaces the two-track pool, a payment asks
+    only where units differ, and a restriction reads the payment's cause.
     **Noted at TR-4a (2026-10-14):** `Lki` carries no `cast`
     (`triggers-architecture.md` §3.11), since no condition leaf reads mana
     spent. The first such leaf adds it to the `Lki` beside itself, so an
@@ -4279,23 +4280,21 @@ The layer system's designated single-point change site is `oracle/characteristic
    **Sized:** read the persistence set off the continuous-effects
    registry (a `ManaPersistence` row kind) at the two sites, ~40–60 lines, with
    T12c.
-   **Slotted:** `mana-provenance`, as its own step beside T12c: the
-   persistence set read off a `ManaPersistence` row kind at the two expiry
-   sites, with Upwelling's and Omnath's shapes as fixtures (31 printed cards
-   keep unspent mana, `o:"lose unspent"`) (the owner, at #293's review,
-   2026-10-25: a filed gap with printed customers takes a route row).
-   **Yurlok of Scorch Thrash rides with it** (the owner, at #316's review,
-   2026-11-07): "A player losing unspent mana causes that player to lose that
-   much life" changes the same two expiry sites, as life lost at the moment the
-   mana is (its 2020-11-10 ruling: no stack, one loss however many Yurloks).
-   The only printed card that says it (Scryfall, `o:"losing unspent mana"`).
-   **Designed 2026-11-13**, for the owner's review:
-   `mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`
-   proposes losing mana as an event, since a kept set read at a direct write
-   holds 7 of the 19 printed cards that keep mana by a static ability or an
-   effect, or replace, follow or cause its loss. It re-counts the 31 above as
-   12 by that query and 67 by clause, 50 of them mana kept by its own text.
-   Main item 403's second half is this same build.
+   **Slotted:** `mana-kept-and-lost` (the owner, at #323's review,
+   2026-11-13; a route row since #293's review, 2026-10-25, as a filed gap
+   with printed customers). **Yurlok of Scorch Thrash rides with it** (the
+   owner, at #316's review, 2026-11-07): "A player losing unspent mana causes
+   that player to lose that much life", as life lost at the moment the mana
+   is (its 2020-11-10 ruling: no stack, one loss however many Yurloks). The
+   only printed card that says it (Scryfall, `o:"losing unspent mana"`).
+   **Designed and decided 2026-11-13**:
+   `mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`.
+   Losing mana becomes a proposal, and mana an effect keeps is not proposed.
+   The sizing above was a kept set read at a direct write, which holds 7 of
+   the 19 printed cards that keep mana by a static ability or an effect, or
+   replace, follow or cause its loss. The design counts 12 cards by
+   `o:"lose unspent"`, where 31 was carried, and 67 by clause, 50 of them
+   mana kept by its own text. Main item 403's second half is this same build.
 
 5. **Timestamps — ✅ live.** — archived.
     **Reachability (2026-09-03):** closed — timestamps are live; the 613.8 half
@@ -10620,12 +10619,11 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
 
      **Reachability (2026-11-06):** unreachable — no registered card prints either.
      **Sized:** ~100–160 lines: a query at the untap, and the emptying's event.
-     **Slotted:** `tarkir-dragonstorm-decks`.
-     **Noted at `mana-provenance`'s design (2026-11-13):** the emptying's event
-     is "Before Layers" item 4's build too, designed in
+     **Slotted:** `tarkir-dragonstorm-decks` for the untap's query, and
+     `mana-kept-and-lost` for the emptying's event (the owner, at #323's
+     review, 2026-11-13). The emptying's event is "Before Layers" item 4's
+     build too, designed in
      `mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`.
-     That design proposes this half move to its row `mana-kept-and-lost`, for
-     the owner's review; the untap's half stays.
 
 404. **Six words one card each asks.** "If that spell is countered this way, exile
      it instead" (Transcendent Dragon): a replacement made first does not reach the
