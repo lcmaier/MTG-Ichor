@@ -78,6 +78,15 @@ as a card written against a surface that cannot express it or a broken
 invariant, stays a `String`. A sentence on the practices page. The migration of
 the rest waits in `backlog.md` §2.38, designed with what a client is handed.
 
+**`backlog.md` §2.38 becomes the register of v1 gaps the route review re-reads**
+(the owner, 2026-11-14, in `ordered-sweeps-sort-their-matches`' brief, which
+landed the design note's client and card guards and queued this one). Two
+lessons join it: `available_mana_sources` is a helper only the random agent
+calls, sitting in `oracle/`, where the client guard puts such a helper outside
+the engine; and a shape cut to one card is a v1 gap of its own kind, as #324's
+`any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of the 46 whose
+amount is chosen as it is paid.
+
 ## Open, for the owner
 
 **Should the mana pool join the write gate's fields?** Raised at

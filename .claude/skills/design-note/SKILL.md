@@ -40,10 +40,19 @@ or `EventPattern` arm), or a field of either.
   families grouped by what the shape must do (never by card), each with its
   count, an example, and what holds it today. The query and the date go
   under it.
+- **The client**: each new surface names its v1 client, a person at the
+  four-seat GUI, an AI client, or neither. One serving only a test, the random
+  agent or an existing function says so, and lives outside the engine
+  (`ui/random`, the harness, the tests).
 
 A shape drawn from the cards the brief happens to name is the miss this step
 exists for. A decision with no printed family, such as a rename or a type no
 card reaches, says so in one line, with why.
+
+**Each new field, enum variant or arm names the printed cards that need it.**
+At one card, the note asks the owner whether the general shape is right:
+#324's `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of the 46
+whose amount is chosen as it is paid (`plans/choices-architecture.md`'s count).
 
 **The binding table.** Every new piece of rules state gets a row: when it is
 bound, whether it stays live or is latched, where it is stored, who reads it,

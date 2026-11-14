@@ -26,10 +26,10 @@ design note's path. Read, in order:
 
 **At a design stop** the prompt gives only the note, and there is no diff
 yet. Read the note whole, open the code its decisions name, and apply checks
-1, 2, 4, 6, 12 and 17 to the decisions. Check 1 reads every type, field, arm
+1, 2, 4, 6, 12, 13, 14 and 19 to the decisions. Check 1 reads every type, field, arm
 and function the note's code blocks propose: each carries its subsystem's noun
 (`ManaSpendFilter`, not `SpendFilter`), and you grep `mtgsim/src` for the bare
-word and for a near name already taken. Check 17 reads the note's binding
+word and for a near name already taken. Check 19 reads the note's binding
 table.
 
 Use Bash for `git diff`, `git log`, `git show` and `grep` only. Never change
@@ -84,33 +84,43 @@ gates do that. Stop at about 60 tool calls and report what you have.
     for the cards the note discusses where the count groups them by what
     they do. The owner has caught this on devour, on sacrifice verbs and on
     entry prompts (`plans/engineering-practices.md#what-a-new-type-must-express`).
-13. **Empty values by name.** Flag `X::default()`, `Default::default()` or a
+13. **The client of each new surface.** Flag a new public function, type,
+    field or prompt kind whose v1 client the note does not name: a person at
+    the four-seat GUI, an AI client, or neither. Flag one that serves only a
+    test, the random agent or an existing function and sits in the engine,
+    not outside it (`ui/random`, the harness, the tests): the shape of
+    `available_mana_sources`, which only the random agent calls, in `oracle/`.
+14. **A shape cut to one card.** Flag a new field, enum variant or arm that
+    names no printed cards needing it, and one that one card needs where the
+    note does not ask the owner whether the general shape is right. #324's
+    `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of 46.
+15. **Empty values by name.** Flag `X::default()`, `Default::default()` or a
     new `#[derive(Default)]` where the value is an engine type's empty or
     neutral case: the project names those (`EnterMods::NONE`,
     `AppliedReplacements::EMPTY`, `ChosenTargets::NONE`), so a reader sees
     what the empty one means. Grep the diff's added lines for `default()`.
     A `Default` derive kept only so a containing type can derive it is fine
     when its doc says so. The owner caught this twice at #294.
-14. **A negative test reaches its code.** Flag a "does not happen" assertion
+16. **A negative test reaches its code.** Flag a "does not happen" assertion
     (no trigger, no prompt, no counter) with no arm showing the same input
     gets there when the condition flips. An early return upstream passes it
     for the wrong reason, so a negative needs its positive twin.
-15. **Fixtures take the branch a game takes.** For each fixture the diff adds,
+17. **Fixtures take the branch a game takes.** For each fixture the diff adds,
     name the branch it takes through the changed function. Flag a real branch
     no fixture takes, and a fixture so simple it takes a shortcut a played
     game would not.
-16. **"This way" is carried, not rescanned.** Flag a resolution that finds what
+18. **"This way" is carried, not rescanned.** Flag a resolution that finds what
     an earlier step chose by searching the board. "This way", "that source",
     "the chosen" and "from among them" name what that step selected, which
     the step must hand on.
-17. **Fixed when the rules fix it.** Flag a live read where the rules fix a
+19. **Fixed when the rules fix it.** Flag a live read where the rules fix a
     value at a moment (as a spell resolves, as a replacement applies, as a
     duration begins), a stored value where they read live, and a test that
     never changes the input after that moment.
-18. **The empty and declined paths.** Flag an optional choice or tracked set
+20. **The empty and declined paths.** Flag an optional choice or tracked set
     whose declined or empty answer leaves different state from a non-empty
     one: a count, a record, a flag the next step reads.
-19. **Fixtures from printed text.** Flag a fixture whose rules text is invented
+21. **Fixtures from printed text.** Flag a fixture whose rules text is invented
     where a printed card has that shape: search for one, and name it. Flag one
     wearing a real card's name while it behaves differently. A rule no card
     prints may have an invented fixture, and its doc says so.

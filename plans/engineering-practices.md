@@ -188,6 +188,12 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
 3. **Which card families override it, and how many cards?** A default the engine
    hard-codes is a family with no owner until its first card arrives.
 
+- **Each new surface names its v1 client**: a person at the four-seat GUI, an AI
+  client, or neither; one serving only a test, the random agent or an existing
+  function lives outside the engine (`/design-note`, step 2).
+- **Each new field, variant or arm names the printed cards that need it**, and at
+  one card the note asks whether the general shape is right (`/design-note`, step 2).
+
 ## The standing review question
 
 - **"What does this actually check, and what happens if it runs twice?"** Ask it
