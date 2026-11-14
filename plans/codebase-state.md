@@ -128,7 +128,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
 | 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
-| 601.2d | Distribution (damage/counters among targets) | ✅ `divided-among-targets`: announced after every instance's targets, on a cast, an activation and a trigger alike; damage, counters and a damage shield read each target's share. The untargeted half (CR 608.2d) is `costs-and-choices-at-resolution`'s | `engine/put_on_stack.rs` (`announce_targets`), `engine/resolve.rs` (`resolve_divided`) |
+| 601.2d | Distribution (damage/counters among targets) | ✅ `divided-among-targets`: announced after every instance's targets, on a cast, an activation and a trigger alike; damage, counters and a damage shield read each target's share. The untargeted half (CR 608.2d) is `choose-as-an-effect-resolves`'s | `engine/put_on_stack.rs` (`announce_targets`), `engine/resolve.rs` (`resolve_divided`) |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
@@ -10811,6 +10811,6 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      in a PR that touches no engine source.
      **Reachability (2026-11-13):** reachable but not wrong today — two doc
      comments, which no game reads; the next arm's author reads them.
-     **Slotted:** `costs-and-choices-at-resolution`, the next PR that builds
+     **Slotted:** `pay-as-an-effect-resolves`, the next PR that builds
      engine code: the two comments ride it.
      **Sized:** about 8 comment lines in two files.

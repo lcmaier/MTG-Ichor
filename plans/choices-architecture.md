@@ -1018,7 +1018,8 @@ division.
 | **`modes-chosen-and-resolved` — a mode chosen, targeted and resolved**, the first of `modal-spells-and-abilities`' two | decisions 2 and 3's core: the node's count (fixed, a range, X asked first, a count a condition raises) and its chooser as a field, the enumerator over the legal sets and castability that reads it, `ModeIndex`, `chosen_modes` written under decision 3's A (items 31 and 153), each mode's own instance list, the resolution of the chosen modes, CR 603.3c's removal | Abrade, Prismari Command, Casualties of War; fixtures for a modal trigger, a modal activation, a count of X and a raised count; Momentous Fall registered, its fixture removed | ~1,500–2,300 with its tests, by the brief | |
 | **`mode-rules-and-costs` — the node's rules, its other choosers and a mode's own cost**, the second | CR 700.2e's opponent choosing, a mode repeated past the number of modes (700.2d), pawprints (700.2i), the record of what an ability chose before, a mode's own cost (item 81, 700.2h), both halves of item 154 | Shadrix Silverquill, Arc Trail, Demonic Pact; fixtures for repeats past the number of modes (Moment of Reckoning's shape), pawprints, 700.2e, and a mode with its own cost | ~1,410–2,380 with its tests and the brief's additions, re-counted at its intake; ~1,710–2,980 with the picker | |
 | **`mode-picker` — the dev GUI asks for modes one at a time**, split from the second at its intake's point | decision 2's "For the GUIs": `ChooseModes` drawn as a checkbox per mode, or a count where modes repeat, each enabled while some offered set still holds the picks, Confirm while the picks are one; plain Rust over the offered list under tests, egui only drawing | the dev GUI, with a review path: files by review mode, a click script, pictures | ~300–600, a guess from #312 | |
-| **`costs-and-choices-at-resolution` — a payment and a choice as an effect resolves** | decision 4 (`Pay`, the window at resolution, X as it is paid, "any player may", ward), decision 8's `Choose` at resolution, the untargeted division | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~600–950 | ~550–850 |
+| **`pay-as-an-effect-resolves` — a cost paid as an effect resolves**, the first of `costs-and-choices-at-resolution`'s two | decision 4: `Pay`, the window at resolution, an amount chosen as it is paid, "any player may", ward; item 418's two comments | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~1,350–2,100 with its tests, by the brief | |
+| **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted | ~600–950 with its tests, the row's rest | |
 | **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
 
 **The estimates run low, so read them against the first PR's.** #306's
@@ -1047,6 +1048,13 @@ commander as you cast this spell" needs CR 903.3's designation, which no
 filter reads and nothing outside tests sets (`GameObject.is_commander`), so
 the first PR builds the raised count with a fixture whose condition the engine
 reads.
+
+**`costs-and-choices-at-resolution` split at its brief** (2026-11-13), since
+the row read 2,000–3,050 at the table's 1.7×. The payment is decision 4 whole
+and every card the row names; the second PR is decision 8's `Choose` and the
+division among objects not targeted, which share no code with it. Re-counted
+at the first's intake against `6b99c6ce`: item 418 rides the first, item 240's
+upkeep halves are the first's (Contamination), item 28 is the second's.
 
 **`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
 (the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's

@@ -19,11 +19,11 @@ A card in several lists counts in each. **Left** is the cards still waiting and 
 
 | Deck | Registered | Writable | Left | On a gap | Gaps | Gap PRs | Last step | PRs | Rows done | To it | Rows it needs |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Abzan Armor | 2 | 23 | 57 | 31 | 22 | 1.6–2.4 | 17 | 70–131 | 14 | 46–76 | 21 |
-| Mardu Surge | 4 | 24 | 57 | 19 | 12 | 0.7–1.1 | 17 | 70–131 | 15 | 52–86 | 21 |
-| Sultai Arisen | 3 | 13 | 69 | 27 | 12 | 1.1–1.8 | 17 | 70–131 | 15 | 52–86 | 19 |
-| Jeskai Striker | 4 | 17 | 65 | 14 | 13 | 0.6–1.0 | 17 | 70–131 | 16 | 55–92 | 21 |
-| Temur Roar | 1 | 22 | 63 | 25 | 17 | 1.1–1.7 | 17 | 70–131 | 16 | 55–92 | 25 |
+| Abzan Armor | 2 | 23 | 57 | 31 | 22 | 1.6–2.4 | 17 | 71–131 | 14 | 47–76 | 21 |
+| Mardu Surge | 4 | 24 | 57 | 19 | 12 | 0.7–1.1 | 17 | 71–131 | 15 | 53–86 | 21 |
+| Sultai Arisen | 3 | 13 | 69 | 27 | 12 | 1.1–1.8 | 17 | 71–131 | 15 | 53–86 | 19 |
+| Jeskai Striker | 4 | 17 | 65 | 14 | 13 | 0.6–1.0 | 17 | 71–131 | 16 | 56–92 | 21 |
+| Temur Roar | 1 | 22 | 63 | 25 | 17 | 1.1–1.7 | 17 | 71–131 | 16 | 56–92 | 25 |
 
 ## Each deck's cards by step
 
@@ -53,7 +53,7 @@ How many of a deck's cards could be written once a step closes, registered cards
 
 | Step | Row | Needs | Unlocks | The cards it unlocks |
 |---:|---|---:|---:|---|
-| 5 | `costs-and-choices-at-resolution` | 9 | 4 | Angel of Invention, Compulsive Research, Myr Battlesphere, Spit Flame |
+| 5 | `pay-as-an-effect-resolves` | 9 | 4 | Angel of Invention, Compulsive Research, Myr Battlesphere, Spit Flame |
 | 5 | `values-chosen-at-resolution` | 2 | 0 |  |
 | 6 | `linked-abilities` | 10 | 0 |  |
 | 7 | `any-color-plus-painlands-plus-signets` | 51 | 26 | Adarkar Wastes, Azorius Signet, Battlefield Forge, Boros Signet, Caves of Koilos, Darkwater Catacombs, Deadly Dispute, Ferrous Lake, Izzet Signet, Karplusan Forest, Llanowar Wastes, Mossfire Valley, Orzhov Signet, Prismari Command, Rapacious Dragon, Selesnya Signet, Shivan Reef, Skycloud Expanse, Sungrass Prairie, Talisman of Conviction, Talisman of Creativity, Talisman of Hierarchy, Talisman of Impulse, Talisman of Progress, Teval's Judgment, Yavimaya Coast |
@@ -86,7 +86,7 @@ How many of a deck's cards could be written once a step closes, registered cards
 | 16 | `split-and-adventure-style-cards` | 3 | 3 | Expansion // Explosion, Stormshriek Feral // Flush Out, Whirlwing Stormbrood // Dynamic Soar |
 | 17 | `tarkir-dragonstorm-decks` | 52 | 52 | Aligned Heart, Arbor Adherent, Blade of Selves, Bone Devourer, Canopy Gargantuan, Chittering Witch, Crawling Sensation, Curse of the Swine, Dismantling Wave, Dragon Tempest, Eshki, Temur's Roar, Essence Anchor, Faeburrow Elder, Glorybringer, Goldlust Triad, Idol of Oblivion, Ironwill Forger, Jaws of Defeat, Kaya, Geist Hunter, Legion Loyalty, Lethal Scheme, Life from the Loam, Manaform Hellkite, Mangara, the Diplomat, Mosswort Bridge, Neriv, Crackling Vanguard, Protector of the Wastes, Redoubled Stormsinger, Reunion of the House, Scourge of the Throne, Seedborn Muse, Shadrix Silverquill, Shiko and Narset, Unified, Skarrgan Hellkite, Slaughter the Strong, Staff of Compleation, Steel Hellkite, Steward of the Harvest, Stormbreath Dragon, Tear Asunder, Territorial Hellkite, Thalisse, Reverent Medium, Towering Titan, Transcendent Dragon, Tree of Redemption, Vengeful Ancestor, Voracious Bibliophile, Weathered Sentinels, Welcome the Dead, Will of the Abzan, Will of the Temur, Zurgo Stormrender |
 
-**No card named these rows.** The census stops at a card's first row not built, so this is what it saw and no more: `fork-test-at-every-decision`, `snow-mana`, the first of `mana-provenance`'s build, `information-model-design`, `text-changing-effects`, the design, `cant-pay-costs`, `rulings-for-every-card`, `double-faced-cards`, the transform half, `decks-in-fuzz-games`, `devgui-at-five-seats`, `mana-payment-solver`.
+**No card named these rows.** The census stops at a card's first row not built, so this is what it saw and no more: `choose-as-an-effect-resolves`, the second, `fork-test-at-every-decision`, `snow-mana`, the first of `mana-provenance`'s build, `information-model-design`, `text-changing-effects`, the design, `cant-pay-costs`, `rulings-for-every-card`, `double-faced-cards`, the transform half, `decks-in-fuzz-games`, `devgui-at-five-seats`, `mana-payment-solver`.
 
 ## Each gap no row owned
 
@@ -163,7 +163,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Aligned Heart | face | gap | gap:nth-spell-each-turn, layers-combat-and-counters | — | no | — | 32 | A rally counter is a named counter. |
 | Amphin Mutineer | face | blocked | resolution-recipients-and-amounts, token-copies, permission-design, combat-requirements | — | no | — | 29 | Its controller; encore. |
 | Ancestral Vision | part | blocked | casting-from-other-zones, layers-combat-and-counters | — | no | — | 67 | Suspend; time counters on an exiled card are item 23. |
-| Angel of Invention | part | blocked | costs-and-choices-at-resolution | — | no | — | 29 | Fabricate is "you may ... if you don't", that row's "if you don't". The anthem plays. |
+| Angel of Invention | part | blocked | pay-as-an-effect-resolves | — | no | — | 29 | Fabricate is "you may ... if you don't", that row's "if you don't". The anthem plays. |
 | Anguished Unmaking | whole | writable | — | — | no | passed | 26 |  |
 | Arasta of the Endless Web | whole | writable | — | — | no | passed | 27 |  |
 | Arbor Adherent | face | gap | any-color-plus-painlands-plus-signets, gap:value-over-a-set | — | no | — | 34 | X mana of one color, X the greatest toughness among others. |
@@ -200,7 +200,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Breaching Dragonstorm | face | blocked | information-model, casting-from-other-zones | — | no | — | 33 |  |
 | Broodcaller Scourge | face | gap | resolution-recipients-and-amounts, gap:filter-against-an-amount | — | no | — | 27 | A hand onto the battlefield, backlog 2.59. |
 | Caldera Pyremaw | part | blocked | multiplayer-rules, resolution-recipients-and-amounts | resolution-recipients-and-amounts | no | — | 8 | Target opponent, and SourcePower at resolution. Refused: SourcePower has no meaning at resolution time; it is evaluated against the CR 61 |
-| Canopy Gargantuan | face | gap | costs-and-choices-at-resolution, gap:for-each-object | — | no | — | 23 | Ward; a number read off each creature: ForEach over objects stays refused, filed for this census by the recipients note. |
+| Canopy Gargantuan | face | gap | pay-as-an-effect-resolves, gap:for-each-object | — | no | — | 23 | Ward; a number read off each creature: ForEach over objects stays refused, filed for this census by the recipients note. |
 | Canopy Vista | face | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 | Its land types' mana plays; "two or more" has no condition. |
 | Canyon Slough | part | blocked | permission-design, remaining-costs | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
 | Carven Caryatid | whole | writable | — | — | no | passed | 30 |  |
@@ -219,7 +219,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Command Beacon | face | blocked | game-formats | — | no | — | 18 |  |
 | Command Tower | face | blocked | any-color-plus-painlands-plus-signets, game-formats | — | no | — | 18 |  |
 | Commander's Insignia | face | blocked | game-formats | — | no | — | 30 |  |
-| Compulsive Research | part | blocked | costs-and-choices-at-resolution | — | no | — | 77 | "Unless they discard a land card." |
+| Compulsive Research | part | blocked | pay-as-an-effect-resolves | — | no | — | 77 | "Unless they discard a land card." |
 | Conduit of Worlds | face | gap | casting-from-other-zones, gap:target-card-in-a-zone | — | no | — | 31 |  |
 | Consider | whole | gap | gap:surveil | — | no | failed | 0 | Primitive::Surveil compiles and is refused at resolution. Refused: Primitive Surveil(Fixed(1)) not yet implemented |
 | Consuming Aberration | face | gap | gap:count-off-the-battlefield, information-model | — | no | — | 34 |  |
@@ -282,7 +282,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Frontier Siege | face | gap | linked-abilities, gap:filter-by-keyword | — | no | — | 32 | A choice as it enters. |
 | Gadrak, the Crown-Scourge | face | gap | combat-restrictions, any-color-plus-painlands-plus-signets, gap:condition-counts-permanents | — | no | — | 33 |  |
 | Ghostly Prison | face | blocked | combat-requirements | — | no | — | 32 | Costs to attack, CR 508.1g-h. |
-| Gix, Yawgmoth Praetor | face | gap | costs-and-choices-at-resolution, remaining-costs, casting-from-other-zones, multiplayer-rules, gap:exile-top-cards | — | no | — | 30 | As the pilot found. |
+| Gix, Yawgmoth Praetor | face | gap | pay-as-an-effect-resolves, remaining-costs, casting-from-other-zones, multiplayer-rules, gap:exile-top-cards | — | no | — | 30 | As the pilot found. |
 | Glacial Fortress | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
 | Glorybringer | face | gap | gap:exert | — | no | — | 30 | Backlog 2.14, owned by the decks. |
 | Goldlust Triad | face | gap | gap:myriad, token-copies, any-color-plus-painlands-plus-signets | — | no | — | 34 |  |
@@ -331,7 +331,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Legion Loyalty | face | gap | gap:myriad, token-copies | — | no | — | 29 |  |
 | Legion Warboss | part | gap | combat-requirements, gap:filter-against-an-amount | — | no | — | 33 | Mentor, and attacks this combat if able. |
 | Lethal Scheme | face | gap | convoke-delve-improvise, gap:connive | — | no | — | 0 | Each creature that convoked it connives. |
-| Leyline Tyrant | face | gap | gap:mana-keeps-between-steps, costs-and-choices-at-resolution | — | no | — | 29 | Backlog 2.5 said no `tdc` card prints the mana-emptying event; this one does. |
+| Leyline Tyrant | face | gap | gap:mana-keeps-between-steps, pay-as-an-effect-resolves | — | no | — | 29 | Backlog 2.5 said no `tdc` card prints the mana-emptying event; this one does. |
 | Lier, Disciple of the Drowned | face | blocked | cant-cast-play-or-activate, casting-from-other-zones | — | no | — | 32 |  |
 | Life from the Loam | face | gap | gap:target-card-in-a-zone, gap:dredge | — | no | — | 0 | Backlog 2.49, owned by the decks. |
 | Lightning Greaves | whole | blocked | cant-be-targeted | — | no | — | 31 | Shroud is a flag nothing enforces, item 15. |
@@ -355,7 +355,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Mossfire Valley | whole | blocked | any-color-plus-painlands-plus-signets | any-color-plus-painlands-plus-signets | no | — | 18 |  |
 | Mosswort Bridge | face | gap | information-model, linked-abilities, casting-from-other-zones, gap:value-over-a-set | — | no | — | 18 | Hideaway. |
 | Multani, Yavimaya's Avatar | face | gap | gap:count-off-the-battlefield, remaining-costs, permission-design | — | no | — | 29 |  |
-| Myr Battlesphere | part | blocked | costs-and-choices-at-resolution | — | no | — | 29 | "You may tap X untapped Myr": a cost at resolution with a chosen X. |
+| Myr Battlesphere | part | blocked | pay-as-an-effect-resolves | — | no | — | 29 | "You may tap X untapped Myr": a cost at resolution with a chosen X. |
 | Myriad Landscape | part | blocked | information-model | any-color-plus-painlands-plus-signets, linked-abilities | no | — | 18 |  |
 | Mystic Monastery | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 18 |  |
 | Narset's Reversal | face | blocked | spell-copies | — | no | — | 0 |  |
@@ -432,7 +432,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Slaughter the Strong | face | gap | gap:choose-with-a-total-the-rest-acts | — | no | — | 0 | ChoiceSide has one arm, and a pick has no total. |
 | Smoldering Marsh | face | gap | gap:condition-counts-permanents | any-color-plus-painlands-plus-signets | no | — | 18 |  |
 | Solemn Simulacrum | part | blocked | information-model | — | no | — | 36 |  |
-| Spit Flame | part | blocked | costs-and-choices-at-resolution | — | no | — | 26 | The spell plays; "you may pay {R}" from a graveyard. |
+| Spit Flame | part | blocked | pay-as-an-effect-resolves | — | no | — | 26 | The spell plays; "you may pay {R}" from a graveyard. |
 | Springbloom Druid | face | blocked | information-model | — | no | — | 34 |  |
 | Staff of Compleation | part | gap | any-color-plus-painlands-plus-signets, gap:proliferate | — | no | — | 25 | Three of five abilities play. |
 | Steel Hellkite | face | gap | hybrid-and-phyrexian-payment, command-zone-casting, gap:filter-against-an-amount, gap:whose-controller-was-dealt-damage | — | no | — | 34 | An activation's {X}, and once each turn. |
@@ -470,7 +470,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Temple of Silence | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
 | Temple of Triumph | whole | writable | — | any-color-plus-painlands-plus-signets, linked-abilities | no | passed | 24 |  |
 | Temple of the Dragon Queen | face | blocked | information-model, linked-abilities, chosen-color-plus-could-produce | — | no | — | 18 |  |
-| Tempt with Vengeance | face | blocked | costs-and-choices-at-resolution, multiplayer-rules | — | no | — | 0 | A count of opponents who did. |
+| Tempt with Vengeance | face | blocked | pay-as-an-effect-resolves, multiplayer-rules | — | no | — | 0 | A count of opponents who did. |
 | Temur Ascendancy | whole | writable | — | — | no | passed | 33 |  |
 | Terramorphic Expanse | face | blocked | information-model | — | no | — | 18 |  |
 | Territorial Hellkite | face | gap | combat-requirements, gap:random-opponent | — | no | — | 22 |  |
@@ -516,7 +516,7 @@ A gap builds in the row named here, its filing says what it is, and each was tri
 | Whirlwind of Thought | whole | writable | — | — | no | passed | 62 |  |
 | Whirlwing Stormbrood // Dynamic Soar | face | blocked | split-and-adventure-style-cards, as-though-effects | — | no | — | 32 |  |
 | Will of the Abzan | part | gap | game-formats, multiplayer-rules, gap:target-card-in-a-zone, gap:value-over-a-set | mode-rules-and-costs | no | — | 0 | "Greatest power among" is an amount over a set and a choice restricted by it. Refused: Modal effects not yet implemented |
-| Will of the Jeskai | part | blocked | game-formats, costs-and-choices-at-resolution, casting-from-other-zones | mode-rules-and-costs | no | — | 0 | As the pilot found. Refused: Modal effects not yet implemented |
+| Will of the Jeskai | part | blocked | game-formats, pay-as-an-effect-resolves, casting-from-other-zones | mode-rules-and-costs | no | — | 0 | As the pilot found. Refused: Modal effects not yet implemented |
 | Will of the Mardu | face | blocked | game-formats, resolution-recipients-and-amounts | — | no | — | 0 | A count of a target player's creatures. |
 | Will of the Sultai | face | blocked | game-formats, resolution-recipients-and-amounts | — | no | — | 0 | As the pilot found; a graveyard swept back, item 350. |
 | Will of the Temur | face | gap | game-formats, token-copies, gap:value-over-a-set | — | no | — | 0 |  |

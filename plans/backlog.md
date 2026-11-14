@@ -1450,7 +1450,7 @@ mechanic rather than a migration, which is why it is here and not in
   `performance` and found a live bug on `stress` (`codebase-state.md` item 152).
 - **CR 601.2d shipped as `divided-among-targets`**: its as-built is
   `choices-architecture.md`'s, and what is left of a division is the untargeted
-  half (CR 608.2d), `costs-and-choices-at-resolution`'s.
+  half (CR 608.2d), `choose-as-an-effect-resolves`'s.
 - **The rest of this entry is the record of the design as it was sized**, kept
   because the atoms and the card counts are still what A4j is sized against.
 
