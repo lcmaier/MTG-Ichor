@@ -1442,14 +1442,14 @@ impl GameState {
     /// and a trace is a log, which reads in the rules' order.
     #[track_caller]
     pub(crate) fn battlefield_ordered_where(&self, keeps: impl Fn(ObjectId, &PermanentState) -> bool) -> Vec<(ObjectId, &PermanentState)> {
-        if self.trace_on() {
+        if self.trace_is_on() {
             return self.battlefield_ordered().into_iter().filter(|&(id, permanent)| keeps(id, permanent)).collect();
         }
         // ORDER-FREE: what it keeps is sorted by timestamp next, and nothing
         // but the trace sees the order `keeps` is asked in.
         let mut kept: Vec<(ObjectId, &PermanentState)> = self.battlefield.iter().filter(|&(id, permanent)| keeps(id, permanent)).collect();
         sort_by_timestamp(&mut kept, |(_, permanent)| permanent.timestamp);
-        if self.audit_on() {
+        if self.audit_is_on() {
             self.audit_ordered_sweep(&kept, &keeps);
         }
         kept

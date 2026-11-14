@@ -108,7 +108,7 @@ pub(crate) fn rule_applies(game: &GameState, rule: RuleAction, subject: ObjectOr
 /// rule's: any one forbids it (CR 101.2).
 pub(crate) fn prohibition(game: &GameState, query: &Query) -> Option<Prohibition> {
     let found = prohibition_sweeping(game, query, Sweep::Gated);
-    if game.audit_on() {
+    if game.audit_is_on() {
         let everything = game.unobserved(|| match *query {
             Query::EventHappens { action, cause, lookahead } => {
                 let fresh = lookahead.map(EntryFrame::uncomputed);

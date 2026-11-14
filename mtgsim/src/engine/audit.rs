@@ -42,7 +42,7 @@ impl GameState {
     }
 
     /// Whether this game audits its shortcuts.
-    pub(crate) fn audit_on(&self) -> bool {
+    pub(crate) fn audit_is_on(&self) -> bool {
         self.dispatch_audit.is_some()
     }
 

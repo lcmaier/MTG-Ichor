@@ -549,7 +549,7 @@ pub(crate) fn every_instance_has_a_choice(
                     ix >= reusable_from && instances[reusable_from..ix].contains(recipient);
                 let has_choices =
                     || crate::oracle::legality::enumerate_legal_selections_upto(game, f, None, player_id, view, n).len() >= n;
-                if already_answered && game.audit_on() {
+                if already_answered && game.audit_is_on() {
                     let enough = game.unobserved(has_choices);
                     crate::engine::audit::assert_shortcut_agrees(
                         "the castability fold",

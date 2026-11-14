@@ -183,7 +183,7 @@ pub(crate) fn gather(
     frame: &EntryFrame<'_>,
 ) -> Vec<ReplacementInstance> {
     let candidates = gather_sweeping(game, action, ctx, blocked, frame, Sweep::Gated);
-    if game.audit_on() {
+    if game.audit_is_on() {
         let everything = game.unobserved(|| gather_sweeping(game, action, ctx, blocked, &frame.uncomputed(), Sweep::Everything));
         let ids = |found: &[ReplacementInstance]| found.iter().map(|c| format!("{:?}", c.id)).collect();
         assert_shortcut_agrees("the replacement gather's gate", || format!("{action:?}"), ids(&candidates), ids(&everything));
@@ -344,7 +344,7 @@ fn gather_sweeping(
             }
         }
     } else {
-        if game.trace_on() {
+        if game.trace_is_on() {
             // Asking walks the layers, and a walk writes a trace record, so a
             // traced game asks in timestamp order. Untraced, the sort would cost
             // every gather for an order nothing reads.

@@ -244,7 +244,7 @@ fn audits_a_served_frame(game: &GameState) -> bool {
     if game.layer_memo.audited() {
         return true;
     }
-    game.audit_on()
+    game.audit_is_on()
 }
 
 #[cfg(test)]

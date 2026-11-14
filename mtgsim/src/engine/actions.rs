@@ -1458,7 +1458,7 @@ impl GameState {
         // --- Phase 2: perform, in batch order -------------------------------
         //
         // Rendered first, in a traced game only, for `batch_end`'s record.
-        let decided_rendered: Option<Vec<Option<String>>> = self.trace_on().then(|| {
+        let decided_rendered: Option<Vec<Option<String>>> = self.trace_is_on().then(|| {
             decided
                 .iter()
                 .map(|m| m.event.as_ref().map(crate::state::trace::render_debug))
@@ -2628,7 +2628,7 @@ impl GameState {
             if opens_a_run {
                 run_is_refused = self.entry_is_refused_by_a_rule(id, controller);
             }
-            if self.audit_on() {
+            if self.audit_is_on() {
                 let walked = self.unobserved(|| self.entry_is_refused_by_a_rule(id, controller));
                 assert_shortcut_agrees("a run's token entry", || format!("{id:?}"), vec![run_is_refused.to_string()], vec![walked.to_string()]);
             }

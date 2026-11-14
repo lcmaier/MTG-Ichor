@@ -626,7 +626,7 @@ or trailing on its line.
 - **A count is not order-free if its closure walks the layers**, since a walk
   writes a trace record.
 - **On a hot path, order is paid for only while tracing**: sort under
-  `trace_on()` alone, in one block (the owner, #247).
+  `trace_is_on()` alone, in one block (the owner, #247).
 
 ### Performers and known violations
 
