@@ -1063,8 +1063,9 @@ block.
 > here is built. Round 1 (2026-11-13) settled decisions 6 and 7 and the
 > reading inside decision 1, and renamed the types of decisions 1, 3 and 4.
 > Round 2 settled decisions 2, 3 and 9 and when a unit keeps which object
-> made it. Open: decision 5, priced now on a board that stores mana, and
-> whether decision 8's first row keeps `{S}`. It is `roadmap-v2.md`'s row
+> made it. Round 3 settled decisions 1, 4 and 8. Open: decision 5, measured
+> in round 3 on a board that stores mana and changed so that mana an effect
+> keeps is not proposed. It is `roadmap-v2.md`'s row
 > `mana-provenance`, the design, for `codebase-state.md` item 33 (the tested
 > restricted-mana subsystem that no payment calls).
 
