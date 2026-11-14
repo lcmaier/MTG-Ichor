@@ -1750,6 +1750,27 @@ stop.
   that keep mana by a static ability or an effect, and none of the 12 that
   replace, follow or cause a loss.
 
+**What A costs, measured** (the owner asked whether a probe should answer
+this, 2026-11-13). A counter where the pools empty, in a scratch copy of the
+engine at `256972fa`, over the standard 200 games at seed 12345:
+
+| | Emptyings a game | Emptyings that lose any mana | Proposals A would make, a game |
+|---|---:|---:|---:|
+| Two seats | 377 | 1.2 a game, one in 310 | 1.3 |
+| Four seats | 900 | 2.6 a game, one in 347 | 2.7 |
+
+A proposal is one player's mana of one type. At the 22,500 instructions
+`#310-what-a-mana-ability-makes-decision-5` measured for a production's
+proposal, A adds about 30,000 instructions a game at two seats and 60,000
+at four, in games of 191 and 478 decisions. The record's last readings of
+one decision are 0.65 to 0.85 million instructions, on the Commander board,
+so a game's whole cost of A is under a tenth of one decision. An emptying
+with nothing to lose proposes nothing and costs what it does today, and B
+costs what today does. The probe does not separate them, so the choice is
+on what each can express. The random agent rarely leaves mana floating; a
+deck built around Omnath or Upwelling would, and there the proposal is the
+card working.
+
 **Recommended: A.** One action serves all six families, and each family
 lands in the registry that already knows how to ask whether its source still
 has the ability.
@@ -1960,8 +1981,10 @@ card in a row of this build.
 - **`mana-kept-and-lost`, unregistered:** `IDENTICAL` on gameplay rows. A
   step that ends with mana in a pool now proposes its loss, about 22,500
   instructions a proposal (`#310-what-a-mana-ability-makes-decision-5`'s
-  measured price for a production's). The build counts how often a game
-  ends a step with mana floating before it predicts the budget's reading.
+  measured price for a production's). Decision 5's probe counted it: 1.3
+  proposals a game at two seats and 2.7 at four, under a tenth of one
+  decision's instructions a game, so the budget's reading should not move
+  past its noise.
 
 ### 11.8 The fixtures
 
