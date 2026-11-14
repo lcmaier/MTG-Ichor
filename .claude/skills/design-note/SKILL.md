@@ -49,8 +49,9 @@ A shape drawn from the cards the brief happens to name is the miss this step
 exists for. A decision with no printed family, such as a rename or a type no
 card reaches, says so in one line, with why.
 
-**Each new field, enum variant or arm names the printed cards that need it.**
-At one card, the note asks the owner whether the general shape is right:
+**Each new field, enum variant or arm names the printed cards that need it**,
+as its row in the table: the family, its count and an example. At one card,
+the note asks the owner whether the general shape is right:
 #324's `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of the 46
 whose amount is chosen as it is paid (`plans/choices-architecture.md`'s count).
 

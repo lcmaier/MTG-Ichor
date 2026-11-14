@@ -90,9 +90,9 @@ gates do that. Stop at about 60 tool calls and report what you have.
     test, the random agent or an existing function and sits in the engine,
     not outside it (`ui/random`, the harness, the tests): the shape of
     `available_mana_sources`, which only the random agent calls, in `oracle/`.
-14. **A shape cut to one card.** Flag a new field, enum variant or arm that
-    names no printed cards needing it, and one that one card needs where the
-    note does not ask the owner whether the general shape is right. #324's
+14. **A shape cut to one card.** Flag a new field, enum variant or arm only one
+    printed card needs, where the note does not ask the owner whether the
+    general shape is right; one with no count at all is check 12's. #324's
     `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of 46.
 15. **Empty values by name.** Flag `X::default()`, `Default::default()` or a
     new `#[derive(Default)]` where the value is an engine type's empty or
