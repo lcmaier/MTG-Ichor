@@ -1215,7 +1215,7 @@ What they settle is cited where it is used.
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
 | What a unit's source was: which of the watched kinds of source | as `ProduceMana` is performed, from the source's characteristics then, or as it last existed if its own cost moved it (a Treasure, CR 608.2h) | latched: read once, as the mana is made (the owner, 2026-11-13, with the judges' answer) | on the unit, in the pool | a `{S}` pip; a cost that names its mana (decision 3); the spent record | when the unit is spent or lost. Drain Power moves it intact (CR 106.13) |
-| Which object a unit's source was | at the same moment, and only where an ability then reads that object's own mana (decision 1's open question is whether it is kept always) | latched | on the unit | a trigger that asks for mana its own source produced (Tecutlan, the Searing Rift) | with the unit, then with the record of what was spent |
+| Which object a unit's source was | at the same moment, and only where an ability then reads that object's own mana (decision 1, settled: not on every unit) | latched | on the unit | a trigger that asks for mana its own source produced (Tecutlan, the Searing Rift) | with the unit, then with the record of what was spent |
 | A unit's restriction and its riders | at the same moment, from the ability's text. A type or color the source chose as it entered is read then | latched. A restriction's or rider's own condition reads the spell as the mana is spent (Path of Ancestry's ruling, 2023-07-28) | on the unit | the payment's edge test; the existence check | with the unit. A change of type keeps them (Kruphix's ruling, 2014-04-26) |
 | A delayed-trigger rider's source and controller | at the same moment: the source of the ability that made the mana, as an existence, and the player who controlled that ability (CR 603.7d–e) | latched | on that rider alone, so mana with only a restriction keeps no object | the trigger, as it is put on the stack | with the unit |
 | How long a unit is kept | at the same moment | latched | on the unit | the emptying | **ahead of the unit**: when its turn or combat ends, the effect expires before the mana empties (CR 500.5). If something else then keeps the unit, it stays without this term and regroups with mana like it |
@@ -1279,7 +1279,7 @@ permanent, for three cards which object the source was, and the terms.
   (Tecutlan, the Searing Rift), which no kind answers. `object` holds it,
   and is `None` on every unit whose source nothing asks about, so two
   Forests' mana is one entry and two Tecutlans' is two. When it is set is
-  the open question below.
+  settled below.
   **Two units with equal records are ones no rule can tell apart**, because
   the record holds the answer to every question the engine can ask. The
   converse holds but for two restrictions written differently that permit
@@ -1369,8 +1369,8 @@ Arcum's Weathervane or a fixture with its two abilities. CR 106.3 names the
 source at that moment, and a Treasure is already in the graveyard by then,
 so its facts are last known information (CR 608.2h).
 
-**An open question, found in round 1: when does a unit keep which object
-made it?** Retrofit cost: low. The field is there under either answer. What
+**Found in round 1 and settled in round 2: when a unit keeps which object
+made it.** Retrofit cost: low. The field is there under either answer. What
 moves is one function at the production and the payment's grouping of
 entries, about a hundred lines, and no fixture.
 
@@ -1383,12 +1383,12 @@ Mountain's, because spending one triggers and spending the other does not.
 - **1a. Keep the object where an ability reads it as the mana is made.**
   The production asks whether its source then has an ability that reads its
   own mana, and sets `object` if so. Equal records still mean alike units,
-  and a pool has as many entries as it has kinds of mana. It misses one
-  board: a Thespian's Stage makes `{C}`, Upwelling keeps it, the Stage
-  becomes a copy of Tecutlan, and the old `{C}` pays for a permanent spell.
-  A card's name in its text means that object (CR 201.5) and a mana's source
-  is the object that made it (CR 106.3), so the trigger should fire and
-  would not. No ruling covers it.
+  and a pool has as many entries as it has kinds of mana. One board reads
+  differently under 1b: a Thespian's Stage makes `{C}`, Upwelling keeps it,
+  the Stage becomes a copy of Tecutlan, and the old `{C}` pays for a
+  permanent spell. Under 1a the trigger does not fire. A card's name in its
+  text means that object (CR 201.5) and a mana's source is the object that
+  made it (CR 106.3), which argues that it should. No ruling covers it.
 - **1b. Keep the object on every unit made by a permanent that is still on
   the battlefield, and group the entries as the payment asks.** No miss. A
   pool then has an entry for each land tapped, and "alike" stops being
@@ -1397,10 +1397,13 @@ Mountain's, because spending one triggers and spending the other does not.
   step with the readers. A source that has left, a sacrificed Treasure,
   keeps no object under either answer, since nothing can come to read it.
 
-**Recommended: 1a**, built with the first of the three lands, and the board
-it misses filed as an item with its three cards. It keeps the one
-definition of alike that decision 2 rests on, and 1b is the change above if
-that board is wanted.
+**Settled: 1a** (the owner, 2026-11-13), built with the first of the three
+lands. That board is the snow reading again: what a unit's source was is
+read as the mana is made, and as that `{C}` was made nothing read which
+object made it. With no ruling against it the reading stands, so the board
+is not filed as a wrong answer. 1a keeps the one definition of alike that
+decision 2 rests on, and 1b is the change above if a ruling ever says
+otherwise.
 
 **Recommended: A.** It is the only option where "which units differ" has an
 answer the engine can compute, and it is cheaper than today for a clone.
@@ -1790,7 +1793,7 @@ every permanent that was cast.
 | its colors or types | 113 | converge and sunburst (44 by keyword); adamant; "if `{U}` was spent" |
 | how much, of any kind | 55 | "if no mana was spent to cast it" |
 | what kind of source made it | 27 | "if mana from a Treasure was spent" |
-| which object made it | 3 | Tecutlan, the Searing Rift (decision 1's open question) |
+| which object made it | 3 | Tecutlan, the Searing Rift (decision 1) |
 | its type and its source together | 1 | Boreal Outrider: "`{S}` of any of that spell's colors" |
 | how much of a type paid one part of the cost | 1 | Soul Burn: "the amount of `{B}` spent on X" (decision 2) |
 | how much this turn | 12 | expend; decision 4's event |
@@ -1990,7 +1993,7 @@ card in a row of this build.
 | Jegantha's mana, which pays no generic cost | 1 | companion | `breadth-features`, with its card |
 | Drain Power's move between pools (CR 106.13) | 1 | forcing a player's mana abilities | `breadth-features`, with its card |
 | Hogaak's cost, which no mana pays | 1 | convoke and delve | `convoke-delve-improvise` |
-| which object made a unit, and the three lands that read it | 3 | transforming double-faced cards, which all three are; decision 1's open question | `breadth-features`, with its first card |
+| which object made a unit, and the three lands that read it | 3 | transforming double-faced cards, which all three are | `breadth-features`, with its first card |
 | a restriction that names a keyword: equip, power-up, a Class level, cumulative upkeep | 6 | `AbilityKeyword`, the tag on an ability's definition | `breadth-features`, with its first card |
 | Soul Burn's `{B}` spent on X: the split asked for a part of the cost, and the record keeping that part's units apart | 1 | nothing built | `breadth-features`, with its card |
 | Emblazoned Golem's cap of one mana of each color on X | 1 | a capacity in the cover test | `breadth-features`, with its card |
