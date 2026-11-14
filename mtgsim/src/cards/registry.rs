@@ -7,7 +7,7 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
+    mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
     uds, ulg, usg,
     vis, war, wth, wwk, zen, znr,
 };
@@ -1218,10 +1218,12 @@ impl CardRegistry {
         registry.register("Vindictive Lich", c17::vindictive_lich);
         // CR 118.12's cost paid as an effect resolves: "unless its controller
         // pays" a target spell's, ward's on a trigger, and a sacrifice for
-        // one.
+        // one; "that player" around a "you may", and "any player".
         registry.register("Mana Leak", sth::mana_leak);
         registry.register("Waterfall Aerialist", stx::waterfall_aerialist);
         registry.register("Contamination", usg::contamination);
+        registry.register("Rhystic Study", pcy::rhystic_study);
+        registry.register("Wild Might", pcy::wild_might);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);

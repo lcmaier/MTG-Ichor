@@ -10,19 +10,17 @@
 //!   605.3a), its parts in the order written (CR 608.2c), its records the
 //!   resolution's own.
 //! - **Who pays** — "its controller" (Mana Leak), "that player" (ward,
-//!   Rhystic Study's shape), "any player" in APNAP order (Wild Might's shape).
+//!   Rhystic Study), "any player" in APNAP order (Wild Might).
 //! - **How much** — an amount chosen as it is paid, which is X (CR 107.3f).
-//! - **The cards** — Mana Leak, Waterfall Aerialist's ward and
-//!   Contamination's upkeep, each with its rulings.
+//! - **The cards** — Mana Leak, Waterfall Aerialist's ward, Contamination's
+//!   upkeep, Rhystic Study and Wild Might, each with its rulings.
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{
-    any_player, draw_cards, gets, may_pay, may_pay_any_amount_of, spell_ability, target_creature, the_target, triggered_ability,
-    whenever, you,
-};
+use mtgsim::cards::authoring::{any_player, draw_cards, may_pay, may_pay_any_amount_of, spell_ability, triggered_ability, whenever, you};
 use mtgsim::cards::printings::{
-    contamination, giant_growth, grizzly_bears, island, jagged_lightning, mana_leak, mountain, waterfall_aerialist,
+    contamination, giant_growth, grizzly_bears, island, jagged_lightning, mana_leak, mountain, rhystic_study, waterfall_aerialist,
+    wild_might,
 };
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer, ObjectSet};
 use mtgsim::events::cause::EventCause;
@@ -42,7 +40,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::triggers::TriggerEvent;
+
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
@@ -152,18 +150,6 @@ fn tithe_of_insight() -> Arc<CardData> {
         .build()
 }
 
-/// Rhystic Study's shape, ATOM-605.3a-002's board: "Whenever an opponent
-/// casts a spell, you may draw a card unless that player pays {1}." A
-/// fixture, not the card: the brief registers Mana Leak and one ward
-/// creature, and the atom's board is what this test builds.
-fn rhystic_study_shape() -> Arc<CardData> {
-    let may_draw = Effect::Optional { chooser: PlayerRef::You, effect: Box::new(draw_cards(you(), 1)) };
-    let cast = TriggerEvent::CastsSpell { caster: Some(PlayerRef::Opponent), spell: None };
-    CardDataBuilder::new("Fixture Rhystic Study")
-        .card_type(CardType::Enchantment)
-        .ability(triggered_ability("", whenever(cast, may_draw.unless(mtgsim::cards::authoring::that_player(), vec![generic(1)]))))
-        .build()
-}
 
 // ---------------------------------------------------------------------------
 // The payment
@@ -216,7 +202,7 @@ fn a_player_who_cannot_pay_is_not_asked() {
 #[test]
 fn mana_abilities_are_activated_while_the_payment_resolves() {
     let mut game = stocked(2);
-    put_on_battlefield(&mut game, rhystic_study_shape(), 0);
+    put_on_battlefield(&mut game, rhystic_study(), 0);
     let land = put_on_battlefield(&mut game, mountain(), 1);
     set_active_player(&mut game, 1);
     cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
@@ -233,11 +219,13 @@ fn mana_abilities_are_activated_while_the_payment_resolves() {
     assert_eq!(hand(&game, 0), before, "paid, so the Study draws nothing");
 }
 
-/// Not paid, the Study's controller may draw: a decline, then "you may".
+/// Not paid, the Study's controller may draw: the payment is asked first,
+/// and "you may" after the decline.
+// RULING: Rhystic Study #2 - "You don't have to decide whether or not to draw a card until after the player decides whether or not to pay."
 #[test]
-fn rhystic_study_shape_draws_when_that_player_declines() {
+fn rhystic_study_draws_when_that_player_declines() {
     let mut game = stocked(2);
-    put_on_battlefield(&mut game, rhystic_study_shape(), 0);
+    put_on_battlefield(&mut game, rhystic_study(), 0);
     put_on_battlefield(&mut game, mountain(), 1);
     set_active_player(&mut game, 1);
     cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
@@ -246,8 +234,36 @@ fn rhystic_study_shape_draws_when_that_player_declines() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(PAY, Vec::new());
     dp.expect_take(OPTIONAL);
-    resolve_with(&mut game, dp);
+    let dp = resolve_with(&mut game, dp);
+    let order: Vec<bool> = dp.asked().iter().map(|kind| matches!(kind, ChoiceKind::PayAsItResolves { .. })).collect();
+    assert_eq!(order, vec![true, false], "the payment, then the draw");
     assert_eq!(hand(&game, 0), before + 1);
+}
+
+/// The Study's trigger is above the spell that caused it, and resolves even
+/// when that spell is countered first: Mana Leak, cast above both, counters
+/// the Bears, and the Study still asks for {1} as it resolves.
+// RULING: Rhystic Study #1 - "Rhystic Study's triggered ability resolves before the spell that caused it to trigger. It resolves even if that spell is countered. The player gets the option to pay when this triggered ability resolves."
+#[test]
+fn rhystic_study_resolves_after_its_spell_is_countered() {
+    let mut game = stocked(2);
+    put_on_battlefield(&mut game, rhystic_study(), 0);
+    set_active_player(&mut game, 1);
+    let bears = cast(&mut game, 1, grizzly_bears(), &[(ManaType::Green, 2)], &[]);
+    game.perform_sba_and_triggers(&ScriptedDecisionProvider::new()).unwrap();
+    assert_eq!(game.stack.len(), 2);
+    assert_ne!(game.stack.last(), Some(&bears), "the trigger is above the Bears");
+    cast(&mut game, 0, mana_leak(), &[(ManaType::Blue, 2)], &[]);
+    game.players[1].mana_pool.add(ManaType::Colorless, 1);
+    let before = hand(&game, 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(PAY, Vec::new());
+    dp.expect_take(OPTIONAL);
+    let dp = resolve_with(&mut game, dp);
+    assert_eq!(game.objects[&bears].zone, Zone::Graveyard, "Mana Leak's {{3}} could not be paid");
+    assert_eq!(paid_asked(&dp), vec![1], "the Study's {{1}}, asked as it resolves");
+    assert_eq!(hand(&game, 0), before + 1, "declined, so the Study's controller drew");
 }
 
 /// A window that ends with the cost unpaid is the payer declining: the mana
@@ -434,27 +450,12 @@ fn a_spell_targeting_two_ward_creatures_pays_for_each() {
     }
 }
 
-/// Wild Might's shape: "Target creature gets +1/+1 until end of turn. That
-/// creature gets an additional +4/+4 until end of turn unless any player
-/// pays {2}." A fixture, not the card, as Rhystic Study's is: the brief's
-/// cards are Mana Leak and one ward creature.
-fn wild_might_shape() -> Arc<CardData> {
-    let more = gets(the_target(), 4, 4).until_end_of_turn();
-    CardDataBuilder::new("Fixture Wild Might")
-        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
-        .card_type(CardType::Instant)
-        .ability(spell_ability(
-            "",
-            Effect::Sequence(vec![gets(target_creature(), 1, 1).until_end_of_turn(), more.unless(any_player(), vec![generic(2)])]),
-        ))
-        .build()
-}
-
 /// "Any player" asks each player at most once, in APNAP order (CR 101.4), the
 /// active player first, and stops at the first who pays. The first declines;
 /// the second pays and the creature gets +1/+1 alone, or declines too and it
 /// gets +5/+5. Played with each player active, so the order is the turn's
 /// and not the seats'.
+// RULING: Wild Might #1 - "Each player gets the option to pay when the spell resolves."
 #[test]
 fn any_player_asks_each_player_at_most_once_in_apnap_order() {
     for active in [0, 1] {
@@ -462,7 +463,7 @@ fn any_player_asks_each_player_at_most_once_in_apnap_order() {
             let mut game = stocked(2);
             let bears = put_on_battlefield(&mut game, grizzly_bears(), active);
             set_active_player(&mut game, active);
-            cast(&mut game, active, wild_might_shape(), &[(ManaType::Green, 1)], &[]);
+            cast(&mut game, active, wild_might(), &[(ManaType::Green, 1), (ManaType::Colorless, 1)], &[]);
             game.players[0].mana_pool.add(ManaType::Colorless, 2);
             game.players[1].mana_pool.add(ManaType::Colorless, 2);
             let dp = ScriptedDecisionProvider::new();
@@ -487,7 +488,7 @@ fn any_player_asks_each_player_at_most_once_in_apnap_order() {
 fn any_player_passes_over_one_who_cannot_pay() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    cast(&mut game, 0, wild_might_shape(), &[(ManaType::Green, 1)], &[]);
+    cast(&mut game, 0, wild_might(), &[(ManaType::Green, 1), (ManaType::Colorless, 1)], &[]);
     game.players[1].mana_pool.add(ManaType::Colorless, 2);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(PAY, Vec::new());
@@ -501,7 +502,7 @@ fn any_player_passes_over_one_who_cannot_pay() {
 fn any_player_with_no_payer_does_the_rest() {
     let mut game = stocked(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    cast(&mut game, 0, wild_might_shape(), &[(ManaType::Green, 1)], &[]);
+    cast(&mut game, 0, wild_might(), &[(ManaType::Green, 1), (ManaType::Colorless, 1)], &[]);
     let dp = ScriptedDecisionProvider::new();
     let dp = resolve_with(&mut game, dp);
     assert!(paid_asked(&dp).is_empty());

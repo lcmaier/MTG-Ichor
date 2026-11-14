@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-11-07",
+  "fetched": "2026-11-14",
   "fixtures": ["Five-Color Land Fixture", "Loyalty Probe", "Moonlace Fixture"],
   "cards": {
     "Abrade": {
@@ -322,6 +322,14 @@
         {"n": 2, "published_at": "2021-03-19", "comment": "If a noncreature card wasn't cast and is entering the battlefield as a creature (due to an effect such as that of March of the Machines), it will be exiled. Conversely, if a creature card wasn't cast and is entering the battlefield as a noncreature permanent (for example, Heliod, Sun-Crowned with insufficient devotion), it won't be exiled."},
         {"n": 3, "published_at": "2021-03-19", "comment": "If Containment Priest enters the battlefield without being cast, its ability won't exile itself."},
         {"n": 4, "published_at": "2021-03-19", "comment": "If Containment Priest enters the battlefield at the same time as other creatures, its ability won't affect those creatures."}
+      ]
+    },
+    "Contamination": {
+      "first_seen": "2026-11-14",
+      "rulings": [
+        {"n": 1, "published_at": "2004-10-04", "comment": "The second ability of this card is a replacement effect, not a triggered ability."},
+        {"n": 2, "published_at": "2004-10-04", "comment": "External effects that generate more mana still generate their additional mana as directed without being affected by this card. Effects which generate more mana based on what type of mana the land produces will be affected in color but not in amount."},
+        {"n": 3, "published_at": "2004-10-04", "comment": "You choose whether to sacrifice a creature or not on resolution. If not, then you sacrifice Contamination. You can choose to not sacrifice even if you no longer control Contamination on resolution."}
       ]
     },
     "Cornered Crook": {
@@ -942,6 +950,10 @@
         {"n": 1, "published_at": "2018-03-16", "comment": "Loyal Sentry and the creature it blocks are destroyed before combat damage is dealt. The blocked creature is destroyed even if Loyal Sentry leaves the battlefield before its triggered ability resolves."}
       ]
     },
+    "Mana Leak": {
+      "first_seen": "2026-11-14",
+      "rulings": []
+    },
     "Mana Reflection": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1292,6 +1304,13 @@
     "Rhox War Monk": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Rhystic Study": {
+      "first_seen": "2026-11-14",
+      "rulings": [
+        {"n": 1, "published_at": "2023-09-01", "comment": "Rhystic Study's triggered ability resolves before the spell that caused it to trigger. It resolves even if that spell is countered. The player gets the option to pay when this triggered ability resolves."},
+        {"n": 2, "published_at": "2023-09-01", "comment": "You don't have to decide whether or not to draw a card until after the player decides whether or not to pay."}
+      ]
     },
     "Ridgetop Raptor": {
       "first_seen": "2026-09-17",
@@ -1668,11 +1687,23 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Waterfall Aerialist": {
+      "first_seen": "2026-11-14",
+      "rulings": [
+        {"n": 1, "published_at": "2021-04-16", "comment": "If a player casts a spell that targets multiple permanents their opponent controls with ward, each of those ward abilities will trigger. If that player doesn’t pay for all of them, the spell will be countered."}
+      ]
+    },
     "Wild Growth": {
       "first_seen": "2026-09-19",
       "read": "2026-09-19",
       "rulings": [
         {"n": 1, "published_at": "2004-10-04", "comment": "The additional mana is not an ability of the land and is not something the land can produce."}
+      ]
+    },
+    "Wild Might": {
+      "first_seen": "2026-11-14",
+      "rulings": [
+        {"n": 1, "published_at": "2004-10-04", "comment": "Each player gets the option to pay when the spell resolves."}
       ]
     },
     "Winding Constrictor": {

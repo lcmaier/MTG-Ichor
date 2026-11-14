@@ -238,9 +238,9 @@ cell, and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 229 |
+| Cards registered | 231 |
 | …of them in `PERFORMANCE_POOL` | 127 |
-| `#[test]` functions | 3093 |
+| `#[test]` functions | 3094 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 

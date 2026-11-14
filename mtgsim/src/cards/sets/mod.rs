@@ -49,6 +49,8 @@ pub mod s99;
 pub mod mmq;
 #[path = "2000/02_14_nem.rs"]
 pub mod nem;
+#[path = "2000/06_05_pcy.rs"]
+pub mod pcy;
 #[path = "2000/10_02_inv.rs"]
 pub mod inv;
 #[path = "2001/02_05_pls.rs"]
