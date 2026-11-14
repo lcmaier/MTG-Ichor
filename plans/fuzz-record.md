@@ -235,21 +235,22 @@ games, Waterfall Aerialist 104 (97) in 41%, Contamination 142 (141) in 52%; at f
 the payment's check is castability's, which every priority question reads at each rung.
 
 **§3, shipped, 50 games at seed 12345**, the new baseline; its stress column re-recorded at the
-owner's review on `759767e0`, Rhystic Study and Wild Might registered:
+owner's second review round on `b2e264d3`, Rhystic Study, Wild Might and Clash of Wills
+registered:
 
 | | performance | stress |
 |---|---:|---:|
-| Wins by seat | 23 / 26 | 30 / 19 |
-| Wins by effect | 1 | 1 |
-| Avg turns | 30.0 | 25.1 |
-| Spells cast | 23.9 | 19.0 |
-| Creatures died | 8.9 | 4.9 |
-| Total damage | 61.5 | 41.7 |
-| **Layer walks** | **364** | **360** |
-| **Memo hits** | **59,347** | **50,697** |
-| **Frames/walk** | **12.69** | **10.28** |
-| **Dependency checks** | **11** | **5** |
-| Decisions | 212 | 220 |
+| Wins by seat | 23 / 26 | 33 / 17 |
+| Wins by effect | 1 | 0 |
+| Avg turns | 30.0 | 25.7 |
+| Spells cast | 23.9 | 19.8 |
+| Creatures died | 8.9 | 5.3 |
+| Total damage | 61.5 | 52.5 |
+| **Layer walks** | **364** | **364** |
+| **Memo hits** | **59,347** | **48,076** |
+| **Frames/walk** | **12.69** | **9.99** |
+| **Dependency checks** | **11** | **6** |
+| Decisions | 212 | 203 |
 
 **Rerun after the pre-review (2026-11-13), on `2558693a`** against shipped `3c68c509`: the
 prompts naming the resolving object, the offer carrying its unit, X written once paid, one
@@ -286,9 +287,19 @@ Wills registered, against **base** `d18b33f5`: **engine** `107c374e`, the X befo
 payability check reads the same symbols in another order; shipped, performance `IDENTICAL`
 (Clash of Wills is not pooled) and stress moved; instructions a decision within 0.3 points.
 
-**Size**: 1,718 added and 97 removed in `mtgsim/src` and `mtgsim/tests`, 1,815 touched, against
+Engine **IDENTICAL** on both pools at both seats; shipped performance **IDENTICAL**, stress moved;
+audit agreed on every arm. Instructions a decision 0.7336 M → 0.7366 M, **+0.41%**, past the
+prediction and inside the budget, with `Primitive`, `Effect`, `ChoiceKind` and `ChoiceContext` the
+same size in both arms (424, 520, 104 and 152 bytes). The moved rows are the same symbols the last
+sitting moved back (`affected_members`' closure, `mana_payable`, `total_is_payable`): across the
+three sittings the board reads one of two layouts, about 0.7333 M or 0.7367 M a decision, as an
+unrelated change happens to inline them. Growth ×3.94 to ×4.03. Reachability: Clash of Wills
+cast 125 in 50% of two-seat games, 112 in 49% of four-seat ones. The copy check's one grouping,
+`from_symbols` beside `symbols` in three functions at 44× chance, is a shared idiom. 280 s.
+
+**Size**: 1,936 added and 112 removed in `mtgsim/src` and `mtgsim/tests`, 2,048 touched, against
 the brief's 1,350–2,100: 1,494 before the pre-review's fixes and boards, 1,616 at handover, the
-rest the owner's two review rounds.
+rest the owner's review rounds.
 
 **Recorded 2026-11-07 for `mode-rules-and-costs`, the modal node's rules and a mode's own cost**
 (`choices/mode-rules-and-costs`, PR #319: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
