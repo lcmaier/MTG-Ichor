@@ -8072,7 +8072,18 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        "any type that land produced" (`any-color-plus-painlands-plus-signets`, `chosen-color-plus-could-produce`); a watcher that functions
        off the battlefield (no printed producer); two pool multipliers of
        different shapes, tried in timestamp order only; the pool's restricted
-       units, which a pool multiplier copies free (item 33).
+       units, which a pool multiplier copies free (item 33). The first card
+       that adds mana "of any type that land produced" (Mana Flare) also
+       plays Contamination's second ruling's second sentence: under
+       Contamination it adds {B}, and still one (the card's doc names it).
+     - **Not read, and not yet activatable:** a mana ability that functions
+       from a hand, Elvish Spirit Guide's "Exile this card from your hand:
+       Add {G}." `ManaSupply::read` takes permanents only, and
+       `activatable_abilities` offers none from a hand until
+       `permission-design` (item 147). When that lands, the inventory needs
+       the same leg, or castability, X's range and a resolution's payment
+       (`can_pay_as_it_resolves`, PR #324) all under-count, and Mana Leak
+       would counter a spell unasked whose controller holds three of them.
      - **Read loosely, so over-offered:** a permanent that sacrifices itself
        for mana and is also what the cost's own sacrifice must take
        (Treasure, `any-color-plus-painlands-plus-signets`); two outlets of different abilities sharing fodder,

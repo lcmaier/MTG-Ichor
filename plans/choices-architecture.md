@@ -1298,10 +1298,9 @@ Where it differs from decision 2's words:
 ### `pay-as-an-effect-resolves` — a cost paid as an effect resolves — ✅ landed 2026-11-13
 
 PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
-- **The payment** (option A): `Primitive::Pay { mana, others, any_amount_of }`, one mana
-  component paid first and the rest as written, is the whole of an
-  `Effect::Optional`, whose chooser pays; `Effect::unless` writes CR 118.12a's sentence in the
-  card's order, `may_pay` and `may_pay_any_amount_of` the "may". The `Optional` arm offers it only
+- **The payment** (option A): `Primitive::Pay { mana, others, any_amount_of }`, its one mana
+  component paid first, is the whole of an `Effect::Optional`, whose chooser pays; `Effect::unless`
+  writes CR 118.12a's sentence in the card's order, `may_pay` the "may". The `Optional` arm offers it only
   when the payer can pay (`can_pay_as_it_resolves`: the pool and what their mana abilities could
   add, castability's own check), so one who cannot is not asked and answers `Doesnt`. Taken: the
   amount, the cast's own mana window (CR 605.3a), `plan_payment_as_written` (608.2c, no ranks
@@ -1319,7 +1318,7 @@ PR #324, the first of `costs-and-choices-at-resolution`'s two, decision 4 whole.
 - **Item 219's half**: a target under a `Conditional` that names no kicker or mode is announced
   (CR 601.2c), so Mana Leak's "if they don't, counter target spell" has its target.
 - **The cards**: Mana Leak (pooled), Waterfall Aerialist (`cards::authoring::ward`, on TR-5c's
-  event), Contamination, its RE-9 fixture retired; fixtures of Rhystic Study's, Wild Might's,
+  event), Contamination, its RE-9 fixture retired, Rhystic Study and Wild Might; fixtures of
   Elenda and Azor's and Leyline Tyrant's payments.
 
 Where it differs from decision 4's words:
@@ -1334,7 +1333,7 @@ Where it differs from decision 4's words:
   action (item 420); a cost the engine cannot check is never offered (item 421); ward {X} (item
   422).
 - **An amount of none, taken, is a payment** (`Does`, X = 0), CR 118.3a's "players can always
-  pay 0 mana"; a question for the owner at handover.
+  pay 0 mana": kept at review, every printed ruling on zero agreeing (Halo Forager's).
 
 ## 6. Found while designing
 
