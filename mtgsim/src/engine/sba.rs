@@ -308,9 +308,11 @@ impl GameState {
         // the batch's head, so each is performed while its permanent is still
         // there; one the check also moves is framed before any member performs
         // (CR 704.8), with every counter it had. No player removes them.
-        let annihilating = |entry: &PermanentState| entry.counter_count(CounterType::PlusOnePlusOne).min(entry.counter_count(CounterType::MinusOneMinusOne));
-        for (id, entry) in self.battlefield_ordered_where(|_, entry| annihilating(entry) > 0) {
-            let pairs = annihilating(entry);
+        let annihilating_pairs = |permanent: &PermanentState| {
+            permanent.counter_count(CounterType::PlusOnePlusOne).min(permanent.counter_count(CounterType::MinusOneMinusOne))
+        };
+        for (id, permanent) in self.battlefield_ordered_where(|_, permanent| annihilating_pairs(permanent) > 0) {
+            let pairs = annihilating_pairs(permanent);
             for counter in [CounterType::PlusOnePlusOne, CounterType::MinusOneMinusOne] {
                 let removal = GameAction::RemoveCounters { subject: ObjectOrPlayerId::Object(id), counter, n: pairs, by: None };
                 batch.push((removal, StateBasedAction::CountersAnnihilate));
@@ -348,7 +350,7 @@ impl GameState {
         // 704.5g — Creature with lethal damage is destroyed
         // Also handles deathtouch (rule 702.2b): any nonzero damage from a
         // deathtouch source is lethal.
-        let lethally_damaged = |id: ObjectId, entry: &PermanentState| {
+        let lethally_damaged = |id: ObjectId, permanent: &PermanentState| {
             if !is_creature(self, id) {
                 return false;
             }
@@ -361,15 +363,15 @@ impl GameState {
             // `engine::restriction::is_prohibited` for both of CR 701.8b's routes.
             // Regeneration is not checked either: a shield is a registered
             // replacement effect watching `GameAction::Destroy`, which this proposal is.
-            entry.damage_marked >= effective_t as u32 || (entry.damage_marked > 0 && dealt_deathtouch_damage.contains(&id))
+            permanent.damage_marked >= effective_t as u32 || (permanent.damage_marked > 0 && dealt_deathtouch_damage.contains(&id))
         };
         for (id, _) in self.battlefield_ordered_where(lethally_damaged) {
             batch.push((sba_destroy(id), StateBasedAction::LethalDamage));
         }
 
         // 704.5i — Planeswalker with 0 loyalty is put into owner's graveyard
-        let out_of_loyalty = |id: ObjectId, entry: &PermanentState| {
-            self.objects.contains_key(&id) && has_type(self, id, CardType::Planeswalker) && entry.counter_count(CounterType::Loyalty) == 0
+        let out_of_loyalty = |id: ObjectId, permanent: &PermanentState| {
+            self.objects.contains_key(&id) && has_type(self, id, CardType::Planeswalker) && permanent.counter_count(CounterType::Loyalty) == 0
         };
         for (id, _) in self.battlefield_ordered_where(out_of_loyalty) {
             batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroLoyalty));
@@ -436,12 +438,12 @@ impl GameState {
         // 704.5m — an Aura attached to an illegal object or player, **or** not
         // attached at all, is put into its owner's graveyard (704.5n is the
         // Equipment rule further down).
-        let attached_illegally = |id: ObjectId, entry: &PermanentState| {
+        let aura_attached_illegally_or_not_at_all = |id: ObjectId, permanent: &PermanentState| {
             let Some(obj) = self.objects.get(&id) else { return false };
             if !has_subtype(self, id, &Subtype::Enchantment(EnchantmentType::Aura)) {
                 return false;
             }
-            match entry.attached_to {
+            match permanent.attached_to {
                 // Not attached to anything.
                 None => true,
                 Some(host_id) => {
@@ -462,7 +464,7 @@ impl GameState {
                 }
             }
         };
-        for (id, _) in self.battlefield_ordered_where(attached_illegally) {
+        for (id, _) in self.battlefield_ordered_where(aura_attached_illegally_or_not_at_all) {
             batch.push((sba_put_into_graveyard(id), StateBasedAction::AuraAttachedIllegally));
         }
 
@@ -476,12 +478,10 @@ impl GameState {
         // here, and 704.5m moves it on the next check.
         let mut illegal_host: Vec<(GameAction, StateBasedAction)> = Vec::new();
         let mut not_an_attachment: Vec<(GameAction, StateBasedAction)> = Vec::new();
-        // `attached_to` first: it is a field read, and the questions below
-        // each compute a characteristics frame. Asking them of every
-        // permanent on the battlefield, almost none of which is attached, is
-        // what made this sweep expensive.
-        for (id, entry) in self.battlefield_ordered_where(|_, entry| entry.attached_to.is_some()) {
-            let Some(host) = entry.attached_to else { continue };
+        // Only an attached permanent is asked: each question below computes a
+        // characteristics frame, and almost no permanent is attached.
+        let attached = self.battlefield_ordered_where(|_, permanent| permanent.attached_to.is_some());
+        for (id, host) in attached.into_iter().filter_map(|(id, permanent)| Some((id, permanent.attached_to?))) {
             let member = GameAction::Unattach { attachment: id };
             // Effective types, never printed: the rule is about what a
             // continuous effect made the permanent.
