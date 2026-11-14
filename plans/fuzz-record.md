@@ -234,21 +234,22 @@ games, Waterfall Aerialist 104 (97) in 41%, Contamination 142 (141) in 52%; at f
 64.7 turns a game against 63.5 and 48.4 spells cast against 49.3. **No ladder shape is added**:
 the payment's check is castability's, which every priority question reads at each rung.
 
-**§3, shipped, 50 games at seed 12345**, the new baseline:
+**§3, shipped, 50 games at seed 12345**, the new baseline; its stress column re-recorded at the
+owner's review on `759767e0`, Rhystic Study and Wild Might registered:
 
 | | performance | stress |
 |---|---:|---:|
-| Wins by seat | 23 / 26 | 26 / 22 |
-| Wins by effect | 1 | 2 |
-| Avg turns | 30.0 | 25.7 |
-| Spells cast | 23.9 | 20.2 |
-| Creatures died | 8.9 | 5.1 |
-| Total damage | 61.5 | 48.7 |
-| **Layer walks** | **364** | **347** |
-| **Memo hits** | **59,347** | **48,231** |
-| **Frames/walk** | **12.69** | **10.91** |
-| **Dependency checks** | **11** | **8** |
-| Decisions | 212 | 201 |
+| Wins by seat | 23 / 26 | 30 / 19 |
+| Wins by effect | 1 | 1 |
+| Avg turns | 30.0 | 25.1 |
+| Spells cast | 23.9 | 19.0 |
+| Creatures died | 8.9 | 4.9 |
+| Total damage | 61.5 | 41.7 |
+| **Layer walks** | **364** | **360** |
+| **Memo hits** | **59,347** | **50,697** |
+| **Frames/walk** | **12.69** | **10.28** |
+| **Dependency checks** | **11** | **5** |
+| Decisions | 212 | 220 |
 
 **Rerun after the pre-review (2026-11-13), on `2558693a`** against shipped `3c68c509`: the
 prompts naming the resolving object, the offer carrying its unit, X written once paid, one
@@ -258,8 +259,29 @@ seat reads a prompt's subject. Every gameplay row **IDENTICAL** on both pools at
 instructions a decision 0.7355 M → 0.7327 M, **-0.39%**; growth ×3.94 to ×4.03; no copy left;
 143 s.
 
-**Size**: 1,533 added and 83 removed in `mtgsim/src` and `mtgsim/tests`, 1,616 touched, 1,494
-before the pre-review's fixes and boards, against the brief's 1,350–2,100.
+**Rerun after the owner's review (2026-11-14)**: against **base** `828c64c3`, the first round's
+head, **engine** `09792eba` (`Effect::unless` in the card's order, `the_target()`, `Pay`'s one
+mana component) and **shipped** `759767e0`, Rhystic Study and Wild Might registered and no card
+pooled. Predicted, before any arm ran: engine every gameplay row `IDENTICAL` on both pools at
+both seats, since each change rewrites how a card is built and not what it does; shipped,
+performance `IDENTICAL` (neither card is pooled) and stress moved; 0 errors, panics and turn
+limits past the baseline's; instructions a decision, engine vs base, within 0.3 points.
+
+Engine **IDENTICAL** to base on both pools at both seats; shipped performance **IDENTICAL**,
+stress moved, audit agreed on every arm. Instructions a decision 0.7330 M → 0.7365 M,
+**+0.47%**, past the prediction by 0.17 points and inside the 2.5-point budget: type sizes
+unchanged (`Primitive` 424 bytes, `Effect` 520, both arms), and every moved row a symbol present
+in one arm only (`mana_payable` out of line, `total_is_payable` and `CardRegistry::create`
+inlined). The copy check paired two loops adding copies of a unit, now
+`ManaCost::with_copies_of` (`f8c77461`); its sitting against shipped read every row
+**IDENTICAL** and 0.7370 M → 0.7334 M, **-0.49%**, unrelated closures moving back, so the
+round nets +0.05% against base. Growth ×3.94 to ×4.03. Reachability, 200 games: Rhystic Study
+cast 134 in 54% of games and Wild Might 159 in 61% at two seats, 115 and 102 at four; forced
+into every four-seat deck, 60.9 and 62.5 turns a game against 61.6. 235 s and 162 s.
+
+**Size**: 1,718 added and 97 removed in `mtgsim/src` and `mtgsim/tests`, 1,815 touched, against
+the brief's 1,350–2,100: 1,494 before the pre-review's fixes and boards, 1,616 at handover, the
+rest the owner's two review rounds.
 
 **Recorded 2026-11-07 for `mode-rules-and-costs`, the modal node's rules and a mode's own cost**
 (`choices/mode-rules-and-costs`, PR #319: CR 700.2d, 700.2e, 700.2h, 700.2i, 702.172a, items 81, 154,
