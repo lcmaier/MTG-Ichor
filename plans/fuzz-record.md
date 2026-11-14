@@ -203,7 +203,7 @@ one means the engine's cost model moved
 ## The records, newest first
 
 **Re-recorded 2026-11-14 for `ordered-sweeps-sort-their-matches`, an ordered sweep sorts what it keeps**
-(`state/ordered-sweeps-sort-their-matches`, a detour off the route: `codebase-state.md` item 77's
+(`state/ordered-sweeps-sort-their-matches`, PR #325, a detour off the route: `codebase-state.md` item 77's
 first part). No card moves and no pool changes, so neither §3 column is re-recorded. One
 `close_out.py` sitting against **main** `b8e010ab` (#324's merge): **sorted** `08432489`,
 measured as `51622aa2`, its tree but for the generated board each commit since carries.
