@@ -3047,7 +3047,10 @@ impl GameState {
     /// order written (CR 608.2c) under the resolution's own cause. A window
     /// that ends with the cost unpaid is the payer declining: what they made
     /// stays in their pool (CR 106.4), and nothing is reversed, since CR
-    /// 732.1's reversal is a cast's or an activation's.
+    /// 732.1's reversal is a cast's or an activation's. An amount they chose
+    /// and could not pay is the offer's error, not their decline: they are
+    /// asked again, below that amount, and may still decline
+    /// (`mana-architecture.md#what-a-shortcut-in-the-check-may-get-wrong`).
     fn offer_payment(
         &mut self,
         payer: PlayerId,
@@ -3080,28 +3083,38 @@ impl GameState {
         if !self.in_game(payer) || !self.can_pay_as_it_resolves(&least, payer, source) {
             return Ok(false);
         }
-        if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, offer.clone(), any_amount_of.cloned()) {
-            return Ok(false);
-        }
         let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
-        let (costs, amount) = match (x_to_choose, any_amount_of) {
-            (Some(with_x), _) => {
-                let values = crate::oracle::x_values::payable_values_of_x(self, payer, with_x, others, on_the_battlefield);
-                let x = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, AmountOf::XIn(with_x.clone()), values);
-                (mana_then(Some(with_x.with_x_as(x)), others), Some(x))
+        // Each retry offers less than the amount that failed, so the asking ends.
+        let mut failed_at: Option<u64> = None;
+        let (costs, amount) = loop {
+            if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, offer.clone(), any_amount_of.cloned()) {
+                return Ok(false);
             }
-            (None, Some(unit)) => {
-                let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, &offer, unit, on_the_battlefield);
-                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, AmountOf::AnyAmountOf(unit.clone()), values);
-                let mana = as_offered.unwrap_or_else(ManaCost::zero).plus_amount_of(unit, amount);
-                (mana_then(Some(mana), others), Some(amount))
+            let (costs, amount) = match (x_to_choose, any_amount_of) {
+                (Some(with_x), _) => {
+                    let values = crate::oracle::x_values::payable_values_of_x(self, payer, with_x, others, on_the_battlefield);
+                    let of = AmountOf::XIn(with_x.clone());
+                    let x = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, of, values.less_than(failed_at));
+                    (mana_then(Some(with_x.with_x_as(x)), others), Some(x))
+                }
+                (None, Some(unit)) => {
+                    let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, &offer, unit, on_the_battlefield);
+                    let of = AmountOf::AnyAmountOf(unit.clone());
+                    let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, of, values.less_than(failed_at));
+                    let mana = as_offered.clone().unwrap_or_else(ManaCost::zero).plus_amount_of(unit, amount);
+                    (mana_then(Some(mana), others), Some(amount))
+                }
+                (None, None) => (offer.clone(), None),
+            };
+            self.run_mana_ability_window(payer, ctx.source, &costs, dp);
+            if self.can_pay_costs(&costs, payer, source).is_ok() {
+                break (costs, amount);
             }
-            (None, None) => (offer, None),
+            match amount {
+                Some(failed) if failed > 0 => failed_at = Some(failed),
+                _ => return Ok(false),
+            }
         };
-        self.run_mana_ability_window(payer, ctx.source, &costs, dp);
-        if self.can_pay_costs(&costs, payer, source).is_err() {
-            return Ok(false);
-        }
         let actx = ActionContext::resolving(dp, ctx);
         let plan = self.plan_payment_as_written(&costs, payer, source, ctx.source, &actx)?;
         self.pay_costs(&plan, payer, source, &actx)?;

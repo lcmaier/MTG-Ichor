@@ -110,6 +110,19 @@ impl XOffer {
         }
     }
 
+    /// The values offered that are less than `limit`, all of them with no
+    /// limit: a retry's offer, below the amount that could not be paid. A
+    /// payment's interval starts at 0, so a retry is always left one value.
+    pub fn less_than(self, limit: Option<u64>) -> XOffer {
+        let Some(limit) = limit else { return self };
+        match self {
+            XOffer::Interval { at_least, at_most } => {
+                XOffer::Interval { at_least, at_most: at_most.min(limit.saturating_sub(1)).max(at_least) }
+            }
+            XOffer::Set(values) => XOffer::Set(values.into_iter().filter(|value| *value < limit).collect()),
+        }
+    }
+
     /// The most value offered.
     pub fn at_most(&self) -> u64 {
         match self {

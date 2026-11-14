@@ -728,8 +728,9 @@ fn an_amount_of_none_taken_is_paid() {
 /// "Any player may pay any amount of mana. If a player does, draw that
 /// many cards": invented, to put an amount beside "any player", each payer
 /// choosing their own. "Any amount of mana" is generic, so its top is the
-/// closed form's. The active player picks 2 and lets the window end unpaid,
-/// which leaves no X behind; the next pays 1, and X is 1.
+/// closed form's. The active player picks 2, lets the window end unpaid and
+/// declines when asked again, which leaves no X behind; the next pays 1, and
+/// X is 1.
 #[test]
 fn an_amount_left_unpaid_leaves_no_x_for_the_next_payer() {
     let draw = Effect::Conditional(Condition::CostAnswer(CostAnswer::Does), Box::new(draw_cards(you(), AmountExpr::X)));
@@ -757,13 +758,51 @@ fn an_amount_left_unpaid_leaves_no_x_for_the_next_payer() {
     let tap = get_effective_abilities(&game, islands[0])[0].id;
     dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(islands[0], tap))]);
     dp.expect_choice(window(), Vec::new());
+    dp.expect_choice(PAY, Vec::new());
     dp.expect_take(PAY);
     dp.expect_number(amount(), 1);
     let dp = resolve_with(&mut game, dp);
 
-    assert_eq!(paid_asked(&dp), vec![0, 1]);
+    assert_eq!(paid_asked(&dp), vec![0, 0, 1], "player 0 asked again after the 2 failed, then player 1");
     assert_eq!(hand(&game, 0), before + 1, "X is the 1 player 1 paid");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 1, "player 0's mana stays");
+}
+
+/// An amount chosen and not paid is the offer's error, not a decline: the
+/// payer is asked again, offered less than the amount that failed. Two
+/// Islands and a pool of {U} cannot pay X = 2 once only one Island is tapped;
+/// asked again, the payer is offered up to 1, picks it, and pays {1}{U}
+/// from the pool.
+#[test]
+fn an_amount_that_could_not_be_paid_is_asked_again_below_it() {
+    let mut game = stocked(2);
+    let islands: Vec<ObjectId> = (0..2).map(|_| put_on_battlefield(&mut game, island(), 0)).collect();
+    cast(&mut game, 0, paid_insight(), &[(ManaType::Blue, 1)], &[]);
+    pool_of(&mut game, 0, &[(ManaType::Blue, 1)]);
+    let before = hand(&game, 0);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_take(PAY);
+    dp.expect_number(amount(), 2);
+    let tap = get_effective_abilities(&game, islands[0])[0].id;
+    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(islands[0], tap))]);
+    dp.expect_choice(window(), Vec::new());
+    dp.expect_take(PAY);
+    dp.expect_number(amount(), 1);
+    let dp = resolve_with(&mut game, dp);
+
+    let offered: Vec<XOffer> = dp
+        .asked()
+        .into_iter()
+        .filter_map(|kind| match kind {
+            ChoiceKind::ChooseAmountToPay { values, .. } => Some(*values),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(offered, vec![XOffer::Interval { at_least: 0, at_most: 2 }, XOffer::Interval { at_least: 0, at_most: 1 }]);
+    assert_eq!(hand(&game, 0), before + 1, "X is 1");
+    assert!(!game.battlefield[&islands[1]].tapped, "the second Island was never needed");
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Blue), 0, "{{1}}{{U}} paid from the pool");
 }
 
 // ---------------------------------------------------------------------------
