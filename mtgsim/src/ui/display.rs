@@ -471,6 +471,8 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         }
         ChoiceKind::ApplyOptionalReplacement { source, .. } => format!("Apply {}'s replacement effect?", n(source)),
         ChoiceKind::ApplyOptionalEffect { source } => format!("{}: you may", n(source)),
+        ChoiceKind::PayAsItResolves { source, offer } => format!("{}: {}?", n(source), payment_words(offer)),
+        ChoiceKind::ChooseAmountToPay { source, each, .. } => format!("{}: how much {each} do you pay?", n(source)),
         ChoiceKind::AllocateNextDamage { source, remaining } => {
             format!("Choose the damage {} prevents ({remaining} left)", n(source))
         }
@@ -895,6 +897,16 @@ pub(crate) fn alternative_cost_label(cost: &AlternativeCost) -> String {
 /// One cost as a sentence says it: "pay {2}{G}{G}", "sacrifice 1".
 pub(crate) fn cost_words(cost: &Cost) -> String {
     entry_offer_words(&EntryOffer::Pay(cost.clone()))
+}
+
+/// A payment's costs as a sentence says them, in the order they are paid:
+/// "pay {3}", "sacrifice 1", and "pay any amount" for an "any amount" whose
+/// every part is chosen with the amount.
+pub(crate) fn payment_words(costs: &[Cost]) -> String {
+    match costs {
+        [] => "pay any amount".to_string(),
+        costs => costs.iter().map(cost_words).collect::<Vec<_>>().join(" and "),
+    }
 }
 
 pub(crate) fn additional_cost_label(cost: &AdditionalCost) -> String {

@@ -35,7 +35,7 @@ use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
 use crate::engine::trace_records;
 use crate::events::unasked::{Unasked, UnaskedAnswer};
-use crate::types::costs::{AdditionalCost, AlternativeCost};
+use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{EffectRecipient, ModeIndex};
 use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
@@ -1256,6 +1256,49 @@ pub fn ask_accept_as_object_enters(
 ) -> bool {
     let kind = ChoiceKind::AcceptAsObjectEnters { object, source, offer };
     ask_take_or_leave(dp, game, chooser, object, kind, "accept_as_object_enters")
+}
+
+/// CR 118.12 — whether `payer` pays `offer` as `source` resolves: "unless its
+/// controller pays {3}", ward's, "you may pay {1}". Asked only of a payer who
+/// can pay (CR 118.3); the caller has checked.
+pub fn ask_pay_as_it_resolves(dp: &dyn DecisionProvider, game: &GameState, payer: PlayerId, source: ObjectId, offer: Vec<Cost>) -> bool {
+    let kind = ChoiceKind::PayAsItResolves { source, offer };
+    ask_take_or_leave(dp, game, payer, source, kind, "pay_as_it_resolves")
+}
+
+/// CR 107.3f — how many of `each` `payer` pays of an "any amount" as `source`
+/// resolves, from `values`, each an amount they can pay. One value is
+/// answered unasked, and recorded; otherwise asked as an X is
+/// ([`ask_choose_x_value`]).
+pub fn ask_choose_amount_to_pay(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    payer: PlayerId,
+    source: ObjectId,
+    each: ManaCost,
+    values: XOffer,
+) -> u64 {
+    if values.has_one_value() {
+        let amount = values.at_least();
+        game.note_unasked(payer, Unasked::OneLegalAnswer, || {
+            (ChoiceKind::ChooseAmountToPay { source, each, values: Box::new(values) }, UnaskedAnswer::Number(amount))
+        });
+        return amount;
+    }
+    let ctx = ChoiceContext::new(ChoiceKind::ChooseAmountToPay { source, each, values: Box::new(values.clone()) });
+    match values {
+        XOffer::Interval { at_least, at_most } => {
+            let amount = dp.pick_number(game, payer, &ctx, at_least, at_most);
+            validate_pick_number(amount, at_least, at_most, "choose_amount_to_pay", game, payer, &ctx);
+            amount
+        }
+        XOffer::Set(amounts) => {
+            let options: Vec<ChoiceOption> = amounts.iter().map(|&amount| ChoiceOption::Number(amount)).collect();
+            let index = dp.pick_n(game, payer, &ctx, &options, (1, 1));
+            validate_pick_n(&index, &options, (1, 1), "choose_amount_to_pay", game, payer, &ctx);
+            amounts[index[0]]
+        }
+    }
 }
 
 /// CR 608.2d — choose which of `candidates`, the opponents still in the game,

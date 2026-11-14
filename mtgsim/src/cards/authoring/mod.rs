@@ -37,19 +37,21 @@ pub use instructions::{
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, create_tokens, deal_damage,
     deal_damage_divided, deal_damage_unpreventable, destroy, discard, distribute_counters, draw_cards, exile, exile_until, gain_control_of,
     gain_life, gains_ability, gains_keyword, get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life,
-    lose_the_game, loses_all_abilities, mill, prevent_the_next_damage_divided, prevent_the_next_n_damage_this_turn, put_counters,
-    remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
-    shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, untap, win_the_game, ContinuousChange, ContinuousRuleChange,
+    lose_the_game, loses_all_abilities, may_pay, may_pay_any_amount_of, mill, prevent_the_next_damage_divided, prevent_the_next_n_damage_this_turn,
+    put_counters, remove_counters, return_to_hand, return_to_the_battlefield, sacrifice, scry, set_life_total,
+    shuffle_library, switch_power_and_toughness, take_an_extra_turn_after_this_one, tap, unless, untap, win_the_game, ContinuousChange,
+    ContinuousRuleChange,
 };
 pub use modes::{
     an_opponent_chooses_one, choose, choose_one, choose_one_not_chosen_before, choose_one_or_both_if, choose_one_or_more,
     choose_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to, spree,
 };
 pub use recipients::{
-    an_opponent_controls, another_target, any_other_target, any_target, artifact, attacked_by, basic, chosen_by, color, creature, creatures_you_control, divided_among, each, each_in,
-    each_opponent, each_player, enchantment, host, land, non, nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature,
-    target_opponent, target_permanent, target_player, target_spell, targets, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player,
-    you_cast, you_control, your_opponents_control,
+    an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, color, creature,
+    creatures_you_control, divided_among, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
+    nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_opponent, target_permanent, target_player,
+    target_spell, targets, that_player, that_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
+    you_control, your_opponents_control,
 };
 pub use replacements::{
     all_damage_to_you, draw_two_instead, every_permanent_and_player, shuffles_into_library_from_anywhere, skip, tapped_for_mana,
@@ -60,6 +62,6 @@ pub use triggers::{
     attacks_defender, becomes_attached, becomes_blocked, becomes_blocked_by, becomes_the_target_of, becomes_unattached, blocks, blocks_a_creature,
     counters_put_on, counters_removed_from, creates_a_token, damage_to_is_prevented, dies, draws_a_card, enters, functioning_in, is_attacked,
     is_sacrificed, leaves_the_battlefield, loses_the_game, persist, player_attacks, player_attacks_player, player_becomes_the_target_of,
-    player_or_their_planeswalker, scries, shuffles_their_library, spell_is_countered, triggered_ability, undying, when_state, when_you_do,
+    player_or_their_planeswalker, scries, shuffles_their_library, spell_is_countered, triggered_ability, undying, ward, when_state, when_you_do,
     when_you_dont, whenever, you_lose_control_of, CountableEvent, CounterEvent, Whose,
 };

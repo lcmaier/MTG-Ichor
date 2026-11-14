@@ -786,7 +786,10 @@ fn resolve_set_controller(
                 .defending_player(game, &|input| board.note_gated_read(input))
                 .filter(|&p| still_playing(p))
         }
-        PlayerRef::DefendingPlayer(Antecedent::Triggering(_) | Antecedent::PaidWith(_)) | PlayerRef::AnyDefendingPlayer => None,
+        PlayerRef::DefendingPlayer(Antecedent::Triggering(_) | Antecedent::PaidWith(_))
+        | PlayerRef::AnyDefendingPlayer
+        | PlayerRef::NamedBy(_)
+        | PlayerRef::AnyPlayer => None,
         PlayerRef::Opponent => {
             match game.opponents_of(players.you()).as_slice() {
                 // Exactly one opponent, so nothing was ever chosen.

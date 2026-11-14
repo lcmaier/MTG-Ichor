@@ -805,7 +805,7 @@ impl GameState {
     /// `RandomDecisionProvider` caps itself per window — the only terminator left
     /// when a client drops the stop (`--no-auto-pay`) — and a person stops
     /// when they choose.
-    fn run_mana_ability_window(
+    pub(crate) fn run_mana_ability_window(
         &mut self,
         player_id: PlayerId,
         spell_or_ability_id: ObjectId,

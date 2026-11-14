@@ -157,7 +157,9 @@ impl GameState {
                     PlayerRef::Owner
                     | PlayerRef::Opponent
                     | PlayerRef::DefendingPlayer(_)
-                    | PlayerRef::AnyDefendingPlayer => None,
+                    | PlayerRef::AnyDefendingPlayer
+                    | PlayerRef::NamedBy(_)
+                    | PlayerRef::AnyPlayer => None,
                 };
                 beneficiary == Some(player)
             })

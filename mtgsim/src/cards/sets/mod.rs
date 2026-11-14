@@ -31,6 +31,8 @@ pub mod por;
 pub mod wth;
 #[path = "1997/10_14_tmp.rs"]
 pub mod tmp;
+#[path = "1998/03_02_sth.rs"]
+pub mod sth;
 #[path = "1998/06_15_exo.rs"]
 pub mod exo;
 #[path = "1998/06_24_p02.rs"]
@@ -177,6 +179,8 @@ pub mod znr;
 pub mod cmr;
 #[path = "2021/02_05_khm.rs"]
 pub mod khm;
+#[path = "2021/04_23_stx.rs"]
+pub mod stx;
 #[path = "2021/06_18_mh2.rs"]
 pub mod mh2;
 #[path = "2022/04_29_snc.rs"]

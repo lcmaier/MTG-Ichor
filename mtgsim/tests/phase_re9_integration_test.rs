@@ -2,10 +2,10 @@
 //! "tapped for mana".
 //!
 //! Every board here is one mana ability resolving, or one spell adding mana,
-//! with something watching the production — the three printed cards that
-//! replace a production, and two fixtures that are Contamination's and
-//! Infernal Darkness's replacement lines without the upkeep halves item 6
-//! owns. Four groups:
+//! with something watching the production — the four printed cards that
+//! replace a production, Contamination among them, and a fixture that is
+//! Infernal Darkness's replacement line without its cumulative upkeep. Four
+//! groups:
 //!
 //! - **The event itself** — one performer where there were two silent
 //!   writers: what it announces, that a production of nothing announces
@@ -26,7 +26,9 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{mana_ability, static_replacement};
-use mtgsim::cards::printings::{dark_ritual, deep_water, doubling_cube, krark_clan_ironworks, mana_reflection, nyxbloom_ancient, pale_moon};
+use mtgsim::cards::printings::{
+    contamination, dark_ritual, deep_water, doubling_cube, krark_clan_ironworks, mana_reflection, nyxbloom_ancient, pale_moon, wild_growth,
+};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{
@@ -158,27 +160,6 @@ fn static_enchantment(name: &str, def: ReplacementDef) -> Arc<CardData> {
             def,
         ).with_id(new_ability_id()))
         .build()
-}
-
-/// Contamination's second line — "If a land is tapped for mana, it produces
-/// {B} instead of any other type and amount" — without its upkeep trigger,
-/// which is critical-path item 6's. A fixture under its own name for that
-/// reason; the CR is the customer and the printed card is the test.
-fn blackened_earth() -> Arc<CardData> {
-    static_enchantment(
-        "Blackened Earth",
-        ReplacementDef::new(
-            EventPattern::ProduceMana {
-                tapped_for_mana: Some(true),
-                source: Some(ObjectFilter::ByType(CardType::Land)),
-            },
-            PlayerSet::Everyone,
-            Rewrite::Instead(GameActionTemplate::ProduceMana {
-                mana_type: ManaType::Black,
-                amount: TemplateAmount::Fixed(1),
-            }),
-        ),
-    )
 }
 
 /// Infernal Darkness's second line — "If a land is tapped for mana, it
@@ -649,12 +630,14 @@ fn deep_water_and_mana_reflection_commute() {
 /// Contamination's line — "{B} instead of any other type *and amount*" —
 /// beside Mana Reflection is CR 616.1's real question: doubled first is one
 /// black, fixed first is two. The tapping player chooses.
+// RULING: Contamination #1 - "The second ability of this card is a replacement effect, not a triggered ability."
+// RULING: Contamination #2 - "External effects that generate more mana still generate their additional mana as directed without being affected by this card. Effects which generate more mana based on what type of mana the land produces will be affected in color but not in amount."
 #[test]
 fn contamination_line_beside_mana_reflection_is_a_real_choice() {
     let doubled_first = {
         let mut game = setup_two_player_game();
         let reflection = put_on_battlefield(&mut game, mana_reflection(), 0);
-        put_on_battlefield(&mut game, blackened_earth(), 0);
+        put_on_battlefield(&mut game, contamination(), 0);
         let dp = ScriptedDecisionProvider::new();
         dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(reflection)]);
         tap_for_mana(&mut game, forest(), 0, &dp).unwrap();
@@ -664,9 +647,9 @@ fn contamination_line_beside_mana_reflection_is_a_real_choice() {
     let fixed_first = {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, mana_reflection(), 0);
-        let earth = put_on_battlefield(&mut game, blackened_earth(), 0);
+        let contamination = put_on_battlefield(&mut game, contamination(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(earth)]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(contamination)]);
         tap_for_mana(&mut game, forest(), 0, &dp).unwrap();
         assert!(dp.is_empty(), "one prompt");
         pool(&game, 0, ManaType::Black)
@@ -674,6 +657,22 @@ fn contamination_line_beside_mana_reflection_is_a_real_choice() {
 
     assert_eq!(doubled_first, 1, "{{G}}{{G}}, then one black instead of any type and amount");
     assert_eq!(fixed_first, 2, "one black, then doubled");
+}
+
+/// Contamination's second ruling: mana an effect adds besides the land's own
+/// is not the land's, so Wild Growth's {G} is added as it says while the
+/// Forest makes {B}.
+// RULING: Contamination #2 - "External effects that generate more mana still generate their additional mana as directed without being affected by this card. Effects which generate more mana based on what type of mana the land produces will be affected in color but not in amount."
+#[test]
+fn contamination_leaves_an_auras_additional_mana_as_it_is() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, contamination(), 0);
+    let land = put_on_battlefield(&mut game, forest(), 0);
+    let aura = put_on_battlefield(&mut game, wild_growth(), 0);
+    assert!(game.attach(aura, land));
+    game.activate_mana_ability(0, land, forest().abilities[0].id, &test_dp()).unwrap();
+    assert_eq!(pool(&game, 0, ManaType::Black), 1, "the Forest's");
+    assert_eq!(pool(&game, 0, ManaType::Green), 1, "Wild Growth's, as directed");
 }
 
 /// The one board the retype refuses rather than guesses: a production that
@@ -684,7 +683,7 @@ fn contamination_line_beside_mana_reflection_is_a_real_choice() {
 #[test]
 fn a_mixed_production_under_a_fixed_retype_is_refused() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, blackened_earth(), 0);
+    put_on_battlefield(&mut game, contamination(), 0);
     let err = tap_for_mana(&mut game, half_bound_grove(), 0, &test_dp()).unwrap_err();
 
     assert!(err.contains("units disagree about their restrictions"), "{err}");

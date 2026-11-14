@@ -20,10 +20,12 @@
 
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::PhaseType;
+use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, ColorChange, CopyException, CopyRoles, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
+    AmountExpr, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
     ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
+use crate::types::mana::ManaCost;
 use super::recipients::divided_among;
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
@@ -123,6 +125,26 @@ pub fn add_mana(output: ManaOutput) -> Effect {
 /// recipient names, Wild Growth's enchanted land.
 pub fn its_controller_adds(recipient: EffectRecipient, output: ManaOutput) -> Effect {
     Effect::Atom(Primitive::ProduceMana(output), recipient)
+}
+
+/// "[Player] may pay [costs]" (CR 118.12): a cost paid as the effect
+/// resolves, in the order written, offered only when that player can pay (CR
+/// 118.3). An "if [they] do" or "if [they] don't" after it reads their answer.
+pub fn may_pay(player: PlayerRef, costs: Vec<Cost>) -> Effect {
+    Effect::Optional { chooser: player, effect: Box::new(Effect::Atom(Primitive::Pay { costs, any_amount_of: None }, EffectRecipient::Implicit)) }
+}
+
+/// "[Player] may pay any amount of [each]" (CR 107.3f): how many is chosen as
+/// they pay, and it is the resolution's X.
+pub fn may_pay_any_amount_of(player: PlayerRef, each: ManaCost) -> Effect {
+    let pay = Primitive::Pay { costs: Vec::new(), any_amount_of: Some(each) };
+    Effect::Optional { chooser: player, effect: Box::new(Effect::Atom(pay, EffectRecipient::Implicit)) }
+}
+
+/// "[Effect] unless [player] pays [costs]" (CR 118.12a), which "means the same
+/// thing as" "[player] may pay [costs]. If they don't, [effect]".
+pub fn unless(player: PlayerRef, costs: Vec<Cost>, effect: Effect) -> Effect {
+    Effect::Sequence(vec![may_pay(player, costs), Effect::Conditional(Condition::CostAnswer(CostAnswer::Doesnt), Box::new(effect))])
 }
 
 /// "[Recipient] gains [amount] life" (CR 119.3).

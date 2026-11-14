@@ -259,6 +259,12 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseEnteringDefender { object: id },
         ChoiceKind::DivideAmong { source: id },
         ChoiceKind::ChooseModes { source: id, words: Vec::new() },
+        ChoiceKind::PayAsItResolves { source: id, offer: vec![Cost::Sacrifice(mtgsim::types::effects::ObjectFilter::All, 1)] },
+        ChoiceKind::ChooseAmountToPay {
+            source: id,
+            each: ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0),
+            values: Box::new(mtgsim::oracle::x_values::XOffer::Set(vec![0, 2])),
+        },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();
@@ -306,7 +312,9 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::OrderCostPayments { .. } => 32,
         ChoiceKind::OrderSimultaneousEntries { .. } => 33,
         ChoiceKind::ChooseModes { .. } => 34,
+        ChoiceKind::PayAsItResolves { .. } => 35,
+        ChoiceKind::ChooseAmountToPay { .. } => 36,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
-    assert_eq!(reached, (0..35).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
+    assert_eq!(reached, (0..37).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

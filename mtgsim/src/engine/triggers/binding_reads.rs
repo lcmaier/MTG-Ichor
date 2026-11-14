@@ -11,6 +11,7 @@
 
 use std::ops::BitOr;
 
+use crate::types::costs::Cost;
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
     ObjectSet, AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
@@ -334,9 +335,26 @@ fn object_set_reads(set: &ObjectSet) -> TriggerBindingReads {
 
 fn player_ref_reads(p: &PlayerRef) -> TriggerBindingReads {
     match p {
-        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer => TriggerBindingReads::NONE,
+        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer | PlayerRef::AnyPlayer => {
+            TriggerBindingReads::NONE
+        }
         PlayerRef::Owner => TriggerBindingReads::SOURCE,
         PlayerRef::DefendingPlayer(creature) => creature_reads(*creature),
+        PlayerRef::NamedBy(recipient) => recipient_reads(recipient),
+    }
+}
+
+/// A cost paid as the effect resolves: its source for "this" and for "another"
+/// in a sacrifice's filter, and what that filter reads.
+fn cost_reads(cost: &Cost) -> TriggerBindingReads {
+    match cost {
+        Cost::Mana(_) | Cost::PayLife(_) => TriggerBindingReads::NONE,
+        Cost::TapSelf | Cost::UntapSelf | Cost::SacrificeSelf | Cost::RemoveCounters(..) | Cost::AddCounters(..) => {
+            TriggerBindingReads::SOURCE
+        }
+        Cost::Sacrifice(among, _) | Cost::Discard(among, _) | Cost::ExileFromGraveyard(among, _) => {
+            TriggerBindingReads::SOURCE | filter_reads(among)
+        }
     }
 }
 
@@ -446,6 +464,7 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         | Primitive::CounterSpell
         | Primitive::CounterAbility
         | Primitive::Counter => TriggerBindingReads::NONE,
+        Primitive::Pay { costs, .. } => costs.iter().fold(TriggerBindingReads::NONE, |reads, cost| reads | cost_reads(cost)),
         Primitive::Mill(n)
         | Primitive::PutTopCardsIntoHand(n)
         | Primitive::Discard(n, _)

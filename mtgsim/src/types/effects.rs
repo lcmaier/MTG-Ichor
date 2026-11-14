@@ -14,7 +14,8 @@ use crate::state::game_state::PhaseType;
 pub enum AmountExpr {
     /// A constant known at definition time
     Fixed(u64),
-    /// X, chosen when the spell/ability is cast/activated (rule 107.3)
+    /// X, chosen when the spell/ability is cast/activated (rule 107.3), or as
+    /// it resolves when no cost has one: the amount a payment chose (107.3f).
     X,
     /// "equal to the number of [objects in the set]"
     CountOf(ObjectSet),
@@ -184,6 +185,17 @@ pub enum PlayerRef {
     /// 506.2, 802.2), for one target's filter or an activation's restriction,
     /// where what the controller picks is the choice. Nobody outside combat.
     AnyDefendingPlayer,
+    /// The player a resolving instruction's recipient names, an object naming
+    /// its controller now (CR 108.4, a spell's included): Mana Leak's "its
+    /// controller" is the target spell's (`SameInstanceAs`), ward's "that
+    /// player" a trigger's player (`TriggeringPlayer`, CR 702.21a). Read as the
+    /// instruction applies, and only by a resolution.
+    NamedBy(Box<EffectRecipient>),
+    /// "Any player may", "unless any player pays" (CR 118.12a): each player in
+    /// the game, asked in APNAP order (CR 101.4) until one does. Only an
+    /// `Effect::Optional`'s chooser, which walks them; every other reader
+    /// refuses it.
+    AnyPlayer,
 }
 
 /// CR 701.9b — who picks which card is discarded.
@@ -2673,6 +2685,16 @@ pub enum Primitive {
     /// the stack object it is handed is, a spell to its owner's graveyard and
     /// an ability off the stack (CR 701.6a).
     Counter,
+
+    // === A cost paid as the effect resolves (CR 118.12) ===
+    /// "You may pay {1}", "unless its controller pays {3}" (CR 118.12a), ward's
+    /// (702.21a), "sacrifice this unless you sacrifice a creature": `costs`, paid
+    /// as the effect resolves, in the order written (CR 608.2c), by the chooser
+    /// of the `Effect::Optional` it is the whole of. Offered only when that
+    /// player can pay (CR 118.3), with mana abilities activated first (CR
+    /// 605.3a). `any_amount_of` is "any amount of {R}": the payer chooses how
+    /// many of it they pay as they pay (CR 107.3f), which is the resolution's X.
+    Pay { costs: Vec<crate::types::costs::Cost>, any_amount_of: Option<super::mana::ManaCost> },
 }
 
 impl Primitive {
@@ -2734,7 +2756,10 @@ impl Primitive {
             | Primitive::ChangeType(..)
             | Primitive::GainControl { .. }
             | Primitive::Copy { .. }
-            | Primitive::CounterAbility => None,
+            | Primitive::CounterAbility
+            // A sacrifice it pays is the cost's own move, which no
+            // `Effect::Remember` marks.
+            | Primitive::Pay { .. } => None,
         }
     }
 }

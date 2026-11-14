@@ -181,6 +181,8 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::Scry { .. }
         | ChoiceKind::OrderLibraryCards { .. }
         | ChoiceKind::ApplyOptionalEffect { .. }
+        | ChoiceKind::PayAsItResolves { .. }
+        | ChoiceKind::ChooseAmountToPay { .. }
         | ChoiceKind::AllocateNextDamage { .. }
         | ChoiceKind::ChooseDamageSource { .. }
         | ChoiceKind::ChoosePlayerAsObjectEnters { .. }

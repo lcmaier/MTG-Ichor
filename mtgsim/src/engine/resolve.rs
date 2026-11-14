@@ -24,7 +24,9 @@ use crate::oracle::characteristics::{controls, defending_player_for, get_effecti
 use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
 use crate::state::restrictions::{RegisteredRestriction, RestrictionId};
 use crate::types::restriction::RestrictionDef;
+use crate::types::costs::Cost;
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, ObjectRef, PlayerId};
+use crate::types::mana::ManaCost;
 use crate::types::effects::{AffectedSet, EntersAttacking, ExtraPhasesAfter};
 use crate::types::replacement::{EntersAttackingCandidates, EventPattern, ReplacementDef, Rewrite, Uses};
 use crate::engine::returns::ReturningObject;
@@ -520,6 +522,23 @@ impl GameState {
             // own, with a `Cant` becoming `Doesnt`, since CR 118.3 lets no
             // player pay a cost they can't.
             Effect::Optional { chooser, effect: inner } => {
+                // CR 118.12's payment, and "any player may" asked of each in
+                // turn until one pays (CR 101.4).
+                if let Effect::Atom(Primitive::Pay { costs, any_amount_of }, _) = inner.as_ref() {
+                    let payers = match chooser {
+                        PlayerRef::AnyPlayer => self.players_in_game_apnap(),
+                        one => vec![self.player_the_instruction_names(one, &[], ctx, dp)?],
+                    };
+                    let mut answer = CostAnswer::Doesnt;
+                    for payer in payers {
+                        if self.offer_payment(payer, costs, any_amount_of.as_ref(), ctx, dp)? {
+                            answer = CostAnswer::Does;
+                            break;
+                        }
+                    }
+                    walk.last_cost_answer = Some(answer);
+                    return Ok(());
+                }
                 let chooser = self.player_the_instruction_names(chooser, &[], ctx, dp)?;
                 let kind = ChoiceKind::ApplyOptionalEffect { source: ctx.source };
                 if !crate::ui::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
@@ -1105,6 +1124,15 @@ impl GameState {
                 }
                 Ok(())
             }
+
+            // CR 118.12's payment is the whole of an `Effect::Optional`, whose
+            // arm offers it to its chooser; a mandatory one, whose answer is
+            // "started to pay", has no card.
+            Primitive::Pay { .. } => Err(format!(
+                "a payment on {:?} is not the whole of an `Effect::Optional`: \"[a player] may pay\" and \"unless [a player] pays\" are, \
+                 their chooser paying (CR 118.12a)",
+                ctx.source
+            )),
 
             // === Destroy and untap ===
 
@@ -2972,7 +3000,110 @@ impl GameState {
                     }
                 }
             }
+            PlayerRef::NamedBy(recipient) => self.player_named_by(recipient, ctx)?,
+            PlayerRef::AnyPlayer => {
+                return Err(format!(
+                    "\"any player\" on {:?} names no one player: an `Effect::Optional`'s chooser asks each in turn (CR 101.4), and nothing else reads it",
+                    ctx.source
+                ))
+            }
         })
+    }
+
+    /// `PlayerRef::NamedBy`'s player: the one `recipient` names as the
+    /// instruction applies, an object naming its controller now (CR 108.4).
+    /// "Its controller" reads an announced instance, "that player" a trigger's
+    /// binding; a recipient naming no one is loud, since a payer who cannot be
+    /// found is a card written against a recipient that cannot name one.
+    fn player_named_by(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Result<PlayerId, String> {
+        let named = match recipient {
+            EffectRecipient::SameInstanceAs(ix) => ctx.targets.instance(*ix).to_vec(),
+            EffectRecipient::TriggeringPlayer | EffectRecipient::Triggering(_) | EffectRecipient::Referred => {
+                self.bound_targets(recipient, ctx)?
+            }
+            other => {
+                return Err(format!("{other:?} names no player for {:?}'s instruction; an instance or a trigger's fact does", ctx.source))
+            }
+        };
+        let player = match named.first() {
+            Some(ObjectOrPlayerId::Player(player)) => Some(*player),
+            Some(ObjectOrPlayerId::Object(id)) => crate::oracle::characteristics::get_effective_controller(self, *id),
+            None => None,
+        };
+        player.ok_or_else(|| format!("{recipient:?} names no one as {:?}'s instruction applies", ctx.source))
+    }
+
+    /// CR 118.12 — `payer` may pay `costs` as the effect resolves; whether
+    /// they did. Offered only when they can (CR 118.3), so one who can't is
+    /// not asked and doesn't: Mana Leak counters a tapped-out player's spell.
+    /// Taken, the amount of an "any amount" is chosen (CR 107.3f), mana
+    /// abilities are activated (CR 605.3a), and the costs are paid in the
+    /// order written (CR 608.2c) under the resolution's own cause. A window
+    /// that ends with the cost unpaid is the payer declining: what they made
+    /// stays in their pool (CR 106.4), and nothing is reversed, since CR
+    /// 732.1's reversal is a cast's or an activation's.
+    fn offer_payment(
+        &mut self,
+        payer: PlayerId,
+        costs: &[Cost],
+        any_amount_of: Option<&ManaCost>,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<bool, String> {
+        if costs.iter().filter(|cost| matches!(cost, Cost::Mana(_))).count() > 1 {
+            return Err(format!("{:?}'s payment writes its mana as several costs, which one plan cannot split", ctx.source));
+        }
+        // "This" in a cost is the object whose text asks (CR 113.7a), and it
+        // names the payment's prompts.
+        let source = ctx.effect_source();
+        if !self.in_game(payer) || !self.can_pay_as_it_resolves(costs, payer, source) {
+            return Ok(false);
+        }
+        let amounts = match any_amount_of {
+            Some(each) => {
+                let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
+                match crate::oracle::x_values::legal_amounts_to_pay(self, payer, costs, each, on_the_battlefield) {
+                    Some(values) => Some((each, values)),
+                    None => return Ok(false),
+                }
+            }
+            None => None,
+        };
+        if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, costs.to_vec()) {
+            return Ok(false);
+        }
+        let costs = match amounts {
+            Some((each, values)) => {
+                let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, each.clone(), values);
+                self.choose_x_as_it_resolves(amount, ctx)?;
+                with_amount_of(costs, each, amount)
+            }
+            None => costs.to_vec(),
+        };
+        self.run_mana_ability_window(payer, source, &costs, dp);
+        if self.can_pay_costs(&costs, payer, source).is_err() {
+            return Ok(false);
+        }
+        let actx = ActionContext::resolving(dp, ctx);
+        let plan = self.plan_payment_as_written(&costs, payer, source, &actx)?;
+        self.pay_costs(&plan, payer, source, &actx)?;
+        Ok(true)
+    }
+
+    /// CR 107.3f — the X a payment's amount chooses as the resolution makes
+    /// it, which the rest of the resolution reads and a delayed trigger it
+    /// creates carries (107.3n).
+    fn choose_x_as_it_resolves(&mut self, x: u64, ctx: &ResolutionContext) -> Result<(), String> {
+        let resolving = self
+            .resolving
+            .as_mut()
+            .filter(|resolving| resolving.id == ctx.source)
+            .ok_or_else(|| format!("{:?} chooses X as it resolves, and no stack object of its is resolving", ctx.source))?;
+        if let Some(announced) = resolving.x_value {
+            return Err(format!("{:?} has X {announced} already, and a payment's amount would be a second (CR 107.3f)", ctx.source));
+        }
+        resolving.x_value = Some(x);
+        Ok(())
     }
 
     /// The players `group` names, over the seats still in the game, each once,
@@ -3288,6 +3419,21 @@ fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> Strin
         "a primitive on {:?} was handed {:?}, a back-reference to an instance of \"target\" rather than the clause that declared it (CR 115.3). Resolve it through `targeting::instance_of`.",
         ctx.source, recipient
     )
+}
+
+/// `costs` with `amount` of `each` added to its mana, which is one cost
+/// (`offer_payment` refuses two), or a mana cost of its own after the rest.
+fn with_amount_of(costs: &[Cost], each: &ManaCost, amount: u64) -> Vec<Cost> {
+    let more = (0..amount).flat_map(|_| each.symbols.iter().copied());
+    let mut costs = costs.to_vec();
+    match costs.iter_mut().find_map(|cost| match cost {
+        Cost::Mana(mana) => Some(mana),
+        _ => None,
+    }) {
+        Some(mana) => mana.symbols.extend(more),
+        None => costs.push(Cost::Mana(ManaCost::from_symbols(more.collect()))),
+    }
+    costs
 }
 
 /// Each target CR 608.2b left in `survivors` with its share of `division`,

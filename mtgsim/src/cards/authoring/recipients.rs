@@ -163,6 +163,28 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
 }
 
 // ---------------------------------------------------------------------------
+// The player who does a resolving instruction
+// ---------------------------------------------------------------------------
+
+/// "Its controller" (CR 108.4): the player who controls what `it` names as
+/// the instruction applies, Mana Leak's target spell's.
+pub fn its_controller(it: EffectRecipient) -> PlayerRef {
+    PlayerRef::NamedBy(Box::new(it))
+}
+
+/// "That player" on a triggered ability: the player of its triggering
+/// event, ward's opponent whose spell or ability targeted (CR 702.21a).
+pub fn that_player() -> PlayerRef {
+    PlayerRef::NamedBy(Box::new(EffectRecipient::TriggeringPlayer))
+}
+
+/// "Any player" (CR 118.12a's "unless any player pays"): each player, asked
+/// in APNAP order (CR 101.4) until one does.
+pub fn any_player() -> PlayerRef {
+    PlayerRef::AnyPlayer
+}
+
+// ---------------------------------------------------------------------------
 // The filters a recipient word takes
 // ---------------------------------------------------------------------------
 //
