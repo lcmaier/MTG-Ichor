@@ -1946,8 +1946,20 @@ rider (Path of Ancestry), kept mana (Leyline Tyrant) and the amount spent
   moves to the restricted row, whose first card is its first consumer. The
   watch list, `{S}` and the snow cards become a fourth row after v0.5.
 
-**Recommended: snow after v0.5**, by the route's own rule. The table below
-is as drawn until the owner answers, and is re-cut and re-sized on a yes.
+**Recommended: as drawn**, changed in round 2 on the owner's question
+whether snow first helps the build. It does, in three ways.
+- `{S}` is the only consumer before v0.5 of the record's source half: the
+  watch list, the read at production, and a sacrificed source's last known
+  information. Without it that half ships with nothing reading it, or is
+  added after v0.5 to the record, the decision that costs most to change.
+- It gives the split over classes a first consumer whose two classes differ
+  by their source and nothing else. Restricted mana differs by a
+  restriction as well, so a wrong answer there has two possible causes.
+- The reading the judges gave gets its test while it is fresh.
+
+The route already carries a double-faced card no deck holds, for the same
+reason (the owner). The cost is about half a PR ahead of v0.5, and the
+table below stands as drawn.
 
 #### Decision 9: whether the build comes before `costs-and-choices-at-resolution`
 
