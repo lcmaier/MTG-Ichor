@@ -3070,7 +3070,8 @@ impl GameState {
                 let on_the_battlefield = self.battlefield.contains_key(&source).then_some(source);
                 let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, &offer, unit, on_the_battlefield);
                 let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, unit.clone(), values);
-                (mana_then(Some(with_amount_of(mana, unit, amount)), others), Some(amount))
+                let mana = mana.cloned().unwrap_or_else(ManaCost::zero).with_copies_of(unit, amount);
+                (mana_then(Some(mana), others), Some(amount))
             }
             None => (offer, None),
         };
@@ -3424,16 +3425,6 @@ fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> Strin
 fn mana_then(mana: Option<ManaCost>, others: &[Cost]) -> Vec<Cost> {
     mana.map(Cost::Mana).into_iter().chain(others.iter().cloned()).collect()
 }
-
-/// `mana` with `amount` of `each` added: an "any amount" chosen (CR 107.3f).
-fn with_amount_of(mana: Option<&ManaCost>, each: &ManaCost, amount: u64) -> ManaCost {
-    let mut symbols = mana.map(|mana| mana.symbols.clone()).unwrap_or_default();
-    for _ in 0..amount {
-        symbols.extend_from_slice(&each.symbols);
-    }
-    ManaCost::from_symbols(symbols)
-}
-
 /// Each target CR 608.2b left in `survivors` with its share of `division`,
 /// found by identity, since one instance never holds a target twice (CR
 /// 601.2c). A survivor with no share is a divided clause that resolved with

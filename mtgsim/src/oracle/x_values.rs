@@ -198,13 +198,8 @@ pub fn payable_amounts_of_any_amount(
     let non_mana = NonManaCosts { source, costs: &others };
     let fixed = Cost::mana_part(costs);
     let supply = std::cell::OnceCell::new();
-    let payable = |amount: u64| {
-        let mut symbols = fixed.symbols.clone();
-        for _ in 0..amount {
-            symbols.extend_from_slice(&unit.symbols);
-        }
-        crate::oracle::mana_helpers::mana_payable(game, payer, &ManaCost::from_symbols(symbols), &non_mana, &supply)
-    };
+    let payable =
+        |amount: u64| crate::oracle::mana_helpers::mana_payable(game, payer, &fixed.with_copies_of(unit, amount), &non_mana, &supply);
     let (mut most, mut past) = (0, 1);
     while payable(past) {
         most = past;
