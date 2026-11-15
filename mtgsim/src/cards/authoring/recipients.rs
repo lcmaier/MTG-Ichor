@@ -181,6 +181,7 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
 /// objects or the player a choose step before it kept under `name`
 /// ([`super::instructions::choose_objects`], `choose_player`).
 pub fn the_chosen(name: ChoiceName) -> EffectRecipient {
+    debug_assert!(matches!(name, ChoiceName::Player | ChoiceName::Objects), "a verb acts on a chosen player or chosen objects, never on {name:?}");
     EffectRecipient::ChosenAs(name)
 }
 
@@ -189,22 +190,27 @@ pub fn the_chosen(name: ChoiceName) -> EffectRecipient {
 /// `name`: `power_at_least(chosen(ChoiceName::Number))`,
 /// `creature().and(chosen(ChoiceName::Color))`,
 /// `creature().other_than(chosen(ChoiceName::Objects))`.
-pub fn chosen(name: ChoiceName) -> Chosen {
-    Chosen(name)
+pub fn chosen(name: ChoiceName) -> ChosenWord {
+    ChosenWord(name)
 }
 
 /// [`chosen`]'s word, until the place it is written says whether it is an
-/// amount or a filter.
-pub struct Chosen(ChoiceName);
+/// amount or a filter. Each place takes the names that hold its kind of
+/// thing, and refuses another where every card is built, in the registry's
+/// tests.
+pub struct ChosenWord(ChoiceName);
 
-impl From<Chosen> for AmountExpr {
-    fn from(chosen: Chosen) -> Self {
+impl From<ChosenWord> for AmountExpr {
+    fn from(chosen: ChosenWord) -> Self {
+        debug_assert!(matches!(chosen.0, ChoiceName::Number), "an amount reads a chosen number, never {:?}", chosen.0);
         AmountExpr::ChosenAs(chosen.0)
     }
 }
 
-impl From<Chosen> for ObjectFilter {
-    fn from(chosen: Chosen) -> Self {
+impl From<ChosenWord> for ObjectFilter {
+    fn from(chosen: ChosenWord) -> Self {
+        let describes_objects = matches!(chosen.0, ChoiceName::Color | ChoiceName::CreatureType | ChoiceName::CardType | ChoiceName::Objects);
+        debug_assert!(describes_objects, "a filter reads a chosen color, type or objects, never {:?}", chosen.0);
         ObjectFilter::ChosenAs(chosen.0)
     }
 }
