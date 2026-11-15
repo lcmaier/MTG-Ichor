@@ -47,8 +47,10 @@ What is left for this file's two other rows:
   third row's intake.
 
 The shapes below are the note's. As built, each choose word takes its
-chooser first (`choose_number(you(), 0, 10)`), and a name is written
-`chosen(ChoiceName::Number)` or `the_chosen(ChoiceName::Objects)`.
+chooser first (`choose_number(you(), 0, 10)`), a kept choice is read with
+`the_chosen_number()`, `color(the_chosen_color())`, `the_chosen_objects()`
+and their siblings, and the enum the note calls `ChoiceName` is `ChoiceKind`
+(the question types became `Decision*` in #331).
 
 ## The model: choose, keep, use
 
@@ -282,13 +284,13 @@ What the decisions below recommend, in one place.
 /// one spell or ability. Nearly every card keeps one thing of a kind, so
 /// the names are the kinds; a card that keeps two of a kind gets a second
 /// name here, with that card (Gluntch's second and third players).
-pub enum ChoiceName { Color, CreatureType, CardType, Number, Player, Objects }
+pub enum ChoiceKind { Color, CreatureType, CardType, Number, Player, Objects }
 
 enum Primitive {
     // …
     /// Choose something as this step runs (CR 608.2d) and keep it under
     /// `name`. Nothing else happens.
-    ChooseValue { name: ChoiceName, what: ValueChoice, how: ChosenHow },
+    ChooseValue { name: ChoiceKind, what: ValueChoice, how: ChosenHow },
 }
 
 /// What a choose step asks for.
@@ -318,9 +320,9 @@ pub enum ChosenValue {
 }
 
 // A later step reads a name where it would otherwise hold a plain value.
-EffectRecipient::ChosenAs(ChoiceName)  // act on the objects, or the player, kept under the name
-AmountExpr::ChosenAs(ChoiceName)       // the number kept under the name
-ObjectFilter::ChosenAs(ChoiceName)     // an object of the chosen color or type, or one of the chosen objects
+EffectRecipient::ChosenAs(ChoiceKind)  // act on the objects, or the player, kept under the name
+AmountExpr::ChosenAs(ChoiceKind)       // the number kept under the name
+ObjectFilter::ChosenAs(ChoiceKind)     // an object of the chosen color or type, or one of the chosen objects
 
 // "Creatures with power 3 or greater", "toughness 2 or less": one filter
 // for every number read off an object and compared with another number,
@@ -330,7 +332,7 @@ pub enum ValueIs { AtLeast(AmountExpr), AtMost(AmountExpr), Exactly(AmountExpr),
 
 // state/game_state.rs, on the record of the spell or ability now resolving,
 // beside the X chosen as it resolves
-pub choices: Vec<(ChoiceName, ChosenValue)>,
+pub choices: Vec<(ChoiceKind, ChosenValue)>,
 ```
 
 Two cards written with them, in the helpers cards use today (`each(filter)`

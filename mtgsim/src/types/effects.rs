@@ -159,15 +159,15 @@ pub enum AmountExpr {
     /// "The chosen number", "that many": the number a choose step of this
     /// resolution kept under the name ([`Primitive::ChooseValue`]). A
     /// resolution's alone.
-    ChosenAs(ChoiceName),
+    ChosenAs(ChoiceKind),
 }
 
-/// The name a choice made as an effect resolves is kept under, so a later
-/// step can read it (CR 608.2d). Local to one spell or ability. Nearly every
-/// card keeps one thing of a kind, so the names are the kinds; a card that
-/// keeps two of a kind at once gets a second name here, with that card.
+/// What kind of thing a choice made as an effect resolves chose, which is
+/// how a later step of the same spell or ability finds it (CR 608.2d). A
+/// card that keeps two choices of one kind at once adds a second variant
+/// here, with that card.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ChoiceName {
+pub enum ChoiceKind {
     Color,
     CreatureType,
     CardType,
@@ -200,15 +200,15 @@ pub enum ValueChoice {
 }
 
 impl ValueChoice {
-    /// The name the kind's answer is kept under.
-    pub fn name_of_its_kind(&self) -> ChoiceName {
+    /// The kind of thing this question chooses.
+    pub fn kind(&self) -> ChoiceKind {
         match self {
-            ValueChoice::Color => ChoiceName::Color,
-            ValueChoice::CreatureType => ChoiceName::CreatureType,
-            ValueChoice::CardType(_) => ChoiceName::CardType,
-            ValueChoice::Number { .. } => ChoiceName::Number,
-            ValueChoice::Player(_) => ChoiceName::Player,
-            ValueChoice::Objects(..) => ChoiceName::Objects,
+            ValueChoice::Color => ChoiceKind::Color,
+            ValueChoice::CreatureType => ChoiceKind::CreatureType,
+            ValueChoice::CardType(_) => ChoiceKind::CardType,
+            ValueChoice::Number { .. } => ChoiceKind::Number,
+            ValueChoice::Player(_) => ChoiceKind::Player,
+            ValueChoice::Objects(..) => ChoiceKind::Objects,
         }
     }
 }
@@ -451,7 +451,7 @@ pub enum ObjectFilter {
     /// ([`Primitive::ChooseValue`]). A resolution writes the kept value in
     /// just before it matches the filter, so the table never answers this
     /// leaf, and refuses it.
-    ChosenAs(ChoiceName),
+    ChosenAs(ChoiceKind),
     /// One of these objects, each the existence named (CR 400.7): what
     /// [`Self::ChosenAs`] becomes for a choice of objects, so "destroy the
     /// rest" is its `Not`. Identity, which no layer changes.
@@ -1491,7 +1491,7 @@ pub enum EffectRecipient {
     /// ([`Primitive::ChooseValue`]). Each object is found only while it is
     /// the existence chosen (CR 400.7), and a divided choice hands the verb
     /// each one's share. Nothing kept under the name is nothing to act on.
-    ChosenAs(ChoiceName),
+    ChosenAs(ChoiceKind),
 }
 
 /// A choice made as an effect applies ([`EffectRecipient::ChosenBy`]).
@@ -2928,13 +2928,13 @@ pub enum Primitive {
     // === A choice made as the effect resolves (CR 608.2d) ===
     /// "Choose a number between 0 and 10", "choose a creature type", "choose
     /// up to one creature": ask for `what` as this step runs, or draw it at
-    /// random, and keep the answer under `name` for the steps after it, which
+    /// random, and keep the answer as its `kind` for the steps after it, which
     /// read it as what they act on ([`EffectRecipient::ChosenAs`]), as a
     /// number ([`AmountExpr::ChosenAs`]) or in a filter
     /// ([`ObjectFilter::ChosenAs`]). Nothing else happens. A step that runs
     /// again replaces what it kept. Its atom's recipient is `Implicit`: who
     /// chooses is `how`'s.
-    ChooseValue { name: ChoiceName, what: ValueChoice, how: ChosenHow },
+    ChooseValue { kind: ChoiceKind, what: ValueChoice, how: ChosenHow },
 }
 
 impl Primitive {

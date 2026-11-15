@@ -1813,7 +1813,7 @@ mod instance_references {
 
     /// Whether `recipient` can hand a verb, or a choose step, a player.
     fn can_name_a_player(recipient: &EffectRecipient, whole: &Effect) -> bool {
-        use crate::types::effects::{ChoiceName, SelectionFilter};
+        use crate::types::effects::{ChoiceKind, SelectionFilter};
         match recipient {
             EffectRecipient::Implicit
             | EffectRecipient::Controller
@@ -1822,7 +1822,7 @@ mod instance_references {
             | EffectRecipient::DefendingPlayer(_)
             | EffectRecipient::AttackedBy(_)
             | EffectRecipient::EachOf(_) => true,
-            EffectRecipient::ChosenAs(kept) => *kept == ChoiceName::Player,
+            EffectRecipient::ChosenAs(kept) => *kept == ChoiceKind::Player,
             EffectRecipient::Target(filter, _) => matches!(filter.without_another(), SelectionFilter::Player(_) | SelectionFilter::Any),
             EffectRecipient::SameInstanceAs(ix) => whole.instance(*ix).is_some_and(|clause| can_name_a_player(clause, whole)),
             EffectRecipient::ThisObject
@@ -1906,7 +1906,7 @@ mod instance_references {
     /// A read is found in a step's `Debug` print (`ChosenAs(..)`), so a read
     /// however deep in a filter or an amount is one this sees.
     fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
-        use crate::types::effects::{ChoiceName, ChosenHow, Primitive};
+        use crate::types::effects::{ChoiceKind, ChosenHow, Primitive};
 
         fn names_read_in(printed: &str) -> Vec<&str> {
             printed.split("ChosenAs(").skip(1).filter_map(|rest| rest.split(')').next()).collect()
@@ -1920,7 +1920,7 @@ mod instance_references {
         }
 
         impl<'a> Walk<'a> {
-            fn read(&mut self, printed: &str, kept: &[ChoiceName]) {
+            fn read(&mut self, printed: &str, kept: &[ChoiceKind]) {
                 for name in names_read_in(printed) {
                     self.reads += 1;
                     if !kept.iter().any(|kept_as| format!("{kept_as:?}") == name) {
@@ -1930,7 +1930,7 @@ mod instance_references {
             }
 
             /// `effect`, with `kept` the choices made before it.
-            fn step(&mut self, effect: &'a Effect, kept: &mut Vec<ChoiceName>) {
+            fn step(&mut self, effect: &'a Effect, kept: &mut Vec<ChoiceKind>) {
                 match effect {
                     Effect::Atom(primitive, recipient) => {
                         let outlasts_the_resolution = matches!(
@@ -1949,7 +1949,7 @@ mod instance_references {
                         if matches!(recipient, EffectRecipient::Choose(..)) {
                             self.problems.push(format!("{recipient:?} is a question's label: a card chooses with a choose step"));
                         }
-                        if let Primitive::ChooseValue { name, how, .. } = primitive {
+                        if let Primitive::ChooseValue { kind, how, .. } = primitive {
                             if *recipient != EffectRecipient::Implicit {
                                 self.problems.push(format!("a choose step acts on nothing, and is written on {recipient:?}"));
                             }
@@ -1958,7 +1958,7 @@ mod instance_references {
                             {
                                 self.problems.push(format!("{chooser:?} names no player to make the choice"));
                             }
-                            kept.push(*name);
+                            kept.push(*kind);
                         }
                     }
                     Effect::Sequence(steps) => steps.iter().for_each(|step| self.step(step, kept)),
@@ -2049,7 +2049,7 @@ mod instance_references {
             choose_color, choose_number, choose_objects, choose_one, color, creature, destroy, draw_cards, each, gains_ability, spell_ability,
             the_chosen_color, the_chosen_number, the_chosen_objects, you,
         };
-        use crate::types::effects::{ChoiceName, ChosenHow, PlayerRef, Primitive, SelectionFilter, TargetCount, ValueChoice};
+        use crate::types::effects::{ChoiceKind, ChosenHow, PlayerRef, Primitive, SelectionFilter, TargetCount, ValueChoice};
 
         let problems = |effect: Effect| chosen_name_problems(&effect).0;
         let destroys_the_chosen = || destroy(the_chosen_objects());
@@ -2078,7 +2078,7 @@ mod instance_references {
         let lasting = gains_ability(each(creature()), spell_ability("", draw_cards(you(), the_chosen_number()))).until_end_of_turn();
         assert_eq!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), lasting])).len(), 1, "read by an ability that outlasts it");
         let on_a_recipient = Effect::Atom(
-            Primitive::ChooseValue { name: ChoiceName::Color, what: ValueChoice::Color, how: ChosenHow::By(you()) },
+            Primitive::ChooseValue { kind: ChoiceKind::Color, what: ValueChoice::Color, how: ChosenHow::By(you()) },
             you(),
         );
         assert_eq!(problems(on_a_recipient).len(), 1, "a choose step on a recipient");
@@ -2095,7 +2095,7 @@ mod instance_references {
     /// each row's count being its target's share.
     #[test]
     fn every_divided_atom_prints_what_its_clause_divides() {
-        use crate::types::effects::{AmountExpr, ChoiceName, Primitive, TargetCount, ValueChoice};
+        use crate::types::effects::{AmountExpr, ChoiceKind, Primitive, TargetCount, ValueChoice};
         let pool = CardRegistry::fixture_pool();
         let mut names: Vec<String> = pool.cards.keys().cloned().collect();
         names.sort();
@@ -2104,10 +2104,10 @@ mod instance_references {
             for ability in (pool.cards[name.as_str()])().abilities.iter() {
                 // What each choose step of the ability divides, by the name
                 // it keeps the objects and their shares under.
-                let mut kept_divisions: Vec<(ChoiceName, &AmountExpr)> = Vec::new();
+                let mut kept_divisions: Vec<(ChoiceKind, &AmountExpr)> = Vec::new();
                 for_each_atom(&ability.effect, &mut |primitive, _| {
-                    if let Primitive::ChooseValue { name, what: ValueChoice::Objects(_, TargetCount::Divided(clause)), .. } = primitive {
-                        kept_divisions.push((*name, &clause.total));
+                    if let Primitive::ChooseValue { kind, what: ValueChoice::Objects(_, TargetCount::Divided(clause)), .. } = primitive {
+                        kept_divisions.push((*kind, &clause.total));
                     }
                 });
                 for_each_atom(&ability.effect, &mut |primitive, recipient| {

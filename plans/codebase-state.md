@@ -10808,7 +10808,7 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
 
 426. **"It" after a choice made as the effect applies has no word.** — ✅
      closed. A choose step keeps what it chose under a name
-     (`ChoiceName`), and a later step reads the name: as what a verb acts
+     (`ChoiceKind`), and a later step reads the name: as what a verb acts
      on, as an amount, or inside a filter. Every choice of objects is a
      choose step, so a chain on "the chosen" never chooses again, and the
      builder's refusal of a chain went with the shape it guarded. As filed:

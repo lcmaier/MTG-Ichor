@@ -20,7 +20,7 @@ use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::oracle::x_values::XOffer;
 use crate::types::card_types::{CardType, Subtype};
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, ChoiceName, ChoiceScope, ChosenHow, ChosenValue, Condition, CopyException, CopyRoles, CostAnswer,
+    AmountExpr, Antecedent, Choice, ChoiceKind, ChoiceScope, ChosenHow, ChosenValue, Condition, CopyException, CopyRoles, CostAnswer,
     DiscardChooser, Duration, Effect, EffectRecipient, ModeIndex, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount,
     PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice,
 };
@@ -615,7 +615,7 @@ impl GameState {
                 Err(format!("{recipient:?} on {:?} is a question's label: a card chooses objects with a choose step", ctx.source))
             }
             // "It", "that player": what a choose step of this resolution kept.
-            EffectRecipient::ChosenAs(name) => self.kept_as_recipients(recipient, *name, ctx),
+            EffectRecipient::ChosenAs(kind) => self.kept_as_recipients(recipient, *kind, ctx),
             _ => match instance_of(recipient, declared, &mut walk.instance_cursor) {
                 // The atom that declared the division acts by the shares;
                 // a later one naming its instance ("each of those
@@ -805,26 +805,26 @@ impl GameState {
         }
     }
 
-    /// What a choose step of `ctx`'s resolution kept under `name`. `None`
+    /// What a choose step of `ctx`'s resolution kept as `kind`. `None`
     /// when no step has, or the step that last ran chose nothing.
-    pub(crate) fn kept_under(&self, name: ChoiceName, ctx: &ResolutionContext) -> Option<&ChosenValue> {
-        self.resolving_for(ctx)?.choices.iter().find(|(kept_as, _)| *kept_as == name).map(|(_, value)| value)
+    pub(crate) fn kept_under(&self, kind: ChoiceKind, ctx: &ResolutionContext) -> Option<&ChosenValue> {
+        self.resolving_for(ctx)?.choices.iter().find(|(kept_as, _)| *kept_as == kind).map(|(_, value)| value)
     }
 
-    /// Keep what a choose step chose under `name` for the rest of the
+    /// Keep what a choose step chose as `kind` for the rest of the
     /// resolution, in place of what a step that ran before kept there: a
-    /// step that chose nothing leaves nothing under the name, never the
+    /// step that chose nothing leaves nothing of that kind, never the
     /// earlier answer. On the resolving object, as the X chosen as an effect
     /// resolves is; a rider and a mana ability resolve none, and have
     /// nowhere to keep one.
-    fn keep_under(&mut self, name: ChoiceName, chosen: Option<ChosenValue>, ctx: &ResolutionContext) -> Result<(), String> {
+    fn keep_under(&mut self, kind: ChoiceKind, chosen: Option<ChosenValue>, ctx: &ResolutionContext) -> Result<(), String> {
         let resolving = self
             .resolving
             .as_mut()
             .filter(|resolving| resolving.id == ctx.source)
             .ok_or_else(|| format!("{:?} chooses as it resolves, and no stack object of its is resolving", ctx.source))?;
-        resolving.choices.retain(|(kept_as, _)| *kept_as != name);
-        resolving.choices.extend(chosen.map(|value| (name, value)));
+        resolving.choices.retain(|(kept_as, _)| *kept_as != kind);
+        resolving.choices.extend(chosen.map(|value| (kind, value)));
         Ok(())
     }
 
@@ -832,9 +832,9 @@ impl GameState {
     /// while it is still the existence chosen (CR 400.7) and with its share
     /// of a divided choice, or the player it kept, while that player is in
     /// the game. Nothing kept is nothing to act on.
-    fn kept_as_recipients<'a>(&self, recipient: &'a EffectRecipient, name: ChoiceName, ctx: &ResolutionContext) -> Result<Recipients<'a>, String> {
+    fn kept_as_recipients<'a>(&self, recipient: &'a EffectRecipient, kind: ChoiceKind, ctx: &ResolutionContext) -> Result<Recipients<'a>, String> {
         let still_here = |existence: &ObjectRef| self.find(*existence).map(|_| ObjectOrPlayerId::Object(existence.id));
-        match self.kept_under(name, ctx) {
+        match self.kept_under(kind, ctx) {
             None => Ok(Recipients::Nothing),
             Some(ChosenValue::Player(player)) if !self.in_game(*player) => Ok(Recipients::Nothing),
             Some(ChosenValue::Player(player)) => {
@@ -866,7 +866,7 @@ impl GameState {
             Ok(self.filter_as_read_now(inner, ctx)?.map(|read| Box::new(read.into_owned())))
         };
         Ok(Some(Cow::Owned(match filter {
-            ObjectFilter::ChosenAs(name) => match self.kept_under(*name, ctx) {
+            ObjectFilter::ChosenAs(kind) => match self.kept_under(*kind, ctx) {
                 Some(ChosenValue::Color(color)) => ObjectFilter::ByColor(*color),
                 Some(ChosenValue::CreatureType(creature_type)) => ObjectFilter::BySubtype(Subtype::Creature(*creature_type)),
                 Some(ChosenValue::CardType(card_type)) => ObjectFilter::ByType(*card_type),
@@ -878,8 +878,8 @@ impl GameState {
                 None => return Ok(None),
             },
             ObjectFilter::WithValue { of, is } => {
-                if let AmountExpr::ChosenAs(name) = is.amount()
-                    && self.kept_under(*name, ctx).is_none()
+                if let AmountExpr::ChosenAs(kind) = is.amount()
+                    && self.kept_under(*kind, ctx).is_none()
                 {
                     return Ok(None);
                 }
@@ -1444,9 +1444,9 @@ impl GameState {
             // CR 608.2d — choose as this step runs, and keep the answer for
             // the steps after it. Nothing chosen (no one to choose, no player
             // to name) keeps nothing, and a step naming it finds nothing.
-            Primitive::ChooseValue { name, what, how } => {
+            Primitive::ChooseValue { kind, what, how } => {
                 let chosen = self.choose_value(what, how, ctx, dp, walk)?;
-                self.keep_under(*name, chosen, ctx)
+                self.keep_under(*kind, chosen, ctx)
             }
 
             // CR 118.12's payment is the whole of an `Effect::Optional`, whose
@@ -3098,7 +3098,7 @@ impl GameState {
             // number never chosen is an error, as an X never chosen is: the
             // part that reads it should not happen (CR 608.2b), and no verb
             // can be told so from here.
-            AmountExpr::ChosenAs(name) => match self.kept_under(*name, _ctx) {
+            AmountExpr::ChosenAs(kind) => match self.kept_under(*kind, _ctx) {
                 Some(ChosenValue::Number(number)) => Ok(*number),
                 Some(other) => Err(format!("{expr:?} on {:?} reads a number, and the choice kept {other:?}", _ctx.source)),
                 None => Err(format!("{expr:?} on {:?} reads a number no choose step has kept", _ctx.source)),
@@ -3338,7 +3338,7 @@ impl GameState {
             EffectRecipient::SameInstanceAs(ix) => ctx.targets.instance(*ix).to_vec(),
             // "That player", where a choose step kept one. A chosen object's
             // controller is no word yet.
-            EffectRecipient::ChosenAs(name) => match self.kept_under(*name, ctx) {
+            EffectRecipient::ChosenAs(kind) => match self.kept_under(*kind, ctx) {
                 Some(ChosenValue::Player(player)) => vec![ObjectOrPlayerId::Player(*player)],
                 _ => Vec::new(),
             },
@@ -3585,7 +3585,7 @@ impl GameState {
                 .collect(),
             // "That player", where a choose step kept a player; no one where
             // it chose nothing.
-            EffectRecipient::ChosenAs(name) => match self.kept_under(*name, ctx) {
+            EffectRecipient::ChosenAs(kind) => match self.kept_under(*kind, ctx) {
                 Some(ChosenValue::Player(player)) => vec![*player],
                 _ => Vec::new(),
             },

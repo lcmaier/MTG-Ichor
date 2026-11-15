@@ -1387,7 +1387,7 @@ PR #330, the first of `values-chosen-at-resolution`'s three: every kind of decis
 card can use as the effect resolves, items 425, 426 and 292, most of item 394. The design note is
 `handoffs/values-chosen-at-resolution.md`; the full as-built is `archive/choices-architecture-landed.md`.
 - **The model**: choose, keep, use. `Primitive::ChooseValue { name, what, how }` chooses and does
-  nothing else; the answer is kept on `ResolvingObject::choices` under a `ChoiceName` (a kind, one
+  nothing else; the answer is kept on `ResolvingObject::choices` under a `ChoiceKind` (a kind, one
   name each) and is gone with the object (CR 608.2n).
 - **What and who**: `ValueChoice` is a color, a creature type (CR 205.3m's 316), a card type or a
   printed few, a number between printed bounds, a player in a `PlayerSet`, or objects by a filter

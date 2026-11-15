@@ -303,7 +303,7 @@ pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>, u
 // `at_random()`.
 
 fn choose_step(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
-    Effect::Atom(Primitive::ChooseValue { name: what.name_of_its_kind(), what, how: chooser.into() }, EffectRecipient::Implicit)
+    Effect::Atom(Primitive::ChooseValue { kind: what.kind(), what, how: chooser.into() }, EffectRecipient::Implicit)
 }
 
 /// "At random", where a choose step's chooser goes: nobody is asked.

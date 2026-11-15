@@ -7,7 +7,7 @@
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, ChoiceName, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef,
+    AmountExpr, Antecedent, Choice, ChoiceKind, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef,
     PlayerSet, SelectionFilter, TargetCount, ValueIs,
 };
 use crate::types::triggers::EventRole;
@@ -190,14 +190,14 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
 /// "That player", "the chosen player": the player chosen, while they are in
 /// the game.
 pub fn the_chosen_player() -> EffectRecipient {
-    EffectRecipient::ChosenAs(ChoiceName::Player)
+    EffectRecipient::ChosenAs(ChoiceKind::Player)
 }
 
 /// "It", "that creature", "the chosen creatures": the objects chosen, each
 /// while it is still the object chosen (CR 400.7), with its share where an
 /// amount was divided among them.
 pub fn the_chosen_objects() -> EffectRecipient {
-    EffectRecipient::ChosenAs(ChoiceName::Objects)
+    EffectRecipient::ChosenAs(ChoiceKind::Objects)
 }
 
 /// "The chosen color", where a card could print a color: Wash Out's
@@ -239,14 +239,14 @@ impl<T> From<T> for PrintedOrChosen<T> {
 /// "One of the chosen objects", in a filter: Duneblast's "destroy the rest"
 /// is `destroy(each(creature().other_than(one_of_the_chosen())))`.
 pub fn one_of_the_chosen() -> ObjectFilter {
-    ObjectFilter::ChosenAs(ChoiceName::Objects)
+    ObjectFilter::ChosenAs(ChoiceKind::Objects)
 }
 
 /// "The chosen number", "that many" after a number is chosen, as an amount:
 /// Expel the Interlopers' "power greater than or equal to the chosen number"
 /// is `power_at_least(the_chosen_number())`.
 pub fn the_chosen_number() -> AmountExpr {
-    AmountExpr::ChosenAs(ChoiceName::Number)
+    AmountExpr::ChosenAs(ChoiceKind::Number)
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +290,7 @@ pub fn non(filter: ObjectFilter) -> ObjectFilter {
 pub fn color(which: impl Into<PrintedOrChosen<Color>>) -> ObjectFilter {
     match which.into() {
         PrintedOrChosen::Printed(color) => ObjectFilter::ByColor(color),
-        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceName::Color),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceKind::Color),
     }
 }
 
@@ -299,7 +299,7 @@ pub fn color(which: impl Into<PrintedOrChosen<Color>>) -> ObjectFilter {
 pub fn creature_type(which: impl Into<PrintedOrChosen<CreatureType>>) -> ObjectFilter {
     match which.into() {
         PrintedOrChosen::Printed(creature_type) => ObjectFilter::BySubtype(Subtype::Creature(creature_type)),
-        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceName::CreatureType),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceKind::CreatureType),
     }
 }
 
@@ -308,7 +308,7 @@ pub fn creature_type(which: impl Into<PrintedOrChosen<CreatureType>>) -> ObjectF
 pub fn card_type(which: impl Into<PrintedOrChosen<CardType>>) -> ObjectFilter {
     match which.into() {
         PrintedOrChosen::Printed(card_type) => ObjectFilter::ByType(card_type),
-        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceName::CardType),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceKind::CardType),
     }
 }
 
