@@ -1359,7 +1359,7 @@ untargeted half.
   ("distribute three counters" places all three), fewer than the most if the player likes (CR
   608.2d), split through `DivideAmong`, whose words fit both divisions; gone with the atom.
 - **The cards**: Final Showdown and Feast of the Victorious Dead (pooled, 127 → 128); the words
-  `chosen_permanent`, `divided_among_chosen` and `distribute_counters_among_chosen`.
+  `chosen_permanent`, `divided_among_untargeted` and `distribute_counters_among_chosen`.
 
 Where it differs from the design's words:
 - **The Black Gate and Invoke Justice wait**: The Black Gate needs decision 7's `ChoosePlayer`

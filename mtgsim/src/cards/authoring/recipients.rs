@@ -57,7 +57,7 @@ pub fn targets(count: u32, filter: SelectionFilter) -> EffectRecipient {
 
 /// `total` "divided as you choose among" `among` targets matching `what`: one
 /// instance of "target" (CR 115.3) whose announcement also divides (CR 601.2d).
-pub fn divided_among(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
+pub fn divided_among_targeted(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
     EffectRecipient::Target(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
 }
 
@@ -107,8 +107,8 @@ pub fn chosen_permanent(filter: ObjectFilter) -> EffectRecipient {
 
 /// `total` distributed among `among` objects matching `what`, none of them
 /// targets: chosen and divided as the instruction applies, at least one
-/// each (CR 608.2d). [`divided_among`] is the targets' division.
-pub fn divided_among_chosen(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
+/// each (CR 608.2d). [`divided_among_targeted`] is the targets' division.
+pub fn divided_among_untargeted(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
     EffectRecipient::Choose(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
 }
 

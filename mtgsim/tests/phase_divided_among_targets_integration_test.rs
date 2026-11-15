@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::authoring::{
-    at_beginning_of, create_delayed_trigger, deal_damage, deal_damage_divided, destroy, distribute_counters, divided_among, draw_cards,
+    at_beginning_of, create_delayed_trigger, deal_damage, deal_damage_divided, destroy, distribute_counters, divided_among_targeted, draw_cards,
     prevent_the_next_damage_divided, referred, spell_ability, the_target, whenever, you, Whose,
 };
 use mtgsim::cards::fixtures::{
@@ -361,7 +361,7 @@ fn a_share_of_counters_on_a_player_is_refused() {
 fn a_verb_that_cannot_divide_is_refused() {
     let mut game = setup_game(2);
     let text = "Destroy one or two target creatures, divided as you choose.";
-    let clause = divided_among(SelectionFilter::Creature, TargetCount::Between(1, 2), AmountExpr::Fixed(2));
+    let clause = divided_among_targeted(SelectionFilter::Creature, TargetCount::Between(1, 2), AmountExpr::Fixed(2));
     let card: Arc<CardData> = CardDataBuilder::new("Undividable")
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .card_type(CardType::Sorcery)

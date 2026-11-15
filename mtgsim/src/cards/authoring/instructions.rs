@@ -26,7 +26,7 @@ use crate::types::effects::{
     ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use crate::types::mana::ManaCost;
-use super::recipients::{divided_among, divided_among_chosen};
+use super::recipients::{divided_among_targeted, divided_among_untargeted};
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
@@ -196,14 +196,14 @@ const EACH_TARGETS_SHARE: u64 = 0;
 /// announcement that divides it.
 pub fn deal_damage_divided(what: SelectionFilter, among: TargetCount, total: impl Into<AmountExpr>) -> Effect {
     let total = total.into();
-    deal_damage(divided_among(what, among, total.clone()), total)
+    deal_damage(divided_among_targeted(what, among, total.clone()), total)
 }
 
 /// "Distribute [total] [counter]s among [among] target [what]" (CR 601.2d),
 /// put by you.
 pub fn distribute_counters(what: SelectionFilter, among: TargetCount, counter: CounterType, total: impl Into<AmountExpr>) -> Effect {
     let total = total.into();
-    put_counters(divided_among(what, among, total.clone()), counter, total)
+    put_counters(divided_among_targeted(what, among, total.clone()), counter, total)
 }
 
 /// "Distribute [total] [counter]s among [among] [what]", none of them
@@ -211,14 +211,14 @@ pub fn distribute_counters(what: SelectionFilter, among: TargetCount, counter: C
 /// by you.
 pub fn distribute_counters_among_chosen(what: SelectionFilter, among: TargetCount, counter: CounterType, total: impl Into<AmountExpr>) -> Effect {
     let total = total.into();
-    put_counters(divided_among_chosen(what, among, total.clone()), counter, total)
+    put_counters(divided_among_untargeted(what, among, total.clone()), counter, total)
 }
 
 /// "Prevent the next [total] damage that would be dealt this turn to [among]
 /// [what], divided as you choose" (CR 601.2d, 615.7): each target a shield of
 /// its own share, so the clause alone holds the total.
 pub fn prevent_the_next_damage_divided(what: SelectionFilter, among: TargetCount, total: impl Into<AmountExpr>) -> Effect {
-    prevent_the_next_n_damage_this_turn(divided_among(what, among, total.into()), EACH_TARGETS_SHARE)
+    prevent_the_next_n_damage_this_turn(divided_among_targeted(what, among, total.into()), EACH_TARGETS_SHARE)
 }
 
 /// "[Recipient] draws [amount] cards" (CR 121.1), one at a time (121.2):
