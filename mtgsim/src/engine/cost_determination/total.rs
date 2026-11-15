@@ -85,7 +85,7 @@ fn assemble_total_cost(base: Vec<Cost>, additional: &[&AdditionalCost]) -> Total
     for cost in base {
         match cost {
             Cost::Mana(base) => {
-                total.mana.add_base(&base);
+                total.mana.add_with_x_as_variable(&base);
                 total.has_mana_cost = true;
             }
             other => total.non_mana.push(other),
@@ -94,7 +94,7 @@ fn assemble_total_cost(base: Vec<Cost>, additional: &[&AdditionalCost]) -> Total
     for cost in additional.iter().flat_map(|additional| additional.costs()) {
         match cost {
             Cost::Mana(more) => {
-                total.mana.add(more);
+                total.mana.add_with_x_kept_as_symbol(more);
                 total.has_mana_cost = true;
             }
             other => total.non_mana.push(other.clone()),
@@ -165,7 +165,7 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
         return printed.clone();
     }
     let mut mana = ManaComponent::EMPTY;
-    mana.add(printed);
+    mana.add_with_x_kept_as_symbol(printed);
     modify(game, &mut mana, &instances, |sources, _| gather_order(sources));
     mana.at(0)
 }
@@ -208,7 +208,7 @@ impl TotalCostInX {
     /// CR 601.2f modifies the total of a cast, and 602.2b of an activation.
     pub fn of_a_payment(mana: &ManaCost, others: &[Cost]) -> TotalCostInX {
         let mut component = ManaComponent::EMPTY;
-        component.add_base(mana);
+        component.add_with_x_as_variable(mana);
         TotalCostInX { mana: component, non_mana: others.to_vec(), has_mana_cost: true }
     }
 
@@ -257,8 +257,10 @@ impl ManaComponent {
     pub const EMPTY: ManaComponent =
         ManaComponent { pips: Vec::new(), generic: 0, x_symbol_count: 0, generic_reduction: 0, at_least: 0 };
 
-    /// A base cost's mana, whose X is the announced X.
-    fn add_base(&mut self, mana: &ManaCost) {
+    /// Mana whose X is a variable, counted in `x_symbol_count` and settled
+    /// at [`Self::at`]: a base cost's, whose X is announced (CR 107.3a), or a
+    /// payment's as an effect resolves, whose X is chosen then (CR 107.3f).
+    fn add_with_x_as_variable(&mut self, mana: &ManaCost) {
         for symbol in &mana.symbols {
             match symbol {
                 ManaSymbol::X => self.x_symbol_count += 1,
@@ -268,8 +270,9 @@ impl ManaComponent {
         }
     }
 
-    /// Mana whose symbols are kept as printed, an X among them.
-    fn add(&mut self, mana: &ManaCost) {
+    /// Mana whose symbols are kept as printed, an X kept as a symbol among
+    /// them: an additional cost's, or a printed cost previewed.
+    fn add_with_x_kept_as_symbol(&mut self, mana: &ManaCost) {
         for symbol in &mana.symbols {
             match symbol {
                 ManaSymbol::Generic => self.generic += 1,
@@ -485,7 +488,7 @@ mod tests {
     /// `symbols` as one component, kept as printed.
     fn component(symbols: &[ManaSymbol]) -> ManaComponent {
         let mut mana = ManaComponent::EMPTY;
-        mana.add(&cost(symbols));
+        mana.add_with_x_kept_as_symbol(&cost(symbols));
         mana
     }
 
