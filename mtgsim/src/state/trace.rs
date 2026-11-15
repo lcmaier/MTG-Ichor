@@ -875,6 +875,10 @@ impl GameState {
     /// The text is `ui::display::format_event`'s, the same line
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
+    ///
+    /// Bare beside its two siblings, the one exception to twins naming their
+    /// case (`engineering-practices.md#names`): its dispatch asks no player
+    /// anything, and each sibling's name says what it adds to that.
     pub(crate) fn emit_event(&mut self, event: GameEvent, cause: EventCause) -> Result<(), String> {
         let stamp = self.events.stamp_caused_by(cause);
         self.emit_record(event, stamp, None)
