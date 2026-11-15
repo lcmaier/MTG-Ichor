@@ -1802,7 +1802,8 @@ mod instance_references {
                 | EffectRecipient::Referred
                 | EffectRecipient::DefendingPlayer(_)
                 | EffectRecipient::AttackedBy(_)
-                | EffectRecipient::EachOf(_) => true,
+                | EffectRecipient::EachOf(_)
+                | EffectRecipient::ChosenAs(_) => true,
                 EffectRecipient::Target(filter, _) => matches!(filter.without_another(), SelectionFilter::Player(_) | SelectionFilter::Any),
                 EffectRecipient::SameInstanceAs(ix) => whole.instance(*ix).is_some_and(|clause| can_name_a_player(clause, whole)),
                 EffectRecipient::ThisObject
@@ -1847,6 +1848,166 @@ mod instance_references {
             }
         }
         assert!(verbs > 0, "no registered card has a player verb, so this check reads nothing");
+    }
+
+    /// What is wrong with how `effect` reads what its choose steps keep, and
+    /// how many reads it makes. A name ("the chosen number", "it") is read
+    /// by a step of the same resolution that comes after the step keeping
+    /// it; a choose step acts on nothing; and nothing that outlasts the
+    /// resolution holds a name, since what was kept is gone with it.
+    ///
+    /// A name is found in a step's `Debug` print, so a read in any field,
+    /// however deep in a filter or an amount, is one this sees.
+    fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
+        use crate::types::effects::{ChoiceName, Primitive};
+
+        fn names_read_in(printed: &str) -> Vec<&str> {
+            printed.split("ChosenAs(").skip(1).filter_map(|rest| rest.split(')').next()).collect()
+        }
+
+        struct Walk {
+            problems: Vec<String>,
+            reads: usize,
+        }
+
+        impl Walk {
+            fn read(&mut self, printed: &str, kept: &[ChoiceName]) {
+                for name in names_read_in(printed) {
+                    self.reads += 1;
+                    if !kept.iter().any(|kept_as| format!("{kept_as:?}") == name) {
+                        self.problems.push(format!("reads {name}, which no step before it keeps: {printed}"));
+                    }
+                }
+            }
+
+            fn step(&mut self, effect: &Effect, kept: &mut Vec<ChoiceName>) {
+                match effect {
+                    Effect::Atom(primitive, recipient) => {
+                        let outlasts_the_resolution = matches!(
+                            primitive,
+                            Primitive::GrantAbility(..)
+                                | Primitive::CreateReplacement(..)
+                                | Primitive::Restrict(..)
+                                | Primitive::CreateDelayedTrigger(_)
+                                | Primitive::ExileUntil { .. }
+                        );
+                        match outlasts_the_resolution {
+                            true => self.read(&format!("{primitive:?}"), &[]),
+                            false => self.read(&format!("{primitive:?}"), kept),
+                        }
+                        self.read(&format!("{recipient:?}"), kept);
+                        if let Primitive::ChooseValue { name, .. } = primitive {
+                            if *recipient != EffectRecipient::Implicit {
+                                self.problems.push(format!("a choose step acts on nothing, and is written on {recipient:?}"));
+                            }
+                            kept.push(*name);
+                        }
+                    }
+                    Effect::Sequence(steps) => steps.iter().for_each(|step| self.step(step, kept)),
+                    // A mode reads what was kept before the modes, never
+                    // what another mode keeps: that one may not be chosen.
+                    Effect::Modal(node) => node.modes.iter().for_each(|mode| self.step(&mode.effect, &mut kept.clone())),
+                    Effect::Conditional(condition, inner) => {
+                        self.read(&format!("{condition:?}"), kept);
+                        self.step(inner, kept);
+                    }
+                    Effect::Optional { chooser, effect: inner } => {
+                        self.read(&format!("{chooser:?}"), kept);
+                        self.step(inner, kept);
+                    }
+                    Effect::ForEach(over, inner) => {
+                        self.read(&format!("{over:?}"), kept);
+                        self.step(inner, kept);
+                    }
+                    Effect::Repeat(times, inner) => {
+                        self.read(&format!("{times:?}"), kept);
+                        self.step(inner, kept);
+                    }
+                    Effect::FunctionsIn(_, inner) | Effect::Remember(inner) => self.step(inner, kept),
+                    // Another ability, resolving on its own: it reads what
+                    // its own steps keep.
+                    Effect::Triggered(def) => self.step(&def.effect, &mut Vec::new()),
+                    Effect::Replacement(def) => self.read(&format!("{def:?}"), &[]),
+                    Effect::Restriction(def) => self.read(&format!("{def:?}"), &[]),
+                    Effect::CostModification(def) => self.read(&format!("{def:?}"), &[]),
+                    Effect::TriggerMultiplier(def) => self.read(&format!("{def:?}"), &[]),
+                }
+            }
+        }
+
+        let mut walk = Walk { problems: Vec::new(), reads: 0 };
+        walk.step(effect, &mut Vec::new());
+        (walk.problems, walk.reads)
+    }
+
+    /// On every card and castable fixture, a step that reads what a choose
+    /// step kept comes after that step, in the same spell or ability. A name
+    /// read with nothing kept under it acts on nothing or errors as the
+    /// spell resolves, on the stack and paid for; caught here it is a typo.
+    #[test]
+    fn every_chosen_name_read_is_kept_by_a_step_before_it() {
+        let registry = CardRegistry::fixture_pool();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        let mut reads = 0;
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut check = |what: String, effect: &Effect| {
+                let (problems, read) = chosen_name_problems(effect);
+                assert!(problems.is_empty(), "{what}: {problems:#?}");
+                reads += read;
+            };
+            for (i, ability) in card.abilities.iter().enumerate() {
+                if ability.ability_type != crate::objects::card_data::AbilityType::Spell {
+                    check(format!("{name} ability #{i}"), &ability.effect);
+                }
+            }
+            // A spell's paragraphs resolve as one, so a later one reads what
+            // an earlier one kept.
+            if let Some(effect) = crate::objects::card_data::spell_effect(&card.abilities) {
+                check(format!("{name} as a spell"), &effect);
+            }
+        }
+        assert!(reads >= 9, "the walk found {reads} reads of a kept name; nine castable fixtures make one or more each");
+    }
+
+    /// The check above fails where it should: a name read with no choose
+    /// step, read before its choose step, read from another mode, read by
+    /// an ability that outlasts the resolution, and a choose step written on
+    /// a recipient.
+    #[test]
+    fn a_chosen_name_read_out_of_place_is_refused() {
+        use crate::cards::authoring::{
+            choose_color, choose_number, choose_objects, choose_one, chosen, creature, destroy, draw_cards, each, gains_ability, spell_ability,
+            the_chosen, you,
+        };
+        use crate::types::effects::{ChoiceName, ChosenHow, Primitive, TargetCount, ValueChoice};
+
+        let problems = |effect: Effect| chosen_name_problems(&effect).0;
+        let destroys_the_chosen = || destroy(the_chosen(ChoiceName::Objects));
+        let chooses_a_creature = || choose_objects(you(), creature(), TargetCount::Exactly(1));
+
+        assert!(problems(Effect::Sequence(vec![chooses_a_creature(), destroys_the_chosen()])).is_empty(), "kept, then read");
+        assert_eq!(problems(destroys_the_chosen()).len(), 1, "read, and never kept");
+        assert_eq!(problems(Effect::Sequence(vec![destroys_the_chosen(), chooses_a_creature()])).len(), 1, "read before it is kept");
+        assert_eq!(
+            problems(Effect::Sequence(vec![choose_color(you()), draw_cards(you(), chosen(ChoiceName::Number))])).len(),
+            1,
+            "a color kept, and a number read"
+        );
+        assert_eq!(
+            problems(Effect::Sequence(vec![choose_number(you(), 0, 3), destroy(each(creature().and(chosen(ChoiceName::Color))))])).len(),
+            1,
+            "a read inside a filter is seen"
+        );
+        assert_eq!(problems(choose_one([chooses_a_creature(), destroys_the_chosen()])).len(), 1, "kept in one mode, read in another");
+        let lasting = gains_ability(each(creature()), spell_ability("", draw_cards(you(), chosen(ChoiceName::Number)))).until_end_of_turn();
+        assert_eq!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), lasting])).len(), 1, "read by an ability that outlasts it");
+        let on_a_recipient = Effect::Atom(
+            Primitive::ChooseValue { name: ChoiceName::Color, what: ValueChoice::Color, how: ChosenHow::By(you()) },
+            you(),
+        );
+        assert_eq!(problems(on_a_recipient).len(), 1, "a choose step on a recipient");
     }
 
     /// A division's total has two homes: the clause carries it to the

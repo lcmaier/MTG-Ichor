@@ -7,8 +7,8 @@
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef, PlayerSet,
-    SelectionFilter, TargetCount, ValueIs,
+    AmountExpr, Antecedent, Choice, ChoiceName, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef,
+    PlayerSet, SelectionFilter, TargetCount, ValueIs,
 };
 use crate::types::triggers::EventRole;
 use crate::types::zones::ZoneSet;
@@ -184,6 +184,38 @@ pub fn triggering_object(role: EventRole) -> EffectRecipient {
 /// the effect applies.
 pub fn chosen_by(choice: Choice) -> EffectRecipient {
     EffectRecipient::ChosenBy(Box::new(choice))
+}
+
+/// "It", "that player", "the chosen creature" as what a verb acts on: the
+/// objects or the player a choose step before it kept under `name`
+/// ([`super::instructions::choose_objects`], `choose_player`).
+pub fn the_chosen(name: ChoiceName) -> EffectRecipient {
+    EffectRecipient::ChosenAs(name)
+}
+
+/// "The chosen number" as an amount, "of the chosen color" and "the chosen
+/// creature" inside a filter: what a choose step before it kept under
+/// `name`: `power_at_least(chosen(ChoiceName::Number))`,
+/// `creature().and(chosen(ChoiceName::Color))`,
+/// `creature().other_than(chosen(ChoiceName::Objects))`.
+pub fn chosen(name: ChoiceName) -> Chosen {
+    Chosen(name)
+}
+
+/// [`chosen`]'s word, until the place it is written says whether it is an
+/// amount or a filter.
+pub struct Chosen(ChoiceName);
+
+impl From<Chosen> for AmountExpr {
+    fn from(chosen: Chosen) -> Self {
+        AmountExpr::ChosenAs(chosen.0)
+    }
+}
+
+impl From<Chosen> for ObjectFilter {
+    fn from(chosen: Chosen) -> Self {
+        ObjectFilter::ChosenAs(chosen.0)
+    }
 }
 
 // ---------------------------------------------------------------------------

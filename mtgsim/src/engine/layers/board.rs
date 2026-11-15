@@ -789,6 +789,8 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
         // A counter is no layer's output; a counter write bumps the layer
         // epoch instead.
         ObjectFilter::WithCounters { .. } => {}
+        // Identity, and a word the table refuses unread.
+        ObjectFilter::OneOf(_) | ObjectFilter::ChosenAs(_) => {}
         ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
             filter_reads(a, out, you_channel);
             filter_reads(b, out, you_channel);
@@ -847,7 +849,8 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
         | AmountExpr::Multiply(..)
         | AmountExpr::DamagePrevented
         | AmountExpr::StartingLifeTotal
-        | AmountExpr::ValueOf(..) => {}
+        | AmountExpr::ValueOf(..)
+        | AmountExpr::ChosenAs(_) => {}
     }
 }
 

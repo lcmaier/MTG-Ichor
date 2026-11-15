@@ -33,7 +33,8 @@ pub use abilities::{
     activated_ability, as_long_as, equip, mana_ability, spell_ability, static_ability, static_replacement, static_restriction, you_have, StaticBody,
 };
 pub use instructions::{
-    add_mana, add_phases, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, cant_for, copy, counter_spell,
+    add_mana, add_phases, at_random, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, cant_for,
+    choose_card_type, choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, copy, counter_spell,
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, create_tokens, deal_damage,
     deal_damage_divided, deal_damage_unpreventable, destroy, discard, distribute_counters, draw_cards, exile, exile_until, gain_control_of,
     gain_life, gains_ability, gains_keyword, get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life,
@@ -47,10 +48,11 @@ pub use modes::{
     choose_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to, spree,
 };
 pub use recipients::{
-    an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, chosen_permanent, color,
+    an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen, chosen_by,
+    chosen_permanent, color,
     creature, creatures_you_control, divided_among_targeted, divided_among_untargeted, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
     nonlegendary_creature, other_than_this, planeswalker, power_at_least, power_at_most, referred, target, target_creature, target_opponent,
-    target_permanent, target_player, target_spell, targets, that_player, that_target, the_target, this_object, token, toughness_at_least,
+    target_permanent, target_player, target_spell, targets, that_player, that_target, the_chosen, the_target, this_object, token, toughness_at_least,
     toughness_at_most, triggering_object, with_subtype, you, you_and_that_player, you_cast, you_control, your_opponents_control,
 };
 pub use replacements::{

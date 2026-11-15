@@ -199,6 +199,10 @@ pub struct ResolvingObject {
     /// The X its controller chose for it (CR 107.3), carried for
     /// `PermanentState::x_value` as `cast` is. `None` for a spell with no X.
     pub x_value: Option<u64>,
+    /// What its choose steps have kept so far as it resolves (CR 608.2d),
+    /// each under its name: "the chosen number", "it". Empty until one runs,
+    /// and gone with the object.
+    pub choices: Vec<(crate::types::effects::ChoiceName, crate::types::effects::ChosenValue)>,
     /// What its modes and instances of "target" announced, for
     /// `stack_object_facts`: the resolution holds the entry itself until the
     /// object finishes.
@@ -1369,17 +1373,28 @@ impl GameState {
         from: &[ObjectId],
         count: usize,
     ) -> Vec<ObjectId> {
+        self.random_places(from.len(), count).into_iter().map(|i| from[i]).collect()
+    }
+
+    /// `count` different places among `of`, chosen at random and returned in
+    /// order: what "at random" picks from a list. As many as there are, for a
+    /// short list (CR 101.3). Drawn from `rng`, so a seeded game replays.
+    pub(crate) fn random_places(&mut self, of: usize, count: usize) -> Vec<usize> {
         use rand::seq::SliceRandom;
-        // CR 101.3 — as much as it can, which for a short hand is all of it.
-        let count = count.min(from.len());
+        let count = count.min(of);
         if count == 0 {
             return Vec::new();
         }
-        let mut positions: Vec<usize> = (0..from.len()).collect();
-        positions.shuffle(&mut self.rng);
-        positions.truncate(count);
-        positions.sort();
-        positions.into_iter().map(|i| from[i]).collect()
+        let mut places: Vec<usize> = (0..of).collect();
+        places.shuffle(&mut self.rng);
+        places.truncate(count);
+        places.sort();
+        places
+    }
+
+    /// One of `from`, chosen at random; `None` of an empty list.
+    pub(crate) fn random_one_of<T: Copy>(&mut self, from: &[T]) -> Option<T> {
+        self.random_places(from.len(), 1).first().map(|&place| from[place])
     }
 
     // --- Deterministic iteration ---

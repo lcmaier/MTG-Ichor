@@ -1,5 +1,6 @@
+use super::card_types::{CardType, CreatureType};
 use super::colors::Color;
-use super::ids::{ObjectId, PlayerId};
+use super::ids::{ObjectId, ObjectRef, PlayerId};
 use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
 use super::zones::{Zone, ZoneSet};
@@ -155,6 +156,90 @@ pub enum AmountExpr {
     /// name one object and one value fold into this at
     /// `resolution-recipients-and-amounts`.
     ValueOf(Antecedent, ObjectValue),
+    /// "The chosen number", "that many": the number a choose step of this
+    /// resolution kept under the name ([`Primitive::ChooseValue`]). A
+    /// resolution's alone.
+    ChosenAs(ChoiceName),
+}
+
+/// The name a choice made as an effect resolves is kept under, so a later
+/// step can read it (CR 608.2d). Local to one spell or ability. Nearly every
+/// card keeps one thing of a kind, so the names are the kinds; a card that
+/// keeps two of a kind at once gets a second name here, with that card.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ChoiceName {
+    Color,
+    CreatureType,
+    CardType,
+    Number,
+    Player,
+    Objects,
+}
+
+/// What a choose step asks for ([`Primitive::ChooseValue`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ValueChoice {
+    /// "Choose a color": one of the five (CR 105.4).
+    Color,
+    /// "Choose a creature type": one of the rule's list (CR 205.3m).
+    CreatureType,
+    /// "Choose a card type" (CR 205.2a), or one of the few a card prints:
+    /// "choose artifact or enchantment".
+    CardType(Option<Vec<CardType>>),
+    /// "Choose a number between 0 and 10": from `least` through `most`.
+    Number { least: u64, most: u64 },
+    /// "Choose a player", "choose an opponent": one of the set still in the
+    /// game, read against the controller (CR 109.5).
+    Player(PlayerSet),
+    /// "Choose up to one creature", "choose a creature you control": among
+    /// what the filter matches as the step runs, by the count. No target, so
+    /// hexproof and shroud do not stop it (CR 115.10a). A `Divided` count
+    /// also splits its amount among what is chosen, at least one each (CR
+    /// 608.2d).
+    Objects(SelectionFilter, TargetCount),
+}
+
+impl ValueChoice {
+    /// The name the kind's answer is kept under.
+    pub fn name_of_its_kind(&self) -> ChoiceName {
+        match self {
+            ValueChoice::Color => ChoiceName::Color,
+            ValueChoice::CreatureType => ChoiceName::CreatureType,
+            ValueChoice::CardType(_) => ChoiceName::CardType,
+            ValueChoice::Number { .. } => ChoiceName::Number,
+            ValueChoice::Player(_) => ChoiceName::Player,
+            ValueChoice::Objects(..) => ChoiceName::Objects,
+        }
+    }
+}
+
+/// Who makes a choose step's choice.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ChosenHow {
+    /// The player this recipient names: `Controller` for "choose", a target
+    /// player for "target opponent chooses".
+    By(EffectRecipient),
+    /// "At random": drawn from the game's seeded rng, and nobody is asked.
+    AtRandom,
+}
+
+impl From<EffectRecipient> for ChosenHow {
+    fn from(chooser: EffectRecipient) -> Self {
+        ChosenHow::By(chooser)
+    }
+}
+
+/// What a choose step kept: the answer to a [`ValueChoice`], arm for arm.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ChosenValue {
+    Color(Color),
+    CreatureType(CreatureType),
+    CardType(CardType),
+    Number(u64),
+    Player(PlayerId),
+    /// The objects, each as the existence chosen (CR 400.7), and each one's
+    /// share of a divided amount, empty when nothing was divided.
+    Objects { chosen: Vec<ObjectRef>, shares: Vec<u64> },
 }
 
 /// Which number [`AmountExpr::ValueOf`] and [`ObjectFilter::WithValue`] read
@@ -360,20 +445,61 @@ pub enum ObjectFilter {
     /// have to undo to see that a filter is right.
     Or(Box<ObjectFilter>, Box<ObjectFilter>),
     Not(Box<ObjectFilter>),
+    /// "Of the chosen color", "of that type", "the chosen creature": what a
+    /// choose step of this resolution kept under the name
+    /// ([`Primitive::ChooseValue`]). A resolution writes the kept value in
+    /// just before it matches the filter, so the table never answers this
+    /// leaf, and refuses it.
+    ChosenAs(ChoiceName),
+    /// One of these objects, each the existence named (CR 400.7): what
+    /// [`Self::ChosenAs`] becomes for a choice of objects, so "destroy the
+    /// rest" is its `Not`. Identity, which no layer changes.
+    OneOf(Vec<ObjectRef>),
 }
 
 impl ObjectFilter {
     /// "Creature you control", "black nontoken": what both filters
     /// describe. A chain nests to the left, `a.and(b).and(c)` being
     /// `And(And(a, b), c)`.
-    pub fn and(self, other: ObjectFilter) -> ObjectFilter {
-        ObjectFilter::And(Box::new(self), Box::new(other))
+    pub fn and(self, other: impl Into<ObjectFilter>) -> ObjectFilter {
+        ObjectFilter::And(Box::new(self), Box::new(other.into()))
     }
 
     /// "Artifact or creature", and Root Maze's "artifacts and lands": what
     /// either filter describes.
-    pub fn or(self, other: ObjectFilter) -> ObjectFilter {
-        ObjectFilter::Or(Box::new(self), Box::new(other))
+    pub fn or(self, other: impl Into<ObjectFilter>) -> ObjectFilter {
+        ObjectFilter::Or(Box::new(self), Box::new(other.into()))
+    }
+
+    /// "Each creature other than the chosen one", "the rest": what this
+    /// filter describes that `excluded` does not.
+    pub fn other_than(self, excluded: impl Into<ObjectFilter>) -> ObjectFilter {
+        ObjectFilter::And(Box::new(self), Box::new(ObjectFilter::Not(Box::new(excluded.into()))))
+    }
+
+    /// Whether the filter holds a word only a resolution reads: a name a
+    /// choose step kept, or an amount still to be read. One that holds none
+    /// is asked as written.
+    pub fn holds_a_resolutions_word(&self) -> bool {
+        match self {
+            ObjectFilter::ChosenAs(_) => true,
+            ObjectFilter::WithValue { is, .. } => !matches!(is.amount(), AmountExpr::Fixed(_)),
+            ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => a.holds_a_resolutions_word() || b.holds_a_resolutions_word(),
+            ObjectFilter::Not(inner) => inner.holds_a_resolutions_word(),
+            ObjectFilter::All
+            | ObjectFilter::ByType(_)
+            | ObjectFilter::BySubtype(_)
+            | ObjectFilter::BySupertype(_)
+            | ObjectFilter::ByColor(_)
+            | ObjectFilter::ByController(_)
+            | ObjectFilter::WithCounters { .. }
+            | ObjectFilter::Token
+            | ObjectFilter::ThisTurn(_)
+            | ObjectFilter::ThisCombat(_)
+            | ObjectFilter::ByOwner(_)
+            | ObjectFilter::NotSource
+            | ObjectFilter::OneOf(_) => false,
+        }
     }
 }
 
@@ -1360,6 +1486,12 @@ pub enum EffectRecipient {
     /// one slot per axis the printed cards vary on (`triggers-architecture.md`
     /// §12, TR-2b's decision 4).
     ChosenBy(Box<Choice>),
+    /// "It", "that player", "the chosen creatures": the objects, or the
+    /// player, a choose step of this resolution kept under the name
+    /// ([`Primitive::ChooseValue`]). Each object is found only while it is
+    /// the existence chosen (CR 400.7), and a divided choice hands the verb
+    /// each one's share. Nothing kept under the name is nothing to act on.
+    ChosenAs(ChoiceName),
 }
 
 /// A choice made as an effect applies ([`EffectRecipient::ChosenBy`]).
@@ -2792,9 +2924,31 @@ pub enum Primitive {
         others: Vec<crate::types::costs::Cost>,
         any_amount_of: Option<super::mana::ManaCost>,
     },
+
+    // === A choice made as the effect resolves (CR 608.2d) ===
+    /// "Choose a number between 0 and 10", "choose a creature type", "choose
+    /// up to one creature": ask for `what` as this step runs, or draw it at
+    /// random, and keep the answer under `name` for the steps after it, which
+    /// read it as what they act on ([`EffectRecipient::ChosenAs`]), as a
+    /// number ([`AmountExpr::ChosenAs`]) or in a filter
+    /// ([`ObjectFilter::ChosenAs`]). Nothing else happens. A step that runs
+    /// again replaces what it kept. Its atom's recipient is `Implicit`: who
+    /// chooses is `how`'s.
+    ChooseValue { name: ChoiceName, what: ValueChoice, how: ChosenHow },
 }
 
 impl Primitive {
+    /// Whether the verb acts by each recipient's share of a division: damage,
+    /// counters and a damage shield (CR 601.2d, 608.2d). Every other verb
+    /// acts on a divided choice's objects alike.
+    pub fn divides(&self) -> bool {
+        match self {
+            Primitive::DealDamage { .. } | Primitive::AddCounters { .. } => true,
+            Primitive::CreateReplacement(def, ..) => matches!(def.uses, crate::types::replacement::Uses::NextDamage(_)),
+            _ => false,
+        }
+    }
+
     /// The zone this verb puts what it acts on into, or `None` for a verb
     /// that moves nothing. What [`Effect::Remember`] checks a performed move
     /// against: a replacement can send the object elsewhere (Rest in Peace
@@ -2856,7 +3010,8 @@ impl Primitive {
             | Primitive::CounterAbility
             // A sacrifice it pays is the cost's own move, which no
             // `Effect::Remember` marks.
-            | Primitive::Pay { .. } => None,
+            | Primitive::Pay { .. }
+            | Primitive::ChooseValue { .. } => None,
         }
     }
 }
@@ -3162,6 +3317,8 @@ impl Effect {
                 // second instance, after its own.
                 own && match primitive {
                     Primitive::ExileUntil { refers_to: Some(target), .. } => f(target),
+                    // "Target opponent chooses a number": the chooser is the instance.
+                    Primitive::ChooseValue { how: ChosenHow::By(chooser @ EffectRecipient::Target(..)), .. } => f(chooser),
                     _ => true,
                 }
             }

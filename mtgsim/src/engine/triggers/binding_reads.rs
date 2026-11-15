@@ -14,8 +14,8 @@ use std::ops::BitOr;
 use crate::types::costs::Cost;
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
-    Primitive, TargetCount, };
+    ObjectSet, AmountExpr, Antecedent, ChosenHow, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact,
+    PlayerRef, Primitive, TargetCount, ValueChoice, };
 use crate::types::triggers::{
     BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
@@ -267,7 +267,8 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         EffectRecipient::Implicit
         | EffectRecipient::Controller
         | EffectRecipient::SameInstanceAs(_)
-        | EffectRecipient::EachOf(_) => TriggerBindingReads::NONE,
+        | EffectRecipient::EachOf(_)
+        | EffectRecipient::ChosenAs(_) => TriggerBindingReads::NONE,
         // How many targets, where the text defines it: "where X is the number
         // of cards looked at while scrying this way".
         EffectRecipient::Target(_, count) | EffectRecipient::Choose(_, count) => count_reads(count),
@@ -311,7 +312,8 @@ fn amount_reads(a: &AmountExpr) -> TriggerBindingReads {
         | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
         | AmountExpr::StartingLifeTotal
-        | AmountExpr::ValueOf(..) => TriggerBindingReads::NONE,
+        | AmountExpr::ValueOf(..)
+        | AmountExpr::ChosenAs(_) => TriggerBindingReads::NONE,
         AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => object_set_reads(over),
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount_reads(inner),
         AmountExpr::History(_, history) => history_count_reads(history),
@@ -366,7 +368,9 @@ fn filter_reads(f: &ObjectFilter) -> TriggerBindingReads {
         | ObjectFilter::BySupertype(_)
         | ObjectFilter::ByColor(_)
         | ObjectFilter::WithCounters { .. }
-        | ObjectFilter::Token => TriggerBindingReads::NONE,
+        | ObjectFilter::Token
+        | ObjectFilter::ChosenAs(_)
+        | ObjectFilter::OneOf(_) => TriggerBindingReads::NONE,
         ObjectFilter::WithValue { is, .. } => amount_reads(is.amount()),
         ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => object_fact_reads(fact),
         ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref_reads(whose),
@@ -465,6 +469,17 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         | Primitive::CounterAbility
         | Primitive::Counter => TriggerBindingReads::NONE,
         Primitive::Pay { others, .. } => others.iter().fold(TriggerBindingReads::NONE, |reads, cost| reads | cost_reads(cost)),
+        // Who chooses, and how many objects where the text defines it.
+        Primitive::ChooseValue { what, how, .. } => {
+            let chooser = match how {
+                ChosenHow::By(chooser) => recipient_reads(chooser),
+                ChosenHow::AtRandom => TriggerBindingReads::NONE,
+            };
+            match what {
+                ValueChoice::Objects(_, count) => chooser | count_reads(count),
+                _ => chooser,
+            }
+        }
         Primitive::Mill(n)
         | Primitive::PutTopCardsIntoHand(n)
         | Primitive::Discard(n, _)

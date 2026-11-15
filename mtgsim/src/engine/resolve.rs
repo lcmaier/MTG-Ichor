@@ -17,10 +17,13 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::{ZoneSet, Zone};
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
+use crate::oracle::x_values::XOffer;
+use crate::types::card_types::{CardType, CreatureType, Subtype};
+use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, ChoiceScope, Condition, CopyException, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
-    EffectRecipient, ModeIndex, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet,
-    Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Antecedent, Choice, ChoiceName, ChoiceScope, ChosenHow, ChosenValue, Condition, CopyException, CopyRoles, CostAnswer,
+    DiscardChooser, Duration, Effect, EffectRecipient, ModeIndex, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount,
+    PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
@@ -603,13 +606,21 @@ impl GameState {
             // instruction applies (CR 611.2c's set), acted on in one
             // instruction (CR 608.2f).
             EffectRecipient::FilteredPermanents(filter) => {
-                each(self.permanents_matching(filter, ctx).into_iter().map(ObjectOrPlayerId::Object).collect())
+                each(self.permanents_matching(filter, ctx)?.into_iter().map(ObjectOrPlayerId::Object).collect())
             }
             // CR 608.2d — objects a player chooses as the effect applies,
             // checked against the verb's own event (CR 101.2), so a "can't"
             // removes a candidate rather than refusing a choice.
             EffectRecipient::ChosenBy(choice) => each(self.choose_as_it_applies(primitive, choice, declared, walk, ctx, dp)?),
-            EffectRecipient::Choose(filter, count) => self.chosen_by_the_controller(recipient, filter, count, ctx, dp),
+            EffectRecipient::Choose(filter, count) => {
+                let (chosen, shares) = self.choose_objects(recipient, filter, count, Some(ctx.controller), ctx, dp)?;
+                Ok(match shares.is_empty() {
+                    true => Recipients::Each { clause: recipient, found: Cow::Owned(chosen) },
+                    false => Recipients::Divided { clause: recipient, shares: chosen.into_iter().zip(shares).collect() },
+                })
+            }
+            // "It", "that player": what a choose step of this resolution kept.
+            EffectRecipient::ChosenAs(name) => self.kept_as_recipients(primitive, recipient, *name, ctx),
             _ => match instance_of(recipient, declared, &mut walk.instance_cursor) {
                 // The atom that declared the division acts by the shares;
                 // a later one naming its instance ("each of those
@@ -634,59 +645,281 @@ impl GameState {
         }
     }
 
-    /// [`EffectRecipient::Choose`]: the controller picks from what the filter
-    /// matches now (CR 608.2d), and for a division then splits the amount
-    /// among the picks, at least one each. "Distribute three counters among
-    /// any number of creatures" places all three, so a division takes at
-    /// least one object while there is one, and no more than the amount;
-    /// fewer than the most is the player's (CR 608.2d). A choice of nothing
-    /// hands the verb nothing, as a fizzled instance does.
+    /// A choice of objects made as an instruction applies (CR 608.2d):
+    /// `chooser` picks from what the filter matches now, or with no chooser
+    /// the picks are drawn at random; for a division the chooser then splits
+    /// the amount among the picks, at least one each. "Distribute three
+    /// counters among any number of creatures" places all three, so a
+    /// division takes at least one object while there is one, and no more
+    /// than the amount; fewer than the most is the player's (CR 608.2d). The
+    /// picks, and each one's share when an amount was divided.
     ///
     /// The candidates are the filter's, as a target's are: the choice is made
     /// before the verb, and a "can't" on the verb is checked as it acts, so
     /// "choose a creature; put a counter on it" may choose one that can't
     /// have counters put on it. An edict's pick differs because the pick is
     /// the sacrifice, and CR 701.21a lets no player sacrifice what can't be
-    /// sacrificed.
-    fn chosen_by_the_controller<'a>(
-        &self,
-        recipient: &'a EffectRecipient,
+    /// sacrificed. `asked_as` is the question's label.
+    fn choose_objects(
+        &mut self,
+        asked_as: &EffectRecipient,
         filter: &SelectionFilter,
         count: &TargetCount,
+        chooser: Option<PlayerId>,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
-    ) -> Result<Recipients<'a>, String> {
-        // "Choose a player" is a value with its own kind (`ChoosePlayer`,
-        // `values-chosen-at-resolution`'s), and "another" reads the targets an
-        // announcement chose before it, which a choice has none of.
+    ) -> Result<(Vec<ObjectOrPlayerId>, Vec<u64>), String> {
+        // "Choose a player" is a choose step's own kind (`ChoosePlayer`), and
+        // "another" reads the targets an announcement chose before it, which
+        // a choice has none of.
         if matches!(filter, SelectionFilter::Player(_) | SelectionFilter::Any | SelectionFilter::Another(_)) {
-            return Err(format!("{recipient:?} on {:?} is not built: a choice here names objects", ctx.source));
+            return Err(format!("{asked_as:?} on {:?} is not built: a choice here names objects", ctx.source));
         }
+        let filter = self.selection_as_read_now(filter, ctx)?;
         let candidates = crate::oracle::legality::enumerate_legal_selections_excluding(
             self,
-            filter,
+            &filter,
             Some(ctx.source),
             ctx.controller,
             self.filter_identity_for(ctx),
         );
         let amount = |amount: &AmountExpr| self.evaluate_amount(amount, ctx, None);
-        let ask = |fewest: usize, most: usize| {
-            let most = most.min(candidates.len());
-            crate::ui::ask::ask_select_recipients(dp, self, ctx.controller, recipient, ctx.source, &candidates, fewest.min(most), most)
-        };
         let TargetCount::Divided(divided) = count else {
             let bounds = count.bounds(&amount)?;
-            return Ok(Recipients::Each { clause: recipient, found: Cow::Owned(ask(bounds.fewest, bounds.most)) });
+            let most = bounds.most.min(candidates.len());
+            let chosen = match chooser {
+                Some(player) => {
+                    crate::ui::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, bounds.fewest.min(most), most)
+                }
+                // "Choose a creature at random": as many as the text says.
+                None if bounds.fewest == bounds.most => self.random_places(candidates.len(), most).into_iter().map(|at| candidates[at]).collect(),
+                None => return Err(format!("{asked_as:?} on {:?} draws a number of objects at random that its text leaves open", ctx.source)),
+            };
+            return Ok((chosen, Vec::new()));
+        };
+        let Some(player) = chooser else {
+            return Err(format!("{asked_as:?} on {:?} divides at random, which no card prints", ctx.source));
         };
         let total = amount(&divided.total)?;
         let among = divided.among.bounds(&amount)?;
-        let chosen = ask(among.fewest.max(1), among.most.min(total as usize));
+        let most = among.most.min(total as usize).min(candidates.len());
+        let chosen = crate::ui::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, among.fewest.max(1).min(most), most);
         let shares = if chosen.is_empty() {
             Vec::new()
         } else {
-            crate::ui::ask::ask_divide_among(dp, self, ctx.controller, ctx.source, &chosen, total)
+            crate::ui::ask::ask_divide_among(dp, self, player, ctx.source, &chosen, total)
         };
-        Ok(Recipients::Divided { clause: recipient, shares: chosen.into_iter().zip(shares).collect() })
+        Ok((chosen, shares))
+    }
+
+    /// [`Primitive::ChooseValue`]: ask `how`'s player for `what`, or draw it
+    /// at random, and say what was chosen. `None` when there is no one to
+    /// choose or nothing to choose among.
+    fn choose_value(
+        &mut self,
+        what: &ValueChoice,
+        how: &ChosenHow,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+        walk: &mut ResolutionWalk,
+    ) -> Result<Option<ChosenValue>, String> {
+        let chooser = match how {
+            ChosenHow::AtRandom => None,
+            ChosenHow::By(named) => match self.chooser_named_by(named, walk, ctx)? {
+                Some(player) => Some(player),
+                None => return Ok(None),
+            },
+        };
+        let source = ctx.source;
+        Ok(match what {
+            ValueChoice::Color => match chooser {
+                Some(player) => Some(crate::ui::ask::ask_choose_color(dp, self, player, source)),
+                None => self.random_one_of(&Color::ALL),
+            }
+            .map(ChosenValue::Color),
+            ValueChoice::CreatureType => match chooser {
+                Some(player) => Some(crate::ui::ask::ask_choose_creature_type(dp, self, player, source)),
+                None => self.random_one_of(&CreatureType::ALL),
+            }
+            .map(ChosenValue::CreatureType),
+            ValueChoice::CardType(printed) => {
+                let candidates: &[CardType] = printed.as_deref().unwrap_or(&CardType::ALL);
+                match chooser {
+                    _ if candidates.is_empty() => None,
+                    Some(player) => Some(crate::ui::ask::ask_choose_card_type(dp, self, player, source, candidates)),
+                    None => self.random_one_of(candidates),
+                }
+                .map(ChosenValue::CardType)
+            }
+            ValueChoice::Number { least, most } => {
+                if least > most {
+                    return Err(format!("{source:?} chooses a number between {least} and {most}, which is none"));
+                }
+                let number = match chooser {
+                    Some(player) => {
+                        crate::ui::ask::ask_choose_number(dp, self, player, source, XOffer::Interval { at_least: *least, at_most: *most })
+                    }
+                    None => least + self.random_places((most - least + 1) as usize, 1).first().map_or(0, |&place| place as u64),
+                };
+                Some(ChosenValue::Number(number))
+            }
+            ValueChoice::Player(among) => {
+                let candidates: Vec<PlayerId> = self.players_in_game().filter(|player| among.contains(ctx.controller, *player)).collect();
+                match chooser {
+                    _ if candidates.is_empty() => None,
+                    Some(player) => Some(crate::ui::ask::ask_choose_player(dp, self, player, ctx.effect_source(), &candidates)),
+                    None => self.random_one_of(&candidates),
+                }
+                .map(ChosenValue::Player)
+            }
+            ValueChoice::Objects(filter, count) => {
+                let asked_as = EffectRecipient::Choose(filter.clone(), count.clone());
+                let (chosen, shares) = self.choose_objects(&asked_as, filter, count, chooser, ctx, dp)?;
+                let chosen = chosen
+                    .into_iter()
+                    .filter_map(|picked| match picked {
+                        ObjectOrPlayerId::Object(id) => self.object_ref(id),
+                        ObjectOrPlayerId::Player(_) => None,
+                    })
+                    .collect();
+                Some(ChosenValue::Objects { chosen, shares })
+            }
+        })
+    }
+
+    /// The one player a choose step's `By` names: "you", a target player
+    /// (its instance, taken in turn as the walk reaches it), or a player the
+    /// resolution's context names. `None` for a chooser who cannot be found,
+    /// a target that went illegal or a player gone from the game.
+    fn chooser_named_by(&self, named: &EffectRecipient, walk: &mut ResolutionWalk, ctx: &ResolutionContext) -> Result<Option<PlayerId>, String> {
+        let players: Vec<PlayerId> = match named {
+            EffectRecipient::Target(..) => {
+                let ix = walk.instance_cursor;
+                walk.instance_cursor += 1;
+                ctx.targets
+                    .instance(ix)
+                    .iter()
+                    .filter_map(|target| match target {
+                        ObjectOrPlayerId::Player(player) => Some(*player),
+                        ObjectOrPlayerId::Object(_) => None,
+                    })
+                    .collect()
+            }
+            other => self
+                .players_named_by(other, ctx)?
+                .ok_or_else(|| format!("{other:?} names no player to make {:?}'s choice", ctx.source))?,
+        };
+        match players.as_slice() {
+            [] => Ok(None),
+            [one] => Ok(self.in_game(*one).then_some(*one)),
+            several => Err(format!("{named:?} names {} players to make one choice on {:?}", several.len(), ctx.source)),
+        }
+    }
+
+    /// What the choose step of `ctx`'s resolution kept under `name`.
+    pub(crate) fn kept_choice(&self, ctx: &ResolutionContext, name: ChoiceName) -> Option<&ChosenValue> {
+        self.resolving_for(ctx)?.choices.iter().find(|(kept_as, _)| *kept_as == name).map(|(_, value)| value)
+    }
+
+    /// Keep `value` under `name` for the rest of the resolution, in place of
+    /// what a step that ran before kept there. On the resolving object, as
+    /// the X chosen as an effect resolves is; a rider and a mana ability
+    /// resolve none, and have nowhere to keep one.
+    fn keep_choice(&mut self, name: ChoiceName, value: ChosenValue, ctx: &ResolutionContext) -> Result<(), String> {
+        let resolving = self
+            .resolving
+            .as_mut()
+            .filter(|resolving| resolving.id == ctx.source)
+            .ok_or_else(|| format!("{:?} chooses as it resolves, and no stack object of its is resolving", ctx.source))?;
+        match resolving.choices.iter_mut().find(|(kept_as, _)| *kept_as == name) {
+            Some(kept) => kept.1 = value,
+            None => resolving.choices.push((name, value)),
+        }
+        Ok(())
+    }
+
+    /// [`EffectRecipient::ChosenAs`]: the objects a choose step kept, each
+    /// while it is still the existence chosen (CR 400.7), or the player it
+    /// kept, while that player is in the game. A verb that divides takes each
+    /// object with its share of a divided choice. Nothing kept is nothing to
+    /// act on.
+    fn kept_as_recipients<'a>(
+        &self,
+        primitive: &Primitive,
+        recipient: &'a EffectRecipient,
+        name: ChoiceName,
+        ctx: &ResolutionContext,
+    ) -> Result<Recipients<'a>, String> {
+        let still_here = |existence: &&ObjectRef| self.find(**existence).is_some();
+        match self.kept_choice(ctx, name) {
+            None => Ok(Recipients::Nothing),
+            Some(ChosenValue::Player(player)) if !self.in_game(*player) => Ok(Recipients::Nothing),
+            Some(ChosenValue::Player(player)) => {
+                Ok(Recipients::Each { clause: recipient, found: Cow::Owned(vec![ObjectOrPlayerId::Player(*player)]) })
+            }
+            Some(ChosenValue::Objects { chosen, shares }) if !shares.is_empty() && primitive.divides() => Ok(Recipients::Divided {
+                clause: recipient,
+                shares: chosen.iter().zip(shares).filter(|(existence, _)| still_here(existence)).map(|(e, share)| (ObjectOrPlayerId::Object(e.id), *share)).collect(),
+            }),
+            Some(ChosenValue::Objects { chosen, .. }) => Ok(Recipients::Each {
+                clause: recipient,
+                found: Cow::Owned(chosen.iter().filter(still_here).map(|existence| ObjectOrPlayerId::Object(existence.id)).collect()),
+            }),
+            Some(other) => Err(format!("{recipient:?} on {:?} acts on what was kept, and that is {other:?}: no object and no player", ctx.source)),
+        }
+    }
+
+    /// `filter` as this resolution reads it now: each name a choose step
+    /// kept written in as the value kept, and each amount read (CR 608.2h's
+    /// "determined only once, when the effect is applied"). The filter table
+    /// is then asked a plain filter. Borrowed when the filter holds no such
+    /// word, which is nearly always.
+    fn filter_as_read_now<'f>(&self, filter: &'f ObjectFilter, ctx: &ResolutionContext) -> Result<Cow<'f, ObjectFilter>, String> {
+        if !filter.holds_a_resolutions_word() {
+            return Ok(Cow::Borrowed(filter));
+        }
+        let both = |a: &ObjectFilter, b: &ObjectFilter| -> Result<(Box<ObjectFilter>, Box<ObjectFilter>), String> {
+            Ok((Box::new(self.filter_as_read_now(a, ctx)?.into_owned()), Box::new(self.filter_as_read_now(b, ctx)?.into_owned())))
+        };
+        Ok(Cow::Owned(match filter {
+            ObjectFilter::ChosenAs(name) => match self.kept_choice(ctx, *name) {
+                Some(ChosenValue::Color(color)) => ObjectFilter::ByColor(*color),
+                Some(ChosenValue::CreatureType(creature_type)) => ObjectFilter::BySubtype(Subtype::Creature(*creature_type)),
+                Some(ChosenValue::CardType(card_type)) => ObjectFilter::ByType(*card_type),
+                Some(ChosenValue::Objects { chosen, .. }) => ObjectFilter::OneOf(chosen.clone()),
+                Some(other @ (ChosenValue::Number(_) | ChosenValue::Player(_))) => {
+                    return Err(format!("{filter:?} on {:?} describes objects, and the choice kept {other:?}", ctx.source))
+                }
+                // Nothing kept under the name this time: it describes nothing.
+                None => ObjectFilter::OneOf(Vec::new()),
+            },
+            ObjectFilter::WithValue { of, is } => {
+                let amount = self.evaluate_amount(is.amount(), ctx, None)?;
+                ObjectFilter::WithValue { of: *of, is: Box::new(is.with_amount(AmountExpr::Fixed(amount))) }
+            }
+            ObjectFilter::And(a, b) => {
+                let (a, b) = both(a, b)?;
+                ObjectFilter::And(a, b)
+            }
+            ObjectFilter::Or(a, b) => {
+                let (a, b) = both(a, b)?;
+                ObjectFilter::Or(a, b)
+            }
+            ObjectFilter::Not(inner) => ObjectFilter::Not(Box::new(self.filter_as_read_now(inner, ctx)?.into_owned())),
+            plain => plain.clone(),
+        }))
+    }
+
+    /// [`Self::filter_as_read_now`] for what a choice or a sweep selects
+    /// among: its permanents' filter, read now.
+    fn selection_as_read_now<'f>(&self, filter: &'f SelectionFilter, ctx: &ResolutionContext) -> Result<Cow<'f, SelectionFilter>, String> {
+        match filter {
+            SelectionFilter::Permanent(among) => Ok(match self.filter_as_read_now(among, ctx)? {
+                Cow::Borrowed(_) => Cow::Borrowed(filter),
+                Cow::Owned(read) => Cow::Owned(SelectionFilter::Permanent(read)),
+            }),
+            _ => Ok(Cow::Borrowed(filter)),
+        }
     }
 
     /// A divided atom, acting in one instruction on each recipient by its
@@ -825,6 +1058,7 @@ impl GameState {
                     EffectRecipient::ThisObject
                     | EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::ChosenAs(_)
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
                     | EffectRecipient::Referred
@@ -1214,6 +1448,16 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 608.2d — choose as this step runs, and keep the answer for
+            // the steps after it. Nothing chosen (no one to choose, no player
+            // to name) keeps nothing, and a step naming it finds nothing.
+            Primitive::ChooseValue { name, what, how } => {
+                if let Some(value) = self.choose_value(what, how, ctx, dp, walk)? {
+                    self.keep_choice(*name, value, ctx)?;
+                }
+                Ok(())
+            }
+
             // CR 118.12's payment is the whole of an `Effect::Optional`, whose
             // arm offers it to its chooser. A mandatory one answers "started
             // to pay" whatever the payment then does, and is not built.
@@ -1557,6 +1801,7 @@ impl GameState {
                 let rows: Vec<ReplacementDef> = match recipient {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::ChosenAs(_)
                     | EffectRecipient::Group(_)
                     | EffectRecipient::ThisObject
                     | EffectRecipient::Triggering(_)
@@ -1883,6 +2128,7 @@ impl GameState {
                     }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::ChosenAs(_)
                     | EffectRecipient::Group(_)
                     | EffectRecipient::Triggering(_)
                     | EffectRecipient::TriggeringPlayer
@@ -2245,10 +2491,11 @@ impl GameState {
                 // In the battlefield's id order, because the row's `Fixed` set
                 // is read back by the sweeps' consumers and reaches a log and a
                 // count.
+                let filter = self.filter_as_read_now(filter, ctx)?;
                 let affected: Vec<ObjectId> = self
                     .battlefield.keys()
                     .filter(|&id| !(*exclude_donor && id == donor))
-                    .filter(|&id| self.matches_for_effect(id, filter, ctx))
+                    .filter(|&id| self.matches_for_effect(id, &filter, ctx))
                     .collect();
                 (donor, affected)
             }
@@ -2490,10 +2737,13 @@ impl GameState {
         for player in choosers {
             for pick in &choice.picks {
                 let mut candidates = Vec::new();
+                // "A permanent of their choice of that type": the pick's
+                // filter with what a choose step kept written in.
+                let among = self.filter_as_read_now(&pick.filter, ctx)?;
                 match choice.among {
                     ChoiceScope::ChoosersPermanents => {
                         for id in crate::oracle::board::permanents_controlled_by(self, player) {
-                            if self.matches_for_effect(id, &pick.filter, ctx)
+                            if self.matches_for_effect(id, &among, ctx)
                                 && self.admits(primitive, id, &[], ctx)?
                             {
                                 candidates.push(ObjectOrPlayerId::Object(id));
@@ -2680,7 +2930,7 @@ impl GameState {
                 self.bound_targets(member, ctx)?
             }
             EffectRecipient::FilteredPermanents(filter) => {
-                self.permanents_matching(filter, ctx).into_iter().map(ObjectOrPlayerId::Object).collect()
+                self.permanents_matching(filter, ctx)?.into_iter().map(ObjectOrPlayerId::Object).collect()
             }
             other => {
                 return Err(format!(
@@ -2695,8 +2945,9 @@ impl GameState {
     /// now, in id order for the CR 616.1 prompt and the log. CR 611.2c
     /// fixes that set as the effect begins, so a creature that becomes an Elf
     /// later is not in it (Elvish Warmaster's third ruling).
-    fn permanents_matching(&self, filter: &ObjectFilter, ctx: &ResolutionContext) -> Vec<ObjectId> {
-        self.battlefield.keys().filter(|&id| self.matches_for_effect(id, filter, ctx)).collect()
+    fn permanents_matching(&self, filter: &ObjectFilter, ctx: &ResolutionContext) -> Result<Vec<ObjectId>, String> {
+        let filter = self.filter_as_read_now(filter, ctx)?;
+        Ok(self.battlefield.keys().filter(|&id| self.matches_for_effect(id, &filter, ctx)).collect())
     }
 
     /// `targets` as a row keeps them: each object by identity, at the epoch
@@ -2797,7 +3048,8 @@ impl GameState {
                     ObjectSet::Filter { filter, zones } if *zones == ZoneSet::BATTLEFIELD => filter,
                     other => return Err(format!("CountOf({other:?}) resolution not yet implemented")),
                 };
-                let counted = self.battlefield.keys().filter(|&id| self.matches_for_effect(id, filter, _ctx));
+                let filter = self.filter_as_read_now(filter, _ctx)?;
+                let counted = self.battlefield.keys().filter(|&id| self.matches_for_effect(id, &filter, _ctx));
                 Ok(counted.count() as u64)
             }
             AmountExpr::CardTypesAmong(_set) => {
@@ -2848,6 +3100,12 @@ impl GameState {
                 };
                 Ok(read.unwrap_or(0).max(0) as u64)
             }
+            // "The chosen number", "that many": what a choose step kept.
+            AmountExpr::ChosenAs(name) => match self.kept_choice(_ctx, *name) {
+                Some(ChosenValue::Number(number)) => Ok(*number),
+                Some(other) => Err(format!("{expr:?} on {:?} reads a number, and the choice kept {other:?}", _ctx.source)),
+                None => Err(format!("{expr:?} on {:?} reads a number no choose step has kept", _ctx.source)),
+            },
             // "Its power", "its toughness" (CR 608.2h). A negative value is
             // no amount: Paladin of Atonement's ruling gains nothing, and
             // loses nothing, for toughness below 0.
@@ -3081,6 +3339,11 @@ impl GameState {
     fn player_named_by(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Result<PlayerId, String> {
         let named = match recipient {
             EffectRecipient::SameInstanceAs(ix) => ctx.targets.instance(*ix).to_vec(),
+            EffectRecipient::ChosenAs(name) => match self.kept_choice(ctx, *name) {
+                Some(ChosenValue::Player(player)) => vec![ObjectOrPlayerId::Player(*player)],
+                Some(ChosenValue::Objects { chosen, .. }) => chosen.iter().map(|existence| ObjectOrPlayerId::Object(existence.id)).collect(),
+                _ => Vec::new(),
+            },
             EffectRecipient::TriggeringPlayer | EffectRecipient::Triggering(_) | EffectRecipient::Referred => {
                 self.bound_targets(recipient, ctx)?
             }
@@ -3322,6 +3585,11 @@ impl GameState {
                     ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
+            // "That player", where a choose step kept a player.
+            EffectRecipient::ChosenAs(name) => match self.kept_choice(ctx, *name) {
+                Some(ChosenValue::Player(player)) => vec![*player],
+                _ => return Ok(None),
+            },
             EffectRecipient::ThisObject
             | EffectRecipient::Target(..)
             | EffectRecipient::Choose(..)

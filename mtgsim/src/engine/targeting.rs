@@ -407,7 +407,7 @@ impl GameState {
             )),
             // A choice is made as the effect applies (CR 608.2d); only an
             // edict's chooser can be an instance, and `Effect::instances` lists that.
-            EffectRecipient::ChosenBy(_) | EffectRecipient::Choose(..) => Err(format!(
+            EffectRecipient::ChosenBy(_) | EffectRecipient::Choose(..) | EffectRecipient::ChosenAs(_) => Err(format!(
                 "{recipient:?} is chosen as the effect applies, not an instance of \"target\" to validate"
             )),
 

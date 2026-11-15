@@ -166,6 +166,10 @@ enum FilterRefusal {
     /// `WithValue` comparing with an amount its asker did not read first:
     /// the table compares plain numbers.
     AmountNotRead(ObjectId),
+    /// `ChosenAs` asked as written: a resolution writes what its choose
+    /// step kept into the filter before it asks, and no other asker has a
+    /// choice to read.
+    ChoiceNotRead(ObjectId),
     /// A fact the characteristics do not carry (counters, combat, what it did
     /// this turn) asked of a frame from a moment that does not keep it, which
     /// the board now cannot answer for (`FrameContext`).
@@ -181,7 +185,10 @@ impl FilterRefusal {
     fn is_malformed_question(self) -> bool {
         match self {
             FilterRefusal::ObjectGone(_) | FilterRefusal::NoSuchValue(_) => false,
-            FilterRefusal::NoSource(_) | FilterRefusal::NotInCharacteristics(_) | FilterRefusal::AmountNotRead(_) => true,
+            FilterRefusal::NoSource(_)
+            | FilterRefusal::NotInCharacteristics(_)
+            | FilterRefusal::AmountNotRead(_)
+            | FilterRefusal::ChoiceNotRead(_) => true,
         }
     }
 }
@@ -198,6 +205,11 @@ impl std::fmt::Display for FilterRefusal {
                 f,
                 "a filter asked of {id} compares a number with an amount nothing read first: \
                  the asker reads it, as a resolution does, and the table compares plain numbers"
+            ),
+            FilterRefusal::ChoiceNotRead(id) => write!(
+                f,
+                "a filter asked of {id} names what a choose step kept, and nothing wrote the kept value in: \
+                 a resolution does before it asks, and no other asker has a choice to read"
             ),
             FilterRefusal::NotInCharacteristics(id) => write!(
                 f,
@@ -347,6 +359,8 @@ fn answer_or_refuse<'f>(
         }
         // Identity, off the ids: no layer makes an object other than itself.
         ObjectFilter::NotSource => referents.source().map(|source| id != source).ok_or(FilterRefusal::NoSource(id)),
+        ObjectFilter::OneOf(these) => Ok(these.contains(&existence_of(game, id, object)?)),
+        ObjectFilter::ChosenAs(_) => Err(FilterRefusal::ChoiceNotRead(id)),
         ObjectFilter::And(a, b) => {
             let left = answer_or_refuse(game, a, id, object, frame, referents);
             if left == Ok(false) {

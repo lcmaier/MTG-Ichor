@@ -203,7 +203,8 @@ fn amount_reads(amount: &AmountExpr) -> PaymentChannels {
         | AmountExpr::DiscardedThisWay
         | AmountExpr::ReplacedAmount
         | AmountExpr::DamagePrevented
-        | AmountExpr::ValueOf(..) => Q::NONE,
+        | AmountExpr::ValueOf(..)
+        | AmountExpr::ChosenAs(_) => Q::NONE,
     }
 }
 
@@ -225,7 +226,9 @@ fn filter_reads(filter: &ObjectFilter) -> PaymentChannels {
         | ObjectFilter::ByController(_)
         | ObjectFilter::ByOwner(_)
         | ObjectFilter::Token
-        | ObjectFilter::NotSource => Q::NONE,
+        | ObjectFilter::NotSource
+        | ObjectFilter::ChosenAs(_)
+        | ObjectFilter::OneOf(_) => Q::NONE,
     }
 }
 
