@@ -87,16 +87,6 @@ the engine; and a shape cut to one card is a v1 gap of its own kind, as #324's
 `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of the 46 whose
 amount is chosen as it is paid.
 
-**Each of a pair of twin functions names its case** (the owner, at #326's
-review, 2026-11-14; applied across the tree in #329). Two functions doing one
-job for two cases do not leave one bare: `divided_among_targeted` and
-`divided_among_untargeted`, `open_or_join_batch` and `open_new_batch`. A
-sentence in `engineering-practices.md#names`, with the exception #329's answer
-on `emit_event` settles: a door every caller uses, whose siblings each name
-what they add (`emit_event_unbatched`, `emit_event_with_trigger_choices`).
-#329's body has the search that finds such pairs (same-file functions with
-near-identical bodies, one name the other plus words).
-
 ## Open, for the owner
 
 **Should the mana pool join the write gate's fields?** Raised at
