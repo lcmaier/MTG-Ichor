@@ -170,7 +170,7 @@ REGISTER_HEADING = "## 4c. Concepts and their owners\n"
 DEBT_HEADING = "\n## Deferred Migrations\n"
 
 READ = "fn zz_bite(obj: &GameObject) -> usize { obj.card_data.types.len() }\n"
-WALK = "fn zz_bite(game: &GameState) -> usize { game.objects.keys().count() }\n"
+WALK = "fn zz_bite(game: &GameState) -> usize { game.dealt_first_strike_damage.iter().count() }\n"
 WRITE = "fn zz_bite(player: &mut PlayerState) { player.life_total = 0; }\n"
 SCAR = 'const ZZ_BITE: &str = "a message that lost          its continuation";\n'
 TWO_READS = """fn zz_bite(obj: &GameObject) -> usize {{
@@ -383,8 +383,8 @@ PLANTS = [
           state_field("zz_bite", "Timestamp")),
     plant(SURFACE, "a new holder of a concept queried by word", "Marked damage: `PlayerState` holds it 1x and has no line",
           state_field("zz_damage_marked", "u32")),
-    plant(SURFACE, "a holder's count differs from its line", "Timestamp: `PermanentState` holds it 2x and is listed 1x",
-          after(BATTLEFIELD, "pub struct PermanentState {\n", "    pub zz_bite: Timestamp,\n")),
+    plant(SURFACE, "a holder's count differs from its line", "Timestamp: `CounterStack` holds it 2x and is listed 1x",
+          after(BATTLEFIELD, "pub struct CounterStack {\n", "    pub zz_bite: Timestamp,\n")),
     plant(SURFACE, "a listed type no longer holds the concept", "Marked damage: `ZzBite` is listed and holds it no longer",
           after(AUDIT, MARKED_DAMAGE, "- `ZzBite` — planted.\n")),
     plant(SURFACE, "a holder reached through another type", "Timestamp: `ZzBite` holds it 1x and has no line",
@@ -458,13 +458,13 @@ PLANTS = [
                    "    let Some(zz) = found.map(|o| Arc::clone(&o.card_data)) else { return 0 };\n"
                    "    zz.subtypes.len()\n}\n")),
     # check_invariants.py: unordered
-    plant(INVARIANTS, "unordered: a chained iteration", "objects.keys", add(LIB, WALK)),
-    plant(INVARIANTS, "unordered: a for over the field", "for over trigger_sources",
-          add(LIB, "fn zz_bite(game: &GameState) { for id in &game.trigger_sources { drop(id); } }\n")),
+    plant(INVARIANTS, "unordered: a chained iteration", "dealt_first_strike_damage.iter", add(LIB, WALK)),
+    plant(INVARIANTS, "unordered: a for over the field", "for over dealt_first_strike_damage",
+          add(LIB, "fn zz_bite(game: &GameState) { for id in &game.dealt_first_strike_damage { drop(id); } }\n")),
     plant(INVARIANTS, "unordered: the crate's tests are read too", f"{TESTS}:",
-          add(TESTS, "fn zz_bite(game: &GameState) { let _ = game.objects.iter(); }\n")),
-    plant(INVARIANTS, "unordered: a cfg(test) item is read too", "objects.values",
-          add(LIB, "#[cfg(test)]\nfn zz_bite(game: &GameState) { let _ = game.objects.values(); }\n")),
+          add(TESTS, "fn zz_bite(game: &GameState) { let _ = game.blocker_damage_divisions.iter(); }\n")),
+    plant(INVARIANTS, "unordered: a cfg(test) item is read too", "blocker_damage_divisions.values",
+          add(LIB, "#[cfg(test)]\nfn zz_bite(game: &GameState) { let _ = game.blocker_damage_divisions.values(); }\n")),
     plant(INVARIANTS, "unordered: a new hash field is covered off the declaration", "zz_bite.iter",
           after(STATE, GAME_STATE_OPENER, "    pub zz_bite: IdMap<ObjectId, u32>,\n"),
           add(LIB, "fn zz_bite(game: &GameState) { let _ = game.zz_bite.iter(); }\n")),
@@ -483,7 +483,7 @@ PLANTS = [
     # check_invariants.py: tags
     plant(INVARIANTS, "tags: printed does not read another check's word", "card_data.types",
           add(LIB, "// ORDER-FREE: planted.\n" + READ)),
-    plant(INVARIANTS, "tags: unordered does not read another check's word", "objects.keys",
+    plant(INVARIANTS, "tags: unordered does not read another check's word", "dealt_first_strike_damage.iter",
           add(LIB, "// AS PRINTED: planted.\n" + WALK)),
     plant(INVARIANTS, "tags: write does not read another check's word", "life_total",
           add(LIB, "// ORDER-FREE: planted.\n" + WRITE)),
