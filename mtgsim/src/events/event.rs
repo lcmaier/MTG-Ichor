@@ -1058,8 +1058,9 @@ pub struct EventWindow {
     /// `rand::rng()`: an ambient *source* silently changes the game's outcome
     /// and destroys replayability. This is an ambient *label* on a record —
     /// it changes what a record says about a mutation, never whether the mutation
-    /// happens — and its lifetime is a single `open_batch`/`close_batch` pair
-    /// that `execute_actions` opens and closes on the same code path.
+    /// happens — and its lifetime is one opening (`open_or_join_batch`,
+    /// `open_new_batch` or `reopen_batch`) and the `close_batch` its caller
+    /// makes on the same code path.
     open: Option<BatchId>,
     /// Allocator for [`BatchId`]. Monotonic, never reused within a game.
     next_batch: u64,
@@ -1139,15 +1140,17 @@ impl EventWindow {
         self.open
     }
 
-    /// Open a batch, returning what to hand back to [`Self::close_batch`].
+    /// Open a batch, or join the one already open, returning what to hand
+    /// back to [`Self::close_batch`].
     ///
     /// **A nested call joins the enclosing batch rather than opening a new
-    /// one.** CR 120.3 and 120.4 are why it has to: a damage event's results
-    /// (the life loss, the counters, lifelink's gain) are processed as part of
-    /// that one event (CR 120.4c) before it occurs (CR 120.4d). They are
-    /// proposed from inside the damage's batch, so a second batch id would
-    /// split one event into two.
-    pub(crate) fn open_batch(&mut self) -> Option<BatchId> {
+    /// one** ([`Self::open_new_batch`] is the call that never joins). CR
+    /// 120.3 and 120.4 are why it has to: a damage event's results (the life
+    /// loss, the counters, lifelink's gain) are processed as part of that one
+    /// event (CR 120.4c) before it occurs (CR 120.4d). They are proposed from
+    /// inside the damage's batch, so a second batch id would split one event
+    /// into two.
+    pub(crate) fn open_or_join_batch(&mut self) -> Option<BatchId> {
         let previous = self.open;
         let id = previous.unwrap_or_else(|| {
             let id = BatchId(self.next_batch);
@@ -1180,7 +1183,7 @@ impl EventWindow {
         self.open.replace(id)
     }
 
-    /// Close a batch, restoring what [`Self::open_batch`] returned.
+    /// Close a batch, restoring what [`Self::open_or_join_batch`] returned.
     pub(crate) fn close_batch(&mut self, previous: Option<BatchId>) {
         self.open = previous;
     }
@@ -1225,7 +1228,7 @@ mod tests {
     #[test]
     fn what_is_created_in_a_batch_is_after_every_record_of_it() {
         let mut window = EventWindow::new();
-        let outer = window.open_batch();
+        let outer = window.open_or_join_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         let created_at = CreatedAt::now(&window);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
@@ -1274,7 +1277,7 @@ mod tests {
     #[test]
     fn test_a_batch_stamps_every_event_it_emits() {
         let mut window = EventWindow::new();
-        let outer = window.open_batch();
+        let outer = window.open_or_join_batch();
         let object = ObjectRef { id: ObjectId::UNASSIGNED, zone_change_epoch: 0 };
         window.push(GameEvent::Tapped { object }, window.stamp_caused_by(EventCause::Harness), None);
         window.push(GameEvent::Untapped { object }, window.stamp_caused_by(EventCause::Harness), None);
@@ -1293,9 +1296,9 @@ mod tests {
         // gain is proposed from inside the damage's performance, so it must not
         // open a batch of its own.
         let mut window = EventWindow::new();
-        let outer = window.open_batch();
+        let outer = window.open_or_join_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
-        let inner = window.open_batch();
+        let inner = window.open_or_join_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(inner);
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
@@ -1309,10 +1312,10 @@ mod tests {
     #[test]
     fn test_separate_batches_get_separate_ids() {
         let mut window = EventWindow::new();
-        let prev = window.open_batch();
+        let prev = window.open_or_join_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(prev);
-        let prev = window.open_batch();
+        let prev = window.open_or_join_batch();
         window.push(GameEvent::StateBasedActionPerformed, window.stamp_caused_by(EventCause::Harness), None);
         window.close_batch(prev);
 
@@ -1327,7 +1330,7 @@ mod tests {
         use crate::events::cause::{GameRule, StateBasedAction};
         let mut window = EventWindow::new();
         let (legend, zero) = (StateBasedAction::LegendRule, StateBasedAction::ZeroToughness);
-        let outer = window.open_batch();
+        let outer = window.open_or_join_batch();
         for rule in [legend, zero] {
             let stamp = window.stamp_caused_by(EventCause::StateBasedAction(rule));
             window.push(GameEvent::StateBasedActionPerformed, stamp, None);

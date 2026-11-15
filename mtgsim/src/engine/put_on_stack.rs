@@ -576,7 +576,7 @@ impl GameState {
             return Ok(());
         }
         let by = self.existence_for_record(by)?;
-        let previous = self.events.open_batch();
+        let previous = self.events.open_or_join_batch();
         let joined = previous.is_some();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         let mut emitted = Ok(());
