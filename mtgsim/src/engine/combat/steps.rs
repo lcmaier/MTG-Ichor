@@ -91,7 +91,7 @@ impl GameState {
             .into_iter()
             .map(|(attacker, target)| Ok((self.existence_for_record(attacker)?, target)))
             .collect::<Result<Vec<_>, String>>()?;
-        self.emit_event_that_may_ask(GameEvent::AttackersDeclared { attackers }, &actx)?;
+        self.emit_event_with_trigger_choices(GameEvent::AttackersDeclared { attackers }, &actx)?;
 
         Ok(true)
     }
@@ -194,7 +194,7 @@ impl GameState {
         // With the step's provider, as the attack declaration's: one record can
         // hold two triggering events of one arm, which CR 603.7b asks between.
         let actx = ActionContext::turn_based(dp, TurnBasedAction::DeclareBlockers);
-        self.emit_event_that_may_ask(GameEvent::BlockersDeclared { blocks, unblocked }, &actx)?;
+        self.emit_event_with_trigger_choices(GameEvent::BlockersDeclared { blocks, unblocked }, &actx)?;
 
         Ok(())
     }
