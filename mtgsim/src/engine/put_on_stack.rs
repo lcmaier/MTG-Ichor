@@ -614,7 +614,7 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from, source_lki };
-        self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
+        self.emit_event_that_may_ask(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).

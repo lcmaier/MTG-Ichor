@@ -720,7 +720,7 @@ impl GameState {
     /// One record emitted outside any batch — a cast, an activation, an
     /// ability's resolution, a trigger triggering, attackers declared —
     /// dispatched inside `emit_event`. `ctx` is the emitter's provider, where
-    /// the dispatch may have to ask (`emit_event_with_provider`). A
+    /// the dispatch may have to ask (`emit_event_that_may_ask`). A
     /// triggered mana ability resolves here only on a mana ability's
     /// activation, which `announce_activation` emits with its provider.
     pub(crate) fn dispatch_unbatched(&mut self, seq: EventId, ctx: Option<&ActionContext>) -> Result<(), String> {
