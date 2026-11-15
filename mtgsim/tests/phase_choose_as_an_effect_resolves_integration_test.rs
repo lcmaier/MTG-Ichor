@@ -475,3 +475,25 @@ fn feast_of_the_victorious_dead_counts_a_token_and_a_card_no_longer_in_the_grave
     assert_eq!(game.players[0].life_total, 22, "the token and the exiled card both count");
     assert_eq!(plus_ones(&game, bears), 2);
 }
+
+/// "Died this turn" is the turn's history, not what Feast saw: two creatures
+/// die before it is cast, and at the end step it triggers and counts both.
+#[test]
+fn feast_of_the_victorious_dead_counts_deaths_from_before_it_entered() {
+    let mut game = setup_game(2);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let theirs = [put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1), put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1)];
+    theirs.iter().for_each(|&creature| dies(&mut game, creature));
+
+    let feast = put_in_hand(&mut game, feast_of_the_victorious_dead(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    game.players[0].mana_pool.add(ManaType::Black, 1);
+    game.cast_spell(0, feast, &ManaWindowStop::new(test_dp())).expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).expect("it enters");
+    to_the_end_step(&mut game);
+    assert_eq!(game.stack.len(), 1, "the deaths before it entered made it trigger");
+
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect("it resolves");
+    assert_eq!(game.players[0].life_total, 22);
+    assert_eq!(plus_ones(&game, bears), 2);
+}
