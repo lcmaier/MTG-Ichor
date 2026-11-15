@@ -1798,11 +1798,9 @@ mod instance_references {
         )
     }
 
-    /// Whether `recipient` can hand a verb, or a choose step, a player. For
-    /// what a choose step kept, `chosen_name_problems` says whether it is a
-    /// player, since it knows what each step keeps.
+    /// Whether `recipient` can hand a verb, or a choose step, a player.
     fn can_name_a_player(recipient: &EffectRecipient, whole: &Effect) -> bool {
-        use crate::types::effects::SelectionFilter;
+        use crate::types::effects::{ChoiceName, SelectionFilter};
         match recipient {
             EffectRecipient::Implicit
             | EffectRecipient::Controller
@@ -1810,8 +1808,8 @@ mod instance_references {
             | EffectRecipient::Referred
             | EffectRecipient::DefendingPlayer(_)
             | EffectRecipient::AttackedBy(_)
-            | EffectRecipient::EachOf(_)
-            | EffectRecipient::ChosenAs(_) => true,
+            | EffectRecipient::EachOf(_) => true,
+            EffectRecipient::ChosenAs(kept) => *kept == ChoiceName::Player,
             EffectRecipient::Target(filter, _) => matches!(filter.without_another(), SelectionFilter::Player(_) | SelectionFilter::Any),
             EffectRecipient::SameInstanceAs(ix) => whole.instance(*ix).is_some_and(|clause| can_name_a_player(clause, whole)),
             EffectRecipient::ThisObject
@@ -1850,11 +1848,11 @@ mod instance_references {
 
     /// A verb that acts on one player is written on a recipient that can name
     /// one. A recipient that names only objects hands the verb nobody, and
-    /// it does nothing (`resolve::player_acted_on`). The last two lines show
+    /// it does nothing (`resolve::player_acted_on`). The last lines show
     /// the check refusing.
     #[test]
     fn every_player_verb_is_written_on_a_recipient_that_can_name_a_player() {
-        use crate::cards::authoring::{creature, draw_cards, each, target_player};
+        use crate::cards::authoring::{creature, draw_cards, each, target_player, the_chosen_objects, the_chosen_player};
         let registry = CardRegistry::fixture_pool();
         let mut names: Vec<String> = registry.cards.keys().cloned().collect();
         names.sort();
@@ -1877,36 +1875,28 @@ mod instance_references {
         }
         assert!(verbs > 0, "no registered card has a player verb, so this check reads nothing");
         assert_eq!(player_verb_problems("a draw on creatures", &draw_cards(each(creature()), 1)).0.len(), 1);
+        assert_eq!(player_verb_problems("a draw on chosen objects", &draw_cards(the_chosen_objects(), 1)).0.len(), 1);
         assert!(player_verb_problems("a draw on a target player", &draw_cards(target_player(), 1)).0.is_empty());
+        assert!(player_verb_problems("a draw on a chosen player", &draw_cards(the_chosen_player(), 1)).0.is_empty());
     }
 
-    /// What is wrong with how `effect` reads what its choose steps keep, and
-    /// how many reads it makes. A name ("the chosen number", "it") is read
-    /// by a step of the same resolution that comes after the step keeping
-    /// it, and never from outside the "may" or the "if" that kept it; a
-    /// choose step acts on nothing, and its chooser can be found; a verb
-    /// acts on a chosen player or chosen objects, and a player verb on a
-    /// chosen player; and nothing that outlasts the resolution holds a name,
-    /// since what was kept is gone with it.
+    /// Each place `effect` reads something no choose step has chosen yet,
+    /// and how many reads it makes. A later step reads what a choose step
+    /// chose, like a variable read after it is set: the read comes after
+    /// the choose step, in the same spell or ability, never from another
+    /// mode (which may not have been chosen), never after the "may" or "if"
+    /// the choice sat inside (which may not have happened), and never inside
+    /// something that outlasts the resolution, since what was chosen is gone
+    /// with it. A choose step itself acts on nothing and has a chooser that
+    /// can name a player, and no verb is written on the question's label.
     ///
-    /// A name is found in a step's `Debug` print, so a read in any field,
-    /// however deep in a filter or an amount, is one this sees. What kind of
-    /// thing a name deep in an amount or a filter must hold is the card
-    /// words' to refuse (`authoring::chosen`), and the resolution's.
+    /// A read is found in a step's `Debug` print (`ChosenAs(..)`), so a read
+    /// however deep in a filter or an amount is one this sees.
     fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
-        use crate::types::effects::{ChoiceName, ChosenHow, Primitive, ValueChoice};
+        use crate::types::effects::{ChoiceName, ChosenHow, Primitive};
 
         fn names_read_in(printed: &str) -> Vec<&str> {
             printed.split("ChosenAs(").skip(1).filter_map(|rest| rest.split(')').next()).collect()
-        }
-
-        /// What a name holds, by the step that keeps it.
-        #[derive(Clone, Copy, PartialEq)]
-        enum Held {
-            Player,
-            Objects,
-            /// A color, a type or a number: nothing a verb acts on.
-            Value,
         }
 
         struct Walk<'a> {
@@ -1917,17 +1907,17 @@ mod instance_references {
         }
 
         impl<'a> Walk<'a> {
-            fn read(&mut self, printed: &str, kept: &[(ChoiceName, Held)]) {
+            fn read(&mut self, printed: &str, kept: &[ChoiceName]) {
                 for name in names_read_in(printed) {
                     self.reads += 1;
-                    if !kept.iter().any(|(kept_as, _)| format!("{kept_as:?}") == name) {
+                    if !kept.iter().any(|kept_as| format!("{kept_as:?}") == name) {
                         self.problems.push(format!("reads {name}, which no step before it keeps: {printed}"));
                     }
                 }
             }
 
-            fn step(&mut self, effect: &'a Effect, kept: &mut Vec<(ChoiceName, Held)>) {
-                let held = |kept: &[(ChoiceName, Held)], name: &ChoiceName| kept.iter().rev().find(|(kept_as, _)| kept_as == name).map(|(_, held)| *held);
+            /// `effect`, with `kept` the choices made before it.
+            fn step(&mut self, effect: &'a Effect, kept: &mut Vec<ChoiceName>) {
                 match effect {
                     Effect::Atom(primitive, recipient) => {
                         let outlasts_the_resolution = matches!(
@@ -1946,29 +1936,16 @@ mod instance_references {
                         if matches!(recipient, EffectRecipient::Choose(..)) {
                             self.problems.push(format!("{recipient:?} is a question's label: a card chooses with a choose step"));
                         }
-                        if let EffectRecipient::ChosenAs(name) = recipient
-                            && let Some(held) = held(kept, name)
-                            && (held == Held::Value || (held == Held::Objects && acts_on_one_player(primitive)))
-                        {
-                            self.problems.push(format!("{primitive:?} cannot act on what {name:?} holds"));
-                        }
-                        if let Primitive::ChooseValue { name, what, how } = primitive {
+                        if let Primitive::ChooseValue { name, how, .. } = primitive {
                             if *recipient != EffectRecipient::Implicit {
                                 self.problems.push(format!("a choose step acts on nothing, and is written on {recipient:?}"));
                             }
-                            let chooser_is_found = match how {
-                                ChosenHow::AtRandom => true,
-                                ChosenHow::By(EffectRecipient::ChosenAs(chooser)) => held(kept, chooser).is_none_or(|held| held == Held::Player),
-                                ChosenHow::By(chooser) => can_name_a_player(chooser, self.whole),
-                            };
-                            if !chooser_is_found {
-                                self.problems.push(format!("{how:?} names no player to make the choice"));
+                            if let ChosenHow::By(chooser) = how
+                                && !can_name_a_player(chooser, self.whole)
+                            {
+                                self.problems.push(format!("{chooser:?} names no player to make the choice"));
                             }
-                            kept.push((*name, match what {
-                                ValueChoice::Player(_) => Held::Player,
-                                ValueChoice::Objects(..) => Held::Objects,
-                                ValueChoice::Color | ValueChoice::CreatureType | ValueChoice::CardType(_) | ValueChoice::Number { .. } => Held::Value,
-                            }));
+                            kept.push(*name);
                         }
                     }
                     Effect::Sequence(steps) => steps.iter().for_each(|step| self.step(step, kept)),
@@ -2048,12 +2025,11 @@ mod instance_references {
         assert!(reads >= 9, "the walk found {reads} reads of a kept name; nine castable fixtures make one or more each");
     }
 
-    /// The check above fails where it should: a name read with no choose
-    /// step, read before its choose step, read from another mode or from
-    /// outside a "may", read by an ability that outlasts the resolution; a
-    /// verb on a chosen number, and a player verb on chosen objects; a
-    /// chooser that names no player; a choose step written on a recipient;
-    /// and a verb written on the question's label.
+    /// The check above fails where it should: a read with no choose step, a
+    /// read before its choose step, from another mode, from outside a "may",
+    /// or by an ability that outlasts the resolution; a chooser that names
+    /// no player; a choose step written on a recipient; and a verb written
+    /// on the question's label.
     #[test]
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
@@ -2067,10 +2043,6 @@ mod instance_references {
         let chooses_a_creature = || choose_objects(you(), creature(), TargetCount::Exactly(1));
         let chooses_a_number = || choose_number(you(), 0, 3);
 
-        let on_a_number = Effect::Atom(Primitive::Destroy, EffectRecipient::ChosenAs(ChoiceName::Number));
-        assert_eq!(problems(Effect::Sequence(vec![chooses_a_number(), on_a_number])).len(), 1, "a verb on a chosen number");
-        let draws = draw_cards(the_chosen_objects(), 1);
-        assert_eq!(problems(Effect::Sequence(vec![chooses_a_creature(), draws])).len(), 1, "a player verb on chosen objects");
         assert_eq!(problems(choose_number(each(creature()), 0, 3)).len(), 1, "a chooser that names no player");
         let may_choose = Effect::Optional { chooser: PlayerRef::You, effect: Box::new(chooses_a_number()) };
         let reads_it_after = draw_cards(you(), the_chosen_number());
