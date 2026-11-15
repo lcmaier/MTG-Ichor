@@ -1020,7 +1020,9 @@ division.
 | **`mode-picker` — the dev GUI asks for modes one at a time**, split from the second at its intake's point | decision 2's "For the GUIs": `ChooseModes` drawn as a checkbox per mode, or a count where modes repeat, each enabled while some offered set still holds the picks, Confirm while the picks are one; plain Rust over the offered list under tests, egui only drawing | the dev GUI, with a review path: files by review mode, a click script, pictures | ~300–600, a guess from #312 | |
 | **`pay-as-an-effect-resolves` — a cost paid as an effect resolves**, the first of `costs-and-choices-at-resolution`'s two | decision 4: `Pay`, the window at resolution, an amount chosen as it is paid, "any player may", ward; item 418's two comments | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~1,350–2,100 with its tests, by the brief | |
 | **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted; built on Final Showdown and Feast of the Victorious Dead | 450 measured (−290), the row's rest sized ~600–950 with its tests | 621 measured |
-| **`values-chosen-at-resolution` — a value's kind and options** | decision 7's kinds and option arms with their log words and matcher arms, `ChoosePlayer`, the vote's starting seat, piles | Expel the Interlopers, Selvala's Stampede, fixtures for each value no `tdc` card asks | ~560–870 | ~450–700 |
+| **`value-chosen-as-an-effect-resolves` — a value or objects chosen as an effect resolves, kept, and used**, the first of `values-chosen-at-resolution`'s three | the choose step and its kept list (items 425 and 426); decision 7's kinds for a color, a creature type, a card type and a number, with `ChoosePlayer`; one filter for a number compared (most of item 394); a player verb whose player is gone (item 292) | Expel the Interlopers; fixtures modeled on Wash Out, Kindred Dominance, World Queller, Gluntch, Truth or Consequences, The Nipton Lottery and Duneblast | 755–1,220 | 535–910 |
+| **`several-choosers-at-one-step` — votes, piles and a value each player chooses**, the second | the vote (701.38) and its starting seat, piles (700.3), a value each player or each opponent chooses (CR 608.2e) and its readers, the word kind, a choice excluding an earlier one's pick, an open "choose a number" | Selvala's Stampede once its rows land; fixtures | a guess of 1,000–1,600 with its tests | |
+| **`values-kept-past-the-resolution` — a chosen value in an effect that outlasts the resolution**, the third | an effect made with the value it read (a "can't", a requirement, a later trigger), a change's own parameter from a choice and the inline ones, the basic land type, keyword and card name kinds | The Black Gate, Akroma's Blessing, Linvala as fixtures or cards, at its brief | a guess of 1,200–2,000 with its tests, which may split | |
 
 **The estimates run low, so read them against the first PR's.** #306's
 decision 4 was sized at 440–760 lines and came to about twice that: the
@@ -1055,6 +1057,14 @@ and every card the row names; the second PR is decision 8's `Choose` and the
 division among objects not targeted, which share no code with it. Re-counted
 at the first's intake against `6b99c6ce`: item 418 rides the first, item 240's
 upkeep halves are the first's (Contamination), item 28 is the second's.
+
+**`values-chosen-at-resolution` split in three at its design stop** (the
+owner, 2026-11-15, #330). Its note, `handoffs/values-chosen-at-resolution.md`,
+counted what reads a chosen value (223 cards): the first PR is every kind a
+printed card can use as the effect resolves; the second is several choosers
+at one step, the vote's walk; the third is a value that has to outlive the
+resolution, with the three kinds read only that way (a basic land type, a
+keyword, a card name). The subsystem closes with the third.
 
 **`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
 (the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's

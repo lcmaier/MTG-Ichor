@@ -50,9 +50,9 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | 2 | — | 2 |
 | 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
 | 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
-| 5 | `values-chosen-at-resolution` and 1 more | 10 of 12 landed | 10 | 2–4 | 9–13 |
+| 5 | `value-chosen-as-an-effect-resolves`, the first of `values-chosen-at-resolution` and 3 more | 10 of 14 landed | 10 | 4–6 | 14–16 |
 | 6 | `linked-abilities` | to come | 0 | 3–4 | 3–4 |
-| 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 5–8 |
+| 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 7–9 |
 | 8 | `information-model-design` and 1 more | to come | 0 | 4–7 | 4–7 |
 | 9 | `permission-design` and 6 more | to come | 0 | 8–15 | 8–15 |
 | 10 | `player-scoped-values` and 2 more | to come | 0 | 3–6 | 3–6 |
@@ -63,7 +63,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
-| | **To v0.5** | **42 rows to come** | **19** | **71–133** | **85–150** |
+| | **To v0.5** | **44 rows to come** | **19** | **73–135** | **92–154** |
 
 No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.
@@ -82,7 +82,7 @@ row by naming it in a heading or in a sizing table's first cell, in bold.
 
 | Architecture doc | Rows landed | Closes with | Step |
 |---|---:|---|---:|
-| `choices-architecture.md` | 8 of 9 | `values-chosen-at-resolution` | 5 |
+| `choices-architecture.md` | 8 of 11 | `values-kept-past-the-resolution`, the third | 5 |
 | `cant-effects-architecture.md` | 0 of 5 | `combat-requirements` | 11 |
 | `cost-architecture.md` | 0 of 2 | `remaining-costs` | 14 |
 | `permission-architecture.md` | 0 of 3 | `casting-from-other-zones` | 15 |
@@ -213,7 +213,9 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| A value's kind and options | `values-chosen-at-resolution` | `choices-architecture.md` |
+| A value or objects chosen as an effect resolves, kept, and used | `value-chosen-as-an-effect-resolves` | `choices-architecture.md` |
+| Votes, piles and a value each player chooses | `several-choosers-at-one-step` | `choices-architecture.md` |
+| A chosen value in an effect that outlasts the resolution | `values-kept-past-the-resolution` | `choices-architecture.md` |
 | Token copies | `token-copies` | `copy-effects-architecture.md` |
 | Spell copies | `spell-copies` | `copy-effects-architecture.md` |
 | Double-faced cards | `double-faced-cards` | `copy-effects-architecture.md` |

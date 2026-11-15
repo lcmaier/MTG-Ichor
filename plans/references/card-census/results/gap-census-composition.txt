@@ -37,7 +37,7 @@ unwritten: Encore {4}{U}{U}
 unwritten: Suspend 4—{U}
 [spell] "Target player draws three cards." costs [] => Atom(DrawCards(Fixed(3)), Target(Player, Exactly(1)))
 
-=== Angel of Invention (part, blocked)
+=== Angel of Invention (part, ready)
 unwritten: Fabricate 2
 [static] "Other creatures you control get +1/+1." costs [] => Atom(ModifyPowerToughness(Fixed(1), Fixed(1), WhileSourceOnBattlefield), FilteredPermanents(And(And(ByType(Creature), ByController(You)), NotSource)))
 
@@ -250,7 +250,7 @@ unwritten: {T}: Add one mana of any color in your commander's color identity.
 === Commander's Insignia (face, blocked)
 unwritten: Creatures you control get +1/+1 for each time you've cast your commander from the command zone this game.
 
-=== Compulsive Research (part, blocked)
+=== Compulsive Research (part, ready)
 [spell] "Target player draws three cards. Then that player discards two cards unless they discard a land card." costs [] => Atom(DrawCards(Fixed(3)), Target(Player, Exactly(1)))
 
 === Conduit of Worlds (face, gap)
@@ -762,7 +762,7 @@ unwritten: {G}, {T}: You may play the exiled card without paying its mana cost i
 unwritten: Multani gets +1/+1 for each land you control and each land card in your graveyard.
 unwritten: {1}{G}, Return two lands you control to their owner's hand: Return this card from your graveyard to your hand.
 
-=== Myr Battlesphere (part, blocked)
+=== Myr Battlesphere (part, ready)
 unwritten: Whenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking.
 [triggered] "When this creature enters, create four 1/1 colorless Myr artifact creature tokens." costs [] => Triggered(TriggerDef { condition: Event(EntersBattlefield { subject: ThisObject, controller: None, from: None, was_cast: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Atom(CreateToken(TokenDef { name: None, colors: [], types: [Artifact, Creature], subtypes: [Creature(Myr)], supertypes: [], power: Some(1), toughness: Some(1), keyword_flags: [], abilities: [], rules_text: "", enchant_filter: None, enters_tapped: false, enters_attacking: None }, Fixed(4)), Controller) })
 
@@ -1060,7 +1060,7 @@ unwritten: This land enters tapped unless you control two or more basic lands.
 unwritten: When this creature enters, you may search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.
 [triggered] "When this creature dies, you may draw a card." costs [] => Triggered(TriggerDef { condition: Event(ZoneChange { subject: ThisObject, change: ZoneChangePattern { from: Some(Battlefield), to: Some(Graveyard), act: None }, by: None, owner: None, multiplicity: PerOccurrence }), intervening_if: None, limit: None, effect: Optional { chooser: You, effect: Atom(DrawCards(Fixed(1)), Controller) } })
 
-=== Spit Flame (part, blocked)
+=== Spit Flame (part, ready)
 unwritten: Whenever a Dragon you control enters, you may pay {R}. If you do, return this card from your graveyard to your hand.
 [spell] "Spit Flame deals 4 damage to target creature." costs [] => Atom(DealDamage { amount: Fixed(4), unpreventable: false }, Target(Creature, Exactly(1)))
 

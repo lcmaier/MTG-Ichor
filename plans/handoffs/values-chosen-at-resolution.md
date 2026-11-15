@@ -25,9 +25,10 @@ deletes it. Every count and line below was read against `7f0e97ef`.
   enum, and decision 1 proposed an enum for the name's type.
 - **At the fourth round (2026-11-15), the name is an enum** (the owner).
 - **At the fifth round (2026-11-15), decision 3 is settled: A**, looked up
-  where the step runs. Every decision is taken but one spelling inside it:
-  the number comparison as one leaf or as an at-least and at-most pair,
-  which the owner is deciding on how each reads.
+  where the step runs.
+- **At the sixth round (2026-11-15), the number comparison is one filter
+  with a labelled comparison.** Every decision is taken, and the build
+  starts.
 
 ## The model: choose, keep, use
 
@@ -301,10 +302,11 @@ EffectRecipient::ChosenAs(ChoiceName)  // act on the objects, or the player, kep
 AmountExpr::ChosenAs(ChoiceName)       // the number kept under the name
 ObjectFilter::ChosenAs(ChoiceName)     // an object of the chosen color or type, or one of the chosen objects
 
-// "Creatures with power 3 or greater", "toughness 2 or less": one leaf for
-// every number read off an object and compared with another number.
-ObjectFilter::ValueIs(ObjectValue, Comparison, AmountExpr)
-pub enum Comparison { AtLeast, AtMost, Exactly }
+// "Creatures with power 3 or greater", "toughness 2 or less": one filter
+// for every number read off an object and compared with another number,
+// shaped as the counter filter is (`WithCounters { kind, count }`).
+ObjectFilter::WithValue { of: ObjectValue, is: ValueIs }
+pub enum ValueIs { AtLeast(AmountExpr), AtMost(AmountExpr), Exactly(AmountExpr), LessThan(AmountExpr) }
 
 // state/game_state.rs, on the record of the spell or ability now resolving,
 // beside the X chosen as it resolves
@@ -514,20 +516,24 @@ is that small bundle. It is what lets one table of leaves serve targeting,
 costs, "can't" effects, replacements and resolution. Under A this PR does
 not touch it.
 
-**The comparison, reshaped.** The first draft added `PowerAtLeast` beside
-the existing `PowerLE(i32)`. The grid above is one question, a number read
-off an object compared with another number, so it is one leaf:
-`ValueIs(which number, how compared, with what)`. "Which number" is the
-type amounts already use for "its power" (`ObjectValue`: power and
-toughness today; step 7 adds mana value and counters, and the leaf takes
-them with no change). "How compared" is at least, at most or exactly, since
-exact matches are printed too. "With what" is any amount: a printed number,
-X, the chosen number. Built here: power and toughness, all three
-comparisons, and `PowerLE` folded in (its five readers in the engine and 24
-lines that name it). The table compares plain numbers; an asker that can
-read amounts fills them first, as above. One leaf with a comparison, where
-the review suggested `NumberAtLeast` and `NumberAtMost`, because the exact
-case would be a third twin; say if you would rather have the twins.
+**The comparison: settled, one filter with a labelled comparison** (the
+owner, at #330's sixth review round, 2026-11-15, on how each spelling read
+over six cards). The first draft added `PowerAtLeast` beside the existing
+`PowerLE(i32)`. The grid above is one question, a number read off an object
+compared with another number, so it is one filter,
+`WithValue { of, is }`, shaped as the counter filter already is. `of` is
+the type amounts already use for "its power" (`ObjectValue`: power and
+toughness today; step 7 adds mana value and counters, and the filter takes
+them with no change). `is` says how it is compared and with what: at least,
+at most, exactly or less than, each carrying any amount, a printed number,
+X or the chosen number. Exact matches are printed (Void's "mana value equal
+to that number") and so is a strict one (mentor's "power less than this
+creature's power"), which is why a pair of at-least and at-most filters,
+the review's first suggestion, would have grown to four. Built here: power
+and toughness, all four comparisons, and `PowerLE` folded in (its five
+readers in the engine and 24 lines that name it). The table compares plain
+numbers; an asker that can read amounts fills them first, as above. Cards
+write it through helpers: `power_at_least(3)`, `toughness_at_most(2)`.
 
 ### Decision 4 — a player verb's player: item 292 with item 425
 
@@ -596,7 +602,7 @@ of 1.06 times the top, 0.53–1.70), so no ratio goes on these.
 | The choose step: `ChooseValue`, `ValueChoice`, `ChosenHow`; each kind's options (the five colors, CR 205.3m's list with its missing fifteen, the card types or a printed few, a number's range, a player set, an object filter) and at random | 170–260 | 100–170 |
 | Decision 1: the list on the resolving record, names, the lookups, `Remember`'s note, the chain, the registry's checks | 70–120 | 60–100 |
 | Decision 2: the object choice behind the step; Final Showdown, Feast and #326's fixtures rewritten | 60–110 | 40–80 |
-| Decision 3: the fill, the "one of these objects" leaf, `ValueIs` with `PowerLE` folded in | 110–180 | 80–130 |
+| Decision 3: the fill, the "one of these objects" leaf, `WithValue` with `PowerLE` folded in | 110–180 | 80–130 |
 | Decision 4: item 292 and item 425, the Lich and its twin, item 292's two boards | 60–100 | 60–100 |
 | Expel the Interlopers registered and pooled; the fixtures below | 130–190 | 130–210 |
 | The dev GUI's words and tests | 15–40 | 15–30 |

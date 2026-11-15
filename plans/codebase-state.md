@@ -10795,7 +10795,7 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      decision 7 counts 38 such cards.
      **Reachability (2026-11-14):** unreachable — no registered card chooses a
      player as an effect applies.
-     **Slotted:** `values-chosen-at-resolution`, with decision 7's
+     **Slotted:** `value-chosen-as-an-effect-resolves`, with decision 7's
      `ChoosePlayer`.
      **Sized:** ~40–80 lines beside that kind: the arm, its player verbs'
      reads, and the error removed.
@@ -10814,10 +10814,10 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      "that player".
      **Reachability (2026-11-14):** unreachable — Final Showdown names its
      creature once, and no registered card chains on a choice.
-     **Slotted:** `values-chosen-at-resolution`, whose "that player" and "the
-     chosen [type]" need the same word; its design decides the shape, such
-     as a recipient naming an earlier choice of the resolution as
-     `SameInstanceAs` names an earlier target.
+     **Slotted:** `value-chosen-as-an-effect-resolves`, whose "that player"
+     and "the chosen [type]" need the same word; its design took a name the
+     choose step keeps the choice under (`handoffs/values-chosen-at-resolution.md`,
+     decision 1).
      **Sized:** ~80–150 lines: the walk keeps each choice's picks by its
      place, a recipient reads them, and `ContinuousChange` chains on it.
 

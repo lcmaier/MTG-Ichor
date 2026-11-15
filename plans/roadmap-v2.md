@@ -753,7 +753,9 @@ name for, and a phase of the critical path that no Row cell names.
 | 5 | `mana-provenance`, the design | ✅ 2026-11-13 (PR #323) | 1 | it is one | no | Nearest: #306 and #224, one PR each. It answers that `Primitive::Pay` does not need the build first, so `mana-ability-costs` and the build stay at step 7 |
 | 5 | `pay-as-an-effect-resolves`, the first of `costs-and-choices-at-resolution` | ✅ 2026-11-13 (PR #324) | 1 | no | split | Design: the row's 1,150–1,800 at 1.7× was 2,000–3,050, split at the brief (2026-11-13); this half 1,350–2,100 by it, the payment's share of code 600–950 and tests 550–850 |
 | 5 | `choose-as-an-effect-resolves`, the second | ✅ 2026-11-14 (PR #326) | 1 | no | no | Design: the row's rest, about 600–950 at the same 1.7×: decision 8's `Choose` at resolution and the untargeted division. Measured at 1,071 added, 1,410 touched, past its top with the pre-review's tests, inside the brief's 1,500 |
-| 5 | `values-chosen-at-resolution` | | 1–2 | no | may | Design: 1,010–1,570 at 1.7× is 1,700–2,700 |
+| 5 | `value-chosen-as-an-effect-resolves`, the first of `values-chosen-at-resolution` | | 1 | no, #330 | split | Design: the row's 1,010–1,570 at 1.7× was 1,700–2,700; split in three at its design stop (2026-11-15), this PR 1,290–2,130 by its note's piece count |
+| 5 | `several-choosers-at-one-step`, the second | | 1 | no | may | Guess: 1,000–1,600, from the design table's share for the vote and piles plus the 16 "each player chooses" cards and the word kind |
+| 5 | `values-kept-past-the-resolution`, the third | | 1–2 | no | may | Guess: 1,200–2,000, about 130 printed cards across the write-in, a change's parameter and three kinds; it may split at its brief |
 | 5 | `fork-test-at-every-decision` | | 1–2 | no | may | Nearest: #159's fork test, one PR. A second if the fork does not separate from the paused game, which `setup-architecture.md#7e-pausing-at-a-decision` calls one consumer's two halves |
 | 6 | `linked-abilities` | | 3–4 | own PR | likely | Nearest: RH, a record reshaped under all its readers, a design and three builds. Five items sum 230–360, one unsized; CR 607's 20 atoms are all open |
 | 7 | `resolution-recipients-and-amounts` | | 2–3 | no, #295 | yes, in two | Design: its note's two builds carried 665–1,210 and 930–1,490. Five items have joined since; `batches-durations-and-control` carried a like size into two PRs at 1.16× |
@@ -797,10 +799,12 @@ name for, and a phase of the critical path that no Row cell names.
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-06:** 73–138 route PRs, 15–40 of them the
-decks' cards and gaps.
+**What the rows sum to, read 2026-11-15:** 73–135 route PRs left, 15–40 of them
+the decks' cards and gaps. (Read 2026-11-06 it was 73–138: seven route PRs landed
+since, and three rows split.)
 
-**The forecast: each step's range at that reading**, at #315's merge, the rows
+**The forecast: each step's range at that reading**, at #330's design stop, when
+step 5 passed its 9–13 as `values-chosen-at-resolution` split in three, the rows
 landed by then at what they took. The table above moves as rows split, land and
 are re-sized; this one stays, so the board can say when a step has passed what
 the date below was computed from. A landed row's PR cell is what it took. A step
@@ -816,9 +820,9 @@ and the date below with it.
 | 2 | 2 |
 | 3 | 5 |
 | 4 | 1 |
-| 5 | 9–13 |
+| 5 | 14–16 |
 | 6 | 3–4 |
-| 7 | 5–8 |
+| 7 | 7–9 |
 | 8 | 4–7 |
 | 9 | 8–15 |
 | 10 | 3–6 |
@@ -836,17 +840,18 @@ plan whose last rows joined it, so work is counted the way the rows left are. Of
 177 merge commits in the eight weeks to #313, 87 were on the route, 27 the dev
 GUI, 36 audit, 13 process and docs, and 14 detours: 2.0 merged PRs for each route
 PR, and 36% audit, process and detours. The item 6 audit's plan said 13–20 PRs and
-ran to 28, its cleanup builds among them. At that rate the route is 146–276 merged
+ran to 28, its cleanup builds among them. At that rate the route is 146–270 merged
 PRs. Held to about 1.5 for each route PR, with audits on a budget (the owner,
 2026-11-13: a hunt of one PR when a subsystem closes and the whole audit once, at
 v0.5's close, `spine-phase-audit.md#when-it-runs`), the process PR
-at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–207. So
-**about 110–275 merged PRs**.
+at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–203. So
+**about 110–270 merged PRs**.
 
 **A date, and what it assumes.** The route ran 10.9 PRs a week over those eight
-weeks and 5 in its slowest fortnight, the dev GUI's. 73 PRs at the first pace is
-about 7 weeks and 138 at the second 28, so **between about New Year and late May
-2027**. Each range's midpoint, 106 PRs at 8 a week, gives early February. It
+weeks and 5 in its slowest fortnight, the dev GUI's. From 2026-11-15, 73 PRs at
+the first pace is about 7 weeks and 135 at the second 27, so **between about New
+Year and late May 2027**. Each range's midpoint, 104 PRs at 8 a week, gives
+mid-February, a week later than the reading of 2026-11-06. It
 assumes the owner's review keeps pace and no row's design doubles it as TR-5's did.
 The gap census held the date: its gaps are 5–9 PRs where the five-decks row guessed
 5–10, and it sees a card's blockers only up to its first row not built, so each
