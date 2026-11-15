@@ -2420,6 +2420,10 @@ source is in a graveyard: the `None` arm is finding 2 above. CR 613.7d — "an
 object receives a timestamp at the time it enters a zone" — is the field that
 fixes it, and there is one right shape:
 
+**Removed at #328** (2026-11-14): a battlefield sweep walks the object table in
+id order, so nothing reads the copy and it is gone (`clone-architecture.md`
+decision 7). The decision as taken:
+
 **`GameObject.timestamp` is CR 613.7's, and the battlefield entry keeps a
 copy.** The first cut of this decision said one field and *deleted*
 `PermanentState.timestamp` — "a stored field must mean one thing"

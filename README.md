@@ -101,12 +101,11 @@ and each is stated in full in [`CLAUDE.md`](CLAUDE.md).
    touching the registry — so existence is re-checked at every layer, against the previous
    layer's frame. Deciding existence outside the layer walk turns a terminating computation
    into a fixpoint that invents oscillation the CR does not have.
-3. **Determinism at the decision boundary.** A `DecisionProvider` picks by *index*, so the
-   order a sweep returns in is part of the decision. Sweeps that reach a choice go through
-   `battlefield_ordered` / `battlefield_ids_ordered`, ordered by `PermanentState::timestamp`
-   — which is CR 613.7's order anyway. Never raw `HashMap` order, and never `ObjectId`, which
-   deliberately has no order. Randomness is owned, never ambient: draw from `GameState.rng`, not
-   `rand::rng()`.
+3. **Determinism at the decision boundary.** The order a sweep returns in reaches choices,
+   logs and counts, so it is the same in every process and every fork: a battlefield sweep
+   walks the object table in id order, the engine's order wherever no rule names one, and a
+   rule that compares timestamps (CR 613.7) reads them. Never raw `HashMap` order.
+   Randomness is owned, never ambient: draw from `GameState.rng`, not `rand::rng()`.
 
 ---
 
