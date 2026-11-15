@@ -112,7 +112,7 @@ fn main() {
     // and about the first card in the asked seat's hand, whose question
     // section asks the cast check; and the panel's view, which `app::draw`
     // builds again at every repaint while it is open.
-    let busiest = game.state.battlefield_ids_ordered().into_iter().max_by_key(|id| {
+    let busiest = game.state.battlefield_ids().into_iter().max_by_key(|id| {
         explain(&game.state, *id).map_or(0, |explanation| explanation.steps.len())
     });
     let in_hand = game.state.players[asked].hand.first().copied();

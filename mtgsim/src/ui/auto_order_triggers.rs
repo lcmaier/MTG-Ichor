@@ -5,8 +5,8 @@
 // order leaves the same game (`trigger_order_cannot_change_outcome`); what
 // reaches a seat is a real choice, and taking it for the person is a policy.
 // The order the prompt lists is trigger order, which within one event is the
-// sources' timestamp order (CR 613.7), and the first goes on the stack lowest
-// (`ask_order_triggers`), so the newest source's trigger resolves first.
+// sources' id order, and the first goes on the stack lowest
+// (`ask_order_triggers`), so the highest id's trigger resolves first.
 //
 // Human seats only, inside `FullControl`'s decorated stack, so full control is
 // the toggle: off, the order is taken for the person; on, they are asked. An
