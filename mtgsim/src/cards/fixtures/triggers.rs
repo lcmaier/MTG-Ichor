@@ -19,7 +19,7 @@ use crate::types::zones::ZoneSet;
 
 /// Every castable fixture, by name, as `CardRegistry::fixture_pool` registers
 /// them.
-pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 41] = [
+pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 42] = [
     ("Fixture Curtain", fixture_curtain),
     ("Fixture Token Tally", fixture_token_tally),
     ("Fixture Mourning Ink", fixture_mourning_ink),
@@ -55,6 +55,7 @@ pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 41] = [
     ("Wash Out Fixture", super::wash_out_fixture),
     ("Kindred Dominance Fixture", super::kindred_dominance_fixture),
     ("World Queller Fixture", super::world_queller_fixture),
+    ("By Invitation Only Fixture", super::by_invitation_only_fixture),
     ("Bestowed Favors", super::bestowed_favors),
     ("Consequences at Random", super::consequences_at_random),
     ("The Nipton Lottery Fixture", super::the_nipton_lottery_fixture),

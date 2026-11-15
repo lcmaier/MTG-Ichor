@@ -661,6 +661,27 @@ pub fn world_queller_fixture() -> Arc<CardData> {
         .build()
 }
 
+/// By Invitation Only Fixture — {3}{W}{W}, a sorcery: the card's text.
+///
+/// A number read as an amount, an edict's count: each player picks that
+/// many of their creatures, or as many as they have.
+pub fn by_invitation_only_fixture() -> Arc<CardData> {
+    let text = "Choose a number between 0 and 13. Each player sacrifices that many creatures of their choice.";
+    let each_sacrifices_that_many = sacrifice(chosen_by(Choice {
+        chooser: each_player(),
+        among: ChoiceScope::ChoosersPermanents,
+        picks: vec![Pick::exactly(chosen(ChoiceName::Number), creature())],
+        acts_on: ChoiceSide::Chosen,
+    }));
+    CardDataBuilder::new("By Invitation Only Fixture")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, Effect::Sequence(vec![choose_number(you(), 0, 13), each_sacrifices_that_many])))
+        .build()
+}
+
 /// Bestowed Favors — {G}, a sorcery.
 ///
 /// A player you choose, twice: Gluntch, the Bestower's "choose a second
@@ -687,7 +708,8 @@ pub fn bestowed_favors() -> Arc<CardData> {
 /// Consequences at Random — {R}, a sorcery.
 ///
 /// A player drawn at random, nobody asked: Truth or Consequences' "choose an
-/// opponent at random. [It] deals 3 damage to that player", without its vote.
+/// opponent at random. [It] deals 3 damage to that player for each
+/// consequences vote", without its vote.
 pub fn consequences_at_random() -> Arc<CardData> {
     choosing_sorcery(
         "Consequences at Random",

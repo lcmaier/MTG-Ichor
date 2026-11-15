@@ -237,9 +237,10 @@ pub enum ChosenValue {
     CardType(CardType),
     Number(u64),
     Player(PlayerId),
-    /// The objects, each as the existence chosen (CR 400.7), and each one's
-    /// share of a divided amount, empty when nothing was divided.
-    Objects { chosen: Vec<ObjectRef>, shares: Vec<u64> },
+    /// The objects, each as the existence chosen (CR 400.7).
+    Objects(Vec<ObjectRef>),
+    /// The objects an amount was divided among, each with its share.
+    Divided(Vec<(ObjectRef, u64)>),
 }
 
 /// Which number [`AmountExpr::ValueOf`] and [`ObjectFilter::WithValue`] read
@@ -265,14 +266,14 @@ pub enum ValueIs {
 
 impl ValueIs {
     /// What the number is compared with.
-    pub fn amount(&self) -> &AmountExpr {
+    pub(crate) fn amount(&self) -> &AmountExpr {
         match self {
             ValueIs::AtLeast(amount) | ValueIs::AtMost(amount) | ValueIs::Exactly(amount) | ValueIs::LessThan(amount) => amount,
         }
     }
 
     /// The same comparison with `amount` in place of what it named.
-    pub fn with_amount(&self, amount: AmountExpr) -> ValueIs {
+    pub(crate) fn with_amount(&self, amount: AmountExpr) -> ValueIs {
         match self {
             ValueIs::AtLeast(_) => ValueIs::AtLeast(amount),
             ValueIs::AtMost(_) => ValueIs::AtMost(amount),
@@ -283,7 +284,7 @@ impl ValueIs {
 
     /// Whether `value` stands to `amount`, once read, as the comparison says.
     /// A power can be negative (CR 208.3), an amount cannot (CR 107.1b).
-    pub fn satisfied_by(&self, value: i64, amount: u64) -> bool {
+    pub(crate) fn satisfied_by(&self, value: i64, amount: u64) -> bool {
         let amount = i64::try_from(amount).unwrap_or(i64::MAX);
         match self {
             ValueIs::AtLeast(_) => value >= amount,
@@ -480,7 +481,7 @@ impl ObjectFilter {
     /// Whether the filter holds a word only a resolution reads: a name a
     /// choose step kept, or an amount still to be read. One that holds none
     /// is asked as written.
-    pub fn holds_a_resolutions_word(&self) -> bool {
+    pub(crate) fn holds_a_resolutions_word(&self) -> bool {
         match self {
             ObjectFilter::ChosenAs(_) => true,
             ObjectFilter::WithValue { is, .. } => !matches!(is.amount(), AmountExpr::Fixed(_)),
@@ -1534,8 +1535,8 @@ pub struct Pick {
 
 impl Pick {
     /// "[N] [filter]": that many, or as many as there are (CR 101.3).
-    pub fn exactly(n: u64, filter: ObjectFilter) -> Pick {
-        Pick { filter, count: PickCount::Exactly(AmountExpr::Fixed(n)) }
+    pub fn exactly(n: impl Into<AmountExpr>, filter: ObjectFilter) -> Pick {
+        Pick { filter, count: PickCount::Exactly(n.into()) }
     }
 }
 
@@ -2937,17 +2938,6 @@ pub enum Primitive {
 }
 
 impl Primitive {
-    /// Whether the verb acts by each recipient's share of a division: damage,
-    /// counters and a damage shield (CR 601.2d, 608.2d). Every other verb
-    /// acts on a divided choice's objects alike.
-    pub fn divides(&self) -> bool {
-        match self {
-            Primitive::DealDamage { .. } | Primitive::AddCounters { .. } => true,
-            Primitive::CreateReplacement(def, ..) => matches!(def.uses, crate::types::replacement::Uses::NextDamage(_)),
-            _ => false,
-        }
-    }
-
     /// The zone this verb puts what it acts on into, or `None` for a verb
     /// that moves nothing. What [`Effect::Remember`] checks a performed move
     /// against: a replacement can send the object elsewhere (Rest in Peace

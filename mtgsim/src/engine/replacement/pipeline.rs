@@ -1615,9 +1615,9 @@ fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
 /// is CR 616.1c's step, which never shares a bucket with these.
 #[derive(Debug, Default)]
 struct EntryWrites {
-    /// +1/+1 counters: power up (CR 122.1a).
+    /// +1/+1 counters: power up, and toughness with it (CR 122.1a).
     raises_power: bool,
-    /// -1/-1 counters: power down.
+    /// -1/-1 counters: power down, and toughness with it.
     lowers_power: bool,
     /// What the members' edits add.
     added_types: Vec<CardType>,

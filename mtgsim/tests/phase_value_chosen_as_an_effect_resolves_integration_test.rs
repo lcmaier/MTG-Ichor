@@ -8,13 +8,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
-    at_random, choose_number, choose_objects, choose_player, chosen, creature, creatures_you_control, destroy, draw_cards, exile, power_at_least,
-    power_at_most, put_counters, return_to_the_battlefield, spell_ability, target_creature, target_player, the_chosen, the_target,
-    toughness_at_least, toughness_at_most, you,
+    choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, chosen, creature,
+    creatures_you_control, destroy, draw_cards, exile, lose_life, power_at_least, power_at_most, put_counters, return_to_the_battlefield,
+    spell_ability, tap, target_creature, target_opponent, target_player, the_chosen, the_target, toughness_at_least, toughness_at_most, you,
+    you_control,
 };
 use mtgsim::cards::fixtures::{
-    bestowed_favors, chosen_champion, consequences_at_random, damnations_tally, duneblast_fixture, kindred_dominance_fixture,
-    the_nipton_lottery_fixture, wash_out_fixture, world_queller_fixture,
+    bestowed_favors, by_invitation_only_fixture, chosen_champion, consequences_at_random, damnations_tally, duneblast_fixture,
+    kindred_dominance_fixture, the_nipton_lottery_fixture, wash_out_fixture, world_queller_fixture,
 };
 use mtgsim::cards::printings::{expel_the_interlopers, glorious_anthem, grizzly_bears};
 use mtgsim::engine::actions::GameAction;
@@ -251,7 +252,7 @@ fn combat_tutorial_fixture() -> Arc<CardData> {
 
 /// CR 608.2b — the spell resolves for the target still legal and "won't
 /// affect" the one that is not: with its target player gone from the game,
-/// nobody draws. The draw fell to the spell's controller before.
+/// nobody draws.
 #[test]
 fn a_draw_whose_target_player_has_left_is_no_ones() {
     let mut game = setup_game(3);
@@ -471,6 +472,7 @@ fn world_queller_keeps_a_card_type_for_each_players_edict() {
         let bears = [0, 1, 2].map(|seat| put_on_battlefield(&mut game, grizzly_bears(), seat));
         to_player_0s_upkeep(&mut game);
         assert!(game.place_pending_triggers(&test_dp()).expect("the trigger is placed"));
+        let trigger = *game.stack.last().expect("the trigger is on the stack");
 
         let answers = ScriptedDecisionProvider::new();
         let may = ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED };
@@ -487,8 +489,9 @@ fn world_queller_keeps_a_card_type_for_each_players_edict() {
         if chooses {
             // Each player's one artifact is their only candidate, so no
             // player is asked which.
-            let [_, (chooser, _, offered)] = asked.as_slice() else { panic!("the may, then the card type: {asked:?}") };
+            let [_, (chooser, kind, offered)] = asked.as_slice() else { panic!("the may, then the card type: {asked:?}") };
             assert_eq!(*chooser, 0);
+            assert!(matches!(kind, ChoiceKind::ChooseCardType { source } if *source == trigger), "the question names the ability resolving");
             assert_eq!(*offered, CardType::ALL.map(ChoiceOption::CardType).to_vec(), "every card type");
         } else {
             assert_eq!(asked.len(), 1, "declined, nothing more is asked");
@@ -543,21 +546,186 @@ fn an_opponent_chosen_at_random_is_drawn_from_the_seed() {
     assert_eq!(drawn, (0..16).map(damaged_under).collect::<Vec<_>>(), "a seed replays");
 }
 
-/// A number drawn at random is one of the numbers the text allows, and the
-/// amount after it reads it.
+/// By Invitation Only: the number kept is an edict's count. Each player
+/// picks that many of their creatures, a player with exactly that many
+/// unasked, in APNAP order.
 #[test]
-fn a_number_chosen_at_random_is_within_its_bounds() {
-    let text = "Choose a number between 2 and 3 at random. You draw that many cards.";
-    let drawn_under = |seed: u64| {
-        let mut game = stocked(2);
-        game.reseed(seed);
-        let effect = Effect::Sequence(vec![choose_number(at_random(), 2, 3), draw_cards(you(), chosen(ChoiceName::Number))]);
-        cast(&mut game, sorcery("Fixture Lot", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, ScriptedDecisionProvider::new());
-        game.resolve_top_of_stack(&test_dp()).expect("it resolves, and nobody is asked");
-        game.players[0].hand.len()
-    };
-    let drawn: Vec<usize> = (0..16).map(drawn_under).collect();
-    assert!(drawn.iter().all(|cards| (2..=3).contains(cards)) && drawn.contains(&2) && drawn.contains(&3), "{drawn:?}");
+fn by_invitation_only_has_each_player_sacrifice_the_number_chosen() {
+    let mut game = setup_two_player_game();
+    let mine = [(); 2].map(|_| put_on_battlefield(&mut game, grizzly_bears(), 0));
+    let theirs = [(); 3].map(|_| put_on_battlefield(&mut game, grizzly_bears(), 1));
+    cast_paying(&mut game, by_invitation_only_fixture(), &[(ManaType::White, 5)], ScriptedDecisionProvider::new());
+
+    let answers = ScriptedDecisionProvider::new();
+    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 13 }) };
+    answers.expect_number(any_number, 2);
+    picks(&answers, vec![ChoiceOption::Object(theirs[0]), ChoiceOption::Object(theirs[2])]);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+
+    assert!(matches!(asked.of_numbers.borrow().as_slice(), [(0, _, 0, 13)]), "its controller, from 0 through 13");
+    assert!(mine.iter().all(|id| !game.battlefield.contains_key(id)), "two of two");
+    assert_eq!(theirs.map(|id| game.battlefield.contains_key(&id)), [false, true, false], "two of three, the two picked");
+}
+
+/// A card type chosen from the few the text prints: Turnabout's "choose
+/// artifact, creature, or land", read by a sweep. Its "target player
+/// controls" is no filter word yet, so this taps every permanent of the type.
+#[test]
+fn a_card_type_is_chosen_from_the_few_the_text_prints() {
+    let text = "Choose artifact, creature, or land. Tap all permanents of the chosen type.";
+    let printed = [CardType::Artifact, CardType::Creature, CardType::Land];
+    let effect = Effect::Sequence(vec![choose_card_type_among(you(), printed), tap(each_of_the_chosen_card_type())]);
+    let mut game = setup_two_player_game();
+    let relic = put_on_battlefield(&mut game, card_of_type("Relic", CardType::Artifact), 1);
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    cast(&mut game, sorcery("Fixture Turn", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, ScriptedDecisionProvider::new());
+
+    let answers = ScriptedDecisionProvider::new();
+    answers.expect_choice(ChoiceKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CardType(CardType::Artifact)]);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+    assert_eq!(asked.of_options.borrow()[0].2, printed.map(ChoiceOption::CardType).to_vec(), "the three printed, and no other");
+    assert!(game.battlefield[&relic].tapped && !game.battlefield[&bears].tapped);
+}
+
+/// "Each permanent of the chosen card type".
+fn each_of_the_chosen_card_type() -> EffectRecipient {
+    EffectRecipient::FilteredPermanents(ObjectFilter::All.and(chosen(ChoiceName::CardType)))
+}
+
+/// A choice reads a value chosen before it: "choose a color, then a
+/// creature of that color" offers the creatures of the color kept, and the
+/// question's label carries the color, never the name.
+#[test]
+fn a_choice_of_objects_is_among_what_an_earlier_choice_describes() {
+    let text = "Choose a color. Choose a creature of that color. Destroy it.";
+    let effect = Effect::Sequence(vec![
+        choose_color(you()),
+        choose_objects(you(), creature().and(chosen(ChoiceName::Color)), TargetCount::Exactly(1)),
+        destroy(the_chosen(ChoiceName::Objects)),
+    ]);
+    let mut game = setup_two_player_game();
+    let blue = [0, 1].map(|seat| put_on_battlefield(&mut game, creature_of("A Blue", Color::Blue, CreatureType::Merfolk), seat));
+    let red = put_on_battlefield(&mut game, creature_of("A Red", Color::Red, CreatureType::Goblin), 1);
+    cast(&mut game, sorcery("Fixture Hue", (ManaType::Black, Color::Black), text, effect), ManaType::Black, ScriptedDecisionProvider::new());
+
+    let answers = ScriptedDecisionProvider::new();
+    answers.expect_choice(ChoiceKind::ChooseColor { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Color(Color::Blue)]);
+    picks(&answers, vec![ChoiceOption::Object(blue[1])]);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+    assert_eq!(asked.of_options.borrow()[1].2, blue.map(ChoiceOption::Object).to_vec(), "the blue creatures, and not the red one");
+    assert!(game.battlefield.contains_key(&blue[0]) && !game.battlefield.contains_key(&blue[1]) && game.battlefield.contains_key(&red));
+}
+
+/// Distant Melody's text: a count reads the type kept, "for each permanent
+/// you control of that type".
+#[test]
+fn a_count_reads_the_creature_type_chosen() {
+    let text = "Choose a creature type. Draw a card for each permanent you control of that type.";
+    let of_that_type = ObjectSet::battlefield_filter(ObjectFilter::All.and(chosen(ChoiceName::CreatureType)).and(you_control()));
+    let effect = Effect::Sequence(vec![choose_creature_type(you()), draw_cards(you(), AmountExpr::CountOf(of_that_type))]);
+    let mut game = stocked(2);
+    for seat in [0, 0, 1] {
+        put_on_battlefield(&mut game, creature_of("An Elf", Color::Green, CreatureType::Elf), seat);
+    }
+    put_on_battlefield(&mut game, creature_of("A Goblin", Color::Red, CreatureType::Goblin), 0);
+    cast(&mut game, sorcery("Fixture Melody", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, ScriptedDecisionProvider::new());
+
+    let answers = ScriptedDecisionProvider::new();
+    answers.expect_choice(ChoiceKind::ChooseCreatureType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CreatureType(CreatureType::Elf)]);
+    game.resolve_top_of_stack(&answers).expect("it resolves");
+    assert_eq!(game.players[0].hand.len(), 2, "your two Elves, and not an opponent's");
+}
+
+/// `effect`, cast by player 0 at three seats with player 1 its target
+/// opponent and `creature` its target creature, resolved with `answers`
+/// after player 1 has left the game, when `leaves`.
+fn resolve_at_an_opponent_who(leaves: bool, game: &mut GameState, text: &'static str, effect: Effect, creature: ObjectId, answers: ScriptedDecisionProvider) {
+    let targets = ScriptedDecisionProvider::new();
+    picks(&targets, vec![ChoiceOption::Player(1)]);
+    picks(&targets, vec![ChoiceOption::Object(creature)]);
+    cast(game, sorcery("Fixture Absent", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, targets);
+    if leaves {
+        game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
+    }
+    game.resolve_top_of_stack(&answers).expect("it resolves: the creature is still a legal target");
+}
+
+/// CR 608.2b — a chooser who is an illegal target makes no choice, and a
+/// step that reads the choice does nothing: it does not act on what an
+/// earlier step kept under the name. With the chooser still in the game,
+/// the second choice replaces the first.
+#[test]
+fn a_choice_never_made_does_not_leave_an_earlier_answer_for_the_next_step() {
+    let text = "Choose a player. That player draws a card. Target opponent chooses a player. That player draws two cards. Tap target creature.";
+    for leaves in [true, false] {
+        let effect = Effect::Sequence(vec![
+            choose_player(you(), PlayerSet::Everyone),
+            draw_cards(the_chosen(ChoiceName::Player), 1),
+            choose_player(target_opponent(), PlayerSet::Everyone),
+            draw_cards(the_chosen(ChoiceName::Player), 2),
+            tap(target_creature()),
+        ]);
+        let mut game = stocked(3);
+        let creatures = [0, 2].map(|seat| put_on_battlefield(&mut game, grizzly_bears(), seat));
+        let answers = ScriptedDecisionProvider::new();
+        let a_player = || ChoiceKind::ChoosePlayer { source: ObjectId::UNASSIGNED };
+        answers.expect_choice(a_player(), vec![ChoiceOption::Player(2)]);
+        if !leaves {
+            answers.expect_choice(a_player(), vec![ChoiceOption::Player(0)]);
+        }
+        resolve_at_an_opponent_who(leaves, &mut game, text, effect, creatures[0], answers);
+        let drawn = [0, 2].map(|seat| game.players[seat].hand.len());
+        assert_eq!(drawn, if leaves { [0, 1] } else { [2, 1] }, "the chooser left: {leaves}");
+        assert!(game.battlefield[&creatures[0]].tapped, "the rest of the spell happens");
+    }
+}
+
+/// The same for a filter: "aren't of the chosen type" with no type chosen
+/// describes no creature, so nothing is destroyed, where a filter over an
+/// empty choice would have described every creature.
+#[test]
+fn a_filter_naming_a_choice_never_made_describes_nothing() {
+    let text = "Target opponent chooses a creature type. Destroy all creatures that aren't of the chosen type. Tap target creature.";
+    for leaves in [true, false] {
+        let effect = Effect::Sequence(vec![
+            choose_creature_type(target_opponent()),
+            destroy(EffectRecipient::FilteredPermanents(creature().other_than(chosen(ChoiceName::CreatureType)))),
+            tap(target_creature()),
+        ]);
+        let mut game = setup_game(3);
+        let elf = put_on_battlefield(&mut game, creature_of("An Elf", Color::Green, CreatureType::Elf), 0);
+        let goblin = put_on_battlefield(&mut game, creature_of("A Goblin", Color::Red, CreatureType::Goblin), 2);
+        let answers = ScriptedDecisionProvider::new();
+        if !leaves {
+            answers.expect_choice(ChoiceKind::ChooseCreatureType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CreatureType(CreatureType::Elf)]);
+        }
+        resolve_at_an_opponent_who(leaves, &mut game, text, effect, elf, answers);
+        assert_eq!(game.battlefield.contains_key(&goblin), leaves, "no type chosen, nothing destroyed: {leaves}");
+        assert!(game.battlefield[&elf].tapped);
+    }
+}
+
+/// "That player chooses" after a targeted verb: the chooser is the player
+/// the earlier instance of "target" named.
+#[test]
+fn the_player_an_earlier_target_named_can_be_the_chooser() {
+    let text = "Target opponent loses 1 life. That player chooses a number between 0 and 2. You draw that many cards.";
+    let effect = Effect::Sequence(vec![lose_life(target_opponent(), 1), choose_number(the_target(), 0, 2), draw_cards(you(), chosen(ChoiceName::Number))]);
+    let mut game = stocked(3);
+    let targets = ScriptedDecisionProvider::new();
+    picks(&targets, vec![ChoiceOption::Player(2)]);
+    cast(&mut game, sorcery("Fixture Toll", (ManaType::Black, Color::Black), text, effect), ManaType::Black, targets);
+
+    let answers = ScriptedDecisionProvider::new();
+    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 2 }) };
+    answers.expect_number(any_number, 2);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+    assert!(matches!(asked.of_numbers.borrow().as_slice(), [(2, ..)]), "the opponent targeted is asked");
+    assert_eq!((game.players[2].life_total, game.players[0].hand.len()), (19, 2));
 }
 
 /// The Nipton Lottery: one creature drawn at random, three steps on "that
