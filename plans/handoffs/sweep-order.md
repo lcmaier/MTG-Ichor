@@ -40,14 +40,22 @@ adapts.
   `battlefield_ids_ordered` become the table's walk, and their audit and trace
   branch go with the sort. Whether the three keep their names or callers walk
   `battlefield` directly is the build's naming call.
-- **The three hash-keyed source sets still need an order.**
-  `trigger_sources` (an `IdMap`), `trigger_multiplier_sources` and
-  `cost_modification_ability_sources` (`IdSet`s) iterate in hash order, which a
-  rebuild can change (CL-1's rule 3). `in_battlefield_order` and the cost
-  gather sort them by timestamp today; under C they sort by id. So `ObjectId`
-  gains `Ord`, reversing `clone-architecture.md`'s "no `Ord` on purpose", or
-  those three sort on `raw()`. `Ord` is the honest one: id order becomes an
-  order the engine names.
+- **The filed-source sets still need an order, and it must be id order.**
+  Nine `GameState` fields file the objects a gate asks:
+  `replacement_ability_sources`, `replacement_counter_holders`,
+  `off_battlefield_replacement_ability_sources`, `restriction_ability_sources`,
+  `cost_modification_ability_sources`, `trigger_multiplier_sources`,
+  `trigger_sources`, `off_battlefield_trigger_sources` and
+  `newcomer_trigger_sources`. Each is an `IdMap` or `IdSet` and walks in hash
+  order, so the gathers that read them (the replacement, restriction and cost
+  gathers, and the trigger dispatch) sort what they collect by timestamp
+  today, beside `layer_settlement.rs`'s sort of the combatants. Each gate's
+  audit compares its narrow list with the whole-battlefield sweep's
+  *position by position*, so under C the narrow lists must come out in id
+  order too. Two questions follow, laid out in "How the engine orders ids":
+  how an id sort is spelled (`Ord` on `ObjectId`, or a helper keyed on
+  `raw()`), and whether the nine fields become containers that walk in id
+  order already.
 - **The gate and its words.** `check_invariants.py`'s unordered rule keeps
   the hash-keyed fields and drops `battlefield`; its message and the 35
   `ORDER-FREE:` tags reworded where they cite timestamp order. CLAUDE.md's
@@ -79,6 +87,41 @@ adapts.
 B folds into C (the sort it drops is gone everywhere). If the owner keeps A
 instead, `a_combatant_strikes_first`'s comment, which justifies its sort by a
 `HashMap` order CL-1 removed, still wants fixing.
+
+## How the engine orders ids
+
+**The problem the options share.** A gate asks only the objects filed as
+able to answer: the replacement gather asks the permanents filed in
+`replacement_ability_sources` whether they replace a proposed event, rather
+than every permanent, and asks every permanent only while a Layer 6 grant or a
+copy could have added such an ability. `fuzz_games --audit` runs both and
+requires the same list in the same order, and the CR 616.1 prompt shows that
+list. Today each narrow read collects its hash set, probes each member's
+timestamp and sorts. Some gathers merge several sources (the dispatch's
+printed readers, named objects and newcomers; the replacement gather's
+sources, named objects and counter holders, deduplicated through the sort),
+so a sort survives at every merge whatever the containers are. Two questions,
+independent of each other.
+
+**Question 1: how an id sort is spelled.** Retrofit: about ten sites either way.
+
+| | Code | Cost | Upkeep |
+|---|---|---|---|
+| **1a. `ObjectId` derives `PartialOrd, Ord`** (recommended) | `ids.sort_unstable()`, `sort_unstable(); dedup()` at a merge | each read drops today's per-member timestamp probe; the sort is on the id itself | id order becomes the type's order, which is what C declares. Reverses `clone-architecture.md`'s "no `Ord` on purpose". It also admits `BTreeMap<ObjectId, _>`, whose clone allocates per node, which `clone_bound_test` catches, and a `.sort()` where a CR 613.7 timestamp is meant, which only review catches. The readers that compare timestamps read `.timestamp` today, and nothing in C changes them |
+| **1b. No `Ord`; one helper, `in_id_order`, sorting on `raw()`** | as `in_timestamp_order` is today | as 1a | the order is named at each call site, and `.sort()` on ids still does not compile. But `raw()` is public for id derivations, so it is a speed bump rather than a wall, and the engine would have an order its main id type refuses |
+
+**Question 2: whether the nine fields walk in id order themselves.** Retrofit
+first.
+
+| | Retrofit | Reads | Per clone (derived from the code, not measured) | Upkeep |
+|---|---|---|---|---|
+| **2a. Keep `IdMap`/`IdSet`, sort at read** (recommended in C's PR) | the ~10 sorting sites change their key | collect and sort the members: a few per seat on the decks, up to every token on a token board whose tokens print a trigger | unchanged | the nine walks keep their `ORDER-FREE:` tags and stay under `check_invariants.py`'s unordered rule |
+| **2b. The maps become `ObjectTable<V>`, the sets `ObjectTable<()>` or an id bitset** | nine field types and their ~85 uses: `insert`, `remove` and `contains` map across; the clone fixtures re-pinned where they read bytes | a single source walks in id order with no sort; merges still sort (question 1). `contains` is index arithmetic, not a hash | allocation-neutral per field: a non-empty hash table clones in one allocation, a table its outer vector in one. Bytes go from the entries to 8 per 32 ids up to the highest member, comparable at Commander scale. A fork's first write to a shared chunk copies it, where a hash table owns its clone | the nine fields leave the unordered rule, since they have no hash order to leak: the determinism comes from the shape, not a tag. Can land any time after C, on its own |
+| **2c. Filter the battlefield walk by membership** | the fewest lines | a gather becomes a probe per permanent, not per source. The replacement gather runs for every proposed event, so at 200 tokens a seat that is 800 probes where the set has a handful, and the off-battlefield maps would walk every object | unchanged | rejected: it gives up what the sets exist for |
+
+**Recommended: 1a and 2a in C's PR; 2b later, if the owner wants the gate's
+rule to shrink.** Deferring 2b costs nothing: it replaces the containers
+behind the same reads.
 
 ## Who sees the order, and does a rule fix it
 
