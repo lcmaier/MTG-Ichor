@@ -240,6 +240,13 @@ games at eight threads: 1.93 s → 1.88 s. The copy check's twelve compositions 
 `battlefield` where they called a sweep function, each with its own rule's predicate, and stay. 299 s
 and 218 s.
 
+**Re-read after merging #326 and #329 (2026-11-14)**, on **main** `a1220fe7`, whose performance pool
+gained Feast of the Victorious Dead (127 → 128): **final** `9b3d9b6b`, the merge, against **idmain2**
+`22fe03fe`, the same throwaway arm on the new base. Every gameplay and cost row **IDENTICAL** on both
+pools at both seats; audit 172,898 / 172,373 at two seats and 426,288 / 449,959 at four; instructions
+a decision 0.6791 M → 0.6660 M, **-1.94%**; growth ×3.94 to ×4.03; clone, worst decision, 42
+allocations and 7.1 KB, 10.3 KB on the 50-Goblin board. 193 s.
+
 **Re-recorded 2026-11-14 for `choose-as-an-effect-resolves`, an object chosen and a division made as an
 effect resolves** (`choices/choose-as-an-effect-resolves`, the second of
 `costs-and-choices-at-resolution`'s two: decision 8, item 28, decision 5's untargeted half). Feast of
