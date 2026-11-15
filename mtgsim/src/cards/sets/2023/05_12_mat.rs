@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    at_beginning_of, creatures_you_control, distribute_counters_among_chosen, gain_life, triggered_ability, you, Whose,
+    at_beginning_of, creatures_you_control, distribute_counters, divided_among_untargeted, gain_life, triggered_ability, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -45,11 +45,9 @@ pub fn feast_of_the_victorious_dead() -> Arc<CardData> {
             limit: None,
             effect: Effect::Sequence(vec![
                 gain_life(you(), that_many.clone()),
-                distribute_counters_among_chosen(
-                    SelectionFilter::Permanent(creatures_you_control()),
-                    TargetCount::AnyNumber,
+                distribute_counters(
+                    divided_among_untargeted(SelectionFilter::Permanent(creatures_you_control()), TargetCount::AnyNumber, that_many),
                     CounterType::PlusOnePlusOne,
-                    that_many,
                 ),
             ]),
         }))

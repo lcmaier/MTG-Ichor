@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, choose,
     choose_each_targeting_a_different_player, choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_repeatable, choose_up_to,
-    creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, dies, discard, distribute_counters, draw_cards, each, enters,
+    creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, divided_among_targeted, dies, discard, distribute_counters, draw_cards, each, enters,
     exile, gain_life, gets, has_base_power_and_toughness, lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield,
     spell_ability, spree, static_ability, tap, target_creature, target_permanent, target_player, targets, the_target, this_object,
     triggered_ability, whenever, you, you_have,
@@ -218,7 +218,7 @@ pub fn mogg_mob_fixture() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Goblin))
         .power_toughness(3, 3)
         .rules_text(text)
-        .ability(activated_ability(text, vec![Cost::SacrificeSelf], deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 3), 3)))
+        .ability(activated_ability(text, vec![Cost::SacrificeSelf], deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 3), 3.into()))))
         .build()
 }
 
@@ -240,7 +240,7 @@ pub fn dragonlord_atarka_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(triggered_ability(
             text,
-            whenever(enters(TriggerSubject::ThisObject), deal_damage_divided(theirs, TargetCount::AnyNumber, 5)),
+            whenever(enters(TriggerSubject::ThisObject), deal_damage_divided(divided_among_targeted(theirs, TargetCount::AnyNumber, 5.into()))),
         ))
         .build()
 }
@@ -259,7 +259,7 @@ pub fn magma_opus_fixture() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(vec![
-                deal_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, 4),
+                deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, 4.into())),
                 tap(targets(2, SelectionFilter::Permanent(ObjectFilter::All))),
             ]),
         ))
@@ -278,7 +278,7 @@ pub fn elven_rite_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            distribute_counters(SelectionFilter::Creature, TargetCount::Between(1, 2), CounterType::PlusOnePlusOne, 2),
+            distribute_counters(divided_among_targeted(SelectionFilter::Creature, TargetCount::Between(1, 2), 2.into()), CounterType::PlusOnePlusOne),
         ))
         .build()
 }
@@ -293,7 +293,7 @@ pub fn remedy_fixture() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell_ability(text, prevent_the_next_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, 5)))
+        .ability(spell_ability(text, prevent_the_next_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, 5.into()))))
         .build()
 }
 
@@ -307,7 +307,7 @@ pub fn rolling_thunder_fixture() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, deal_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, AmountExpr::X)))
+        .ability(spell_ability(text, deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, AmountExpr::X))))
         .build()
 }
 
@@ -324,7 +324,7 @@ pub fn meteor_swarm_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            deal_damage_divided(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X), 8),
+            deal_damage_divided(divided_among_targeted(SelectionFilter::Creature, TargetCount::ExactlyAmount(AmountExpr::X), 8.into())),
         ))
         .build()
 }

@@ -284,7 +284,10 @@ fn a_later_atom_naming_the_instance_reads_no_share() {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            Effect::Sequence(vec![deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 2), 3), deal_damage(the_target(), 1)]),
+            Effect::Sequence(vec![
+                deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 2), 3.into())),
+                deal_damage(the_target(), 1),
+            ]),
         ))
         .build();
     let spell = put_in_hand(&mut game, card, 0);
@@ -313,7 +316,7 @@ fn a_divided_shield_is_remembered_once_a_target() {
         turn: DelayedTurn::NoneNamed,
         rules_text: "Draw a card.".into(),
     };
-    let shield = prevent_the_next_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, 2);
+    let shield = prevent_the_next_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, 2.into()));
     let card: Arc<CardData> = CardDataBuilder::new("Remembered Shields")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .card_type(CardType::Instant)
@@ -341,7 +344,7 @@ fn a_share_of_counters_on_a_player_is_refused() {
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, distribute_counters(SelectionFilter::Any, TargetCount::Between(1, 2), CounterType::PlusOnePlusOne, 2)))
+        .ability(spell_ability(text, distribute_counters(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 2), 2.into()), CounterType::PlusOnePlusOne)))
         .build();
     let spell = put_in_hand(&mut game, card, 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
