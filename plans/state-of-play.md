@@ -24,8 +24,8 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5b. "Can't" effects (CR 101.2/614.17/613.11) and 5c. copy effects (CR 707/712/708/729 + Layer 1): the phases their docs name, at their steps below
 6. Triggered abilities (CR 603): the rest of `roadmap-v2.md` §3a's A rows
 **After 6, in order** (`roadmap-v2.md` §3a, "From triggers to v0.5", has each step's why):
-`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `tarkir-dragonstorm-decks`' gap census; `modes-plus-choice-kinds`, `mana-provenance`'s design before its `costs-and-choices-at-resolution`; `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`; `information-model-design`, `information-model`;
-`permission-design` with `card-and-object-model` and `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; the decks' cheap gaps; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
+`route-review`; the item 6 audit's readiness; `card-layer-cleanup`; `pausing-at-a-decision`'s design; `tarkir-dragonstorm-decks`' gap census; `modes-plus-choice-kinds`, `mana-provenance`'s design before its `costs-and-choices-at-resolution`; `fork-test-at-every-decision`; `linked-abilities` with `card-and-object-model`'s design beside it; `resolution-recipients-and-amounts`; `mana-ability-costs`, `mana-provenance`, `any-color-plus-painlands-plus-signets`; `information-model-design`, `information-model`;
+`permission-design` with `text-changing-effects`' design beside it; `command-zone-casting`; `game-formats`; `multiplayer-rules`, teams designed in it; the decks' cheap gaps; `player-scoped-values`; `cant-be-targeted`; `cant-cast-play-or-activate`;
 `combat-restrictions`, `cant-pay-costs`, `combat-requirements`; `as-though-effects`'s permission half; `layers-combat-and-counters`; `rulings-for-every-card`;
 then `chosen-color-plus-could-produce`, `convoke-delve-improvise`, `hybrid-and-phyrexian-payment`, `remaining-costs`;
 `casting-from-other-zones`; `double-faced-cards`' transform half; `token-copies`, `spell-copies`; the card model's split, face-down and player-Aura builds; the five decks, `decks-in-fuzz-games`; `devgui-at-five-seats`, `mana-payment-solver`.
@@ -51,10 +51,10 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
 | 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
 | 5 | `several-choosers-at-one-step`, the second and 2 more | 11 of 14 landed | 11 | 3–5 | 14–16 |
-| 6 | `linked-abilities` | to come | 0 | 3–4 | 3–4 |
+| 6 | `card-and-object-model`, the design and 1 more | to come | 0 | 4–5 | 4–5 |
 | 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 7–9 |
 | 8 | `information-model-design` and 1 more | to come | 0 | 4–7 | 4–7 |
-| 9 | `permission-design` and 6 more | to come | 0 | 8–15 | 8–15 |
+| 9 | `permission-design` and 5 more | to come | 0 | 7–14 | 7–14 |
 | 10 | `player-scoped-values` and 2 more | to come | 0 | 3–6 | 3–6 |
 | 11 | `combat-restrictions` and 4 more | to come | 0 | 9–14 | 9–14 |
 | 12 | `rulings-for-every-card` | to come | 0 | 3–6 | 3–6 |
@@ -90,7 +90,7 @@ row by naming it in a heading or in a sizing table's first cell, in bold.
 | `mana-architecture.md` | 0 of 8 | `mana-payment-solver` | 18 |
 
 No architecture doc defines these rows to come, so none closes a subsystem
-until its design names it in one: `fork-test-at-every-decision`; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`; `information-model`; `card-and-object-model`, the design; `text-changing-effects`, the design; `game-formats`; `multiplayer-rules`; `tarkir-dragonstorm-decks`, the cheap gaps; `player-scoped-values`; `as-though-effects`, the permission half; `layers-combat-and-counters`; `rulings-for-every-card`; `card-and-object-model`, an Aura on a player; `tarkir-dragonstorm-decks`, the five decks; `decks-in-fuzz-games`; `devgui-at-five-seats`.
+until its design names it in one: `fork-test-at-every-decision`; `card-and-object-model`, the design; `linked-abilities`; `resolution-recipients-and-amounts`; `information-model-design`; `information-model`; `text-changing-effects`, the design; `game-formats`; `multiplayer-rules`; `tarkir-dragonstorm-decks`, the cheap gaps; `player-scoped-values`; `as-though-effects`, the permission half; `layers-combat-and-counters`; `rulings-for-every-card`; `card-and-object-model`, an Aura on a player; `tarkir-dragonstorm-decks`, the five decks; `decks-in-fuzz-games`; `devgui-at-five-seats`.
 
 ## Phases by name
 
