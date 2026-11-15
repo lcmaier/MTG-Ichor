@@ -32,8 +32,8 @@ use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPl
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::ui::choice_types::{
-    AbilityAsRead, AmountOf, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
+use crate::ui::decision_types::{
+    AbilityAsRead, AmountOf, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
 use crate::ui::decision::PriorityAction;
 
@@ -421,132 +421,132 @@ fn damage_target_name(game: &GameState, target: &ObjectOrPlayerId) -> String {
 
 /// The question a prompt asks, one arm per kind and no wildcard, so a new kind
 /// is asked a question at birth.
-pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
+pub fn question(game: &GameState, kind: &DecisionKind) -> String {
     let n = |id: &ObjectId| named(game, *id);
     match kind {
-        ChoiceKind::PriorityAction => "You have priority".to_string(),
-        ChoiceKind::DeclareAttackers => "Declare attackers".to_string(),
-        ChoiceKind::DeclareBlockers => "Declare blockers".to_string(),
-        ChoiceKind::AssignCombatDamage { attacker_id } => format!("Assign {}'s combat damage", n(attacker_id)),
-        ChoiceKind::AssignTrampleDamage { attacker_id, defending_target } => format!(
+        DecisionKind::PriorityAction => "You have priority".to_string(),
+        DecisionKind::DeclareAttackers => "Declare attackers".to_string(),
+        DecisionKind::DeclareBlockers => "Declare blockers".to_string(),
+        DecisionKind::AssignCombatDamage { attacker_id } => format!("Assign {}'s combat damage", n(attacker_id)),
+        DecisionKind::AssignTrampleDamage { attacker_id, defending_target } => format!(
             "Assign {}'s trample damage; what is left goes to {}",
             n(attacker_id),
             damage_target_name(game, defending_target)
         ),
-        ChoiceKind::ChooseModes { source, .. } => format!("Choose the modes of {}", n(source)),
-        ChoiceKind::ChooseXValue { spell_id, .. } => format!("Choose X for {}", n(spell_id)),
-        ChoiceKind::ChooseAlternativeCost { spell_id } => format!("Choose how to pay for {}", n(spell_id)),
-        ChoiceKind::ChooseAdditionalCosts { spell_id } => format!("Choose additional costs for {}", n(spell_id)),
+        DecisionKind::ChooseModes { source, .. } => format!("Choose the modes of {}", n(source)),
+        DecisionKind::ChooseXValue { spell_id, .. } => format!("Choose X for {}", n(spell_id)),
+        DecisionKind::ChooseAlternativeCost { spell_id } => format!("Choose how to pay for {}", n(spell_id)),
+        DecisionKind::ChooseAdditionalCosts { spell_id } => format!("Choose additional costs for {}", n(spell_id)),
         // "Choose" is no targeting (CR 115.10): an edict's pick, an Aura's
         // host as it enters (CR 303.4f), a choice as an effect applies (608.2d).
-        ChoiceKind::SelectRecipients { recipient: crate::types::effects::EffectRecipient::Choose(..), spell_id } => {
+        DecisionKind::SelectRecipients { recipient: crate::types::effects::EffectRecipient::Choose(..), spell_id } => {
             format!("Choose for {}", n(spell_id))
         }
-        ChoiceKind::SelectRecipients { spell_id, .. } => format!("Choose targets for {}", n(spell_id)),
-        ChoiceKind::DivideAmong { source } => format!("Divide {} among those chosen, at least one each", n(source)),
-        ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
+        DecisionKind::SelectRecipients { spell_id, .. } => format!("Choose targets for {}", n(spell_id)),
+        DecisionKind::DivideAmong { source } => format!("Divide {} among those chosen, at least one each", n(source)),
+        DecisionKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
             format!("Split the generic part of {mana_cost} for {}", n(spell_or_ability_id))
         }
-        ChoiceKind::OrderCostReductions { spell_id } => {
+        DecisionKind::OrderCostReductions { spell_id } => {
             format!("Order the cost reductions for {}; the first applies first", n(spell_id))
         }
-        ChoiceKind::OrderCostPayments { spell_or_ability_id } => {
+        DecisionKind::OrderCostPayments { spell_or_ability_id } => {
             format!("Order the costs of {}; the first is paid first", n(spell_or_ability_id))
         }
-        ChoiceKind::OrderSimultaneousEntries { .. } => {
+        DecisionKind::OrderSimultaneousEntries { .. } => {
             "Order these objects as they arrive together; the first has the earliest timestamp".to_string()
         }
-        ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => {
+        DecisionKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => {
             format!("Pay {remaining_cost} more for {}: activate a mana ability, or stop", n(spell_or_ability_id))
         }
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count } => {
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id, count } => {
             format!("Sacrifice {count} for {}", n(spell_or_ability_id))
         }
-        ChoiceKind::ChooseReplacementEffect { affected_object } => match affected_object {
+        DecisionKind::ChooseReplacementEffect { affected_object } => match affected_object {
             Some(id) => format!("Choose the replacement effect that applies to {}", n(id)),
             None => "Choose the replacement effect that applies to you".to_string(),
         },
-        ChoiceKind::OrderTriggers { .. } => {
+        DecisionKind::OrderTriggers { .. } => {
             "Order your triggered abilities; the first goes on the stack first and resolves last".to_string()
         }
-        ChoiceKind::ApplyOptionalReplacement { source, .. } => format!("Apply {}'s replacement effect?", n(source)),
-        ChoiceKind::ApplyOptionalEffect { source } => format!("{}: you may", n(source)),
-        ChoiceKind::PayAsItResolves { source, offer, any_amount_of } => {
+        DecisionKind::ApplyOptionalReplacement { source, .. } => format!("Apply {}'s replacement effect?", n(source)),
+        DecisionKind::ApplyOptionalEffect { source } => format!("{}: you may", n(source)),
+        DecisionKind::PayAsItResolves { source, offer, any_amount_of } => {
             format!("{}: {}?", n(source), payment_words(offer, any_amount_of.as_ref()))
         }
-        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => format!("{}: choose X for {cost}", n(source)),
-        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::AnyAmountOf(unit), .. } => {
+        DecisionKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => format!("{}: choose X for {cost}", n(source)),
+        DecisionKind::ChooseAmountToPay { source, of: AmountOf::AnyAmountOf(unit), .. } => {
             format!("{}: how many {unit} do you pay?", n(source))
         }
-        ChoiceKind::AllocateNextDamage { source, remaining } => {
+        DecisionKind::AllocateNextDamage { source, remaining } => {
             format!("Choose the damage {} prevents ({remaining} left)", n(source))
         }
-        ChoiceKind::ChooseDamageSource { source } => format!("Choose a source of damage for {}", n(source)),
-        ChoiceKind::ChooseDelayedTriggerEvent { source } => {
+        DecisionKind::ChooseDamageSource { source } => format!("Choose a source of damage for {}", n(source)),
+        DecisionKind::ChooseDelayedTriggerEvent { source } => {
             format!("Choose which event triggers {}'s delayed ability", n(source))
         }
-        ChoiceKind::ChooseOpponent { source } => format!("Choose the opponent {} names", n(source)),
-        ChoiceKind::ChoosePlayerAsObjectEnters { object, role, .. } => match role {
+        DecisionKind::ChooseOpponent { source } => format!("Choose the opponent {} names", n(source)),
+        DecisionKind::ChoosePlayerAsObjectEnters { object, role, .. } => match role {
             EntryRole::Controller => format!("Choose the opponent who controls {} as it enters", n(object)),
             EntryRole::CounterPutter => format!("Choose the opponent who may put counters on {} as it enters", n(object)),
         },
-        ChoiceKind::ChooseEnteringDefender { object } => {
+        DecisionKind::ChooseEnteringDefender { object } => {
             format!("Choose what {} attacks as it enters", n(object))
         }
-        ChoiceKind::AcceptAsObjectEnters { object, source, offer } => {
+        DecisionKind::AcceptAsObjectEnters { object, source, offer } => {
             format!("{}: {} as {} enters?", n(source), entry_offer_words(offer), n(object))
         }
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
+        DecisionKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
             format!("Choose what goes to the {to:?} as {} changes how {} enters", n(source), n(entering))
         }
-        ChoiceKind::ChooseCopySource { source } => format!("Choose what {} copies", n(source)),
-        ChoiceKind::CommanderToCommandZoneSba { commander } => format!("Put {} into the command zone?", n(commander)),
-        ChoiceKind::Discard { source } => match source {
+        DecisionKind::ChooseCopySource { source } => format!("Choose what {} copies", n(source)),
+        DecisionKind::CommanderToCommandZoneSba { commander } => format!("Put {} into the command zone?", n(commander)),
+        DecisionKind::Discard { source } => match source {
             Some(id) => format!("Discard for {}", n(id)),
             None => "Discard down to your maximum hand size".to_string(),
         },
-        ChoiceKind::Scry { n: count, .. } => format!("Scry {count}: choose the cards that go on the bottom"),
-        ChoiceKind::OrderLibraryCards { bottom, .. } => {
+        DecisionKind::Scry { n: count, .. } => format!("Scry {count}: choose the cards that go on the bottom"),
+        DecisionKind::OrderLibraryCards { bottom, .. } => {
             format!("Order the cards going on the {}, top-most first", if *bottom { "bottom" } else { "top" })
         }
-        ChoiceKind::LegendRule { legend_name } => format!("Legend rule: choose the {legend_name} to keep"),
+        DecisionKind::LegendRule { legend_name } => format!("Legend rule: choose the {legend_name} to keep"),
     }
 }
 
 /// An option as a client labels it, one arm per kind of option and no
 /// wildcard. An activation is its object and the ability's own text:
 /// "Five-Color Land Fixture (#20) · {T}: Add {W}.".
-pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
+pub fn option_label(game: &GameState, option: &DecisionOption) -> String {
     let n = |id: &ObjectId| named(game, *id);
     match option {
-        ChoiceOption::Object(id) => n(id),
-        ChoiceOption::LastKnown(existence) => format!("{} as it last existed", n(&existence.id)),
-        ChoiceOption::Player(player) => player_name(*player),
-        ChoiceOption::Action(PriorityAction::Pass) => "Pass".to_string(),
-        ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("Cast {}", n(id)),
-        ChoiceOption::Action(PriorityAction::PlayLand(id)) => format!("Play {}", n(id)),
-        ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability)) => {
+        DecisionOption::Object(id) => n(id),
+        DecisionOption::LastKnown(existence) => format!("{} as it last existed", n(&existence.id)),
+        DecisionOption::Player(player) => player_name(*player),
+        DecisionOption::Action(PriorityAction::Pass) => "Pass".to_string(),
+        DecisionOption::Action(PriorityAction::CastSpell(id)) => format!("Cast {}", n(id)),
+        DecisionOption::Action(PriorityAction::PlayLand(id)) => format!("Play {}", n(id)),
+        DecisionOption::Action(PriorityAction::ActivateAbility(id, ability)) => {
             format!("{} · {}", n(id), ability_text(game, *id, *ability))
         }
-        ChoiceOption::AttackerTarget(attacker, target) => {
+        DecisionOption::AttackerTarget(attacker, target) => {
             format!("{} attacks {}", n(attacker), attack_target_name(game, target))
         }
-        ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", n(blocker), n(attacker)),
-        ChoiceOption::NormalCost => "Its mana cost".to_string(),
-        ChoiceOption::AlternativeCost(cost) => alternative_cost_label(cost),
-        ChoiceOption::CostPart(CostPart { cost, paid_with }) if paid_with.is_empty() => cost_words(cost),
-        ChoiceOption::CostPart(CostPart { cost, paid_with }) => format!("{}: {}", cost_words(cost), listed(game, paid_with)),
-        ChoiceOption::AdditionalCost(cost) => additional_cost_label(cost),
-        ChoiceOption::Number(number) => number.to_string(),
-        ChoiceOption::Modes(modes) => match modes.as_slice() {
+        DecisionOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", n(blocker), n(attacker)),
+        DecisionOption::NormalCost => "Its mana cost".to_string(),
+        DecisionOption::AlternativeCost(cost) => alternative_cost_label(cost),
+        DecisionOption::CostPart(CostPart { cost, paid_with }) if paid_with.is_empty() => cost_words(cost),
+        DecisionOption::CostPart(CostPart { cost, paid_with }) => format!("{}: {}", cost_words(cost), listed(game, paid_with)),
+        DecisionOption::AdditionalCost(cost) => additional_cost_label(cost),
+        DecisionOption::Number(number) => number.to_string(),
+        DecisionOption::Modes(modes) => match modes.as_slice() {
             [] => "No modes".to_string(),
             [one] => format!("Mode {one}"),
             several => format!("Modes {}", several.iter().map(ToString::to_string).collect::<Vec<_>>().join(" and ")),
         },
-        ChoiceOption::Color(color) => color_name(*color).to_string(),
-        ChoiceOption::CounterType(counter) => counter.name().to_string(),
-        ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
-        ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
+        DecisionOption::Color(color) => color_name(*color).to_string(),
+        DecisionOption::CounterType(counter) => counter.name().to_string(),
+        DecisionOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
+        DecisionOption::Trigger(TriggerOption { source, ability, triggered_by }) => {
             let which = match ability {
                 TriggeredAbility::OfItsSource { granted_by, read_as, .. } => ability_words(game, *read_as, *granted_by),
                 TriggeredAbility::Delayed { refers_to } if refers_to.is_empty() => "its delayed ability".to_string(),
@@ -555,20 +555,20 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
             let about = if triggered_by.is_empty() { String::new() } else { format!(" (for {})", listed(game, triggered_by)) };
             format!("{} · {which}{about}", n(&source.id))
         }
-        ChoiceOption::Replacement(ReplacementOption::FromResolution { source, resolution }) => {
+        DecisionOption::Replacement(ReplacementOption::FromResolution { source, resolution }) => {
             format!("{} · {}", n(source), resolution_words(game, *source, *resolution))
         }
-        ChoiceOption::Replacement(ReplacementOption::Ability { object, granted_by, read_as, .. }) => {
+        DecisionOption::Replacement(ReplacementOption::Ability { object, granted_by, read_as, .. }) => {
             format!("{} · {}", n(&object.id), ability_words(game, *read_as, *granted_by))
         }
-        ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, effect }) => {
+        DecisionOption::Replacement(ReplacementOption::Counter { object, counter, effect }) => {
             let which = match effect {
                 CounterEffectKind::Replacement => "",
                 CounterEffectKind::Prevention => "'s prevention",
             };
             format!("{} · its {} counter{which}", n(&object.id), counter.name())
         }
-        ChoiceOption::Replacement(ReplacementOption::Rule { object, rule: GameRuleReplacement::CommanderZone }) => {
+        DecisionOption::Replacement(ReplacementOption::Rule { object, rule: GameRuleReplacement::CommanderZone }) => {
             format!("{} · the commander rule", n(&object.id))
         }
     }
@@ -577,9 +577,9 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
 /// One mode as a client lists it at a choice of modes: its printed place and
 /// its words, "1. Counter target spell.", or "Mode 1" where `kind` carries
 /// none for it.
-pub fn mode_label(kind: &ChoiceKind, mode: ModeIndex) -> String {
+pub fn mode_label(kind: &DecisionKind, mode: ModeIndex) -> String {
     let words = match kind {
-        ChoiceKind::ChooseModes { words, .. } => words.iter().find(|(place, _)| *place == mode).map(|(_, words)| *words),
+        DecisionKind::ChooseModes { words, .. } => words.iter().find(|(place, _)| *place == mode).map(|(_, words)| *words),
         _ => None,
     };
     match words {
@@ -593,8 +593,8 @@ pub fn mode_label(kind: &ChoiceKind, mode: ModeIndex) -> String {
 /// (`backlog.md`'s "What a client is handed"). `None` where the label says it
 /// all: an ability's text stays in its label, which is what tells two
 /// abilities of one object apart. CR 122.1c, d and h state each counter's effect.
-pub fn what_the_option_does(option: &ChoiceOption) -> Option<&'static str> {
-    let ChoiceOption::Replacement(ReplacementOption::Counter { counter, effect, .. }) = option else { return None };
+pub fn what_the_option_does(option: &DecisionOption) -> Option<&'static str> {
+    let DecisionOption::Replacement(ReplacementOption::Counter { counter, effect, .. }) = option else { return None };
     match (counter, effect) {
         (CounterType::Shield, CounterEffectKind::Replacement) => {
             Some("If this permanent would be destroyed as the result of an effect, instead remove a shield counter from it.")
@@ -676,7 +676,7 @@ pub fn rejection_words(game: &GameState, rejected: &Rejection) -> (String, Optio
         Rejection::Reversed(action) => (
             format!(
                 "{} could not be completed, so it was reversed and its payments canceled",
-                option_label(game, &ChoiceOption::Action(action.clone())),
+                option_label(game, &DecisionOption::Action(action.clone())),
             ),
             Some("732.1"),
         ),
@@ -1422,11 +1422,11 @@ pub fn format_event_log(game: &GameState) -> Vec<String> {
 /// question, the answer, and why (`plans/elisions.md`).
 pub fn format_unasked(game: &GameState, question: &UnaskedChoice) -> String {
     let UnaskedChoice { player, kind, answer, why, .. } = question;
-    let named = |option: &ChoiceOption| match option {
-        ChoiceOption::Player(player) => player_in_log(*player),
+    let named = |option: &DecisionOption| match option {
+        DecisionOption::Player(player) => player_in_log(*player),
         other => other.as_logged(game),
     };
-    let listed = |options: &[ChoiceOption]| match options {
+    let listed = |options: &[DecisionOption]| match options {
         [] => "none".to_string(),
         some => some.iter().map(named).collect::<Vec<_>>().join(", "),
     };
@@ -1477,10 +1477,10 @@ mod tests {
     fn a_mode_reads_as_its_place_and_its_words() {
         let cryptic = printings::cryptic_command();
         let node = cryptic.abilities[0].effect.modal().expect("Cryptic Command is modal");
-        let kind = ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: node.words() };
+        let kind = DecisionKind::ChooseModes { source: ObjectId::UNASSIGNED, words: node.words() };
         assert_eq!(mode_label(&kind, ModeIndex::printed(1)), "1. Counter target spell.");
         assert_eq!(mode_label(&kind, ModeIndex::printed(4)), "4. Draw a card.");
-        let wordless = ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() };
+        let wordless = DecisionKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() };
         assert_eq!(mode_label(&wordless, ModeIndex::printed(2)), "Mode 2");
     }
 
@@ -1489,7 +1489,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bears = game.add_object(GameObject::new(printings::grizzly_bears(), 0, Zone::Battlefield));
         let object = game.object_ref(bears).expect("the Bears are in the store");
-        let counter = |counter, effect| ChoiceOption::Replacement(ReplacementOption::Counter { object, counter, effect });
+        let counter = |counter, effect| DecisionOption::Replacement(ReplacementOption::Counter { object, counter, effect });
 
         let finality = counter(CounterType::Finality, CounterEffectKind::Replacement);
         assert_eq!(option_label(&game, &finality), format!("Grizzly Bears ({bears}) · its finality counter"));
@@ -1499,7 +1499,7 @@ mod tests {
         let its_prevention = what_the_option_does(&counter(CounterType::Shield, CounterEffectKind::Prevention));
         assert_ne!(shield, its_prevention, "CR 122.1c's two effects are worded apart");
         assert!(what_the_option_does(&counter(CounterType::Stun, CounterEffectKind::Replacement)).is_some());
-        assert_eq!(what_the_option_does(&ChoiceOption::Object(bears)), None, "an object's label says it all");
+        assert_eq!(what_the_option_does(&DecisionOption::Object(bears)), None, "an object's label says it all");
     }
 
     #[test]
@@ -1756,7 +1756,7 @@ mod tests {
         get_effective_abilities(game, id)
             .iter()
             .filter(|ability| matches!(ability.ability_type, AbilityType::Mana(_) | AbilityType::Activated(_)))
-            .map(|ability| option_label(game, &ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability.id))))
+            .map(|ability| option_label(game, &DecisionOption::Action(PriorityAction::ActivateAbility(id, ability.id))))
             .collect()
     }
 
@@ -1837,23 +1837,23 @@ mod tests {
         use crate::types::mana::{ManaCost, ManaType};
 
         let game = setup_two_player_game();
-        let label = |option: ChoiceOption| option_label(&game, &option);
+        let label = |option: DecisionOption| option_label(&game, &option);
         let kicker = fixtures::kicked_lesson().additional_costs[0].clone();
-        assert_eq!(label(ChoiceOption::AdditionalCost(kicker)), "Kicker {2}");
+        assert_eq!(label(DecisionOption::AdditionalCost(kicker)), "Kicker {2}");
         let custom = fixtures::bargain_lesson().alternative_costs[0].clone();
-        assert_eq!(label(ChoiceOption::AlternativeCost(custom)), "Pay {R} rather than pay this spell's mana cost");
+        assert_eq!(label(DecisionOption::AlternativeCost(custom)), "Pay {R} rather than pay this spell's mana cost");
         let escape = AlternativeCost::Escape(vec![
             Cost::Mana(ManaCost::build(&[ManaType::Black, ManaType::Black], 3)),
             Cost::ExileFromGraveyard(ObjectFilter::All, 5),
         ]);
-        assert_eq!(label(ChoiceOption::AlternativeCost(escape.clone())), "Escape {3}{B}{B}, exile 5 from your graveyard");
+        assert_eq!(label(DecisionOption::AlternativeCost(escape.clone())), "Escape {3}{B}{B}, exile 5 from your graveyard");
         let narrower = AlternativeCost::Escape(vec![
             Cost::Mana(ManaCost::build(&[ManaType::Black, ManaType::Black], 3)),
             Cost::ExileFromGraveyard(ObjectFilter::All, 3),
         ]);
-        assert_ne!(label(ChoiceOption::AlternativeCost(narrower)), label(ChoiceOption::AlternativeCost(escape)), "apart past their mana");
+        assert_ne!(label(DecisionOption::AlternativeCost(narrower)), label(DecisionOption::AlternativeCost(escape)), "apart past their mana");
         let sacrificing = AdditionalCost::Kicker(vec![Cost::Sacrifice(ObjectFilter::All, 1)]);
-        assert_eq!(label(ChoiceOption::AdditionalCost(sacrificing)), "Kicker sacrifice 1");
+        assert_eq!(label(DecisionOption::AdditionalCost(sacrificing)), "Kicker sacrifice 1");
     }
 
     /// A shield counter makes two effects (CR 122.1c), and a client reads its
@@ -1866,7 +1866,7 @@ mod tests {
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
         let shield = |effect| {
             let object = game.object_ref(bears).unwrap();
-            option_label(&game, &ChoiceOption::Replacement(ReplacementOption::Counter { object, counter: CounterType::Shield, effect }))
+            option_label(&game, &DecisionOption::Replacement(ReplacementOption::Counter { object, counter: CounterType::Shield, effect }))
         };
         assert_eq!(shield(CounterEffectKind::Replacement), format!("Test Creature ({bears}) · its shield counter"));
         assert_eq!(shield(CounterEffectKind::Prevention), format!("Test Creature ({bears}) · its shield counter's prevention"));
@@ -1886,7 +1886,7 @@ mod tests {
         let dp = RecordingDecisionProvider::picking(0);
         game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         assert_eq!(
-            question(&game, &ChoiceKind::AssignCombatDamage { attacker_id: clone }),
+            question(&game, &DecisionKind::AssignCombatDamage { attacker_id: clone }),
             format!("Assign Grizzly Bears (Clone, {clone})'s combat damage")
         );
     }

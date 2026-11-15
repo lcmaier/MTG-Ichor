@@ -18,7 +18,7 @@
 //! | Axis | What a "can't" attaches to | Bounded by | Open? |
 //! |---|---|---|---|
 //! | 1 | an event the engine proposes | `GameAction`, via [`EventPattern`] | grows with the engine |
-//! | 2 | a choice a player makes | `ChoiceKind` (`ui/choice_types.rs`) | grows with the engine |
+//! | 2 | a choice a player makes | `DecisionKind` (`ui/decision_types.rs`) | grows with the engine |
 //! | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
 //! | 4 | a rule's own action | [`RuleAction`]: the check's `StateBasedAction`, and each turn-based action a card switches off | grows with its first card |
 //!
@@ -29,7 +29,7 @@
 //! Axis 1 never grows *here*: a new replaceable event arrives as a `GameAction`
 //! variant and reaches [`Restriction::Event`] through `EventPattern` for free.
 //! An event-shaped arm added to this enum is the smell. Axis 2 is empty
-//! until `cant-be-targeted`, `cant-cast-play-or-activate` and the combat phases; every arm it gains must name one `ChoiceKind`.
+//! until `cant-be-targeted`, `cant-cast-play-or-activate` and the combat phases; every arm it gains must name one `DecisionKind`.
 //!
 //! Matched exhaustively and deliberately not `#[non_exhaustive]`, for
 //! `types::replacement`'s reason: an arm no enforcement point consults is a card
@@ -112,7 +112,7 @@ pub enum Restriction {
     /// have replaced still happens — no `EventPattern` can say that.
     ///
     /// **The axis is closed at one arm, and that is what makes it safe.** Axes 1
-    /// and 2 are open because `GameAction` and `ChoiceKind` grow; this one
+    /// and 2 are open because `GameAction` and `DecisionKind` grow; this one
     /// cannot, because there is exactly one place in the engine where an effect
     /// is applied to an event (`gather`'s `push_if_applicable`) and the CR names
     /// exactly two things that may be withheld there — regeneration shields

@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionKind, DecisionOption};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Copy, Debug)]
@@ -22,12 +22,12 @@ pub enum LoggedAnswer<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct LoggedDecision<'a> {
     pub player: PlayerId,
-    pub kind: &'a ChoiceKind,
+    pub kind: &'a DecisionKind,
     /// What the question offered: a `pick_n`'s options, an `allocate`'s
     /// buckets, a `choose_ordering`'s items, and none for a `pick_number`.
     /// The log writes an answer as what it chose among them, never where
-    /// (`ChoiceOption::as_logged`).
-    pub options: &'a [ChoiceOption],
+    /// (`DecisionOption::as_logged`).
+    pub options: &'a [DecisionOption],
     pub answer: LoggedAnswer<'a>,
     /// The question had one legal answer: a priority point where the player
     /// could only pass, whether the engine passed or the seat stopped for it.
@@ -94,8 +94,8 @@ mod tests {
         let written = Arc::new(Mutex::new(0));
         let count = Arc::clone(&written);
         game.log_decisions(move |_, _| *count.lock().unwrap() += 1);
-        let options = [ChoiceOption::Action(crate::ui::decision::PriorityAction::Pass)];
-        let pass = LoggedDecision { player: 0, kind: &ChoiceKind::PriorityAction, options: &options, answer: LoggedAnswer::Picks(&[0]), forced: true };
+        let options = [DecisionOption::Action(crate::ui::decision::PriorityAction::Pass)];
+        let pass = LoggedDecision { player: 0, kind: &DecisionKind::PriorityAction, options: &options, answer: LoggedAnswer::Picks(&[0]), forced: true };
 
         game.clone().log_decision(pass);
         assert_eq!(*written.lock().unwrap(), 0, "the fork wrote to the game's log");

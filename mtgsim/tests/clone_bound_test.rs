@@ -52,7 +52,7 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{create_goblins_for_each_seat, deal_commander_game, put_on_battlefield, AtEachPrompt};
-use mtgsim::ui::choice_types::ChoiceContext;
+use mtgsim::ui::decision_types::DecisionContext;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -118,7 +118,7 @@ fn boards<'a>(stress: &'a CardRegistry, performance: &'a CardRegistry) -> Vec<Bo
 /// Plays `board` to its end or the turn limit, calling `at_decision` at each
 /// decision that reaches the agent and `at_checkpoint` at each checkpoint and
 /// at the end.
-fn play(board: &Board, at_decision: impl Fn(&GameState, &ChoiceContext), mut at_checkpoint: impl FnMut(&GameState, String)) {
+fn play(board: &Board, at_decision: impl Fn(&GameState, &DecisionContext), mut at_checkpoint: impl FnMut(&GameState, String)) {
     let (mut game, agents) = deal_commander_game(board.registry, board.seed);
     let dp = ManaWindowStop::new(AtEachPrompt::new(RandomDecisionProvider::seeded(agents), at_decision));
     game.setup(&dp).expect("setup");
@@ -153,7 +153,7 @@ fn take_the_allocator() -> std::sync::MutexGuard<'static, ()> {
 }
 
 /// The prompt's kind, short.
-fn named(context: &ChoiceContext) -> String {
+fn named(context: &DecisionContext) -> String {
     format!("{:?}", context.kind).chars().take(48).collect()
 }
 
@@ -174,7 +174,7 @@ fn a_commander_clone_stays_under_the_allocation_and_byte_floors() {
         let decisions = Cell::new(0usize);
         let worst = RefCell::new((0, 0, String::new()));
         let over_at_decisions = RefCell::new(Vec::new());
-        let at_decision = |game: &GameState, prompt: &ChoiceContext| {
+        let at_decision = |game: &GameState, prompt: &DecisionContext| {
             let (allocations, bytes) = clone_cost(game);
             decisions.set(decisions.get() + 1);
             let at = || format!("turn {} {}: {allocations} allocations, {:.1} KB", game.turn_number, named(prompt), kilobytes(bytes));
@@ -232,7 +232,7 @@ fn a_commander_clone_takes_microseconds() {
         // (bytes, where, the state), heaviest first.
         let heaviest: RefCell<Vec<(u64, String, GameState)>> = RefCell::new(Vec::new());
         for board in boards.iter().filter(|board| board.group == group) {
-            let at_decision = |game: &GameState, prompt: &ChoiceContext| {
+            let at_decision = |game: &GameState, prompt: &DecisionContext| {
                 let (_, bytes) = clone_cost(game);
                 let mut heaviest = heaviest.borrow_mut();
                 if heaviest.len() < HEAVIEST || heaviest.last().is_some_and(|lightest| bytes > lightest.0) {

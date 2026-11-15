@@ -19,7 +19,7 @@ use mtgsim::state::game::Halt;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceMemory, TraceRecord, TraceSink};
 use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode, Stop};
 use mtgsim::ui::replay::{Replay, ReplayControl};
 use mtgsim::ui::why::{OpenQuestion, Why, WhyAbout, WhyLine, WhySection, why_from_trace};
@@ -103,7 +103,7 @@ struct AtTheQuestion {
 }
 
 impl AtTheQuestion {
-    fn read(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption]) -> ! {
+    fn read(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption]) -> ! {
         let question = OpenQuestion { player, context, options };
         *self.answer.borrow_mut() = Some(answer(game, self.about, Some(&question), &self.memory));
         Stop::LogSpent { answered: 0 }.raise()
@@ -111,11 +111,11 @@ impl AtTheQuestion {
 }
 
 impl DecisionProvider for AtTheQuestion {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
         self.read(game, player, context, options)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, _: u64, _: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, _: u64, _: u64) -> u64 {
         self.read(game, player, context, &[])
     }
 
@@ -123,16 +123,16 @@ impl DecisionProvider for AtTheQuestion {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         _: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         _: &[u64],
         _: Option<&[u64]>,
     ) -> Vec<u64> {
         self.read(game, player, context, buckets)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.read(game, player, context, items)
     }
 

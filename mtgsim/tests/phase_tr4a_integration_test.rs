@@ -47,7 +47,7 @@ use mtgsim::types::triggers::{
     TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -217,7 +217,7 @@ fn compost_does_not_see_a_clone_that_copied_a_black_creature() {
     let donor = put_on_battlefield(&mut game, black_probe(), 1);
     let clone = put_in_graveyard(&mut game, printings::clone(), 1);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(donor)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: clone }, vec![DecisionOption::Object(donor)]);
     game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
     let chars = mtgsim::engine::layers::compute_characteristics(&game, clone).unwrap();
     assert!(chars.colors.contains(&Color::Black), "the Clone is a copy of the black creature");
@@ -267,7 +267,7 @@ fn compost_draws_its_controller_a_card_when_asked() {
     let hand_before = game.players[0].hand.len();
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_take(ChoiceKind::ApplyOptionalEffect { source: compost });
+    dp.expect_take(DecisionKind::ApplyOptionalEffect { source: compost });
     resolve_all(&mut game, &dp);
     assert_eq!(game.players[0].hand.len(), hand_before + 1, "\"you may draw a card\", taken");
 }
@@ -801,8 +801,8 @@ fn a_sacrificed_source_puts_as_many_counters_as_it_had() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: a },
-        vec![ChoiceOption::Object(b)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: a },
+        vec![DecisionOption::Object(b)],
     );
     game.activate_ability(0, a, 0, &dp).unwrap();
     assert_eq!(zone(&game, a), Some(Zone::Graveyard), "sacrificed to pay the cost");
@@ -905,8 +905,8 @@ fn attack_trigger_if_it_had_no_counters_checks_each_attacker_separately() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::DeclareAttackers,
-        vec![ChoiceOption::AttackerTarget(plain, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(countered, AttackTarget::Player(1))],
+        DecisionKind::DeclareAttackers,
+        vec![DecisionOption::AttackerTarget(plain, AttackTarget::Player(1)), DecisionOption::AttackerTarget(countered, AttackTarget::Player(1))],
     );
     game.process_declare_attackers(&dp).unwrap();
     let subjects: Vec<_> = game.pending_triggers.iter().map(|t| t.binding.triggering_object(EventRole::Attacker).map(|o| o.id)).collect();

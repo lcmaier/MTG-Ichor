@@ -61,7 +61,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceContext, ChoiceOption, ReplacementOption, position_named};
+use mtgsim::ui::decision_types::{AbilityAsRead, DecisionContext, DecisionOption, ReplacementOption, position_named};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -74,7 +74,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 /// source.
 enum Pick {
     Ids(Vec<ObjectId>),
-    Option(ChoiceOption),
+    Option(DecisionOption),
 }
 
 /// Answers each prompt from a script, in order: who must be asked, the kind's
@@ -98,7 +98,7 @@ impl Scripted {
     }
 
     /// Expect `player` to be asked a `kind` prompt next, and pick `option`.
-    fn then_option(self, player: PlayerId, kind: &'static str, option: ChoiceOption) -> Self {
+    fn then_option(self, player: PlayerId, kind: &'static str, option: DecisionOption) -> Self {
         self.script.borrow_mut().push_back((player, kind, Pick::Option(option)));
         self
     }
@@ -121,15 +121,15 @@ impl DecisionProvider for Scripted {
         &self,
         game: &GameState,
         player: PlayerId,
-        ctx: &ChoiceContext,
-        options: &[ChoiceOption],
+        ctx: &DecisionContext,
+        options: &[DecisionOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
         let kind = ctx.kind.as_str();
         let offered: Vec<ObjectId> = options
             .iter()
             .filter_map(|o| match o {
-                ChoiceOption::Object(id) => Some(*id),
+                DecisionOption::Object(id) => Some(*id),
                 _ => None,
             })
             .collect();
@@ -148,7 +148,7 @@ impl DecisionProvider for Scripted {
             Pick::Ids(ids) => {
                 let mut picked = Vec::new();
                 for id in ids {
-                    let found = position_named(options, game, &ChoiceOption::Object(id), &picked);
+                    let found = position_named(options, game, &DecisionOption::Object(id), &picked);
                     picked.push(found.unwrap_or_else(|| panic!("{id} not offered: {offered:?}")));
                 }
                 picked
@@ -156,7 +156,7 @@ impl DecisionProvider for Scripted {
         }
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &DecisionContext, _: u64, _: u64) -> u64 {
         panic!("unscripted pick_number: {:?}", ctx.kind)
     }
 
@@ -164,16 +164,16 @@ impl DecisionProvider for Scripted {
         &self,
         _: &GameState,
         _: PlayerId,
-        ctx: &ChoiceContext,
+        ctx: &DecisionContext,
         _: u64,
-        _: &[ChoiceOption],
+        _: &[DecisionOption],
         _: &[u64],
         _: Option<&[u64]>,
     ) -> Vec<u64> {
         panic!("unscripted allocate: {:?}", ctx.kind)
     }
 
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, ctx: &DecisionContext, _: &[DecisionOption]) -> Vec<usize> {
         panic!("unscripted ordering: {:?}", ctx.kind)
     }
 }
@@ -1131,7 +1131,7 @@ fn an_untapped_grant_is_ordered_against_the_copied_enters_tapped() {
         let gained = grant.id;
         let except = vec![CopyException::Modifies(CharacteristicEdit::GainsAbility(grant))];
         let entering = put_in_graveyard(&mut game, copier("Untapped Grant copier", Color::Blue, except), 0);
-        let first = ChoiceOption::Replacement(ReplacementOption::Ability {
+        let first = DecisionOption::Replacement(ReplacementOption::Ability {
             object: game.object_ref(entering).expect("in the store"),
             ability: if untapped_first { gained } else { copied }.definition(),
             granted_by: None,

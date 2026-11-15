@@ -39,7 +39,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, PriorityAction};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -132,7 +132,7 @@ fn enter(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, dp: &dyn De
 /// A provider asked once, which copy source to choose, and choosing `donor`.
 fn choosing_copy_source(donor: ObjectId) -> mtgsim::ui::decision::ScriptedDecisionProvider {
     let dp = test_dp();
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: donor }, vec![ChoiceOption::Object(donor)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: donor }, vec![DecisionOption::Object(donor)]);
     dp
 }
 
@@ -483,7 +483,7 @@ fn viscera_seer_can_sacrifice_itself() {
     let seer = put_on_battlefield(&mut game, viscera_seer(), 0);
     let dp = test_dp();
     let top = *game.players[0].library.last().expect("a stocked library");
-    dp.expect_choice(ChoiceKind::Scry { source: Some(seer), n: 1 }, vec![ChoiceOption::Object(top)]);
+    dp.expect_choice(DecisionKind::Scry { source: Some(seer), n: 1 }, vec![DecisionOption::Object(top)]);
     game.activate_ability(0, seer, 0, &dp).unwrap();
     assert_eq!(zone(&game, seer), Some(Zone::Graveyard), "paid before the ability is on the stack");
     assert_eq!(game.stack.len(), 1);
@@ -509,7 +509,7 @@ fn a_blocked_creature_sacrificed_to_the_seer_deals_no_combat_damage() {
     set_blocking(&mut game, blocker, vec![attacker]);
 
     let dp = test_dp();
-    dp.expect_choice(ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: seer, count: 1 }, vec![ChoiceOption::Object(attacker)]);
+    dp.expect_choice(DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: seer, count: 1 }, vec![DecisionOption::Object(attacker)]);
     game.activate_ability(0, seer, 0, &dp).unwrap();
     resolve_all(&mut game, &dp);
     game.process_combat_damage(&test_dp(), false).unwrap();
@@ -558,37 +558,37 @@ impl LoopPlayer {
     }
 }
 
-fn position(options: &[ChoiceOption], wanted: impl Fn(&ChoiceOption) -> bool) -> usize {
+fn position(options: &[DecisionOption], wanted: impl Fn(&DecisionOption) -> bool) -> usize {
     options.iter().position(wanted).expect("offered")
 }
 
 impl DecisionProvider for &LoopPlayer {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
         match &context.kind {
-            ChoiceKind::PriorityAction => {
+            DecisionKind::PriorityAction => {
                 let seer = options.iter().position(
-                    |o| matches!(o, ChoiceOption::Action(PriorityAction::ActivateAbility(id, _)) if Some(*id) == self.seer.get()),
+                    |o| matches!(o, DecisionOption::Action(PriorityAction::ActivateAbility(id, _)) if Some(*id) == self.seer.get()),
                 );
                 match seer {
                     Some(i) if player == 0 && game.stack.is_empty() && self.times.get() > 0 => {
                         self.times.set(self.times.get() - 1);
                         vec![i]
                     }
-                    _ => vec![position(options, |o| matches!(o, ChoiceOption::Action(PriorityAction::Pass)))],
+                    _ => vec![position(options, |o| matches!(o, DecisionOption::Action(PriorityAction::Pass)))],
                 }
             }
-            ChoiceKind::ChooseSacrificeForCost { .. } => {
+            DecisionKind::ChooseSacrificeForCost { .. } => {
                 let scarecrow = self.scarecrow.get().expect("the Scarecrow is named");
                 self.sacrificed.borrow_mut().push(game.object_ref(scarecrow).expect("on the battlefield"));
-                vec![position(options, |o| matches!(o, ChoiceOption::Object(id) if *id == scarecrow))]
+                vec![position(options, |o| matches!(o, DecisionOption::Object(id) if *id == scarecrow))]
             }
-            ChoiceKind::SelectRecipients { .. } => vec![position(options, |o| matches!(o, ChoiceOption::Player(1)))],
-            ChoiceKind::Scry { .. } => Vec::new(),
+            DecisionKind::SelectRecipients { .. } => vec![position(options, |o| matches!(o, DecisionOption::Player(1)))],
+            DecisionKind::Scry { .. } => Vec::new(),
             other => panic!("the loop asks no {other:?}"),
         }
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, context: &ChoiceContext, _: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, context: &DecisionContext, _: u64, _: u64) -> u64 {
         panic!("the loop asks no number: {:?}", context.kind)
     }
 
@@ -596,22 +596,22 @@ impl DecisionProvider for &LoopPlayer {
         &self,
         _: &GameState,
         _: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         _: u64,
-        _: &[ChoiceOption],
+        _: &[DecisionOption],
         _: &[u64],
         _: Option<&[u64]>,
     ) -> Vec<u64> {
         panic!("the loop asks no split: {:?}", context.kind)
     }
 
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         match &context.kind {
-            ChoiceKind::OrderTriggers { .. } => {
+            DecisionKind::OrderTriggers { .. } => {
                 let sources = items
                     .iter()
                     .map(|o| match o {
-                        ChoiceOption::Trigger(trigger) => trigger.source.id,
+                        DecisionOption::Trigger(trigger) => trigger.source.id,
                         other => panic!("a trigger, not {other:?}"),
                     })
                     .collect();

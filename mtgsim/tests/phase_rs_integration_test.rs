@@ -34,7 +34,7 @@ use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef, SourceFilter,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -67,8 +67,8 @@ impl DecisionProvider for CountingDp {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _ctx: &ChoiceContext,
-        options: &[ChoiceOption],
+        _ctx: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         *self.prompts.borrow_mut() += 1;
@@ -80,7 +80,7 @@ impl DecisionProvider for CountingDp {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _ctx: &ChoiceContext,
+        _ctx: &DecisionContext,
         min: u64,
         _max: u64,
     ) -> u64 {
@@ -92,9 +92,9 @@ impl DecisionProvider for CountingDp {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _ctx: &ChoiceContext,
+        _ctx: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         _per_bucket_mins: &[u64],
         _per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -110,8 +110,8 @@ impl DecisionProvider for CountingDp {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _ctx: &ChoiceContext,
-        options: &[ChoiceOption],
+        _ctx: &DecisionContext,
+        options: &[DecisionOption],
     ) -> Vec<usize> {
         *self.prompts.borrow_mut() += 1;
         (0..options.len()).collect()

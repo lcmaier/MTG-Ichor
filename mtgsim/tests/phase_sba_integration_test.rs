@@ -29,7 +29,7 @@ use mtgsim::types::effects::{CounterType, EffectRecipient};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use std::sync::Arc;
 
@@ -264,8 +264,8 @@ fn test_deathtouch_damage_is_read_by_one_check() {
     }
     let dp = ScriptedDecisionProvider::new();
     // The target, then the creature copied: the Colossus, then the Hill Giant.
-    dp.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Controller, spell_id: cytoshape }, vec![ChoiceOption::Object(colossus)]);
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: cytoshape }, vec![ChoiceOption::Object(giant)]);
+    dp.expect_choice(DecisionKind::SelectRecipients { recipient: EffectRecipient::Controller, spell_id: cytoshape }, vec![DecisionOption::Object(colossus)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: cytoshape }, vec![DecisionOption::Object(giant)]);
     game.cast_spell(0, cytoshape, &dp).unwrap();
     game.resolve_top_of_stack(&dp).unwrap();
     assert_eq!(get_effective_name(&game, colossus), "Hill Giant");

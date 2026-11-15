@@ -33,7 +33,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId, UntilReturnId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, EventKind};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -84,11 +84,11 @@ fn cast_from_pool(
 
 /// `card` cast by `player` from exactly `pool`, each instance of "target"
 /// answered with the next of `targets`.
-fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)], targets: &[ChoiceOption]) -> ObjectId {
+fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)], targets: &[DecisionOption]) -> ObjectId {
     let aim = ScriptedDecisionProvider::new();
     for target in targets {
         aim.expect_choice(
-            ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+            DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
             vec![target.clone()],
         );
     }
@@ -97,7 +97,7 @@ fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[
 
 /// Lightning Bolt cast by `player` at `target`.
 fn bolt_at(game: &mut GameState, player: PlayerId, target: ObjectId) -> ObjectId {
-    cast_at(game, player, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Object(target)])
+    cast_at(game, player, lightning_bolt(), &[(ManaType::Red, 1)], &[DecisionOption::Object(target)])
 }
 
 fn resolve_top(game: &mut GameState) {
@@ -154,7 +154,7 @@ fn a_spell_that_does_not_resolve_says_why() {
 #[test]
 fn a_countered_spell_says_whose_it_was() {
     let mut game = setup_two_player_game();
-    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(1)]);
+    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[DecisionOption::Player(1)]);
     let counter = put_in_hand(&mut game, lightning_bolt(), 1);
     let ctx = ResolutionContext {
         source: counter,
@@ -220,7 +220,7 @@ fn a_spells_target_is_announced_as_it_becomes_cast() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let at_bears = bolt_at(&mut game, 0, bears);
-    let at_player = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(1)]);
+    let at_player = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[DecisionOption::Player(1)]);
     resolve_top(&mut game);
     resolve_top(&mut game);
 
@@ -323,8 +323,8 @@ fn activate_at(game: &mut GameState, source: ObjectId, target: ObjectId) -> Resu
     let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::Object(target)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Object(target)],
     );
     game.activate_ability(0, source, index, &ManaWindowStop::new(aim))
 }
@@ -480,7 +480,7 @@ fn a_prevention_with_no_rider_is_announced_where_no_damage_is_dealt() {
     let mut game = setup_two_player_game();
     let passage = cast_from_pool(&mut game, 1, safe_passage(), &[(ManaType::White, 3)], test_dp());
     resolve_top(&mut game);
-    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(1)]);
+    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[DecisionOption::Player(1)]);
     resolve_top(&mut game);
 
     assert_eq!(game.players[1].life_total, 20);
@@ -497,7 +497,7 @@ fn a_prevention_with_no_rider_is_announced_where_no_damage_is_dealt() {
 #[test]
 fn a_shield_that_prevents_part_of_the_damage_announces_the_part() {
     let mut game = setup_two_player_game();
-    let hands = cast_at(&mut game, 1, mending_hands(), &[(ManaType::White, 1)], &[ChoiceOption::Player(1)]);
+    let hands = cast_at(&mut game, 1, mending_hands(), &[(ManaType::White, 1)], &[DecisionOption::Player(1)]);
     resolve_top(&mut game);
     bolt_at_player(&mut game, 1);
     resolve_top(&mut game);
@@ -570,7 +570,7 @@ fn unpreventable_damage_announces_no_prevention() {
 
 /// Lightning Bolt cast by player 0 at `player`.
 fn bolt_at_player(game: &mut GameState, player: PlayerId) -> ObjectId {
-    cast_at(game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Player(player)])
+    cast_at(game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[DecisionOption::Player(player)])
 }
 
 // ---------------------------------------------------------------------------

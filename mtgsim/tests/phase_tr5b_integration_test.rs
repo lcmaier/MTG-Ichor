@@ -33,7 +33,7 @@ use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{Multiplicity, ObjectOrPlayerSubject, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -825,7 +825,7 @@ fn cast_with_x_answering(
 fn cast_from_hand(game: &mut GameState, player: PlayerId, id: ObjectId, x: u64, script: impl Fn(&ScriptedDecisionProvider, ObjectId)) {
     game.players[player].mana_pool.add(ManaType::Green, x + 1);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
+    dp.expect_number(DecisionKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
     script(&dp, id);
     game.cast_spell(player, id, &dp).expect("it is castable");
     game.resolve_top_of_stack(&dp).expect("it resolves");
@@ -1004,7 +1004,7 @@ fn protean_hydra_enters_with_x_counters_and_none_put_onto_the_battlefield() {
     let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
     // Two entry effects, so CR 616.1e asks its controller which first.
     let hydra = cast_with_x_answering(&mut game, 0, protean_hydra(), 2, |dp, id| {
-        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![ChoiceOption::Object(biomancer)]);
+        dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![DecisionOption::Object(biomancer)]);
     });
     assert_eq!(plus_counters(&game, hydra), 4, "X and the Biomancer's power");
 

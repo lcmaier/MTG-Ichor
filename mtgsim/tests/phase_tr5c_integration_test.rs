@@ -47,7 +47,7 @@ use mtgsim::types::triggers::{
 };
 use mtgsim::types::zones::Zone;
 use mtgsim::state::battlefield::AttackTarget;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -66,8 +66,8 @@ fn stocked(players: usize) -> GameState {
 fn declare_attacks(game: &mut GameState, attacks: &[(ObjectId, PlayerId)]) {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     let dp = ScriptedDecisionProvider::new();
-    let chosen = attacks.iter().map(|&(id, p)| ChoiceOption::AttackerTarget(id, AttackTarget::Player(p))).collect();
-    dp.expect_choice(ChoiceKind::DeclareAttackers, chosen);
+    let chosen = attacks.iter().map(|&(id, p)| DecisionOption::AttackerTarget(id, AttackTarget::Player(p))).collect();
+    dp.expect_choice(DecisionKind::DeclareAttackers, chosen);
     game.process_declare_attackers(&dp).unwrap();
 }
 
@@ -77,8 +77,8 @@ fn declare_blocks(game: &mut GameState, per_defender: &[Vec<(ObjectId, ObjectId)
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareBlockers) });
     let dp = ScriptedDecisionProvider::new();
     for blocks in per_defender {
-        let chosen = blocks.iter().map(|&(b, a)| ChoiceOption::BlockerAttacker(b, a)).collect();
-        dp.expect_choice(ChoiceKind::DeclareBlockers, chosen);
+        let chosen = blocks.iter().map(|&(b, a)| DecisionOption::BlockerAttacker(b, a)).collect();
+        dp.expect_choice(DecisionKind::DeclareBlockers, chosen);
     }
     game.process_declare_blockers(&dp).unwrap();
     assert!(dp.is_empty(), "every scripted declaration was asked");
@@ -599,8 +599,8 @@ fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[
     let aim = ScriptedDecisionProvider::new();
     for &target in targets {
         aim.expect_choice(
-            ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-            vec![ChoiceOption::Object(target)],
+            DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+            vec![DecisionOption::Object(target)],
         );
     }
     game.cast_spell(player, id, &ManaWindowStop::new(aim)).expect("castable from exactly its cost");
@@ -617,8 +617,8 @@ fn bolt_at_player(game: &mut GameState, player: PlayerId, at: PlayerId) -> Objec
     game.players[player].mana_pool.add(ManaType::Red, 1);
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::Player(at)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Player(at)],
     );
     game.cast_spell(player, id, &ManaWindowStop::new(aim)).expect("castable");
     id
@@ -630,8 +630,8 @@ fn thaumaturgist_at(game: &mut GameState, player: PlayerId, thaumaturgist: Objec
     let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::Object(target)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Object(target)],
     );
     game.activate_ability(player, thaumaturgist, index, &ManaWindowStop::new(aim)).expect("activated");
 }
@@ -757,8 +757,8 @@ fn frost_titan_counters_an_opponents_triggered_ability() {
     game.change_zone(bears, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::Object(titan)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Object(titan)],
     );
     place_triggers(&mut game, &aim);
     resolve_all(&mut game);
@@ -1025,8 +1025,8 @@ fn an_ability_that_adds_mana_with_a_target_is_no_mana_ability() {
     let index = abilities.iter().position(|a| matches!(a.ability_type, AbilityType::Activated(_))).expect("an activated ability");
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::Player(1)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Player(1)],
     );
     game.activate_ability(1, shaman, index, &ManaWindowStop::new(aim)).expect("activated");
     let recorded = game.recorded_events();

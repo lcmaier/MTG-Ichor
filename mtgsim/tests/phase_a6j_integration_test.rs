@@ -14,24 +14,24 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{RejectionRecorder, place_forest, put_in_hand, setup_two_player_game};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use mtgsim::ui::decision::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 /// Grizzly Bears in hand and two Forests to pay for it exactly, in player
 /// 0's main phase, so player 0's list is `[Pass, Cast]` and player 1's is
 /// `Pass` alone. The Forests come back as their mana abilities' activations.
-fn bears_and_two_forests() -> (GameState, ObjectId, [ChoiceOption; 2]) {
+fn bears_and_two_forests() -> (GameState, ObjectId, [DecisionOption; 2]) {
     let mut game = setup_two_player_game();
     let bears = put_in_hand(&mut game, printings::grizzly_bears(), 0);
-    let tap = |(forest, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(forest, ability));
+    let tap = |(forest, ability)| DecisionOption::Action(PriorityAction::ActivateAbility(forest, ability));
     let taps = [tap(place_forest(&mut game, 0)), tap(place_forest(&mut game, 0))];
     (game, bears, taps)
 }
 
 /// The window for the Bears' {1}{G}; the script matches the kind alone.
-fn window(bears: ObjectId) -> ChoiceKind {
-    ChoiceKind::ManaAbilityWindow { spell_or_ability_id: bears, remaining_cost: ManaCost::zero() }
+fn window(bears: ObjectId) -> DecisionKind {
+    DecisionKind::ManaAbilityWindow { spell_or_ability_id: bears, remaining_cost: ManaCost::zero() }
 }
 
 /// Seven cancels, and the Bears are offered every time, each re-ask naming
@@ -41,10 +41,10 @@ fn a_canceled_cast_is_offered_again_and_charged_to_nothing() {
     let (mut game, bears, _) = bears_and_two_forests();
     let script = ScriptedDecisionProvider::new();
     for _ in 0..7 {
-        script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bears))]);
+        script.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(bears))]);
         script.expect_choice(window(bears), vec![]);
     }
-    script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+    script.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
     let seat = RejectionRecorder::new(script);
 
     assert_eq!(game.run_priority_round(&seat).unwrap(), PriorityResult::PhaseEnds);
@@ -62,9 +62,9 @@ fn a_canceled_cast_is_offered_again_and_charged_to_nothing() {
 fn a_reversed_cast_is_named_on_the_re_ask_and_can_be_cast_again() {
     let (mut game, bears, [first_tap, second_tap]) = bears_and_two_forests();
     let script = ScriptedDecisionProvider::new();
-    script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bears))]);
+    script.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(bears))]);
     script.expect_choice(window(bears), vec![]);
-    script.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bears))]);
+    script.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(bears))]);
     script.expect_choice(window(bears), vec![first_tap]);
     script.expect_choice(window(bears), vec![second_tap]);
     let seat = RejectionRecorder::new(ManaWindowStop::new(script));
@@ -82,19 +82,19 @@ fn a_reversed_cast_is_named_on_the_re_ask_and_can_be_cast_again() {
 struct Stubborn;
 
 impl DecisionProvider for Stubborn {
-    fn pick_n(&self, _: &GameState, _: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, _: &GameState, _: PlayerId, context: &DecisionContext, options: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
         match context.kind {
-            ChoiceKind::PriorityAction => vec![options.len() - 1],
+            DecisionKind::PriorityAction => vec![options.len() - 1],
             _ => Vec::new(),
         }
     }
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, min: u64, _: u64) -> u64 {
         min
     }
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: &[ChoiceOption], mins: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: &[DecisionOption], mins: &[u64], _: Option<&[u64]>) -> Vec<u64> {
         mins.to_vec()
     }
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         (0..items.len()).collect()
     }
 }

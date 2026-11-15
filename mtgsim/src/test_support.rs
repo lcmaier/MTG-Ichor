@@ -54,7 +54,7 @@ use crate::engine::layers::types::{
 };
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
-use crate::ui::choice_types::{ChoiceContext, ChoiceOption};
+use crate::ui::decision_types::{DecisionContext, DecisionOption};
 use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use crate::state::trace::{TraceHandle, TraceSink};
 
@@ -120,19 +120,19 @@ pub struct AtEachPrompt<D, F> {
     hook: F,
 }
 
-impl<D, F: Fn(&GameState, &ChoiceContext)> AtEachPrompt<D, F> {
+impl<D, F: Fn(&GameState, &DecisionContext)> AtEachPrompt<D, F> {
     pub fn new(inner: D, hook: F) -> Self {
         AtEachPrompt { inner, hook }
     }
 }
 
-impl<D: DecisionProvider, F: Fn(&GameState, &ChoiceContext)> DecisionProvider for AtEachPrompt<D, F> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+impl<D: DecisionProvider, F: Fn(&GameState, &DecisionContext)> DecisionProvider for AtEachPrompt<D, F> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         (self.hook)(game, context);
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         (self.hook)(game, context);
         self.inner.pick_number(game, player, context, min, max)
     }
@@ -141,9 +141,9 @@ impl<D: DecisionProvider, F: Fn(&GameState, &ChoiceContext)> DecisionProvider fo
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -151,7 +151,7 @@ impl<D: DecisionProvider, F: Fn(&GameState, &ChoiceContext)> DecisionProvider fo
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         (self.hook)(game, context);
         self.inner.choose_ordering(game, player, context, items)
     }
@@ -343,8 +343,8 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 fn pending_trigger(
     game: &GameState,
     source: ObjectId,
-    pick: impl Fn(&crate::ui::choice_types::TriggerOption) -> bool,
-) -> crate::ui::choice_types::ChoiceOption {
+    pick: impl Fn(&crate::ui::decision_types::TriggerOption) -> bool,
+) -> crate::ui::decision_types::DecisionOption {
     let picked: Vec<_> = game
         .pending_triggers
         .iter()
@@ -352,43 +352,43 @@ fn pending_trigger(
         .filter(|trigger| trigger.source.id == source && pick(trigger))
         .collect();
     let [trigger] = &picked[..] else { panic!("{} pending triggers of {source} picked: {picked:?}", picked.len()) };
-    crate::ui::choice_types::ChoiceOption::Trigger(trigger.clone())
+    crate::ui::decision_types::DecisionOption::Trigger(trigger.clone())
 }
 
 /// `source`'s pending triggers, each by what it is, in the order they
 /// triggered.
-pub fn pending_triggers_of(game: &GameState, source: ObjectId) -> Vec<crate::ui::choice_types::ChoiceOption> {
+pub fn pending_triggers_of(game: &GameState, source: ObjectId) -> Vec<crate::ui::decision_types::DecisionOption> {
     game.pending_triggers
         .iter()
         .filter(|trigger| trigger.origin.source() == source)
-        .map(|trigger| crate::ui::choice_types::ChoiceOption::Trigger(game.trigger_option(trigger)))
+        .map(|trigger| crate::ui::decision_types::DecisionOption::Trigger(game.trigger_option(trigger)))
         .collect()
 }
 
 /// `source`'s pending trigger that `object` triggered (CR 603.2c).
-pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId) -> crate::ui::choice_types::ChoiceOption {
+pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId) -> crate::ui::decision_types::DecisionOption {
     pending_trigger(game, source, |trigger| trigger.triggered_by.contains(&object))
 }
 
 /// `source`'s pending trigger of its ability at `place`, 1 for the first, as
 /// the layers give its abilities.
-pub fn pending_trigger_at_place(game: &GameState, source: ObjectId, place: usize) -> crate::ui::choice_types::ChoiceOption {
+pub fn pending_trigger_at_place(game: &GameState, source: ObjectId, place: usize) -> crate::ui::decision_types::DecisionOption {
     let ability = ability_at(game, source, place);
     pending_trigger(game, source, |trigger| {
-        matches!(trigger.ability, crate::ui::choice_types::TriggeredAbility::OfItsSource { ability: of, .. } if of == ability.definition())
+        matches!(trigger.ability, crate::ui::decision_types::TriggeredAbility::OfItsSource { ability: of, .. } if of == ability.definition())
     })
 }
 
 /// `object`'s replacement ability at `place`, its first effect, as CR 616.1
 /// offers it.
-pub fn replacement_ability_of(game: &GameState, object: ObjectId, place: usize) -> crate::ui::choice_types::ChoiceOption {
+pub fn replacement_ability_of(game: &GameState, object: ObjectId, place: usize) -> crate::ui::decision_types::DecisionOption {
     let ability = ability_at(game, object, place);
-    crate::ui::choice_types::ChoiceOption::Replacement(crate::ui::choice_types::ReplacementOption::Ability {
+    crate::ui::decision_types::DecisionOption::Replacement(crate::ui::decision_types::ReplacementOption::Ability {
         object: game.object_ref(object).expect("an object in the store"),
         ability: ability.definition(),
         granted_by: game.granted_by(ability),
         member: 0,
-        read_as: crate::ui::choice_types::AbilityAsRead(None),
+        read_as: crate::ui::decision_types::AbilityAsRead(None),
     })
 }
 
@@ -397,8 +397,8 @@ pub fn counter_effect_of(
     game: &GameState,
     object: ObjectId,
     counter: crate::types::effects::CounterType,
-) -> crate::ui::choice_types::ChoiceOption {
-    crate::ui::choice_types::ChoiceOption::Replacement(crate::ui::choice_types::ReplacementOption::Counter {
+) -> crate::ui::decision_types::DecisionOption {
+    crate::ui::decision_types::DecisionOption::Replacement(crate::ui::decision_types::ReplacementOption::Counter {
         object: game.object_ref(object).expect("an object in the store"),
         counter,
         effect: crate::engine::replacement::CounterEffectKind::Replacement,
@@ -418,7 +418,7 @@ fn ability_at(game: &GameState, id: ObjectId, place: usize) -> crate::types::ids
 // Placement
 // ---------------------------------------------------------------------------
 
-/// A `DecisionProvider` that records the `ChoiceKind` of every prompt and
+/// A `DecisionProvider` that records the `DecisionKind` of every prompt and
 /// answers each one with a nominated index.
 ///
 /// **The complement of `ScriptedDecisionProvider`, not a replacement for it.**
@@ -440,13 +440,13 @@ pub struct RecordingDecisionProvider {
     pick: usize,
     all: bool,
     /// The options a test named: what a prompt of two or more options picks.
-    named: Vec<crate::ui::choice_types::ChoiceOption>,
+    named: Vec<crate::ui::decision_types::DecisionOption>,
     /// Each bucket a test named with its amount: what an allocation of two or
     /// more buckets gives.
-    amounts: Vec<(crate::ui::choice_types::ChoiceOption, u64)>,
+    amounts: Vec<(crate::ui::decision_types::DecisionOption, u64)>,
     /// The items a test named, first first: what an order of two or more
     /// gives.
-    order: Vec<crate::ui::choice_types::ChoiceOption>,
+    order: Vec<crate::ui::decision_types::DecisionOption>,
     seen: std::cell::RefCell<Vec<String>>,
     mode: SeatMode,
 }
@@ -471,19 +471,19 @@ impl RecordingDecisionProvider {
     /// [`Self::picking`] takes it. For a test whose outcome turns on which
     /// option it took, so that a change to the list's order cannot change
     /// what it chose.
-    pub fn choosing(named: impl IntoIterator<Item = crate::ui::choice_types::ChoiceOption>) -> Self {
+    pub fn choosing(named: impl IntoIterator<Item = crate::ui::decision_types::DecisionOption>) -> Self {
         RecordingDecisionProvider { named: named.into_iter().collect(), ..Self::picking(0) }
     }
 
     /// Answer an allocation of two or more buckets with each named bucket's
     /// amount, and every other bucket none.
-    pub fn allocating(amounts: impl IntoIterator<Item = (crate::ui::choice_types::ChoiceOption, u64)>) -> Self {
+    pub fn allocating(amounts: impl IntoIterator<Item = (crate::ui::decision_types::DecisionOption, u64)>) -> Self {
         RecordingDecisionProvider { amounts: amounts.into_iter().collect(), ..Self::picking(0) }
     }
 
     /// Answer an order of two or more items with `order`, first first,
     /// wherever the engine lists them; every item offered must be named.
-    pub fn ordering(mut self, order: impl IntoIterator<Item = crate::ui::choice_types::ChoiceOption>) -> Self {
+    pub fn ordering(mut self, order: impl IntoIterator<Item = crate::ui::decision_types::DecisionOption>) -> Self {
         self.order = order.into_iter().collect();
         self
     }
@@ -506,7 +506,7 @@ impl RecordingDecisionProvider {
         self
     }
 
-    /// The kinds seen so far, each as `ChoiceKind::as_str` spells it, in
+    /// The kinds seen so far, each as `DecisionKind::as_str` spells it, in
     /// prompt order.
     pub fn kinds(&self) -> Vec<String> {
         self.seen.borrow().clone()
@@ -523,8 +523,8 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         game: &GameState,
         _player: PlayerId,
-        ctx: &crate::ui::choice_types::ChoiceContext,
-        options: &[crate::ui::choice_types::ChoiceOption],
+        ctx: &crate::ui::decision_types::DecisionContext,
+        options: &[crate::ui::decision_types::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.seen.borrow_mut().push(ctx.kind.as_str().to_string());
@@ -537,7 +537,7 @@ impl DecisionProvider for RecordingDecisionProvider {
                 if picks.len() == bounds.1 {
                     break;
                 }
-                if let Some(at) = crate::ui::choice_types::position_named(options, game, wanted, &picks) {
+                if let Some(at) = crate::ui::decision_types::position_named(options, game, wanted, &picks) {
                     picks.push(at);
                 }
             }
@@ -556,7 +556,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _ctx: &crate::ui::choice_types::ChoiceContext,
+        _ctx: &crate::ui::decision_types::DecisionContext,
         min: u64,
         _max: u64,
     ) -> u64 {
@@ -568,9 +568,9 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         game: &GameState,
         _player: PlayerId,
-        _ctx: &crate::ui::choice_types::ChoiceContext,
+        _ctx: &crate::ui::decision_types::DecisionContext,
         total: u64,
-        buckets: &[crate::ui::choice_types::ChoiceOption],
+        buckets: &[crate::ui::decision_types::DecisionOption],
         _per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -579,7 +579,7 @@ impl DecisionProvider for RecordingDecisionProvider {
             let mut given = vec![0; buckets.len()];
             let mut taken: Vec<usize> = Vec::new();
             for (wanted, amount) in &self.amounts {
-                if let Some(at) = crate::ui::choice_types::position_named(buckets, game, wanted, &taken) {
+                if let Some(at) = crate::ui::decision_types::position_named(buckets, game, wanted, &taken) {
                     given[at] = *amount;
                     taken.push(at);
                 }
@@ -605,8 +605,8 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         game: &GameState,
         _player: PlayerId,
-        ctx: &crate::ui::choice_types::ChoiceContext,
-        items: &[crate::ui::choice_types::ChoiceOption],
+        ctx: &crate::ui::decision_types::DecisionContext,
+        items: &[crate::ui::decision_types::DecisionOption],
     ) -> Vec<usize> {
         // The kind, as `pick_n` records it: an ordering prompt is a decision
         // site too, and "one prompt, of the right kind" is the assertion.
@@ -614,7 +614,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         if !self.order.is_empty() && items.len() > 1 {
             let mut placed: Vec<usize> = Vec::new();
             for wanted in &self.order {
-                if let Some(at) = crate::ui::choice_types::position_named(items, game, wanted, &placed) {
+                if let Some(at) = crate::ui::decision_types::position_named(items, game, wanted, &placed) {
                     placed.push(at);
                 }
             }
@@ -667,11 +667,11 @@ impl DecisionProvider for StackWatcher {
         &self,
         game: &GameState,
         _player: PlayerId,
-        context: &crate::ui::choice_types::ChoiceContext,
-        options: &[crate::ui::choice_types::ChoiceOption],
+        context: &crate::ui::decision_types::DecisionContext,
+        options: &[crate::ui::decision_types::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        if matches!(context.kind, crate::ui::choice_types::ChoiceKind::PriorityAction)
+        if matches!(context.kind, crate::ui::decision_types::DecisionKind::PriorityAction)
             && self.first.borrow().is_none()
         {
             *self.first.borrow_mut() = Some((game.stack.len(), game.pending_triggers.len()));
@@ -683,7 +683,7 @@ impl DecisionProvider for StackWatcher {
         &self,
         _: &GameState,
         _: PlayerId,
-        _: &crate::ui::choice_types::ChoiceContext,
+        _: &crate::ui::decision_types::DecisionContext,
         min: u64,
         _: u64,
     ) -> u64 {
@@ -694,9 +694,9 @@ impl DecisionProvider for StackWatcher {
         &self,
         _: &GameState,
         _: PlayerId,
-        _: &crate::ui::choice_types::ChoiceContext,
+        _: &crate::ui::decision_types::DecisionContext,
         total: u64,
-        buckets: &[crate::ui::choice_types::ChoiceOption],
+        buckets: &[crate::ui::decision_types::DecisionOption],
         mins: &[u64],
         _: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -712,8 +712,8 @@ impl DecisionProvider for StackWatcher {
         &self,
         _: &GameState,
         _: PlayerId,
-        _: &crate::ui::choice_types::ChoiceContext,
-        items: &[crate::ui::choice_types::ChoiceOption],
+        _: &crate::ui::decision_types::DecisionContext,
+        items: &[crate::ui::decision_types::DecisionOption],
     ) -> Vec<usize> {
         (0..items.len()).collect()
     }
@@ -724,12 +724,12 @@ impl DecisionProvider for StackWatcher {
 }
 
 /// Hands every prompt to `inner` and records, prompt by prompt, its kind's
-/// variant and what the engine said it rejected (`ChoiceContext::rejected`):
+/// variant and what the engine said it rejected (`DecisionContext::rejected`):
 /// what a test reads to see that a re-ask names the answer it would not take.
 /// All four primitives record, since a re-ask may come through any of them.
 pub struct RejectionRecorder<D> {
     inner: D,
-    seen: std::cell::RefCell<Vec<(String, Option<crate::ui::choice_types::Rejection>)>>,
+    seen: std::cell::RefCell<Vec<(String, Option<crate::ui::decision_types::Rejection>)>>,
 }
 
 impl<D: DecisionProvider> RejectionRecorder<D> {
@@ -737,14 +737,14 @@ impl<D: DecisionProvider> RejectionRecorder<D> {
         RejectionRecorder { inner, seen: std::cell::RefCell::new(Vec::new()) }
     }
 
-    /// What each prompt of kind `kind`, as `ChoiceKind::as_str` spells it,
+    /// What each prompt of kind `kind`, as `DecisionKind::as_str` spells it,
     /// rejected, in the order they were asked: `None` where it rejected
     /// nothing.
-    pub fn rejected_at(&self, kind: &str) -> Vec<Option<crate::ui::choice_types::Rejection>> {
+    pub fn rejected_at(&self, kind: &str) -> Vec<Option<crate::ui::decision_types::Rejection>> {
         self.seen.borrow().iter().filter(|(seen, _)| seen == kind).map(|(_, rejected)| rejected.clone()).collect()
     }
 
-    fn record(&self, context: &crate::ui::choice_types::ChoiceContext) {
+    fn record(&self, context: &crate::ui::decision_types::DecisionContext) {
         self.seen.borrow_mut().push((context.kind.as_str().to_string(), context.rejected.clone()));
     }
 }
@@ -754,8 +754,8 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::choice_types::ChoiceContext,
-        options: &[crate::ui::choice_types::ChoiceOption],
+        context: &crate::ui::decision_types::DecisionContext,
+        options: &[crate::ui::decision_types::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.record(context);
@@ -766,7 +766,7 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::choice_types::ChoiceContext,
+        context: &crate::ui::decision_types::DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -778,9 +778,9 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::choice_types::ChoiceContext,
+        context: &crate::ui::decision_types::DecisionContext,
         total: u64,
-        buckets: &[crate::ui::choice_types::ChoiceOption],
+        buckets: &[crate::ui::decision_types::DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -792,8 +792,8 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::choice_types::ChoiceContext,
-        items: &[crate::ui::choice_types::ChoiceOption],
+        context: &crate::ui::decision_types::DecisionContext,
+        items: &[crate::ui::decision_types::DecisionOption],
     ) -> Vec<usize> {
         self.record(context);
         self.inner.choose_ordering(game, player, context, items)
@@ -1214,28 +1214,28 @@ pub fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
             &self,
             _game: &GameState,
             _player: PlayerId,
-            ctx: &ChoiceContext,
-            options: &[ChoiceOption],
+            ctx: &DecisionContext,
+            options: &[DecisionOption],
             _bounds: (usize, usize),
         ) -> Vec<usize> {
             assert!(
-                matches!(ctx.kind, crate::ui::choice_types::ChoiceKind::ChooseCopySource { .. }),
+                matches!(ctx.kind, crate::ui::decision_types::DecisionKind::ChooseCopySource { .. }),
                 "unexpected prompt: {:?}",
                 ctx.kind
             );
-            let offered = options.iter().position(|o| matches!(o, ChoiceOption::Object(id) if *id == self.0));
+            let offered = options.iter().position(|o| matches!(o, DecisionOption::Object(id) if *id == self.0));
             vec![offered.unwrap_or_else(|| panic!("the donor was not offered"))]
         }
-        fn pick_number(&self, _g: &GameState, _p: PlayerId, _c: &ChoiceContext, min: u64, _max: u64) -> u64 {
+        fn pick_number(&self, _g: &GameState, _p: PlayerId, _c: &DecisionContext, min: u64, _max: u64) -> u64 {
             min
         }
         fn allocate(
             &self,
             _g: &GameState,
             _p: PlayerId,
-            _c: &ChoiceContext,
+            _c: &DecisionContext,
             total: u64,
-            buckets: &[ChoiceOption],
+            buckets: &[DecisionOption],
             _mins: &[u64],
             _maxs: Option<&[u64]>,
         ) -> Vec<u64> {
@@ -1245,7 +1245,7 @@ pub fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
             }
             out
         }
-        fn choose_ordering(&self, _g: &GameState, _p: PlayerId, _c: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        fn choose_ordering(&self, _g: &GameState, _p: PlayerId, _c: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
             (0..items.len()).collect()
         }
     }

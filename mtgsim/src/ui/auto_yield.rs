@@ -20,7 +20,7 @@ use std::rc::Rc;
 
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode};
 
 /// How long a yield passes priority for.
@@ -96,10 +96,10 @@ impl Yields {
 
 /// Where a priority prompt offers `Pass`, which it always does
 /// (`engine::priority`).
-pub fn pass_index(options: &[ChoiceOption]) -> usize {
+pub fn pass_index(options: &[DecisionOption]) -> usize {
     options
         .iter()
-        .position(|o| matches!(o, ChoiceOption::Action(PriorityAction::Pass)))
+        .position(|o| matches!(o, DecisionOption::Action(PriorityAction::Pass)))
         .expect("every priority prompt offers Pass")
 }
 
@@ -121,11 +121,11 @@ impl<D: DecisionProvider> DecisionProvider for AutoYield<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::PriorityAction) && self.yields.holds(game, player) {
+        if matches!(context.kind, DecisionKind::PriorityAction) && self.yields.holds(game, player) {
             return vec![pass_index(options)];
         }
         self.inner.pick_n(game, player, context, options, bounds)
@@ -135,7 +135,7 @@ impl<D: DecisionProvider> DecisionProvider for AutoYield<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -146,9 +146,9 @@ impl<D: DecisionProvider> DecisionProvider for AutoYield<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -159,8 +159,8 @@ impl<D: DecisionProvider> DecisionProvider for AutoYield<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
     }
@@ -178,22 +178,22 @@ mod tests {
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::ui::full_control::{FullControl, FullControlSwitch};
 
-    const PRIORITY: ChoiceContext = ChoiceContext::new(ChoiceKind::PriorityAction);
+    const PRIORITY: DecisionContext = DecisionContext::new(DecisionKind::PriorityAction);
 
     /// A spell the seat could cast.
-    fn a_cast() -> ChoiceOption {
-        ChoiceOption::Action(PriorityAction::CastSpell(new_object_id()))
+    fn a_cast() -> DecisionOption {
+        DecisionOption::Action(PriorityAction::CastSpell(new_object_id()))
     }
 
     /// `[Pass, cast]`: the seat has something to do, so a pass is a choice.
-    fn pass_or(cast: &ChoiceOption) -> Vec<ChoiceOption> {
-        vec![ChoiceOption::Action(PriorityAction::Pass), cast.clone()]
+    fn pass_or(cast: &DecisionOption) -> Vec<DecisionOption> {
+        vec![DecisionOption::Action(PriorityAction::Pass), cast.clone()]
     }
 
     /// The seat's person, asked once, casting.
-    fn asked_once(cast: &ChoiceOption) -> ScriptedDecisionProvider {
+    fn asked_once(cast: &DecisionOption) -> ScriptedDecisionProvider {
         let person = ScriptedDecisionProvider::new();
-        person.expect_choice(ChoiceKind::PriorityAction, vec![cast.clone()]);
+        person.expect_choice(DecisionKind::PriorityAction, vec![cast.clone()]);
         person
     }
 
@@ -262,11 +262,11 @@ mod tests {
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let person = ScriptedDecisionProvider::new();
-        person.expect_choice(ChoiceKind::DeclareBlockers, vec![]);
+        person.expect_choice(DecisionKind::DeclareBlockers, vec![]);
         let seat = AutoYield::new(person, yields);
-        let blockers = ChoiceContext::new(ChoiceKind::DeclareBlockers);
+        let blockers = DecisionContext::new(DecisionKind::DeclareBlockers);
 
-        assert!(seat.pick_n(&game, 1, &blockers, &[ChoiceOption::Object(new_object_id())], (0, 1)).is_empty());
+        assert!(seat.pick_n(&game, 1, &blockers, &[DecisionOption::Object(new_object_id())], (0, 1)).is_empty());
     }
 
     /// The counterweight: full control routes past the yield, and the person

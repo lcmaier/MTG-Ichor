@@ -538,7 +538,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `\| targeting <card>`, `\| targeting player p` | 115.1, 601.2c | the line's answers to CR 601.2c's choices, a target or a "choose": each choice the spell or ability asks takes the next segments it offers, so they read in the card's own order. A card here is a permanent, a card in a graveyard or exile, or a spell an earlier line casts | — |
 | `\| x N` | 107.3a, 601.2b | the X a `casts` line's spell is cast with, answering `ChooseXValue` over an interval or a set (MA-2, `mana-architecture.md` §3.7). A value the engine does not offer stops the line, and so does an X asked of a line with no `x N`; an X never asked, the one legal value, must be the line's. Refused as the file is read on a card whose mana cost has no X, and on an `activates` line, whose X is `hybrid-and-phyrexian-payment`'s | none |
 | `\| ability N` | 602.1 | the ability's place among the permanent's abilities as the layers give them, 1 for the first; never a mana ability, whose mana would wait in a pool no word writes (§5.2) | the permanent's one activated ability |
-| *(a mode)* | 700.2 | not a word: nothing asks for a mode, since `Effect::Modal` cannot resolve (`backlog.md` §2.7). The setup driver matches every `ChoiceKind` with no wildcard, so the PR that adds the prompt adds `mode N` | — |
+| *(a mode)* | 700.2 | not a word: nothing asks for a mode, since `Effect::Modal` cannot resolve (`backlog.md` §2.7). The setup driver matches every `DecisionKind` with no wildcard, so the PR that adds the prompt adds `mode N` | — |
 
 ### 5.2 Later, and the growth contract
 
@@ -629,7 +629,7 @@ board each time. The driver that plays them, `SetupDriver`, is a
 `DecisionProvider` over the seats' own: the loader resolves each named card to
 its id through the table it built the board with (`Scenario::build` returns
 both), and the driver picks the option carrying that id:
-`ChoiceOption::Action(CastSpell(id))` or `ActivateAbility(id, ability)`,
+`DecisionOption::Action(CastSpell(id))` or `ActivateAbility(id, ability)`,
 `Object(id)`, `Player(p)`. It matches by id rather than by text, so a change in
 how options are worded does not break a file. Every action still goes through
 `cast_spell` and `activate_ability`, so the stack is exactly what play builds:
@@ -824,10 +824,10 @@ a start ── build ──▶ Game ── run ── each prompt ──▶ the 
   and match its start: `RecordingDecisionProvider::kinds`, whose 27 uses in 8
   files compare with `starts_with`, and `RejectionRecorder::rejected_at`. A
   prefix is looser than a name, since `Scry` began `ScryOrder` (`OrderLibraryCards` since 2026-11-06), though no
-  test matches `Scry` today. `ChoiceKind::as_str` replaces all eight: not
+  test matches `Scry` today. `DecisionKind::as_str` replaces all eight: not
   `name`, which the CR uses for a card's name (CR 201) and for choosing one
   (201.4), the owner at #216's review.
-  `ChoiceKind` still has 27 variants.
+  `DecisionKind` still has 27 variants.
 - **The replay exists only as a test**,
   `a_game_replayed_from_its_log_is_the_same_game`
   (`tests/phase_a6g_integration_test.rs:180`). It answers every line from a log
@@ -1046,8 +1046,8 @@ and `roadmap-v2.md` A6g listed with the tools. It had too many moving parts
 for what it buys, and a generator with a bug writes wrong tests, which are
 worse than none, with nothing placed to catch them. A regression test found in
 the window is written by hand, from the log the window keeps. The
-`ChoiceKind` built from a logged name, which §7 owed the export, goes with it;
-`ChoiceKind::as_str` stays, since the replay compares kinds by it.
+`DecisionKind` built from a logged name, which §7 owed the export, goes with it;
+`DecisionKind::as_str` stays, since the replay compares kinds by it.
 
 #### Decision 6 — the records at scale, for v1
 
@@ -1103,7 +1103,7 @@ those sees it.
 | Shape | a record begins with its start, and an answer is a position | `decision log 1`, then `engine <commit>` from `state::trace::COMMIT`; a reader refuses a format it does not know, and a commit not its own | B's header; another commit is replayed, and the first line whose question disagrees names both commits | B's header; each answer is recorded as what was chosen, not where it sat: the card by its id and its printed name, as a scenario names it, the player, the action, the attack or block, the cost by its keyword and text, the number, color, counter or mana type. The replay finds that option in whatever list this build offers |
 | Across builds | misread, silently | refused, which ends the fix-and-reload loop at its last step; and a commit proves less than it seems, since `-dirty` keeps one name across uncommitted edits | replayed, but a reordered list plays another game with no stop | replayed while the game is the same, through a reordered or longer list, and stopped at the first answer whose question or choice the engine no longer offers |
 | Code | none | ~25–40 lines | B's | B's, and an option's identity written and compared by one matcher, ~130–200 with the replay's use of it |
-| Upkeep | — | the format's number goes up when an older reader could not read the new text, which a pinned text shows in review | B's | B's; a new `ChoiceOption` variant does not compile until its identity is written, since the writer matches exhaustively |
+| Upkeep | — | the format's number goes up when an older reader could not read the new text, which a pinned text shows in review | B's | B's; a new `DecisionOption` variant does not compile until its identity is written, since the writer matches exhaustively |
 
 **Decided: D** (the owner, 2026-10-03, at #216's review). Replay is exact
 within a build and best effort across builds, where a fixed rule changes the
@@ -1225,8 +1225,8 @@ second display client compute the same thing from the same facts?
 
 | Surface | Home | Why |
 |---|---|---|
-| `ChoiceKind::as_str` | the engine, `ui::choice_types` | the log, the prompt and the setup driver's refusal spell a kind one way |
-| An option's identity, and the one matcher that finds it in a list | the engine, `ui::choice_types` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
+| `DecisionKind::as_str` | the engine, `ui::decision_types` | the log, the prompt and the setup driver's refusal spell a kind one way |
+| An option's identity, and the one matcher that finds it in a list | the engine, `ui::decision_types` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
 | A record's header, a start's text and a line's, written and read | the engine, `state::decision_log` | every client's log and save say the same words and what wrote them, and one parser reads them (decision 6) |
 | The replay | the engine, a provider in `ui` | a second client's undo replays the same way |
 | The stop | the engine, `ui::decision` and `Game` | it crosses the boundary |
@@ -2487,8 +2487,8 @@ replays the original.
 |---|---:|---|
 | `ask_*` functions | 29 | `mtgsim/src/ui/ask.rs` |
 | their call sites | 38, in 15 files | 14 under `engine/`, and `state/game.rs` |
-| `ChoiceKind` variants | 31 | `ui/choice_types.rs:39` |
-| `ChoiceOption` variants | 13 | `ui/choice_types.rs:495` |
+| `DecisionKind` variants | 31 | `ui/decision_types.rs:39` |
+| `DecisionOption` variants | 13 | `ui/decision_types.rs:495` |
 | `DecisionProvider` implementations | 47: 19 engine, 25 tests, 3 dev GUI | 10 of the engine's 19 are decorators that forward to an inner provider; the 3 in the dev GUI are `GuiSeat`, `HandOver` and `AtTheQuestion` |
 | scenario files | 14, every one with a `step` line | `mtgsim/scenarios/` (6), `devgui/tests/scenarios/` (8) |
 | files that parse a scenario | 11 integration-test files, `fuzz_games`, and the dev GUI's editor, bridge, session and two test harnesses | |
@@ -2627,8 +2627,8 @@ not an anchor costs its prefix once, 35 µs at two seats, 58 at four and 79 at
 Commander scale, about one decision's engine time (65 µs), plus a 1.7 µs copy.
 
 Sizes, for the clone costs below: `GameState` 2,752 bytes, `StackEntry` 392,
-`PendingTrigger` 240, `ChoiceContext` 152, `GameAction` 136, `ChoiceKind`
-104, `ChoiceOption` 56, `ReplacementInstanceId` 40. Floor 2's latest reading
+`PendingTrigger` 240, `DecisionContext` 152, `GameAction` 136, `DecisionKind`
+104, `DecisionOption` 56, `ReplacementInstanceId` 40. Floor 2's latest reading
 is 39 allocations and 5.6 µs a clone against 64 and 10; floor 3's 8.7 KB
 against 128.
 
@@ -2817,7 +2817,7 @@ superseded), which a fork's replay and a scenario's setup lines can both
 raise inside a paused game. A halted paused game refuses `answer`, as every
 run entry refuses a stopped game today (`setup-architecture.md#72-the-decisions`,
 decision 1). The question is the four primitives' arguments, owned: the
-player whose decision it is, the `ChoiceContext` (the `ChoiceKind` and the
+player whose decision it is, the `DecisionContext` (the `DecisionKind` and the
 last rejection, as every provider receives them today), and the options with
 their bounds, the number's range, the buckets with their limits, or the
 items. **No dev GUI code moves into the engine.** The
@@ -3086,8 +3086,8 @@ for every question the route adds (modes, a choice at resolution, an order
 the CR hands a player):
 1. Every question goes through `ui::ask`, so the paused game hands every
    question out at one place. (Kinds share functions there: 29 for 31 kinds.)
-2. Its options are named by what they are (decision 4), and its `ChoiceKind`
-   names its subject (`ChoiceKind::subject`, exhaustive).
+2. Its options are named by what they are (decision 4), and its `DecisionKind`
+   names its subject (`DecisionKind::subject`, exhaustive).
 3. What it offers is a function of `GameState` and the answers since the last
    anchor: never of a provider's state or a hash order, which the determinism
    invariant already says. A question may keep its in-flight state in
@@ -3112,7 +3112,7 @@ longer required of new prompts.
 
 **The problem.** A decision log, a test's script, a scenario's setup line and
 a client each name an option. Today an option is written as words
-(`ChoiceOption::as_logged`), and the one matcher (`position_named`) compares
+(`DecisionOption::as_logged`), and the one matcher (`position_named`) compares
 those words. Two failures follow. CR 616.1's and CR 603.3b's options are their
 sources, so two effects of one source read alike, and the log writes `(1 of 2)`
 (item 336; 7e.2 counts the families). Matching turns on rendering, so a change
@@ -3153,11 +3153,11 @@ says which ability is which.
   granted one. It does not split Words of Worship's two rows (one source, one
   ability), a counter's effect (no ability) or one ability triggering twice.
 - **C. Each effect named by what it is.** Two new option kinds,
-  `ChoiceOption::Replacement` and `ChoiceOption::Trigger`, in three layers
+  `DecisionOption::Replacement` and `DecisionOption::Trigger`, in three layers
   that are kept apart, so that no option is shown or logged as an id
   number:
   - **What the arm carries and the matcher compares.** What the effect is,
-    and no counter, so `ChoiceOption`'s derived equality is the comparison
+    and no counter, so `DecisionOption`'s derived equality is the comparison
     across builds too. A trigger's arm carries its source, its ability
     (`AbilityId`, derived from the card's name and the ability's place, not
     minted) and the objects that triggered it (CR 603.2c's occurrences). A
@@ -3213,7 +3213,7 @@ every older record's replay, so the text stays the client's.
 an answer by its words, the owner's call at #307, for the reason and the
 retrofit cost in `choices-architecture.md`'s as-built; scripts and setup lines
 compare typed values as below. As the owner chose at
-#305: `ChoiceOption` derives `PartialEq`; the log reader parses each answer's
+#305: `DecisionOption` derives `PartialEq`; the log reader parses each answer's
 words into a typed option once (`Grizzly Bears (#7)` is `Object(#7)`, the
 name kept as a check that the id still names that card); scripts, setup lines
 and the replay compare typed values; the log's text changes only by 4a's
@@ -3387,7 +3387,7 @@ paused game is a path no fuzz game takes: `fuzz_games` keeps calling
    game, so the process model holds it. Not a reason to take the card in; a
    note for whoever reopens the tail.
 5. **The log writes an activated ability as its internal id.**
-   `ChoiceOption::as_logged` (`ui/choice_types.rs:544`) writes an
+   `DecisionOption::as_logged` (`ui/decision_types.rs:544`) writes an
    activation as `activate Forest (#13) ability 0x…`, `AbilityId`'s
    hexadecimal derivation, though `AbilityId`'s own `Display` says it is
    "diagnostics only — a log names an ability by index"
@@ -3610,8 +3610,8 @@ sized against built, and what the build changed in the design).
 ### SU-4 — the engine's replay of a decision log — ✅ landed 2026-10-03
 
 **What shipped.** §7.1–§7.3's engine half, as decided at #216.
-`ChoiceKind::as_str`, the trace sink's spelling of a kind moved onto the
-kind, replacing eight readers of `Debug` text. `ChoiceOption::as_logged`, an
+`DecisionKind::as_str`, the trace sink's spelling of a kind moved onto the
+kind, replacing eight readers of `Debug` text. `DecisionOption::as_logged`, an
 option as what it is, and `position_of`, the one matcher the setup driver, the
 cv2 test providers and the scripted provider's new `expect_choice` find an
 option by. `ui::ask`'s checks as predicates the validators assert and the

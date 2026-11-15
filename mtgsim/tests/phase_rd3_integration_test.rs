@@ -38,7 +38,7 @@ use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, SourcePattern, Uses,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -401,11 +401,11 @@ fn torbran_divides_before_adding_two() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_allocation(
-        ChoiceKind::AssignTrampleDamage {
+        DecisionKind::AssignTrampleDamage {
             attacker_id: trampler,
             defending_target: ObjectOrPlayerId::Player(1),
         },
-        vec![(ChoiceOption::Object(blocker), 2), (ChoiceOption::Player(1), 3)],
+        vec![(DecisionOption::Object(blocker), 2), (DecisionOption::Player(1), 3)],
     );
     let assignments = assign_combat_damage(&game, &dp, 0, false);
     game.apply_combat_damage(assignments, &ActionContext::new(&dp)).unwrap();
@@ -440,7 +440,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
     let circle = put_on_battlefield(&mut game, circle_of_protection_red(), 0);
     let spell = put_spell_on_stack(&mut game, red_creature(6, &[]), 1);
 
-    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(spell)]);
+    let dp = RecordingDecisionProvider::choosing([DecisionOption::Object(spell)]);
     let ctx = ResolutionContext {
         ability_source: game.object_ref(circle),
         ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell)

@@ -61,7 +61,7 @@ use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::test_support::replay_outcome;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -144,7 +144,7 @@ impl ForkRecorder {
     }
 }
 
-fn describe(options: &[ChoiceOption]) -> Vec<String> {
+fn describe(options: &[DecisionOption]) -> Vec<String> {
     options.iter().map(|o| format!("{o:?}")).collect()
 }
 
@@ -155,8 +155,8 @@ fn describe(options: &[ChoiceOption]) -> Vec<String> {
 /// active_player` is `consecutive_passes == 0` — a player is asked at most once
 /// per round, in turn order from the active player — and it holds for that
 /// player's re-asks too, which is where item 139 lived.
-fn is_resumable(game: &GameState, ctx: &ChoiceContext) -> bool {
-    matches!(ctx.kind, ChoiceKind::PriorityAction)
+fn is_resumable(game: &GameState, ctx: &DecisionContext) -> bool {
+    matches!(ctx.kind, DecisionKind::PriorityAction)
         && game.priority_player == game.active_player
         // CR 800.4j: with the active player gone the round starts elsewhere, so
         // `priority_player == active_player` stops meaning "no passes yet".
@@ -174,13 +174,13 @@ impl DecisionProvider for ForkRecorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         let prompt = *self.prompts.borrow();
         *self.prompts.borrow_mut() = prompt + 1;
-        if matches!(context.kind, ChoiceKind::PriorityAction)
+        if matches!(context.kind, DecisionKind::PriorityAction)
             && self.first_priority.borrow().is_none()
         {
             *self.first_priority.borrow_mut() = Some(describe(options));
@@ -200,7 +200,7 @@ impl DecisionProvider for ForkRecorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -212,9 +212,9 @@ impl DecisionProvider for ForkRecorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -234,8 +234,8 @@ impl DecisionProvider for ForkRecorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         *self.prompts.borrow_mut() += 1;
         self.inner.choose_ordering(game, player, context, items)

@@ -13,7 +13,7 @@
 // offered, so without this its only terminator is `WINDOW_ACTIVATION_CAP`.
 //
 // **Stack invariant: at most one decorator answers any one prompt.** Not one
-// per `ChoiceKind`: §2.18's tap solver will answer `ManaAbilityWindow` too, and
+// per `DecisionKind`: §2.18's tap solver will answer `ManaAbilityWindow` too, and
 // coexists because the two *predicates* are disjoint — the stop answers only
 // once the component is covered, the solver only while it is not. What the
 // invariant buys is that composition commutes, so a client may list its
@@ -24,7 +24,7 @@
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use crate::ui::decision::{DecisionProvider, SeatMode};
 
 /// Declines CR 601.2g's mana-ability window once the locked mana component is
@@ -58,15 +58,15 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         // No symbols left in `remaining_cost` (the mana component less the pool)
         // is "this payment needs no more mana", and an empty pick declines. Not
         // `can_pay_costs` over the whole list: a mana ability pays only CR
         // 601.2h's mana, so an unpayable non-mana cost is none of its business.
-        if let ChoiceKind::ManaAbilityWindow { remaining_cost, .. } = &context.kind
+        if let DecisionKind::ManaAbilityWindow { remaining_cost, .. } = &context.kind
             && remaining_cost.symbols.is_empty() {
             return Vec::new();
         }
@@ -77,7 +77,7 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -88,9 +88,9 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -101,8 +101,8 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
     }
@@ -120,15 +120,15 @@ mod tests {
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
-    fn window(remaining: ManaCost) -> ChoiceContext {
-        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+    fn window(remaining: ManaCost) -> DecisionContext {
+        DecisionContext::new(DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: new_object_id(),
             remaining_cost: remaining,
         })
     }
 
-    fn one_option() -> Vec<ChoiceOption> {
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(
+    fn one_option() -> Vec<DecisionOption> {
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(
             new_object_id(),
             crate::types::ids::new_ability_id(),
         ))]
@@ -153,7 +153,7 @@ mod tests {
         let source = one_option();
         let inner = ScriptedDecisionProvider::new();
         inner.expect_choice(
-            ChoiceKind::ManaAbilityWindow {
+            DecisionKind::ManaAbilityWindow {
                 spell_or_ability_id: new_object_id(),
                 remaining_cost: ManaCost::zero(),
             },
@@ -171,7 +171,7 @@ mod tests {
         let source = one_option();
         let inner = ScriptedDecisionProvider::new();
         inner.expect_choice(
-            ChoiceKind::ManaAbilityWindow {
+            DecisionKind::ManaAbilityWindow {
                 spell_or_ability_id: new_object_id(),
                 remaining_cost: ManaCost::zero(),
             },
@@ -183,15 +183,15 @@ mod tests {
     }
 
     /// Every other kind passes through untouched — the decorator owns one
-    /// `ChoiceKind` and no more.
+    /// `DecisionKind` and no more.
     #[test]
     fn a_prompt_that_is_not_the_window_is_the_inner_providers() {
         let game = setup_two_player_game();
         let source = one_option();
         let inner = ScriptedDecisionProvider::new();
-        inner.expect_choice(ChoiceKind::PriorityAction, source.clone());
+        inner.expect_choice(DecisionKind::PriorityAction, source.clone());
         let dp = ManaWindowStop::new(inner);
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction);
         assert_eq!(dp.pick_n(&game, 0, &ctx, &source, (0, 1)), vec![0]);
     }
 }

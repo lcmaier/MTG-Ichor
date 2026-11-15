@@ -23,7 +23,7 @@ use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, Playe
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 fn goblin() -> TokenDef {
@@ -222,9 +222,9 @@ fn a_token_whose_proposal_differs_is_not_served_its_runs_frame() {
     put_replacement(&mut game, entry_at_power(3, EnterModsTemplate::tapped()));
 
     let dp = ScriptedDecisionProvider::new();
-    let asked = ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: welcome };
+    let asked = DecisionKind::ApplyOptionalReplacement { affected_object: None, source: welcome };
     dp.expect_choice(asked.clone(), vec![]);
-    dp.expect_choice(asked.clone(), vec![ChoiceOption::Object(welcome)]);
+    dp.expect_choice(asked.clone(), vec![DecisionOption::Object(welcome)]);
     dp.expect_choice(asked, vec![]);
     let create = GameAction::CreateTokens { defs: vec![goblin(); 3], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&dp)).expect("the creation performs");
@@ -253,9 +253,9 @@ fn a_token_entering_under_another_player_is_read_under_that_player() {
     put_replacement(&mut game, entry_at_power(2, plus_one_counter()));
 
     let dp = ScriptedDecisionProvider::new();
-    let asked = ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: defects };
+    let asked = DecisionKind::ApplyOptionalReplacement { affected_object: None, source: defects };
     dp.expect_choice(asked.clone(), vec![]);
-    dp.expect_choice(asked.clone(), vec![ChoiceOption::Object(defects)]);
+    dp.expect_choice(asked.clone(), vec![DecisionOption::Object(defects)]);
     dp.expect_choice(asked, vec![]);
     let create = GameAction::CreateTokens { defs: vec![goblin(); 3], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&dp)).expect("the creation performs");

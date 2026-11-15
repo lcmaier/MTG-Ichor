@@ -22,7 +22,7 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::engine::actions::ZoneChangeAct;
@@ -50,7 +50,7 @@ fn test_giant_growth_pumps_creature() {
 
     let dp = ScriptedDecisionProvider::new();
 
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(growth_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
     let result = game.run_priority_round(&dp).unwrap();
@@ -87,7 +87,7 @@ fn test_giant_growth_expires_at_cleanup() {
     let dp = ScriptedDecisionProvider::new();
 
     // Cast and resolve Giant Growth (same as test 1)
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(growth_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
     game.run_priority_round(&dp).unwrap();
@@ -143,17 +143,17 @@ fn test_two_giant_growths_stack() {
     let dp = ScriptedDecisionProvider::new();
 
     // Cast and resolve first Giant Growth
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth1_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(growth1_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
     game.run_priority_round(&dp).unwrap();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
     game.run_priority_round(&dp).unwrap();
 
     assert_eq!(get_effective_power(&game, bears_id), Some(5));
 
     // Cast and resolve second Giant Growth
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth2_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(growth2_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
     game.run_priority_round(&dp).unwrap();
@@ -329,7 +329,7 @@ fn test_anthem_plus_pump_spell() {
     let dp = ScriptedDecisionProvider::new();
 
     // Cast Giant Growth targeting the creature
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(growth_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
     game.run_priority_round(&dp).unwrap();
@@ -367,7 +367,7 @@ fn test_zhalfirin_shapecraft_sets_base_pt() {
     let dp = ScriptedDecisionProvider::new();
 
     // Cast Zhalfirin Shapecraft targeting the creature
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell_id))]);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
     let result = game.run_priority_round(&dp).unwrap();
@@ -471,7 +471,7 @@ fn test_inside_out_switches_pt() {
     let dp = ScriptedDecisionProvider::new();
 
     // Cast Inside Out targeting the creature
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell_id))]);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
     game.run_priority_round(&dp).unwrap();
@@ -500,7 +500,7 @@ fn test_bull_rush_pumps_power() {
     let dp = ScriptedDecisionProvider::new();
 
     // Cast Bull Rush
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell_id))]);
     // Nothing to script: the only legal target, so the choice is forced
     // and no prompt is made.
     game.run_priority_round(&dp).unwrap();
@@ -524,14 +524,14 @@ fn cast_and_resolve_targeted_spell(
     game: &mut mtgsim::state::game_state::GameState,
     dp: &ScriptedDecisionProvider,
     spell_id: mtgsim::types::ids::ObjectId,
-    generic_split: Option<Vec<(ChoiceOption, u64)>>,
+    generic_split: Option<Vec<(DecisionOption, u64)>>,
 ) {
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell_id))]);
     // No target to script: every board here holds one creature, so the choice
     // is forced and `ask_select_recipients` does not prompt.
     if let Some(split) = generic_split {
         dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation {
+            DecisionKind::GenericManaAllocation {
                 spell_or_ability_id: mtgsim::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: mtgsim::types::mana::ManaCost::zero(),
             },
@@ -544,7 +544,7 @@ fn cast_and_resolve_targeted_spell(
     // Both pass → resolve. The caster is asked while another spell in hand is
     // castable; the opponent has `Pass` alone, which the engine takes.
     if candidate_priority_actions(game, game.active_player).len() > 1 {
-        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
     }
     game.run_priority_round(dp).unwrap();
 }
@@ -569,7 +569,7 @@ fn test_layer_ordering_7b_7c_7d_cast_in_layer_order() {
     let dp = ScriptedDecisionProvider::new();
 
     // Shapecraft {1}{U}: available [Blue(10), Red(1)] → allocate 1 generic from Blue
-    let from_blue = vec![(ChoiceOption::ManaType(ManaType::Blue), 1), (ChoiceOption::ManaType(ManaType::Red), 0)];
+    let from_blue = vec![(DecisionOption::ManaType(ManaType::Blue), 1), (DecisionOption::ManaType(ManaType::Red), 0)];
     cast_and_resolve_targeted_spell(&mut game, &dp, shapecraft_id, Some(from_blue));
     // After 7b: base set to 4/3
     assert_eq!(get_effective_power(&game, bears_id), Some(4));
@@ -620,7 +620,7 @@ fn test_layer_ordering_cast_in_reverse_order() {
     let dp = ScriptedDecisionProvider::new();
 
     // Inside Out {1}{U}: available [Blue(10), Red(1)] → allocate 1 from Blue
-    let from_blue = vec![(ChoiceOption::ManaType(ManaType::Blue), 1), (ChoiceOption::ManaType(ManaType::Red), 0)];
+    let from_blue = vec![(DecisionOption::ManaType(ManaType::Blue), 1), (DecisionOption::ManaType(ManaType::Red), 0)];
     cast_and_resolve_targeted_spell(&mut game, &dp, inside_out_id, Some(from_blue));
     // Only 7d active: swap base 2/2 → still 2/2 (symmetric!)
     assert_eq!(get_effective_power(&game, bears_id), Some(2));
@@ -693,7 +693,7 @@ fn test_layer_effects_expire_at_cleanup() {
     let dp = ScriptedDecisionProvider::new();
 
     // Cast all three
-    let from_blue = vec![(ChoiceOption::ManaType(ManaType::Blue), 1), (ChoiceOption::ManaType(ManaType::Red), 0)];
+    let from_blue = vec![(DecisionOption::ManaType(ManaType::Blue), 1), (DecisionOption::ManaType(ManaType::Red), 0)];
     cast_and_resolve_targeted_spell(&mut game, &dp, shapecraft_id, Some(from_blue));
     cast_and_resolve_targeted_spell(&mut game, &dp, bull_rush_id, None);
     cast_and_resolve_targeted_spell(&mut game, &dp, inside_out_id, None);  // one bucket: the split is forced
@@ -747,15 +747,15 @@ fn test_merfolk_thaumaturgist_switches_pt_from_an_activated_ability() {
     let dp = ScriptedDecisionProvider::new();
 
     dp.expect_choice(
-        ChoiceKind::PriorityAction,
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(thaumaturgist, switch))],
+        DecisionKind::PriorityAction,
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(thaumaturgist, switch))],
     );
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             spell_id: thaumaturgist,
         },
-        vec![ChoiceOption::Object(elemental)],
+        vec![DecisionOption::Object(elemental)],
     );
     let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);

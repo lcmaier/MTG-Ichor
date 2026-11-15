@@ -11,7 +11,7 @@ use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, GameStart};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -68,18 +68,18 @@ struct Passer {
 }
 
 impl DecisionProvider for Passer {
-    fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, _: &GameState, _: PlayerId, _: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         (0..bounds.0.min(options.len())).collect()
     }
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, min: u64, _: u64) -> u64 {
         min
     }
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, total: u64, _: &[ChoiceOption], mins: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &DecisionContext, total: u64, _: &[DecisionOption], mins: &[u64], _: Option<&[u64]>) -> Vec<u64> {
         let mut amounts = mins.to_vec();
         amounts[0] += total - mins.iter().sum::<u64>();
         amounts
     }
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         (0..items.len()).collect()
     }
     fn seat_mode(&self, _: PlayerId) -> SeatMode {

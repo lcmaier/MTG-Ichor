@@ -22,7 +22,7 @@ use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerTier};
 use crate::types::zones::Zone;
-use crate::ui::choice_types::{ChoiceContext, ChoiceOption};
+use crate::ui::decision_types::{DecisionContext, DecisionOption};
 use crate::ui::decision::PriorityAction;
 
 /// A record of `kind`, its `batch` field naming the batch open now.
@@ -136,7 +136,7 @@ pub(crate) fn layer_walk(
 }
 
 /// `decision` — a prompt at the decision boundary, as far as every primitive
-/// shares it: who was asked, which primitive, which `ChoiceKind` (its variant
+/// shares it: who was asked, which primitive, which `DecisionKind` (its variant
 /// name and its subject — main item 141's payload rule, so a
 /// `SelectRecipients` does not drag its filter tree in), the answer it last
 /// rejected when it is asking again, and the options by id. The validator
@@ -144,8 +144,8 @@ pub(crate) fn layer_walk(
 pub(crate) fn decision(
     prompt: &str,
     player: PlayerId,
-    ctx: &ChoiceContext,
-    options: &[ChoiceOption],
+    ctx: &DecisionContext,
+    options: &[DecisionOption],
 ) -> Record {
     let mut r = Record::new(RecordKind::Decision);
     r.field_u64("player", player as u64);
@@ -234,11 +234,11 @@ pub(crate) fn pending(
 
 /// One option as the record spells it: an object by `#id`, a player by
 /// `P<n>`, a priority action by its variant and id, the rest by `{:?}`.
-fn render_option(option: &ChoiceOption) -> String {
+fn render_option(option: &DecisionOption) -> String {
     match option {
-        ChoiceOption::Object(id) => id.to_string(),
-        ChoiceOption::Player(p) => format!("P{}", p),
-        ChoiceOption::Action(a) => render_debug(a),
+        DecisionOption::Object(id) => id.to_string(),
+        DecisionOption::Player(p) => format!("P{}", p),
+        DecisionOption::Action(a) => render_debug(a),
         other => render_debug(other),
     }
 }
@@ -250,7 +250,7 @@ fn render_option(option: &ChoiceOption) -> String {
 /// without one (`engine::priority`) — and this is what happened in between,
 /// which no event log can show because a rejected action performs nothing.
 /// The error is the engine's own text, which the re-ask's
-/// `ChoiceContext::rejected` names by rule instead. `retry` counts this
+/// `DecisionContext::rejected` names by rule instead. `retry` counts this
 /// window's rejections.
 pub(crate) fn priority_rejected(
     player: PlayerId,

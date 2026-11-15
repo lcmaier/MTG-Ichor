@@ -40,7 +40,7 @@ use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::engine::targeting::{ChosenTargets};
@@ -636,7 +636,7 @@ fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
     // The two are offered as what they are, the printed `Prevent` and the
     // finality counters' exile, and the script names the printed one.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![replacement_ability_of(&game, probe, 1)]);
+    dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![replacement_ability_of(&game, probe, 1)]);
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
@@ -658,7 +658,7 @@ fn test_choosing_the_other_replacement_takes_the_other_branch() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
         vec![counter_effect_of(&game, probe, CounterType::Finality)],
     );
     let ctx = ActionContext::new(&dp);
@@ -795,8 +795,8 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::choice_types::ChoiceContext,
-        options: &[mtgsim::ui::choice_types::ChoiceOption],
+        context: &mtgsim::ui::decision_types::DecisionContext,
+        options: &[mtgsim::ui::decision_types::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.asked.borrow_mut().push(player);
@@ -806,7 +806,7 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::choice_types::ChoiceContext,
+        context: &mtgsim::ui::decision_types::DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -817,9 +817,9 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::choice_types::ChoiceContext,
+        context: &mtgsim::ui::decision_types::DecisionContext,
         total: u64,
-        buckets: &[mtgsim::ui::choice_types::ChoiceOption],
+        buckets: &[mtgsim::ui::decision_types::DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -830,8 +830,8 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::choice_types::ChoiceContext,
-        items: &[mtgsim::ui::choice_types::ChoiceOption],
+        context: &mtgsim::ui::decision_types::DecisionContext,
+        items: &[mtgsim::ui::decision_types::DecisionOption],
     ) -> Vec<usize> {
         self.asked.borrow_mut().push(player);
         self.inner.choose_ordering(game, player, context, items)
@@ -855,7 +855,7 @@ fn test_the_chooser_is_the_affected_objects_controller_not_the_active_player() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
         vec![counter_effect_of(&game, probe, CounterType::Finality)],
     );
     let asked = std::cell::RefCell::new(Vec::new());
@@ -894,7 +894,7 @@ fn test_simultaneous_choices_are_offered_in_apnap_order() {
     let dp = ScriptedDecisionProvider::new();
     for probe in [probes[1], probes[2], probes[0]] {
         dp.expect_choice(
-            ChoiceKind::ChooseReplacementEffect { affected_object: None },
+            DecisionKind::ChooseReplacementEffect { affected_object: None },
             vec![counter_effect_of(&game, probe, CounterType::Finality)],
         );
     }
@@ -1579,8 +1579,8 @@ fn test_kalitas_and_a_finality_counter_are_one_choice_not_two_exiles() {
     let dp = ScriptedDecisionProvider::new();
     // The finality counter, which is the victim's own.
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![ChoiceOption::Object(victim)],
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
+        vec![DecisionOption::Object(victim)],
     );
     let asked = std::cell::RefCell::new(Vec::new());
     let recording = RecordingProvider { inner: &dp, asked: &asked };
@@ -1640,8 +1640,8 @@ fn test_a_commander_in_the_graveyard_may_go_to_the_command_zone() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
-        vec![ChoiceOption::Object(cmdr)],
+        DecisionKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![DecisionOption::Object(cmdr)],
     );
     let performed = game.check_state_based_actions(&dp).unwrap();
 
@@ -1660,7 +1660,7 @@ fn test_the_commander_sba_is_a_may_and_declining_leaves_it_in_the_graveyard() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
+        DecisionKind::CommanderToCommandZoneSba { commander: cmdr },
         vec![],
     );
     game.check_state_based_actions(&dp).unwrap();
@@ -1681,7 +1681,7 @@ fn test_the_offer_is_made_once_not_on_every_later_check() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
+        DecisionKind::CommanderToCommandZoneSba { commander: cmdr },
         vec![],
     );
     game.check_state_based_actions(&dp).unwrap();
@@ -1713,8 +1713,8 @@ fn test_a_commander_killed_by_a_state_based_action_is_still_offered() {
 
     // Check two: now it is in the graveyard, and it got there since check one.
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
-        vec![ChoiceOption::Object(cmdr)],
+        DecisionKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![DecisionOption::Object(cmdr)],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
@@ -1741,12 +1741,12 @@ fn test_two_commanders_offered_in_one_check_move_as_one_event() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: first },
-        vec![ChoiceOption::Object(first)],
+        DecisionKind::CommanderToCommandZoneSba { commander: first },
+        vec![DecisionOption::Object(first)],
     );
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: second },
-        vec![ChoiceOption::Object(second)],
+        DecisionKind::CommanderToCommandZoneSba { commander: second },
+        vec![DecisionOption::Object(second)],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
 
@@ -1784,11 +1784,11 @@ fn test_one_owner_may_accept_while_another_declines() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: accepted },
-        vec![ChoiceOption::Object(accepted)],
+        DecisionKind::CommanderToCommandZoneSba { commander: accepted },
+        vec![DecisionOption::Object(accepted)],
     );
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: declined },
+        DecisionKind::CommanderToCommandZoneSba { commander: declined },
         vec![],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
@@ -1827,11 +1827,11 @@ fn test_partner_commanders_of_one_owner_are_two_separate_offers() {
     // first, so `kept` is asked first.
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: kept },
-        vec![ChoiceOption::Object(kept)],
+        DecisionKind::CommanderToCommandZoneSba { commander: kept },
+        vec![DecisionOption::Object(kept)],
     );
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: left_behind },
+        DecisionKind::CommanderToCommandZoneSba { commander: left_behind },
         vec![],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
@@ -1863,7 +1863,7 @@ fn test_the_offers_are_made_in_apnap_order_not_move_order() {
     // The two orders are only distinguishable when the active player is not
     // player 0 **and** the other player's commander moved first, so the test
     // builds precisely that: player 1 is active, player 0's commander died
-    // first. `ScriptedDecisionProvider` matches on the `ChoiceKind` variant
+    // first. `ScriptedDecisionProvider` matches on the `DecisionKind` variant
     // rather than its payload, so the queue is the ask order — accept the
     // first offer and decline the second, and which commander moved says who
     // was asked first.
@@ -1878,11 +1878,11 @@ fn test_the_offers_are_made_in_apnap_order_not_move_order() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: active_players },
-        vec![ChoiceOption::Object(active_players)],
+        DecisionKind::CommanderToCommandZoneSba { commander: active_players },
+        vec![DecisionOption::Object(active_players)],
     );
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: moved_first },
+        DecisionKind::CommanderToCommandZoneSba { commander: moved_first },
         vec![],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
@@ -1924,8 +1924,8 @@ fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
-        vec![ChoiceOption::Object(cmdr)],
+        DecisionKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        vec![DecisionOption::Object(cmdr)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(cmdr, Zone::Hand, ZoneChangeAct::Put, &ctx).unwrap();
@@ -1952,7 +1952,7 @@ fn test_903_9b_covers_the_library_too_and_declining_lets_it_through() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        DecisionKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
         vec![],
     );
     let ctx = ActionContext::new(&dp);
@@ -1983,7 +1983,7 @@ fn test_declining_903_9b_terminates_despite_the_614_5_exemption() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        DecisionKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
         vec![],
     );
     let ctx = ActionContext::new(&dp);
@@ -2128,7 +2128,7 @@ fn test_declined_optional_is_not_reoffered() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
+        DecisionKind::ApplyOptionalReplacement { affected_object: Some(cmdr), source: cmdr },
         vec![],
     );
     let ctx = ActionContext::new(&dp);
@@ -2209,7 +2209,7 @@ fn test_choosing_exile_leaves_the_shuffle_inapplicable() {
     // shuffle.
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
         vec![counter_effect_of(&game, probe, CounterType::Finality)],
     );
     let ctx = ActionContext::new(&dp);
@@ -2235,7 +2235,7 @@ fn test_choosing_the_shuffle_leaves_the_exile_inapplicable() {
     let probe = dying_creature_with_two_replacements(&mut game);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![replacement_ability_of(&game, probe, 1)]);
+    dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![replacement_ability_of(&game, probe, 1)]);
     let ctx = ActionContext::new(&dp);
     game.change_zone(probe, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
         .unwrap();
@@ -2333,8 +2333,8 @@ fn test_a_commander_exiled_may_go_to_the_command_zone() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::CommanderToCommandZoneSba { commander: cmdr },
-        vec![ChoiceOption::Object(cmdr)],
+        DecisionKind::CommanderToCommandZoneSba { commander: cmdr },
+        vec![DecisionOption::Object(cmdr)],
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
     assert_eq!(game.get_object(cmdr).unwrap().zone, Zone::Command);
@@ -2407,8 +2407,8 @@ fn test_kalitas_and_rest_in_peace_compete_and_choosing_kalitas_makes_a_zombie() 
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![ChoiceOption::Object(kalitas)],
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
+        vec![DecisionOption::Object(kalitas)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)
@@ -2434,8 +2434,8 @@ fn test_choosing_rest_in_peace_instead_exiles_without_the_zombie() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        vec![ChoiceOption::Object(rip)],
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
+        vec![DecisionOption::Object(rip)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(victim, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx)

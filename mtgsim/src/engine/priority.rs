@@ -4,13 +4,13 @@ use crate::oracle::legality::candidate_priority_actions;
 use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::game_state::GameState;
 use crate::ui::ask::ask_choose_priority_action;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
+use crate::ui::decision_types::{DecisionKind, DecisionOption, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// How many answers to one question the engine rejects before it ends the
 /// game with an error. The CR sets no limit (CR 732.2 lets a player redo a
 /// reversed action), and this one is far past anything a person does, so only
-/// an agent that ignores `ChoiceContext::rejected` reaches it.
+/// an agent that ignores `DecisionContext::rejected` reaches it.
 pub(crate) const REJECTION_LIMIT: usize = 1_000;
 
 /// Result of a single priority round.
@@ -95,8 +95,8 @@ impl GameState {
                 {
                     self.log_decision(LoggedDecision {
                         player: current_priority,
-                        kind: &ChoiceKind::PriorityAction,
-                        options: &[ChoiceOption::Action(PriorityAction::Pass)],
+                        kind: &DecisionKind::PriorityAction,
+                        options: &[DecisionOption::Action(PriorityAction::Pass)],
                         answer: LoggedAnswer::Picks(&[0]),
                         forced: true,
                     });
@@ -180,7 +180,7 @@ impl GameState {
                             return Err(format!(
                                 "player {current_priority} chose an action the engine rejected {REJECTION_LIMIT} times in \
                                  one priority window, the last {action:?}: {e}. A provider that keeps choosing what it was \
-                                 told failed does not read `ChoiceContext::rejected`."
+                                 told failed does not read `DecisionContext::rejected`."
                             ));
                         }
                         rejected = Some(Rejection::Reversed(action));
@@ -304,7 +304,7 @@ mod tests {
     use crate::types::card_types::CardType;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::decision_types::DecisionKind;
     use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
 
     /// Each player has `Pass` alone, which the engine takes: an empty script
@@ -329,8 +329,8 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let dp = ScriptedDecisionProvider::new()
             .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
-        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
-        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
 
         let result = game.run_priority_round(&dp).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
@@ -361,11 +361,11 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Red, 1);
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(card_id))]);
-        dp.expect_choice(ChoiceKind::SelectRecipients {
+        dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(card_id))]);
+        dp.expect_choice(DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![ChoiceOption::Player(1)]);
+        }, vec![DecisionOption::Player(1)]);
 
         // First round: player 0 casts bolt (returns ActionTaken immediately)
         let result = game.run_priority_round(&dp).unwrap();

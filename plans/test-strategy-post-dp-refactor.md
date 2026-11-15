@@ -21,12 +21,12 @@
 
 ### After (4-primitive trait)
 - **4 generic methods:** `pick_n`, `pick_number`, `allocate`, `choose_ordering`
-- **`ChoiceKind` enum** carries semantic meaning — the *engine* knows what
+- **`DecisionKind` enum** carries semantic meaning — the *engine* knows what
   decision it's asking; the *DP* knows how to answer it
-- **`ScriptedDecisionProvider`** — single queue of `(ChoiceKind, Response)` pairs.
+- **`ScriptedDecisionProvider`** — single queue of `(DecisionKind, Response)` pairs.
   Every DP call must have a matching expectation. Extra expectations panic on Drop.
   Missing expectations panic on call.
-- **`ask_*` free functions** — typed wrappers that build `ChoiceOption` lists,
+- **`ask_*` free functions** — typed wrappers that build `DecisionOption` lists,
   call the appropriate primitive, and validate/unpack the response
 - **`validate_allocation`** — centralized validation with `per_bucket_mins` and
   `per_bucket_maxs`
@@ -42,7 +42,7 @@ order. No more "PassiveDP did something and we hope it's fine."
 
 ### 2b. Wrong-Decision Detection
 If the engine asks for a decision the test didn't anticipate, ScriptedDP panics
-immediately with a message saying what `ChoiceKind` was unexpected. If the test
+immediately with a message saying what `DecisionKind` was unexpected. If the test
 scripts decisions that are never consumed, the `Drop` impl panics. Both
 directions are covered.
 
@@ -63,7 +63,7 @@ complex operation. E.g., "casting Doom Blade should produce exactly:
 PriorityAction → SelectRecipients → GenericManaAllocation" in that order.
 
 ### 2e. Option Enumeration Testing
-The `ask_*` functions build `ChoiceOption` lists from game state. We can write
+The `ask_*` functions build `DecisionOption` lists from game state. We can write
 tests that set up a board state and assert the *options presented* to the DP
 are correct — without caring what the DP chooses. This tests the `ask_*` layer
 independently of any DP implementation.
@@ -148,13 +148,13 @@ I'm building an MTG rules engine in Rust. Player decisions go through a
 
 [PASTE: DecisionProvider trait from decision.rs L343-397]
 
-## ChoiceKind enum (what decisions exist)
+## DecisionKind enum (what decisions exist)
 
-[PASTE: ChoiceKind enum from choice_types.rs L23-45]
+[PASTE: DecisionKind enum from decision_types.rs L23-45]
 
-## ChoiceOption enum (what options look like)
+## DecisionOption enum (what options look like)
 
-[PASTE: ChoiceOption enum from choice_types.rs L57-82]
+[PASTE: DecisionOption enum from decision_types.rs L57-82]
 
 ## ScriptedDecisionProvider (how tests work)
 
@@ -230,7 +230,7 @@ As of 2026-04-16 the following changes have been made to
 - **SPECIAL-6 (D32)** — `ask_*` option enumeration tests (Class C). Initial PR
   covers `ask_choose_attackers`, `ask_choose_blockers`,
   `ask_choose_priority_action`, `ask_select_objects`, `ask_choose_legend_to_keep`.
-  Living ticket: every future `ask_*` / `ChoiceKind` / `SelectionFilter` /
+  Living ticket: every future `ask_*` / `DecisionKind` / `SelectionFilter` /
   `PermanentFilter` addition must add at least one Class C test in the same PR.
 
 - **Testing Conventions** section added to `implementation-plan-final.md` just
@@ -238,7 +238,7 @@ As of 2026-04-16 the following changes have been made to
   - The A/B/C/D/E taxonomy as the shared vocabulary for ticket `Tests` bullets.
   - Per-ticket coverage rules (when each class is required).
   - Standing rules: write failing tests first for DP surface changes, don't
-    weaken tests, no silent DP defaults, keep `ChoiceKind` exhaustive, fuzz
+    weaken tests, no silent DP defaults, keep `DecisionKind` exhaustive, fuzz
     harness = living Class D suite, always report full test-count breakdowns.
 
 **Classes B and E are intentionally NOT standalone tickets.** They are enforced
@@ -257,4 +257,4 @@ queue is:
 3. **Class B + E absorbed into future tickets** per Testing Conventions — not
    scheduled as standalone work.
 4. **SPECIAL-6 extensions** land continuously with every new `ask_*` /
-   `ChoiceKind` / filter variant.
+   `DecisionKind` / filter variant.

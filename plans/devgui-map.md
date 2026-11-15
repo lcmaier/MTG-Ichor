@@ -100,7 +100,7 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 
 From `engineering-practices.md#the-dev-gui`, and A6g's rule (the owner): **the window
 draws only the engine's generic surfaces**, the layer output,
-`ChoiceKind::subject()`, the options' ids, `ui::display`'s formatters and the
+`DecisionKind::subject()`, the options' ids, `ui::display`'s formatters and the
 trace sink, never a case per mechanic. What it cannot draw from them is an
 engine surface to add, not client logic.
 - **A fact only the rules compute**, such as characteristics, the legal
@@ -329,7 +329,7 @@ player's line can be right-clicked too, and its why is that section alone.
   (`ui::why::why`, which reads `engine::layers::explain` and, for the
   question's section, the checks the options were built by) and sends the
   answer back as `ToWindow::Why`. The seat hands it the open question too: who
-  is asked, the `ChoiceContext` and the options, as the engine gave them. A why answers nothing, so it keeps the answer in
+  is asked, the `DecisionContext` and the options, as the engine gave them. A why answers nothing, so it keeps the answer in
   progress and need not wait out the beat after a prompt arrives.
 - **The panel follows its object.** The seat keeps the object or player the
   panel shows (`BoardRef`), and each later question's message carries its why. The session

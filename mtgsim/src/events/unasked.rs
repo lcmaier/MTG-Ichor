@@ -12,7 +12,7 @@
 
 use crate::events::event::EventId;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionKind, DecisionOption};
 
 /// One question the engine did not ask.
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ pub struct UnaskedChoice {
     pub before: EventId,
     /// The player who would have been asked.
     pub player: PlayerId,
-    pub kind: ChoiceKind,
+    pub kind: DecisionKind,
     pub answer: UnaskedAnswer,
     pub why: Unasked,
 }
@@ -31,12 +31,12 @@ pub struct UnaskedChoice {
 /// each option by what it is rather than where it sat.
 #[derive(Debug, Clone)]
 pub enum UnaskedAnswer {
-    Picks(Vec<ChoiceOption>),
+    Picks(Vec<DecisionOption>),
     Number(u64),
     /// Each part, and how much went to it.
-    Allocation(Vec<(ChoiceOption, u64)>),
+    Allocation(Vec<(DecisionOption, u64)>),
     /// The items, first first.
-    Order(Vec<ChoiceOption>),
+    Order(Vec<DecisionOption>),
 }
 
 /// Why the question was not asked.

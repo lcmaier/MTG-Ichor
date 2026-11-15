@@ -26,7 +26,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceContext, ChoiceKind, ChoiceOption, ReplacementOption, TriggerOption, TriggeredAbility};
+use mtgsim::ui::decision_types::{AbilityAsRead, DecisionContext, DecisionKind, DecisionOption, ReplacementOption, TriggerOption, TriggeredAbility};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::display::{format_event_log, option_label};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -87,9 +87,9 @@ fn named(game: &GameState, name: &str, controller: Option<usize>) -> ObjectId {
 }
 
 /// Bridge from Below's trigger of its ability at `place`, for `died`.
-fn bridge_trigger(game: &GameState, bridge: ObjectId, place: usize, died: ObjectId) -> ChoiceOption {
+fn bridge_trigger(game: &GameState, bridge: ObjectId, place: usize, died: ObjectId) -> DecisionOption {
     let ability = game.objects[&bridge].card_data.abilities[place - 1].id;
-    ChoiceOption::Trigger(TriggerOption {
+    DecisionOption::Trigger(TriggerOption {
         source: game.object_ref(bridge).expect("in the store"),
         ability: TriggeredAbility::OfItsSource { ability: ability.definition(), granted_by: None, read_as: AbilityAsRead(None) },
         triggered_by: vec![died],
@@ -106,18 +106,18 @@ fn played(token_first: bool) -> (BuiltStart, decision_log::Log) {
     let bridge = named(state, "Bridge from Below", None);
     let (yours, theirs) = (named(state, "Grizzly Bears", Some(0)), named(state, "Grizzly Bears", Some(1)));
     let mountains: Vec<ObjectId> = state.objects.values().filter(|o| o.card_data.name == "Mountain" && state.battlefield.contains_key(&o.id)).map(|o| o.id).collect();
-    let tap = |id: ObjectId| ChoiceOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
+    let tap = |id: ObjectId| DecisionOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
     let makes_a_zombie = bridge_trigger(state, bridge, 1, yours);
     let exiles_itself = bridge_trigger(state, bridge, 2, theirs);
 
     let caster = ScriptedDecisionProvider::new();
-    caster.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(pyroclasm))]);
-    let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: pyroclasm, remaining_cost: ManaCost::build(&[], 0) };
+    caster.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(pyroclasm))]);
+    let window = DecisionKind::ManaAbilityWindow { spell_or_ability_id: pyroclasm, remaining_cost: ManaCost::build(&[], 0) };
     caster.expect_choice(window.clone(), vec![tap(mountains[0])]);
     caster.expect_choice(window, vec![tap(mountains[1])]);
     // The first item goes on the stack lowest, so the last resolves first.
     let order = if token_first { vec![exiles_itself, makes_a_zombie] } else { vec![makes_a_zombie, exiles_itself] };
-    caster.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
+    caster.expect_order(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
     let seats = DispatchDecisionProvider::new(vec![Box::new(ManaWindowStop::new(caster)), Box::new(ScriptedDecisionProvider::new())]);
     built.game_mut().until_stopped(|game| game.resume_turn_at_priority(&seats)).expect("the turn plays");
 
@@ -173,14 +173,14 @@ struct DrawsReplacements<'a> {
 }
 
 impl DecisionProvider for DrawsReplacements<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        if matches!(ctx.kind, ChoiceKind::ChooseReplacementEffect { .. }) {
+    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
+        if matches!(ctx.kind, DecisionKind::ChooseReplacementEffect { .. }) {
             self.drawn.borrow_mut().extend(options.iter().map(|option| option_label(game, option)));
         }
         self.inner.pick_n(game, player, ctx, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &DecisionContext, min: u64, max: u64) -> u64 {
         self.inner.pick_number(game, player, ctx, min, max)
     }
 
@@ -188,16 +188,16 @@ impl DecisionProvider for DrawsReplacements<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        ctx: &ChoiceContext,
+        ctx: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.inner.allocate(game, player, ctx, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.inner.choose_ordering(game, player, ctx, items)
     }
 
@@ -219,17 +219,17 @@ fn a_copied_ability_reads_as_its_text_while_the_copy_enters() {
     let elder = named(state, "Thunder-Thrash Elder", Some(0));
     let grumgully = named(state, "Grumgully, the Generous", Some(0));
     let islands: Vec<ObjectId> = state.objects.values().filter(|o| o.card_data.name == "Island" && state.battlefield.contains_key(&o.id)).map(|o| o.id).collect();
-    let tap = |id: ObjectId| ChoiceOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
+    let tap = |id: ObjectId| DecisionOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
 
     let caster = ScriptedDecisionProvider::new();
-    caster.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(clone))]);
-    let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: clone, remaining_cost: ManaCost::build(&[], 0) };
+    caster.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(clone))]);
+    let window = DecisionKind::ManaAbilityWindow { spell_or_ability_id: clone, remaining_cost: ManaCost::build(&[], 0) };
     for island in islands {
         caster.expect_choice(window.clone(), vec![tap(island)]);
     }
-    caster.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(elder)]);
-    caster.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(grumgully)]);
-    caster.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: clone, source: clone, to: Zone::Graveyard }, Vec::new());
+    caster.expect_choice(DecisionKind::ChooseCopySource { source: clone }, vec![DecisionOption::Object(elder)]);
+    caster.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![DecisionOption::Object(grumgully)]);
+    caster.expect_choice(DecisionKind::ChooseAuxiliaryZoneChange { entering: clone, source: clone, to: Zone::Graveyard }, Vec::new());
     let seats = DispatchDecisionProvider::new(vec![Box::new(ManaWindowStop::new(caster)), Box::new(ScriptedDecisionProvider::new())]);
     let drawing = DrawsReplacements { inner: &seats, drawn: RefCell::new(Vec::new()) };
     built.game_mut().until_stopped(|game| game.resume_turn_at_priority(&drawing)).expect("the turn plays");
@@ -255,8 +255,8 @@ fn a_row_an_ability_made_reads_as_its_text_and_its_stack_object() {
     let (first, second) = (activate(), activate());
 
     let answers = ScriptedDecisionProvider::new();
-    let either = ChoiceOption::Replacement(ReplacementOption::FromResolution { source: words, resolution: second });
-    answers.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![either]);
+    let either = DecisionOption::Replacement(ReplacementOption::FromResolution { source: words, resolution: second });
+    answers.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![either]);
     let drawing = DrawsReplacements { inner: &answers, drawn: RefCell::new(Vec::new()) };
     let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
     game.resolve_effect(&draw, &ResolutionContext::untargeted(words, 0, GeneratedBy::ActivatedAbility), &drawing).expect("the draw resolves");
@@ -284,7 +284,7 @@ fn a_row_a_spell_made_reads_as_its_cards_text() {
     let (one, other) = (resolved(mending_hands(), &test_dp()), resolved(mending_hands(), &test_dp()));
 
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(one)]);
+    answers.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![DecisionOption::Object(one)]);
     let drawing = DrawsReplacements { inner: &answers, drawn: RefCell::new(Vec::new()) };
     resolved(lightning_bolt(), &drawing);
 
@@ -303,18 +303,18 @@ fn a_row_says_which_target_it_was_made_for() {
     let mut game = setup_game(2);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let healer = put_on_battlefield(&mut game, samite_healer(), 0);
-    let mut label_of_a_shield_on = |target: ChoiceOption| {
+    let mut label_of_a_shield_on = |target: DecisionOption| {
         let answers = ScriptedDecisionProvider::new();
-        answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: healer }, vec![target]);
+        answers.expect_choice(DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: healer }, vec![target]);
         game.activate_ability(0, healer, 0, &answers).expect("{T} pays");
         let ability = *game.stack.last().expect("the ability is on the stack");
         game.resolve_top_of_stack(&test_dp()).expect("the ability resolves");
         game.battlefield.get_mut(&healer).expect("on the battlefield").tapped = false;
-        option_label(&game, &ChoiceOption::Replacement(ReplacementOption::FromResolution { source: healer, resolution: ability }))
+        option_label(&game, &DecisionOption::Replacement(ReplacementOption::FromResolution { source: healer, resolution: ability }))
     };
 
-    let at_the_bears = label_of_a_shield_on(ChoiceOption::Object(bears));
-    let at_the_opponent = label_of_a_shield_on(ChoiceOption::Player(1));
+    let at_the_bears = label_of_a_shield_on(DecisionOption::Object(bears));
+    let at_the_opponent = label_of_a_shield_on(DecisionOption::Player(1));
 
     assert!(at_the_bears.ends_with(&format!(", targeting Grizzly Bears ({bears})")), "{at_the_bears}");
     assert!(at_the_opponent.ends_with(", targeting Player 1"), "{at_the_opponent}");

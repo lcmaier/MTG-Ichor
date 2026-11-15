@@ -30,7 +30,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
 
 /// A 1/1 white Soldier creature token.
 fn soldier_token() -> TokenDef {
@@ -48,8 +48,8 @@ fn counters(game: &GameState, id: ObjectId, kind: CounterType) -> u32 {
 
 /// Every prompt `dp` answered was `expected`, player and question, in order.
 /// Rendered to compare, since a question carries no `PartialEq`.
-fn assert_asked(dp: &ScriptedDecisionProvider, expected: &[(PlayerId, ChoiceKind)]) {
-    let render = |asked: &[(PlayerId, ChoiceKind)]| asked.iter().map(|(p, kind)| format!("P{p} {kind:?}")).collect::<Vec<_>>();
+fn assert_asked(dp: &ScriptedDecisionProvider, expected: &[(PlayerId, DecisionKind)]) {
+    let render = |asked: &[(PlayerId, DecisionKind)]| asked.iter().map(|(p, kind)| format!("P{p} {kind:?}")).collect::<Vec<_>>();
     assert_eq!(render(&dp.asked_of()), render(expected));
 }
 
@@ -90,9 +90,9 @@ fn devourer(name: &str, per: PerChosen) -> Arc<CardData> {
 /// Enter `entering` from its graveyard, devouring `devoured`, and check
 /// `chooser` was the one asked.
 fn reanimate_devouring(game: &mut GameState, entering: ObjectId, chooser: PlayerId, devoured: &[ObjectId]) {
-    let prompt = || ChoiceKind::ChooseAuxiliaryZoneChange { entering, source: entering, to: Zone::Graveyard };
+    let prompt = || DecisionKind::ChooseAuxiliaryZoneChange { entering, source: entering, to: Zone::Graveyard };
     let dp = test_dp();
-    dp.expect_choice(prompt(), devoured.iter().map(|&creature| ChoiceOption::Object(creature)).collect());
+    dp.expect_choice(prompt(), devoured.iter().map(|&creature| DecisionOption::Object(creature)).collect());
     game.change_zone(entering, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
     assert_asked(&dp, &[(chooser, prompt())]);
 }
@@ -152,9 +152,9 @@ fn doubles_your_plus_one_counters() -> Arc<CardData> {
 fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId, creatures: &[ObjectId]) -> Vec<ObjectId> {
     let dp = test_dp();
     let devour_prompt =
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: placeholder, source: placeholder, to: Zone::Graveyard };
-    dp.expect_choice(devour_prompt.clone(), vec![ChoiceOption::Object(creatures[0]), ChoiceOption::Object(creatures[1])]);
-    dp.expect_choice(devour_prompt, vec![ChoiceOption::Object(creatures[2])]);
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: placeholder, source: placeholder, to: Zone::Graveyard };
+    dp.expect_choice(devour_prompt.clone(), vec![DecisionOption::Object(creatures[0]), DecisionOption::Object(creatures[1])]);
+    dp.expect_choice(devour_prompt, vec![DecisionOption::Object(creatures[2])]);
     let before: Vec<ObjectId> = game.battlefield_ids();
     game.execute_action(
         GameAction::CreateTokens { defs: vec![devouring_dragon_token(), devouring_dragon_token()], controller: 0, attacking: None },
@@ -162,7 +162,7 @@ fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId, cre
     )
     .expect("the tokens are created");
     let dragons: Vec<ObjectId> = game.battlefield_ids().into_iter().filter(|id| !before.contains(id)).collect();
-    let prompt = |id| ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard };
+    let prompt = |id| DecisionKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard };
     assert_asked(&dp, &[(0, prompt(dragons[0])), (0, prompt(dragons[1]))]);
     dragons
 }
@@ -233,8 +233,8 @@ fn an_entry_replaced_after_devour_chose_sacrifices_nothing() {
 
     let dp = test_dp();
     // Devour, the Elder's own effect, applies first.
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
-    dp.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![ChoiceOption::Object(bear)]);
+    dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![DecisionOption::Object(elder)]);
+    dp.expect_choice(DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![DecisionOption::Object(bear)]);
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it is proposed");
     assert!(dp.is_empty());
 
@@ -254,8 +254,8 @@ fn a_devoured_permanents_own_entry_effect_still_applies() {
     let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
     let elder = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
     let dp = test_dp();
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
-    dp.expect_choice(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![ChoiceOption::Object(biomancer)]);
+    dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![DecisionOption::Object(elder)]);
+    dp.expect_choice(DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard }, vec![DecisionOption::Object(biomancer)]);
 
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
 
@@ -300,8 +300,8 @@ fn tapped(game: &GameState, id: ObjectId) -> bool {
     game.battlefield.get(&id).expect("on the battlefield").tapped
 }
 
-fn the_offer(object: ObjectId) -> ChoiceKind {
-    ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) }
+fn the_offer(object: ObjectId) -> DecisionKind {
+    DecisionKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) }
 }
 
 /// Played from hand and paid for: untapped, and 2 life lost (CR 119.4).
@@ -310,7 +310,7 @@ fn a_shockland_paid_for_enters_untapped() {
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, shockland(), 0);
     let dp = test_dp();
-    dp.expect_choice(the_offer(land), vec![ChoiceOption::Object(land)]);
+    dp.expect_choice(the_offer(land), vec![DecisionOption::Object(land)]);
 
     game.play_land(0, land, &dp).expect("the land drop");
 
@@ -440,7 +440,7 @@ fn a_shockland_is_payable_at_exactly_its_cost() {
     game.players[0].life_total = 2;
     let land = put_in_hand(&mut game, shockland(), 0);
     let dp = test_dp();
-    dp.expect_choice(the_offer(land), vec![ChoiceOption::Object(land)]);
+    dp.expect_choice(the_offer(land), vec![DecisionOption::Object(land)]);
 
     game.play_land(0, land, &dp).expect("the land drop");
 
@@ -476,12 +476,12 @@ fn tribute_beast() -> Arc<CardData> {
         .build()
 }
 
-fn the_putter(object: ObjectId) -> ChoiceKind {
-    ChoiceKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::CounterPutter }
+fn the_putter(object: ObjectId) -> DecisionKind {
+    DecisionKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::CounterPutter }
 }
 
-fn the_counters(object: ObjectId) -> ChoiceKind {
-    ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::PutCounters { counter: CounterType::PlusOnePlusOne, n: 2 } }
+fn the_counters(object: ObjectId) -> DecisionKind {
+    DecisionKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::PutCounters { counter: CounterType::PlusOnePlusOne, n: 2 } }
 }
 
 /// Who put the counters `object` entered with (CR 122.6a), off its record.
@@ -503,8 +503,8 @@ fn tribute_asks_its_controller_for_an_opponent_who_may_put_the_counters() {
     let mut game = setup_game(3);
     let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
     let dp = test_dp();
-    dp.expect_choice(the_putter(beast), vec![ChoiceOption::Player(2)]);
-    dp.expect_choice(the_counters(beast), vec![ChoiceOption::Object(beast)]);
+    dp.expect_choice(the_putter(beast), vec![DecisionOption::Player(2)]);
+    dp.expect_choice(the_counters(beast), vec![DecisionOption::Object(beast)]);
     let mark = game.recorded_events().len();
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
@@ -521,7 +521,7 @@ fn tributes_chosen_opponent_may_decline() {
     let mut game = setup_game(3);
     let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
     let dp = test_dp();
-    dp.expect_choice(the_putter(beast), vec![ChoiceOption::Player(1)]);
+    dp.expect_choice(the_putter(beast), vec![DecisionOption::Player(1)]);
     dp.expect_choice(the_counters(beast), vec![]);
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
@@ -536,7 +536,7 @@ fn tribute_with_one_opponent_asks_only_whether_to_put_them() {
     let mut game = setup_two_player_game();
     let beast = put_in_graveyard(&mut game, tribute_beast(), 0);
     let dp = test_dp();
-    dp.expect_choice(the_counters(beast), vec![ChoiceOption::Object(beast)]);
+    dp.expect_choice(the_counters(beast), vec![DecisionOption::Object(beast)]);
     let mark = game.recorded_events().len();
 
     game.change_zone(beast, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");

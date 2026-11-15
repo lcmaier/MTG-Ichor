@@ -33,7 +33,7 @@ use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{position_named, ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{position_named, DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::display::option_label;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -43,7 +43,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 /// reaches it.
 struct ModesOffered<D> {
     inner: D,
-    offers: RefCell<Vec<Vec<ChoiceOption>>>,
+    offers: RefCell<Vec<Vec<DecisionOption>>>,
 }
 
 impl<D> ModesOffered<D> {
@@ -51,20 +51,20 @@ impl<D> ModesOffered<D> {
         ModesOffered { inner, offers: RefCell::new(Vec::new()) }
     }
 
-    fn offers(&self) -> Vec<Vec<ChoiceOption>> {
+    fn offers(&self) -> Vec<Vec<DecisionOption>> {
         self.offers.borrow().clone()
     }
 }
 
 impl<D: DecisionProvider> DecisionProvider for ModesOffered<D> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::ChooseModes { .. }) {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
+        if matches!(context.kind, DecisionKind::ChooseModes { .. }) {
             self.offers.borrow_mut().push(options.to_vec());
         }
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.inner.pick_number(game, player, context, min, max)
     }
 
@@ -72,16 +72,16 @@ impl<D: DecisionProvider> DecisionProvider for ModesOffered<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
     }
 
@@ -92,18 +92,18 @@ impl<D: DecisionProvider> DecisionProvider for ModesOffered<D> {
 
 /// The script's next answer: the modes printed at `places`.
 fn chooses_modes(answers: &ScriptedDecisionProvider, places: &[u8]) {
-    answers.expect_choice(ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() }, vec![ChoiceOption::modes(places)]);
+    answers.expect_choice(DecisionKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() }, vec![DecisionOption::modes(places)]);
 }
 
 /// The script's next answer: `chosen` for an instance of "target".
-fn names_targets(answers: &ScriptedDecisionProvider, chosen: Vec<ChoiceOption>) {
-    let kind = ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
+fn names_targets(answers: &ScriptedDecisionProvider, chosen: Vec<DecisionOption>) {
+    let kind = DecisionKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
     answers.expect_choice(kind, chosen);
 }
 
 /// The X question, as a script matches it by kind.
-fn choose_x() -> ChoiceKind {
-    ChoiceKind::ChooseXValue { spell_id: ObjectId::UNASSIGNED, values: Box::new(LegalXValues::zero_through(0)) }
+fn choose_x() -> DecisionKind {
+    DecisionKind::ChooseXValue { spell_id: ObjectId::UNASSIGNED, values: Box::new(LegalXValues::zero_through(0)) }
 }
 
 /// The modes the stack object `id` announced, by printed place.
@@ -116,7 +116,7 @@ fn modes(places: &[u8]) -> Vec<ModeIndex> {
 }
 
 /// Each offer's options as the log writes them.
-fn offered(game: &GameState, offers: &[Vec<ChoiceOption>]) -> Vec<Vec<String>> {
+fn offered(game: &GameState, offers: &[Vec<DecisionOption>]) -> Vec<Vec<String>> {
     offers.iter().map(|offer| offer.iter().map(|option| option.as_logged(game)).collect()).collect()
 }
 
@@ -217,10 +217,10 @@ fn a_modal_activation_announces_its_modes_before_its_targets() {
 
     let answers = ScriptedDecisionProvider::new();
     chooses_modes(&answers, &[1]);
-    names_targets(&answers, vec![ChoiceOption::Object(bears)]);
+    names_targets(&answers, vec![DecisionOption::Object(bears)]);
     let stop = ManaWindowStop::new(answers);
     game.activate_ability(0, lever, 0, &stop).expect("{1} and the tap pay it");
-    let kinds: Vec<&str> = stop.inner().asked().iter().map(ChoiceKind::as_str).collect();
+    let kinds: Vec<&str> = stop.inner().asked().iter().map(DecisionKind::as_str).collect();
     assert_eq!(kinds, ["ChooseModes", "SelectRecipients"]);
 
     let ability = *game.stack.last().expect("on the stack");
@@ -244,11 +244,11 @@ fn a_mode_whose_target_has_no_legal_choice_is_not_offered() {
 
     // The one legal set is announced unasked, and the player is its target.
     let answers = ScriptedDecisionProvider::new();
-    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![DecisionOption::Player(1)]);
     let stop = ManaWindowStop::new(answers);
     game.cast_spell(0, option, &stop).expect("the second mode is legal");
     assert_eq!(chosen_modes(&game, option), modes(&[2]));
-    assert!(!stop.inner().asked().iter().any(|kind| matches!(kind, ChoiceKind::ChooseModes { .. })));
+    assert!(!stop.inner().asked().iter().any(|kind| matches!(kind, DecisionKind::ChooseModes { .. })));
 }
 
 // ---------------------------------------------------------------------------
@@ -295,16 +295,16 @@ fn a_count_of_x_asks_x_then_the_sets_of_that_many() {
     let answers = ModesOffered::new(ScriptedDecisionProvider::new());
     answers.inner.expect_number(choose_x(), 2);
     chooses_modes(&answers.inner, &[1, 3]);
-    names_targets(&answers.inner, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers.inner, vec![DecisionOption::Player(1)]);
     let stop = ManaWindowStop::new(answers);
     game.cast_spell(0, tally, &stop).expect("{2}{U} from three blue");
-    let kinds: Vec<&str> = stop.inner().inner.asked().iter().map(ChoiceKind::as_str).collect();
+    let kinds: Vec<&str> = stop.inner().inner.asked().iter().map(DecisionKind::as_str).collect();
     assert_eq!(kinds, ["ChooseXValue", "ChooseModes", "SelectRecipients"]);
 
     // CR 700.2d: two different modes, never one mode twice.
     let offers = stop.inner().offers();
     assert_eq!(offered(&game, &offers), vec![vec!["modes 1, 2", "modes 1, 3", "modes 2, 3"]]);
-    assert_eq!(position_named(&offers[0], &game, &ChoiceOption::modes(&[1, 1]), &[]), None, "a mode twice is no choice");
+    assert_eq!(position_named(&offers[0], &game, &DecisionOption::modes(&[1, 1]), &[]), None, "a mode twice is no choice");
 
     let hand = game.players[0].hand.len();
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
@@ -327,17 +327,17 @@ fn a_count_of_x_offers_no_x_past_the_modes() {
 
     let answers = ScriptedDecisionProvider::new();
     answers.expect_number(choose_x(), 3);
-    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![DecisionOption::Player(1)]);
     let asked = std::rc::Rc::new(std::cell::RefCell::new(None));
     let offered = XOffered { inner: answers, asked: std::rc::Rc::clone(&asked) };
     game.cast_spell(0, tally, &ManaWindowStop::new(offered)).expect("castable at the most X the modes take");
     assert_eq!(chosen_modes(&game, tally), modes(&[1, 2, 3]));
 
     let kind = asked.borrow_mut().take().expect("X was asked");
-    let ChoiceKind::ChooseXValue { values, .. } = &kind else { panic!("the X question") };
+    let DecisionKind::ChooseXValue { values, .. } = &kind else { panic!("the X question") };
     assert_eq!(values.offered.at_most(), 3, "four was payable, and three modes take three");
     assert_eq!(values.bound, Some(XStop::Modes(3)));
-    let context = ChoiceContext::new(kind.clone());
+    let context = DecisionContext::new(kind.clone());
     let answer = why(&game, WhyAbout::Object(tally), Some(&OpenQuestion { player: 0, context: &context, options: &[] }));
     let lines: Vec<(&str, Option<&str>)> = answer.sections[0].lines.iter().map(|line| (line.text.as_str(), line.rule)).collect();
     assert!(lines.iter().any(|(text, rule)| text.contains("X above 3") && *rule == Some("700.2d")), "{lines:?}");
@@ -347,16 +347,16 @@ fn a_count_of_x_offers_no_x_past_the_modes() {
 /// `inner`.
 struct XOffered<D> {
     inner: D,
-    asked: std::rc::Rc<std::cell::RefCell<Option<ChoiceKind>>>,
+    asked: std::rc::Rc<std::cell::RefCell<Option<DecisionKind>>>,
 }
 
 impl<D: DecisionProvider> DecisionProvider for XOffered<D> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
-        if matches!(context.kind, ChoiceKind::ChooseXValue { .. }) {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
+        if matches!(context.kind, DecisionKind::ChooseXValue { .. }) {
             *self.asked.borrow_mut() = Some(context.kind.clone());
         }
         self.inner.pick_number(game, player, context, min, max)
@@ -366,16 +366,16 @@ impl<D: DecisionProvider> DecisionProvider for XOffered<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
     }
 
@@ -402,7 +402,7 @@ fn an_unchosen_modes_target_is_never_announced() {
 
     let answers = ScriptedDecisionProvider::new();
     chooses_modes(&answers, &[2]);
-    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![DecisionOption::Player(1)]);
     game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
     let entry = &game.stack_entries[&option];
     assert_eq!(entry.announced.targets().count(), 1, "the second mode's player alone");
@@ -429,7 +429,7 @@ fn a_modes_back_reference_names_its_own_first_instance() {
     // The giant is the one creature, so only the player is asked.
     let answers = ScriptedDecisionProvider::new();
     chooses_modes(&answers, &[1, 2]);
-    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![DecisionOption::Player(1)]);
     game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
     assert_eq!(chosen_modes(&game, option), modes(&[1, 2]));
     let targets: Vec<Vec<ObjectOrPlayerId>> =
@@ -457,7 +457,7 @@ fn a_chosen_mode_whose_target_left_does_nothing_and_the_rest_resolves() {
 
     let answers = ScriptedDecisionProvider::new();
     chooses_modes(&answers, &[1, 2]);
-    names_targets(&answers, vec![ChoiceOption::Player(1)]);
+    names_targets(&answers, vec![DecisionOption::Player(1)]);
     game.cast_spell(0, option, &ManaWindowStop::new(answers)).expect("castable");
     game.change_zone(giant, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).expect("the giant leaves");
 
@@ -495,8 +495,8 @@ fn another_target_inside_a_mode_excludes_only_that_modes_targets() {
     // The second mode's "another" has one creature left, so it is not asked.
     let answers = ScriptedDecisionProvider::new();
     chooses_modes(&answers, &[1, 2]);
-    names_targets(&answers, vec![ChoiceOption::Object(second)]);
-    names_targets(&answers, vec![ChoiceOption::Object(first)]);
+    names_targets(&answers, vec![DecisionOption::Object(second)]);
+    names_targets(&answers, vec![DecisionOption::Object(first)]);
     game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
     let Announcement::Modes(chosen) = &game.stack_entries[&spell].announced else { panic!("a modal spell announces its modes") };
     let per_mode: Vec<usize> = chosen.iter().map(|mode| mode.targets.len()).collect();
@@ -587,11 +587,11 @@ fn invented_instant(text: &'static str, effect: Effect) -> std::sync::Arc<mtgsim
 #[test]
 fn a_choice_of_modes_is_written_by_its_printed_places() {
     let game = setup_two_player_game();
-    assert_eq!(ChoiceOption::modes(&[1, 3]).as_logged(&game), "modes 1, 3");
-    assert_eq!(ChoiceOption::modes(&[2]).as_logged(&game), "mode 2");
-    assert_eq!(ChoiceOption::modes(&[]).as_logged(&game), "no modes");
-    assert_eq!(option_label(&game, &ChoiceOption::modes(&[1, 3])), "Modes 1 and 3");
-    assert_eq!(option_label(&game, &ChoiceOption::modes(&[])), "No modes");
+    assert_eq!(DecisionOption::modes(&[1, 3]).as_logged(&game), "modes 1, 3");
+    assert_eq!(DecisionOption::modes(&[2]).as_logged(&game), "mode 2");
+    assert_eq!(DecisionOption::modes(&[]).as_logged(&game), "no modes");
+    assert_eq!(option_label(&game, &DecisionOption::modes(&[1, 3])), "Modes 1 and 3");
+    assert_eq!(option_label(&game, &DecisionOption::modes(&[])), "No modes");
 }
 
 // ---------------------------------------------------------------------------
@@ -704,7 +704,7 @@ fn casualties_of_war_destroys_in_printed_order_and_its_triggers_wait() {
 /// Casualties of War cast by player 0 at an opponent's artifact, creature
 /// (Paladin of Atonement, which triggers as it dies) and land, the modes at
 /// `places` chosen: the game, and the offer it was shown.
-fn cast_casualties_of_war(places: &[u8]) -> (GameState, Vec<Vec<ChoiceOption>>) {
+fn cast_casualties_of_war(places: &[u8]) -> (GameState, Vec<Vec<DecisionOption>>) {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, mode_lever(), 1);
     put_on_battlefield(&mut game, paladin_of_atonement(), 1);

@@ -38,7 +38,7 @@ Conservatively, the final count is **100+ decision methods** if each gets its ow
 ## 2. Design Goals (Four Pillars)
 
 1. **Correctness:** The engine must always receive a valid response in the correct shape. No silent defaults that could mask bugs or produce illegal game states.
-2. **Extensibility:** Adding a new decision point should not require touching any existing DP implementation. One new `ChoiceKind` variant + one new `ask_*` free function.
+2. **Extensibility:** Adding a new decision point should not require touching any existing DP implementation. One new `DecisionKind` variant + one new `ask_*` free function.
 3. **Maintainability:** The DP trait surface stays fixed at 4 methods. `ScriptedDecisionProvider` has 4 queues. New UIs implement 4 methods.
 4. **Performance:** No measurable overhead. Context construction is stack-allocated enum + small heap vec. The hot path is always the DP implementation's own logic (AI evaluation, user input), not the dispatch layer.
 
@@ -55,8 +55,8 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize>;
 
@@ -65,7 +65,7 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64;
@@ -76,9 +76,9 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_min: u64,
     ) -> Vec<u64>;
 
@@ -87,13 +87,13 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize>;
 }
 ```
 
-### 3.2 ChoiceContext (semantic label, extensible via variants)
+### 3.2 DecisionContext (semantic label, extensible via variants)
 
 ```rust
 /// What kind of decision is being made. UIs use this to render appropriate
@@ -101,7 +101,7 @@ pub trait DecisionProvider {
 /// Adding a new variant here is the ONLY change needed when a new decision
 /// type is introduced — no trait methods or impl changes.
 #[derive(Debug, Clone)]
-pub enum ChoiceKind {
+pub enum DecisionKind {
     // --- Priority & Turn Structure ---
     PriorityAction,
 
@@ -165,20 +165,20 @@ pub enum ChoiceKind {
 /// its own prompts by matching on `kind`. This keeps choice types pure (no
 /// presentation leakage into the engine boundary).
 #[derive(Debug, Clone)]
-pub struct ChoiceContext {
-    pub kind: ChoiceKind,
+pub struct DecisionContext {
+    pub kind: DecisionKind,
     // NOTE: No `prompt: String` field. Display formatting belongs in DP impls.
     // CLI matches on `kind` to build human-readable prompts. AI ignores prompts
     // entirely. Network serializes `kind` and lets the client format.
 }
 ```
 
-### 3.3 ChoiceOption (what each index represents)
+### 3.3 DecisionOption (what each index represents)
 
 ```rust
 /// A single selectable option presented to the DP.
 #[derive(Debug, Clone)]
-pub enum ChoiceOption {
+pub enum DecisionOption {
     /// A game object (creature, card in hand, permanent, etc.)
     Object(ObjectId),
     /// A player
@@ -209,7 +209,7 @@ pub enum ChoiceOption {
 
 ### 3.4 Typed `ask_*` Free Functions (engine-side bridge)
 
-These live in a new module `ui/ask.rs` (or `engine/decisions.rs` — TBD). They are the **only** code that constructs `ChoiceContext`/`ChoiceOption` and unpacks indices. Engine call sites and tests use these exclusively.
+These live in a new module `ui/ask.rs` (or `engine/decisions.rs` — TBD). They are the **only** code that constructs `DecisionContext`/`DecisionOption` and unpacks indices. Engine call sites and tests use these exclusively.
 
 ```rust
 /// Engine calls this. Returns typed (ObjectId, AttackTarget) pairs.
@@ -219,11 +219,11 @@ pub fn ask_choose_attackers(
     player: PlayerId,
     legal: &[(ObjectId, AttackTarget)],
 ) -> Vec<(ObjectId, AttackTarget)> {
-    let options: Vec<ChoiceOption> = legal.iter()
-        .map(|(id, t)| ChoiceOption::AttackerTarget(*id, *t))
+    let options: Vec<DecisionOption> = legal.iter()
+        .map(|(id, t)| DecisionOption::AttackerTarget(*id, *t))
         .collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::DeclareAttackers,
+    let ctx = DecisionContext {
+        kind: DecisionKind::DeclareAttackers,
     };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
     indices.iter().map(|&i| legal[i]).collect()
@@ -238,8 +238,8 @@ pub fn ask_choose_x_value(
     x_count: u64,
     max_mana: u64,
 ) -> u64 {
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseXValue {
+    let ctx = DecisionContext {
+        kind: DecisionKind::ChooseXValue {
             spell_name: spell_name.to_string(),
             x_count,
         },
@@ -248,7 +248,7 @@ pub fn ask_choose_x_value(
 }
 
 // ... one function per decision type. Each is ~10-15 lines.
-// Adding a new decision = one new function here + one new ChoiceKind variant.
+// Adding a new decision = one new function here + one new DecisionKind variant.
 ```
 
 ### 3.5 Implementation Examples
@@ -258,11 +258,11 @@ pub fn ask_choose_x_value(
 ```rust
 impl DecisionProvider for CliDecisionProvider {
     fn pick_n(&self, _game: &GameState, _player: PlayerId,
-              ctx: &ChoiceContext, options: &[ChoiceOption],
+              ctx: &DecisionContext, options: &[DecisionOption],
               bounds: (usize, usize)) -> Vec<usize> {
         println!("{}", ctx.prompt);
         for (i, opt) in options.iter().enumerate() {
-            println!("  [{}] {:?}", i, opt);  // ChoiceOption derives Debug
+            println!("  [{}] {:?}", i, opt);  // DecisionOption derives Debug
         }
         if bounds.0 == bounds.1 {
             println!("(select exactly {})", bounds.0);
@@ -280,7 +280,7 @@ impl DecisionProvider for CliDecisionProvider {
 ```rust
 impl DecisionProvider for RandomDecisionProvider {
     fn pick_n(&self, _game: &GameState, _player: PlayerId,
-              _ctx: &ChoiceContext, options: &[ChoiceOption],
+              _ctx: &DecisionContext, options: &[DecisionOption],
               bounds: (usize, usize)) -> Vec<usize> {
         let count = self.rng.borrow_mut().gen_range(bounds.0..=bounds.1);
         let mut indices: Vec<usize> = (0..options.len()).collect();
@@ -297,13 +297,13 @@ impl DecisionProvider for RandomDecisionProvider {
 ```rust
 impl DecisionProvider for AiDecisionProvider {
     fn pick_n(&self, game: &GameState, player: PlayerId,
-              ctx: &ChoiceContext, options: &[ChoiceOption],
+              ctx: &DecisionContext, options: &[DecisionOption],
               bounds: (usize, usize)) -> Vec<usize> {
         match &ctx.kind {
-            ChoiceKind::DeclareAttackers => {
+            DecisionKind::DeclareAttackers => {
                 self.evaluate_attack(game, player, options)
             }
-            ChoiceKind::ChooseTargets { .. } => {
+            DecisionKind::ChooseTargets { .. } => {
                 self.evaluate_targets(game, player, options)
             }
             _ => {
@@ -315,7 +315,7 @@ impl DecisionProvider for AiDecisionProvider {
 }
 ```
 
-**Scripted (tests — `ChoiceKind`-aware queue, every expectation requires a kind):**
+**Scripted (tests — `DecisionKind`-aware queue, every expectation requires a kind):**
 
 ```rust
 pub struct ScriptedDecisionProvider {
@@ -324,9 +324,9 @@ pub struct ScriptedDecisionProvider {
 
 /// A single scripted expectation: what kind of decision we expect, and what to return.
 pub struct ScriptedExpectation {
-    /// The ChoiceKind we expect the engine to ask for (discriminant match, fields ignored).
+    /// The DecisionKind we expect the engine to ask for (discriminant match, fields ignored).
     /// No `Any` fallback — every scripted decision must declare what it expects.
-    pub expected_kind: ChoiceKind,
+    pub expected_kind: DecisionKind,
     pub response: ScriptedResponse,
 }
 
@@ -338,17 +338,17 @@ pub enum ScriptedResponse {
 }
 ```
 
-Helper methods — each enqueues an expectation with a mandatory `ChoiceKind`:
+Helper methods — each enqueues an expectation with a mandatory `DecisionKind`:
 ```rust
 impl ScriptedDecisionProvider {
-    pub fn expect_pick_n(&self, kind: ChoiceKind, indices: Vec<usize>) { ... }
-    pub fn expect_number(&self, kind: ChoiceKind, n: u64) { ... }
-    pub fn expect_allocation(&self, kind: ChoiceKind, alloc: Vec<u64>) { ... }
-    pub fn expect_ordering(&self, kind: ChoiceKind, order: Vec<usize>) { ... }
+    pub fn expect_pick_n(&self, kind: DecisionKind, indices: Vec<usize>) { ... }
+    pub fn expect_number(&self, kind: DecisionKind, n: u64) { ... }
+    pub fn expect_allocation(&self, kind: DecisionKind, alloc: Vec<u64>) { ... }
+    pub fn expect_ordering(&self, kind: DecisionKind, order: Vec<usize>) { ... }
 }
 ```
 
-No `script_*` convenience methods without a kind. Every test must state what decision it expects — this is the entire point of the self-documenting design. If you're writing a test and don't know what `ChoiceKind` the engine will ask for, that's a signal to understand the engine flow better before writing the test.
+No `script_*` convenience methods without a kind. Every test must state what decision it expects — this is the entire point of the self-documenting design. If you're writing a test and don't know what `DecisionKind` the engine will ask for, that's a signal to understand the engine flow better before writing the test.
 
 When a DP method fires, it:
 1. Pops the front of the queue (panics on empty: "unexpected DP call, no scripted response")
@@ -361,9 +361,9 @@ When a DP method fires, it:
 **Test readability:**
 ```rust
 // Every decision is self-documenting — reads as a decision script
-scripted.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0, 2]);
-scripted.expect_pick_n(ChoiceKind::ChooseTargets { .. }, vec![1]);
-scripted.expect_number(ChoiceKind::ChooseXValue { .. }, 5);
+scripted.expect_pick_n(DecisionKind::DeclareAttackers, vec![0, 2]);
+scripted.expect_pick_n(DecisionKind::ChooseTargets { .. }, vec![1]);
+scripted.expect_number(DecisionKind::ChooseXValue { .. }, 5);
 ```
 
 ---
@@ -383,15 +383,15 @@ Invalid responses result in a panic (debug builds) or re-prompt (release). The e
 
 ### 4.2 Exhaustiveness via Compiler Enforcement
 
-`ChoiceKind` does NOT use `#[non_exhaustive]`. This is a single-crate project — there are no downstream consumers to protect. Exhaustive matching is a feature:
-- When a new `ChoiceKind` variant is added, the compiler flags **every** match site that doesn't handle it
+`DecisionKind` does NOT use `#[non_exhaustive]`. This is a single-crate project — there are no downstream consumers to protect. Exhaustive matching is a feature:
+- When a new `DecisionKind` variant is added, the compiler flags **every** match site that doesn't handle it
 - This is strictly better than `#[non_exhaustive]` + `_ =>` catch-all, which silently hides unhandled cases
 - If the project becomes multi-crate (engine lib + UI bins), revisit this for public-API enums at that time
 - Same policy applies to all other enums in the codebase (see `design_doc.md` §11, 2026-04-14 entry)
 
 ### 4.3 Priority Action Uses `pick_n` (Confirmed)
 
-Priority action selection is `pick_n` with `bounds: (1, 1)` over the list of legal actions. The engine enumerates all legal actions via existing oracle helpers (`castable_spells`, `activatable_abilities`, `playable_lands`), wraps them as `ChoiceOption::Action` variants, adds `Pass` (always legal) and `ProposeShortcut` (always legal — validated after selection, see §9.7), and calls `pick_n`.
+Priority action selection is `pick_n` with `bounds: (1, 1)` over the list of legal actions. The engine enumerates all legal actions via existing oracle helpers (`castable_spells`, `activatable_abilities`, `playable_lands`), wraps them as `DecisionOption::Action` variants, adds `Pass` (always legal) and `ProposeShortcut` (always legal — validated after selection, see §9.7), and calls `pick_n`.
 
 Selecting a special action is just choosing one option from a finite list — there's nothing structurally different about it. The option space is always enumerable: the oracle helpers already exist and are already called every priority pass by both CLI and Random DPs. Moving enumeration into `ask_choose_priority_action` centralizes it and makes all DPs simpler (they no longer need their own oracle calls).
 
@@ -405,7 +405,7 @@ Selecting a special action is just choosing one option from a finite list — th
 
 - Delete all 12 current typed methods from `DecisionProvider` trait
 - Replace with 4 generic methods
-- Create `ChoiceKind`, `ChoiceContext`, `ChoiceOption` enums in `ui/choice_types.rs`
+- Create `DecisionKind`, `DecisionContext`, `DecisionOption` enums in `ui/decision_types.rs`
 - Create `ask_*` free functions in `ui/ask.rs` (~15 functions initially, one per existing decision point)
 - Rewrite all 5 DP implementations to use 4 generic methods
 - Update all engine call sites to use `ask_*` functions
@@ -415,9 +415,9 @@ Selecting a special action is just choosing one option from a finite list — th
 
 | File | Change |
 |------|--------|
-| `ui/choice_types.rs` | **NEW** — `ChoiceKind`, `ChoiceContext`, `ChoiceOption` |
+| `ui/decision_types.rs` | **NEW** — `DecisionKind`, `DecisionContext`, `DecisionOption` |
 | `ui/ask.rs` | **NEW** — typed `ask_*` free functions |
-| `ui/mod.rs` | Add `pub mod choice_types, ask` |
+| `ui/mod.rs` | Add `pub mod decision_types, ask` |
 | `ui/decision.rs` | Rewrite trait (4 methods), rewrite `ScriptedDecisionProvider` (4 queues), rewrite `DispatchDecisionProvider` (4 forwards), delete `PassiveDecisionProvider` (replace with `DefaultDecisionProvider` that picks first/zero/even) |
 | `ui/cli.rs` | Rewrite `CliDecisionProvider` (4 methods) |
 | `ui/random.rs` | Rewrite `RandomDecisionProvider` (4 methods) |
@@ -450,22 +450,22 @@ Selecting a special action is just choosing one option from a finite list — th
 | **Typed methods (current)** | 12→100+ methods | Compile-time per-method | New trait method + 5 impls | O(impls × methods) |
 | **Single `decide` method** | 1 method | Runtime (wrong shape = panic) | New enum variant | Match arm in every impl |
 | **Two-tier trait (raw + simple)** | 100+ / 4 methods | Compile-time (both tiers) | New method + adapter entry | Adapter block is enormous |
-| **4 generic methods + ask_\* (chosen)** | 4 methods | Compile-time at ask_\* boundary | New ChoiceKind + ask_\* fn | O(1) per impl |
+| **4 generic methods + ask_\* (chosen)** | 4 methods | Compile-time at ask_\* boundary | New DecisionKind + ask_\* fn | O(1) per impl |
 
 ---
 
 ## 7. Decision Record
 
-**Decision:** Refactor `DecisionProvider` from typed methods to 4 generic primitives (`pick_n`, `pick_number`, `allocate`, `choose_ordering`) with `ChoiceContext` for semantic labeling and `ask_*` free functions for typed engine-side dispatch.
+**Decision:** Refactor `DecisionProvider` from typed methods to 4 generic primitives (`pick_n`, `pick_number`, `allocate`, `choose_ordering`) with `DecisionContext` for semantic labeling and `ask_*` free functions for typed engine-side dispatch.
 
 **Rationale:**
 - MtG's decision space is too large for typed methods (~100+ final). The surface must be bounded.
-- Simple UIs (CLI, Random) benefit from a 4-method surface. Complex impls (AI) benefit from `ChoiceContext` pattern matching for specialized heuristics.
+- Simple UIs (CLI, Random) benefit from a 4-method surface. Complex impls (AI) benefit from `DecisionContext` pattern matching for specialized heuristics.
 - `ask_*` functions preserve typed engine call sites — readability and compile-time safety at the engine boundary are not sacrificed.
-- `ChoiceKind` uses exhaustive matching (no `#[non_exhaustive]`) — compiler flags every match site when a variant is added.
+- `DecisionKind` uses exhaustive matching (no `#[non_exhaustive]`) — compiler flags every match site when a variant is added.
 - No performance impact. Context construction is trivial relative to DP evaluation logic.
 - Eliminates the "silent default" problem: generic primitives have no sensible default, forcing every impl to actively handle requests.
-- Network/serialization: `ChoiceContext`, `ChoiceOption`, and response types are trivially `#[derive(Serialize, Deserialize)]` with serde.
+- Network/serialization: `DecisionContext`, `DecisionOption`, and response types are trivially `#[derive(Serialize, Deserialize)]` with serde.
 
 **Alternatives rejected:**
 - Typed methods: doesn't scale to 100+ decisions
@@ -547,9 +547,9 @@ The engine orchestrates the sequence. The DP sees each step independently.
 
 > "Choose a card name" effects (Pithing Needle, Meddling Mage, Cabal Therapy, etc.) require selecting from the full pool of legal MtG card names — currently ~27,000 unique names, growing with every set.
 
-**Problem:** Passing `Vec<ChoiceOption::CardName(String)>` with 27K entries to `pick_n` is wasteful. Allocation of 27K strings per invocation, serialization over network, and UI rendering of the full list are all performance bottlenecks. Arena's half-second freeze on "name a card" effects is almost certainly this problem.
+**Problem:** Passing `Vec<DecisionOption::CardName(String)>` with 27K entries to `pick_n` is wasteful. Allocation of 27K strings per invocation, serialization over network, and UI rendering of the full list are all performance bottlenecks. Arena's half-second freeze on "name a card" effects is almost certainly this problem.
 
-**Solution:** Card name selection uses `pick_number` with `ChoiceKind::NameCard`, NOT `pick_n` with enumerated options.
+**Solution:** Card name selection uses `pick_number` with `DecisionKind::NameCard`, NOT `pick_n` with enumerated options.
 
 The engine maintains a `CardRegistry` (`Arc<CardRegistry>` on `GameState`, scaffolded in Phase 5-Pre). Card names map to integer IDs. The `ask_name_card` function:
 
@@ -560,7 +560,7 @@ pub fn ask_name_card(
     player: PlayerId,
 ) -> CardNameId {
     let registry = game.card_registry();
-    let ctx = ChoiceContext { kind: ChoiceKind::NameCard };
+    let ctx = DecisionContext { kind: DecisionKind::NameCard };
     let id = dp.pick_number(game, player, &ctx, 0, registry.len() as u64 - 1);
     CardNameId(id as usize)
 }
@@ -570,13 +570,13 @@ Each DP impl handles the lookup/UI locally:
 - **CLI:** Text prompt with prefix-search/autocomplete against `game.card_registry()`. O(log N) binary search per keystroke.
 - **Random:** `rng.gen_range(0..registry.len())`
 - **AI:** Picks from a precomputed shortlist of strategically relevant names
-- **Network/GUI:** Sends `ChoiceKind::NameCard` to the client. Client renders its own card name picker with local trie/fuzzy search. Only the integer ID returns over the wire.
+- **Network/GUI:** Sends `DecisionKind::NameCard` to the client. Client renders its own card name picker with local trie/fuzzy search. Only the integer ID returns over the wire.
 
 **Performance:** O(1) for the DP call itself. The expensive part (search/autocomplete/rendering) is pushed to each DP impl where it can be optimized per-platform. The `CardRegistry` lives in `Arc` — no copying, shared read access.
 
 **Why not `pick_n` with a curated shortlist?** Some "name a card" effects have restrictions ("name a nonland card") which would reduce the list, but many don't (Pithing Needle names *any* card). Even restricted lists can have 10K+ entries. The `pick_number` + registry pattern works uniformly for all cases — the `ask_name_card` function can accept an optional `filter: Option<fn(&CardData) -> bool>` and pass a filtered registry size as `max`.
 
-**The `ChoiceOption::CardName(String)` variant still exists** for small curated lists (e.g., Gifts Ungiven searches 4 cards from a library — the engine passes 4 `CardName` options via `pick_n`). It is NOT used for unbounded "name any card" effects.
+**The `DecisionOption::CardName(String)` variant still exists** for small curated lists (e.g., Gifts Ungiven searches 4 cards from a library — the engine passes 4 `CardName` options via `pick_n`). It is NOT used for unbounded "name any card" effects.
 
 ---
 
@@ -608,7 +608,7 @@ The Phase 7→9 transition is a type alias promotion. Simple DPs return `GameNum
 
 D26 (rule 727/731) introduces these DP interactions, all covered by existing primitives:
 
-| Interaction | Primitive | ChoiceKind |
+| Interaction | Primitive | DecisionKind |
 |-------------|-----------|------------|
 | "How many iterations?" (731.1b, 731.2a) | `pick_number` | `DeclareLoopCount { loop_description }` |
 | "Accept this shortcut?" (731.2b) | `pick_n` (2 options: accept/shorten) | `AcceptShortcut { proposer, description }` |

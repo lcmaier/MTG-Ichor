@@ -28,7 +28,7 @@ use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef, RuleAction};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneSet};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 fn an_opponents_creature() -> EffectRecipient {
@@ -245,7 +245,7 @@ fn an_opponent_gains_control_is_chosen_as_it_resolves_among_two_opponents() {
     let ability = *game.stack.iter().last().unwrap();
     assert!(game.stack_entries[&ability].announced.targets().next().is_none());
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseOpponent { source: horse }, vec![ChoiceOption::Player(2)]);
+    dp.expect_choice(DecisionKind::ChooseOpponent { source: horse }, vec![DecisionOption::Player(2)]);
 
     game.resolve_top_of_stack(&dp).unwrap();
     assert_eq!(controller(&game, horse), Some(2), "the opponent chosen");
@@ -414,11 +414,11 @@ fn an_opponent_putting_counters_on_is_chosen_among_two_opponents() {
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseOpponent { source }, vec![ChoiceOption::Player(2)]);
+    dp.expect_choice(DecisionKind::ChooseOpponent { source }, vec![DecisionOption::Player(2)]);
 
     game.resolve_effect(&gift, &ctx, &dp).unwrap();
     assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 1);
-    assert!(matches!(dp.asked().as_slice(), [ChoiceKind::ChooseOpponent { source: asked }] if *asked == source));
+    assert!(matches!(dp.asked().as_slice(), [DecisionKind::ChooseOpponent { source: asked }] if *asked == source));
 }
 
 /// A commander a card says CR 704.6d does not apply to: put into its

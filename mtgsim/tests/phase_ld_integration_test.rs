@@ -23,7 +23,7 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::engine::actions::ZoneChangeAct;
@@ -40,14 +40,14 @@ fn cast_and_resolve_targeted_perm_spell(
     game: &mut mtgsim::state::game_state::GameState,
     dp: &ScriptedDecisionProvider,
     spell: mtgsim::types::ids::ObjectId,
-    generic_split: Option<Vec<(ChoiceOption, u64)>>,
+    generic_split: Option<Vec<(DecisionOption, u64)>>,
 ) {
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell))]);
     // No target to script: one legal target on these boards, so the choice
     // is forced and no prompt is made.
     if let Some(split) = generic_split {
         dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation {
+            DecisionKind::GenericManaAllocation {
                 spell_or_ability_id: mtgsim::types::ids::ObjectId::UNASSIGNED,
                 mana_cost: mtgsim::types::mana::ManaCost::zero(),
             },
@@ -179,7 +179,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
     assert!(!is_creature(&game, artifact_id));
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell))]);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
     let result = game.run_priority_round(&dp).unwrap();

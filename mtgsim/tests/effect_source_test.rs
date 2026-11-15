@@ -27,7 +27,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
-use mtgsim::ui::choice_types::ChoiceOption;
+use mtgsim::ui::decision_types::DecisionOption;
 use mtgsim::test_support::{
     creature_with_ability, fill_library, put_on_battlefield, put_on_battlefield_under, registered, setup_two_player_game,
     test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -174,7 +174,7 @@ fn circle_of_protection_red_prevents_an_abilitys_damage_from_the_chosen_permanen
     let circle_card = circle_of_protection_red();
     let circle = put_on_battlefield(&mut game, circle_card.clone(), 0);
     let ctx = ResolutionContext { ability_source: game.object_ref(circle), ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell) };
-    game.resolve_effect(&circle_card.abilities[0].effect, &ctx, &RecordingDecisionProvider::choosing([ChoiceOption::Object(pinger)])).unwrap();
+    game.resolve_effect(&circle_card.abilities[0].effect, &ctx, &RecordingDecisionProvider::choosing([DecisionOption::Object(pinger)])).unwrap();
     let chosen = game.replacement_effects.iter().find_map(|row| match &row.def.pattern {
         EventPattern::DealDamage { source: Some(pattern), .. } => pattern.object,
         _ => None,

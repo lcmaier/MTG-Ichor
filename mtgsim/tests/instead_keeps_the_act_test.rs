@@ -42,13 +42,13 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::DecisionProvider;
 
 /// CR 616.1's choice between two applicable effects.
-const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };
 /// CR 616.1's "you may … instead" prompt.
-const APPLY_OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalReplacement {
+const APPLY_OPTIONAL: DecisionKind = DecisionKind::ApplyOptionalReplacement {
     affected_object: None,
     source: ObjectId::UNASSIGNED,
 };
@@ -154,8 +154,8 @@ fn leyline_first_still_offers_academy_because_the_card_was_still_discarded() {
     let card = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     let dp = test_dp();
-    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(leyline)]);
-    dp.expect_choice(APPLY_OPTIONAL, vec![ChoiceOption::Object(academy)]);
+    dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(leyline)]);
+    dp.expect_choice(APPLY_OPTIONAL, vec![DecisionOption::Object(academy)]);
     // A one-card hand, so Mind Rot's choice is forced.
     resolve_at_player(&mut game, mind_rot(), 0, 1, &dp);
 
@@ -176,7 +176,7 @@ fn academy_declined_first_leaves_leyline_to_exile_a_card_that_was_still_discarde
     let card = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     let dp = test_dp();
-    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(academy)]);
+    dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(academy)]);
     dp.expect_choice(APPLY_OPTIONAL, vec![]);
     resolve_at_player(&mut game, mind_rot(), 0, 1, &dp);
 

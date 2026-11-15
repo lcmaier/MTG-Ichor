@@ -163,7 +163,7 @@ pub fn assign_trample_damage(
 mod tests {
     use super::*;
     use crate::types::ids::ObjectOrPlayerId;
-    use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+    use crate::ui::decision_types::{DecisionKind, DecisionOption};
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::test_support::{
         place_vanilla_creature as place_creature_with_keywords, set_attacking, set_blocked_by,
@@ -279,11 +279,11 @@ mod tests {
 
         let scripted = ScriptedDecisionProvider::new();
         scripted.expect_allocation(
-            ChoiceKind::AssignTrampleDamage {
+            DecisionKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![(ChoiceOption::Object(blocker), 2), (ChoiceOption::Player(1), 2)],
+            vec![(DecisionOption::Object(blocker), 2), (DecisionOption::Player(1), 2)],
         );
         let assignments = assign_trample_damage(
             &game, &scripted, 0, trampler, &[blocker],
@@ -317,11 +317,11 @@ mod tests {
         // Deathtouch makes 1 lethal (CR 702.2c).
         let scripted = ScriptedDecisionProvider::new();
         scripted.expect_allocation(
-            ChoiceKind::AssignTrampleDamage {
+            DecisionKind::AssignTrampleDamage {
                 attacker_id: trampler,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![(ChoiceOption::Object(blocker), 1), (ChoiceOption::Player(1), 3)],
+            vec![(DecisionOption::Object(blocker), 1), (DecisionOption::Player(1), 3)],
         );
         let assignments = assign_trample_damage(
             &game, &scripted, 0, trampler, &[blocker],

@@ -95,7 +95,7 @@ Engine ←→ AutoPayDP(inner: AiDP)  ←→ AI Policy
 Engine ←→ RawDP                   ←→ AI (training on full action space)
 ```
 
-A middleware DP implements `DecisionProvider`, holds an `inner: Box<dyn DecisionProvider>`, and intercepts specific `ChoiceKind` variants. Everything it doesn't handle passes through to `inner` unchanged.
+A middleware DP implements `DecisionProvider`, holds an `inner: Box<dyn DecisionProvider>`, and intercepts specific `DecisionKind` variants. Everything it doesn't handle passes through to `inner` unchanged.
 
 ```rust
 struct AutoPayDP {
@@ -106,7 +106,7 @@ struct AutoPayDP {
 impl DecisionProvider for AutoPayDP {
     fn pick_n(&self, game, player, context, options, bounds) -> Vec<usize> {
         match &context.kind {
-            ChoiceKind::GenericManaAllocation { .. } => {
+            DecisionKind::GenericManaAllocation { .. } => {
                 // Solve mana payment automatically
                 self.auto_solve_mana(game, player, context, options, bounds)
             }
@@ -161,7 +161,7 @@ None of this needs to be built now. The current ticket scope is:
 2. Wire `ask_*` functions to use those candidates
 3. Migrate engine call sites from `decisions.choose_*()` to `ask_*()`
 
-The middleware architecture is a future concern. The important thing is that the current refactor **doesn't preclude it**: the 4-primitive trait, the `ChoiceContext` enum, and the `DispatchDecisionProvider` pattern all compose cleanly with wrapping DPs. No architectural changes needed later — just new wrapper types.
+The middleware architecture is a future concern. The important thing is that the current refactor **doesn't preclude it**: the 4-primitive trait, the `DecisionContext` enum, and the `DispatchDecisionProvider` pattern all compose cleanly with wrapping DPs. No architectural changes needed later — just new wrapper types.
 
 ---
 

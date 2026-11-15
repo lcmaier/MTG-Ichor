@@ -1022,7 +1022,7 @@ mod tests {
         use crate::engine::trace_records;
         use crate::test_support::{install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
         use crate::types::zones::{Zone, ZoneChangeAct};
-        use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+        use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
         use crate::ui::decision::PriorityAction;
 
         let mut game = setup_two_player_game();
@@ -1036,8 +1036,8 @@ mod tests {
         // Warden's `trigger`; then its `pending` as it is put on the stack.
         game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
         game.place_pending_triggers(&dp).unwrap();
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
-        game.trace(|| trace_records::decision("pick_n", 0, &ctx, &[ChoiceOption::Action(PriorityAction::Pass)]));
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction);
+        game.trace(|| trace_records::decision("pick_n", 0, &ctx, &[DecisionOption::Action(PriorityAction::Pass)]));
         game.trace(|| trace_records::priority_rejected(0, &PriorityAction::CastSpell(bears), "a reason\nover two lines", 1));
         let _fork = game.clone();
         game.trace_objects();

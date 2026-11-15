@@ -38,7 +38,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, CostPart, Rejection};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, CostPart, Rejection};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::display::{option_label, rejection};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -58,15 +58,15 @@ fn power_and_toughness(game: &GameState, id: ObjectId) -> (Option<i32>, Option<i
 /// The script's next answer: `creature` pays CR 601.2h's sacrifice.
 fn sacrifices(answers: &ScriptedDecisionProvider, creature: ObjectId) {
     answers.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ObjectId::UNASSIGNED, count: 1 },
-        vec![ChoiceOption::Object(creature)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: ObjectId::UNASSIGNED, count: 1 },
+        vec![DecisionOption::Object(creature)],
     );
 }
 
 /// The script's next answer: CR 601.2h's parts, paid in this order.
 fn pays_in_order(answers: &ScriptedDecisionProvider, parts: Vec<CostPart>) {
-    let kind = ChoiceKind::OrderCostPayments { spell_or_ability_id: ObjectId::UNASSIGNED };
-    answers.expect_order(kind, parts.into_iter().map(ChoiceOption::CostPart).collect());
+    let kind = DecisionKind::OrderCostPayments { spell_or_ability_id: ObjectId::UNASSIGNED };
+    answers.expect_order(kind, parts.into_iter().map(DecisionOption::CostPart).collect());
 }
 
 
@@ -213,7 +213,7 @@ fn momentous_fall_sacrifices_exactly_one_creature_and_needs_one() {
     game.cast_spell(0, fall, &stop).expect("one of two creatures pays it");
     let asked = stop.inner().asked();
     assert!(
-        matches!(asked.as_slice(), [ChoiceKind::ChooseSacrificeForCost { count: 1, .. }]),
+        matches!(asked.as_slice(), [DecisionKind::ChooseSacrificeForCost { count: 1, .. }]),
         "the payment asks for exactly one creature: {asked:?}"
     );
     assert_eq!(game.get_object(lions).unwrap().zone, Zone::Graveyard);
@@ -288,8 +288,8 @@ fn a_row_over_a_filter_reading_the_pool_makes_the_order_a_question() {
 fn a_part_says_what_it_costs_and_what_pays_it() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(option_label(&game, &ChoiceOption::CostPart(the_mana())), "pay {2}{G}{G}");
-    assert_eq!(option_label(&game, &ChoiceOption::CostPart(sacrificing(bears))), format!("sacrifice 1: Grizzly Bears ({bears})"));
+    assert_eq!(option_label(&game, &DecisionOption::CostPart(the_mana())), "pay {2}{G}{G}");
+    assert_eq!(option_label(&game, &DecisionOption::CostPart(sacrificing(bears))), format!("sacrifice 1: Grizzly Bears ({bears})"));
     assert_eq!(
         rejection(&game, &Rejection::OrderLeavesACostUnpaid(Cost::TapSelf)),
         "That order leaves \"tap it\" unpaid, and unpayable costs can't be paid (CR 601.2h)",
@@ -423,8 +423,8 @@ fn an_order_leaving_a_part_unpaid_is_refused_and_asked_again() {
     pays_in_order(&answers, vec![part(Cost::SacrificeSelf), part(Cost::TapSelf), another_creature()]);
     pays_in_order(&answers, vec![part(Cost::TapSelf), part(Cost::SacrificeSelf), another_creature()]);
     let refusals = RefCell::new(Vec::new());
-    let seat = AtEachPrompt::new(answers, |game: &GameState, context: &ChoiceContext| {
-        if matches!(context.kind, ChoiceKind::OrderCostPayments { .. }) {
+    let seat = AtEachPrompt::new(answers, |game: &GameState, context: &DecisionContext| {
+        if matches!(context.kind, DecisionKind::OrderCostPayments { .. }) {
             refusals.borrow_mut().push((context.rejected.clone(), game.battlefield.contains_key(&reliquary)));
         }
     });
@@ -632,10 +632,10 @@ fn flickers(game: &mut GameState, objects: &[ObjectId], chosen: Vec<(PlayerId, V
     let flicker = put_in_hand(game, scattering_flicker(), 0);
     float_blue(game);
     let answers = ScriptedDecisionProvider::new();
-    let targets = objects.iter().copied().map(ChoiceOption::Object).collect();
-    answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, targets);
+    let targets = objects.iter().copied().map(DecisionOption::Object).collect();
+    answers.expect_choice(DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, targets);
     for (player, order) in chosen {
-        answers.expect_order(ChoiceKind::OrderSimultaneousEntries { player }, order.into_iter().map(ChoiceOption::Object).collect());
+        answers.expect_order(DecisionKind::OrderSimultaneousEntries { player }, order.into_iter().map(DecisionOption::Object).collect());
     }
     let seat = ManaWindowStop::new(answers);
     game.cast_spell(0, flicker, &seat).expect("castable from exactly its cost");

@@ -34,7 +34,7 @@ which is a variant per card dressed as a design (§6.2).
 engine already owns, and one of them is closed.** A "can't" can attach to an
 **event** the engine proposes (bounded by `GameAction`, so `Restriction::Event`
 reuses `EventPattern` and costs almost no new vocabulary), a **choice** a player
-makes (bounded by `ChoiceKind`, which is what `DecisionProvider` already
+makes (bounded by `DecisionKind`, which is what `DecisionProvider` already
 enumerates), or the **application of an effect** (CR 701.19c / 615.12 — one
 site, two permitted subjects, and therefore closed at one arm). Adding an arm is
 a claim that the engine has a site none of the three names — the same shape of
@@ -430,10 +430,10 @@ pub enum Restriction {
         by: Option<SourceFilter>,
     },
 
-    // ---- Axis 2: a choice a player makes (one arm per `ChoiceKind`) ------
-    /// CR 508.1c. `ChoiceKind::DeclareAttackers`.
+    // ---- Axis 2: a choice a player makes (one arm per `DecisionKind`) ------
+    /// CR 508.1c. `DecisionKind::DeclareAttackers`.
     Attack { attacker: ObjectFilter, target: Option<AttackTargetFilter> },
-    /// CR 509.1b, the defending player's half. `ChoiceKind::DeclareBlockers`.
+    /// CR 509.1b, the defending player's half. `DecisionKind::DeclareBlockers`.
     Block { blocker: ObjectFilter },
     /// CR 509.1b's evasion half — a restriction the *attacker* imposes on who
     /// may block it. `min_blockers` is menace (702.111a) and the 77 clauses
@@ -444,15 +444,15 @@ pub enum Restriction {
         except_by: Option<ObjectFilter>,
         min_blockers: Option<u32>,
     },
-    /// CR 601.3. `ChoiceKind::PriorityAction`.
+    /// CR 601.3. `DecisionKind::PriorityAction`.
     Cast { player: PlayerRef, spell: CardFilter, from: Option<Zone> },
     /// CR 116.2a — a *special action*, not a cast, and Aggressive Mining's
     /// printed ruling turns on the difference: it "doesn't stop lands from
     /// being put onto the battlefield by a spell or ability."
     PlayLand { player: PlayerRef, land: Option<CardFilter>, from: Option<Zone> },
-    /// CR 602.5. `ChoiceKind::PriorityAction`.
+    /// CR 602.5. `DecisionKind::PriorityAction`.
     ActivateAbility { source: ObjectFilter, ability: Option<AbilityFilter> },
-    /// CR 115.6. `ChoiceKind::SelectRecipients`.
+    /// CR 115.6. `DecisionKind::SelectRecipients`.
     BeTargeted { object: ObjectSet, by: Option<SourceFilter> },
     /// CR 614.17b and CR 118. The cost-payment choice kinds.
     PayCost { player: PlayerRef, cost: CostFilter, sites: PaymentSites },  // §4.6
@@ -469,7 +469,7 @@ pub enum Restriction {
     /// happens. No `EventPattern` can say that.
     ///
     /// **The axis is closed at one arm, and that is what makes it safe.**
-    /// Axes 1 and 2 are open because `GameAction` and `ChoiceKind` grow; this
+    /// Axes 1 and 2 are open because `GameAction` and `DecisionKind` grow; this
     /// one cannot, because there is exactly one place in the engine where an
     /// effect is applied to an event (`gather`'s `push_if_applicable`) and the
     /// CR names exactly two things that may be withheld there — regeneration
@@ -499,17 +499,17 @@ owns:
 | Axis | What a "can't" attaches to | The enumeration that bounds it | Open? |
 |---|---|---|---|
 | 1 | an event the engine proposes | `GameAction` variants, via `EventPattern` | grows with the engine |
-| 2 | a choice a player makes | `ChoiceKind` (`ui/choice_types.rs`) | grows with the engine |
+| 2 | a choice a player makes | `DecisionKind` (`ui/decision_types.rs`) | grows with the engine |
 | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
 | 4 | a rule's own action | `RuleAction`: the check's `StateBasedAction`, and each turn-based action a card can switch off | grows with its first card |
 
 - **`Event` never grows.** New replaceable event kinds arrive as `GameAction`
   variants and reach this arm through `EventPattern` for free. A change that
   adds an event-shaped arm here is the smell.
-- **Every axis-2 arm names one `ChoiceKind`.** Adding one is a claim that the
-  engine offers a player a decision that `ui/choice_types.rs` does not
+- **Every axis-2 arm names one `DecisionKind`.** Adding one is a claim that the
+  engine offers a player a decision that `ui/decision_types.rs` does not
   enumerate. That is a real thing to check, and usually the answer is that the
-  missing item is a `ChoiceKind`.
+  missing item is a `DecisionKind`.
 - **Axis 3 is closed** for the reason its own doc comment gives: one application
   site, two things the CR permits withholding.
 - **Axis 4 is asked where the rule acts.** The state-based check asks it of

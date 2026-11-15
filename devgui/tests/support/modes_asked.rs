@@ -16,7 +16,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, setup_game};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::mana::ManaType;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -44,23 +44,23 @@ pub struct Keeping {
 }
 
 impl DecisionProvider for Keeping {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::ChooseModes { .. }) && self.kept.borrow().is_none() {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
+        if matches!(context.kind, DecisionKind::ChooseModes { .. }) && self.kept.borrow().is_none() {
             let prompt = Prompt::pick_n(game, player, context, options, bounds);
             *self.kept.borrow_mut() = Some(Asked { snapshot: Snapshot::build(game, player), prompt });
         }
         (0..bounds.0).collect()
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, min: u64, max: u64) -> u64 {
         self.x.map_or(min, |x| x.clamp(min, max))
     }
 
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: &[DecisionOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
         panic!("nothing on these boards divides")
     }
 
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         (0..items.len()).collect()
     }
 }
