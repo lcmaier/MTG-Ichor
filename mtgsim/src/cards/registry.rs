@@ -6,7 +6,7 @@ use crate::objects::card_data::CardData;
 use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
-    fic, fin, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
+    fic, fin, fut, gpt, grn, gtc, mh3, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
     mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, pip, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
     uds, ulg, usg,
     vis, vow, war, woe, wth, wwk, zen, znr,
@@ -715,7 +715,8 @@ impl CardRegistry {
         // - The four `*_spell_fixture` cards are an Aura's or an Artifact's
         //   effect cast as an Instant, sparing machinery their phase did not
         //   need.
-        // - Inside Out Fixture is Inside Out at a cost with no hybrid pip.
+        // - Inside Out Fixture is Inside Out's first line, at a cost with no
+        //   hybrid pip.
         // - Cloudspire Mesa and Moonlit Steppe are invented Lands; the ten
         //   real dual lands below are what `fuzz_games::random_deck` draws its
         //   nonbasic land slots from.
@@ -1260,6 +1261,15 @@ impl CardRegistry {
         // A player verb whose target player has left, beside a target that
         // keeps the spell resolving.
         registry.register("Combat Tutorial", fin::combat_tutorial);
+        // Fixtures until the owner's rule at #330's review: each was a
+        // printed card's whole text, and is that card now. Divisions among
+        // targets on a cast, an activation and a shield, and a copy as a
+        // creature enters.
+        registry.register("Elven Rite", sth::elven_rite);
+        registry.register("Remedy", vis::remedy);
+        registry.register("Rolling Thunder", tmp::rolling_thunder);
+        registry.register("Mogg Mob", mh3::mogg_mob);
+        registry.register("Essence of the Wild", isd::essence_of_the_wild);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);

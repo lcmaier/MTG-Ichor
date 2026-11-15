@@ -109,7 +109,7 @@ use std::time::{Duration, Instant};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-use mtgsim::cards::fixtures::essence_of_the_wild_fixture;
+use mtgsim::cards::printings::essence_of_the_wild;
 use mtgsim::cards::printings::{blood_artist, glorious_anthem, master_biomancer, sigarda_host_of_herons};
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
@@ -1582,7 +1582,7 @@ impl LadderShape {
             LadderShape::DeathTriggers => Some(blood_artist()),
             LadderShape::TokensUnderAReplacement => Some(master_biomancer()),
             LadderShape::TokensUnderACant => Some(sigarda_host_of_herons()),
-            LadderShape::TokensAsCopies => Some(essence_of_the_wild_fixture()),
+            LadderShape::TokensAsCopies => Some(essence_of_the_wild()),
             LadderShape::BareCreatures | LadderShape::Counters | LadderShape::AWipe | LadderShape::TokensInOneEvent => None,
         }
     }

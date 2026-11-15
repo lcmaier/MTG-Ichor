@@ -1026,6 +1026,31 @@ fn cryptoplasm_targets_as_it_triggers_and_asks_may_as_it_resolves() {
 // RULING: Cryptoplasm #2 - "The copy effect lasts indefinitely. Often, it will
 //   last until it is overwritten by another copy effect (if it copies another
 //   creature on a future turn, perhaps.)"
+/// Cryptoplasm becomes a copy of an opponent's Essence of the Wild, except
+/// it keeps its own ability. That exception is part of its copiable values
+/// (CR 707.9b), so a creature entering under Cryptoplasm's controller copies
+/// it too: an Essence with Cryptoplasm's ability.
+// RULING: Essence of the Wild #2 - "If a creature such as Cryptoplasm that's already on the battlefield copies Essence of the Wild and modifies its own copy effect, that modification is also copied by creatures entering under your control."
+#[test]
+fn a_cryptoplasm_copy_of_essence_makes_copies_that_keep_its_ability() {
+    let mut game = setup_two_player_game();
+    let essence = put_on_battlefield(&mut game, printings::essence_of_the_wild(), 1);
+    // A second creature to target, so the target is asked for.
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let crypto = put_on_battlefield(&mut game, cryptoplasm(), 0);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    place_targeting(&mut game, essence);
+    resolve_may(&mut game, true);
+    assert_eq!(get_effective_name(&game, crypto), "Essence of the Wild");
+
+    let bears = mtgsim::test_support::put_in_graveyard(&mut game, grizzly_bears(), 0);
+    let dp = ScriptedDecisionProvider::new();
+    game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &mtgsim::engine::actions::ActionContext::new(&dp))
+        .expect("the Bears enter");
+    assert_eq!(get_effective_name(&game, bears), "Essence of the Wild", "a copy of Cryptoplasm, which is an Essence");
+    assert!(has_cryptoplasms_ability(&game, bears), "the exception is copied with it");
+}
+
 /// A Serra Angel through two cleanups and the other player's turn, then a
 /// Grizzly Bears from the next upkeep's copy, which the ability it kept made.
 #[test]

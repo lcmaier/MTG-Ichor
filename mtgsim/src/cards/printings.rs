@@ -101,6 +101,7 @@ pub use super::sets::woe::*;
 pub use super::sets::mkm::*;
 pub use super::sets::pip::*;
 pub use super::sets::otj::*;
+pub use super::sets::mh3::*;
 pub use super::sets::fdn::*;
 pub use super::sets::fic::*;
 pub use super::sets::fin::*;

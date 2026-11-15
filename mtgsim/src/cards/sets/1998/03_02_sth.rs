@@ -2,12 +2,43 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{counter_spell, its_controller, spell_ability, target_spell, the_target};
+use crate::cards::authoring::{
+    counter_spell, distribute_counters, divided_among_targeted, its_controller, spell_ability, target_spell, the_target,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
+use crate::types::effects::{CounterType, SelectionFilter, TargetCount};
 use crate::types::mana::{ManaCost, ManaType};
+
+/// Elven Rite — {1}{G}
+/// Sorcery
+///
+/// > Distribute two +1/+1 counters among one or two target creatures.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// Counters divided among targets as the spell is cast (CR 601.2d), the
+/// other half of "damage or counters".
+///
+/// # The rulings, and where each is tested
+///
+/// Scryfall lists none for this card. Its board is
+/// `phase_divided_among_targets_integration_test::counters_are_distributed_by_each_targets_share`.
+pub fn elven_rite() -> Arc<CardData> {
+    let text = "Distribute two +1/+1 counters among one or two target creatures.";
+    CardDataBuilder::new("Elven Rite")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
+        .color(Color::Green)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            distribute_counters(divided_among_targeted(SelectionFilter::Creature, TargetCount::Between(1, 2), 2.into()), CounterType::PlusOnePlusOne),
+        ))
+        .build()
+}
 
 /// Mana Leak — {1}{U}
 /// Instant

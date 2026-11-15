@@ -2,15 +2,17 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{creature, draw_cards, equip, gains_keyword, host, spell_ability, static_ability, static_replacement, you, you_have};
+use crate::cards::authoring::{
+    creature, draw_cards, equip, gains_keyword, host, spell_ability, static_ability, static_replacement, you, you_control, you_have,
+};
 use crate::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use crate::types::card_types::{ArtifactType, CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, Cost};
-use crate::types::effects::{Condition, Effect, PlayerFact, PlayerSet};
+use crate::types::effects::{Condition, Effect, ObjectSet, PlayerFact, PlayerSet};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::{AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use crate::types::replacement::{AmountRewrite, CopyDonor, EntryCopyTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 
 /// Altar's Reap — {1}{B}
 /// Instant
@@ -92,6 +94,65 @@ fn static_conditional_replacement(rules_text: &'static str, condition: Condition
         rules_text,
         Effect::Conditional(condition, Box::new(Effect::Replacement(Box::new(def)))),
     )
+}
+
+/// Essence of the Wild — {3}{G}{G}{G}
+/// Creature — Avatar 6/6
+///
+/// > Creatures you control enter as a copy of this creature.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// A copy as a creature enters (CR 614.1c, 707.9): every creature of an
+/// event is a copy from the moment it is announced, and CR 616.1c orders
+/// copy effects ahead of the rest of what modifies how it enters.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"External abilities may still affect how a creature enters. ..."* (#1)
+///   → `phase_cv2a_integration_test::an_enters_tapped_from_outside_still_taps_the_essence_copy`.
+/// - *"If a creature such as Cryptoplasm that's already on the battlefield
+///   copies Essence of the Wild and modifies its own copy effect, that
+///   modification is also copied ..."* (#2) →
+///   `phase_cv1b_integration_test::a_cryptoplasm_copy_of_essence_makes_copies_that_keep_its_ability`.
+/// - *"If you control more than one Essence of the Wild, creatures you
+///   control will enter as a copy of the one whose copy effect you apply
+///   last."* (#3) → `phase_cv2a_integration_test::two_essences_give_the_one_applied_last`.
+/// - *"Creatures you control don't copy whether Essence of the Wild is
+///   tapped or untapped, ... counters ..., or any non-copy effects ..."*
+///   (#4) → `phase_cv2a_integration_test::an_essence_copy_takes_none_of_its_status_counters_or_pumps`.
+/// - *"... any "enters" triggered abilities printed on such creatures won't
+///   trigger."* (#5) →
+///   `phase_cv2a_integration_test::a_creature_entering_as_an_essence_does_not_trigger_its_enters_ability`.
+/// - *"Replacement effects that modify how a creature enters are applied in
+///   the following order: first control-changing effects ..., then copy
+///   effects ..., then all other effects. ..."* (#6) →
+///   `phase_cv2a_integration_test::a_control_change_on_entry_decides_whose_essence_applies`;
+///   the copy-before-the-rest half is #8's board.
+/// - *"If a creature such as Clone is entering under your control, there will
+///   be two copy effects to apply ..."* (#7) →
+///   `phase_cv2a_integration_test::a_clone_beside_essence_of_the_wild_enters_as_the_essence`.
+/// - *"Other "enters" replacement abilities printed on the creature entering
+///   won't be applied ..."* (#8) →
+///   `phase_cv2a_integration_test::rusted_sentinel_under_essence_of_the_wild_enters_untapped`.
+pub fn essence_of_the_wild() -> Arc<CardData> {
+    let text = "Creatures you control enter as a copy of this creature.";
+    CardDataBuilder::new("Essence of the Wild")
+        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green, ManaType::Green], 3))
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Avatar))
+        .power_toughness(6, 6)
+        .rules_text(text)
+        .ability(static_replacement(
+            text,
+            ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: None },
+                ObjectSet::battlefield_filter(creature().and(you_control())),
+                Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
+            ),
+        ))
+        .build()
 }
 
 /// Laboratory Maniac — {2}{U}

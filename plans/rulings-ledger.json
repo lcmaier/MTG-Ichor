@@ -546,6 +546,10 @@
         {"n": 2, "published_at": "2023-06-16", "comment": "If two creatures you control with +1/+1 counters on them become the target of the same spell or ability an opponent controls, Elrond, Master of Healing's last ability will trigger twice."}
       ]
     },
+    "Elven Rite": {
+      "first_seen": "2026-11-15",
+      "rulings": []
+    },
     "Elvish Archers": {
       "first_seen": "2026-09-17",
       "rulings": []
@@ -572,6 +576,19 @@
         {"n": 1, "published_at": "2004-12-01", "comment": "The upkeep step is skipped entirely. The turn proceeds from untap step to draw step."},
         {"n": 2, "published_at": "2004-12-01", "comment": "Upkeep-triggered abilities don't trigger, and \"activate only during your upkeep\" abilities can't be activated."},
         {"n": 3, "published_at": "2004-12-01", "comment": "Any triggered abilities that triggered during the untap step will go onto the stack at the start of the draw step."}
+      ]
+    },
+    "Essence of the Wild": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2011-09-22", "comment": "External abilities may still affect how a creature enters. For example, if your opponent controls Urabrask the Hidden, which reads, in part, \"Creatures your opponents control enter tapped,\" a creature entering under your control will be a tapped Essence of the Wild."},
+        {"n": 2, "published_at": "2011-09-22", "comment": "If a creature such as Cryptoplasm that's already on the battlefield copies Essence of the Wild and modifies its own copy effect, that modification is also copied by creatures entering under your control."},
+        {"n": 3, "published_at": "2011-09-22", "comment": "If you control more than one Essence of the Wild, creatures you control will enter as a copy of the one whose copy effect you apply last."},
+        {"n": 4, "published_at": "2011-09-22", "comment": "Creatures you control don't copy whether Essence of the Wild is tapped or untapped, whether it has any counters on it or any Auras and Equipment attached to it, or any non-copy effects that have changed its power, toughness, types, color, or so on."},
+        {"n": 5, "published_at": "2011-09-22", "comment": "Because creatures you control enter as copies of Essence of the Wild, any \"enters\" triggered abilities printed on such creatures won't trigger."},
+        {"n": 6, "published_at": "2011-09-22", "comment": "Replacement effects that modify how a creature enters are applied in the following order: first control-changing effects (such as Gather Specimens), then copy effects (such as the abilities of Essence of the Wild and Clone), then all other effects. This is a minor rules change to make Essence of the Wild and similar cards in the future work intuitively."},
+        {"n": 7, "published_at": "2011-09-22", "comment": "If a creature such as Clone is entering under your control, there will be two copy effects to apply: the creature's own and Essence of the Wild's. No matter what order these effects are applied, the creature will be a copy of Essence of the Wild when it enters."},
+        {"n": 8, "published_at": "2011-09-22", "comment": "Other \"enters\" replacement abilities printed on the creature entering won't be applied because the creature will already be Essence of the Wild at that point (and therefore it won't have those abilities). For example, a creature that normally enters tapped will enter as an untapped Essence of the Wild, and a creature that would normally enter with counters on it will enter as an Essence of the Wild with no counters."}
       ]
     },
     "Expel the Interlopers": {
@@ -1089,6 +1106,13 @@
         {"n": 6, "published_at": "2008-05-01", "comment": "As the turn ends, the other creatures revert to what they were before. If two Mirrorweaves are cast on the same turn, they’ll both wear off at the same time."}
       ]
     },
+    "Mogg Mob": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2024-06-07", "comment": "You choose how many targets Mogg Mob's ability has and how the damage is divided as you activate the ability. Each target must receive at least 1 damage."},
+        {"n": 2, "published_at": "2024-06-07", "comment": "If some of the targets are illegal as Mogg Mob's activated ability tries to resolve, the original division of damage still applies and the damage that would have been dealt to the illegal targets is lost. It won't be dealt instead to a legal target."}
+      ]
+    },
     "Moment of Silence": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1332,6 +1356,15 @@
         {"n": 4, "published_at": "2025-09-19", "comment": "Abilities that trigger when a creature attacks, blocks, or is blocked will trigger during each combat that turn."}
       ]
     },
+    "Remedy": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2022-12-08", "comment": "You divide the prevention effects as you cast Remedy, not as it resolves. Each target must be assigned at least 1 prevention “shield.” You can’t choose more than five targets and assign none to a target."},
+        {"n": 2, "published_at": "2022-12-08", "comment": "If some of the targets become illegal, the original division of prevention effects still applies, but the effects that would have been created for illegal targets aren’t created at all."},
+        {"n": 3, "published_at": "2022-12-08", "comment": "If multiple sources would deal damage to an affected target at once, that target or that target’s controller chooses which source’s damage to prevent for each “shield.”"},
+        {"n": 4, "published_at": "2022-12-08", "comment": "If multiple replacement effects apply to a player or permanent being dealt damage, that player or the controller of that permanent chooses the order to apply them, not the controller of the source of damage."}
+      ]
+    },
     "Rescue from the Underworld": {
       "first_seen": "2026-10-16",
       "rulings": [
@@ -1378,6 +1411,15 @@
     "Ridgetop Raptor": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Rolling Thunder": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2015-08-25", "comment": "You choose how many targets Rolling Thunder has and how the damage is divided as you cast the spell. Each target must receive at least 1 damage."},
+        {"n": 2, "published_at": "2015-08-25", "comment": "If some, but not all, of the targets become illegal by the time Rolling Thunder tries to resolve, the original division of damage still applies, but no damage is dealt to illegal targets. If all the targets are illegal, the spell won’t resolve."},
+        {"n": 3, "published_at": "2015-08-25", "comment": "If Rolling Thunder is copied, the copy will retain the original damage divsion. The spell or ability will likely allow you to choose new targets, but you can’t change the way damage is divided.", "disposition": {"kind": "not-expressible", "facility": "a copy of a spell on the stack, which copies every decision made for the original, its division among them (CR 707.10), while CR 707.10c may let its targets change. No primitive copies a spell, so no board can put a second Rolling Thunder on the stack.", "owner": "copy-effects-architecture.md"}},
+        {"n": 4, "published_at": "2004-10-04", "comment": "If X is 0, you can’t choose any targets."}
+      ]
     },
     "Root Maze": {
       "first_seen": "2026-09-17",

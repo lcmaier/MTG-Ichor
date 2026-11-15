@@ -20,7 +20,10 @@
 use std::sync::Arc;
 
 use mtgsim::state::replacement_effects::ReplacementEffectId;
-use mtgsim::cards::printings::{angel_of_suffering, furnace_of_rath, knight_of_meadowgrain, mending_hands, plains, safe_passage, samite_censer_bearer};
+use mtgsim::cards::printings::{
+    angel_of_suffering, furnace_of_rath, knight_of_meadowgrain, mending_hands, plains, remedy, safe_passage, samite_censer_bearer,
+};
+use mtgsim::types::mana::ManaType;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::{BatchId, GameEvent};
@@ -413,6 +416,42 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
             assert_eq!(damage_since(&game, before)[0].0, attackers[0]);
         }
     }
+}
+
+/// The same allocation from a printed Remedy cast by the attacking player: the
+/// shielded player answers it, not the shield's caster.
+// RULING: Remedy #3 - "If multiple sources would deal damage to an affected
+//   target at once, that target or that target's controller chooses which
+//   source's damage to prevent for each "shield.""
+#[test]
+fn remedy_over_two_attackers_lets_the_shielded_player_choose() {
+    let mut game = setup_two_player_game();
+    let remedy = put_in_hand(&mut game, remedy(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 2);
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_choice(
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Player(1)],
+    );
+    game.cast_spell(0, remedy, &ManaWindowStop::new(dp)).expect("castable from exactly its cost");
+    game.resolve_top_of_stack(&test_dp()).expect("the shield is made");
+    let attackers = attackers_into(&mut game, &[2, 4]);
+
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_allocation(
+        DecisionKind::AllocateNextDamage { source: remedy, remaining: 5 },
+        vec![(DecisionOption::Object(attackers[0]), 1), (DecisionOption::Object(attackers[1]), 4)],
+    );
+    game.process_combat_damage(&dp, false).unwrap();
+
+    let allocating: Vec<PlayerId> = dp
+        .asked_of()
+        .into_iter()
+        .filter(|(_, kind)| matches!(kind, DecisionKind::AllocateNextDamage { .. }))
+        .map(|(player, _)| player)
+        .collect();
+    assert_eq!(allocating, vec![1], "the shielded player chooses");
+    assert_eq!(life(&game, 1), 19, "6 offered, 5 prevented");
 }
 
 /// Never with one source: 615.7's choice exists only among "two or more", so

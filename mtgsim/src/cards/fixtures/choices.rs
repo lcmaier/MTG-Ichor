@@ -9,8 +9,8 @@ use crate::cards::authoring::{
     activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, at_random, choose,
     choose_each_targeting_a_different_player, choose_number, choose_objects, choose_one, choose_one_or_both_if, choose_pawprints_worth,
     choose_player, choose_repeatable, choose_up_to, create_tokens, creature, creatures_you_control, deal_damage, deal_damage_divided, destroy,
-    divided_among_targeted, dies, discard, distribute_counters, draw_cards, each, enters, exile, gain_life, gets, has_base_power_and_toughness,
-    lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield, spell_ability, spree, static_ability, tap,
+    divided_among_targeted, dies, discard, draw_cards, each, enters, exile, gain_life, gets, has_base_power_and_toughness,
+    lose_life, mill, planeswalker, return_to_the_battlefield, spell_ability, spree, static_ability, tap,
     target_creature, target_opponent, target_permanent, target_player, targets, the_chosen_number, the_chosen_objects, the_chosen_player,
     the_target, this_object, triggered_ability, whenever, you, you_have,
 };
@@ -19,7 +19,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
+    AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
     ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
@@ -204,26 +204,6 @@ pub fn scattering_flicker() -> Arc<CardData> {
         .build()
 }
 
-/// Mogg Mob Fixture — {2}{R}
-/// Creature — Goblin, 3/3.
-///
-/// A division on an activation (CR 602.2b), three among up to three, so two
-/// targets ask. Sacrificing it is the cost, so the amount and the shares are
-/// fixed before its source is gone, and the source deals the damage as it last
-/// existed (CR 113.7a).
-pub fn mogg_mob_fixture() -> Arc<CardData> {
-    let text = "Sacrifice this creature: It deals 3 damage divided as you choose among one, two, or three targets.";
-    CardDataBuilder::new("Mogg Mob Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Red], 2))
-        .color(Color::Red)
-        .card_type(CardType::Creature)
-        .subtype(Subtype::Creature(CreatureType::Goblin))
-        .power_toughness(3, 3)
-        .rules_text(text)
-        .ability(activated_ability(text, vec![Cost::SacrificeSelf], deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 3), 3.into()))))
-        .build()
-}
-
 /// Dragonlord Atarka Fixture — {5}{R}{G}
 /// Creature — Dragon, 8/8, unlegendary.
 ///
@@ -265,51 +245,6 @@ pub fn magma_opus_fixture() -> Arc<CardData> {
                 tap(targets(2, SelectionFilter::Permanent(ObjectFilter::All))),
             ]),
         ))
-        .build()
-}
-
-/// Elven Rite Fixture — {1}{G}, a sorcery.
-///
-/// Counters divided, the other half of CR 601.2d's "damage or counters".
-pub fn elven_rite_fixture() -> Arc<CardData> {
-    let text = "Distribute two +1/+1 counters among one or two target creatures.";
-    CardDataBuilder::new("Elven Rite Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
-        .color(Color::Green)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(
-            text,
-            distribute_counters(divided_among_targeted(SelectionFilter::Creature, TargetCount::Between(1, 2), 2.into()), CounterType::PlusOnePlusOne),
-        ))
-        .build()
-}
-
-/// Remedy Fixture — {1}{W}, an instant.
-///
-/// A prevention divided: each target a shield of its own share (CR 615.7).
-pub fn remedy_fixture() -> Arc<CardData> {
-    let text = "Prevent the next 5 damage that would be dealt this turn to any number of targets, divided as you choose.";
-    CardDataBuilder::new("Remedy Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::White], 1))
-        .color(Color::White)
-        .card_type(CardType::Instant)
-        .rules_text(text)
-        .ability(spell_ability(text, prevent_the_next_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, 5.into()))))
-        .build()
-}
-
-/// Rolling Thunder Fixture — {X}{R}, a sorcery.
-///
-/// A total the X announced before the targets sets (CR 601.2b, 601.2d).
-pub fn rolling_thunder_fixture() -> Arc<CardData> {
-    let text = "Rolling Thunder Fixture deals X damage divided as you choose among any number of targets.";
-    CardDataBuilder::new("Rolling Thunder Fixture")
-        .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
-        .color(Color::Red)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(text, deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, AmountExpr::X))))
         .build()
 }
 

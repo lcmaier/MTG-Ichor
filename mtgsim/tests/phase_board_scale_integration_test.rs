@@ -8,8 +8,8 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::fixtures::{essence_of_the_wild_fixture, graveyard_painter};
-use mtgsim::cards::printings::{blood_moon, glorious_anthem, lightning_bolt, sigarda_host_of_herons};
+use mtgsim::cards::fixtures::graveyard_painter;
+use mtgsim::cards::printings::{blood_moon, essence_of_the_wild, glorious_anthem, lightning_bolt, sigarda_host_of_herons};
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use mtgsim::engine::layers::compute_characteristics;
 use mtgsim::events::event::GameEvent;
@@ -149,17 +149,17 @@ fn a_cant_is_found_with_the_sweep_narrowed_to_its_sources() {
 fn a_token_that_entered_as_a_copy_is_announced_under_the_copys_name() {
     let mut game = audited_game();
     game.record_events();
-    put_on_battlefield(&mut game, essence_of_the_wild_fixture(), 0);
+    put_on_battlefield(&mut game, essence_of_the_wild(), 0);
 
     create(&mut game, vec![goblin(); 3], 0);
 
     for token in tokens_owned_by(&game, 0) {
-        assert_eq!(compute_characteristics(&game, token).unwrap().name, "Essence of the Wild Fixture");
+        assert_eq!(compute_characteristics(&game, token).unwrap().name, "Essence of the Wild");
         let announced = game.recorded_events().records().iter().rev().find_map(|record| match &record.event {
             GameEvent::PermanentEnteredBattlefield { object, .. } if object.id == token => record.names.clone(),
             _ => None,
         });
-        assert_eq!(announced.as_deref(), Some(&vec![(token, "Essence of the Wild Fixture".to_string())]));
+        assert_eq!(announced.as_deref(), Some(&vec![(token, "Essence of the Wild".to_string())]));
     }
     assert_eq!(get_effective_power(&game, tokens_owned_by(&game, 0)[0]), Some(6));
 }

@@ -203,6 +203,8 @@ pub mod mkm;
 pub mod pip;
 #[path = "2024/04_19_otj.rs"]
 pub mod otj;
+#[path = "2024/06_14_mh3.rs"]
+pub mod mh3;
 #[path = "2024/11_15_fdn.rs"]
 pub mod fdn;
 #[path = "2025/06_13_fin.rs"]
