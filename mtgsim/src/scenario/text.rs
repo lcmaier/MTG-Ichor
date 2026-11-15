@@ -96,7 +96,6 @@ pub(super) fn in_combat_from(position: Phase, from: StepType) -> bool {
 /// attacking now, or the turn's count of declarations. A board at the
 /// declare attackers step or after says the rest (`declared_at`).
 pub(super) fn attackers_were_declared(state: &GameState, active: PlayerId, turn: u32) -> bool {
-    // ORDER-FREE: whether any is attacking.
     state.battlefield.values().any(|e| e.attacking.is_some()) || state.history.count(active, TurnFact::AttackersDeclared, turn..=turn) > 0
 }
 

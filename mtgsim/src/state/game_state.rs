@@ -1731,7 +1731,6 @@ impl GameState {
     /// more, never fewer. A scan of the board, so a debug build's check, asked
     /// at every gather.
     pub(crate) fn replacement_counter_holders_cover_the_board(&self) -> bool {
-        // ORDER-FREE: whether all are.
         self.battlefield.iter().all(|(id, entry)| !entry.holds_a_replacement_counter() || self.replacement_counter_holders.contains_key(&id))
     }
 

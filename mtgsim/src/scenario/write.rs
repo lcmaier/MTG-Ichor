@@ -377,7 +377,6 @@ impl<'g> Writer<'g> {
         // written first and a board loaded and saved again keeps its tags.
         let mut permanents: Vec<ObjectId> = state.battlefield.keys().collect();
         permanents.sort_by_key(|&id| state.object_timestamp(id));
-        // ORDER-FREE: sorted by timestamp next.
         let mut commanders: Vec<ObjectId> = state.objects.values().filter(|o| o.is_commander).map(|o| o.id).collect();
         commanders.sort_by_key(|&id| state.object_timestamp(id));
         for group in [&permanents, &commanders] {

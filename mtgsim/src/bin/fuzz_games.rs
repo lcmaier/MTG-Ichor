@@ -683,7 +683,6 @@ fn extract_stats<'a>(
             _ => {}
         }
     }
-    // ORDER-FREE: a count, read once, at the end.
     stats.departed_owned_permanents = game
         .battlefield
         .keys()

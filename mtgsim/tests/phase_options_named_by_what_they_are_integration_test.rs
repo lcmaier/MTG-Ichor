@@ -75,7 +75,6 @@ fn recorded() -> (BuiltStart, Arc<Mutex<String>>) {
 /// The one card named `name` that `controller` controls, or that is in a
 /// graveyard or a hand when `controller` is `None`.
 fn named(game: &GameState, name: &str, controller: Option<usize>) -> ObjectId {
-    // ORDER-FREE: one card of each name and controller on this board.
     let found: Vec<ObjectId> = game
         .objects
         .values()
@@ -106,7 +105,6 @@ fn played(token_first: bool) -> (BuiltStart, decision_log::Log) {
     let pyroclasm = named(state, "Pyroclasm", None);
     let bridge = named(state, "Bridge from Below", None);
     let (yours, theirs) = (named(state, "Grizzly Bears", Some(0)), named(state, "Grizzly Bears", Some(1)));
-    // ORDER-FREE: the two Mountains are alike; either pays.
     let mountains: Vec<ObjectId> = state.objects.values().filter(|o| o.card_data.name == "Mountain" && state.battlefield.contains_key(&o.id)).map(|o| o.id).collect();
     let tap = |id: ObjectId| ChoiceOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
     let makes_a_zombie = bridge_trigger(state, bridge, 1, yours);
@@ -128,7 +126,6 @@ fn played(token_first: bool) -> (BuiltStart, decision_log::Log) {
 }
 
 fn zombies(built: &BuiltStart) -> usize {
-    // ORDER-FREE: a count.
     built.game().state.battlefield.keys().filter(|id| built.game().state.objects[id].card_data.name.starts_with("Zombie")).count()
 }
 
@@ -221,7 +218,6 @@ fn a_copied_ability_reads_as_its_text_while_the_copy_enters() {
     let clone = named(state, "Clone", None);
     let elder = named(state, "Thunder-Thrash Elder", Some(0));
     let grumgully = named(state, "Grumgully, the Generous", Some(0));
-    // ORDER-FREE: the four Islands are alike; any pays.
     let islands: Vec<ObjectId> = state.objects.values().filter(|o| o.card_data.name == "Island" && state.battlefield.contains_key(&o.id)).map(|o| o.id).collect();
     let tap = |id: ObjectId| ChoiceOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
 

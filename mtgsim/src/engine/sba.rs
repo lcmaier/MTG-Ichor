@@ -145,7 +145,7 @@ fn moved_since(
     game: &GameState,
     since: crate::types::ids::ZoneChangeEpoch,
 ) -> Vec<(ObjectId, &crate::objects::object::GameObject)> {
-    // ORDER-FREE: sorted by epoch next, a total order (asserted).
+    // Sorted by epoch next, a total order (asserted).
     let mut moved: Vec<(ObjectId, &crate::objects::object::GameObject)> = game
         .objects
         .iter()
@@ -202,8 +202,7 @@ impl GameState {
         // since the last check, read here and cleared, so an indestructible
         // creature that survives this check is not destroyed by a later one
         // for the same damage (`codebase-state.md` item 198).
-        // ORDER-FREE: each flag is read into a set. Read first and clear only
-        // the permanents whose flag is set: a write copies the permanent if a
+        // Read first and clear only the permanents whose flag is set: a write copies the permanent if a
         // search's fork shares it (`state::shared_stores`), and this runs at
         // every check, where the flag is almost always clear.
         let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> =
@@ -327,7 +326,7 @@ impl GameState {
             arrivals_still_in_their_zone(self).filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield).map(|(id, _)| id).collect();
         #[cfg(debug_assertions)]
         {
-            // ORDER-FREE: sorted by epoch next.
+            // Sorted by epoch next.
             let mut walked: Vec<(ObjectId, crate::types::ids::ZoneChangeEpoch)> = self
                 .objects
                 .iter()

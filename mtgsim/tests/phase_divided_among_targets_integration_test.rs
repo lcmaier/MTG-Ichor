@@ -537,7 +537,6 @@ library 1: Mountain | x5
 
 /// The one card named `name` on this board.
 fn the_one(game: &GameState, name: &str) -> ObjectId {
-    // ORDER-FREE: one card of this name on this board.
     let found: Vec<ObjectId> = game.objects.values().filter(|object| object.card_data.name == name).map(|object| object.id).collect();
     let [id] = found[..] else { panic!("{} cards named {name}", found.len()) };
     id
@@ -560,7 +559,6 @@ fn played() -> (BuiltStart, decision_log::Log) {
 
     let state = &built.game().state;
     let (arc, bears) = (the_one(state, "Arc Lightning"), the_one(state, "Grizzly Bears"));
-    // ORDER-FREE: the three Mountains are alike; any pays.
     let mountains: Vec<ObjectId> = state.battlefield.keys().filter(|id| state.objects[id].card_data.name == "Mountain").collect();
     let tap = |id: ObjectId| ChoiceOption::Action(PriorityAction::ActivateAbility(id, state.objects[&id].card_data.abilities[0].id));
 
