@@ -1811,10 +1811,7 @@ mod instance_references {
     /// this one reads the shape the chain leaves, a
     /// declaring change and then a change of the same duration on
     /// `SameInstanceAs`, and asks that the reference is to the instance the
-    /// change before it declared. It refuses a chain on a choice made as the
-    /// effect applies ([`chains_on_a_choice`]): the second change would
-    /// choose again, "it" after "choose" being a word
-    /// `values-chosen-at-resolution` designs.
+    /// change before it declared.
     #[test]
     fn a_chained_change_refers_to_the_target_its_first_change_declared() {
         fn check(what: &str, whole: &Effect, effect: &Effect, chains: &mut usize) {
@@ -1824,7 +1821,7 @@ mod instance_references {
             match effect {
                 Effect::Sequence(subs) => {
                     for pair in subs.windows(2) {
-                        assert!(!chains_on_a_choice(pair), "{what}: a change chained to a choice made as the effect applies chooses again");
+
                         if let [Effect::Atom(first, recipient), Effect::Atom(second, EffectRecipient::SameInstanceAs(ix))] = pair
                             && let Some(own) = declared_at(recipient)
                             && continuous_effect_duration(first).is_some()
@@ -1887,27 +1884,18 @@ mod instance_references {
         }
     }
 
-    /// Whether `pair` is a second change chained to a choice made as the
-    /// effect applies: the same `Choose` and the same duration twice, which
-    /// would ask the choice twice.
-    fn chains_on_a_choice(pair: &[Effect]) -> bool {
-        matches!(pair, [Effect::Atom(first, chosen @ EffectRecipient::Choose(..)), Effect::Atom(second, again)]
-            if continuous_effect_duration(first).is_some() && continuous_effect_duration(first) == continuous_effect_duration(second) && chosen == again)
-    }
-
-    /// The refusal bites: "choose a creature you control; it gains
-    /// indestructible and gets +1/+1 until end of turn", written as
-    /// `ContinuousChange` writes a chain, is the shape it refuses, and the
-    /// one change Final Showdown writes is not.
+    /// The builder refuses a second change chained to a choice made as the
+    /// effect applies, which would choose again; one change is built. The
+    /// refusal is a debug assertion, so the test runs where it fires.
     #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "a second change chained to a choice would choose again")]
     fn a_change_chained_to_a_choice_is_refused() {
         use crate::cards::authoring::{chosen_permanent, creatures_you_control, gains_keyword};
         use crate::types::keywords::KeywordFlag;
-        let chained = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).and_gets(1, 1).until_end_of_turn();
-        let Effect::Sequence(atoms) = &chained else { panic!("two changes are a sequence: {chained:?}") };
-        assert!(chains_on_a_choice(atoms));
         let one = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn();
         assert!(!matches!(one, Effect::Sequence(_)), "one change is one atom, nothing chained");
+        let _ = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).and_gets(1, 1).until_end_of_turn();
     }
 
     /// For every registered card, the stored lists of instances of "target"

@@ -373,8 +373,13 @@ impl ContinuousChange {
     pub(super) fn lasting(self, duration: Duration) -> Effect {
         // "It" after "choose a creature" names what a choice made as the
         // effect applies chose, a word `values-chosen-at-resolution` designs:
-        // until then a second change would choose again, and the registry
-        // refuses the chain.
+        // until then a second change would choose again. Every card is built
+        // in the registry's tests, so this refuses one there.
+        debug_assert!(
+            !(matches!(self.recipient, EffectRecipient::Choose(..)) && self.steps.len() > 1),
+            "a second change chained to a choice would choose again: {:?}",
+            self.recipient
+        );
         let again = match &self.recipient {
             EffectRecipient::Target(..) => EffectRecipient::SameInstanceAs(0),
             recipient => recipient.clone(),
