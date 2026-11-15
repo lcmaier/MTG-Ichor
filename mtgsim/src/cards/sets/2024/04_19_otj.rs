@@ -77,8 +77,8 @@ pub fn final_showdown() -> Arc<CardData> {
     let text = "Spree\n+ {1} — All creatures lose all abilities until end of turn.\n\
                 + {1} — Choose a creature you control. It gains indestructible until end of turn.\n\
                 + {3}{W}{W} — Destroy all creatures.";
-    let one = || vec![Cost::Mana(ManaCost::build(&[], 1))];
-    let wipe = vec![Cost::Mana(ManaCost::build(&[ManaType::White, ManaType::White], 3))];
+    let one_generic_mana = || vec![Cost::Mana(ManaCost::build(&[], 1))];
+    let board_wipe_mana = vec![Cost::Mana(ManaCost::build(&[ManaType::White, ManaType::White], 3))];
     CardDataBuilder::new("Final Showdown")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
@@ -87,9 +87,9 @@ pub fn final_showdown() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             spree([
-                (one(), loses_all_abilities(each(creature())).until_end_of_turn()),
-                (one(), gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn()),
-                (wipe, destroy(each(creature()))),
+                (one_generic_mana(), loses_all_abilities(each(creature())).until_end_of_turn()),
+                (one_generic_mana(), gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn()),
+                (board_wipe_mana, destroy(each(creature()))),
             ]),
         ))
         .build()
