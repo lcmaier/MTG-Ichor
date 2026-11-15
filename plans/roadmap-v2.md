@@ -739,13 +739,13 @@ name for, and a phase of the critical path that no Row cell names.
 <!-- v0.5 sizing: begin -->
 | Step | Row | State | PRs | Stop | Splits | Rests on |
 |---|---|---|---|---|---|---|
-| 1 | `route-review` | | 1 | | | |
-| 2 | `A6e`, readiness | | 2 | | | |
-| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 5 | | | |
-| 4 | `pausing-at-a-decision`, the design | ✅ 2026-11-02 | 1 | | | |
-| 5 | `options-named-by-what-they-are`, of `modes-plus-choice-kinds` | | 1 | | | |
-| 5 | `divided-among-targets` | | 1 | | | |
-| 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 | 1 | | | |
+| 1 | `route-review` | ✅ 2026-10-29 (PR #298) | 1 | | | |
+| 2 | `A6e`, readiness | ✅ 2026-10-30 (PRs #299, #300) | 2 | | | |
+| 3 | `card-layer-cleanup` | ✅ 2026-11-01 (PRs #301, #302, #303, #304, #305) | 5 | | | |
+| 4 | `pausing-at-a-decision`, the design | ✅ 2026-11-02 (PR #306) | 1 | | | |
+| 5 | `options-named-by-what-they-are`, of `modes-plus-choice-kinds` | ✅ 2026-11-02 (PR #307) | 1 | | | |
+| 5 | `divided-among-targets` | ✅ 2026-11-03 (PR #308) | 1 | | | |
+| 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 (PR #315) | 1 | | | |
 | 5 | `orders-the-cr-hands-a-player` | ✅ 2026-11-06 (PR #316) | 1 | no | no | Design: 350–650 at its table's 1.7× is 600–1,100; measured at 3,030 touched, past the band's top, in `fuzz-record.md`'s block, with the pool as a walk input and item 30's sacrifice pulled forward |
 | 5 | `modes-chosen-and-resolved`, the first of `modal-spells-and-abilities` | ✅ 2026-11-07 (PR #318) | 1 | no | split | Design: the row's 1,360–2,070 at 1.7× was 2,300–3,500, split at the brief (2026-11-07); this half 1,500–2,300 by it, measured at 2,035 touched in `fuzz-record.md`'s block |
 | 5 | `mode-rules-and-costs`, the second | ✅ 2026-11-07 (PR #319) | 1 | no | split | Design: the row's rest, 700–1,200; 1,410–2,380 re-counted at its intake with items 345 and 413 and the brief's cards, and the picker split off at the point it set. Measured at 3,091 touched, past the band's top, in `fuzz-record.md`'s block |
