@@ -640,7 +640,8 @@ impl GameState {
         }
     }
 
-    /// A choice of objects made as an instruction applies (CR 608.2d):
+    /// The engine's half of a choose step for objects (the card's half is
+    /// `authoring::choose_objects`), CR 608.2d:
     /// `chooser` picks from what the filter matches now, or with no chooser
     /// the picks are drawn at random; for a division the chooser then splits
     /// the amount among the picks, at least one each. "Distribute three
@@ -656,7 +657,7 @@ impl GameState {
     /// the sacrifice, and CR 701.21a lets no player sacrifice what can't be
     /// sacrificed. `filter` holds no name a choose step kept: its caller
     /// wrote each in. `asked_as` is the question's label.
-    fn choose_objects(
+    fn pick_objects(
         &mut self,
         asked_as: &EffectRecipient,
         filter: &SelectionFilter,
@@ -687,7 +688,7 @@ impl GameState {
                     crate::ui::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, bounds.fewest.min(most), most)
                 }
                 // "Choose a creature at random": as many as the text says.
-                None if bounds.fewest == bounds.most => self.random_places(candidates.len(), most).into_iter().map(|at| candidates[at]).collect(),
+                None if bounds.fewest == bounds.most => self.random_indices(candidates.len(), most).into_iter().map(|index| candidates[index]).collect(),
                 None => return Err(format!("{asked_as:?} on {:?} draws a number of objects at random that its text leaves open", ctx.source)),
             };
             return Ok((chosen, Vec::new()));
@@ -758,7 +759,7 @@ impl GameState {
             ValueChoice::Objects(filter, count) => {
                 let Some(filter) = self.selection_as_read_now(filter, ctx)? else { return Ok(None) };
                 let asked_as = EffectRecipient::Choose(filter.clone().into_owned(), count.clone());
-                let (chosen, shares) = self.choose_objects(&asked_as, &filter, count, chooser, ctx, dp)?;
+                let (chosen, shares) = self.pick_objects(&asked_as, &filter, count, chooser, ctx, dp)?;
                 let chosen = chosen.into_iter().filter_map(|picked| match picked {
                     ObjectOrPlayerId::Object(id) => self.object_ref(id),
                     ObjectOrPlayerId::Player(_) => None,

@@ -302,7 +302,7 @@ pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>, u
 // chooser is a recipient naming one player, `you()` nearly always, or
 // `at_random()`.
 
-fn choose_value(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
+fn choose_step(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
     Effect::Atom(Primitive::ChooseValue { name: what.name_of_its_kind(), what, how: chooser.into() }, EffectRecipient::Implicit)
 }
 
@@ -313,40 +313,40 @@ pub fn at_random() -> ChosenHow {
 
 /// "[Chooser] chooses a color" (CR 105.4).
 pub fn choose_color(chooser: impl Into<ChosenHow>) -> Effect {
-    choose_value(chooser, ValueChoice::Color)
+    choose_step(chooser, ValueChoice::Color)
 }
 
 /// "[Chooser] chooses a creature type" (CR 205.3m).
 pub fn choose_creature_type(chooser: impl Into<ChosenHow>) -> Effect {
-    choose_value(chooser, ValueChoice::CreatureType)
+    choose_step(chooser, ValueChoice::CreatureType)
 }
 
 /// "[Chooser] chooses a card type" (CR 205.2a).
 pub fn choose_card_type(chooser: impl Into<ChosenHow>) -> Effect {
-    choose_value(chooser, ValueChoice::CardType(None))
+    choose_step(chooser, ValueChoice::CardType(None))
 }
 
 /// "[Chooser] chooses artifact or enchantment": one of the card types the
 /// text prints.
 pub fn choose_card_type_among(chooser: impl Into<ChosenHow>, printed: impl IntoIterator<Item = CardType>) -> Effect {
-    choose_value(chooser, ValueChoice::CardType(Some(printed.into_iter().collect())))
+    choose_step(chooser, ValueChoice::CardType(Some(printed.into_iter().collect())))
 }
 
 /// "[Chooser] chooses a number between [least] and [most]".
 pub fn choose_number(chooser: impl Into<ChosenHow>, least: u64, most: u64) -> Effect {
-    choose_value(chooser, ValueChoice::Number { least, most })
+    choose_step(chooser, ValueChoice::Number { least, most })
 }
 
 /// "[Chooser] chooses a player", "an opponent": one of `among`, read
 /// against the controller (CR 109.5).
 pub fn choose_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
-    choose_value(chooser, ValueChoice::Player(among))
+    choose_step(chooser, ValueChoice::Player(among))
 }
 
 /// "[Chooser] chooses up to one creature", "a creature you control": `count`
 /// of the permanents `among` describes, none of them a target (CR 115.10a).
 pub fn choose_objects(chooser: impl Into<ChosenHow>, among: ObjectFilter, count: TargetCount) -> Effect {
-    choose_value(chooser, ValueChoice::Objects(SelectionFilter::Permanent(among), count))
+    choose_step(chooser, ValueChoice::Objects(SelectionFilter::Permanent(among), count))
 }
 
 // ---------------------------------------------------------------------------

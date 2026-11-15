@@ -81,7 +81,7 @@ pub fn final_showdown() -> Arc<CardData> {
                 + {3}{W}{W} — Destroy all creatures.";
     let one_generic_mana = || vec![Cost::Mana(ManaCost::build(&[], 1))];
     let board_wipe_mana = vec![Cost::Mana(ManaCost::build(&[ManaType::White, ManaType::White], 3))];
-    let it_gains_indestructible = Effect::Sequence(vec![
+    let chosen_creature_gains_indestructible = Effect::Sequence(vec![
         choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
         gains_keyword(the_chosen_objects(), KeywordFlag::Indestructible).until_end_of_turn(),
     ]);
@@ -94,7 +94,7 @@ pub fn final_showdown() -> Arc<CardData> {
             text,
             spree([
                 (one_generic_mana(), loses_all_abilities(each(creature())).until_end_of_turn()),
-                (one_generic_mana(), it_gains_indestructible),
+                (one_generic_mana(), chosen_creature_gains_indestructible),
                 (board_wipe_mana, destroy(each(creature()))),
             ]),
         ))

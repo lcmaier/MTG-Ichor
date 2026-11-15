@@ -30,7 +30,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 /// "Choose a creature you control. It gains indestructible until end of
 /// turn.": the choice, and the change on what was chosen.
-fn it_gains_indestructible() -> [Effect; 2] {
+fn chosen_creature_gains_indestructible() -> [Effect; 2] {
     [
         choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
         gains_keyword(the_chosen_objects(), KeywordFlag::Indestructible).until_end_of_turn(),
@@ -46,7 +46,7 @@ fn showdown_fixture() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell_ability(text, Effect::Sequence(it_gains_indestructible().to_vec())))
+        .ability(spell_ability(text, Effect::Sequence(chosen_creature_gains_indestructible().to_vec())))
         .build()
 }
 
@@ -112,7 +112,7 @@ fn chosen_beside_a_target() -> Arc<CardData> {
         .ability(spell_ability(
             text,
             Effect::Sequence(
-                it_gains_indestructible()
+                chosen_creature_gains_indestructible()
                     .into_iter()
                     .chain([
                         Effect::Atom(

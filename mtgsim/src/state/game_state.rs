@@ -1373,28 +1373,30 @@ impl GameState {
         from: &[ObjectId],
         count: usize,
     ) -> Vec<ObjectId> {
-        self.random_places(from.len(), count).into_iter().map(|i| from[i]).collect()
+        self.random_indices(from.len(), count).into_iter().map(|i| from[i]).collect()
     }
 
-    /// `count` different places among `of`, chosen at random and returned in
-    /// order: what "at random" picks from a list. As many as there are, for a
-    /// short list (CR 101.3). Drawn from `rng`, so a seeded game replays.
-    pub(crate) fn random_places(&mut self, of: usize, count: usize) -> Vec<usize> {
+    /// `count` different indices into a list of `len` items, picked at random
+    /// and sorted: which items "choose N at random" takes. A list shorter
+    /// than `count` gives every index (CR 101.3: as much as can be done).
+    /// Drawn from the game's seeded `rng`, so the same seed picks the same
+    /// items.
+    pub(crate) fn random_indices(&mut self, len: usize, count: usize) -> Vec<usize> {
         use rand::seq::SliceRandom;
-        let count = count.min(of);
+        let count = count.min(len);
         if count == 0 {
             return Vec::new();
         }
-        let mut places: Vec<usize> = (0..of).collect();
-        places.shuffle(&mut self.rng);
-        places.truncate(count);
-        places.sort();
-        places
+        let mut indices: Vec<usize> = (0..len).collect();
+        indices.shuffle(&mut self.rng);
+        indices.truncate(count);
+        indices.sort();
+        indices
     }
 
-    /// One of `from`, chosen at random; `None` of an empty list.
+    /// One of `from`, picked at random; `None` of an empty list.
     pub(crate) fn random_one_of<T: Copy>(&mut self, from: &[T]) -> Option<T> {
-        self.random_places(from.len(), 1).first().map(|&place| from[place])
+        self.random_indices(from.len(), 1).first().map(|&index| from[index])
     }
 
     // --- Deterministic iteration ---
