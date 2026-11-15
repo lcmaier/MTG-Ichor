@@ -1385,8 +1385,8 @@ impl GameState {
     // --- Deterministic iteration ---
 
     /// The battlefield's object ids in id order, collected: for a sweep that
-    /// changes the board as it goes. A sweep that only reads walks
-    /// `battlefield` itself, in the same order.
+    /// changes the board as it goes, or a list a caller keeps. A sweep that
+    /// only reads walks `battlefield` itself, in the same order.
     pub fn battlefield_ids(&self) -> Vec<ObjectId> {
         self.battlefield.keys().collect()
     }
@@ -1408,7 +1408,7 @@ impl GameState {
     /// Every object in the zone, so a token there comes after its cards.
     pub fn zone_ids_ordered(&self, zone: Zone) -> Vec<ObjectId> {
         let mut ids = match zone {
-            Zone::Battlefield => return self.battlefield.keys().collect(),
+            Zone::Battlefield => return self.battlefield_ids(),
             Zone::Stack => return self.stack.iter().copied().collect(),
             Zone::Exile => self.exile.clone(),
             Zone::Command => self.command.clone(),
@@ -2077,11 +2077,11 @@ impl GameState {
                         // Accumulated, not replaced: a permanent with two
                         // triggered abilities is one entry reading both
                         // kinds.
-                        *self.trigger_sources.get_or_insert_with(id, EventKindMask::default) |= def.record_kinds();
+                        *self.trigger_sources.get_or_insert_with(id, || EventKindMask::EMPTY) |= def.record_kinds();
                     } else if def.triggers_only_on_this_object_moving() {
                         self.newcomer_trigger_sources.insert(id, ());
                     } else {
-                        *self.off_battlefield_trigger_sources.get_or_insert_with(id, EventKindMask::default) |= def.record_kinds();
+                        *self.off_battlefield_trigger_sources.get_or_insert_with(id, || EventKindMask::EMPTY) |= def.record_kinds();
                     }
                 }
                 continue;

@@ -33,9 +33,8 @@ pub struct CostModificationInstance {
 /// in id order, then the spell's own.
 ///
 /// The order is process-independent because CR 601.2f's ordering prompt
-/// offers this list and a `DecisionProvider` answers by *index*
-/// (`CLAUDE.md`, determinism). The spell's own goes last so that adding it
-/// did not move an index.
+/// offers this list. The spell's own goes last so that adding it moved no
+/// source's place.
 ///
 /// **The frame every read here sees is a finished one.** CR 613.11 applies
 /// cost effects after all other continuous effects, so a source's abilities

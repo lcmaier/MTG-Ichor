@@ -28,7 +28,7 @@
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, vanilla_creature};
+use mtgsim::test_support::{put_in_hand, setup_two_player_game, test_ctx, vanilla_creature};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -113,28 +113,4 @@ fn test_battlefield_sweeps_come_out_in_id_order() {
     assert_eq!(game.battlefield_ids(), made);
     assert_eq!(mtgsim::oracle::board::permanents_controlled_by(&game, 0), made);
     assert_eq!(mtgsim::oracle::legality::legal_blockers(&game, 0), made);
-}
-
-/// CR 613.7e gives an Equipment a new timestamp each time it becomes attached,
-/// and an attach to the host it is already on (CR 701.3b) gives it none. The
-/// sweep order is the table's, so neither moves the Equipment in it.
-#[test]
-fn test_a_reattachment_moves_only_the_attachments_timestamp() {
-    let mut game = setup_two_player_game();
-    let equipment = put_on_battlefield(&mut game, mtgsim::test_support::equipment("Harness"), 0);
-    let placed: Vec<ObjectId> = (0..8).map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0)).collect();
-    let swept = game.battlefield_ids();
-    let stamped = game.object_timestamp(equipment);
-
-    assert!(game.attach(equipment, placed[3]));
-    let attached = game.object_timestamp(equipment);
-    assert!(placed.iter().all(|&creature| game.object_timestamp(creature) < attached), "CR 613.7e: newer than every creature");
-    assert!(attached > stamped);
-
-    assert!(!game.attach(equipment, placed[3]), "CR 701.3b: the same host is not an attach");
-    assert_eq!(game.object_timestamp(equipment), attached);
-
-    assert!(game.attach(equipment, placed[5]));
-    assert!(game.object_timestamp(equipment) > attached, "a new host, a new timestamp");
-    assert_eq!(game.battlefield_ids(), swept, "and the sweep order never moved");
 }

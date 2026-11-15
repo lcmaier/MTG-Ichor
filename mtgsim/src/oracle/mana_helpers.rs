@@ -447,7 +447,6 @@ pub(crate) fn activatable_abilities_with(
 ) -> Vec<(ObjectId, usize, AbilityId)> {
     let mut result = Vec::new();
 
-    // The activatable half of the priority action list, in the table's id order.
     for id in game.battlefield.keys().filter(|&id| can_activate_its_abilities(game, player_id, id).is_ok()) {
         // `idx` indexes the EFFECTIVE ability list. `priority.rs` re-derives it
         // by id and `cast.rs::activate_ability` consumes it — all three must

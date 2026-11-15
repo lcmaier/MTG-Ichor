@@ -670,7 +670,7 @@ impl GameState {
             ));
         }
         lines.push(format!("exile {:?}", self.zone_ids_ordered(Zone::Exile)));
-        for id in self.battlefield_ids() {
+        for id in self.battlefield.keys() {
             let tapped = self.battlefield.get(&id).is_some_and(|entry| entry.tapped);
             let counters = self.battlefield.get(&id).map_or(0, |entry| entry.counters_of(None));
             lines.push(format!("{id}: tapped {tapped}, {counters} counters"));

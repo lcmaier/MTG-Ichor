@@ -873,7 +873,7 @@ pub fn ask_activate_mana_ability(
 
 /// CR 601.2f — the order in which two or more cost reductions apply.
 ///
-/// `sources` are the reductions' sources in battlefield timestamp order, so
+/// `sources` are the reductions' sources in the battlefield's id order, so
 /// the permutation returned means the same thing in every process. One
 /// reduction has no order to choose and must not reach here.
 pub fn ask_order_cost_reductions(

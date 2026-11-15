@@ -376,8 +376,7 @@ impl GameState {
 
         if phase_type == PhaseType::Combat {
             let combatants: Vec<ObjectId> = self
-                .battlefield_ids()
-                .into_iter()
+                .battlefield.keys()
                 .filter(|id| self.battlefield.get(id).is_some_and(|e| e.attacking.is_some() || e.blocking.is_some()))
                 .collect();
             // NOT REPLACEABLE: CR 511.3's removal from combat, of everything in it at

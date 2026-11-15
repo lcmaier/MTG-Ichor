@@ -265,7 +265,8 @@ fn battlefield_controller_owner_and_order() {
     );
     let bears = named(&game, "Grizzly Bears");
     let state = &game.state;
-    assert_eq!(state.battlefield_ids()[1], one(&game, "Glorious Anthem"), "timestamps in file order");
+    let stamps: Vec<u64> = [bears[0], one(&game, "Glorious Anthem"), bears[1]].iter().map(|&id| state.object_timestamp(id)).collect();
+    assert!(stamps.windows(2).all(|pair| pair[0] < pair[1]), "timestamps in file order: {stamps:?}");
     assert_eq!((state.objects[&bears[0]].owner, state.battlefield[&bears[0]].controller), (1, 1));
     assert_eq!((state.objects[&bears[1]].owner, state.battlefield[&bears[1]].controller), (0, 1));
     assert_eq!(get_effective_power(state, bears[0]), Some(2), "the Anthem is player 0's");

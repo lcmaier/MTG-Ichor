@@ -61,7 +61,7 @@ impl GameState {
             return;
         }
         let frames: Vec<(ObjectId, Option<Arc<EffectiveCharacteristics>>)> =
-            self.battlefield_ids().into_iter().map(|id| (id, compute_characteristics(self, id))).collect();
+            self.battlefield.keys().map(|id| (id, compute_characteristics(self, id))).collect();
         // A change no sweep has announced yet looks back to the frames kept
         // before it, so a row written after it keeps nothing: Ray of
         // Command's haste, written after its steal and before any batch.

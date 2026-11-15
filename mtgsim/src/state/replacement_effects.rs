@@ -122,8 +122,7 @@ pub struct RegisteredReplacementEffect {
 
 /// `SortKey = ()` — CR 616.1 orders by player choice, not by any stored key, so
 /// the id tiebreak alone decides placement and `add` is an append. That is the
-/// registration order the CR 616.1 prompt offers candidates in, and a
-/// `DecisionProvider` picks by index.
+/// registration order the CR 616.1 prompt offers candidates in.
 impl DurationRow for RegisteredReplacementEffect {
     type SortKey = ();
 

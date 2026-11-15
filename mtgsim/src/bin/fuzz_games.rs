@@ -2358,7 +2358,7 @@ mod ladder_tests {
         let carriers = creatures.clone();
         ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
         assert_eq!(state.battlefield.len(), 104);
-        let countered = state.battlefield_ids().into_iter().filter(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 1);
+        let countered = state.battlefield.keys().filter(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 1);
         assert_eq!(countered.count(), 100);
         assert!(carriers.iter().all(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 0));
 
@@ -2369,7 +2369,7 @@ mod ladder_tests {
         let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
         ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
         assert_eq!(state.battlefield.len(), 104);
-        let copies = state.battlefield_ids().into_iter().filter(|id| state.battlefield[id].entered_as.copy.is_some());
+        let copies = state.battlefield.keys().filter(|id| state.battlefield[id].entered_as.copy.is_some());
         assert_eq!(copies.count(), 100);
     }
 

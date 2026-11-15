@@ -856,7 +856,7 @@ fn mana_production_watchers(game: &GameState) -> Arc<ManaProductionWatchers> {
 
 fn scan_mana_production_watchers(game: &GameState) -> ManaProductionWatchers {
     let mut found = ManaProductionWatchers::default();
-    for permanent in game.battlefield_ids() {
+    for permanent in game.battlefield.keys() {
         let Some(chars) = compute_characteristics(game, permanent) else { continue };
         for (index, ability) in chars.abilities.iter().enumerate() {
             let at = AbilityAt { permanent, index };
@@ -1817,7 +1817,7 @@ mod tests {
         let offer = ManaAbilityWindowOffer::read(&game, 0);
         let options = offer.options(&game);
         assert_eq!(options.len(), 7, "a Plains, the five-color land's five, Ironworks; not a creature this turn's");
-        assert_eq!(options[0].0, land, "timestamp order");
+        assert_eq!(options[0].0, land, "id order");
 
         game.battlefield.get_mut(&land).unwrap().tapped = true;
         assert!(offer.is_current(&game), "a tap reads no layer");

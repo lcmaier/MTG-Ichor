@@ -144,8 +144,7 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 ///
 /// In the battlefield's id order.
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ids()
-        .into_iter()
+    game.battlefield.keys()
         .filter(|&id| can_attack(game, player_id, id).is_ok())
         .collect()
 }
@@ -154,8 +153,7 @@ pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 /// attacker each may block is the pair's question, asked at the declaration.
 /// One pass over the battlefield, since the check asks who controls each.
 pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ids()
-        .into_iter()
+    game.battlefield.keys()
         .filter(|&id| can_be_a_blocker(game, player_id, id).is_ok())
         .collect()
 }
@@ -250,8 +248,7 @@ pub fn enumerate_legal_selections_upto(
     // no candidate.
     let players = || game.players_in_game().map(ObjectOrPlayerId::Player);
     let battlefield = || {
-        game.battlefield_ids()
-            .into_iter()
+        game.battlefield.keys()
             .filter(move |&id| Some(id) != exclude_id)
     };
     // CR 112.1 — a *spell* on the stack, which the activated ability sharing
@@ -332,8 +329,7 @@ pub fn enumerate_legal_selections_upto(
 /// 99). `exclude_id` is CR 115.5's object.
 pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<ObjectRef> {
     let present = game
-        .battlefield_ids()
-        .into_iter()
+        .battlefield.keys()
         .chain(game.stack.iter().copied().filter(|&id| game.is_spell_on_stack(id)))
         .filter_map(|id| game.object_ref(id));
     let mut sources: Vec<ObjectRef> = Vec::new();

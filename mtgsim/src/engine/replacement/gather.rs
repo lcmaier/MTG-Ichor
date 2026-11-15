@@ -162,9 +162,9 @@ pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<Playe
 
 /// Every replacement effect that applies to `action` right now.
 ///
-/// Returned in a deterministic order — battlefield timestamp order for the
+/// Returned in a deterministic order — the battlefield's id order for the
 /// sweep, registration order for the registry — because CR 616.1's prompt
-/// offers this list and a `DecisionProvider` picks from it by *index*.
+/// offers this list.
 ///
 /// `blocked` is CR 614.17c: "if an event can't happen, it can only be replaced
 /// by a self-replacement effect". When set, everything outside
@@ -277,7 +277,7 @@ fn gather_sweeping(
         "a permanent holds a replacement counter that `replacement_counter_holders` does not name"
     );
     let permanents = if sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) {
-        game.battlefield_ids().into_iter().map(|id| BattlefieldCandidate { id, abilities_could_answer: true }).collect()
+        game.battlefield.keys().map(|id| BattlefieldCandidate { id, abilities_could_answer: true }).collect()
     } else {
         battlefield_candidates(game, proposed, &named)
     };

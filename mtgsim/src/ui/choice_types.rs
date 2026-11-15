@@ -93,7 +93,7 @@ pub enum ChoiceKind {
     /// CR 601.2f — "if multiple cost reductions apply, the player may apply
     /// them in any order." Asked only with two or more, and only where the
     /// order can change the total: the options are the reductions' *sources*,
-    /// in battlefield timestamp order, and the answer is a permutation of
+    /// in the battlefield's id order, and the answer is a permutation of
     /// them. Every order gives one total
     /// (`cost-architecture.md#34-in-any-order-they-choose--the-prompt-the-theorem-and-the-middleware`)
     /// until a reduction is a hybrid symbol or has a floor.

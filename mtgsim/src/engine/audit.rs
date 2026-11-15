@@ -117,7 +117,7 @@ pub(crate) type Frames = HashMap<ObjectId, Arc<EffectiveCharacteristics>>;
 
 /// Every permanent as it now is.
 pub(crate) fn permanents_as_they_are(game: &GameState) -> Frames {
-    game.battlefield_ids().into_iter().filter_map(|id| compute_characteristics(game, id).map(|frame| (id, frame))).collect()
+    game.battlefield.keys().filter_map(|id| compute_characteristics(game, id).map(|frame| (id, frame))).collect()
 }
 
 /// Panic unless each object is one thing in `gated` and in `everything`,
