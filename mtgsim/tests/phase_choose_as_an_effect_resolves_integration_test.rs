@@ -460,10 +460,10 @@ fn feast_of_the_victorious_dead_does_not_trigger_without_a_death() {
 #[test]
 fn feast_of_the_victorious_dead_counts_a_token_and_a_card_no_longer_in_the_graveyard() {
     let (mut game, bears, _, theirs) = feast_board();
-    let before = game.battlefield_ids_ordered();
+    let before = game.battlefield_ids();
     let token = TokenDef::creature(1, 1, &[Color::White], &[]);
     game.execute_action(GameAction::CreateTokens { defs: vec![token], controller: 1, attacking: None }, &test_ctx()).unwrap();
-    let token = game.battlefield_ids_ordered().into_iter().find(|id| !before.contains(id)).expect("the token entered");
+    let token = game.battlefield_ids().into_iter().find(|id| !before.contains(id)).expect("the token entered");
     dies(&mut game, token);
     dies(&mut game, theirs[0]);
     game.change_zone(theirs[0], Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();

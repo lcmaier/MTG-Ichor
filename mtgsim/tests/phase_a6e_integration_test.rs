@@ -211,7 +211,7 @@ fn a_copied_replacement_is_found_only_through_its_copy_row() {
 fn a_permanent_is_a_holder_while_it_has_a_replacement_counter() {
     let mut game = setup_two_player_game();
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let holds = |game: &GameState| game.replacement_counter_holders.contains(&bear);
+    let holds = |game: &GameState| game.replacement_counter_holders.contains_key(&bear);
 
     game.add_counters(bear, CounterType::PlusOnePlusOne, 1);
     assert!(!holds(&game), "a +1/+1 counter makes no replacement");
@@ -233,16 +233,16 @@ fn a_permanent_that_enters_with_a_shield_counter_is_a_holder_as_it_lands() {
     let bear = game.add_object(GameObject::new(vanilla_creature(2, 2, &[]), 0, Zone::Battlefield));
     let mods = EnterMods { counters: vec![EntryCounters { counter: CounterType::Shield, n: 1, by: None }], ..EnterMods::NONE };
     place_on_battlefield(&mut game, bear, 0, &mods);
-    assert!(game.replacement_counter_holders.contains(&bear));
+    assert!(game.replacement_counter_holders.contains_key(&bear));
 
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     game.execute_action(GameAction::Destroy { object: bear }, &effect_ctx(&game, source)).unwrap();
 
     assert!(game.battlefield.contains_key(&bear), "the shield replaced the destruction");
     assert_eq!(game.battlefield[&bear].counter_count(CounterType::Shield), 0, "and was removed doing it");
-    assert!(!game.replacement_counter_holders.contains(&bear));
+    assert!(!game.replacement_counter_holders.contains_key(&bear));
 
     game.add_counters(bear, CounterType::Stun, 1);
     game.change_zone(bear, Zone::Graveyard, ZoneChangeAct::Put, &test_ctx()).unwrap();
-    assert!(!game.replacement_counter_holders.contains(&bear), "its counters ceased to exist as it left (CR 122.2)");
+    assert!(!game.replacement_counter_holders.contains_key(&bear), "its counters ceased to exist as it left (CR 122.2)");
 }

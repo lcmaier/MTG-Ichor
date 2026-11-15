@@ -168,7 +168,7 @@ fn create_one(def: TokenDef) -> Effect {
 }
 
 fn tokens_named(game: &GameState, name: &str) -> Vec<ObjectId> {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .filter(|id| game.get_object(*id).is_ok_and(|o| o.is_token && o.card_data.name == name))
         .collect()

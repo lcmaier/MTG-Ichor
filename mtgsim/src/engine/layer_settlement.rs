@@ -23,7 +23,7 @@ use crate::engine::actions::ActionContext;
 use crate::events::cause::{EventCause, GameRule};
 use crate::oracle::characteristics::is_nonbattle_creature;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, Timestamp};
+use crate::types::ids::ObjectId;
 
 impl GameState {
     /// Settle what the layers' output changed since the last settlement:
@@ -52,18 +52,11 @@ impl GameState {
         if !self.combat_had_attackers {
             return Ok(());
         }
-        // ORDER-FREE: the combatants are sorted by timestamp next.
-        let mut combatants: Vec<(Timestamp, ObjectId)> = self
+        let changed: Vec<ObjectId> = self
             .battlefield
             .iter()
-            .filter(|(_, entry)| entry.attacking.is_some() || entry.blocking.is_some())
-            .map(|(id, entry)| (entry.timestamp, id))
-            .collect();
-        combatants.sort_by_key(|&(timestamp, _)| timestamp);
-        let changed: Vec<ObjectId> = combatants
-            .into_iter()
-            .map(|(_, id)| id)
-            .filter(|&id| !is_nonbattle_creature(self, id))
+            .filter(|&(id, entry)| (entry.attacking.is_some() || entry.blocking.is_some()) && !is_nonbattle_creature(self, id))
+            .map(|(id, _)| id)
             .collect();
         // NOT REPLACEABLE: CR 506.4's removal, a consequence of the type change
         // rather than a replaceable event (`replacement-architecture.md` §8a),

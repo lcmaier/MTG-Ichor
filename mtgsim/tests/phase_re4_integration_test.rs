@@ -98,7 +98,7 @@ fn create(game: &mut GameState, player: PlayerId, def: TokenDef, n: u64, dp: &dy
 
 /// Every token on the battlefield, in timestamp order.
 fn tokens(game: &GameState) -> Vec<ObjectId> {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .filter(|id| game.objects.get(id).is_some_and(|o| o.is_token))
         .collect()

@@ -229,8 +229,8 @@ impl RandomDecisionProvider {
 
     /// A provider whose whole decision stream is a function of `seed`.
     ///
-    /// Reproducibility also needs the *options* to arrive in the same order —
-    /// see `GameState::battlefield_ordered`. A seeded provider fed a
+    /// Reproducibility also needs the *options* to arrive in the same order,
+    /// which the engine's id-ordered sweeps give it. A seeded provider fed a
     /// differently-ordered candidate list picks a different action.
     pub fn seeded(seed: u64) -> Self {
         RandomDecisionProvider {

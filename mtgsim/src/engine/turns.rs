@@ -376,8 +376,7 @@ impl GameState {
 
         if phase_type == PhaseType::Combat {
             let combatants: Vec<ObjectId> = self
-                .battlefield_ids_ordered()
-                .into_iter()
+                .battlefield.keys()
                 .filter(|id| self.battlefield.get(id).is_some_and(|e| e.attacking.is_some() || e.blocking.is_some()))
                 .collect();
             // NOT REPLACEABLE: CR 511.3's removal from combat, of everything in it at
@@ -420,8 +419,8 @@ impl GameState {
                 // discard, so a stolen Leyline of the Void is still the thief's.
                 self.discard_to_maximum_hand_size(dp)?;
 
-                // ORDER-FREE: the permanents with damage to clear, read first
-                // so only those are written: a write copies the permanent if a
+                // The permanents with damage to clear, read first so only
+                // those are written: a write copies the permanent if a
                 // search's fork shares it (`state::shared_stores`).
                 let damaged: Vec<ObjectId> = self
                     .battlefield

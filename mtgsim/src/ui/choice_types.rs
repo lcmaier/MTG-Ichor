@@ -95,7 +95,7 @@ pub enum ChoiceKind {
     /// CR 601.2f — "if multiple cost reductions apply, the player may apply
     /// them in any order." Asked only with two or more, and only where the
     /// order can change the total: the options are the reductions' *sources*,
-    /// in battlefield timestamp order, and the answer is a permutation of
+    /// in the battlefield's id order, and the answer is a permutation of
     /// them. Every order gives one total
     /// (`cost-architecture.md#34-in-any-order-they-choose--the-prompt-the-theorem-and-the-middleware`)
     /// until a reduction is a hybrid symbol or has a floor.
@@ -143,7 +143,7 @@ pub enum ChoiceKind {
     /// {B} before Thunderscape Familiar is picked as the thing sacrificed.
     ///
     /// The options are permanents the payer controls that match the cost's
-    /// filter, in `battlefield_ids_ordered`, and the source of the spell or
+    /// filter, in id order, and the source of the spell or
     /// ability is among them when it matches — Ironworks sacrificing itself
     /// is the filter matching normally, not a special case.
     ///
@@ -203,8 +203,8 @@ pub enum ChoiceKind {
     /// two or more sources at once, and the affected player (or the affected
     /// permanent's controller) chooses which damage it prevents.
     ///
-    /// The buckets are the **damage sources**, in batch order — combat's
-    /// `battlefield_ordered`, so the order is process-independent — each
+    /// The buckets are the **damage sources**, in batch order — combat's walk
+    /// of the battlefield, so the order is process-independent — each
     /// capped at the damage that source would deal; the total is the smaller
     /// of the count left and the damage on offer, so an allocation always
     /// prevents as much as the effect can. Asked once per instance per batch,

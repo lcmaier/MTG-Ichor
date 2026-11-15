@@ -604,7 +604,7 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
   `colors`, `keyword_flags` or `abilities`, or the same through a local bound to
   a whole card; allowed in `oracle/` and `cards/`.
 - **unordered**: an iteration, `drain` or `retain` over a hash-keyed field of
-  `GameState`, read off its declaration, tests included.
+  `GameState`, read off its declaration, tests included; an `ObjectTable` is not.
 - **write**: a write to a field whose change is an event, or a call to the
   store's writer of one, outside the file `PERFORMERS` names for it.
 
@@ -621,7 +621,7 @@ or trailing on its line.
 | `PRE-LAYER ZONE:` | printed | asked before the layer system can answer for the object: legality from a hand, an entering permanent's lookahead (CR 614.12), `register_static_effects` |
 | `AS PRINTED:` | printed | the card as printed, for a display, a statistic or the scenario format; no rule reads it |
 | `NO ROW REACHES:` | printed | an object no continuous effect reaches, or with a leg that asks the effective list when one may |
-| `ORDER-FREE:` | unordered | nothing observes the order: a sort by a total key next, a set, a count, an `any`, each entry written alone |
+| `ORDER-FREE:` | unordered | nothing observes a hash map's order: a sort by a total key next, a set, a count, an `any`, each entry written alone |
 | `CAST-ROLLBACK:` | write | CR 601.2a's move onto the stack and its rewind, silent both ways and announced at 601.2i |
 | `NOT REPLACEABLE:` | write | a write no replacement effect can watch for (CR 614.1): damage wearing off, removal from combat, the deathtouch flag |
 

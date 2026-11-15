@@ -3,10 +3,14 @@
 //
 // `backlog.md` §2.22 row 8. The engine already declines to ask when every
 // order leaves the same game (`trigger_order_cannot_change_outcome`); what
-// reaches a seat is a real choice, and taking it for the person is a policy.
-// The order the prompt lists is trigger order, which within one event is the
-// sources' timestamp order (CR 613.7), and the first goes on the stack lowest
-// (`ask_order_triggers`), so the newest source's trigger resolves first.
+// reaches a seat is a real choice, and taking it for the person is a policy:
+// the oldest source's trigger goes on the stack lowest, so the newest
+// source's resolves first. The decorator sorts by the sources' timestamps
+// itself; the prompt's own order is the engine's, id order within one event.
+//
+// A stopgap. It reads only when each source arrived, never what its trigger
+// does, and a better order is a provider's to make, the person's or an
+// agent's, out of what the prompt hands it.
 //
 // Human seats only, inside `FullControl`'s decorated stack, so full control is
 // the toggle: off, the order is taken for the person; on, they are asked. An
@@ -74,7 +78,7 @@ impl<D: DecisionProvider> DecisionProvider for AutoOrderTriggers<D> {
         items: &[ChoiceOption],
     ) -> Vec<usize> {
         if matches!(context.kind, ChoiceKind::OrderTriggers { .. }) {
-            return (0..items.len()).collect();
+            return oldest_source_first(game, items);
         }
         self.inner.choose_ordering(game, player, context, items)
     }
@@ -84,11 +88,27 @@ impl<D: DecisionProvider> DecisionProvider for AutoOrderTriggers<D> {
     }
 }
 
+/// The triggers' positions, the oldest source's first: CR 613.7's timestamps
+/// as they are now, so a source that has left counts as arriving where it
+/// went. Stable, so one source's triggers keep the order offered.
+fn oldest_source_first(game: &GameState, items: &[ChoiceOption]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..items.len()).collect();
+    order.sort_by_key(|&i| match &items[i] {
+        ChoiceOption::Trigger(trigger) => game.object_timestamp(trigger.source.id),
+        _ => u64::MAX,
+    });
+    order
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::setup_two_player_game;
-    use crate::types::ids::new_object_id;
+    use crate::cards::printings::grizzly_bears;
+    use crate::engine::actions::ZoneChangeAct;
+    use crate::test_support::{put_in_hand, setup_two_player_game, test_ctx};
+    use crate::types::zones::Zone;
+    use crate::ui::choice_types::{TriggerOption, TriggeredAbility};
+    use crate::types::ids::{new_object_id, ObjectId};
     use crate::types::triggers::TriggerTier;
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::ui::full_control::{FullControl, FullControlSwitch};
@@ -104,7 +124,7 @@ mod tests {
     /// The person beneath is scripted with nothing, so a prompt that reached
     /// them would panic. Under full control it does reach them.
     #[test]
-    fn the_trigger_order_is_taken_as_offered_unless_full_control_is_on() {
+    fn the_trigger_order_is_taken_for_the_person_unless_full_control_is_on() {
         let game = setup_two_player_game();
         let triggers = three_triggers();
         let raw = ScriptedDecisionProvider::new();
@@ -115,6 +135,26 @@ mod tests {
         assert_eq!(seat.choose_ordering(&game, 0, &order_triggers(), &triggers), vec![0, 1, 2], "taken for them");
         switch.set(true);
         assert_eq!(seat.choose_ordering(&game, 0, &order_triggers(), &triggers), vec![2, 1, 0], "asked");
+    }
+
+    /// Two Bears made in one order and put onto the battlefield in the other:
+    /// the prompt offers their triggers in id order, and the one that arrived
+    /// first goes on the stack lowest, so the newer resolves first.
+    #[test]
+    fn the_oldest_sources_trigger_goes_on_the_stack_first() {
+        let mut game = setup_two_player_game();
+        let (made_first, made_second) = (put_in_hand(&mut game, grizzly_bears(), 0), put_in_hand(&mut game, grizzly_bears(), 0));
+        for bears in [made_second, made_first] {
+            game.change_zone(bears, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
+        }
+        let trigger = |source: ObjectId| {
+            let source = game.object_ref(source).expect("on the battlefield");
+            ChoiceOption::Trigger(TriggerOption { source, ability: TriggeredAbility::Delayed { refers_to: Vec::new() }, triggered_by: Vec::new() })
+        };
+        let offered = [trigger(made_first), trigger(made_second)];
+        let seat = AutoOrderTriggers::new(ScriptedDecisionProvider::new());
+
+        assert_eq!(seat.choose_ordering(&game, 0, &order_triggers(), &offered), vec![1, 0], "the second made entered first");
     }
 
     /// The order of cards scried to the bottom is an ordering too, and the

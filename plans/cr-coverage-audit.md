@@ -811,8 +811,6 @@ a kind of counter on a permanent (CR 613.7c). **Query:** type `Timestamp`
 - `GameObject` — owner.
 - `ContinuousEffect` — owner: the effect's.
 - `CounterStack` — owner: the counters' of one kind.
-- `PermanentState` — copy of `GameObject`'s, the battlefield order key the
-  ordered sweeps read: item 77.
 - `GameState` — none: the allocator.
 
 #### Zone

@@ -329,12 +329,12 @@ fn board(text: &str) -> Game {
 fn a_board_keeps_when_control_last_moved_through_a_write_and_a_load() {
     let text = "players 2\nturn 4\nactive 0\nbattlefield: Grizzly Bears | controller 1, control since turn 3";
     let game = board(text);
-    assert!(has_summoning_sickness(&game.state, game.state.battlefield_ids_ordered()[0]));
+    assert!(has_summoning_sickness(&game.state, game.state.battlefield_ids()[0]));
 
     let written = Scenario::write(&game.state).to_string();
     assert!(written.contains("control since turn 3"), "{written}");
     let loaded = board(&written);
-    assert!(has_summoning_sickness(&loaded.state, loaded.state.battlefield_ids_ordered()[0]));
+    assert!(has_summoning_sickness(&loaded.state, loaded.state.battlefield_ids()[0]));
 }
 
 /// The clock reads only against the controller's most recent turn, so one from
@@ -342,7 +342,7 @@ fn a_board_keeps_when_control_last_moved_through_a_write_and_a_load() {
 #[test]
 fn a_clock_from_before_the_controllers_turn_is_not_written() {
     let game = board("players 2\nturn 4\nactive 1\nbattlefield: Grizzly Bears | controller 1, control since turn 3");
-    assert!(!has_summoning_sickness(&game.state, game.state.battlefield_ids_ordered()[0]));
+    assert!(!has_summoning_sickness(&game.state, game.state.battlefield_ids()[0]));
     assert!(!Scenario::write(&game.state).to_string().contains("control since"));
 }
 

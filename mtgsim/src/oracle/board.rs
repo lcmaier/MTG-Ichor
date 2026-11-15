@@ -6,10 +6,9 @@ use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 
-/// The permanents `player_id` controls, oldest first (CR 613.7's timestamps,
-/// which never tie), sorting only those (`mana-architecture.md` §3.5).
+/// The permanents `player_id` controls, in id order (`mana-architecture.md` §3.5).
 pub fn permanents_controlled_by(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ordered_where(|id, _| controls(game, id, player_id)).into_iter().map(|(id, _)| id).collect()
+    game.battlefield.keys().filter(|&id| controls(game, id, player_id)).collect()
 }
 
 /// `card`, if it is in `player`'s hand. A hand holds only its owner's cards

@@ -153,8 +153,8 @@ so an unseeded run is still reproducible), CI's determinism step runs its
 three runs under seeds 1, 2 and 3, and `fuzz_ab.py` gives each timing round
 its own. Within one process every map shares the seed, which is why
 `tests/determinism_test.rs` cannot see an order leak end to end and says so:
-it tests the mechanism (the ordered sweeps come out in timestamp order) and
-leaves the end-to-end check to CI.
+it tests the mechanism (a battlefield sweep comes out in id order, whatever
+order the permanents arrived in) and leaves the end-to-end check to CI.
 
 `two_seeds_hash_one_key_differently` pins that the seed reaches the hash at
 all — a seed that did not would leave the check disarmed silently.

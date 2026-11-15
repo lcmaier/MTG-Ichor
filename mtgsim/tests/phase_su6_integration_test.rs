@@ -36,7 +36,7 @@ fn built(text: &str) -> GameState {
 }
 
 fn on_battlefield(game: &GameState, name: &str) -> ObjectId {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .find(|id| game.objects[id].card_data.name == name)
         .unwrap_or_else(|| panic!("no {name} on the battlefield"))
@@ -221,9 +221,7 @@ struct AskingWhy<'a> {
 impl AskingWhy<'_> {
     fn ask(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption]) {
         let question = OpenQuestion { player, context, options };
-        // ORDER-FREE: sorted by id next.
-        let mut ids: Vec<ObjectId> = game.objects.keys().collect();
-        ids.sort_by_key(|id| id.raw());
+        let ids: Vec<ObjectId> = game.objects.keys().collect();
         let about = ids.into_iter().map(WhyAbout::Object).chain((0..game.num_players()).map(WhyAbout::Player));
         for about in about {
             assert!(!why(game, about, Some(&question)).sections.is_empty());

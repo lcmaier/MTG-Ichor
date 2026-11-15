@@ -78,8 +78,8 @@ the event. Propose with `execute_action` / `change_zone`; `check_invariants.py` 
 - **Performers are loud; callers check legality.** That makes CR 608.2b's partial resolution
   the *caller's* job — see `Primitive::Untap`/`Destroy`.
 - **"Becomes" events fire on the transition only (CR 603.2e).** A redundant tap announces nothing.
-- **Routing a sweep makes its order observable** — it needs `battlefield_ids_ordered` even
-  where the old direct-write loop did not.
+- **Routing a sweep makes its order observable** — it needs a deterministic one, the table's
+  walk or a sort, even where the old direct-write loop did not.
 - **One performer, one emitter, and they are different functions.** `move_object` performs and
   announces nothing; `announce_zone_change` is the only emitter, and each caller performed the move
   it announces. A performer nests a proposal only if the outer event is real without it → §11 item 20.
@@ -116,10 +116,10 @@ worse than a missing one**, so both ship narrower than §3.2. → §2a (as built
 
 ## Determinism at the decision boundary
 
-**Never iterate a `GameState` hash field where the order is observable** — go through `battlefield_ordered` /
-`battlefield_ids_ordered`, or sort; `check_invariants.py` fails one untagged. A `DecisionProvider` picks by *index* and
-`HashMap` order differs per process. The key is `PermanentState::timestamp` — CR 613.7's, which 613.7e
-reassigns from the same process-independent counter — never `ObjectId`; same for any collection reaching a choice, log **or count**.
+**Never iterate a `GameState` hash field where the order is observable** — keep it in an `ObjectTable` or sort;
+`check_invariants.py` fails one untagged, since hash order differs per process. Id order is the engine's order wherever no
+rule names one, the same in every process and fork; a rule comparing timestamps reads `object_timestamp`. Same for any
+collection reaching a choice, log **or count** → `clone-architecture.md` decision 7.
 
 **Randomness is owned, never ambient.** Nothing reachable from a game may call `rand::rng()`, and `clippy.toml`
 refuses it; draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and an unseeded `fuzz_games`

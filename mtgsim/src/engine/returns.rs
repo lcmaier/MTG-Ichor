@@ -113,8 +113,7 @@ impl GameState {
             return Err(format!("the Aura {aura} enchants a player, and an attachment holds only objects"));
         }
         let candidates: Vec<ObjectOrPlayerId> = self
-            .battlefield_ids_ordered()
-            .into_iter()
+            .battlefield.keys()
             .filter(|&host| host != aura && self.can_enchant(&filter, aura, host, chooser))
             .map(ObjectOrPlayerId::Object)
             .collect();

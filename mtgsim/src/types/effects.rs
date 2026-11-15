@@ -1259,7 +1259,7 @@ pub enum EffectRecipient {
     /// 611.2c's set fixed as the effect begins): one row per matching permanent
     /// for `CreateReplacement` (CR 615.11), one batch member each for
     /// `DealDamage`, one fixed row for a characteristic or control change. Each
-    /// is `battlefield_ids_ordered` filtered against the resolution's
+    /// is the battlefield's walk filtered against the resolution's
     /// controller **now**, never captured. A "can't" (`Restrict`) is the
     /// exception: CR 611.2c's second sentence keeps its set the filter, read at
     /// each query.

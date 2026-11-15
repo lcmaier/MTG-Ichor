@@ -442,7 +442,7 @@ fn blaze_is_offered_and_cast_from_untapped_lands() {
     assert_eq!(game.run_priority_round(&seat), Ok(PriorityResult::ActionTaken));
     assert_eq!(offered_x(seat.inner()), XOffer::Interval { at_least: 0, at_most: 3 });
     assert_eq!(game.stack_entries[&card].x_value, Some(3));
-    let tapped = game.battlefield_ordered().into_iter().filter(|(_, entry)| entry.tapped).count();
+    let tapped = game.battlefield.iter().filter(|(_, entry)| entry.tapped).count();
     assert_eq!(tapped, 4, "every Mountain");
 }
 

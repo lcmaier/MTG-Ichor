@@ -20,7 +20,9 @@ the effective value comes through `oracle::characteristics`.
 `.keys()`, `.values()`, their `_mut` and `into_` forms, `.drain()`, `.retain()`,
 or a `for` over the field. The fields are read off the declaration, so a new
 `IdMap` is covered the day it is added. Tests are read too: a test that takes
-the first of two permanents out of a map passes by the hasher's seed.
+the first of two permanents out of a map passes by the hasher's seed. An
+`ObjectTable` is not one: it walks in id order, the engine's order wherever no
+rule names one (`ObjectId`).
 
 **write.** A write to a field whose change is an event (a zone's membership,
 life, tapped, damage, attachment, combat, the game's result), or a call to a
@@ -90,10 +92,8 @@ PRINTED = {
 
 # --- unordered ---------------------------------------------------------------
 
-#: A field whose walk order is no rule's: a hash-keyed one, whose order the
-#: hasher's seed sets, or an `ObjectTable`, which walks in id order, the same
-#: in every process and still not the CR's (`clone-architecture.md` decision 7).
-HASH_TYPE = re.compile(r"\b(IdMap|IdSet|HashMap|HashSet|ObjectTable)\b")
+#: A hash-keyed field, whose walk order the hasher's seed sets.
+HASH_TYPE = re.compile(r"\b(IdMap|IdSet|HashMap|HashSet)\b")
 ITERATING_METHOD = r"(iter|iter_mut|keys|values|values_mut|into_iter|into_keys|into_values|drain|retain|extract_if)"
 
 #: Another type's field that shares a name with a field read here, by the name
@@ -390,8 +390,8 @@ def main() -> int:
         "printed": "Read the effective value through oracle::characteristics, or tag the statement\n"
         "`// PRE-LAYER ZONE:` (asked before the layers can answer for it), `// AS PRINTED:` (shown, never\n"
         "ruled on) or `// NO ROW REACHES:` (no continuous effect reaches it, so printed is effective).",
-        "unordered": "Iterate through battlefield_ordered / battlefield_ids_ordered or sort by timestamp first,\n"
-        "or tag the statement `// ORDER-FREE:` with why no order can be observed.",
+        "unordered": "Sort what the walk collects (by id, the engine's order where no rule names one), keep the field\n"
+        "in an `ObjectTable`, or tag the statement `// ORDER-FREE:` with why no order can be observed.",
         "write": "Propose it with execute_action / change_zone, or tag it `// NOT REPLACEABLE:` with the rule\n"
         "that leaves no replacement effect to watch for it (CR 614.1). A new performer is a row in PERFORMERS, which a review reads in the diff.",
     }

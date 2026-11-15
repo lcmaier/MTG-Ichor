@@ -356,12 +356,8 @@ fn test_an_object_is_stamped_on_every_zone_entry() {
         "CR 613.7d — a new zone, a new timestamp ({in_hand} then {in_graveyard})"
     );
 
-    // And the battlefield order is still the one `battlefield_ids_ordered`
-    // promises: oldest first, by the same monotonic counter.
+    // And two arrivals are stamped in order, by the same monotonic counter.
     let first = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
     let second = put_on_battlefield(&mut game, printings::grizzly_bears(), 0);
-    let order = game.battlefield_ids_ordered();
-    let pos = |id| order.iter().position(|&o| o == id).expect("on the battlefield");
-    assert!(pos(first) < pos(second));
     assert!(game.object_timestamp(first) < game.object_timestamp(second));
 }

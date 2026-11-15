@@ -387,7 +387,7 @@ fn test_a_granted_cost_effect_is_found_through_the_registry_summary() {
 #[test]
 fn test_a_cost_effect_source_that_leaves_stops_applying() {
     let mut game = thalia_board(0);
-    let thalia = game.battlefield_ids_ordered()[0];
+    let thalia = game.battlefield_ids()[0];
     game.change_zone(thalia, Zone::Graveyard, ZoneChangeAct::Destroyed, &test_ctx()).unwrap();
     assert!(game.cost_modification_ability_sources.is_empty());
     let cast = cast_from_pool(&mut game, 0, bolt(), &[(ManaType::Red, 1)], &RecordingDecisionProvider::picking(0));
@@ -434,7 +434,7 @@ fn test_the_phases_cards_are_registered() {
         let card = registry.create(name).unwrap_or_else(|e| panic!("{name}: {e}"));
         let mut game = setup_two_player_game();
         let id = put_on_battlefield(&mut game, card, 1);
-        assert!(game.cost_modification_ability_sources.contains(&id), "{name} is a source");
+        assert!(game.cost_modification_ability_sources.contains_key(&id), "{name} is a source");
     }
     // CM-2's two are not: a spell's own cost ability functions on the stack
     // (CR 113.6d), so an affinity creature standing on the battlefield is a
@@ -443,7 +443,7 @@ fn test_the_phases_cards_are_registered() {
         let card = registry.create(name).unwrap_or_else(|e| panic!("{name}: {e}"));
         let mut game = setup_two_player_game();
         let id = put_on_battlefield(&mut game, card, 1);
-        assert!(!game.cost_modification_ability_sources.contains(&id), "{name} is not a source");
+        assert!(!game.cost_modification_ability_sources.contains_key(&id), "{name} is not a source");
         assert!(game.cost_modification_ability_sources.is_empty(), "{name} left the set empty");
     }
 }
@@ -667,7 +667,7 @@ fn test_altars_reap_pays_the_cost_the_creature_it_sacrifices_reduced() {
 
     // ...and the Familiar is what paid for it.
     let mut game = familiar_board();
-    let familiar = game.battlefield_ids_ordered()[0];
+    let familiar = game.battlefield_ids()[0];
     let dp = RecordingDecisionProvider::picking(0);
     let reap = cast_from_pool(
         &mut game, 0, printings::altars_reap(), &[(ManaType::Black, 1)], &dp,
@@ -716,7 +716,7 @@ fn test_a_mandatory_additional_cost_is_not_offered() {
 #[test]
 fn test_sacrificing_for_a_cost_is_the_payers_choice() {
     let mut game = familiar_board();
-    let familiar = game.battlefield_ids_ordered()[0];
+    let familiar = game.battlefield_ids()[0];
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
 
     let dp = ScriptedDecisionProvider::new();

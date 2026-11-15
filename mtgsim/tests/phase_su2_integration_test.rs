@@ -59,7 +59,6 @@ fn refused_in_play(text: &str) -> String {
 
 /// The object named `name` in `zone`, the only one there.
 fn object(state: &GameState, zone: Zone, name: &str) -> ObjectId {
-    // ORDER-FREE: the one, asserted.
     let mut found = state.objects.values().filter(|o| o.zone == zone && o.card_data.name == name).map(|o| o.id);
     let one = found.next().unwrap_or_else(|| panic!("no {name} in {zone:?}"));
     assert!(found.next().is_none(), "two of {name} in {zone:?}");
@@ -101,7 +100,7 @@ fn each_verb_builds_the_stack_its_lines_describe() {
     for paid in ["Forest", "Merfolk Thaumaturgist"] {
         assert!(state.battlefield[&permanent(state, paid)].tapped, "{paid}");
     }
-    let mountains = state.battlefield_ordered().into_iter().filter(|(id, _)| state.objects[id].card_data.name == "Mountain").map(|(_, entry)| entry.tapped);
+    let mountains = state.battlefield.iter().filter(|(id, _)| state.objects[id].card_data.name == "Mountain").map(|(_, entry)| entry.tapped);
     assert_eq!(mountains.collect::<Vec<_>>(), [true, false], "one Mountain pays the first Bolt");
     // The seats' own from here: each is asked, and passing resolves the top.
     seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);

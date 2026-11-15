@@ -128,9 +128,14 @@ impl DecisionProvider for RoundTrip<'_> {
 
 /// Every object by its place: the battlefield in timestamp order, then each
 /// player's library, hand and graveyard, then exile and the command zone.
+/// The battlefield is sorted here, not swept: a loaded board's ids are minted
+/// in its line order, so the engine's sweep, in id order, is no place the save
+/// keeps.
 fn places(state: &GameState) -> Vec<(String, ObjectId)> {
+    let mut battlefield = state.battlefield_ids();
+    battlefield.sort_by_key(|&id| state.object_timestamp(id));
     let mut places: Vec<(String, ObjectId)> =
-        state.battlefield_ids_ordered().into_iter().enumerate().map(|(i, id)| (format!("battlefield {i}"), id)).collect();
+        battlefield.into_iter().enumerate().map(|(i, id)| (format!("battlefield {i}"), id)).collect();
     for (p, player) in state.players.iter().enumerate() {
         for (zone, ids) in [("library", &player.library), ("hand", &player.hand), ("graveyard", &player.graveyard)] {
             places.extend(ids.iter().enumerate().map(|(i, id)| (format!("{zone} {p} {i}"), *id)));

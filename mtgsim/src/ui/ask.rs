@@ -874,7 +874,7 @@ pub fn ask_activate_mana_ability(
 
 /// CR 601.2f — the order in which two or more cost reductions apply.
 ///
-/// `sources` are the reductions' sources in battlefield timestamp order, so
+/// `sources` are the reductions' sources in the battlefield's id order, so
 /// the permutation returned means the same thing in every process. One
 /// reduction has no order to choose and must not reach here.
 pub fn ask_order_cost_reductions(
@@ -1491,7 +1491,7 @@ pub fn ask_choose_delayed_trigger_event(
 /// Choose which permanents pay a `Cost::Sacrifice` (CR 601.2h, 701.21a).
 ///
 /// `candidates` is every permanent the payer controls that matches the cost's
-/// filter, in `battlefield_ids_ordered`; `count` is how many the cost takes.
+/// filter, in id order; `count` is how many the cost takes.
 ///
 /// With exactly `count` candidates the payment is forced, and answered
 /// unasked: "never prompt with fewer than two candidates", counted against

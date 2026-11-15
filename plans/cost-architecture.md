@@ -197,9 +197,9 @@ ability list — the third static shape to use the pattern `Effect::Replacement`
 permanent — the *sources*. `GameState::cost_modification_ability_sources` is
 the set of battlefield objects that printed a cost ability (recorded at ETB by
 `register_static_effects`, removed by `cleanup_zone_state`), and the sweep is
-that set sorted by `PermanentState::timestamp` — `O(k log k)` in the number of
-sources, and on the common board `k = 0` and the gather is a
-`HashSet::is_empty`. Each source costs one `get_effective_abilities`, which is
+that set, an `ObjectTable` walked in id order since #328 — `O(k)` in the
+number of sources, and on the common board `k = 0` and the gather is an
+`is_empty`. Each source costs one `get_effective_abilities`, which is
 the memoized top-level frame (7a), not a walk.
 
 The set can only *under*-approximate through two routes it cannot see, and

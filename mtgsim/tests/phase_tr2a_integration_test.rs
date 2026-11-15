@@ -1322,7 +1322,7 @@ fn warmasters_pump_is_fixed_as_it_resolves() {
         game.execute_action(GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0, attacking: None }, &test_ctx())
             .unwrap();
         resolve_all(&mut game);
-        *game.battlefield_ids_ordered().last().unwrap()
+        *game.battlefield_ids().last().unwrap()
     };
 
     retype(&mut game, bear, vec![elf()], Vec::new());

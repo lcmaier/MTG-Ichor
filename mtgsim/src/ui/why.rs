@@ -806,7 +806,7 @@ pub fn not_offered_yet(game: &GameState, question: &OpenQuestion) -> Vec<NotOffe
     }
     let player = question.player;
     let mut not_yet = Vec::new();
-    for source in game.battlefield_ids_ordered() {
+    for source in game.battlefield.keys() {
         if can_activate_its_abilities(game, player, source).is_err() {
             continue;
         }
@@ -843,8 +843,7 @@ fn block_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> Ve
         })
     };
     let attackers: Vec<ObjectId> = game
-        .battlefield_ids_ordered()
-        .into_iter()
+        .battlefield.keys()
         .filter(|a| game.battlefield.get(a).is_some_and(|entry| entry.attacking.is_some()))
         .collect();
     if attackers.contains(&id) {

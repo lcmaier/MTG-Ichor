@@ -155,7 +155,7 @@ fn white_card() -> Arc<CardData> {
 
 /// The tokens `player` controls on the battlefield.
 fn tokens_of(game: &GameState, player: usize) -> usize {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .filter(|id| game.objects[id].is_token && game.battlefield[id].controller == player)
         .count()

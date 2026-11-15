@@ -632,7 +632,7 @@ fn a_clone_of_a_token_is_not_a_token() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);
     game.resolve_effect(&create, &ResolutionContext::untargeted(source, 1, mtgsim::events::cause::GeneratedBy::Spell), &ById::new()).expect("created");
-    let token = game.battlefield_ids_ordered().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
+    let token = game.battlefield_ids().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
 
     let clone = clone_of(&mut game, 0, token);
     assert_eq!(get_effective_name(&game, clone), "Soldier Token");

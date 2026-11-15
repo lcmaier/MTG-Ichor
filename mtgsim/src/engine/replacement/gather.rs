@@ -3,7 +3,7 @@
 //! `replacement-architecture.md` §3.3 lists five sources, and getting the list
 //! wrong is the failure mode that shows up as a card silently doing nothing:
 //!
-//! 1. **Static abilities of permanents** — swept from `battlefield_ids_ordered`,
+//! 1. **Static abilities of permanents** — swept from the battlefield's walk,
 //!    read off each object's **effective** ability list. Not a registry scan.
 //!    That is not a shortcut: it is what makes Humility and Blood Moon strip a
 //!    replacement ability for free, and it asks CR 614.4's "must exist before
@@ -32,7 +32,7 @@ use crate::engine::actions::{ActionContext, GameAction, GameActionKind, GameActi
 use crate::engine::audit::{assert_shortcut_agrees, Sweep};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
-use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::zone_function::functions_as_static;
 use crate::events::cause::{EventCause, GeneratedBy};
 use crate::events::event::ResolutionStamp;
@@ -162,9 +162,9 @@ pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<Playe
 
 /// Every replacement effect that applies to `action` right now.
 ///
-/// Returned in a deterministic order — battlefield timestamp order for the
+/// Returned in a deterministic order — the battlefield's id order for the
 /// sweep, registration order for the registry — because CR 616.1's prompt
-/// offers this list and a `DecisionProvider` picks from it by *index*.
+/// offers this list.
 ///
 /// `blocked` is CR 614.17c: "if an event can't happen, it can only be replaced
 /// by a self-replacement effect". When set, everything outside
@@ -267,8 +267,8 @@ fn gather_sweeping(
     let named = named_replacement_carriers(game, proposed);
 
     // --- Sources 1 and 5: the battlefield ----------------------------------
-    // The permanents that could answer this proposal, each once, oldest first
-    // (CR 613.7): the printed sources filed under its kind, the named rows'
+    // The permanents that could answer this proposal, each once, in id order:
+    // the printed sources filed under its kind, the named rows'
     // objects, and the holders of a replacement counter. A `Filter` row
     // reaching the battlefield opens every permanent instead, since narrowing
     // it would resolve a filter per permanent per check; so does the audit.
@@ -277,7 +277,7 @@ fn gather_sweeping(
         "a permanent holds a replacement counter that `replacement_counter_holders` does not name"
     );
     let permanents = if sweep == Sweep::Everything || unattributed_zones.contains(Zone::Battlefield) {
-        game.battlefield_ids_ordered().into_iter().map(|id| BattlefieldCandidate { id, abilities_could_answer: true }).collect()
+        game.battlefield.keys().map(|id| BattlefieldCandidate { id, abilities_could_answer: true }).collect()
     } else {
         battlefield_candidates(game, proposed, &named)
     };
@@ -329,66 +329,45 @@ fn gather_sweeping(
     // way on per gate leg: printed (`off_battlefield_replacement_ability_sources`, its
     // frame read only when a def could apply to this proposal), named (a grant
     // or copy row's `SourceOnly` or `Fixed` objects) and zoned (a `Filter` row's
-    // zones walked whole, while such a row exists). In CR 613.7d order, the
-    // battlefield's key. The entering object is source 1a's alone: read here off
+    // zones walked whole, while such a row exists). In id order, the
+    // battlefield's. The entering object is source 1a's alone: read here off
     // its source zone, its filter-scoped rows would reach its own entry, which
     // 614.12's parenthesis forbids.
     let could_apply = |id: ObjectId, printed: &[ReplacementDef]| printed.iter().any(|def| printed_could_apply(game, id, def, &proposal));
-    let mut elsewhere: Vec<(Timestamp, ObjectId)> = Vec::new();
+    let mut elsewhere: Vec<ObjectId> = Vec::new();
     if sweep == Sweep::Everything {
         // The audit's: every object off the battlefield that could carry one,
         // asked with no printed precheck.
         for id in game.objects_that_may_carry(|effect| effect.replacements().next().is_some()) {
             if game.objects.get(&id).is_some_and(|obj| obj.zone != Zone::Battlefield) {
-                elsewhere.push((game.object_timestamp(id), id));
+                elsewhere.push(id);
             }
         }
     } else {
-        if game.trace_is_on() {
-            // Asking walks the layers, and a walk writes a trace record, so a
-            // traced game asks in timestamp order. Untraced, the sort would cost
-            // every gather for an order nothing reads.
-            // ORDER-FREE: sorted by timestamp next.
-            let mut sources: Vec<(Timestamp, ObjectId, &[ReplacementDef])> = game
-                .off_battlefield_replacement_ability_sources
-                .iter()
-                .map(|(&id, printed)| (game.object_timestamp(id), id, &printed[..]))
-                .collect();
-            sources.sort_unstable_by_key(|&(timestamp, _, _)| timestamp);
-            elsewhere.extend(sources.into_iter().filter(|&(_, id, printed)| could_apply(id, printed)).map(|(timestamp, id, _)| (timestamp, id)));
-        } else {
-            // ORDER-FREE: the matches are sorted below, and untraced no walk
-            // records the order it was asked in.
-            for (&id, printed) in game.off_battlefield_replacement_ability_sources.iter() {
-                if could_apply(id, printed) {
-                    elsewhere.push((game.object_timestamp(id), id));
-                }
+        for (id, printed) in game.off_battlefield_replacement_ability_sources.iter() {
+            if could_apply(id, printed) {
+                elsewhere.push(id);
             }
         }
         let zone_sweep = unattributed_zones.beyond_battlefield();
         if !named.is_empty() || !zone_sweep.is_empty() {
             let zoned = zone_sweep.iter().flat_map(|zone| game.zone_ids_ordered(zone));
-            let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+            let mut seen: IdSet<ObjectId> = elsewhere.iter().copied().collect();
             for id in named.iter().copied().chain(zoned) {
                 // A named permanent, a host among them (CR 301.5, 303.4), is
                 // the battlefield leg's.
                 let off_battlefield =
                     matches!(game.objects.get(&id), Some(obj) if obj.zone != Zone::Battlefield);
                 if off_battlefield && seen.insert(id) {
-                    elsewhere.push((game.object_timestamp(id), id));
+                    elsewhere.push(id);
                 }
             }
         }
     }
-    // Every arrival is stamped from one counter (CR 613.7d), so the keys are
-    // distinct and the order is process-independent; the map's own order
-    // never reaches CR 616.1's list. A tie would be that order leaking.
-    elsewhere.sort_unstable_by_key(|&(timestamp, _)| timestamp);
-    debug_assert!(
-        elsewhere.windows(2).all(|pair| pair[0].0 < pair[1].0),
-        "two zone-leg candidates share a CR 613.7d timestamp"
-    );
-    for (_, id) in elsewhere {
+    // In id order, so the map's own order never reaches CR 616.1's list.
+    elsewhere.sort_unstable();
+    debug_assert!(elsewhere.windows(2).all(|pair| pair[0] < pair[1]), "the zone leg names an object twice");
+    for id in elsewhere {
         if frame.is_entering(id) {
             continue;
         }
@@ -436,21 +415,20 @@ struct BattlefieldCandidate {
 }
 
 /// The permanents the battlefield leg asks about a proposal of kind
-/// `proposed`, oldest first (CR 613.7) and each once.
+/// `proposed`, in id order and each once.
 ///
 /// Only these can answer. A permanent has a static replacement ability only if
 /// it entered with one (`replacement_ability_sources`, filed by kind) or a row
 /// put one there (a named row here, a `Filter` row's zones walked by the
 /// caller), and a counter makes one only on a holder.
 fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[ObjectId]) -> Vec<BattlefieldCandidate> {
-    let mut asked: Vec<(Timestamp, BattlefieldCandidate)> = Vec::new();
+    let mut asked: Vec<BattlefieldCandidate> = Vec::new();
     let mut ask = |id: ObjectId, abilities_could_answer: bool| {
-        if let Some(permanent) = game.battlefield.get(&id) {
-            asked.push((permanent.timestamp, BattlefieldCandidate { id, abilities_could_answer }));
+        if game.battlefield.contains_key(&id) {
+            asked.push(BattlefieldCandidate { id, abilities_could_answer });
         }
     };
-    // ORDER-FREE: sorted by timestamp below.
-    for (&id, kinds) in game.replacement_ability_sources.iter() {
+    for (id, kinds) in game.replacement_ability_sources.iter() {
         if kinds.contains(proposed) {
             ask(id, true);
         }
@@ -458,26 +436,23 @@ fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[O
     for &id in named {
         ask(id, true);
     }
-    // ORDER-FREE: sorted by timestamp below.
-    for &id in game.replacement_counter_holders.iter() {
+    for id in game.replacement_counter_holders.keys() {
         ask(id, false);
     }
-    // Every arrival is stamped from one counter (CR 613.7d), so a permanent's
-    // key is its own and a duplicate sorts beside its twin.
-    asked.sort_unstable_by_key(|(timestamp, _)| *timestamp);
-    asked.dedup_by(|(_, later), (_, kept)| {
+    // Three sources merged: a permanent asked twice sorts beside its twin.
+    asked.sort_unstable_by_key(|candidate| candidate.id);
+    asked.dedup_by(|later, kept| {
         let twin = later.id == kept.id;
         if twin {
             kept.abilities_could_answer |= later.abilities_could_answer;
         }
         twin
     });
-    debug_assert!(asked.windows(2).all(|pair| pair[0].0 < pair[1].0), "two permanents share a CR 613.7 timestamp");
-    asked.into_iter().map(|(_, candidate)| candidate).collect()
+    asked
 }
 
 /// The permanents that may have a replacement ability watching a proposal of
-/// any of `kinds`, by the gather's own legs, in CR 613.7 order.
+/// any of `kinds`, by the gather's own legs, in id order.
 pub(crate) fn replacement_watchers(game: &GameState, kinds: GameActionKindMask) -> Vec<ObjectId> {
     let mut watchers = Vec::new();
     for kind in GameActionKind::ALL.iter().copied().filter(|kind| kinds.contains(*kind)) {
@@ -504,7 +479,7 @@ pub(crate) fn replacement_watchers(game: &GameState, kinds: GameActionKindMask) 
 /// watches this kind of proposal. A row over a filter names zones instead, and
 /// the legs walk them.
 ///
-/// Unordered: each leg puts its candidates in CR 613.7 order.
+/// Unordered: each leg puts its candidates in id order.
 fn named_replacement_carriers(game: &GameState, proposed: GameActionKind) -> Vec<ObjectId> {
     if !game.continuous_effects.summary().named_unattributed_replacement_kinds.contains(proposed) {
         return Vec::new();

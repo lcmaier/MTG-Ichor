@@ -34,7 +34,6 @@ fn built(text: &str) -> GameState {
 
 /// The one object with this name, in any zone.
 fn find(game: &GameState, name: &str) -> ObjectId {
-    // ORDER-FREE: one, asserted.
     let mut ids: Vec<ObjectId> = game.objects.iter().filter(|(_, o)| o.card_data.name == name).map(|(id, _)| id).collect();
     assert_eq!(ids.len(), 1, "one {name}");
     ids.remove(0)
@@ -151,7 +150,7 @@ fn the_window_names_a_source_waiting_for_mana_it_does_not_offer_yet() {
          battlefield: Doubling Cube | controller 0, tapped\n"
     ));
     let hydra = find(&game, "Protean Hydra");
-    let ids = game.battlefield_ids_ordered();
+    let ids = game.battlefield_ids();
     let untapped_cube = ids[2];
     assert_eq!(named(&game, untapped_cube), format!("Doubling Cube ({untapped_cube})"));
     let remaining_cost = mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1);

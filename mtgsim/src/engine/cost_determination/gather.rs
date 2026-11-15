@@ -10,7 +10,7 @@ use crate::engine::layers::board::filter_reads_mana_value;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
 use crate::oracle::characteristics::{FrameContext, ObjectInformation};
-use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
@@ -30,12 +30,11 @@ pub struct CostModificationInstance {
 }
 
 /// Every cost modification that applies to `spell`: the battlefield's sources
-/// in timestamp order, then the spell's own.
+/// in id order, then the spell's own.
 ///
 /// The order is process-independent because CR 601.2f's ordering prompt
-/// offers this list and a `DecisionProvider` answers by *index*
-/// (`CLAUDE.md`, determinism). The spell's own goes last so that adding it
-/// did not move an index.
+/// offers this list. The spell's own goes last so that adding it moved no
+/// source's place.
 ///
 /// **The frame every read here sees is a finished one.** CR 613.11 applies
 /// cost effects after all other continuous effects, so a source's abilities
@@ -92,19 +91,9 @@ fn cost_modifications_sweeping(game: &GameState, spell: ObjectId, sweep: Sweep) 
     // board.
     if sweep {
         let candidates: Vec<ObjectId> = if widened {
-            game.battlefield_ids_ordered()
+            game.battlefield_ids()
         } else {
-            // ORDER-FREE: sorted by timestamp next.
-            let mut pairs: Vec<(Timestamp, ObjectId)> = game
-                .cost_modification_ability_sources
-                .iter()
-                .filter(|id| game.battlefield.contains_key(id))
-                .map(|id| (game.object_timestamp(*id), *id))
-                .collect();
-            // Timestamps are unique (CR 613.7; `CLAUDE.md`), so the key alone
-            // is a total order and no `ObjectId` tiebreak is ever consulted.
-            pairs.sort_by_key(|(ts, _)| *ts);
-            pairs.into_iter().map(|(_, id)| id).collect()
+            game.cost_modification_ability_sources.keys().filter(|id| game.battlefield.contains_key(id)).collect()
         };
         for id in candidates {
             let controller = controller_or_owner(game, id).unwrap_or(0);

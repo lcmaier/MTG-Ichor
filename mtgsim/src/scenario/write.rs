@@ -373,8 +373,10 @@ impl<'g> Writer<'g> {
     /// loader resolves a reference among the one or the other.
     fn assign_tags(&mut self) {
         let state = self.state;
-        let permanents = state.battlefield_ids_ordered();
-        // ORDER-FREE: sorted by timestamp next.
+        // Each group in CR 613.7d's order, the file's, so `[a]` is the line
+        // written first and a board loaded and saved again keeps its tags.
+        let mut permanents: Vec<ObjectId> = state.battlefield.keys().collect();
+        permanents.sort_by_key(|&id| state.object_timestamp(id));
         let mut commanders: Vec<ObjectId> = state.objects.values().filter(|o| o.is_commander).map(|o| o.id).collect();
         commanders.sort_by_key(|&id| state.object_timestamp(id));
         for group in [&permanents, &commanders] {
@@ -391,7 +393,7 @@ impl<'g> Writer<'g> {
 
     fn write_cards(&mut self) {
         let state = self.state;
-        let permanents = state.battlefield_ids_ordered();
+        let permanents: Vec<ObjectId> = state.battlefield.keys().collect();
         // Each library top first, then everything else in CR 613.7d's order,
         // a permanent's counters folded into its line unless something was
         // stamped between them (CR 613.7c).
@@ -506,7 +508,6 @@ impl<'g> Writer<'g> {
         let PermanentFields {
             object_id: _,
             controller,
-            timestamp: _,           // the file's order
             tapped,
             flipped,
             face_down,

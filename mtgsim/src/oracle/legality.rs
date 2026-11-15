@@ -142,22 +142,18 @@ pub fn playable_lands(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
 /// Get all creatures controlled by a player that can legally be declared as
 /// attackers: each one [`can_attack`] allows.
 ///
-/// Ordered by `battlefield_ordered` — a `DecisionProvider` picks by index, so
-/// the order this returns in is part of the decision, not a presentation
-/// detail.
+/// In the battlefield's id order.
 pub fn legal_attackers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ids_ordered()
-        .into_iter()
+    game.battlefield.keys()
         .filter(|&id| can_attack(game, player_id, id).is_ok())
         .collect()
 }
 
-/// Every permanent [`can_be_a_blocker`] allows, in timestamp order. Which
+/// Every permanent [`can_be_a_blocker`] allows, in id order. Which
 /// attacker each may block is the pair's question, asked at the declaration.
 /// One pass over the battlefield, since the check asks who controls each.
 pub fn legal_blockers(game: &GameState, player_id: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ids_ordered()
-        .into_iter()
+    game.battlefield.keys()
         .filter(|&id| can_be_a_blocker(game, player_id, id).is_ok())
         .collect()
 }
@@ -252,8 +248,7 @@ pub fn enumerate_legal_selections_upto(
     // no candidate.
     let players = || game.players_in_game().map(ObjectOrPlayerId::Player);
     let battlefield = || {
-        game.battlefield_ids_ordered()
-            .into_iter()
+        game.battlefield.keys()
             .filter(move |&id| Some(id) != exclude_id)
     };
     // CR 112.1 — a *spell* on the stack, which the activated ability sharing
@@ -322,7 +317,7 @@ pub fn enumerate_legal_selections_upto(
 }
 
 /// CR 609.7a — every source of damage a player may choose, each existence
-/// once, in the order offered: the permanents (CR 613.7 order), the spells on
+/// once, in the order offered: the permanents (id order), the spells on
 /// the stack (its order, a spell resolving now among them, CR 608.2), then
 /// each object referred to by an object on the stack, by a replacement or
 /// prevention effect waiting to apply, or by a delayed triggered ability
@@ -334,8 +329,7 @@ pub fn enumerate_legal_selections_upto(
 /// 99). `exclude_id` is CR 115.5's object.
 pub fn damage_sources(game: &GameState, exclude_id: Option<ObjectId>) -> Vec<ObjectRef> {
     let present = game
-        .battlefield_ids_ordered()
-        .into_iter()
+        .battlefield.keys()
         .chain(game.stack.iter().copied().filter(|&id| game.is_spell_on_stack(id)))
         .filter_map(|id| game.object_ref(id));
     let mut sources: Vec<ObjectRef> = Vec::new();

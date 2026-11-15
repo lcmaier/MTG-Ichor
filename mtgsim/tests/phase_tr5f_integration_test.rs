@@ -447,7 +447,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
 
 /// The tokens on the battlefield, in the order they entered.
 fn tokens(game: &GameState) -> Vec<ObjectId> {
-    game.battlefield_ids_ordered().into_iter().filter(|id| game.objects[id].is_token).collect()
+    game.battlefield_ids().into_iter().filter(|id| game.objects[id].is_token).collect()
 }
 
 fn attack_of(game: &GameState, id: ObjectId) -> Option<AttackTarget> {

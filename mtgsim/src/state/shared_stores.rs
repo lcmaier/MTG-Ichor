@@ -46,6 +46,11 @@ use crate::types::ids::ObjectId;
 /// How many ids a table's chunk spans, and how many items a list's chunk holds.
 const CHUNK: usize = 32;
 
+/// No game mints an id this high, so a table filing one was handed an id from
+/// no store's counter. A table's chunk list spans the ids up to its highest
+/// member, so such an id would allocate its way there instead of failing.
+const IDS_A_GAME_MINTS_BELOW: u64 = 1 << 40;
+
 /// A type a store holds, and what a fork's first write to one of its items
 /// copies: the whole chunk the item sits in, or the item alone. The choice is
 /// the type's, made once in the list below, and every store of that type
@@ -152,6 +157,29 @@ impl ForkCopy for crate::engine::last_known::EndedExistences {
     type Held = CopiedAlone<Self>;
 }
 
+// The filed-source tables' items: what each gate files a source under, and
+// nothing for a plain set.
+
+/// The kinds of event a source's printed triggers read, 8 bytes.
+impl ForkCopy for crate::types::triggers::EventKindMask {
+    type Held = CopiedWithChunk<Self>;
+}
+
+/// The kinds of proposal a source's printed replacements watch, 8 bytes.
+impl ForkCopy for crate::engine::actions::GameActionKindMask {
+    type Held = CopiedWithChunk<Self>;
+}
+
+/// An off-battlefield source's printed replacements: a pointer, 16 bytes.
+impl ForkCopy for Arc<[crate::types::replacement::ReplacementDef]> {
+    type Held = CopiedWithChunk<Self>;
+}
+
+/// A set's member: nothing but its id.
+impl ForkCopy for () {
+    type Held = CopiedWithChunk<Self>;
+}
+
 /// One table chunk: the items of 32 consecutive ids, and which are there.
 #[derive(Clone)]
 struct TableChunk<E> {
@@ -162,9 +190,8 @@ struct TableChunk<E> {
 }
 
 /// Items keyed by object, in chunks a copy shares (the module's doc). Walked
-/// in id order, which is the same in every process but is not the rules'
-/// order: a choice, a log or a count still sorts by timestamp (`CLAUDE.md`,
-/// "Determinism at the decision boundary").
+/// in id order, which is the same in every process and in a fork: the engine's
+/// order wherever no rule names one (`ObjectId`).
 pub struct ObjectTable<T: ForkCopy> {
     chunks: Vec<Option<Arc<TableChunk<T::Held>>>>,
     len: usize,
@@ -221,22 +248,42 @@ impl<T: ForkCopy> ObjectTable<T> {
         Arc::make_mut(chunk).slots[slot].as_mut().map(Holding::item_mut)
     }
 
-    /// File `value` under `id`, returning what was there.
-    pub fn insert(&mut self, id: ObjectId, value: T) -> Option<T> {
-        debug_assert!(id.raw() < 1 << 40, "{id} is no id a store minted: an object table is indexed by the counter");
-        let (chunk, slot) = place(id);
-        if self.chunks.len() <= chunk {
-            self.chunks.resize_with(chunk + 1, || None);
+    /// The chunk `id` is filed in, to write: made if the table has none there,
+    /// and copied first if a fork shares it. A function of the chunk list
+    /// alone, so its caller can count `len` while it holds the chunk.
+    fn chunk_to_write(chunks: &mut Vec<Option<Arc<TableChunk<T::Held>>>>, id: ObjectId) -> (&mut TableChunk<T::Held>, usize) {
+        debug_assert!(id.raw() < IDS_A_GAME_MINTS_BELOW, "{id} is no id a store minted: an object table is indexed by the counter");
+        let (index, slot) = place(id);
+        if chunks.len() <= index {
+            chunks.resize_with(index + 1, || None);
         }
         let chunk = Arc::make_mut(
-            self.chunks[chunk].get_or_insert_with(|| Arc::new(TableChunk { slots: std::array::from_fn(|_| None), live: 0 })),
+            chunks[index].get_or_insert_with(|| Arc::new(TableChunk { slots: std::array::from_fn(|_| None), live: 0 })),
         );
+        (chunk, slot)
+    }
+
+    /// File `value` under `id`, returning what was there.
+    pub fn insert(&mut self, id: ObjectId, value: T) -> Option<T> {
+        let (chunk, slot) = Self::chunk_to_write(&mut self.chunks, id);
         let old = chunk.slots[slot].replace(T::Held::hold(value));
         if old.is_none() {
             chunk.live |= 1 << slot;
             self.len += 1;
         }
         old.map(Holding::release)
+    }
+
+    /// `id`'s item to write, filed from `make` first if the table has none:
+    /// `HashMap::entry(id).or_insert_with(make)`. Its chunk is copied first if
+    /// a fork shares it, as `insert` and `get_mut` copy theirs.
+    pub fn get_or_insert_with(&mut self, id: ObjectId, make: impl FnOnce() -> T) -> &mut T {
+        let (chunk, slot) = Self::chunk_to_write(&mut self.chunks, id);
+        if chunk.slots[slot].is_none() {
+            chunk.live |= 1 << slot;
+            self.len += 1;
+        }
+        chunk.slots[slot].get_or_insert_with(|| T::Held::hold(make())).item_mut()
     }
 
     /// Take `id`'s item out. A chunk left empty is dropped, and the chunks
@@ -657,6 +704,20 @@ mod tests {
         // The parent writes its own copy and leaves the fork as it was.
         *parent.get_mut(&id(40)).unwrap() = 7;
         assert_eq!((parent[&id(40)], fork[&id(40)]), (7, 40));
+    }
+
+    /// Filed once and written in place after, the count kept, and a fork's
+    /// copy left as it was.
+    #[test]
+    fn get_or_insert_with_files_a_missing_item_and_writes_a_present_one() {
+        let mut parent: ObjectTable<u32> = ObjectTable::new();
+        *parent.get_or_insert_with(id(70), || 1) += 10;
+        assert_eq!((parent[&id(70)], parent.len()), (11, 1));
+        let fork = parent.clone();
+        *parent.get_or_insert_with(id(70), || unreachable!("present")) += 1;
+        assert_eq!((parent[&id(70)], parent.len()), (12, 1));
+        assert_eq!(fork[&id(70)], 11, "the fork's chunk was not written");
+        assert_eq!(parent.keys().collect::<Vec<_>>(), [id(70)]);
     }
 
     #[test]

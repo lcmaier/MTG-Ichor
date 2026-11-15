@@ -176,11 +176,11 @@ impl Snapshot {
             .map(|record| LogLine { event: record.seq, text: format_record(game, record) })
             .collect();
         let lines = TypeLines::new(game);
-        let permanents: Vec<PermanentView> = game
-            .battlefield_ids_ordered()
-            .into_iter()
-            .filter_map(|id| permanent(game, &lines, id))
-            .collect();
+        // The window draws the board oldest first (CR 613.7d), its own order:
+        // the engine's sweep is in id order, which says nothing about arrival.
+        let mut battlefield = game.battlefield_ids();
+        battlefield.sort_by_key(|&id| game.object_timestamp(id));
+        let permanents: Vec<PermanentView> = battlefield.into_iter().filter_map(|id| permanent(game, &lines, id)).collect();
         let players = game
             .players
             .iter()

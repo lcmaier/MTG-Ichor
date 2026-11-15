@@ -1909,7 +1909,7 @@ trigger sees its event.
 
 For each record, the candidates are the union of:
 
-1. **Every permanent's effective ability list**, in `battlefield_ids_ordered`
+1. **Every permanent's effective ability list**, in the battlefield's id
    order (the order is observable — 603.3b lets a player order their own
    triggers but the *default* order a prompt offers must be
    process-stable), through `get_effective_abilities` — a memo hit on every

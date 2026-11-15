@@ -61,7 +61,7 @@ impl GameState {
             return;
         }
         let frames: Vec<(ObjectId, Option<Arc<EffectiveCharacteristics>>)> =
-            self.battlefield_ids_ordered().into_iter().map(|id| (id, compute_characteristics(self, id))).collect();
+            self.battlefield.keys().map(|id| (id, compute_characteristics(self, id))).collect();
         // A change no sweep has announced yet looks back to the frames kept
         // before it, so a row written after it keeps nothing: Ray of
         // Command's haste, written after its steal and before any batch.
@@ -146,7 +146,7 @@ impl GameState {
         if !rows && !self.control_effects_at_last_sweep {
             return sweep;
         }
-        for id in self.battlefield_ids_ordered() {
+        for id in self.battlefield_ids() {
             // With no control-changing effect, a permanent's controller is the
             // one it entered under, and there is nothing to walk.
             let frame = if rows { compute_characteristics(self, id) } else { None };
@@ -190,7 +190,7 @@ impl GameState {
     /// controller, walked, is the one it announced, whether or not its gate
     /// let it walk.
     fn audit_announced_controllers(&self) {
-        let ids = self.battlefield_ids_ordered();
+        let ids = self.battlefield_ids();
         let announced =
             ids.iter().filter_map(|id| Some(format!("{id} {}", self.battlefield.get(id)?.announced_control.controller()))).collect();
         let walked = self.unobserved(|| {

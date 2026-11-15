@@ -582,7 +582,7 @@ fn resolve_card_on(
 
 /// Every token on the battlefield, in timestamp order.
 fn tokens(game: &GameState) -> Vec<ObjectId> {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .filter(|id| game.objects.get(id).is_some_and(|o| o.is_token))
         .collect()

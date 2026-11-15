@@ -1032,7 +1032,7 @@ fn test_a_stun_counter_survives_a_real_untap_step() {
     // action instead. Worth its own test because the untap step is where
     // CR 122.1d is actually met, and because routing that sweep through the
     // pipeline is what made its *order* observable — the sweep builds its batch
-    // from `battlefield_ids_ordered` for exactly this reason.
+    // from the battlefield's id-ordered walk for exactly this reason.
     //
     // This does **not** cover ATOM-502.3-002. That atom's mechanism is a
     // "doesn't untap during your untap step" *continuous effect* (Frost Titan,
@@ -1378,7 +1378,6 @@ fn test_a_shield_outlives_the_permanent_that_made_it() {
 
 /// Every token on the battlefield, by name.
 fn tokens(game: &GameState) -> Vec<String> {
-    // ORDER-FREE: sorted by name next.
     let mut names: Vec<String> = game
         .battlefield
         .keys()

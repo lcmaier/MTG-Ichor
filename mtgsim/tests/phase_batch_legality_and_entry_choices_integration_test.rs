@@ -155,13 +155,13 @@ fn create_two_devouring_dragons(game: &mut GameState, placeholder: ObjectId, cre
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: placeholder, source: placeholder, to: Zone::Graveyard };
     dp.expect_choice(devour_prompt.clone(), vec![ChoiceOption::Object(creatures[0]), ChoiceOption::Object(creatures[1])]);
     dp.expect_choice(devour_prompt, vec![ChoiceOption::Object(creatures[2])]);
-    let before: Vec<ObjectId> = game.battlefield_ids_ordered();
+    let before: Vec<ObjectId> = game.battlefield_ids();
     game.execute_action(
         GameAction::CreateTokens { defs: vec![devouring_dragon_token(), devouring_dragon_token()], controller: 0, attacking: None },
         &ActionContext::new(&dp),
     )
     .expect("the tokens are created");
-    let dragons: Vec<ObjectId> = game.battlefield_ids_ordered().into_iter().filter(|id| !before.contains(id)).collect();
+    let dragons: Vec<ObjectId> = game.battlefield_ids().into_iter().filter(|id| !before.contains(id)).collect();
     let prompt = |id| ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard };
     assert_asked(&dp, &[(0, prompt(dragons[0])), (0, prompt(dragons[1]))]);
     dragons
@@ -372,7 +372,7 @@ fn two_shocklands_entering_together_cannot_both_be_paid_for_at_three_life() {
     .expect("the tokens are created");
 
     assert_eq!(game.players[0].life_total, 1);
-    let lands: Vec<ObjectId> = game.battlefield_ids_ordered();
+    let lands: Vec<ObjectId> = game.battlefield_ids();
     let paid_for: Vec<ObjectId> = lands.iter().copied().filter(|&id| !tapped(&game, id)).collect();
     assert_eq!((lands.len(), paid_for.len()), (2, 1), "one paid for, one tapped");
     assert_asked(&dp, &[(0, the_offer(paid_for[0]))]);

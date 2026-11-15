@@ -1823,6 +1823,10 @@ mechanic rather than a migration, which is why it is here and not in
   then elided with expiry conditions, which is item 47's precedent, ~30
   lines. The rest is policy — a human under the toggle gets timestamp order,
   a bot's agent orders — ~40 lines of decorator, sized inside item 6's doc.
+  Since #328 the engine offers id order and the decorator sorts by the
+  sources' timestamps itself. **A stopgap** (the owner, 2026-11-14): it reads
+  when each source arrived, not what its trigger does; a better order is a
+  provider's to design, out of what the prompt hands a client.
 
   **Row 9, the reversal (item 72), decided 2026-09-18 and re-derived at review
   — two options, and only two.** Is a reversal even possible in an engine

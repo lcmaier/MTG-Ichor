@@ -2696,9 +2696,9 @@ AllocateNextDamage { source: ObjectId, remaining: u64 },  // named in RD's desig
 
 The 616.1 prompt is a `pick_n` with bounds `(1, 1)` over
 `ChoiceOption::Object`-shaped candidates. **The option order is part of the
-decision** (`CLAUDE.md`, determinism): candidates are gathered via
-`battlefield_ids_ordered()` and registry insertion order, never a raw `HashMap`
-sweep. A `fuzz_games --seed N` run must still reproduce line-for-line.
+decision** (`CLAUDE.md`, determinism): candidates are gathered in the
+battlefield table's id order and registry insertion order, never a raw
+`HashMap` sweep. A `fuzz_games --seed N` run must still reproduce line-for-line.
 
 ---
 

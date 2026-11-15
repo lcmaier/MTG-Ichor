@@ -1248,7 +1248,7 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // CR 701.26b, in the order found (a sweep's by timestamp): stun
+                // CR 701.26b, in the order found (a sweep's in id order): stun
                 // counters (CR 122.1d) make two effects want one untap, so the members
                 // reach a CR 616.1 prompt. CR 608.2b: a spell whose targets are not *all*
                 // illegal still resolves and does as much as it can, so a target that
@@ -2220,12 +2220,11 @@ impl GameState {
                 let Some(&donor) = self.permanents_among(targets).first() else {
                     return Ok(());
                 };
-                // Ordered, because the row's `Fixed` set is read back by
-                // `battlefield_ids_ordered`'s consumers and reaches a log and a
-                // count. CR 613.7's timestamp order is the key either way.
+                // In the battlefield's id order, because the row's `Fixed` set
+                // is read back by the sweeps' consumers and reaches a log and a
+                // count.
                 let affected: Vec<ObjectId> = self
-                    .battlefield_ids_ordered()
-                    .into_iter()
+                    .battlefield.keys()
                     .filter(|&id| !(*exclude_donor && id == donor))
                     .filter(|&id| self.matches_for_effect(id, filter, ctx))
                     .collect();
@@ -2671,11 +2670,11 @@ impl GameState {
     }
 
     /// "Each [permanent] you control": every permanent the filter matches
-    /// now, in timestamp order for the CR 616.1 prompt and the log. CR 611.2c
+    /// now, in id order for the CR 616.1 prompt and the log. CR 611.2c
     /// fixes that set as the effect begins, so a creature that becomes an Elf
     /// later is not in it (Elvish Warmaster's third ruling).
     fn permanents_matching(&self, filter: &ObjectFilter, ctx: &ResolutionContext) -> Vec<ObjectId> {
-        self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, filter, ctx)).collect()
+        self.battlefield.keys().filter(|&id| self.matches_for_effect(id, filter, ctx)).collect()
     }
 
     /// `targets` as a row keeps them: each object by identity, at the epoch
@@ -2776,7 +2775,7 @@ impl GameState {
                     ObjectSet::Filter { filter, zones } if *zones == ZoneSet::BATTLEFIELD => filter,
                     other => return Err(format!("CountOf({other:?}) resolution not yet implemented")),
                 };
-                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, filter, _ctx));
+                let counted = self.battlefield.keys().filter(|&id| self.matches_for_effect(id, filter, _ctx));
                 Ok(counted.count() as u64)
             }
             AmountExpr::CardTypesAmong(_set) => {

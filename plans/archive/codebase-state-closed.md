@@ -664,6 +664,132 @@ It was a record for item 70's fix — the answer was right, re-derived
     gameplay counter identical). That is the arm's whole justification: a
     five-walk regression is not worth finding by argument.
 
+77. **The ordered battlefield sweeps cost ~5% of runtime, and it is the
+    deriving, not the sorting.** `CLAUDE.md`'s determinism invariant routes
+    every order-observable battlefield read through `battlefield_ids_ordered`
+    / `battlefield_ordered`, and each call collects a `Vec<(u64, ObjectId)>`,
+    sorts it, and maps into a second `Vec`. Measured 2026-09-07 on the
+    `performance` pool: **5,744 calls per game at a mean n of 15.9**, and at
+    n=16 one call is **127 ns** against **27 ns** to clone a Vec that was
+    already in order and **0.2 ns** to hand out a slice of one. That is
+    0.73 ms per game against a 14.2 ms game — **~5%**, of which ~4% is
+    recoverable by cloning a maintained order and ~5% by lending it.
+
+    **The sort is not the expensive part**; two heap allocations per call are.
+    So the design that recovers it is not "sort less" but "derive less": keep
+    the ordered vector on `GameState`, maintained at the three places the
+    order can change — the entry, `make_permanent` (append; entry timestamps are
+    monotonic), removal, and `attach`, where CR 613.7e reassigns a timestamp
+    and LH-2 already re-stamps rows — and hand out a slice. Debug-mode
+    re-derivation and comparison is the guard, exactly as `audit_memo_hit` is
+    for the layer memo.
+
+    **Do not "fix" this by auditing which call sites observe order.** Some do
+    not (`steps.rs`'s `any` over first strike, for one), but the invariant is
+    blunt on purpose, and re-litigating observability at 52 call sites is how
+    it gets decided wrong once. Maintaining the order makes the blunt rule
+    free instead of making it negotiable.
+
+    **"So determinism is what costs 5% — is it worth keeping?"** Asked at the
+    LK review, and the answer is that determinism is not what costs anything.
+    **The requirement is that an order exists and is the same in every run;
+    what this entry measures is the cost of *deriving* it fresh 5,700 times a
+    game.** Those are separable, and separating them is the whole of this item:
+    a kept vector is exactly as deterministic as a sort and costs a slice.
+    Compare the alternatives, which is where the requirement earns its place —
+    dropping it means a `HashMap` iteration order that reseeds per **process**,
+    so `fuzz_games --seed N` stops reproducing, a fork-and-search harness
+    cannot compare two lines of play, and a bug found in one run cannot be
+    replayed. That is not a performance trade; it is the difference between an
+    engine you can debug and one you cannot. The 5% buys all of it, and this
+    item is how to stop paying even that.
+
+    **The "sort before accessing" paradigm is also not the only shape
+    available**, and is the one this item replaces. Three were considered and
+    the notes are here so they are not re-considered from scratch: *sort less*
+    (audit which sites observe order — refused above); *sort cheaper* (the sort
+    is not the cost, two heap allocations are, measured); *do not sort* (keep
+    the order, which is this item). A fourth — a deterministic hasher, so the
+    `HashMap` iterates reproducibly — is the one that sounds cheapest and is
+    the worst: it makes the *order* an artifact of hashing, so inserting an
+    unrelated permanent silently re-orders every decision list, and nothing
+    about it corresponds to CR 613.7. Reproducible is not the same as correct.
+
+    **Reachability (2026-09-07):** reachable — not wrong; a measured
+    performance cost, and the numbers above are the measurement rather than an
+    estimate.
+
+    **LK raised the stake, and declined the fold (2026-09-14). Nothing is
+    owed — read this as a bigger *prize*, not a deferred bill.** Asked at the
+    LK review and worth stating plainly, because the entry can be read the
+    other way: LK did **not** defer a cost. It hit one, paid it back inside the
+    same PR, and ended level with `main`.
+
+    What happened: LK moved CR 613.7's timestamp onto `GameObject` (613.7d, so
+    a card in a graveyard has one) and that put it one `HashMap` hop from these
+    two sweeps — **+16.5% of total game time on an arm whose counters are
+    byte-identical**, which is this item's ~5% re-measured from the other side
+    and is the sharpest number it has. LK then kept a **copy** on
+    `PermanentState`, written by two doors that cannot disagree
+    (`set_object_timestamp`, `insert_battlefield_entity`), and the same arm
+    reads **−2.5%**. The +16.5% is gone; it never reached `main`.
+
+    **What is still on the table is this item's original ~5%, unchanged** — a
+    *win* nobody is obliged to collect. What LK added is a second reason to
+    collect it: a maintained order vector needs no timestamp on the entry at
+    all, so taking this item deletes the copy as well as the two allocations.
+    That is why the copy is documented as temporary rather than as a design.
+
+    **Why LK declined the fold**, given that the fold was in reach: this item
+    sizes itself as medium-risk, a missed maintenance point silently corrupts
+    every ordered sweep in the game — which is every decision list, log and
+    count — and LK was a rules change whose reviewer would have had to check
+    two unrelated arguments at once. Not because the fold is wrong.
+
+    **Re-measured 2026-11-14 on the Commander board, where the sort is the
+    cost, and its first part taken** (`ordered-sweeps-sort-their-matches`, a
+    detour at the owner's word). Callgrind on the close-out's four-seat board,
+    about 40 permanents whose ids follow deck order, so each sort was a full
+    one: `battlefield_ordered` 12.59% of all instructions inclusive, its stable
+    sort alone 8.27%, `battlefield_ids_ordered` 2.37%. The 2026-09-07 reading
+    above was the two-seat `performance` board at n=16, where the allocations
+    led; at Commander scale the sort does, so "sort less" was worth taking
+    after all, where it needs no argument about who observes order. The
+    state-based check's seven sweeps, the activatable half of the priority
+    list and `permanents_controlled_by` ask their filter of each permanent in
+    id order and sort only what they keep
+    (`GameState::battlefield_ordered_where`, audited under `--audit`,
+    `elisions.md` §4), and every full sort is unstable. Each output
+    is what filtering the sorted list gives, so no site's observability was
+    argued. Instructions per decision **-10.66%**, every counter identical
+    (`fuzz-record.md`'s block for it).
+
+    **What is left is the kept order**, for every other caller, which still
+    derives the order fresh with an unstable sort; a maintained vector would
+    also serve the converted sweeps, filtered in order with no sort at all.
+    What it is worth now was not measured; the next profile reads it.
+
+    **Sized:** one field, three maintenance points, one debug audit, and a
+    mechanical return-type change across the remaining call sites (about 50
+    on 2026-11-14; most become a borrow, the ones that mutate while iterating
+    become the 27 ns clone). ~1 PR, medium risk — the risk is drift between
+    the kept order and the truth, which is what the debug audit is for.
+    Nothing depends on it.
+    **Slotted:** Phase 10's profile-driven performance: a maintained
+    battlefield order in place of the per-call sort, with a debug audit.
+
+    **Closed 2026-11-14 by #328, by deleting the order, not keeping it.** The
+    owner asked why the battlefield is ordered at all. No rule fixes the order
+    of a sweep's members (CR 603.3b, 616.1, 704.5j and 101.4c hand every such
+    order to a player), and since CL-1 the battlefield is an `ObjectTable`
+    walked in id order, the same in every process and in a fork. So a sweep
+    is the table's walk: `ObjectId` gained `Ord`, the four sweep functions
+    and their audit went, and so did `PermanentState::timestamp`, the copy
+    this item said a kept order would delete. The filed-source sets became
+    `ObjectTable`s too, so the gates read them in id order with no sort.
+    "Do not audit which call sites observe order" stands in a new form: none
+    is asked, because every walk has the same order.
+
 
 ## Found by CM-3 — lock-in's payment side (2026-09-07)
 

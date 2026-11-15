@@ -73,7 +73,7 @@ impl GameState {
         // NO ROW REACHES: asked only of an object no row reaches, whose
         // abilities are its printed ones.
         let printed = |id: &ObjectId| self.objects.get(id).is_some_and(|o| o.card_data.abilities.iter().any(|a| kind(&a.effect)));
-        let mut ids = self.battlefield_ids_ordered();
+        let mut ids = self.battlefield_ids();
         ids.extend(self.stack.iter().copied().filter(|&id| self.is_spell_on_stack(id)));
         for zone in [Zone::Exile, Zone::Command, Zone::Graveyard, Zone::Hand, Zone::Library] {
             ids.extend(self.zone_ids_ordered(zone).into_iter().filter(|id| !no_row_reaches(self, *id) || printed(id)));
@@ -117,7 +117,7 @@ pub(crate) type Frames = HashMap<ObjectId, Arc<EffectiveCharacteristics>>;
 
 /// Every permanent as it now is.
 pub(crate) fn permanents_as_they_are(game: &GameState) -> Frames {
-    game.battlefield_ids_ordered().into_iter().filter_map(|id| compute_characteristics(game, id).map(|frame| (id, frame))).collect()
+    game.battlefield.keys().filter_map(|id| compute_characteristics(game, id).map(|frame| (id, frame))).collect()
 }
 
 /// Panic unless each object is one thing in `gated` and in `everything`,
