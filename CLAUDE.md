@@ -176,7 +176,8 @@ A design stop is `/design-note`, a build closes with `/pr-handover`, a review ro
 - Don't refactor speculatively. American spelling, gated by `check_glossary.py`.
 - **Edit files with the Edit tool.** A counted sweep goes through `plans/replace_exact.py`, never a heredoc'd splice script.
 - **Name for the call site:** the use alone must say what a name means, since its doc comment is
-  not there. → `engineering-practices.md#names`.
+  not there. Twins name their case (`_targeted`, `_untargeted`), never one bare beside one
+  qualified, and a card function's locals name what they hold. → `engineering-practices.md#names`.
 - **Before deferring a rules question, read the rule that *watches* the one you are
   implementing** — it is in another chapter. → `engineering-practices.md#the-rules-pass`.
 - A card goes in its first printing's set file (`src/cards/sets/`), a fixture in `cards::fixtures`, a named token in `cards::tokens`,

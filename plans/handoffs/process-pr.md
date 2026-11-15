@@ -87,12 +87,6 @@ the engine; and a shape cut to one card is a v1 gap of its own kind, as #324's
 `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of the 46 whose
 amount is chosen as it is paid.
 
-**A card function's locals name what they hold** (the owner, 2026-11-14, at
-#326's review). Final Showdown's spree costs were `one()` and `wipe`, opaque
-where the mode list reads them; they are `one_generic_mana()` and
-`board_wipe_mana` now. The rule joins the practices page's names section, and
-the sweep renames the locals already written that way (Explosive Derailment's
-`two()` among them).
 
 ## Open, for the owner
 

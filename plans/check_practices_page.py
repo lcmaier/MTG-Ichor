@@ -41,7 +41,7 @@ PAGE = "plans/engineering-practices.md"
 #: the spec database's reading rule beside the triage sentence it kept (one). Raised from 654
 #: on 2026-11-14 for the design note's two guards, a surface's client and a one-card shape (six),
 #: with no line to replace: the section's three questions each ask something else.
-BUDGET = 660
+BUDGET = 663
 TEXT_SUFFIXES = (".md", ".rs", ".py", ".yml", ".yaml", ".toml", ".sh", ".html", ".txt", ".json")
 # Records, not read for citations: the archive and the docs `CLAUDE.md` calls
 # historical, accurate as they stood; the pinned trace pages, never edited; and
