@@ -1020,7 +1020,7 @@ division.
 | **`mode-picker` — the dev GUI asks for modes one at a time**, split from the second at its intake's point | decision 2's "For the GUIs": `ChooseModes` drawn as a checkbox per mode, or a count where modes repeat, each enabled while some offered set still holds the picks, Confirm while the picks are one; plain Rust over the offered list under tests, egui only drawing | the dev GUI, with a review path: files by review mode, a click script, pictures | ~300–600, a guess from #312 | |
 | **`pay-as-an-effect-resolves` — a cost paid as an effect resolves**, the first of `costs-and-choices-at-resolution`'s two | decision 4: `Pay`, the window at resolution, an amount chosen as it is paid, "any player may", ward; item 418's two comments | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~1,350–2,100 with its tests, by the brief | |
 | **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted; built on Final Showdown and Feast of the Victorious Dead | 450 measured (−290), the row's rest sized ~600–950 with its tests | 621 measured |
-| **`value-chosen-as-an-effect-resolves` — a value or objects chosen as an effect resolves, kept, and used**, the first of `values-chosen-at-resolution`'s three | the choose step and its kept list (items 425 and 426); decision 7's kinds for a color, a creature type, a card type and a number, with `ChoosePlayer`; one filter for a number compared (most of item 394); a player verb whose player is gone (item 292) | Expel the Interlopers; fixtures modeled on Wash Out, Kindred Dominance, World Queller, Gluntch, Truth or Consequences, The Nipton Lottery and Duneblast | 755–1,220 | 535–910 |
+| **`value-chosen-as-an-effect-resolves` — a value or objects chosen as an effect resolves, kept, and used**, the first of `values-chosen-at-resolution`'s three | the choose step and its kept list (items 425 and 426); decision 7's kinds for a color, a creature type, a card type and a number, with `ChoosePlayer`; one filter for a number compared (most of item 394); a player verb whose player is gone (item 292) | Expel the Interlopers; fixtures modeled on Wash Out, Kindred Dominance, World Queller, Gluntch, Truth or Consequences, The Nipton Lottery and Duneblast | 1,344 measured, sized 755–1,220 | 1,400 measured, sized 535–910 |
 | **`several-choosers-at-one-step` — votes, piles and a value each player chooses**, the second | the vote (701.38) and its starting seat, piles (700.3), a value each player or each opponent chooses (CR 608.2e) and its readers, the word kind, a choice excluding an earlier one's pick, an open "choose a number" | Selvala's Stampede once its rows land; fixtures | a guess of 1,000–1,600 with its tests | |
 | **`values-kept-past-the-resolution` — a chosen value in an effect that outlasts the resolution**, the third | an effect made with the value it read (a "can't", a requirement, a later trigger), a change's own parameter from a choice and the inline ones, the basic land type, keyword and card name kinds | The Black Gate, Akroma's Blessing, Linvala as fixtures or cards, at its brief | a guess of 1,200–2,000 with its tests, which may split | |
 
@@ -1380,6 +1380,39 @@ Where it differs from the design's words:
 - **A rider's "each of them" needs no recipient**: no printed rider acts on a set, and a replaced
   event has one subject, which a rider's `Target` instance names through the route.
 - **Shroud**: nothing checks it for a target yet (`cant-be-targeted`), so its test is a guard.
+
+### `value-chosen-as-an-effect-resolves` — a value or objects chosen as an effect resolves, kept, and used — ✅ landed 2026-11-15
+
+PR #330, the first of `values-chosen-at-resolution`'s three: every kind of decision 7 a printed
+card can use as the effect resolves, items 425, 426 and 292, most of item 394. The design note is
+`handoffs/values-chosen-at-resolution.md`; the full as-built is `archive/choices-architecture-landed.md`.
+- **The model**: choose, keep, use. `Primitive::ChooseValue { name, what, how }` chooses and does
+  nothing else; the answer is kept on `ResolvingObject::choices` under a `ChoiceName` (a kind, one
+  name each) and is gone with the object (CR 608.2n).
+- **What and who**: `ValueChoice` is a color, a creature type (CR 205.3m's 316), a card type or a
+  printed few, a number between printed bounds, a player in a `PlayerSet`, or objects by a filter
+  and a count (#326's choice and division, behind the step). `ChosenHow` is a recipient naming one
+  player, or at random for a player or objects.
+- **How a step reads it**: `EffectRecipient::ChosenAs` (objects by existence, CR 400.7, with
+  shares for a verb that reads one), `AmountExpr::ChosenAs`, and `ObjectFilter::ChosenAs`, written
+  into the filter just before the resolution matches it (`filter_as_read_now`). The filter table
+  refuses a name nobody read.
+- **A choice never made** leaves nothing under the name: a verb acts on nothing and a filter
+  describes no object (CR 608.2b); an amount or a player word errs (item 435).
+- **One filter for a number compared**: `ObjectFilter::WithValue { of, is }`, `PowerLE` folded in.
+- **One shape for a choice of objects**: Final Showdown and Feast of the Victorious Dead are two
+  steps each; `EffectRecipient::Choose` is a question's label (item 434).
+- **A player verb with no player does nothing** (`player_acted_on`; CR 608.2b, 800.4a).
+- **The kinds**: `ChoosePlayer` (widened from `ChooseOpponent`), `ChooseColor`,
+  `ChooseCreatureType`, `ChooseCardType`, `ChooseNumber`.
+- **The registry's checks**: where a kept name is read, what it holds and who chooses, each with
+  a test that it refuses.
+- **The cards**: Expel the Interlopers (pooled, 128 → 129); ten castable fixtures.
+
+Where it differs from the note's words: a choose word takes its chooser first
+(`choose_number(you(), 0, 10)`); three fixtures are invented cards; a divided choice is kept as
+pairs and its verb prints the total; "at random" is a player or objects only; `Effect::Remember`
+does not see a choose step (item 428). Filed: items 428 to 437, and a line on item 396.
 
 ## 6. Found while designing
 

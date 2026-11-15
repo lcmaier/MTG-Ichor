@@ -30,6 +30,26 @@ deletes it. Every count and line below was read against `7f0e97ef`.
   with a labelled comparison.** Every decision is taken, and the build
   starts.
 
+**The first row is built** (PR #330, 2026-11-15), as
+`choices-architecture.md`'s stub records under
+`value-chosen-as-an-effect-resolves`, with where it differs from this note.
+What is left for this file's two other rows:
+
+- **`several-choosers-at-one-step`** (item 429): start from decision 5's
+  second row below, the vote's and the piles' counts under "Counted", and
+  the choose step as built. A step has one chooser today
+  (`ChosenHow::By` a recipient naming one player); several choosers is that
+  step asked of each in turn (CR 608.2e), the answers kept apart.
+- **`values-kept-past-the-resolution`** (item 428): start from decision 3's
+  refusals and decision 5's third row. The registry's test
+  (`every_chosen_name_read_is_kept_by_a_step_before_it`) names each place a
+  kept name is refused because it outlasts the resolution; that list is the
+  third row's intake.
+
+The shapes below are the note's. As built, each choose word takes its
+chooser first (`choose_number(you(), 0, 10)`), and a name is written
+`chosen(ChoiceName::Number)` or `the_chosen(ChoiceName::Objects)`.
+
 ## The model: choose, keep, use
 
 A resolving spell or ability is a short list of steps, run in the order

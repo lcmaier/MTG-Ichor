@@ -202,6 +202,89 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-15 for `value-chosen-as-an-effect-resolves`, a value or objects chosen as an
+effect resolves, kept, and used** (`choices/value-chosen-as-an-effect-resolves`, PR #330, the first
+of `values-chosen-at-resolution`'s three: the choose step, items 425, 426 and 292, most of item
+394). Expel the Interlopers joins the registry and the performance pool (128 → 129), so both §3
+columns are new baselines. One `close_out.py` sitting against **main** `7f0e97ef` (#328's merge):
+**engine** `98cb9e2d`, the last commit before the card, and **shipped** `4fe420e5`.
+
+**Predictions**, the design note's, before any arm ran:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seats, but for a game
+  where a player verb's player is gone, at three seats or more, which the dumps would name. The
+  new kinds are asked by no registered card, and Final Showdown and Feast of the Victorious Dead
+  ask as two steps what they asked as one, in the same order;
+- shipped: both pools move, with Expel alone.
+
+Instructions a decision and growth were not predicted before the run, so they are read below and
+not scored.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| every counter but the timings, engine vs `main`, performance / stress | the same file / the same file | the same file / the same file |
+| audit, engine, dispatches agreed, performance / stress | 172,898 / 172,373 | 426,288 / 449,959 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (predicted) / differ (predicted) | differ (predicted) / differ (predicted) |
+| audit, shipped, dispatches agreed, performance / stress | 176,224 / 177,434 | 449,073 / 461,179 |
+| `Memo hits`, `main` → shipped, performance / stress | 48,059 → 49,029 / 52,985 → 58,173 | 226,401 → 243,123 / 269,616 → 280,448 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6662 M → 0.6665 M, **+0.06%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**The prediction held, and its exception did not come up**: no pooled or stress game at four seats
+had a player verb act after its player left, so every engine counter is `main`'s. The functions
+past half a point are `EffectiveCharacteristics`' drop glue and `random_deck` inlined in one arm
+and not the other, and the choice's candidate collect under its new name; the total is inside
+0.1 points. Errors and panics 0 on every arm. One stress game of 200 at four seats reaches the
+turn limit, on `main` as on both other arms. `clone_bound_test`, `clone_fixture_test`,
+`fork_copies_test`, `history_held_test` and `priority_fork_test` pass in release on the shipped
+tree, the fork seeds unmoved.
+Reachability, shipped, 200 games: Expel the Interlopers cast 154 and resolved 152 in 49% of games
+at two seats, 1.38 copies a deck; 104 (101) in 44% at four, 2.68 copies a deck. Its number is a
+random agent's, so about one cast in eleven is a 0, which destroys every creature with power 0 or
+more: at two seats on performance the pool reads 27.4 → 28.0 turns a game and 20.7 → 21.3 spells
+cast, with creatures died unmoved at 7.0. The copy check names three shapes in `ui/ask.rs` and
+three compositions; `7c841f2c`, after this sitting, merges the first three, and the compositions are kept:
+a choice's bounds beside `TargetCount::bounds` and a choice's question beside an announcement's
+(#326's reasons, under the function's new name), and the game's seeded draw beside a provider's
+own, two owners of randomness that must not share one. 241 s.
+
+The questions Expel does not ask are played by the fixtures alone, so one checked sitting forced
+them: `release-checked`, 50 games at four seats on the fixtures pool, the nine new fixtures
+required. Each was cast and resolved in 40% to 64% of games (Duneblast's seven mana the least,
+22 casts; the rest 28 to 34), 0 errors and 0 panics. CI's two-seat checked sittings, fixtures and
+stress, read 0 and 0 as well.
+
+**Rerun after the pre-review (2026-11-15)**, against **base** `4fe420e5`, the shipped arm above:
+**reviewed** `3bbba67f`, a choice never made leaving nothing under its name, a filter naming one
+describing no object, "at random" refused for a color, a type and a number, a divided choice kept
+as pairs with one list of the verbs that read a share, the ask functions' two shapes merged, and
+the registry's checks carrying what a name holds. Predicted, before either arm ran: every gameplay
+and counter row `IDENTICAL` on both pools at both seats, since no registered card has a chooser
+who can be missing, draws a value at random or divides behind a verb that reads no share;
+instructions a decision within 0.3 points of base.
+
+Every gameplay row **IDENTICAL** on both pools at both seats; audit agreed (176,224 / 177,434 at
+two seats, 449,073 / 461,179 at four); instructions a decision 0.5063 M → 0.5072 M, **+0.16%**;
+growth ×3.94 to ×4.03; the copy check names nothing new. The release tests pass again, and the
+checked fixture sitting at two seats, now ten new fixtures with By Invitation Only's, reads 0
+errors and 0 panics. 175 s.
+
+**§3, shipped, 50 games at seed 12345**, the new baseline:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 21 / 28 | 25 / 25 |
+| Wins by effect | 1 | 0 |
+| Avg turns | 28.2 | 25.3 |
+| Spells cast | 22.4 | 19.8 |
+| Creatures died | 7.7 | 4.4 |
+| Total damage | 67.4 | 45.6 |
+| **Layer walks** | **355** | **356** |
+| **Memo hits** | **52,366** | **50,732** |
+| **Frames/walk** | **12.01** | **10.57** |
+| **Dependency checks** | **12** | **5** |
+| Decisions | 200 | 215 |
+
 **Re-recorded 2026-11-14 for `sweep-order`, a battlefield sweep walks the table in id order**
 (`design/sweep-order`, PR #328, a detour at the owner's word from #326's review). No card moves and no
 pool changes, so neither §3 column is re-recorded. Two `close_out.py` sittings against **main**

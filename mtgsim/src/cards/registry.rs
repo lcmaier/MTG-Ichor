@@ -2245,7 +2245,6 @@ mod instance_references {
         }
     }
 
-
     /// For every registered card, the stored lists of instances of "target"
     /// (CR 115.3) — `AbilityDef::instances` on each def, `CardData::spell_instances`
     /// on the card — equal what `Effect::instances` derives from the effect tree.

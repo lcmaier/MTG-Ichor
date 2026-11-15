@@ -50,7 +50,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | 2 | — | 2 |
 | 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
 | 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
-| 5 | `value-chosen-as-an-effect-resolves`, the first of `values-chosen-at-resolution` and 3 more | 10 of 14 landed | 10 | 4–6 | 14–16 |
+| 5 | `several-choosers-at-one-step`, the second and 2 more | 11 of 14 landed | 11 | 3–5 | 14–16 |
 | 6 | `linked-abilities` | to come | 0 | 3–4 | 3–4 |
 | 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 7–9 |
 | 8 | `information-model-design` and 1 more | to come | 0 | 4–7 | 4–7 |
@@ -63,7 +63,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
-| | **To v0.5** | **44 rows to come** | **19** | **73–135** | **92–154** |
+| | **To v0.5** | **43 rows to come** | **20** | **72–134** | **92–154** |
 
 No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.
@@ -82,7 +82,7 @@ row by naming it in a heading or in a sizing table's first cell, in bold.
 
 | Architecture doc | Rows landed | Closes with | Step |
 |---|---:|---|---:|
-| `choices-architecture.md` | 8 of 11 | `values-kept-past-the-resolution`, the third | 5 |
+| `choices-architecture.md` | 9 of 11 | `values-kept-past-the-resolution`, the third | 5 |
 | `cant-effects-architecture.md` | 0 of 5 | `combat-requirements` | 11 |
 | `cost-architecture.md` | 0 of 2 | `remaining-costs` | 14 |
 | `permission-architecture.md` | 0 of 3 | `casting-from-other-zones` | 15 |
@@ -200,6 +200,7 @@ is derived.
 | 2026-11-09 | The dev GUI asks for modes one at a time | `mode-picker` | `choices-architecture.md` |
 | 2026-11-13 | A cost paid as an effect resolves | `pay-as-an-effect-resolves` | `choices-architecture.md` |
 | 2026-11-14 | An object chosen and a division made as an effect resolves | `choose-as-an-effect-resolves` | `choices-architecture.md` |
+| 2026-11-15 | A value or objects chosen as an effect resolves, kept, and used | `value-chosen-as-an-effect-resolves` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -213,7 +214,6 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| A value or objects chosen as an effect resolves, kept, and used | `value-chosen-as-an-effect-resolves` | `choices-architecture.md` |
 | Votes, piles and a value each player chooses | `several-choosers-at-one-step` | `choices-architecture.md` |
 | A chosen value in an effect that outlasts the resolution | `values-kept-past-the-resolution` | `choices-architecture.md` |
 | Token copies | `token-copies` | `copy-effects-architecture.md` |
@@ -242,7 +242,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 235 |
 | …of them in `PERFORMANCE_POOL` | 129 |
-| `#[test]` functions | 3146 |
+| `#[test]` functions | 3153 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -263,14 +263,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 477 |
-| …closed, still recorded | 288 |
-| …open — unreachable, and says why | 130 |
+| Numbered items | 487 |
+| …closed, still recorded | 291 |
+| …open — unreachable, and says why | 134 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 33 |
+| …open — reachable, not wrong (perf, a name, a harness) | 35 |
 | …open — nothing to build, a record for a later phase | 19 |
-| **…open — reachability *not* stated** | **2** |
-| …open, carrying an explicit `**Sized:**` | 183 of 189 |
+| **…open — reachability *not* stated** | **3** |
+| …open, carrying an explicit `**Sized:**` | 190 of 196 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -284,7 +284,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 176 |
+| …slotted to a phase or roadmap row still to come | 183 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |
