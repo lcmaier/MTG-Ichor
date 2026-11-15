@@ -437,7 +437,7 @@ pub(super) fn compute_non_member_recorded(
                     if !reaches(note) {
                         continue;
                     }
-                    let mut players = FilterPlayers::for_noted_row(row, game, board, layer_index, you);
+                    let mut players = FilterPlayers::for_row_with_locked_you(row, game, board, layer_index, you);
                     let hit = object_matches_filter(filter, id, &chars, &mut players);
                     if hit {
                         matched.push(row.group());
@@ -584,8 +584,9 @@ pub(super) struct FilterPlayers<'a, 'l> {
 }
 
 impl<'a, 'l> FilterPlayers<'a, 'l> {
-    /// The players of a registry row's filter, resolved on first use.
-    pub(super) fn for_row(
+    /// The players of a registry row's filter, resolved on first use: "you"
+    /// is derived off the row as the pass applies it.
+    pub(super) fn for_row_deriving_you(
         effect: &'a ContinuousEffect,
         game: &'a GameState,
         board: &'a Board<'l>,
@@ -623,10 +624,10 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
     }
 
-    /// The players of a noted row, applied to a card the pass left out (§13e):
-    /// "you" is the one the pass read when it applied the row, and the owner is
-    /// derived as a row's is.
-    pub(super) fn for_noted_row(
+    /// The players of a row applied after the pass to a card it left out, off
+    /// the row's `RowNote`: "you" is locked, the one the pass read when it
+    /// applied the row, and the owner is derived as a row's is.
+    pub(super) fn for_row_with_locked_you(
         effect: &'a ContinuousEffect,
         game: &'a GameState,
         board: &'a Board<'l>,
@@ -764,7 +765,7 @@ fn resolve_set_controller(
 ) -> Option<PlayerId> {
     use crate::types::effects::PlayerRef;
 
-    let mut players = FilterPlayers::for_row(effect, game, board, layer_index);
+    let mut players = FilterPlayers::for_row_deriving_you(effect, game, board, layer_index);
 
     // CR 800.4b — "if an object would change to the control of a player who has
     // left the game, it doesn't". A rule, ahead of the row and not a condition
@@ -1008,7 +1009,7 @@ fn amount_players<'a, 'l>(
     layer_index: usize,
 ) -> FilterPlayers<'a, 'l> {
     match origin {
-        Some(row) => FilterPlayers::for_row(row, game, board, layer_index),
+        Some(row) => FilterPlayers::for_row_deriving_you(row, game, board, layer_index),
         None => FilterPlayers::for_source(object_id, game, board, layer_index, Some(chars.controller), None),
     }
 }
