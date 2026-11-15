@@ -1767,6 +1767,88 @@ mod instance_references {
         }
     }
 
+    /// A verb that acts on one player is written on a recipient that can name
+    /// one. A recipient that names only objects hands the verb nobody, and
+    /// it does nothing (`resolve::player_acted_on`). It once fell to the
+    /// controller, so a card written that way would have changed silently.
+    #[test]
+    fn every_player_verb_is_written_on_a_recipient_that_can_name_a_player() {
+        use crate::types::effects::{Primitive, SelectionFilter};
+
+        fn acts_on_one_player(primitive: &Primitive) -> bool {
+            matches!(
+                primitive,
+                Primitive::DrawCards(_)
+                    | Primitive::LoseLife(_)
+                    | Primitive::Mill(_)
+                    | Primitive::PutTopCardsIntoHand(_)
+                    | Primitive::Discard(..)
+                    | Primitive::Scry(_)
+                    | Primitive::GainLife(_)
+                    | Primitive::SetLifeTotal(_)
+                    | Primitive::LoseGame
+                    | Primitive::WinGame
+                    | Primitive::ExtraTurn
+                    | Primitive::CreateToken(..)
+                    | Primitive::GetCounters { .. }
+            )
+        }
+
+        fn can_name_a_player(recipient: &EffectRecipient, whole: &Effect) -> bool {
+            match recipient {
+                EffectRecipient::Implicit
+                | EffectRecipient::Controller
+                | EffectRecipient::TriggeringPlayer
+                | EffectRecipient::Referred
+                | EffectRecipient::DefendingPlayer(_)
+                | EffectRecipient::AttackedBy(_)
+                | EffectRecipient::EachOf(_) => true,
+                EffectRecipient::Target(filter, _) => matches!(filter.without_another(), SelectionFilter::Player(_) | SelectionFilter::Any),
+                EffectRecipient::SameInstanceAs(ix) => whole.instance(*ix).is_some_and(|clause| can_name_a_player(clause, whole)),
+                EffectRecipient::ThisObject
+                | EffectRecipient::Choose(..)
+                | EffectRecipient::Triggering(_)
+                | EffectRecipient::FilteredPermanents(_)
+                | EffectRecipient::FilteredObjectsIn(..)
+                | EffectRecipient::Host
+                | EffectRecipient::Group(_)
+                | EffectRecipient::ChosenBy(_) => false,
+            }
+        }
+
+        fn check(what: &str, effect: &Effect, verbs: &mut usize) {
+            if let Some(node) = effect.modal() {
+                for (place, mode) in node.indexed_modes() {
+                    check(&format!("{what}, mode {place}"), &mode.effect, verbs);
+                }
+                return;
+            }
+            for_each_atom(effect, &mut |primitive, recipient| {
+                if acts_on_one_player(primitive) {
+                    *verbs += 1;
+                    assert!(can_name_a_player(recipient, effect), "{what}: {primitive:?} acts on a player, and {recipient:?} names none");
+                }
+            });
+        }
+
+        let registry = CardRegistry::fixture_pool();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        let mut verbs = 0;
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            for (i, ability) in card.abilities.iter().enumerate() {
+                if ability.ability_type != crate::objects::card_data::AbilityType::Spell {
+                    check(&format!("{name} ability #{i}"), &ability.effect, &mut verbs);
+                }
+            }
+            if let Some(effect) = crate::objects::card_data::spell_effect(&card.abilities) {
+                check(&format!("{name} as a spell"), &effect, &mut verbs);
+            }
+        }
+        assert!(verbs > 0, "no registered card has a player verb, so this check reads nothing");
+    }
+
     /// A division's total has two homes: the clause carries it to the
     /// announcement (CR 601.2d) or to the choice made as the effect applies
     /// (608.2d), and the atom prints it. Nothing reads the atom's copy, so

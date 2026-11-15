@@ -862,7 +862,9 @@ impl GameState {
             // library mills what it has (CR 701.17b), every card taken before any moves.
             Primitive::Mill(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx, None)? as usize;
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player_id) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 let batch: Vec<GameAction> = self
                     .get_player(player_id)?
                     .top_of_library(count)
@@ -886,7 +888,9 @@ impl GameState {
             // library gives as many as there are and an empty one gives nothing.
             Primitive::PutTopCardsIntoHand(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx, None)? as usize;
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player_id) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 let batch: Vec<GameAction> = self
                     .get_player(player_id)?
                     .top_of_library(count)
@@ -910,7 +914,9 @@ impl GameState {
             // 701.9b's chooser: `Affected` asks the player, `AtRandom` reads `rng`.
             Primitive::Discard(amount_expr, chooser) => {
                 let count = self.evaluate_amount(amount_expr, ctx, None)? as usize;
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player_id) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 let hand = self.get_player(player_id)?.hand.clone();
                 let chosen = match chooser {
                     DiscardChooser::Affected => {
@@ -939,14 +945,18 @@ impl GameState {
             // CR 701.22 — the instruction, and the performer does the rest.
             Primitive::Scry(amount_expr) => {
                 let n = self.evaluate_amount(amount_expr, ctx, None)?;
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player_id) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 self.execute_action(GameAction::Scry { player: player_id, n }, &actx)?;
                 Ok(())
             }
 
             Primitive::GainLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx, None)?;
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player_id) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 self.execute_action(GameAction::GainLife {
                     player: player_id,
                     amount,
@@ -975,7 +985,9 @@ impl GameState {
             // non-event (CR 119.10) and a 0 loss a no-op.
             Primitive::SetLifeTotal(amount_expr) => {
                 let target = self.evaluate_amount(amount_expr, ctx, None)? as i64;
-                let player = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 let current = self.get_player(player)?.life_total;
                 if target > current {
                     self.execute_action(GameAction::GainLife {
@@ -998,7 +1010,9 @@ impl GameState {
             // one, exactly as for a state-based loss; a player who has
             // already left is gated here, as the SBA check gates them.
             Primitive::LoseGame => {
-                let player = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 if self.in_game(player) {
                     self.execute_action(
                         GameAction::PlayerLoses { player },
@@ -1008,7 +1022,9 @@ impl GameState {
                 Ok(())
             }
             Primitive::WinGame => {
-                let player = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 if self.in_game(player) {
                     self.execute_action(GameAction::PlayerWins { player }, &actx)?;
                 }
@@ -1075,7 +1091,9 @@ impl GameState {
             // what a skip replaces (CR 614.10a). Pushed, because "the most recently
             // created turn will be taken first".
             Primitive::ExtraTurn => {
-                let player = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 walk.extra_turn = Some(self.schedule_extra_turn(player));
                 Ok(())
             }
@@ -1441,7 +1459,9 @@ impl GameState {
             // (`replacement-architecture.md` §3.1).
             Primitive::CreateToken(token_def, amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx, None)?;
-                let controller = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(controller) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 // CR 800.4b — no token is created for a player who has left — and
                 // CR 800.4d's first sentence at the same line, since CR 111.2 makes the
                 // two rules name one player here. A rule checked ahead of the proposal,
@@ -1799,7 +1819,9 @@ impl GameState {
             // watches it through the one arm.
             Primitive::GetCounters { counter, amount, by } => {
                 let n = self.evaluate_amount(amount, ctx, None)? as u32;
-                let player = self.resolve_player_for_self(recipient, targets, ctx);
+                let Some(player) = self.player_acted_on(recipient, targets, ctx) else {
+                    return Ok(());
+                };
                 let by = self.player_the_instruction_names(by, targets, ctx, dp)?;
                 self.execute_action(
                     GameAction::AddCounters {
@@ -3444,7 +3466,7 @@ impl GameState {
 
     /// The players a player verb acts on: each of an `EachOf` group, which
     /// `players_in` put in the targets in APNAP order, or else the one the
-    /// recipient names.
+    /// recipient names, if it names one.
     fn each_player_acted_on(&self, recipient: &EffectRecipient, targets: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Vec<PlayerId> {
         match recipient {
             EffectRecipient::EachOf(_) => targets
@@ -3454,30 +3476,24 @@ impl GameState {
                     ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
-            _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
+            _ => self.player_acted_on(recipient, targets, ctx).into_iter().collect(),
         }
     }
 
-    fn resolve_player_for_self(
-        &self,
-        recipient: &EffectRecipient,
-        targets: &[ObjectOrPlayerId],
-        ctx: &ResolutionContext,
-    ) -> PlayerId {
+    /// The one player a player verb acts on, or nobody. "You" is the
+    /// controller. Every other recipient that names a player was found
+    /// before the verb, into `targets`, and a recipient that found none
+    /// names nobody: a target that went illegal is not affected (CR 608.2b),
+    /// a trigger's player may be unable to be found (CR 603.6), and a player
+    /// who has left the game is no one's (CR 800.4a). The verb then does
+    /// nothing; it never falls to the controller.
+    fn player_acted_on(&self, recipient: &EffectRecipient, targets: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Option<PlayerId> {
         match recipient {
-            EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
-            EffectRecipient::Target(SelectionFilter::Player(_), _)
-            | EffectRecipient::TriggeringPlayer
-            | EffectRecipient::Referred
-            | EffectRecipient::DefendingPlayer(_) => {
-                for t in targets {
-                    if let ObjectOrPlayerId::Player(pid) = t {
-                        return *pid;
-                    }
-                }
-                ctx.controller
-            }
-            _ => ctx.controller,
+            EffectRecipient::Implicit | EffectRecipient::Controller => Some(ctx.controller),
+            _ => targets.iter().find_map(|target| match target {
+                ObjectOrPlayerId::Player(player) if self.in_game(*player) => Some(*player),
+                _ => None,
+            }),
         }
     }
 }

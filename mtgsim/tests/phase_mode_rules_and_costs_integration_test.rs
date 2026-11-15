@@ -954,3 +954,34 @@ fn vindictive_lich_at_three_seats_offers_one_mode_or_two() {
     assert_eq!(game.players[2].hand.len(), 0, "player 2 discarded");
     assert_eq!(game.players[1].life_total, 15, "player 1, the one opponent left for the third mode, lost 5");
 }
+
+/// CR 608.2b — a mode whose targeted opponent has left the game does nothing
+/// to that target, and its verb is no one else's: the Lich's controller
+/// neither loses the life nor discards the cards. The other mode still acts
+/// on its own opponent. Two boards, the departed player's mode each way.
+#[test]
+fn vindictive_lich_does_nothing_to_its_controller_when_a_targeted_opponent_has_left() {
+    for discards in [1, 2] {
+        let loses_life = 3 - discards;
+        let mut game = lich_dies(3);
+        for seat in [0, 1, 2] {
+            for _ in 0..2 {
+                put_in_hand(&mut game, grizzly_bears(), seat);
+            }
+        }
+        let answers = ScriptedDecisionProvider::new();
+        chooses_modes(&answers, &[2, 3]);
+        names_targets(&answers, vec![ChoiceOption::Player(discards)]);
+        assert!(game.place_pending_triggers(&answers).expect("the trigger is placed"));
+        game.execute_action(mtgsim::engine::actions::GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
+
+        game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+        assert_eq!(game.players[0].life_total, 20, "board {discards}: a departed opponent's loss of life is no one's");
+        assert_eq!(game.players[0].hand.len(), 2, "board {discards}: a departed opponent's discard is no one's");
+        if discards == 2 {
+            assert_eq!(game.players[2].hand.len(), 0, "the opponent still here discards two");
+        } else {
+            assert_eq!(game.players[loses_life].life_total, 15, "the opponent still here loses 5");
+        }
+    }
+}

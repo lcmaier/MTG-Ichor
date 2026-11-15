@@ -1261,7 +1261,7 @@ pub enum EffectRecipient {
     /// what this variant carries.
     ///
     /// The atom resolves against the declaring instance's targets *and* its
-    /// recipient, so `resolve_player_for_self` and the filtered-sweep arms see
+    /// recipient, so `player_acted_on` and the filtered-sweep arms see
     /// what the declaring atom saw.
     ///
     /// **Named for how it reads at a call site.** `Instance(0)` says "this

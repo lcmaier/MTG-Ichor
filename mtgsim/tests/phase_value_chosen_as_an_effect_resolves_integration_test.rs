@@ -3,14 +3,62 @@
 //! object and compared, a player verb whose player is gone, and a value or
 //! objects chosen as an effect resolves, kept, and used.
 
-use mtgsim::cards::authoring::{power_at_least, power_at_most, toughness_at_least, toughness_at_most};
+use std::sync::Arc;
+
+use mtgsim::cards::authoring::{
+    creatures_you_control, draw_cards, power_at_least, power_at_most, put_counters, spell_ability, target_player, toughness_at_least,
+    toughness_at_most,
+};
+use mtgsim::cards::printings::grizzly_bears;
+use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer};
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_colors;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{forest, put_on_battlefield, setup_two_player_game, vanilla_creature};
+use mtgsim::test_support::{
+    fill_library, forest, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
+};
+use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{AmountExpr, Duration, ObjectFilter, ObjectSet, ObjectValue, ValueIs};
+use mtgsim::types::effects::{
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, ObjectValue, SelectionFilter, TargetCount, ValueIs,
+};
 use mtgsim::types::ids::ObjectId;
+use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
+
+// ---------------------------------------------------------------------------
+// The boards' tools
+// ---------------------------------------------------------------------------
+
+/// A one-mana sorcery of `color` whose text is `text` and whose effect is
+/// `effect`: what each fixture below is.
+fn sorcery(name: &str, color: (ManaType, Color), text: &'static str, effect: Effect) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .mana_cost(ManaCost::build(&[color.0], 0))
+        .color(color.1)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, effect))
+        .build()
+}
+
+/// `card` in player 0's hand, cast from a pool of exactly its one mana, with
+/// `answers` answering the cast. The spell's id, and the answers back.
+fn cast(game: &mut GameState, card: Arc<CardData>, mana: ManaType, answers: ScriptedDecisionProvider) -> (ObjectId, ScriptedDecisionProvider) {
+    let id = put_in_hand(game, card, 0);
+    game.players[0].mana_pool.add(mana, 1);
+    let seat = ManaWindowStop::new(answers);
+    game.cast_spell(0, id, &seat).expect("castable from exactly its cost");
+    (id, seat.into_inner())
+}
+
+/// The script's next answer to a choice of objects or players: `chosen`.
+fn picks(answers: &ScriptedDecisionProvider, chosen: Vec<ChoiceOption>) {
+    answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, chosen);
+}
 
 // ---------------------------------------------------------------------------
 // A number read off an object, and compared (`ObjectFilter::WithValue`)
@@ -85,4 +133,61 @@ fn an_object_with_no_such_number_is_neither_side_of_the_comparison() {
 #[should_panic(expected = "compares a number with an amount nothing read first")]
 fn an_amount_nothing_read_is_refused_loudly() {
     matched(power_at_least(AmountExpr::X));
+}
+
+// ---------------------------------------------------------------------------
+// A player verb whose player is gone (CR 608.2b, 800.4a)
+// ---------------------------------------------------------------------------
+
+/// **Fixture, modeled on Combat Tutorial**: "Target player draws two cards.
+/// Put a +1/+1 counter on up to one target creature you control." Two
+/// instances of "target" in one spell, the first a player a verb acts on.
+fn combat_tutorial_fixture() -> Arc<CardData> {
+    let text = "Target player draws two cards. Put a +1/+1 counter on up to one target creature you control.";
+    let up_to_one_creature = EffectRecipient::Target(SelectionFilter::Permanent(creatures_you_control()), TargetCount::UpTo(1));
+    sorcery(
+        "Fixture Combat Tutorial",
+        (ManaType::Blue, Color::Blue),
+        text,
+        Effect::Sequence(vec![draw_cards(target_player(), 2), put_counters(up_to_one_creature, CounterType::PlusOnePlusOne, 1)]),
+    )
+}
+
+/// CR 608.2b — the spell resolves for the target still legal and "won't
+/// affect" the one that is not: with its target player gone from the game,
+/// nobody draws. The draw fell to the spell's controller before.
+#[test]
+fn a_draw_whose_target_player_has_left_is_no_ones() {
+    let mut game = setup_game(3);
+    for seat in 0..3 {
+        fill_library(&mut game, seat, 5);
+    }
+    let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let answers = ScriptedDecisionProvider::new();
+    picks(&answers, vec![ChoiceOption::Player(1)]);
+    picks(&answers, vec![ChoiceOption::Object(bears)]);
+    cast(&mut game, combat_tutorial_fixture(), ManaType::Blue, answers);
+    game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves: one target is still legal");
+    assert_eq!(game.players[0].hand.len(), 0, "the departed player's draw is no one's");
+    assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 1, "the creature is still affected");
+}
+
+/// The same spell with its player still here: that player draws, and its
+/// controller does not.
+#[test]
+fn a_draw_goes_to_its_target_player() {
+    let mut game = setup_game(3);
+    for seat in 0..3 {
+        fill_library(&mut game, seat, 5);
+    }
+    // No creature to target, so "up to one" is none and is not asked.
+    let answers = ScriptedDecisionProvider::new();
+    picks(&answers, vec![ChoiceOption::Player(1)]);
+    cast(&mut game, combat_tutorial_fixture(), ManaType::Blue, answers);
+
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+    assert_eq!(game.players[1].hand.len(), 2);
+    assert_eq!(game.players[0].hand.len(), 0);
 }
