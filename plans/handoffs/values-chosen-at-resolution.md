@@ -22,8 +22,9 @@ deletes it. Every count and line below was read against `7f0e97ef`.
   card gives.
 - **At the third round (2026-11-15), decision 2 is settled: A**, every
   choice is a choose step. The owner asked why a name is text and not an
-  enum; decision 1 now proposes an enum for the name's type, awaiting the
-  owner. Decision 3 is open.
+  enum, and decision 1 proposed an enum for the name's type.
+- **At the fourth round (2026-11-15), the name is an enum** (the owner).
+  Decision 3 is open.
 
 ## The model: choose, keep, use
 
@@ -257,7 +258,6 @@ What the decisions below recommend, in one place.
 /// one spell or ability. Nearly every card keeps one thing of a kind, so
 /// the names are the kinds; a card that keeps two of a kind gets a second
 /// name here, with that card (Gluntch's second and third players).
-/// Proposed at the third round in place of a string; see decision 1.
 pub enum ChoiceName { Color, CreatureType, CardType, Number, Player, Objects }
 
 enum Primitive {
@@ -400,14 +400,15 @@ value, a short life. It reads at the call site (`chosen("spared")`), and it
 is the answer step 7's decision 3 took for "the sacrificed creature", named
 by its act and not by its cost's place, for the reason C fails here.
 
-**The name's type, asked at the third round (open).** The owner asked why
-the name is text and not an enum: a text key passed around feels brittle.
+**The name's type: settled, a closed enum** (the owner, at #330's fourth
+review round, 2026-11-15). The owner asked at the third round why the name
+is text and not an enum: a text key passed around feels brittle.
 
 - **Text**, `ChoiceName(&'static str)`, as A was first written. Each card
   makes up its own word (`"spared"`), with no engine change per card. A
   misspelled name is caught by the registry's test, not the compiler, and
   no tool finds a name's uses.
-- **A closed enum** (recommended), as under "The shapes". The names are the
+- **A closed enum** (taken), as under "The shapes". The names are the
   engine's list, starting with one per kind of thing chosen, which covers
   every card that keeps one thing of a kind. A card that keeps two of a
   kind at once gets a second named variant, added with that card; it is
