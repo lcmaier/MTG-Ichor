@@ -326,7 +326,7 @@ mod tests {
     use mtgsim::cards::printings::{forest, grizzly_bears};
     use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game};
     use mtgsim::types::effects::EffectRecipient;
-    use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+    use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
     use mtgsim::ui::decision::ScriptedDecisionProvider;
     use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -344,13 +344,13 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Red, 5);
         let answers = ScriptedDecisionProvider::new();
         let names_targets = |chosen| {
-            let kind = ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
+            let kind = DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED };
             answers.expect_choice(kind, chosen);
         };
-        names_targets(vec![ChoiceOption::Object(bears), ChoiceOption::Player(1)]);
-        names_targets(vec![ChoiceOption::Object(one), ChoiceOption::Object(other)]);
-        let shares = vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Player(1), 3)];
-        answers.expect_allocation(ChoiceKind::DivideAmong { source: ObjectId::UNASSIGNED }, shares);
+        names_targets(vec![DecisionOption::Object(bears), DecisionOption::Player(1)]);
+        names_targets(vec![DecisionOption::Object(one), DecisionOption::Object(other)]);
+        let shares = vec![(DecisionOption::Object(bears), 1), (DecisionOption::Player(1), 3)];
+        answers.expect_allocation(DecisionKind::DivideAmong { source: ObjectId::UNASSIGNED }, shares);
 
         game.cast_spell(0, opus, &ManaWindowStop::new(answers)).expect("castable from exactly its cost");
 

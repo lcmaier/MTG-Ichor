@@ -230,7 +230,7 @@ landed row's landed sentences.
 | A4h | ✅ 2026-09-17 (PR #159) — item 139, the retry re-ask's stale list, with item 41's fork test and item 150's fix |  | 1 |
 | A4b | ✅ 2026-09-17 (PR #160) — the rulings ledger, `plans/check_rulings.py`; the reading it queued is `rulings-for-every-card`'s |  | 1 + a sitting |
 | A4i | ✅ 2026-09-17 (PR #161, its audit #162) — CR 601.2c's instances of "target"; CR 601.2d split out as `divided-among-targets` |  | 1 |
-| A4j | ✅ 2026-09-18 (PR #168) — `ChoiceKind::subject()`, matched without a wildcard |  | 1 |
+| A4j | ✅ 2026-09-18 (PR #168) — `DecisionKind::subject()`, matched without a wildcard |  | 1 |
 | `divided-among-targets` | ✅ 2026-11-03 (PR #308) — **CR 601.2d, an effect divided among its targets**, as-built in `choices-architecture.md` | A second mechanism rather than a second clause, which is why A4i split it out; built inside `modes-plus-choice-kinds` since a division is one more choice kind, and three `tdc` cards divide | 1 |
 | A4m | ✅ 2026-09-18 (PR #165) — `EngineCounters` renamed `Diagnostics`, and `GameState.counters` `game.diagnostics` |  | 1 |
 | A4n | ✅ 2026-09-18 (PR #166) — the instance list computed once, in `CardDataBuilder::build`, and stored |  | 1 |
@@ -486,7 +486,7 @@ per-viewer query `information-model` delivers, sized in `backlog.md` §2.38 with
 questions: whether the engine runs in the browser as Wasm or natively on a
 host, and whether v1's four seats are four machines. A6g's dev GUI is its
 first measured slice. An AI API over the same four-method
-`DecisionProvider` that drives CLI, random and scripted play (`ChoiceContext`
+`DecisionProvider` that drives CLI, random and scripted play (`DecisionContext`
 is serde-serializable by design). The parallel-play harness: `fuzz_games`'
 worker pool already scales to ~6.7× on eight cores, and what is open is in
 `codebase-state.md` — the allocator question, the event-log window (main item
@@ -661,7 +661,7 @@ unchanged; the tax is why §2.1 leads the interleave.)*
 between XMage's function and Arena's polish; Wasm or a native host is open,
 `backlog.md` §2.38), an AI API over the same
 4-method `DecisionProvider` that drives CLI/Random/Scripted play
-(`ChoiceContext` is serde-serializable by design), parallel fuzz, and
+(`DecisionContext` is serde-serializable by design), parallel fuzz, and
 profile-driven performance work. **§2.9 is a prerequisite for both halves** —
 the GUI renders only what one player may see, and an AI observation must not
 leak a hidden zone. Network play is a stretch goal; `DraftEngine` for Limited

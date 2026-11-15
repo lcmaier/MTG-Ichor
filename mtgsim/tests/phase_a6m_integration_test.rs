@@ -33,7 +33,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -577,7 +577,7 @@ fn test_an_entry_copy_condition_a_noncreature_cannot_answer_is_no() {
     let relic = put_on_battlefield(&mut game, card_of_type("A6m Relic", CardType::Artifact), 0);
     let copier = put_in_graveyard(&mut game, small_artifact_copier(), 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: copier }, vec![ChoiceOption::Object(relic)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: copier }, vec![DecisionOption::Object(relic)]);
 
     game.change_zone(copier, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
 

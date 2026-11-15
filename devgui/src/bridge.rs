@@ -27,7 +27,7 @@ use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -406,8 +406,8 @@ impl DecisionProvider for GuiSeat {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         let question = OpenQuestion { player, context, options };
@@ -417,7 +417,7 @@ impl DecisionProvider for GuiSeat {
             // the window offers a stack yield only over a stack, the one the
             // seat refuses.
             Reply::Yield(until)
-                if matches!(context.kind, ChoiceKind::PriorityAction) && self.yields.set(game, until) =>
+                if matches!(context.kind, DecisionKind::PriorityAction) && self.yields.set(game, until) =>
             {
                 vec![pass_index(options)]
             }
@@ -425,7 +425,7 @@ impl DecisionProvider for GuiSeat {
         }
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         let question = OpenQuestion { player, context, options: &[] };
         match self.answer(game, question, Prompt::number(game, player, context, min, max)) {
             Answer::Number(number) => number,
@@ -437,9 +437,9 @@ impl DecisionProvider for GuiSeat {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -450,7 +450,7 @@ impl DecisionProvider for GuiSeat {
         }
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         match self.answer(game, OpenQuestion { player, context, options: items }, Prompt::order(game, player, context, items)) {
             Answer::Order(order) => order,
             other => panic!("a choose_ordering was answered with {other:?}"),
@@ -479,11 +479,11 @@ impl HandOver<'_> {
 }
 
 impl DecisionProvider for HandOver<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.seats().pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.seats().pick_number(game, player, context, min, max)
     }
 
@@ -491,16 +491,16 @@ impl DecisionProvider for HandOver<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.seats().allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.seats().choose_ordering(game, player, context, items)
     }
 
@@ -745,8 +745,8 @@ mod tests {
         let start = GameStart::Dealt { seed: 1, config: GameConfig::unrestricted(), decks: vec![Vec::new(); 2] };
         let record = Arc::new(Mutex::new(Record::create(Save::new(start.clone()), dir.join("seed-1.log")).unwrap()));
         let game = setup_two_player_game();
-        let options = [ChoiceOption::Action(PriorityAction::Pass)];
-        let pass = LoggedDecision { player: 0, kind: &ChoiceKind::PriorityAction, options: &options, answer: LoggedAnswer::Picks(&[0]), forced: true };
+        let options = [DecisionOption::Action(PriorityAction::Pass)];
+        let pass = LoggedDecision { player: 0, kind: &DecisionKind::PriorityAction, options: &options, answer: LoggedAnswer::Picks(&[0]), forced: true };
         let read = |path: PathBuf| std::fs::read_to_string(path).unwrap();
         let opening = decision_log::opening(&start).join("\n") + "\n";
         let answered = "answer 1 [turn 1, precombat main] player 0 PriorityAction forced picks pass\n";

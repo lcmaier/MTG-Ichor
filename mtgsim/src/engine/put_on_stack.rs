@@ -926,7 +926,7 @@ mod tests {
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+    use crate::ui::decision_types::{DecisionKind, DecisionOption};
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::test_support::lightning_bolt as make_bolt;
 
@@ -943,10 +943,10 @@ mod tests {
         game.active_player = 0;
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::SelectRecipients {
+        dp.expect_choice(DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![ChoiceOption::Player(1)]);
+        }, vec![DecisionOption::Player(1)]);
 
         (game, card_id, dp)
     }
@@ -1154,11 +1154,11 @@ mod tests {
         game.active_player = 0;
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
-        dp.expect_choice(ChoiceKind::SelectRecipients {
+        dp.expect_number(DecisionKind::ChooseXValue { spell_id: card_id, values: Box::new(crate::oracle::x_values::LegalXValues::zero_through(3)) }, 3);
+        dp.expect_choice(DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![ChoiceOption::Player(1)]);
+        }, vec![DecisionOption::Player(1)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
@@ -1189,10 +1189,10 @@ mod tests {
         // X = 0 is the one value `{R}` pays, so it is announced without a
         // prompt (`backlog.md` §2.22's rule 1): nothing is scripted for it.
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::SelectRecipients {
+        dp.expect_choice(DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![ChoiceOption::Player(1)]);
+        }, vec![DecisionOption::Player(1)]);
 
         game.cast_spell(0, card_id, &dp).unwrap();
 
@@ -1216,15 +1216,15 @@ mod tests {
 
         use crate::oracle::x_values::{LegalXValues, XOffer};
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_number(ChoiceKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
-        dp.expect_choice(ChoiceKind::SelectRecipients {
+        dp.expect_number(DecisionKind::ChooseXValue { spell_id: card_id, values: Box::new(LegalXValues::zero_through(1)) }, 1);
+        dp.expect_choice(DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
-        }, vec![ChoiceOption::Player(1)]);
+        }, vec![DecisionOption::Player(1)]);
 
         game.cast_spell(0, card_id, &dp).unwrap();
 
-        let ChoiceKind::ChooseXValue { values, .. } = &dp.asked()[0] else { panic!("X is asked first") };
+        let DecisionKind::ChooseXValue { values, .. } = &dp.asked()[0] else { panic!("X is asked first") };
         assert_eq!(values.offered, XOffer::Interval { at_least: 0, at_most: 1 });
         assert_eq!(game.stack_entries[&card_id].x_value, Some(1));
         assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
@@ -1249,7 +1249,7 @@ mod tests {
         game.active_player = 0;
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
+        dp.expect_choice(DecisionKind::ChooseAdditionalCosts { spell_id: card_id }, vec![DecisionOption::AdditionalCost(kicker)]);
 
         let result = game.cast_spell(0, card_id, &dp);
         assert!(result.is_err());
@@ -1286,7 +1286,7 @@ mod tests {
         game.active_player = 0;
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![ChoiceOption::AlternativeCost(pay_life)]);
+        dp.expect_choice(DecisionKind::ChooseAlternativeCost { spell_id: card_id }, vec![DecisionOption::AlternativeCost(pay_life)]);
 
         game.cast_spell(0, card_id, &dp).unwrap();
 
@@ -1322,7 +1322,7 @@ mod tests {
         game.active_player = 0;
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![ChoiceOption::AdditionalCost(kicker)]);
+        dp.expect_choice(DecisionKind::ChooseAdditionalCosts { spell_id: card_id }, vec![DecisionOption::AdditionalCost(kicker)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).

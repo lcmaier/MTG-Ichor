@@ -58,7 +58,7 @@ use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, TriggerEvent, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -112,11 +112,11 @@ fn counter(game: &mut GameState, spell: ObjectId, player: PlayerId) {
 
 /// `card` cast by `player` from exactly `pool`, each instance of "target"
 /// answered with the next of `targets`.
-fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)], targets: &[ChoiceOption]) -> ObjectId {
+fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)], targets: &[DecisionOption]) -> ObjectId {
     let aim = ScriptedDecisionProvider::new();
     for target in targets {
         aim.expect_choice(
-            ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+            DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
             vec![target.clone()],
         );
     }
@@ -223,7 +223,7 @@ fn a_spell_whose_targets_are_illegal_is_not_countered() {
     let mut game = setup_two_player_game();
     let presence = put_on_battlefield(&mut game, multanis_presence(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[ChoiceOption::Object(bears)]);
+    let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[DecisionOption::Object(bears)]);
     let by = mtgsim::types::ids::new_object_id();
     game.execute_action(GameAction::Destroy { object: bears }, &effect_ctx(&game, by)).unwrap();
 

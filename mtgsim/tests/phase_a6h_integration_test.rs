@@ -34,7 +34,7 @@ use mtgsim::ui::ask::{
     ask_choose_entering_defender, ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost,
     ask_choose_trample_damage_assignment, ask_choose_x_value, ask_discard, ask_select_recipients,
 };
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, EntryRole};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption, EntryRole};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 use mtgsim::ui::display::{format_event_log, format_record, log_lines};
 
@@ -83,10 +83,10 @@ fn a_reversed_cast_takes_back_what_it_answered_unasked() {
     let growth = put_in_hand(&mut game, giant_growth(), 0);
     place_forest(&mut game, 0);
     let dp = ScriptedDecisionProvider::new();
-    let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: growth, remaining_cost: ManaCost::zero() };
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(growth))]);
+    let window = DecisionKind::ManaAbilityWindow { spell_or_ability_id: growth, remaining_cost: ManaCost::zero() };
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(growth))]);
     dp.expect_choice(window, vec![]);
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
 
     game.run_priority_round(&dp).unwrap();
     assert!(game.players[0].hand.contains(&growth), "the cast was reversed");
@@ -225,7 +225,7 @@ fn a_choice_with_two_answers_is_asked_and_not_recorded() {
     let b = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let spell = put_in_hand(&mut game, card_of_type("Fixture Shape", CardType::Instant), 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: spell }, vec![ChoiceOption::Object(b)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: spell }, vec![DecisionOption::Object(b)]);
     assert_eq!(ask_choose_copy_source(&dp, &game, 0, spell, &[a, b]), b);
     assert!(not_asked(&game).is_empty());
 }

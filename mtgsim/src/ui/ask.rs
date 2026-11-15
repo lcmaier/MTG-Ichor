@@ -2,8 +2,8 @@
 //! `DecisionProvider` trait.
 //!
 //! Each function:
-//! 1. Constructs a `ChoiceContext` with the appropriate `ChoiceKind`
-//! 2. Packs options into `Vec<ChoiceOption>`
+//! 1. Constructs a `DecisionContext` with the appropriate `DecisionKind`
+//! 2. Packs options into `Vec<DecisionOption>`
 //! 3. Calls the appropriate DP primitive (`pick_n`, `pick_number`, `allocate`, `choose_ordering`)
 //! 4. Validates the response (bounds, count, sum, permutation)
 //! 5. Unpacks indices back into typed results
@@ -43,7 +43,7 @@ use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef,
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
-use super::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, CostPart, EntryOffer, EntryRole, Rejection};
+use super::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
@@ -119,8 +119,8 @@ fn pick_unless_forced(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
-    ctx: ChoiceContext,
-    options: &[ChoiceOption],
+    ctx: DecisionContext,
+    options: &[DecisionOption],
     bounds: (usize, usize),
     asking: &str,
 ) -> Vec<usize> {
@@ -142,9 +142,9 @@ fn allocate_unless_forced(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
-    ctx: ChoiceContext,
+    ctx: DecisionContext,
     total: u64,
-    buckets: &[ChoiceOption],
+    buckets: &[DecisionOption],
     per_bucket_mins: &[u64],
     per_bucket_maxs: Option<&[u64]>,
     asking: &str,
@@ -175,16 +175,16 @@ fn allocate_unless_forced(
 /// argument for the decision count and the same one for the record. The
 /// record is written before the checks so a bad answer is on the record
 /// beside the panic that names it. Its payload is item 141's rule
-/// rehearsed: the `ChoiceKind` variant and its subject, the options by id,
+/// rehearsed: the `DecisionKind` variant and its subject, the options by id,
 /// the bounds and the answer — never an engine AST.
 fn validate_pick_n(
     indices: &[usize],
-    options: &[ChoiceOption],
+    options: &[DecisionOption],
     bounds: (usize, usize),
     context_desc: &str,
     game: &GameState,
     player: PlayerId,
-    ctx: &ChoiceContext,
+    ctx: &DecisionContext,
 ) {
     game.trace(|| {
         let mut r = trace_records::decision("pick_n", player, ctx, options);
@@ -259,7 +259,7 @@ fn validate_pick_number(
     context_desc: &str,
     game: &GameState,
     player: PlayerId,
-    ctx: &ChoiceContext,
+    ctx: &DecisionContext,
 ) {
     game.trace(|| {
         let mut r = trace_records::decision("pick_number", player, ctx, &[]);
@@ -311,14 +311,14 @@ pub(crate) fn only_number(min: u64, max: u64) -> Option<u64> {
 /// each bucket >= its per-bucket minimum and <= its per-bucket maximum.
 fn validate_allocation(
     alloc: &[u64],
-    buckets: &[ChoiceOption],
+    buckets: &[DecisionOption],
     total: u64,
     per_bucket_mins: &[u64],
     per_bucket_maxs: Option<&[u64]>,
     context_desc: &str,
     game: &GameState,
     player: PlayerId,
-    ctx: &ChoiceContext,
+    ctx: &DecisionContext,
 ) {
     game.trace(|| {
         let mut r = trace_records::decision("allocate", player, ctx, buckets);
@@ -418,11 +418,11 @@ pub(crate) fn allocation_fits(alloc: &[u64], total: u64, per_bucket_mins: &[u64]
 /// "sequential" check is needed.
 fn validate_ordering(
     order: &[usize],
-    items: &[ChoiceOption],
+    items: &[DecisionOption],
     context_desc: &str,
     game: &GameState,
     player: PlayerId,
-    ctx: &ChoiceContext,
+    ctx: &DecisionContext,
 ) {
     game.trace(|| {
         let mut r = trace_records::decision("choose_ordering", player, ctx, items);
@@ -494,11 +494,11 @@ pub fn ask_choose_priority_action(
     legal_actions: &[PriorityAction],
     rejected: Option<Rejection>,
 ) -> PriorityAction {
-    let options: Vec<ChoiceOption> = legal_actions
+    let options: Vec<DecisionOption> = legal_actions
         .iter()
-        .map(|a| ChoiceOption::Action(a.clone()))
+        .map(|a| DecisionOption::Action(a.clone()))
         .collect();
-    let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction, rejected };
+    let ctx = DecisionContext { kind: DecisionKind::PriorityAction, rejected };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_priority_action", game, player, &ctx);
     // Item 138's split of the count above. `Pass` is always offered
@@ -526,12 +526,12 @@ pub fn ask_choose_attackers(
     if legal.is_empty() {
         return Vec::new();
     }
-    let options: Vec<ChoiceOption> = legal
+    let options: Vec<DecisionOption> = legal
         .iter()
-        .map(|&(id, t)| ChoiceOption::AttackerTarget(id, t))
+        .map(|&(id, t)| DecisionOption::AttackerTarget(id, t))
         .collect();
     let creatures = legal.iter().map(|&(creature, _)| creature).collect::<IdSet<ObjectId>>().len();
-    let ctx = ChoiceContext::new(ChoiceKind::DeclareAttackers);
+    let ctx = DecisionContext::new(DecisionKind::DeclareAttackers);
     let indices = dp.pick_n(game, player, &ctx, &options, (0, creatures));
     validate_pick_n(&indices, &options, (0, creatures), "choose_attackers", game, player, &ctx);
     if let Err(why) = attacks_fit(&indices, &options) {
@@ -543,7 +543,7 @@ pub fn ask_choose_attackers(
 /// Whether `indices` name each creature among `options` once. A creature
 /// attacks one thing (CR 802.3), so a declaration takes one pair per creature:
 /// this is the question's shape, as a repeated index is, and no rule to break.
-pub(crate) fn attacks_fit(indices: &[usize], options: &[ChoiceOption]) -> Result<(), String> {
+pub(crate) fn attacks_fit(indices: &[usize], options: &[DecisionOption]) -> Result<(), String> {
     for (place, &index) in indices.iter().enumerate() {
         let Some(creature) = options[index].attacker() else { continue };
         if indices[..place].iter().any(|&earlier| options[earlier].attacker() == Some(creature)) {
@@ -565,11 +565,11 @@ pub fn ask_choose_blockers(
     if legal.is_empty() {
         return Vec::new();
     }
-    let options: Vec<ChoiceOption> = legal
+    let options: Vec<DecisionOption> = legal
         .iter()
-        .map(|(blocker, attacker)| ChoiceOption::BlockerAttacker(*blocker, *attacker))
+        .map(|(blocker, attacker)| DecisionOption::BlockerAttacker(*blocker, *attacker))
         .collect();
-    let ctx = ChoiceContext { kind: ChoiceKind::DeclareBlockers, rejected };
+    let ctx = DecisionContext { kind: DecisionKind::DeclareBlockers, rejected };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
     validate_pick_n(&indices, &options, (0, legal.len()), "choose_blockers", game, player, &ctx);
     indices.iter().map(|&i| legal[i]).collect()
@@ -587,11 +587,11 @@ pub fn ask_choose_attacker_damage_assignment(
     blockers: &[ObjectId],
     power: u64,
 ) -> Vec<(ObjectId, u64)> {
-    let buckets: Vec<ChoiceOption> = blockers
+    let buckets: Vec<DecisionOption> = blockers
         .iter()
-        .map(|id| ChoiceOption::Object(*id))
+        .map(|id| DecisionOption::Object(*id))
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id });
+    let ctx = DecisionContext::new(DecisionKind::AssignCombatDamage { attacker_id });
     let mins = vec![0u64; buckets.len()];
     let alloc = allocate_unless_forced(dp, game, player, ctx, power, &buckets, &mins, None, "choose_attacker_damage_assignment");
     blockers
@@ -622,20 +622,20 @@ pub fn ask_choose_trample_damage_assignment(
     per_bucket_maxs: Option<&[u64]>,
 ) -> (Vec<(ObjectId, u64)>, u64) {
     // Buckets: one per blocker + one for the defending target (min 0)
-    let mut buckets: Vec<ChoiceOption> = blockers
+    let mut buckets: Vec<DecisionOption> = blockers
         .iter()
-        .map(|id| ChoiceOption::Object(*id))
+        .map(|id| DecisionOption::Object(*id))
         .collect();
     match &defending_target {
-        ObjectOrPlayerId::Player(pid) => buckets.push(ChoiceOption::Player(*pid)),
-        ObjectOrPlayerId::Object(oid) => buckets.push(ChoiceOption::Object(*oid)),
+        ObjectOrPlayerId::Player(pid) => buckets.push(DecisionOption::Player(*pid)),
+        ObjectOrPlayerId::Object(oid) => buckets.push(DecisionOption::Object(*oid)),
     }
 
     // Build per-bucket minimums: blocker mins + 0 for the defending target
     let mut mins: Vec<u64> = per_blocker_mins.to_vec();
     mins.push(0); // defending target has no minimum
 
-    let ctx = ChoiceContext::new(ChoiceKind::AssignTrampleDamage {
+    let ctx = DecisionContext::new(DecisionKind::AssignTrampleDamage {
         attacker_id,
         defending_target,
     });
@@ -671,8 +671,8 @@ pub fn ask_choose_modes(
     words: Vec<(ModeIndex, &'static str)>,
     mut groups: Vec<Vec<ModeIndex>>,
 ) -> Vec<ModeIndex> {
-    let options: Vec<ChoiceOption> = groups.iter().cloned().map(ChoiceOption::Modes).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseModes { source, words });
+    let options: Vec<DecisionOption> = groups.iter().cloned().map(DecisionOption::Modes).collect();
+    let ctx = DecisionContext::new(DecisionKind::ChooseModes { source, words });
     let picked = pick_unless_forced(dp, game, player, ctx, &options, (1, 1), "choose_modes");
     groups.swap_remove(picked[0])
 }
@@ -692,18 +692,18 @@ pub fn ask_choose_x_value(
     if values.offered.has_one_value() {
         let x = values.offered.at_least();
         game.note_unasked(player, Unasked::OneLegalAnswer, || {
-            (ChoiceKind::ChooseXValue { spell_id, values: Box::new(values) }, UnaskedAnswer::Number(x))
+            (DecisionKind::ChooseXValue { spell_id, values: Box::new(values) }, UnaskedAnswer::Number(x))
         });
         return x;
     }
     let offered = values.offered.clone();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, values: Box::new(values) });
+    let ctx = DecisionContext::new(DecisionKind::ChooseXValue { spell_id, values: Box::new(values) });
     pick_from_offer(dp, game, player, &ctx, offered, "choose_x_value")
 }
 
 /// One number of `offered`, asked as `ctx`: an interval is a `pick_number`;
 /// a set with a gap, which only a rule cuts, a `pick_n` over its numbers.
-fn pick_from_offer(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId, ctx: &ChoiceContext, offered: XOffer, asking: &str) -> u64 {
+fn pick_from_offer(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId, ctx: &DecisionContext, offered: XOffer, asking: &str) -> u64 {
     match offered {
         XOffer::Interval { at_least, at_most } => {
             let value = dp.pick_number(game, player, ctx, at_least, at_most);
@@ -711,7 +711,7 @@ fn pick_from_offer(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId
             value
         }
         XOffer::Set(values) => {
-            let options: Vec<ChoiceOption> = values.iter().map(|&x| ChoiceOption::Number(x)).collect();
+            let options: Vec<DecisionOption> = values.iter().map(|&x| DecisionOption::Number(x)).collect();
             let index = dp.pick_n(game, player, ctx, &options, (1, 1));
             validate_pick_n(&index, &options, (1, 1), asking, game, player, ctx);
             values[index[0]]
@@ -732,11 +732,11 @@ pub fn ask_choose_alternative_cost<'a>(
         return None;
     }
     // Options: index 0 = "pay normal cost", indices 1..=N = alt costs
-    let mut options: Vec<ChoiceOption> = vec![ChoiceOption::NormalCost];
+    let mut options: Vec<DecisionOption> = vec![DecisionOption::NormalCost];
     for cost in available.iter() {
-        options.push(ChoiceOption::AlternativeCost(cost.clone()));
+        options.push(DecisionOption::AlternativeCost(cost.clone()));
     }
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseAlternativeCost { spell_id });
+    let ctx = DecisionContext::new(DecisionKind::ChooseAlternativeCost { spell_id });
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_alternative_cost", game, player, &ctx);
     // Option 0 is the mana cost, and option i the alternative cost i − 1.
@@ -755,11 +755,11 @@ pub fn ask_choose_additional_costs(
     if available.is_empty() {
         return Vec::new();
     }
-    let options: Vec<ChoiceOption> = available
+    let options: Vec<DecisionOption> = available
         .iter()
-        .map(|cost| ChoiceOption::AdditionalCost(cost.clone()))
+        .map(|cost| DecisionOption::AdditionalCost(cost.clone()))
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseAdditionalCosts { spell_id });
+    let ctx = DecisionContext::new(DecisionKind::ChooseAdditionalCosts { spell_id });
     let indices = dp.pick_n(game, player, &ctx, &options, (0, available.len()));
     validate_pick_n(
         &indices,
@@ -791,7 +791,7 @@ pub fn ask_select_recipients(
         return Vec::new();
     }
     let options = recipient_options(legal_selections);
-    let ctx = ChoiceContext::new(ChoiceKind::SelectRecipients {
+    let ctx = DecisionContext::new(DecisionKind::SelectRecipients {
         recipient: recipient.clone(),
         spell_id,
     });
@@ -814,17 +814,17 @@ pub fn ask_divide_among(
     targets: &[ObjectOrPlayerId],
     total: u64,
 ) -> Vec<u64> {
-    let ctx = ChoiceContext::new(ChoiceKind::DivideAmong { source });
+    let ctx = DecisionContext::new(DecisionKind::DivideAmong { source });
     allocate_unless_forced(dp, game, player, ctx, total, &recipient_options(targets), &vec![1; targets.len()], None, "divide_among")
 }
 
 /// Each object or player as an option names it.
-fn recipient_options(recipients: &[ObjectOrPlayerId]) -> Vec<ChoiceOption> {
+fn recipient_options(recipients: &[ObjectOrPlayerId]) -> Vec<DecisionOption> {
     recipients
         .iter()
         .map(|recipient| match recipient {
-            ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
-            ObjectOrPlayerId::Player(id) => ChoiceOption::Player(*id),
+            ObjectOrPlayerId::Object(id) => DecisionOption::Object(*id),
+            ObjectOrPlayerId::Player(id) => DecisionOption::Player(*id),
         })
         .collect()
 }
@@ -838,9 +838,9 @@ fn recipient_options(recipients: &[ObjectOrPlayerId]) -> Vec<ChoiceOption> {
 /// means "activate this ability"; the engine applies it and re-enters the
 /// loop to re-check whether the pool now covers the cost.
 ///
-/// Options are presented as `ChoiceOption::Action(PriorityAction::ActivateAbility(...))`
+/// Options are presented as `DecisionOption::Action(PriorityAction::ActivateAbility(...))`
 /// so DPs that already pattern-match on `PriorityAction` reuse the same
-/// inspection path. The `ChoiceContext` carries the `spell_or_ability_id`
+/// inspection path. The `DecisionContext` carries the `spell_or_ability_id`
 /// being paid for and the `remaining_cost` after pool — middleware DPs
 /// (future AutoTapDP) use that to plan tap sequences.
 pub fn ask_activate_mana_ability(
@@ -854,13 +854,13 @@ pub fn ask_activate_mana_ability(
     if legal.is_empty() {
         return None;
     }
-    let options: Vec<ChoiceOption> = legal
+    let options: Vec<DecisionOption> = legal
         .iter()
         .map(|(perm_id, ab_id)| {
-            ChoiceOption::Action(PriorityAction::ActivateAbility(*perm_id, *ab_id))
+            DecisionOption::Action(PriorityAction::ActivateAbility(*perm_id, *ab_id))
         })
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+    let ctx = DecisionContext::new(DecisionKind::ManaAbilityWindow {
         spell_or_ability_id,
         remaining_cost: remaining_cost.clone(),
     });
@@ -887,7 +887,7 @@ pub fn ask_order_cost_reductions(
     sources: &[ObjectId],
 ) -> Vec<usize> {
     debug_assert!(sources.len() >= 2, "CR 601.2f: one reduction has no order to choose");
-    ask_order_of_objects(dp, game, player, ChoiceKind::OrderCostReductions { spell_id }, sources, "order_cost_reductions")
+    ask_order_of_objects(dp, game, player, DecisionKind::OrderCostReductions { spell_id }, sources, "order_cost_reductions")
 }
 
 /// An order of `objects`, each by what it is: the three orders over objects.
@@ -895,12 +895,12 @@ fn ask_order_of_objects(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
-    kind: ChoiceKind,
+    kind: DecisionKind,
     objects: &[ObjectId],
     context_desc: &str,
 ) -> Vec<usize> {
-    let options: Vec<ChoiceOption> = objects.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(kind);
+    let options: Vec<DecisionOption> = objects.iter().map(|id| DecisionOption::Object(*id)).collect();
+    let ctx = DecisionContext::new(kind);
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, context_desc, game, player, &ctx);
     order
@@ -918,8 +918,8 @@ pub fn ask_order_cost_payments(
     rejected: Option<Rejection>,
 ) -> Vec<usize> {
     debug_assert!(parts.len() >= 2, "CR 601.2h: one part has no order to choose");
-    let options: Vec<ChoiceOption> = parts.iter().cloned().map(ChoiceOption::CostPart).collect();
-    let ctx = ChoiceContext { kind: ChoiceKind::OrderCostPayments { spell_or_ability_id }, rejected };
+    let options: Vec<DecisionOption> = parts.iter().cloned().map(DecisionOption::CostPart).collect();
+    let ctx = DecisionContext { kind: DecisionKind::OrderCostPayments { spell_or_ability_id }, rejected };
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "order_cost_payments", game, player, &ctx);
     order
@@ -930,7 +930,7 @@ pub fn ask_order_cost_payments(
 /// `engine::simultaneous_timestamps` cannot show that every order agrees.
 pub fn ask_order_simultaneous_entries(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId, objects: &[ObjectId]) -> Vec<usize> {
     debug_assert!(objects.len() >= 2, "CR 613.7m: one object has no order to choose");
-    ask_order_of_objects(dp, game, player, ChoiceKind::OrderSimultaneousEntries { player }, objects, "order_simultaneous_entries")
+    ask_order_of_objects(dp, game, player, DecisionKind::OrderSimultaneousEntries { player }, objects, "order_simultaneous_entries")
 }
 
 /// CR 603.3b — the order a player puts their simultaneously triggered
@@ -945,11 +945,11 @@ pub fn ask_order_triggers(
     game: &GameState,
     player: PlayerId,
     tier: crate::types::triggers::TriggerTier,
-    triggers: Vec<crate::ui::choice_types::TriggerOption>,
+    triggers: Vec<crate::ui::decision_types::TriggerOption>,
 ) -> Vec<usize> {
     debug_assert!(triggers.len() >= 2, "CR 603.3b: one trigger has no order to choose");
-    let options: Vec<ChoiceOption> = triggers.into_iter().map(ChoiceOption::Trigger).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::OrderTriggers { player, tier });
+    let options: Vec<DecisionOption> = triggers.into_iter().map(DecisionOption::Trigger).collect();
+    let ctx = DecisionContext::new(DecisionKind::OrderTriggers { player, tier });
     let order = dp.choose_ordering(game, player, &ctx, &options);
     validate_ordering(&order, &options, "order_triggers", game, player, &ctx);
     order
@@ -990,11 +990,11 @@ pub fn ask_choose_generic_mana_allocation(
     if generic_count == 0 || available_types.is_empty() {
         return HashMap::new();
     }
-    let buckets: Vec<ChoiceOption> = available_types
+    let buckets: Vec<DecisionOption> = available_types
         .iter()
-        .map(|(mt, _)| ChoiceOption::ManaType(*mt))
+        .map(|(mt, _)| DecisionOption::ManaType(*mt))
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::GenericManaAllocation {
+    let ctx = DecisionContext::new(DecisionKind::GenericManaAllocation {
         spell_or_ability_id,
         mana_cost: mana_cost.clone(),
     });
@@ -1041,11 +1041,11 @@ pub fn ask_take_or_leave(
     game: &GameState,
     chooser: PlayerId,
     object: ObjectId,
-    kind: ChoiceKind,
+    kind: DecisionKind,
     asking: &str,
 ) -> bool {
-    let options = vec![ChoiceOption::Object(object)];
-    let ctx = ChoiceContext::new(kind);
+    let options = vec![DecisionOption::Object(object)];
+    let ctx = DecisionContext::new(kind);
     let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
     validate_pick_n(&picked, &options, (0, 1), asking, game, chooser, &ctx);
     !picked.is_empty()
@@ -1084,8 +1084,8 @@ pub fn ask_discard(
     if count == 0 {
         return Vec::new();
     }
-    let options: Vec<ChoiceOption> = hand.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::Discard { source });
+    let options: Vec<DecisionOption> = hand.iter().map(|id| DecisionOption::Object(*id)).collect();
+    let ctx = DecisionContext::new(DecisionKind::Discard { source });
     let mut picked = pick_unless_forced(dp, game, player, ctx, &options, (count, count), "discard");
     picked.sort();
     picked.into_iter().map(|i| hand[i]).collect()
@@ -1124,10 +1124,10 @@ pub fn ask_scry(
     if looked_at.is_empty() {
         return (Vec::new(), Vec::new());
     }
-    let options: Vec<ChoiceOption> =
-        looked_at.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let options: Vec<DecisionOption> =
+        looked_at.iter().map(|id| DecisionOption::Object(*id)).collect();
     let bounds = (0, looked_at.len());
-    let ctx = ChoiceContext::new(ChoiceKind::Scry { source, n });
+    let ctx = DecisionContext::new(DecisionKind::Scry { source, n });
     let to_bottom = dp.pick_n(game, player, &ctx, &options, bounds);
     validate_pick_n(&to_bottom, &options, bounds, "scry", game, player, &ctx);
 
@@ -1156,7 +1156,7 @@ fn order_scry_group(
     if group.len() < 2 {
         return group;
     }
-    let order = ask_order_of_objects(dp, game, player, ChoiceKind::OrderLibraryCards { source, bottom }, &group, "scry_order");
+    let order = ask_order_of_objects(dp, game, player, DecisionKind::OrderLibraryCards { source, bottom }, &group, "scry_order");
     order.into_iter().map(|i| group[i]).collect()
 }
 
@@ -1181,7 +1181,7 @@ pub fn ask_choose_replacement(
     game: &GameState,
     chooser: PlayerId,
     affected_object: Option<ObjectId>,
-    effects: Vec<crate::ui::choice_types::ReplacementOption>,
+    effects: Vec<crate::ui::decision_types::ReplacementOption>,
 ) -> usize {
     game.diagnostics.record_replacement_prompt();
     assert!(
@@ -1190,8 +1190,8 @@ pub fn ask_choose_replacement(
          applicable effects; called with {}",
         effects.len(),
     );
-    let options: Vec<ChoiceOption> = effects.into_iter().map(ChoiceOption::Replacement).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseReplacementEffect { affected_object });
+    let options: Vec<DecisionOption> = effects.into_iter().map(DecisionOption::Replacement).collect();
+    let ctx = DecisionContext::new(DecisionKind::ChooseReplacementEffect { affected_object });
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_replacement", game, chooser, &ctx);
     index[0]
@@ -1219,12 +1219,12 @@ pub fn ask_allocate_next_damage(
         "ask_allocate_next_damage: CR 615.7 chooses only among two or more sources; called with {}",
         buckets.len(),
     );
-    let options: Vec<ChoiceOption> =
-        buckets.iter().map(|(id, _)| ChoiceOption::Object(*id)).collect();
+    let options: Vec<DecisionOption> =
+        buckets.iter().map(|(id, _)| DecisionOption::Object(*id)).collect();
     let maxs: Vec<u64> = buckets.iter().map(|(_, amount)| *amount).collect();
     let mins = vec![0; buckets.len()];
     let total = remaining.min(maxs.iter().sum());
-    let ctx = ChoiceContext::new(ChoiceKind::AllocateNextDamage { source, remaining });
+    let ctx = DecisionContext::new(DecisionKind::AllocateNextDamage { source, remaining });
     allocate_unless_forced(dp, game, chooser, ctx, total, &options, &mins, Some(&maxs), "allocate_next_damage")
 }
 
@@ -1246,8 +1246,8 @@ pub fn ask_choose_player_as_object_enters(
     candidates: &[PlayerId],
 ) -> PlayerId {
     assert!(!candidates.is_empty(), "ask_choose_player_as_object_enters: no opponent to choose for {object}");
-    let options: Vec<ChoiceOption> = candidates.iter().map(|p| ChoiceOption::Player(*p)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChoosePlayerAsObjectEnters { object, source, role });
+    let options: Vec<DecisionOption> = candidates.iter().map(|p| DecisionOption::Player(*p)).collect();
+    let ctx = DecisionContext::new(DecisionKind::ChoosePlayerAsObjectEnters { object, source, role });
     let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_player_as_object_enters");
     candidates[index[0]]
 }
@@ -1263,7 +1263,7 @@ pub fn ask_accept_as_object_enters(
     source: ObjectId,
     offer: EntryOffer,
 ) -> bool {
-    let kind = ChoiceKind::AcceptAsObjectEnters { object, source, offer };
+    let kind = DecisionKind::AcceptAsObjectEnters { object, source, offer };
     ask_take_or_leave(dp, game, chooser, object, kind, "accept_as_object_enters")
 }
 
@@ -1278,7 +1278,7 @@ pub fn ask_pay_as_it_resolves(
     offer: Vec<Cost>,
     any_amount_of: Option<ManaCost>,
 ) -> bool {
-    let kind = ChoiceKind::PayAsItResolves { source, offer, any_amount_of };
+    let kind = DecisionKind::PayAsItResolves { source, offer, any_amount_of };
     ask_take_or_leave(dp, game, payer, source, kind, "pay_as_it_resolves")
 }
 
@@ -1294,7 +1294,7 @@ pub fn ask_choose_amount_to_pay(
     of: AmountOf,
     values: XOffer,
 ) -> u64 {
-    number_unless_forced(dp, game, payer, values, |values| ChoiceKind::ChooseAmountToPay { source, of, values }, "choose_amount_to_pay")
+    number_unless_forced(dp, game, payer, values, |values| DecisionKind::ChooseAmountToPay { source, of, values }, "choose_amount_to_pay")
 }
 
 /// One of `values`, asked of `player` as the question `asked_as` makes of
@@ -1304,7 +1304,7 @@ fn number_unless_forced(
     game: &GameState,
     player: PlayerId,
     values: XOffer,
-    asked_as: impl FnOnce(Box<XOffer>) -> ChoiceKind,
+    asked_as: impl FnOnce(Box<XOffer>) -> DecisionKind,
     asking: &str,
 ) -> u64 {
     if values.has_one_value() {
@@ -1312,7 +1312,7 @@ fn number_unless_forced(
         game.note_unasked(player, Unasked::OneLegalAnswer, || (asked_as(Box::new(values)), UnaskedAnswer::Number(only)));
         return only;
     }
-    let ctx = ChoiceContext::new(asked_as(Box::new(values.clone())));
+    let ctx = DecisionContext::new(asked_as(Box::new(values.clone())));
     pick_from_offer(dp, game, player, &ctx, values, asking)
 }
 
@@ -1323,13 +1323,13 @@ fn one_unless_forced<T: Copy>(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
-    kind: ChoiceKind,
+    kind: DecisionKind,
     candidates: &[T],
-    offered_as: fn(T) -> ChoiceOption,
+    offered_as: fn(T) -> DecisionOption,
     asking: &str,
 ) -> T {
-    let options: Vec<ChoiceOption> = candidates.iter().map(|candidate| offered_as(*candidate)).collect();
-    let index = pick_unless_forced(dp, game, chooser, ChoiceContext::new(kind), &options, (1, 1), asking);
+    let options: Vec<DecisionOption> = candidates.iter().map(|candidate| offered_as(*candidate)).collect();
+    let index = pick_unless_forced(dp, game, chooser, DecisionContext::new(kind), &options, (1, 1), asking);
     candidates[index[0]]
 }
 
@@ -1343,20 +1343,20 @@ pub fn ask_choose_player(
     source: ObjectId,
     candidates: &[PlayerId],
 ) -> PlayerId {
-    one_unless_forced(dp, game, chooser, ChoiceKind::ChoosePlayer { source }, candidates, ChoiceOption::Player, "choose_player")
+    one_unless_forced(dp, game, chooser, DecisionKind::ChoosePlayer { source }, candidates, DecisionOption::Player, "choose_player")
 }
 
 /// CR 608.2d, 105.4 — choose one of the five colors as `source`'s
 /// instruction applies.
 pub fn ask_choose_color(dp: &dyn DecisionProvider, game: &GameState, chooser: PlayerId, source: ObjectId) -> Color {
-    one_unless_forced(dp, game, chooser, ChoiceKind::ChooseColor { source }, &Color::ALL, ChoiceOption::Color, "choose_color")
+    one_unless_forced(dp, game, chooser, DecisionKind::ChooseColor { source }, &Color::ALL, DecisionOption::Color, "choose_color")
 }
 
 /// CR 608.2d, 205.3m — choose a creature type as `source`'s instruction
 /// applies, among the rule's list.
 pub fn ask_choose_creature_type(dp: &dyn DecisionProvider, game: &GameState, chooser: PlayerId, source: ObjectId) -> CreatureType {
-    let kind = ChoiceKind::ChooseCreatureType { source };
-    one_unless_forced(dp, game, chooser, kind, &CreatureType::ALL, ChoiceOption::CreatureType, "choose_creature_type")
+    let kind = DecisionKind::ChooseCreatureType { source };
+    one_unless_forced(dp, game, chooser, kind, &CreatureType::ALL, DecisionOption::CreatureType, "choose_creature_type")
 }
 
 /// CR 608.2d, 205.2a — choose one of `candidates`, the card types the
@@ -1368,13 +1368,13 @@ pub fn ask_choose_card_type(
     source: ObjectId,
     candidates: &[CardType],
 ) -> CardType {
-    one_unless_forced(dp, game, chooser, ChoiceKind::ChooseCardType { source }, candidates, ChoiceOption::CardType, "choose_card_type")
+    one_unless_forced(dp, game, chooser, DecisionKind::ChooseCardType { source }, candidates, DecisionOption::CardType, "choose_card_type")
 }
 
 /// CR 608.2d — choose a number among `values` as `source`'s instruction
 /// applies, asked as an X is.
 pub fn ask_choose_number(dp: &dyn DecisionProvider, game: &GameState, chooser: PlayerId, source: ObjectId, values: XOffer) -> u64 {
-    number_unless_forced(dp, game, chooser, values, |values| ChoiceKind::ChooseNumber { source, values }, "choose_number")
+    number_unless_forced(dp, game, chooser, values, |values| DecisionKind::ChooseNumber { source, values }, "choose_number")
 }
 
 /// CR 508.4 — choose what a permanent put onto the battlefield attacking
@@ -1390,14 +1390,14 @@ pub fn ask_choose_entering_defender(
     candidates: &[AttackTarget],
 ) -> AttackTarget {
     assert!(!candidates.is_empty(), "ask_choose_entering_defender: nothing for {object} to attack");
-    let options: Vec<ChoiceOption> = candidates
+    let options: Vec<DecisionOption> = candidates
         .iter()
         .map(|&target| match target {
-            AttackTarget::Player(player) => ChoiceOption::Player(player),
-            AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => ChoiceOption::Object(id),
+            AttackTarget::Player(player) => DecisionOption::Player(player),
+            AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => DecisionOption::Object(id),
         })
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseEnteringDefender { object });
+    let ctx = DecisionContext::new(DecisionKind::ChooseEnteringDefender { object });
     let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_entering_defender");
     candidates[index[0]]
 }
@@ -1433,9 +1433,9 @@ pub fn ask_choose_auxiliary_zone_change(
         "ask_choose_auxiliary_zone_change: nothing to choose from for {}",
         entering,
     );
-    let options: Vec<ChoiceOption> =
-        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to });
+    let options: Vec<DecisionOption> =
+        candidates.iter().map(|id| DecisionOption::Object(*id)).collect();
+    let ctx = DecisionContext::new(DecisionKind::ChooseAuxiliaryZoneChange { entering, source, to });
     let indices = dp.pick_n(game, chooser, &ctx, &options, (0, max));
     validate_pick_n(&indices, &options, (0, max), "choose_auxiliary_zone_change", game, chooser, &ctx);
     // Sorted, so the batch is built in candidate order however the provider
@@ -1485,9 +1485,9 @@ fn pick_copy_source(
     candidates: &[ObjectId],
     bounds: (usize, usize),
 ) -> Vec<usize> {
-    let options: Vec<ChoiceOption> =
-        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseCopySource { source });
+    let options: Vec<DecisionOption> =
+        candidates.iter().map(|id| DecisionOption::Object(*id)).collect();
+    let ctx = DecisionContext::new(DecisionKind::ChooseCopySource { source });
     pick_unless_forced(dp, game, chooser, ctx, &options, bounds, "choose_copy_source")
 }
 
@@ -1508,14 +1508,14 @@ pub fn ask_choose_damage_source(
     candidates: &[ObjectRef],
 ) -> ObjectRef {
     assert!(!candidates.is_empty(), "ask_choose_damage_source: no source of damage to choose for {source}");
-    let options: Vec<ChoiceOption> = candidates
+    let options: Vec<DecisionOption> = candidates
         .iter()
         .map(|&object| match game.find(object).is_some() {
-            true => ChoiceOption::Object(object.id),
-            false => ChoiceOption::LastKnown(object),
+            true => DecisionOption::Object(object.id),
+            false => DecisionOption::LastKnown(object),
         })
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseDamageSource { source });
+    let ctx = DecisionContext::new(DecisionKind::ChooseDamageSource { source });
     let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_damage_source");
     candidates[index[0]]
 }
@@ -1533,14 +1533,14 @@ pub fn ask_choose_delayed_trigger_event(
     game: &GameState,
     chooser: PlayerId,
     source: ObjectId,
-    options: &[ChoiceOption],
+    options: &[DecisionOption],
 ) -> usize {
     assert!(
         options.len() >= 2,
         "ask_choose_delayed_trigger_event: a choice needs two or more events; called with {}",
         options.len(),
     );
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseDelayedTriggerEvent { source });
+    let ctx = DecisionContext::new(DecisionKind::ChooseDelayedTriggerEvent { source });
     let index = dp.pick_n(game, chooser, &ctx, options, (1, 1));
     validate_pick_n(&index, options, (1, 1), "choose_delayed_trigger_event", game, chooser, &ctx);
     index[0]
@@ -1569,9 +1569,9 @@ pub fn ask_choose_sacrifice_for_cost(
         candidates.len(),
         n,
     );
-    let options: Vec<ChoiceOption> =
-        candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext::new(ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count });
+    let options: Vec<DecisionOption> =
+        candidates.iter().map(|id| DecisionOption::Object(*id)).collect();
+    let ctx = DecisionContext::new(DecisionKind::ChooseSacrificeForCost { spell_or_ability_id, count });
     let picks = pick_unless_forced(dp, game, player, ctx, &options, (n, n), "choose_sacrifice_for_cost");
     picks.into_iter().map(|i| candidates[i]).collect()
 }
@@ -1588,11 +1588,11 @@ pub fn ask_choose_legend_to_keep(
         !legendaries.is_empty(),
         "ask_choose_legend_to_keep: no legendaries provided"
     );
-    let options: Vec<ChoiceOption> = legendaries
+    let options: Vec<DecisionOption> = legendaries
         .iter()
-        .map(|id| ChoiceOption::Object(*id))
+        .map(|id| DecisionOption::Object(*id))
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::LegendRule {
+    let ctx = DecisionContext::new(DecisionKind::LegendRule {
         legend_name: legend_name.to_string(),
     });
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
@@ -1621,7 +1621,7 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let land = crate::types::ids::new_object_id();
-        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(land))]);
+        dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::PlayLand(land))]);
 
         let actions = vec![PriorityAction::Pass, PriorityAction::PlayLand(land)];
         let result = ask_choose_priority_action(&dp, &game, 0, &actions, None);
@@ -1636,7 +1636,7 @@ mod tests {
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
         dp.expect_number(
-            ChoiceKind::ChooseXValue { spell_id, values: Box::new(LegalXValues::zero_through(5)) },
+            DecisionKind::ChooseXValue { spell_id, values: Box::new(LegalXValues::zero_through(5)) },
             5,
         );
         let result = ask_choose_x_value(&dp, &game, 0, spell_id, LegalXValues::zero_through(5));
@@ -1666,8 +1666,8 @@ mod tests {
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
         dp.expect_allocation(
-            ChoiceKind::AssignCombatDamage { attacker_id: id_a },
-            vec![(ChoiceOption::Object(id_a), 2), (ChoiceOption::Object(id_b), 1)],
+            DecisionKind::AssignCombatDamage { attacker_id: id_a },
+            vec![(DecisionOption::Object(id_a), 2), (DecisionOption::Object(id_b), 1)],
         );
         let result = ask_choose_attacker_damage_assignment(&dp, &game, 0, id_a, &[id_a, id_b], 3);
         assert_eq!(result, vec![(id_a, 2), (id_b, 1)]);
@@ -1685,11 +1685,11 @@ mod tests {
         // 5 power, blocker A needs 2 lethal, blocker B needs 1 lethal
         // DP assigns: 2 to A, 1 to B, 2 overflow to player
         dp.expect_allocation(
-            ChoiceKind::AssignTrampleDamage {
+            DecisionKind::AssignTrampleDamage {
                 attacker_id: attacker,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![(ChoiceOption::Object(blocker_a), 2), (ChoiceOption::Object(blocker_b), 1), (ChoiceOption::Player(1), 2)],
+            vec![(DecisionOption::Object(blocker_a), 2), (DecisionOption::Object(blocker_b), 1), (DecisionOption::Player(1), 2)],
         );
         let (blockers, overflow) = ask_choose_trample_damage_assignment(
             &dp, &game, 0, attacker,
@@ -1712,11 +1712,11 @@ mod tests {
         let blocker = crate::types::ids::new_object_id();
         // DP violates: assigns only 1 to blocker that needs 2 lethal
         dp.expect_allocation(
-            ChoiceKind::AssignTrampleDamage {
+            DecisionKind::AssignTrampleDamage {
                 attacker_id: attacker,
                 defending_target: ObjectOrPlayerId::Player(1),
             },
-            vec![(ChoiceOption::Object(blocker), 1), (ChoiceOption::Player(1), 4)],
+            vec![(DecisionOption::Object(blocker), 1), (DecisionOption::Player(1), 4)],
         );
         let _ = ask_choose_trample_damage_assignment(
             &dp, &game, 0, attacker,
@@ -1838,10 +1838,10 @@ mod tests {
         let id_b = crate::types::ids::new_object_id();
 
         dp.expect_choice(
-            ChoiceKind::DeclareAttackers,
+            DecisionKind::DeclareAttackers,
             vec![
-                ChoiceOption::AttackerTarget(id_a, AttackTarget::Player(1)),
-                ChoiceOption::AttackerTarget(id_b, AttackTarget::Player(1)),
+                DecisionOption::AttackerTarget(id_a, AttackTarget::Player(1)),
+                DecisionOption::AttackerTarget(id_b, AttackTarget::Player(1)),
             ],
         );
         let legal = vec![
@@ -1862,7 +1862,7 @@ mod tests {
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
         dp.expect_number(
-            ChoiceKind::ChooseXValue { spell_id, values: Box::new(LegalXValues::zero_through(3)) },
+            DecisionKind::ChooseXValue { spell_id, values: Box::new(LegalXValues::zero_through(3)) },
             3,
         );
         let result = ask_choose_x_value(&dp, &game, 0, spell_id, LegalXValues::zero_through(3));
@@ -1884,8 +1884,8 @@ mod tests {
         let game = test_game_state();
         let land = crate::types::ids::new_object_id();
         dp.expect_choice(
-            ChoiceKind::PriorityAction,
-            vec![ChoiceOption::Action(PriorityAction::Pass), ChoiceOption::Action(PriorityAction::PlayLand(land))],
+            DecisionKind::PriorityAction,
+            vec![DecisionOption::Action(PriorityAction::Pass), DecisionOption::Action(PriorityAction::PlayLand(land))],
         );
         let actions = vec![PriorityAction::Pass, PriorityAction::PlayLand(land)];
         let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
@@ -1899,8 +1899,8 @@ mod tests {
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
         dp.expect_allocation(
-            ChoiceKind::AssignCombatDamage { attacker_id: id_a },
-            vec![(ChoiceOption::Object(id_a), 2), (ChoiceOption::Object(id_b), 2)],
+            DecisionKind::AssignCombatDamage { attacker_id: id_a },
+            vec![(DecisionOption::Object(id_a), 2), (DecisionOption::Object(id_b), 2)],
         );
         let _ = ask_choose_attacker_damage_assignment(&dp, &game, 0, id_a, &[id_a, id_b], 3);
     }
@@ -1912,7 +1912,7 @@ mod tests {
     fn test_scripted_wrong_kind_panics() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
-        dp.expect_choice(ChoiceKind::DeclareAttackers, vec![]);
+        dp.expect_choice(DecisionKind::DeclareAttackers, vec![]);
         // Engine asks for PriorityAction but we expected DeclareAttackers
         let actions = vec![PriorityAction::Pass];
         let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
@@ -1924,8 +1924,8 @@ mod tests {
     #[should_panic(expected = "unconsumed expectation")]
     fn test_scripted_unconsumed_panics() {
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
-        dp.expect_choice(ChoiceKind::DeclareAttackers, vec![]);
+        dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(DecisionKind::DeclareAttackers, vec![]);
         // Only consume one
         let game = test_game_state();
         let actions = vec![PriorityAction::Pass];
@@ -1955,8 +1955,8 @@ mod tests {
 
         // Player 0 passes, and player 1 plays the land
         let land = crate::types::ids::new_object_id();
-        dp0.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
-        dp1.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(land))]);
+        dp0.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
+        dp1.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::PlayLand(land))]);
 
         let dispatch = DispatchDecisionProvider::new(vec![
             Box::new(dp0),
@@ -1981,11 +1981,11 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext::new(ChoiceKind::DeclareAttackers);
+        let ctx = DecisionContext::new(DecisionKind::DeclareAttackers);
         let options = vec![
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
         ];
 
         // Run multiple times to exercise random selection
@@ -2014,10 +2014,10 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction);
         let options = vec![
-            ChoiceOption::Action(PriorityAction::Pass),
-            ChoiceOption::Action(PriorityAction::Pass),
+            DecisionOption::Action(PriorityAction::Pass),
+            DecisionOption::Action(PriorityAction::Pass),
         ];
 
         // When bounds are (1,1), always returns exactly 1
@@ -2057,7 +2057,7 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
-        dp.expect_number(ChoiceKind::ChooseXValue { spell_id, values: Box::new(tamiyo()) }, 4);
+        dp.expect_number(DecisionKind::ChooseXValue { spell_id, values: Box::new(tamiyo()) }, 4);
         assert_eq!(ask_choose_x_value(&dp, &game, 0, spell_id, tamiyo()), 4);
     }
 
@@ -2088,7 +2088,7 @@ mod tests {
             player: 0,
             kind: "ChooseXValue".to_string(),
             forced: false,
-            chosen: Chosen::Picks(vec![ChoiceOption::Number(6).as_logged(&game)]),
+            chosen: Chosen::Picks(vec![DecisionOption::Number(6).as_logged(&game)]),
         };
         let replay = crate::ui::replay::Replay::new(vec![line]);
         assert_eq!(ask_choose_x_value(&replay, &game, 0, spell_id, tamiyo()), 6);
@@ -2102,12 +2102,12 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage {
+        let ctx = DecisionContext::new(DecisionKind::AssignCombatDamage {
             attacker_id: crate::types::ids::new_object_id(),
         });
         let buckets = vec![
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
         ];
         let mins = vec![0, 0];
 
@@ -2125,13 +2125,13 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext::new(ChoiceKind::AssignTrampleDamage {
+        let ctx = DecisionContext::new(DecisionKind::AssignTrampleDamage {
             attacker_id: crate::types::ids::new_object_id(),
             defending_target: crate::types::ids::ObjectOrPlayerId::Player(1),
         });
         let buckets = vec![
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Player(1),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Player(1),
         ];
         let mins = vec![3, 0]; // First bucket needs at least 3
 
@@ -2273,10 +2273,10 @@ mod tests {
             let n: usize = seeded.random_range(1..=8);
             let lo: usize = seeded.random_range(0..=n);
             let hi: usize = seeded.random_range(lo..=n);
-            let options: Vec<ChoiceOption> = (0..n)
-                .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
+            let options: Vec<DecisionOption> = (0..n)
+                .map(|_| DecisionOption::Object(crate::types::ids::new_object_id()))
                 .collect();
-            let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+            let ctx = DecisionContext::new(DecisionKind::PriorityAction);
             let result = dp.pick_n(&game, 0, &ctx, &options, (lo, hi));
 
             // Contract: length within bounds, indices in range, no duplicates
@@ -2302,9 +2302,9 @@ mod tests {
         let game = test_game_state();
         let mut seeded = StdRng::seed_from_u64(0xCAFE_F00D);
 
-        // Use a non-X ChoiceKind so pick_number uses the general branch (not
+        // Use a non-X DecisionKind so pick_number uses the general branch (not
         // the X-value self-limiting branch which clamps to game state).
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction);
 
         for _ in 0..200 {
             let min: u64 = seeded.random_range(0..=50);
@@ -2344,10 +2344,10 @@ mod tests {
             let total: u64 = if min_sum == max_sum { min_sum }
                 else { seeded.random_range(min_sum..=max_sum) };
 
-            let buckets: Vec<ChoiceOption> = (0..n)
-                .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
+            let buckets: Vec<DecisionOption> = (0..n)
+                .map(|_| DecisionOption::Object(crate::types::ids::new_object_id()))
                 .collect();
-            let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage {
+            let ctx = DecisionContext::new(DecisionKind::AssignCombatDamage {
                 attacker_id: crate::types::ids::new_object_id(),
             });
             let alloc = dp.allocate(&game, 0, &ctx, total, &buckets, &mins, Some(&maxs));
@@ -2373,12 +2373,12 @@ mod tests {
         let game = test_game_state();
         let mut seeded = StdRng::seed_from_u64(0xFACE_B00C);
 
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction);
 
         for _ in 0..200 {
             let n: usize = seeded.random_range(0..=10);
-            let items: Vec<ChoiceOption> = (0..n)
-                .map(|_| ChoiceOption::Object(crate::types::ids::new_object_id()))
+            let items: Vec<DecisionOption> = (0..n)
+                .map(|_| DecisionOption::Object(crate::types::ids::new_object_id()))
                 .collect();
             let order = dp.choose_ordering(&game, 0, &ctx, &items);
             assert_eq!(order.len(), n, "ordering length mismatch");
@@ -2398,11 +2398,11 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
 
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction); // placeholder kind
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction); // placeholder kind
         let items = vec![
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
-            ChoiceOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
+            DecisionOption::Object(crate::types::ids::new_object_id()),
         ];
 
         for _ in 0..20 {

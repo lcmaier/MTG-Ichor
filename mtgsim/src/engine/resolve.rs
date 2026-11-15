@@ -39,7 +39,7 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
-use crate::ui::choice_types::{AmountOf, ChoiceKind};
+use crate::ui::decision_types::{AmountOf, DecisionKind};
 use crate::ui::decision::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -455,7 +455,7 @@ impl GameState {
                     return Ok(());
                 }
                 let chooser = self.player_the_instruction_names(chooser, &[], ctx, dp)?;
-                let kind = ChoiceKind::ApplyOptionalEffect { source: ctx.source };
+                let kind = DecisionKind::ApplyOptionalEffect { source: ctx.source };
                 if !crate::ui::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
                     // Its targets were announced all the same, so the instances
                     // after it are read past them.
@@ -2953,7 +2953,7 @@ impl GameState {
     /// what a row it makes keeps. `None` for a spell.
     fn text_of_the_ability_resolving(&self, ctx: &ResolutionContext) -> Option<&'static str> {
         let identity = self.resolving.as_ref().filter(|resolving| resolving.id == ctx.source)?.identity?;
-        crate::ui::choice_types::ability_as_read(self, identity.source.id, identity.ability).text()
+        crate::ui::decision_types::ability_as_read(self, identity.source.id, identity.ability).text()
     }
 
     /// The permanents among what an atom acts on, those on the battlefield

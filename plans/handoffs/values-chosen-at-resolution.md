@@ -618,7 +618,7 @@ of 1.06 times the top, 0.53–1.70), so no ratio goes on these.
 
 | Piece | Code | Tests |
 |---|---:|---:|
-| The kinds: `ChooseColor`, `ChooseCreatureType`, `ChooseCardType`, `ChooseNumber`, and `ChooseOpponent` widened to `ChoosePlayer`; `ChoiceOption::CreatureType` and `CardType`; each with its subject, `as_str`, question, option label, why, setup line, decision-log text and replay; `ui::ask`; the random agent | 140–220 | 50–90 |
+| The kinds: `ChooseColor`, `ChooseCreatureType`, `ChooseCardType`, `ChooseNumber`, and `ChooseOpponent` widened to `ChoosePlayer`; `DecisionOption::CreatureType` and `CardType`; each with its subject, `as_str`, question, option label, why, setup line, decision-log text and replay; `ui::ask`; the random agent | 140–220 | 50–90 |
 | The choose step: `ChooseValue`, `ValueChoice`, `ChosenHow`; each kind's options (the five colors, CR 205.3m's list with its missing fifteen, the card types or a printed few, a number's range, a player set, an object filter) and at random | 170–260 | 100–170 |
 | Decision 1: the list on the resolving record, names, the lookups, `Remember`'s note, the chain, the registry's checks | 70–120 | 60–100 |
 | Decision 2: the object choice behind the step; Final Showdown, Feast and #326's fixtures rewritten | 60–110 | 40–80 |
@@ -694,11 +694,11 @@ options; the dev GUI words each now.
 
 | Kind | Options | Asked by |
 |---|---|---|
-| `ChooseColor { source }` | `ChoiceOption::Color`, the five (CR 105.4) | `pick_n` |
-| `ChooseCreatureType { source }` | `ChoiceOption::CreatureType`, CR 205.3m's list | `pick_n` |
-| `ChooseCardType { source }` | `ChoiceOption::CardType`, CR 205.2a's or a printed few | `pick_n` |
+| `ChooseColor { source }` | `DecisionOption::Color`, the five (CR 105.4) | `pick_n` |
+| `ChooseCreatureType { source }` | `DecisionOption::CreatureType`, CR 205.3m's list | `pick_n` |
+| `ChooseCardType { source }` | `DecisionOption::CardType`, CR 205.2a's or a printed few | `pick_n` |
 | `ChooseNumber { source, values }` | `values` an `XOffer::Interval`, as `ChooseXValue` and `ChooseAmountToPay` spell a range (`oracle/x_values.rs:87`) | `pick_number` |
-| `ChoosePlayer { source }`, widened from `ChooseOpponent` | `ChoiceOption::Player`, the players the choice admits: Akroan Horse's opponent, CR 700.2e's chooser of a mode, and "choose a player" | `pick_n` |
+| `ChoosePlayer { source }`, widened from `ChooseOpponent` | `DecisionOption::Player`, the players the choice admits: Akroan Horse's opponent, CR 700.2e's chooser of a mode, and "choose a player" | `pick_n` |
 | objects | decision 8's `SelectRecipients`, unchanged | `pick_n` |
 
 ## What builds without a decision
@@ -764,7 +764,7 @@ And the boards the binding table and decision 4 owe:
 
 The gates that can fail: `cargo build --all-targets` with zero warnings;
 `cargo test`; `cargo clippy --all-targets -- -D warnings` on both crates;
-the dev GUI's tests, since `ChoiceKind` gains arms the window words; every
+the dev GUI's tests, since `DecisionKind` gains arms the window words; every
 `check_*.py`, `check_rulings.py` for Expel included.
 
 **The A/B, three arms** (`fuzz_ab --require`): `main`; the branch with Expel

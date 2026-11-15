@@ -14,7 +14,7 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, Stop};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -48,16 +48,16 @@ impl Stopper {
 }
 
 impl DecisionProvider for Stopper {
-    fn pick_n(&self, game: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, _: PlayerId, _: &DecisionContext, _: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
         self.stop_here(game)
     }
-    fn pick_number(&self, game: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: u64) -> u64 {
         self.stop_here(game)
     }
-    fn allocate(&self, game: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, game: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: &[DecisionOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
         self.stop_here(game)
     }
-    fn choose_ordering(&self, game: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, _: PlayerId, _: &DecisionContext, _: &[DecisionOption]) -> Vec<usize> {
         self.stop_here(game)
     }
 }
@@ -85,16 +85,16 @@ fn a_stopped_game_is_read_and_never_continued() {
 fn a_panic_that_is_not_a_stop_passes_through() {
     struct Bug;
     impl DecisionProvider for Bug {
-        fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+        fn pick_n(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
             panic!("an engine bug")
         }
-        fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: u64) -> u64 {
+        fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: u64) -> u64 {
             panic!("an engine bug")
         }
-        fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+        fn allocate(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: &[DecisionOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
             panic!("an engine bug")
         }
-        fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption]) -> Vec<usize> {
+        fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: &[DecisionOption]) -> Vec<usize> {
             panic!("an engine bug")
         }
     }
@@ -180,11 +180,11 @@ fn a_cast_from_hand_with_exact_mana_replays() {
     let (bolt, mountain, bears) = (named("Lightning Bolt"), named("Mountain"), named("Grizzly Bears"));
     let tap = state.objects[&mountain].card_data.abilities[0].id;
     let caster = ScriptedDecisionProvider::new();
-    caster.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt))]);
+    caster.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(bolt))]);
     let target = EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
-    caster.expect_choice(ChoiceKind::SelectRecipients { recipient: target, spell_id: bolt }, vec![ChoiceOption::Object(bears)]);
-    let window = ChoiceKind::ManaAbilityWindow { spell_or_ability_id: bolt, remaining_cost: ManaCost::build(&[ManaType::Red], 0) };
-    caster.expect_choice(window, vec![ChoiceOption::Action(PriorityAction::ActivateAbility(mountain, tap))]);
+    caster.expect_choice(DecisionKind::SelectRecipients { recipient: target, spell_id: bolt }, vec![DecisionOption::Object(bears)]);
+    let window = DecisionKind::ManaAbilityWindow { spell_or_ability_id: bolt, remaining_cost: ManaCost::build(&[ManaType::Red], 0) };
+    caster.expect_choice(window, vec![DecisionOption::Action(PriorityAction::ActivateAbility(mountain, tap))]);
     let seats = DispatchDecisionProvider::new(vec![Box::new(ManaWindowStop::new(caster)), Box::new(ScriptedDecisionProvider::new())]);
     original.game_mut().until_stopped(|game| game.resume_turn_at_priority(&seats)).expect("the turn plays");
     assert_eq!(original.game().state.objects[&bears].zone, Zone::Graveyard, "the Bolt killed the Bears");

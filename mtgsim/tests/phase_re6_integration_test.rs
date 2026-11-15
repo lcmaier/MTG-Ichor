@@ -41,7 +41,7 @@ use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::announcement::Announcement;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
@@ -198,7 +198,7 @@ fn zone_of(game: &GameState, id: ObjectId) -> Zone {
 }
 
 /// The CR 616.1 prompt over a player-subject event names no object.
-const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };
 
 // ---------------------------------------------------------------------------
 // The loss is a proposal — CR 704.5a–c as batch members
@@ -824,7 +824,7 @@ fn two_exquisite_archangels_you_choose_which_applies() {
     let second = put_on_battlefield(&mut game, exquisite_archangel(), 0);
     game.players[0].life_total = -2;
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(second)]);
+    dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(second)]);
 
     assert!(sba(&mut game, &dp));
 

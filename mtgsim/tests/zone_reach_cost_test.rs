@@ -50,7 +50,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::zones::{Zone, ZoneSet};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -250,7 +250,7 @@ struct Watcher {
 
 impl Watcher {
     /// Note the prompt about to be answered, and fork at it if table 3 wants it.
-    fn watch(&self, game: &GameState, context: &ChoiceContext, options: usize) {
+    fn watch(&self, game: &GameState, context: &DecisionContext, options: usize) {
         if game.battlefield.contains_key(&self.card) {
             self.prompts_with_card.set(self.prompts_with_card.get() + 1);
         }
@@ -292,8 +292,8 @@ fn without_grant_rows(text: &str) -> String {
 
 /// A prompt `Game::resume_turn_at_priority` can take over from — the fork
 /// test's definition (`priority_fork_test.rs`, `is_resumable`).
-fn resumable(game: &GameState, context: &ChoiceContext) -> bool {
-    matches!(context.kind, ChoiceKind::PriorityAction)
+fn resumable(game: &GameState, context: &DecisionContext) -> bool {
+    matches!(context.kind, DecisionKind::PriorityAction)
         && game.priority_player == game.active_player
         && game.in_game(game.active_player)
         && !matches!(
@@ -307,8 +307,8 @@ impl DecisionProvider for Watcher {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.watch(game, context, options.len());
@@ -317,7 +317,7 @@ impl DecisionProvider for Watcher {
         answer
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.watch(game, context, 0);
         let answer = self.stack.pick_number(game, player, context, min, max);
         self.print(game, format_args!("{:?}{min}{max}{answer}", context.kind));
@@ -328,9 +328,9 @@ impl DecisionProvider for Watcher {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -340,7 +340,7 @@ impl DecisionProvider for Watcher {
         answer
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.watch(game, context, 0);
         let answer = self.stack.choose_ordering(game, player, context, items);
         self.print(game, format_args!("{:?}{items:?}{answer:?}", context.kind));
@@ -491,15 +491,15 @@ impl DecisionProvider for FirstAsk {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.ask(game);
         self.stack.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.ask(game);
         self.stack.pick_number(game, player, context, min, max)
     }
@@ -508,9 +508,9 @@ impl DecisionProvider for FirstAsk {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -518,7 +518,7 @@ impl DecisionProvider for FirstAsk {
         self.stack.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.ask(game);
         self.stack.choose_ordering(game, player, context, items)
     }

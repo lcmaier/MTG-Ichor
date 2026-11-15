@@ -41,7 +41,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{AbilityAsRead, ChoiceKind, ChoiceOption, ReplacementOption};
+use mtgsim::ui::decision_types::{AbilityAsRead, DecisionKind, DecisionOption, ReplacementOption};
 
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -60,8 +60,8 @@ fn counters(game: &GameState, id: ObjectId, kind: CounterType) -> u32 {
 /// definition `shown_on`'s first ability is (the Elder's own for its printed
 /// devour, a permanent the grant already reaches for a granted one). How it
 /// reads is left out, since that never tells two options apart.
-fn entering_devour(game: &GameState, elder: ObjectId, shown_on: ObjectId, granted_by: Option<ObjectId>) -> ChoiceOption {
-    ChoiceOption::Replacement(ReplacementOption::Ability {
+fn entering_devour(game: &GameState, elder: ObjectId, shown_on: ObjectId, granted_by: Option<ObjectId>) -> DecisionOption {
+    DecisionOption::Replacement(ReplacementOption::Ability {
         object: game.object_ref(elder).expect("in the store"),
         ability: mtgsim::oracle::characteristics::get_effective_abilities(game, shown_on)[0].id.definition(),
         granted_by,
@@ -386,10 +386,10 @@ fn test_the_same_creature_cannot_be_devoured_twice() {
     // CR 616.1: two applicable effects on one entry, and the choice is real —
     // neither is an `EnterWith`, so nothing suppresses the prompt. Both are
     // the Elder's own: the printed devour 3, and Jund's devour 5 as it enters.
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![printed_devour]);
+    dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![printed_devour]);
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: bear, source: bear, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: bear, source: bear, to: Zone::Graveyard },
+        vec![DecisionOption::Object(bear)],
     );
     // The granted devour 5 applies next and finds nothing left to choose, so it
     // asks nothing at all.
@@ -431,12 +431,12 @@ fn test_devour_choice_in_a_four_player_game_asks_only_the_entering_controller() 
     let dp = ScriptedDecisionProvider::new();
     // Jund's devour 5, which `mine` shows already and the Elder as it enters.
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
         vec![entering_devour(&game, elder, mine, Some(jund))],
     );
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(mine)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: mine, source: mine, to: Zone::Graveyard },
+        vec![DecisionOption::Object(mine)],
     );
 
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
@@ -626,8 +626,8 @@ fn test_devour_sacrifices_happen_before_the_entry_and_set_its_counters() {
 
     let dp = test_dp();
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(first), ChoiceOption::Object(second)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        vec![DecisionOption::Object(first), DecisionOption::Object(second)],
     );
 
     let mark = game.recorded_events().len();
@@ -676,8 +676,8 @@ fn test_the_auxiliary_moves_are_their_own_batch() {
 
     let dp = test_dp();
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        vec![DecisionOption::Object(bear)],
     );
 
     let mark = game.recorded_events().len();
@@ -711,7 +711,7 @@ fn test_devour_declined_enters_with_no_counters_and_asks_once() {
 
     let dp = test_dp();
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
         vec![],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
@@ -788,8 +788,8 @@ fn test_sigarda_does_not_stop_your_own_devour() {
     let dp = test_dp();
     // Both are candidates, and Sigarda is not even protected from herself.
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(sigarda), ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        vec![DecisionOption::Object(sigarda), DecisionOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -832,8 +832,8 @@ fn test_a_devoured_creature_with_a_finality_counter_is_exiled_and_still_counts()
 
     let dp = test_dp();
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        vec![DecisionOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -943,7 +943,7 @@ fn test_a_self_read_amount_forces_the_ordering_prompt() {
     let kismet = put_on_battlefield(&mut game, creatures_enter_tapped("Kismet-ish"), 0);
 
     let dp = test_dp();
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(kismet)]);
+    dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![DecisionOption::Object(kismet)]);
 
     let id = put_in_graveyard(
         &mut game,
@@ -977,8 +977,8 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
     let dp = test_dp();
     let first = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: first, source: first, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: first, source: first, to: Zone::Graveyard },
+        vec![DecisionOption::Object(bear)],
     );
     game.change_zone(first, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -987,8 +987,8 @@ fn test_the_exclusion_sets_do_not_leak_between_batches() {
     // legal candidate for it — nothing about the earlier batch survives.
     let second = put_in_graveyard(&mut game, thunder_thrash_elder(), 0);
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: second, source: second, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(cub), ChoiceOption::Object(first)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: second, source: second, to: Zone::Graveyard },
+        vec![DecisionOption::Object(cub), DecisionOption::Object(first)],
     );
     game.change_zone(second, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -1037,10 +1037,10 @@ fn test_a_devoured_creature_cannot_then_be_exiled_by_the_next_effect() {
     let dp = test_dp();
     // Devour first, so the Bear is in the graveyard when the second effect
     // asks.
-    dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(elder)]);
+    dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![DecisionOption::Object(elder)]);
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        vec![DecisionOption::Object(bear)],
     );
 
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
@@ -1072,8 +1072,8 @@ fn test_a_later_entry_may_choose_what_an_earlier_one_chose() {
 
     let dp = test_dp();
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        vec![DecisionOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -1081,8 +1081,8 @@ fn test_a_later_entry_may_choose_what_an_earlier_one_chose() {
 
     let ghoul = put_in_graveyard(&mut game, sutured_ghoul(), 0);
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: ghoul, source: ghoul, to: Zone::Exile },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: ghoul, source: ghoul, to: Zone::Exile },
+        vec![DecisionOption::Object(bear)],
     );
     game.change_zone(ghoul, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");
@@ -1110,8 +1110,8 @@ fn test_a_prevented_sacrifice_is_not_counted() {
 
     let dp = test_dp();
     dp.expect_choice(
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard },
+        vec![DecisionOption::Object(bear)],
     );
     game.change_zone(elder, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("it enters");

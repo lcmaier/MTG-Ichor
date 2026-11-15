@@ -126,7 +126,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
 | 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
-| 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
+| 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `DecisionKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
 | 601.2d | Distribution (damage/counters among targets) | ✅ `divided-among-targets`: announced after every instance's targets, on a cast, an activation and a trigger alike; damage, counters and a damage shield read each target's share. The untargeted half (CR 608.2d) ✅ `choose-as-an-effect-resolves`: chosen and divided as the effect applies, at least one each | `engine/put_on_stack.rs` (`announce_targets`), `engine/resolve.rs` (`resolve_divided`, `recipients_for`) |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
@@ -411,7 +411,7 @@ measurement; this is the state ledger. What landed:
   *becomes* a copy and chooses its donor; Mirrorweave targets the donor. The
   `{ from, to }` product was rejected — two of its four combinations are
   unreachable states.
-- **`ChoiceKind::ChooseCopySource`**, its own decision site rather than
+- **`DecisionKind::ChooseCopySource`**, its own decision site rather than
   `SelectRecipients`, which a choice at resolution reuses. There the chosen object
   is what the primitive acts on; here it is the opposite, and a DP heuristic
   keyed on the recipient kind would read the donor as the victim. Item 40 holds
@@ -492,7 +492,7 @@ for nothing, and `double-faced-cards` adds it in the commit that populates it.
 - **`layers::compute_as_entering`** — the frame. A `Lookahead` (`engine/layers/lookahead.rs`: the object, its proposed controller, the pending `EnterMods`, and the rows its own static abilities would generate) threaded through `FrameCache`, read by the two accessors every concrete-state read in `compute.rs` now goes through — `entity` for the battlefield-entity facts and `rows_in_layer` for the registry slice. Both answer for the would-be permanent when the object being computed is the entering one and off the real board for everything else, which is how §5b's asymmetry falls out of the structure. A read-side overlay, **no `GameState` clone anywhere** (§11 item 5). It lives on the stack: item 40's test is "drop it and re-derive", and the frame is a pure function of `GameState` and the proposal, so it is bookkeeping.
 - **`replacement::EntryFrame`** — the frame per pipeline iteration (CR 614.12 clause 1), computed only when a filter-scoped `affected_objects` asks. `gather::set_affects` and `restriction::is_prohibited` both read it, for an `EnterBattlefield` — which since RC-4b is also the zone change onto the battlefield, so the frame has one basis.
 - **CR 614.17d** in its two printed shapes. "Can't enter the battlefield" watches the zone change, because a refused entry would strand the card in the battlefield zone with no permanent (`propose_entry` is still loud about that); "can't have counters put on it" is asked as the `AddCounters` it is (CR 122.6) at the moment an `EnterWith` would add them (`replacement::strip_prohibited_counters`), refusing the counters while the entry goes on — Melira's ruling. `cant-effects-architecture.md` §5.3.
-- **CR 616.1b** — `Rewrite::EnterUnderControlOf(PlayerRef)`, its class derived from the rewrite so a card cannot file it under `Other`. "An opponent of your choice" with several opponents is a prompt to the effect's controller (`ChoiceKind::ChooseEnteringController`), made before the permanent enters — CR 614.12a's timing, claimed partially.
+- **CR 616.1b** — `Rewrite::EnterUnderControlOf(PlayerRef)`, its class derived from the rewrite so a card cannot file it under `Other`. "An opponent of your choice" with several opponents is a prompt to the effect's controller (`DecisionKind::ChooseEnteringController`), made before the permanent enters — CR 614.12a's timing, claimed partially.
 - **`AmountExpr::CountOf`** — its first static-context evaluator, over `battlefield_ids_ordered` at the current `layer_index`, memoized within the walk. The entering object is invisible to it because it is not on that list: §5a's Thassa boundary, structural.
 - **§11 item 19** — CR 616.1 no longer prompts when every member of the bucket is an `EnterWith` whose applicability no `EnterMods` field can move; item 47 below has the three expiry conditions and the debug-build check. Containment Priest landed first, so the multi-candidate branch is still reached by a registered board.
 - **`GameAction::EnterBattlefield` carries the zone change that brought the object** (`None` for a token), because CR 601's "was it cast" is unrecoverable a moment later; `EventPattern::EnterBattlefield { cast }` projects it.
@@ -1074,7 +1074,7 @@ registered card returns an object.
     **Reachability (2026-09-16):** closed — landed, answer-preserving; the
     A/B read `IDENTICAL` on every counter, both pools, two seats and four.
 
-68. **A `ChoiceKind` is named for the question, never for the card (C3).** Asked
+68. **A `DecisionKind` is named for the question, never for the card (C3).** Asked
     whether the vocabulary should be swept and designed ahead; no — appending a
     variant is O(1) (`ChooseCopySource` cost 14 lines across two files, both DPs
     have catch-alls, nothing is serialized), and a vocabulary derived from a
@@ -1090,7 +1090,7 @@ registered card returns an object.
     review enforces it.
 
     **Sized:** none.
-    **Slotted:** none — a record of the rule that a `ChoiceKind` names the
+    **Slotted:** none — a record of the rule that a `DecisionKind` names the
     question, never the card, which review applies beside
     `engineering-practices.md#names`.
 
@@ -1948,7 +1948,7 @@ section never asked.
     **Violator 1 — the CR 614.5 sets (`engine/replacement/pipeline.rs`).** `applied`,
     `declined` and `exempt_applied` live in `apply_replacements`' frame and are
     consulted across the `ask_choose_replacement` / `ask_take_or_leave`
-    (`ChoiceKind::ApplyOptionalReplacement`) prompts. Fork at a CR 616.1 prompt and the branches disagree about which
+    (`DecisionKind::ApplyOptionalReplacement`) prompts. Fork at a CR 616.1 prompt and the branches disagree about which
     effects have already applied — so a *different replacement* applies, which
     is a different game. Worse than a wrong answer in one respect: the `declined`
     set is what stops the loop re-offering a declined optional forever, so a
@@ -2449,7 +2449,7 @@ measurement; what follows is what a later phase has to know.
 **Shipped:** CR 601.2f whole — assembly and modification — as
 `engine/cost_determination/`, the cost effects discovered off
 effective ability lists behind a three-leg gate; `Effect::CostModification`,
-`Condition::SourceUntapped`, `ChoiceKind::OrderCostReductions`; the castability
+`Condition::SourceUntapped`, `DecisionKind::OrderCostReductions`; the castability
 preview reading the locked cost; Thalia (pooled), Goblin Electromancer,
 Trinisphere. `plans/cost-architecture.md` has the design, the sizing of
 CM-2–4 and `hybrid-and-phyrexian-payment`, and the Krark-Clan Ironworks loop as the casting pipeline's
@@ -2488,7 +2488,7 @@ games; with Humility forced beside her, both are on the board in 52%.
 
     **Reachability (2026-09-07):** reachable — not wrong; a forced choice.
 
-    **Sized:** a `ChoiceKind` at the two rewind sites and the mana undone
+    **Sized:** a `DecisionKind` at the two rewind sites and the mana undone
     silently, ~60 lines. **Placed 2026-09-08 (CM-4): with the trigger phase,
     critical-path item 6, and not with the payer.** Two reasons, and the first
     is this phase's own criterion. Which mana abilities to reverse is a
@@ -2659,7 +2659,7 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
 every choice against one board and `pay_costs` performs it asking nobody
 (`engine::costs`); `payment_order_rank`, the engine's pick of CR 601.2h's "in
 any order"; `Cost::Sacrifice(ObjectFilter, n)` paid through the chokepoint as
-one `execute_actions` batch with `ChoiceKind::ChooseSacrificeForCost`;
+one `execute_actions` batch with `DecisionKind::ChooseSacrificeForCost`;
 `AdditionalCost::Mandatory` and `is_optional` (CR 118.8b/118.8c), with 601.2b
 announcing the optional costs alone; and `castable_spells` refusing a spell
 whose mandatory additional cost cannot be paid. Altar's Reap (pooled),
@@ -2795,7 +2795,7 @@ passing, auto-block, an auto-tapper with lookahead — grows it an arm per subse
 and makes the payer know about automations that are not its business. Clients
 compose a stack instead, and the asymmetry lives in each binary's wiring.
 **The stack invariant, written down before the third decorator arrives: one
-decorator per `ChoiceKind`.** Disjoint kinds mean composition commutes and
+decorator per `DecisionKind`.** Disjoint kinds mean composition commutes and
 stack order carries no meaning.
 
 **What a payer may answer, as a criterion rather than a list.** **A prompt
@@ -2836,7 +2836,7 @@ together move no game.
 
 **The cost of offering the window, which is real and is the phase's price.**
 The engine no longer returns before enumerating, so every window that opens
-pays one extra `enumerate_activatable_mana_abilities`, one `ChoiceContext` and
+pays one extra `enumerate_activatable_mana_abilities`, one `DecisionContext` and
 one options `Vec`. At 50 games that is memo hits 55,610 → 56,039 on
 `performance` (+0.8%) and 57,618 → 58,163 on `stress` (+0.9%), with **layer
 walks unchanged at 371** — the extra enumeration hits the memo rather than
@@ -3068,7 +3068,7 @@ from a target, a filter recipient (CR 615.11) or as authored;
 `ReplacementDef::is_prevention()`; `Rider.prevented` and
 `AmountExpr::DamagePrevented`; `apply_replacements` in its group form —
 decisions per `(batch, subject)`, rewrites per member — with `consume_use`
-after `apply_rewrite`; `ChoiceKind::AllocateNextDamage`, `next_damage_shares`
+after `apply_rewrite`; `DecisionKind::AllocateNextDamage`, `next_damage_shares`
 and `GameState::prevention_allocations`; the all-multiplier suppression.
 Four cards — Mending Hands (pooled), Samite Healer, Safe Passage, Samite
 Censer-Bearer. Items 25, 40, 47 and 65 are updated above; `replacement-
@@ -4344,7 +4344,7 @@ The layer system's designated single-point change site is `oracle/characteristic
     `Primitive::GainControl { to, duration }` names who gains control; "an
     opponent" an instruction does not target is chosen as it applies, through
     `player_the_instruction_names`, asked only above two players
-    (`ChoiceKind::ChooseOpponent`; CR 608.2d, the Akroan Horse ruling).
+    (`DecisionKind::ChooseOpponent`; CR 608.2d, the Akroan Horse ruling).
     **Reachability (2026-10-25):** closed — PR #293.
     Full entry: `plans/archive/codebase-state-closed.md`, ""Before Layers" item 13".
 
@@ -4791,7 +4791,7 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    one.
 
    **Sized:** CR 802's defending-player choice ~60 lines at
-   `candidate_priority_actions`' attack-target list plus a `ChoiceKind`;
+   `candidate_priority_actions`' attack-target list plus a `DecisionKind`;
    800.4f–h ~120 with the delegation rule and a fixture each; 800.4i waits on
    the LKI facility and is not sized here.
    **Slotted:** `multiplayer-rules`, CR 802's defending-player choice at four seats and CR
@@ -5080,7 +5080,7 @@ migration.
      `execute_batch_inner`'s phase-2 write, plus whatever the split itself
      needs); on top of it, two members moving one object to two zones must
      turn the CR 704.7 same-subject *collapse* into a *prompt* (~40 lines and
-     a `ChoiceKind`). §2.25 now records the Archangel as its second customer,
+     a `DecisionKind`). §2.25 now records the Archangel as its second customer,
      which is what §8c's "two customers before a leaf" asks for before that
      facility is built. Until then the engine's answer is the graveyard and
      this line is the record that the choice is missing.
@@ -5142,16 +5142,16 @@ with its customer named:**
      creature tokens with haste or that many 3/1 green Dog creature tokens
      with vigilance" — is optional (the pipeline has that) and offers two
      defs, chosen as the replacement applies. `GameActionTemplate::CreateTokens`
-     carries one def; the choice is a `ChoiceKind` asked in `apply_rewrite`
+     carries one def; the choice is a `DecisionKind` asked in `apply_rewrite`
      the way CR 614.13's auxiliary move is, and the modal template is the
      field that holds the alternatives.
 
      **Reachability (2026-10-23):** unreachable — the only printed customer is
      unregistered.
 
-     **Sized:** ~40 lines and a `ChoiceKind`, with Jinnie Fay.
+     **Sized:** ~40 lines and a `DecisionKind`, with Jinnie Fay.
      **Slotted:** `token-copies`, the route's token row: the modal creation
-     template and its `ChoiceKind`, asked in `apply_rewrite`, with Jinnie
+     template and its `DecisionKind`, asked in `apply_rewrite`, with Jinnie
      Fay's shape (the owner, at #293's review, 2026-10-25: a filed gap with
      printed customers takes a route row).
 
@@ -5232,7 +5232,7 @@ game's own `rng`; `GameAction::Scry { player, n }` with `EventPattern::Scry`,
 `GameEvent::Scried` and a performer that reorders the library in the arm and
 proposes nothing (CR 701.22 moves no card between zones); CR 701.22b as
 `never_happens`' fourth arm, where RE-2's `DrawCards { n: 0 }` still has none;
-`ChoiceKind::{Discard, Scry, ScryOrder}` — `Discard` widened from
+`DecisionKind::{Discard, Scry, ScryOrder}` — `Discard` widened from
 `DiscardToHandSize`, one kind for CR 514.1's turn-based action and a
 resolution's instruction alike, with `source` the only difference;
 `ReplacementDef::by: Option<SourceFilter>`, CR 101.2's "by" asked of a
@@ -5552,7 +5552,7 @@ them); and the board's classifier, which had read "not wrong today" as
      `EnterModsTemplate.unless_paid` carries an entry choice's cost: a shockland's
      "you may pay 2 life. If you don't, it enters tapped" is
      `tapped_unless_paid(Cost::PayLife(2))`. The payment is offered through
-     `ChoiceKind::AcceptAsObjectEnters` only when it is payable beside every cost the
+     `DecisionKind::AcceptAsObjectEnters` only when it is payable beside every cost the
      batch's entries chose already, and paid as a loss of life right before the
      entries. Two such tokens at once for a player at 3 life: one is paid for.
      **Reachability (2026-10-26):** closed — PR #294.
@@ -6114,10 +6114,10 @@ Commander-scale board closes item 69.
 
 141. **The `DecisionProvider` boundary, serialized: which fields, which
      crate, what it costs — and the `&GameState` parameter stays.** The wire
-     surface is `ChoiceContext` (one field, `ChoiceKind`, 25 variants),
-     `ChoiceOption` (12 variants) and `PriorityAction` (4), plus the four
+     surface is `DecisionContext` (one field, `DecisionKind`, 25 variants),
+     `DecisionOption` (12 variants) and `PriorityAction` (4), plus the four
      methods' scalars; its transitive closure over the crate's own types is
-     **36 types, 788 definition lines**, and `ChoiceKind::SelectRecipients`'
+     **36 types, 788 definition lines**, and `DecisionKind::SelectRecipients`'
      `EffectRecipient` is what drags most of it in — `SelectionFilter` →
      `ObjectFilter` → `Subtype` → `CreatureType` (303 lines),
      `PlaneswalkerType`, `PlanarType` — while ids are `Uuid` (`uuid`'s
@@ -6132,7 +6132,7 @@ Commander-scale board closes item 69.
      batched boundary, forced-prompt suppression (item 138's lever 7) and an
      in-process binding are the harness's shape and per-prompt RPC is not.
      **The `&GameState` parameter.** §4 said the provider sees only a
-     `ChoiceContext`; the trait hands every method the state, and two
+     `DecisionContext`; the trait hands every method the state, and two
      in-crate providers read it — `RandomDecisionProvider` for its tap
      preference and its X value, the CLI for display — while the decorators
      forward it. Out of process a provider cannot be handed it, so it is
@@ -6142,13 +6142,13 @@ Commander-scale board closes item 69.
      nine impls times four methods for no gain until that query exists.
      **Decided: keep.** One watch item rides with it — `roadmap-v2.md` §9's
      trait shape (a new method serializes too). The other was `backlog.md`
-     §2.21's rule that every `ChoiceKind` carries its subject, and it is
+     §2.21's rule that every `DecisionKind` carries its subject, and it is
      enforced since A4j (2026-09-18): `subject()` matches without a
      wildcard and `tests/prompt_subject_test.rs` walks games, so a
      wire format has nothing left to enforce there.
 
      **The payload rule (the owner's review of PR #153, 2026-09-15).** A
-     `ChoiceKind` payload names things by id and by CR vocabulary — an
+     `DecisionKind` payload names things by id and by CR vocabulary — an
      `ObjectId`, a `PlayerId`, an `AbilityId`, a number, a `Zone`, a
      `CounterType`, a `ManaCost` — and never embeds an engine AST: not an
      `EffectRecipient`, an `ObjectFilter`, an `Effect` or a `Cost` tree.
@@ -6158,12 +6158,12 @@ Commander-scale board closes item 69.
      whole vocabulary with it. The closure is 36 types only because
      `SelectRecipients` carries an `EffectRecipient`, which pulls in
      `SelectionFilter`, `ObjectFilter` and every subtype enum,
-     `CreatureType`'s 303 lines included, and `ChoiceOption::AlternativeCost`
+     `CreatureType`'s 303 lines included, and `DecisionOption::AlternativeCost`
      and `AdditionalCost` carry `Cost` trees the same way. What a client
      needs is not the filter but what the engine already computed from it:
      the options *are* the legality, the subject id says which card is
      asking, and a rendering says why — `subject()` and `describe()` on
-     `ChoiceKind`, `backlog.md` §2.21's shape, with the CR rule number as
+     `DecisionKind`, `backlog.md` §2.21's shape, with the CR rule number as
      the stable handle. **Context is not dropped; it moves from
      engine-private structure to engine-rendered facts.** A GUI opens its
      dialog on the variant, highlights the subject, makes the options
@@ -7186,7 +7186,7 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
 
 170. **`OrderTriggers` offers the entries' sources, so two entries of one
      source are indistinguishable to a human client.** `ask_order_triggers`
-     builds `ChoiceOption::Object(source)` per entry in trigger order; the
+     builds `DecisionOption::Object(source)` per entry in trigger order; the
      engine's answer is a permutation either way, and the elision keeps the
      identical-binding case from being asked at all.
 
@@ -7195,10 +7195,10 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      registered game (`phase_tr5e_integration_test`,
      `hellrider_deals_each_attackers_damage_to_what_it_attacks`).
 
-     **Sized:** a `ChoiceOption::Trigger { seq, source }` variant and its
+     **Sized:** a `DecisionOption::Trigger { seq, source }` variant and its
      arms, ~20 lines, when a client wants it (Phase 10).
      **Slotted:** Phase 10, when a client needs two triggers of one source told
-     apart, with a `ChoiceOption::Trigger { seq, source }` variant.
+     apart, with a `DecisionOption::Trigger { seq, source }` variant.
 
 171. **~~Two `TriggerEvent` arms shipped early and narrow.~~ — ✅ CLOSED
      2026-10-09 (PR #238).** — archived.
@@ -7558,7 +7558,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 193. **~~A priority window's blacklist is a bot's policy living in the engine,
      and a replay pays for it.~~ — ✅ CLOSED 2026-10-02 (A6g's playable PR).**
      — archived. The priority window offers the board's list as it stands and
-     its re-ask names the action CR 732.1 reversed (`ChoiceContext::rejected`),
+     its re-ask names the action CR 732.1 reversed (`DecisionContext::rejected`),
      the blocker loop's the rule its declaration broke; the random agent skips
      what its window rejected, `SeatMode::person` is gone, and one hang guard,
      `REJECTION_LIMIT`, ends a game at the thousandth rejected answer.
@@ -8733,7 +8733,7 @@ with no batch between them; written at the item 6 audit's pass 5.
 273. **`ChooseXValue`'s set form has no producer.** `XOffer::Set` is the
      prompt's shape for legal values of X with a gap (Tamiyo, Compleated Sage's
      −X over cards of mana value 0, 1, 4, 6 and 7), asked by `pick_n` over
-     `ChoiceOption::Number`. No rule MA-2 builds cuts a gap, so only tests
+     `DecisionOption::Number`. No rule MA-2 builds cuts a gap, so only tests
      build one: the random agent answers only from it, a scripted number and a
      replayed log line answer it by value, and the scenario word `x N` refuses
      a value it leaves out (`mana-architecture.md` §3.7; decision 1 in the
@@ -9513,7 +9513,7 @@ keyed by its event.
      archived.
      Tribute is a counters row with `by: Some(PlayerRef::Opponent)` and
      `optional: true`: the entering creature's controller chooses the opponent
-     through `ChoiceKind::ChoosePlayerAsObjectEnters` (role `CounterPutter`, the
+     through `DecisionKind::ChoosePlayerAsObjectEnters` (role `CounterPutter`, the
      answer-shape prompt Xantcha's choice folds into), and that opponent is
      offered the counters through `AcceptAsObjectEnters`, then puts them (CR 122.6a).
      **Reachability (2026-10-26):** closed — PR #294.
@@ -9983,7 +9983,7 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
 357. **`ui/` holds three kinds of code under one name.** About 7,100 lines
      of code and 2,200 of tests (2026-10-30), more than `oracle` and `events`
      together:
-     - **the engine's question boundary**: `ask`, `choice_types` and
+     - **the engine's question boundary**: `ask`, `decision_types` and
        `decision`, about 2,500 lines, the `DecisionProvider` surface every
        client and agent answers through;
      - **agent-side policies**: `random`, `mana_window_stop`, `auto_payer`,
@@ -10919,7 +10919,7 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
 
 434. **`EffectRecipient::Choose` is a label, and still a recipient's arm.**
      No card writes it since every choice of objects became a choose step:
-     it is what `ChoiceKind::SelectRecipients` carries for a choice that
+     it is what `DecisionKind::SelectRecipients` carries for a choice that
      targets nothing (a choose step's objects, an edict's pick, an Aura's
      host). It stays an `EffectRecipient` variant, refused wherever a verb
      would act on it, until that question carries a label of its own.

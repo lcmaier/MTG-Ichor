@@ -48,7 +48,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 /// A 1/1 red Goblin creature token.
@@ -690,11 +690,11 @@ fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
     let gate = put_on_battlefield(&mut game, enchantment_with("Gate of Refusal", may_refuse), 0);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: gate },
-        vec![ChoiceOption::Object(gate)],
+        DecisionKind::ApplyOptionalReplacement { affected_object: None, source: gate },
+        vec![DecisionOption::Object(gate)],
     );
     dp.expect_choice(
-        ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: gate },
+        DecisionKind::ApplyOptionalReplacement { affected_object: None, source: gate },
         vec![],
     );
     let start = game.recorded_events().records().len();

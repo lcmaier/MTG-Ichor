@@ -12,7 +12,7 @@ use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
@@ -48,7 +48,7 @@ fn test_nights_whisper_draw_and_life_loss() {
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(whisper_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(whisper_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
@@ -96,7 +96,7 @@ fn test_angels_mercy_gains_life() {
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(mercy_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(mercy_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
@@ -118,7 +118,7 @@ fn test_dark_ritual_adds_three_black_mana() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(ritual_id))]);
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &dp);
@@ -137,7 +137,7 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(ritual_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(ritual_id))]);
 
     // Cast — it should go on the stack
     let result = game.run_priority_round(&dp).unwrap();
@@ -168,7 +168,7 @@ fn test_doom_blade_destroys_nonblack_creature() {
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(blade_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(blade_id))]);
     // The only nonblack creature, so the target is forced and not asked.
     // The colorless is the only mana the pips do not claim, so the split is
     // forced and nothing is asked (`ui::ask::forced_allocation`).
@@ -248,12 +248,12 @@ fn test_isamaru_legend_rule_second_copy_dies() {
     game.players[0].mana_pool.add(ManaType::White, 1);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(second_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(second_id))]);
     // Both pass → resolve. SBAs fire after resolution and detect legend rule.
     // LegendRule fires during SBA check after resolution: keep the first
-    dp.expect_choice(ChoiceKind::LegendRule {
+    dp.expect_choice(DecisionKind::LegendRule {
         legend_name: "Isamaru, Hound of Konda".to_string(),
-    }, vec![ChoiceOption::Object(first_id)]);
+    }, vec![DecisionOption::Object(first_id)]);
 
     // Cast and resolve — second Isamaru enters, SBAs kill one
     cast_and_resolve(&mut game, &dp);

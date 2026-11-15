@@ -8,7 +8,7 @@ use super::board::{SetupAction, SetupVerb};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::ManaCost;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode, Stop};
 use crate::ui::mana_window_stop::ManaWindowStop;
 use crate::ui::random::{mana_window_preference, WindowPreference};
@@ -77,11 +77,11 @@ impl<'a> SetupDriver<'a> {
 }
 
 impl DecisionProvider for SetupDriver<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.asked().pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.asked().pick_number(game, player, context, min, max)
     }
 
@@ -89,16 +89,16 @@ impl DecisionProvider for SetupDriver<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.asked().allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.asked().choose_ordering(game, player, context, items)
     }
 
@@ -127,7 +127,7 @@ struct LineAnswers<'a> {
     inner: &'a dyn DecisionProvider,
 }
 
-/// What in a line answers a question. Every `ChoiceKind` is named, so a new
+/// What in a line answers a question. Every `DecisionKind` is named, so a new
 /// question decides at birth whether a line answers it: the mode prompt
 /// `backlog.md` §2.7 adds brings `mode N` here.
 enum LineAnswer<'k> {
@@ -142,58 +142,58 @@ enum LineAnswer<'k> {
     Unanswered,
 }
 
-fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
+fn line_answer(kind: &DecisionKind) -> LineAnswer<'_> {
     match kind {
-        ChoiceKind::PriorityAction => LineAnswer::Action,
-        ChoiceKind::SelectRecipients { spell_id, .. } => LineAnswer::Targets(*spell_id),
-        ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => LineAnswer::Window(*spell_or_ability_id, remaining_cost),
-        ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } => LineAnswer::Split(*spell_or_ability_id),
-        ChoiceKind::ChooseXValue { spell_id, .. } => LineAnswer::X(*spell_id),
+        DecisionKind::PriorityAction => LineAnswer::Action,
+        DecisionKind::SelectRecipients { spell_id, .. } => LineAnswer::Targets(*spell_id),
+        DecisionKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => LineAnswer::Window(*spell_or_ability_id, remaining_cost),
+        DecisionKind::GenericManaAllocation { spell_or_ability_id, .. } => LineAnswer::Split(*spell_or_ability_id),
+        DecisionKind::ChooseXValue { spell_id, .. } => LineAnswer::X(*spell_id),
         // Asked while a line plays, with no word to answer them yet: the
         // line's own costs, CR 601.2d's division past the one split, the order
         // of what it triggers, a replacement on its events, and the
         // state-based actions checked before and after it. A board that needs
         // one adds the word.
-        ChoiceKind::ChooseAlternativeCost { .. }
-        | ChoiceKind::ChooseModes { .. }
-        | ChoiceKind::ChooseAdditionalCosts { .. }
-        | ChoiceKind::OrderCostReductions { .. }
-        | ChoiceKind::OrderCostPayments { .. }
-        | ChoiceKind::OrderSimultaneousEntries { .. }
-        | ChoiceKind::DivideAmong { .. }
-        | ChoiceKind::ChooseSacrificeForCost { .. }
-        | ChoiceKind::OrderTriggers { .. }
-        | ChoiceKind::ChooseDelayedTriggerEvent { .. }
-        | ChoiceKind::ChooseReplacementEffect { .. }
-        | ChoiceKind::ApplyOptionalReplacement { .. }
-        | ChoiceKind::AcceptAsObjectEnters { .. }
-        | ChoiceKind::LegendRule { .. }
-        | ChoiceKind::CommanderToCommandZoneSba { .. } => LineAnswer::Unanswered,
+        DecisionKind::ChooseAlternativeCost { .. }
+        | DecisionKind::ChooseModes { .. }
+        | DecisionKind::ChooseAdditionalCosts { .. }
+        | DecisionKind::OrderCostReductions { .. }
+        | DecisionKind::OrderCostPayments { .. }
+        | DecisionKind::OrderSimultaneousEntries { .. }
+        | DecisionKind::DivideAmong { .. }
+        | DecisionKind::ChooseSacrificeForCost { .. }
+        | DecisionKind::OrderTriggers { .. }
+        | DecisionKind::ChooseDelayedTriggerEvent { .. }
+        | DecisionKind::ChooseReplacementEffect { .. }
+        | DecisionKind::ApplyOptionalReplacement { .. }
+        | DecisionKind::AcceptAsObjectEnters { .. }
+        | DecisionKind::LegendRule { .. }
+        | DecisionKind::CommanderToCommandZoneSba { .. } => LineAnswer::Unanswered,
         // Never asked while a line plays: each waits for a step to pass
         // (combat's declarations and damage, cleanup's discard) or for a spell
         // or ability to resolve, and setup actions do neither. After the last
         // line the seats answer them as in any game, a trampler's damage too.
-        ChoiceKind::DeclareAttackers
-        | ChoiceKind::DeclareBlockers
-        | ChoiceKind::AssignCombatDamage { .. }
-        | ChoiceKind::AssignTrampleDamage { .. }
-        | ChoiceKind::Discard { .. }
-        | ChoiceKind::Scry { .. }
-        | ChoiceKind::OrderLibraryCards { .. }
-        | ChoiceKind::ApplyOptionalEffect { .. }
-        | ChoiceKind::PayAsItResolves { .. }
-        | ChoiceKind::ChooseAmountToPay { .. }
-        | ChoiceKind::AllocateNextDamage { .. }
-        | ChoiceKind::ChooseDamageSource { .. }
-        | ChoiceKind::ChoosePlayerAsObjectEnters { .. }
-        | ChoiceKind::ChoosePlayer { .. }
-        | ChoiceKind::ChooseColor { .. }
-        | ChoiceKind::ChooseCreatureType { .. }
-        | ChoiceKind::ChooseCardType { .. }
-        | ChoiceKind::ChooseNumber { .. }
-        | ChoiceKind::ChooseEnteringDefender { .. }
-        | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
-        | ChoiceKind::ChooseCopySource { .. } => LineAnswer::Unanswered,
+        DecisionKind::DeclareAttackers
+        | DecisionKind::DeclareBlockers
+        | DecisionKind::AssignCombatDamage { .. }
+        | DecisionKind::AssignTrampleDamage { .. }
+        | DecisionKind::Discard { .. }
+        | DecisionKind::Scry { .. }
+        | DecisionKind::OrderLibraryCards { .. }
+        | DecisionKind::ApplyOptionalEffect { .. }
+        | DecisionKind::PayAsItResolves { .. }
+        | DecisionKind::ChooseAmountToPay { .. }
+        | DecisionKind::AllocateNextDamage { .. }
+        | DecisionKind::ChooseDamageSource { .. }
+        | DecisionKind::ChoosePlayerAsObjectEnters { .. }
+        | DecisionKind::ChoosePlayer { .. }
+        | DecisionKind::ChooseColor { .. }
+        | DecisionKind::ChooseCreatureType { .. }
+        | DecisionKind::ChooseCardType { .. }
+        | DecisionKind::ChooseNumber { .. }
+        | DecisionKind::ChooseEnteringDefender { .. }
+        | DecisionKind::ChooseAuxiliaryZoneChange { .. }
+        | DecisionKind::ChooseCopySource { .. } => LineAnswer::Unanswered,
     }
 }
 
@@ -212,7 +212,7 @@ impl LineAnswers<'_> {
         Stop::SetupRefused { line: line.line, written: line.written.to_string(), why: why.to_string() }.raise()
     }
 
-    fn refuse_question(&self, player: PlayerId, kind: &ChoiceKind) -> ! {
+    fn refuse_question(&self, player: PlayerId, kind: &DecisionKind) -> ! {
         self.refuse(format!(
             "player {player} is asked {}, which no line answers: a trigger's question, a replacement's, a \"may\", or a cost \
              a line has no word for",
@@ -227,7 +227,7 @@ impl LineAnswers<'_> {
         game.stack.get(depth) == Some(&subject) || matches!(self.line().action, PriorityAction::ActivateAbility(source, _) if source == subject)
     }
 
-    fn priority(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn priority(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.confirm_played(game);
         if !self.playing() {
             // The last line is played. `Pass` alone is the engine's to take
@@ -239,7 +239,7 @@ impl LineAnswers<'_> {
             return self.inner.pick_n(game, player, context, options, bounds);
         }
         let line = self.line();
-        let offered = |wanted: &PriorityAction| options.iter().position(|option| *option == ChoiceOption::Action(wanted.clone()));
+        let offered = |wanted: &PriorityAction| options.iter().position(|option| *option == DecisionOption::Action(wanted.clone()));
         if player != line.written.seat {
             // The seat holding priority passes until the line's seat holds it.
             return match offered(&PriorityAction::Pass) {
@@ -292,7 +292,7 @@ impl LineAnswers<'_> {
     }
 
     /// The line's `x N`, asked for CR 601.2b's X.
-    fn line_x(&self, player: PlayerId, kind: &ChoiceKind) -> u64 {
+    fn line_x(&self, player: PlayerId, kind: &DecisionKind) -> u64 {
         match self.line().written.verb {
             SetupVerb::Casts { x: Some(x) } => x,
             SetupVerb::Casts { x: None } | SetupVerb::Activates { .. } => {
@@ -303,15 +303,15 @@ impl LineAnswers<'_> {
 
     /// One CR 601.2c choice: the line's targets not yet taken, in the line's
     /// order, as many of those the choice offers as it takes.
-    fn targets(&self, player: PlayerId, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn targets(&self, player: PlayerId, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         let mut picks: Vec<usize> = Vec::new();
         for (target, taken) in self.line().targets.iter().zip(self.taken.borrow_mut().iter_mut()) {
             if picks.len() == bounds.1 {
                 break;
             }
             let wanted = match target {
-                ObjectOrPlayerId::Object(id) => ChoiceOption::Object(*id),
-                ObjectOrPlayerId::Player(target) => ChoiceOption::Player(*target),
+                ObjectOrPlayerId::Object(id) => DecisionOption::Object(*id),
+                ObjectOrPlayerId::Player(target) => DecisionOption::Player(*target),
             };
             let offered = (0..options.len()).find(|i| !picks.contains(i) && options[*i] == wanted);
             if let Some(index) = offered.filter(|_| !*taken) {
@@ -328,7 +328,7 @@ impl LineAnswers<'_> {
     /// A source that makes a pip still owed, by the random agent's
     /// preference taking its first source rather than a random one, and the
     /// line's own permanent last, since its ability may need to tap it.
-    fn tap(&self, game: &GameState, player: PlayerId, remaining: &ManaCost, options: &[ChoiceOption]) -> Vec<usize> {
+    fn tap(&self, game: &GameState, player: PlayerId, remaining: &ManaCost, options: &[DecisionOption]) -> Vec<usize> {
         let allowed: Vec<usize> = match mana_window_preference(game, player, remaining, options) {
             WindowPreference::Useful(indices) => indices,
             WindowPreference::AnyOf(indices) => indices,
@@ -340,7 +340,7 @@ impl LineAnswers<'_> {
             PriorityAction::ActivateAbility(source, _) => Some(source),
             PriorityAction::CastSpell(_) | PriorityAction::Pass | PriorityAction::PlayLand(_) => None,
         };
-        let on_own = |index: &usize| matches!(options[*index], ChoiceOption::Action(PriorityAction::ActivateAbility(id, _)) if Some(id) == own);
+        let on_own = |index: &usize| matches!(options[*index], DecisionOption::Action(PriorityAction::ActivateAbility(id, _)) if Some(id) == own);
         allowed.iter().copied().find(|index| !on_own(index)).or(allowed.first().copied()).into_iter().collect()
     }
 }
@@ -360,21 +360,21 @@ fn generic_split(total: u64, mins: &[u64], maxs: Option<&[u64]>) -> Vec<u64> {
 }
 
 impl DecisionProvider for LineAnswers<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         match line_answer(&context.kind) {
             LineAnswer::Action => self.priority(game, player, context, options, bounds),
             LineAnswer::Targets(spell) if self.asks_for_the_line(game, spell) => self.targets(player, options, bounds),
             LineAnswer::Window(subject, remaining) if self.asks_for_the_line(game, subject) => self.tap(game, player, remaining, options),
             LineAnswer::X(spell) if self.asks_for_the_line(game, spell) => {
                 let x = self.line_x(player, &context.kind);
-                let offered = options.iter().position(|option| matches!(option, ChoiceOption::Number(n) if *n == x));
+                let offered = options.iter().position(|option| matches!(option, DecisionOption::Number(n) if *n == x));
                 vec![offered.unwrap_or_else(|| self.refuse(format!("its `x {x}` is not among the values of X offered")))]
             }
             _ => self.refuse_question(player, &context.kind),
         }
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         match line_answer(&context.kind) {
             LineAnswer::X(spell) if self.asks_for_the_line(game, spell) => {
                 let x = self.line_x(player, &context.kind);
@@ -391,9 +391,9 @@ impl DecisionProvider for LineAnswers<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        _buckets: &[ChoiceOption],
+        _buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -403,7 +403,7 @@ impl DecisionProvider for LineAnswers<'_> {
         }
     }
 
-    fn choose_ordering(&self, _game: &GameState, player: PlayerId, context: &ChoiceContext, _items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _game: &GameState, player: PlayerId, context: &DecisionContext, _items: &[DecisionOption]) -> Vec<usize> {
         self.refuse_question(player, &context.kind)
     }
 }

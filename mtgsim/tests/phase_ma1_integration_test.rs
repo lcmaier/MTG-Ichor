@@ -18,7 +18,7 @@ use mtgsim::state::game_state::{GameState, Phase, PhaseType};
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -68,11 +68,11 @@ fn wild_growths_green_pays_for_thornweald_archer() {
 struct FirstSource;
 
 impl DecisionProvider for FirstSource {
-    fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, _: &GameState, _: PlayerId, _: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         (0..bounds.0.max(1).min(options.len())).collect()
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, min: u64, _: u64) -> u64 {
         min
     }
 
@@ -80,9 +80,9 @@ impl DecisionProvider for FirstSource {
         &self,
         _: &GameState,
         _: PlayerId,
-        _: &ChoiceContext,
+        _: &DecisionContext,
         total: u64,
-        _: &[ChoiceOption],
+        _: &[DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -96,7 +96,7 @@ impl DecisionProvider for FirstSource {
         split
     }
 
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         (0..items.len()).collect()
     }
 }

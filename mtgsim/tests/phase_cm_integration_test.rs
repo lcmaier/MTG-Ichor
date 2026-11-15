@@ -39,7 +39,7 @@ use mtgsim::types::effects::{Effect, ObjectFilter};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use std::sync::Arc;
@@ -247,8 +247,8 @@ fn test_a_chosen_alternative_cost_is_modified_too() {
     let card = fixtures::bargain_lesson();
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ChooseAlternativeCost { spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::AlternativeCost(card.alternative_costs[0].clone())],
+        DecisionKind::ChooseAlternativeCost { spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::AlternativeCost(card.alternative_costs[0].clone())],
     );
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
@@ -722,8 +722,8 @@ fn test_sacrificing_for_a_cost_is_the_payers_choice() {
     let dp = ScriptedDecisionProvider::new();
     // The bear, which keeps the reducer on the board.
     dp.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: familiar, count: 1 },
-        vec![ChoiceOption::Object(bear)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: familiar, count: 1 },
+        vec![DecisionOption::Object(bear)],
     );
     let reap = put_in_hand(&mut game, printings::altars_reap(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
@@ -776,22 +776,22 @@ fn test_a_reducer_eaten_inside_the_mana_window_does_not_raise_the_locked_cost() 
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::build(&[], 1),
         },
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(ironworks, eat))],
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(ironworks, eat))],
     );
     dp.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
-        vec![ChoiceOption::Object(inspector)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![DecisionOption::Object(inspector)],
     );
     // CR 605.3a — with {1} now covered by {C}{C}, the engine offers the window
     // again rather than closing it: Ironworks can still eat itself. Declining
     // is a payer's answer, scripted here because this test wraps no payer.
     // Until CM-4 the engine took this decision itself and never asked.
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::zero(),
         },
@@ -851,20 +851,20 @@ fn test_an_activation_whose_source_is_sacrificed_rewinds_and_the_mana_stands() {
     let dp = ScriptedDecisionProvider::new();
     // In the window: activate Ironworks...
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::build(&[], 1),
         },
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(ironworks, eat))],
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(ironworks, eat))],
     );
     // ...paying it with Mind Stone, the source of the pending activation.
     dp.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
-        vec![ChoiceOption::Object(stone)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![DecisionOption::Object(stone)],
     );
     // The window offers again — Ironworks can still eat itself — and stops.
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::build(&[], 0),
         },
@@ -923,8 +923,8 @@ fn test_one_cost_taking_two_creatures_is_one_event() {
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
     dp.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: a, count: 2 },
-        vec![ChoiceOption::Object(a), ChoiceOption::Object(b)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: a, count: 2 },
+        vec![DecisionOption::Object(a), DecisionOption::Object(b)],
     );
 
     let offering = put_in_hand(&mut game, fixtures::twin_offering(), 0);
@@ -1129,7 +1129,7 @@ fn test_foundry_inspector_reduces_an_x_cost_after_x_is_chosen() {
     let trinket = put_in_hand(&mut game, x_trinket(), 0);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: trinket, values: Box::new(LegalXValues::zero_through(4)) }, 4);
+    dp.expect_number(DecisionKind::ChooseXValue { spell_id: trinket, values: Box::new(LegalXValues::zero_through(4)) }, 4);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
 
@@ -1389,7 +1389,7 @@ fn test_activating_an_ability_opens_the_same_window_a_cast_does() {
 
     let forest_mana = game.objects[&forest].card_data.abilities[0].id;
     let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(RecordingDecisionProvider::choosing([
-        ChoiceOption::Action(PriorityAction::ActivateAbility(forest, forest_mana)),
+        DecisionOption::Action(PriorityAction::ActivateAbility(forest, forest_mana)),
     ]));
     game.activate_ability(0, stone, draw, &dp).expect("{1} paid from inside the window");
 
@@ -1428,37 +1428,37 @@ fn test_the_window_keeps_offering_after_the_cost_is_covered() {
     // `activate_ability` indexes the *effective* list (CLAUDE.md): 0 is
     // Mind Stone's "{T}: Add {C}", 1 is "{1}, {T}, Sacrifice this artifact".
     let draw = 1;
-    let eat = ChoiceOption::Action(PriorityAction::ActivateAbility(ironworks, ability_id_at(&game, ironworks, 0)));
+    let eat = DecisionOption::Action(PriorityAction::ActivateAbility(ironworks, ability_id_at(&game, ironworks, 0)));
 
     let dp = ScriptedDecisionProvider::new();
     // Round 1 — {1} owed. Activate Ironworks; it eats spare_a.
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::build(&[], 1),
         },
         vec![eat.clone()],
     );
     dp.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
-        vec![ChoiceOption::Object(spare_a)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![DecisionOption::Object(spare_a)],
     );
     // Round 2 — nothing owed, and the engine asks anyway. **This is step 3.**
     // Activate Ironworks again; it eats spare_b.
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::zero(),
         },
         vec![eat],
     );
     dp.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
-        vec![ChoiceOption::Object(spare_b)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![DecisionOption::Object(spare_b)],
     );
     // Round 3 — decline, and pay.
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::zero(),
         },
@@ -1500,15 +1500,15 @@ fn test_the_payers_stop_ends_the_window_where_the_engine_used_to() {
 
     let inner = ScriptedDecisionProvider::new();
     inner.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: stone,
             remaining_cost: ManaCost::build(&[], 1),
         },
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(ironworks, eat))],
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(ironworks, eat))],
     );
     inner.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
-        vec![ChoiceOption::Object(spare_a)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: ironworks, count: 1 },
+        vec![DecisionOption::Object(spare_a)],
     );
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.

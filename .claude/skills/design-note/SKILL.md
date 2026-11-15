@@ -24,7 +24,7 @@ in order, then stop.
 
 Every decision that adds or reshapes a type counts what the type must hold
 before any option is written (`plans/engineering-practices.md#what-a-new-type-must-express`).
-A type here is a struct or enum, an arm of one (a `ChoiceKind`, a `Rewrite`
+A type here is a struct or enum, an arm of one (a `DecisionKind`, a `Rewrite`
 or `EventPattern` arm), or a field of either.
 
 - **The rules**: the rule that states the thing, and the rules that watch it

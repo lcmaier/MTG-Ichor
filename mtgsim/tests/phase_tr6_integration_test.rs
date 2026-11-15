@@ -24,7 +24,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
@@ -392,8 +392,8 @@ fn the_why_panel_says_when_the_board_was_asked() {
     let waits = "It waits to be put on the stack the next time a player would receive priority";
     assert!(said.contains(&(waits.to_string(), Some("603.3"))), "{said:#?}");
 
-    let context = ChoiceContext::new(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First });
-    let options = [ChoiceOption::Object(crocodile)];
+    let context = DecisionContext::new(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First });
+    let options = [DecisionOption::Object(crocodile)];
     let question = OpenQuestion { player: 0, context: &context, options: &options };
     let said = why_lines(&why_from_trace(&game, WhyAbout::Object(theirs), Some(&question), &records), "At this question");
     let asked = said.iter().filter(|(text, _)| text.starts_with("Asked of the board after: ")).count();

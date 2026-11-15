@@ -61,7 +61,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite, TapStatus};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_named};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_named};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -121,7 +121,7 @@ fn return_to_battlefield(game: &mut GameState, card: Arc<CardData>, owner: Playe
     let id = put_in_graveyard(game, card, owner);
     let dp = ScriptedDecisionProvider::new();
     for &source in applied {
-        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![ChoiceOption::Object(source)]);
+        dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![DecisionOption::Object(source)]);
     }
     game.change_zone(id, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .expect("the entry is proposed");
@@ -448,27 +448,27 @@ impl Drop for ScriptedReplacementChoices {
 }
 
 impl DecisionProvider for ScriptedReplacementChoices {
-    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, ctx: &DecisionContext, options: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
         assert!(
-            matches!(ctx.kind, ChoiceKind::ChooseReplacementEffect { .. }),
+            matches!(ctx.kind, DecisionKind::ChooseReplacementEffect { .. }),
             "unscripted prompt: {:?}",
             ctx.kind
         );
         let (who, source) = self.script.borrow_mut().pop_front().unwrap_or_else(|| panic!("unscripted order for {player}"));
         assert_eq!(who, player, "CR 616.1's chooser is the entering permanent's controller");
-        let words = ChoiceOption::Object(source).as_logged(game);
-        vec![position_named(options, game, &ChoiceOption::Object(source), &[]).unwrap_or_else(|| panic!("{words} is not offered: {options:?}"))]
+        let words = DecisionOption::Object(source).as_logged(game);
+        vec![position_named(options, game, &DecisionOption::Object(source), &[]).unwrap_or_else(|| panic!("{words} is not offered: {options:?}"))]
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &DecisionContext, _: u64, _: u64) -> u64 {
         panic!("unscripted pick_number: {:?}", ctx.kind)
     }
 
-    fn allocate(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, _: &GameState, _: PlayerId, ctx: &DecisionContext, _: u64, _: &[DecisionOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
         panic!("unscripted allocate: {:?}", ctx.kind)
     }
 
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, ctx: &DecisionContext, _: &[DecisionOption]) -> Vec<usize> {
         panic!("unscripted ordering: {:?}", ctx.kind)
     }
 }

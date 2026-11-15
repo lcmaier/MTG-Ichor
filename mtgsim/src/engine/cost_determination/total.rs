@@ -27,7 +27,7 @@ use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::ask_order_cost_reductions;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionKind, DecisionOption};
 use crate::ui::decision::DecisionProvider;
 
 /// CR 601.2f, whole: from the choices CR 601.2b recorded to the locked total.
@@ -56,8 +56,8 @@ pub fn determine_total_cost(
             return ask_order_cost_reductions(dp, game, caster, spell, sources);
         }
         game.note_unasked(caster, Unasked::OneGame(Elision::CostReductionOrder), || {
-            let reductions = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
-            (ChoiceKind::OrderCostReductions { spell_id: spell }, UnaskedAnswer::Order(reductions))
+            let reductions = sources.iter().map(|id| DecisionOption::Object(*id)).collect();
+            (DecisionKind::OrderCostReductions { spell_id: spell }, UnaskedAnswer::Order(reductions))
         });
         gather_order(sources)
     });

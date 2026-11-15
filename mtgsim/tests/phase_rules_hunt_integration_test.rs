@@ -31,7 +31,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{AmountRewrite, Rewrite};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 fn bears_deck() -> Vec<Arc<CardData>> {
@@ -42,8 +42,8 @@ fn in_combat_step(game: &mut GameState, step: StepType) {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(step) });
 }
 
-fn attacks(creature: ObjectId, player: PlayerId) -> ChoiceOption {
-    ChoiceOption::AttackerTarget(creature, AttackTarget::Player(player))
+fn attacks(creature: ObjectId, player: PlayerId) -> DecisionOption {
+    DecisionOption::AttackerTarget(creature, AttackTarget::Player(player))
 }
 
 fn attacking(game: &GameState, creature: ObjectId) -> Option<AttackTarget> {
@@ -124,7 +124,7 @@ fn each_attacker_chooses_its_own_defending_player() {
     in_combat_step(&mut game, StepType::DeclareAttackers);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(x, 1), attacks(y, 2)]);
+    dp.expect_choice(DecisionKind::DeclareAttackers, vec![attacks(x, 1), attacks(y, 2)]);
     game.process_declare_attackers(&dp).unwrap();
 
     assert_eq!(attacking(&game, x), Some(AttackTarget::Player(1)));
@@ -143,7 +143,7 @@ fn a_declaration_naming_a_creature_twice_is_malformed() {
     in_combat_step(&mut game, StepType::DeclareAttackers);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 1), attacks(rider, 2)]);
+    dp.expect_choice(DecisionKind::DeclareAttackers, vec![attacks(rider, 1), attacks(rider, 2)]);
     let _ = game.process_declare_attackers(&dp);
 }
 
@@ -155,7 +155,7 @@ fn a_declaration_is_bounded_by_its_creatures_and_not_its_pairs() {
     in_combat_step(&mut game, StepType::DeclareAttackers);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareAttackers, vec![attacks(rider, 2)]);
+    dp.expect_choice(DecisionKind::DeclareAttackers, vec![attacks(rider, 2)]);
     game.process_declare_attackers(&dp).unwrap();
 
     assert_eq!(attacking(&game, rider), Some(AttackTarget::Player(2)));
@@ -175,8 +175,8 @@ fn defending_players_declare_blocks_in_apnap_order_whatever_the_attackers_timest
     in_combat_step(&mut game, StepType::DeclareBlockers);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(p1_blocker, at_p1)]);
-    dp.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(p3_blocker, at_p3)]);
+    dp.expect_choice(DecisionKind::DeclareBlockers, vec![DecisionOption::BlockerAttacker(p1_blocker, at_p1)]);
+    dp.expect_choice(DecisionKind::DeclareBlockers, vec![DecisionOption::BlockerAttacker(p3_blocker, at_p3)]);
     game.process_declare_blockers(&dp).unwrap();
 
     let order: Vec<PlayerId> = dp.asked_of().into_iter().map(|(player, _)| player).collect();
@@ -202,11 +202,11 @@ fn discarded_beside_a_leyline(stolen: bool) -> (usize, usize) {
     game.state.set_turn_position(Phase { phase_type: PhaseType::Precombat, step: None });
     if stolen {
         act_of_treason_on(&mut game.state, 0, leyline);
-        dp.expect_choice(ChoiceKind::DeclareAttackers, vec![]);
+        dp.expect_choice(DecisionKind::DeclareAttackers, vec![]);
     }
     let hand = game.state.players[0].hand.clone();
-    let discards = hand[..3].iter().map(|&card| ChoiceOption::Object(card)).collect();
-    dp.expect_choice(ChoiceKind::Discard { source: None }, discards);
+    let discards = hand[..3].iter().map(|&card| DecisionOption::Object(card)).collect();
+    dp.expect_choice(DecisionKind::Discard { source: None }, discards);
     game.run_turn(&dp).unwrap();
     (game.state.players[0].graveyard.len(), game.state.exile.len())
 }
@@ -243,7 +243,7 @@ fn a_trigger_created_during_placement_waits_for_the_next_pass() {
     }
     let wisp = put_on_battlefield(&mut game, flickerwisp(), 0);
 
-    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(aristocrat)]);
+    let dp = RecordingDecisionProvider::choosing([DecisionOption::Object(aristocrat)]);
     game.perform_sba_and_triggers(&dp).unwrap();
 
     let sources: Vec<Option<ObjectId>> =
@@ -359,7 +359,7 @@ fn two_attackers_one_reflected(game: &mut GameState) -> (ObjectId, ObjectId, Obj
     let kept = place_vanilla_creature(game, 0, 3, 3, &[]);
     set_attacking(game, sent_back, 1);
     set_attacking(game, kept, 1);
-    let choosing = RecordingDecisionProvider::choosing([ChoiceOption::Object(sent_back)]);
+    let choosing = RecordingDecisionProvider::choosing([DecisionOption::Object(sent_back)]);
     let reflect = resolve_card(game, reflect_damage(), 1, vec![], &choosing);
     (sent_back, kept, reflect)
 }
@@ -376,10 +376,10 @@ fn a_redirect_leaves_each_affected_player_choosing_for_their_own_event() {
     let (.., reflect) = two_attackers_one_reflected(&mut game);
 
     let dp = ScriptedDecisionProvider::new();
-    let chooses = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(reflect)]);
-    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(ghosts)]);
-    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(furnace)]);
+    let chooses = DecisionKind::ChooseReplacementEffect { affected_object: None };
+    dp.expect_choice(chooses.clone(), vec![DecisionOption::Object(reflect)]);
+    dp.expect_choice(chooses.clone(), vec![DecisionOption::Object(ghosts)]);
+    dp.expect_choice(chooses.clone(), vec![DecisionOption::Object(furnace)]);
     game.process_combat_damage(&dp, false).unwrap();
 
     let asked: Vec<PlayerId> = dp.asked_of().into_iter().map(|(player, _)| player).collect();
@@ -421,12 +421,12 @@ fn a_rider_gives_the_same_damage_whichever_effect_applies_first() {
         let ghosts = put_on_battlefield(&mut game, ghosts_of_the_innocent(), 1);
         let attacker = place_vanilla_creature(&mut game, 0, 3, 3, &[]);
         set_attacking(&mut game, attacker, 1);
-        let choosing = RecordingDecisionProvider::choosing([ChoiceOption::Object(attacker)]);
+        let choosing = RecordingDecisionProvider::choosing([DecisionOption::Object(attacker)]);
         let eye = resolve_card(&mut game, retaliating_eye(), 1, vec![], &choosing);
 
         let dp = ScriptedDecisionProvider::new();
         let first = if eye_first { eye } else { ghosts };
-        dp.expect_choice(ChoiceKind::ChooseReplacementEffect { affected_object: None }, vec![ChoiceOption::Object(first)]);
+        dp.expect_choice(DecisionKind::ChooseReplacementEffect { affected_object: None }, vec![DecisionOption::Object(first)]);
         game.process_combat_damage(&dp, false).unwrap();
 
         assert_eq!(game.players[0].life_total, 20 - 1, "the rider's half, eye first: {eye_first}");
@@ -442,13 +442,13 @@ fn a_rider_queued_before_a_redirect_meets_what_applied_after_it() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, ghosts_of_the_innocent(), 1);
     let (_, kept, reflect) = two_attackers_one_reflected(&mut game);
-    let choosing = RecordingDecisionProvider::choosing([ChoiceOption::Object(kept)]);
+    let choosing = RecordingDecisionProvider::choosing([DecisionOption::Object(kept)]);
     let eye = resolve_card(&mut game, retaliating_eye(), 1, vec![], &choosing);
 
     let dp = ScriptedDecisionProvider::new();
-    let chooses = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(eye)]);
-    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(reflect)]);
+    let chooses = DecisionKind::ChooseReplacementEffect { affected_object: None };
+    dp.expect_choice(chooses.clone(), vec![DecisionOption::Object(eye)]);
+    dp.expect_choice(chooses.clone(), vec![DecisionOption::Object(reflect)]);
     game.process_combat_damage(&dp, false).unwrap();
 
     assert_eq!(game.players[0].life_total, 20 - 1 - 1, "the reflected 3 halved, and the rider's 3 halved");
@@ -466,8 +466,8 @@ fn damage_redirected_after_it_was_halved_is_not_halved_again() {
     two_attackers_one_reflected(&mut game);
 
     let dp = ScriptedDecisionProvider::new();
-    let chooses = ChoiceKind::ChooseReplacementEffect { affected_object: None };
-    dp.expect_choice(chooses.clone(), vec![ChoiceOption::Object(ghosts)]);
+    let chooses = DecisionKind::ChooseReplacementEffect { affected_object: None };
+    dp.expect_choice(chooses.clone(), vec![DecisionOption::Object(ghosts)]);
     game.process_combat_damage(&dp, false).unwrap();
 
     assert_eq!(game.players[0].life_total, 20 - 1);

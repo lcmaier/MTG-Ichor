@@ -13,7 +13,7 @@ use mtgsim::state::game_state::{GameResult, GameState, PhaseType};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider, SeatMode};
 
 use mtgsim::test_support::{put_in_hand, put_land_on_battlefield};
@@ -59,7 +59,7 @@ fn test_game_lifecycle_two_turns() {
     // Turn 2: player 1 draws (hand=8), cleanup discards 1
     dp.queue_main_phase_passes();
     let first = game.state.players[1].hand[0];
-    dp.expect_choice(ChoiceKind::Discard { source: None }, vec![ChoiceOption::Object(first)]);
+    dp.expect_choice(DecisionKind::Discard { source: None }, vec![DecisionOption::Object(first)]);
     game.run_turn(&dp).unwrap();
     assert_eq!(game.state.turn_number, 3);
     assert_eq!(game.state.active_player, 0);
@@ -96,17 +96,17 @@ fn test_game_over_bolt_to_zero() {
     // make is a prompt this script does not hold.
     let scripted = ScriptedDecisionProvider::new()
         .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
-    scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
-    scripted.expect_choice(ChoiceKind::SelectRecipients {
+    scripted.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    scripted.expect_choice(DecisionKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
-    }, vec![ChoiceOption::Player(1)]);
+    }, vec![DecisionOption::Player(1)]);
     // CastSpell returns ActionTaken immediately (no extra pass needed)
     // Both pass → resolve + SBA (player 1 at 0 life → loses). CR 104.1: the
     // game ends there, and nobody receives priority in a game that has ended
     // — the round after the loss is not granted.
-    scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
-    scripted.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+    scripted.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
+    scripted.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
 
     // Cast and resolve via priority loop
     game.state.run_priority_loop(&scripted).unwrap();
@@ -206,7 +206,7 @@ fn test_discard_to_hand_size() {
     // each card in a batch of its own.
     dp.queue_main_phase_passes();
     let hand = game.state.players[0].hand.clone();
-    dp.expect_choice(ChoiceKind::Discard { source: None }, hand[..4].iter().map(|&card| ChoiceOption::Object(card)).collect());
+    dp.expect_choice(DecisionKind::Discard { source: None }, hand[..4].iter().map(|&card| DecisionOption::Object(card)).collect());
     game.run_turn(&dp).unwrap();
 
     // After turn completes, player 0 should have max_hand_size cards
@@ -268,10 +268,10 @@ fn test_cast_spell_rollback_on_insufficient_mana() {
     let bolt_id = put_in_hand(&mut game, printings::lightning_bolt(), 0);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::SelectRecipients {
+    dp.expect_choice(DecisionKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
-    }, vec![ChoiceOption::Player(1)]);
+    }, vec![DecisionOption::Player(1)]);
 
     // Casting should fail
     let result = game.cast_spell(0, bolt_id, &dp);
@@ -335,11 +335,11 @@ fn test_counterspell_cleans_up_stack_entries() {
     let dp = ScriptedDecisionProvider::new();
     // The bolt's target is a real choice — either player — so it is scripted.
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt_id,
         },
-        vec![ChoiceOption::Player(1)],
+        vec![DecisionOption::Player(1)],
     );
     // The Counterspell's is not: the bolt is the only spell on the stack, so
     // it is forced and no prompt is made.

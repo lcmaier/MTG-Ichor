@@ -40,8 +40,8 @@ the unit's total:
     (`codebase-state.md` item 162) has to read;
   * a CLAUSE -- one sentence naming a casting or playing permission.
 Keyword families and mana symbols are counted by card. The question kinds are
-read from `ui/choice_types.rs` and `ui/why.rs` and asserted against the enum,
-so a new `ChoiceKind` fails this script until its row is written.
+read from `ui/decision_types.rs` and `ui/why.rs` and asserted against the enum,
+so a new `DecisionKind` fails this script until its row is written.
 
 WHAT THE NUMBERS ARE NOT
 ------------------------
@@ -83,7 +83,7 @@ REGISTERED_CACHE = os.path.join(HERE, ".census-cast-registered.json")
 CR = os.path.join(ROOT, "MTG-Rules", "versions", "tmnt.txt")
 SRC = os.path.join(ROOT, "mtgsim", "src")
 REGISTRY = os.path.join(SRC, "cards", "registry.rs")
-CHOICE_TYPES = os.path.join(SRC, "ui", "choice_types.rs")
+CHOICE_TYPES = os.path.join(SRC, "ui", "decision_types.rs")
 WHY = os.path.join(SRC, "ui", "why.rs")
 
 # A contact address is optional for Scryfall and none is held in the tree.
@@ -794,7 +794,7 @@ PRIORS = [
 ]
 
 # ==========================================================================
-# Table J -- the question kinds (`ChoiceKind`), what builds each one's options
+# Table J -- the question kinds (`DecisionKind`), what builds each one's options
 # ==========================================================================
 # `kind: (what the options are, filtered?, what a why would read, owner, slot)`.
 # "filtered" means a check drops candidates the question could have named, so
@@ -974,7 +974,7 @@ def explained_kinds():
     src = open(WHY, encoding="utf-8").read()
     body = src[src.index("fn refusals("):]
     body = body[:body.index("\n}\n")]
-    return sorted(set(re.findall(r"\(ChoiceKind::(\w+)(?:\s*\{[^}]*\})?,\s*WhyAbout::", body)))
+    return sorted(set(re.findall(r"\(DecisionKind::(\w+)(?:\s*\{[^}]*\})?,\s*WhyAbout::", body)))
 
 
 def registered():
@@ -1266,21 +1266,21 @@ def render_priors():
 
 
 def render_questions():
-    kinds = parse_variants(CHOICE_TYPES, "ChoiceKind")
+    kinds = parse_variants(CHOICE_TYPES, "DecisionKind")
     if set(kinds) != set(QUESTIONS):
-        raise SystemExit("ChoiceKind no longer matches the census:\n  new: %s\n  gone: %s" % (
+        raise SystemExit("DecisionKind no longer matches the census:\n  new: %s\n  gone: %s" % (
             sorted(set(kinds) - set(QUESTIONS)), sorted(set(QUESTIONS) - set(kinds))))
     explained = explained_kinds()
     claimed = sorted(k for k, v in QUESTIONS.items() if v[3] in CHECKED)
     if explained != claimed:
         raise SystemExit("ui::why::refusals explains %s; the census says %s" % (explained, claimed))
-    L = ["| `ChoiceKind` | its options | filtered | what a why reads | owner | slot |", "|---|---|---|---|---|---|"]
+    L = ["| `DecisionKind` | its options | filtered | what a why reads | owner | slot |", "|---|---|---|---|---|---|"]
     for k in kinds:
         opts, filt, reads, key, slot = QUESTIONS[k]
         L.append("| `%s` | %s | %s | %s | %s | %s |" % (k, esc(opts), filt, esc(reads) or "--",
                                                      QUESTION_OWNERS[key], slot or "--"))
     rest = Counter(QUESTIONS[k][1] for k in kinds if k not in explained)
-    head = ("%d kinds, parsed from `pub enum ChoiceKind` in `mtgsim/src/ui/choice_types.rs`; `ui::why::refusals` "
+    head = ("%d kinds, parsed from `pub enum DecisionKind` in `mtgsim/src/ui/decision_types.rs`; `ui::why::refusals` "
             "answers %d with a check (%s), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it "
             "ranges over (`ranges_over`). Of the %d it does not check, "
             "%d are **filtered**: a check drops a candidate the question could have named. %d are **bounds**: the "

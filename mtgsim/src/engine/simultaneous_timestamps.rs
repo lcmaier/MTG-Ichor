@@ -30,7 +30,7 @@ use crate::state::game_state::GameState;
 use crate::types::effects::ObjectSet;
 use crate::types::ids::{IdSet, ObjectId, PlayerId, Timestamp};
 use crate::ui::ask::ask_order_simultaneous_entries;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionKind, DecisionOption};
 
 impl GameState {
     /// CR 613.7m for `stamped`, the objects a batch just moved or created, in
@@ -89,8 +89,8 @@ impl GameState {
         let alike = rows.windows(2).all(|pair| rows_functionally_identical(pair[0], pair[1]));
         if !reach_others || alike {
             self.note_unasked(player, Unasked::OneGame(Elision::EntryOrder), || {
-                let objects = read.iter().map(|id| ChoiceOption::Object(*id)).collect();
-                (ChoiceKind::OrderSimultaneousEntries { player }, UnaskedAnswer::Order(objects))
+                let objects = read.iter().map(|id| DecisionOption::Object(*id)).collect();
+                (DecisionKind::OrderSimultaneousEntries { player }, UnaskedAnswer::Order(objects))
             });
             if self.audit_is_on() {
                 self.audit_entry_orders(&read);

@@ -1,14 +1,14 @@
 //! The question as owned data: which primitive asked, what it asks, and each
 //! option as `ui::display`'s label plus the board things it names. The names
 //! are what let the window make exactly those things clickable with no case per
-//! `ChoiceKind`.
+//! `DecisionKind`.
 
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::PriorityAction;
 use mtgsim::ui::display::{mode_label, option_label, question, rejection, what_the_option_does};
 use mtgsim::ui::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
@@ -92,10 +92,10 @@ pub struct OptionView {
 pub struct Prompt {
     /// The player asked: the window answers at that player's seat.
     pub player: PlayerId,
-    /// The `ChoiceKind` variant's name, which the decision log records.
+    /// The `DecisionKind` variant's name, which the decision log records.
     pub kind: String,
     pub question: String,
-    /// `ChoiceKind::subject()`.
+    /// `DecisionKind::subject()`.
     pub subject: Option<ObjectId>,
     /// Where a priority prompt offers `Pass`, which it always does: a
     /// priority prompt is the one a yield answers and Space passes at.
@@ -121,23 +121,23 @@ impl Prompt {
     pub fn pick_n(
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Prompt {
         Prompt::new(game, player, context, Primitive::PickN { min: bounds.0, max: bounds.1 }, options)
     }
 
-    pub fn number(game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> Prompt {
+    pub fn number(game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> Prompt {
         Prompt::new(game, player, context, Primitive::Number { min, max }, &[])
     }
 
     pub fn allocate(
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Prompt {
@@ -145,23 +145,23 @@ impl Prompt {
         Prompt::new(game, player, context, primitive, buckets)
     }
 
-    pub fn order(game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Prompt {
+    pub fn order(game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Prompt {
         Prompt::new(game, player, context, Primitive::Order, items)
     }
 
     fn new(
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         primitive: Primitive,
-        options: &[ChoiceOption],
+        options: &[DecisionOption],
     ) -> Prompt {
         Prompt {
             player,
             kind: context.kind.as_str().to_string(),
             question: question(game, &context.kind),
             subject: context.kind.subject(),
-            pass: options.iter().position(|option| matches!(option, ChoiceOption::Action(PriorityAction::Pass))),
+            pass: options.iter().position(|option| matches!(option, DecisionOption::Action(PriorityAction::Pass))),
             rejected: context.rejected.as_ref().map(|rejected| rejection(game, rejected)),
             why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
@@ -174,11 +174,11 @@ impl Prompt {
 
 /// Each mode some option is a choice of, once, in printed order, with its
 /// label: its place and its words, as the question carries them.
-fn mode_labels(kind: &ChoiceKind, options: &[ChoiceOption]) -> Vec<(ModeIndex, String)> {
+fn mode_labels(kind: &DecisionKind, options: &[DecisionOption]) -> Vec<(ModeIndex, String)> {
     let mut modes: Vec<ModeIndex> = options
         .iter()
         .filter_map(|option| match option {
-            ChoiceOption::Modes(modes) => Some(modes),
+            DecisionOption::Modes(modes) => Some(modes),
             _ => None,
         })
         .flatten()
@@ -190,39 +190,39 @@ fn mode_labels(kind: &ChoiceKind, options: &[ChoiceOption]) -> Vec<(ModeIndex, S
 }
 
 /// The board things an option names, in the order `OptionView::refs` keeps.
-fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
+fn option_view(game: &GameState, option: &DecisionOption) -> OptionView {
     let refs = match option {
-        ChoiceOption::Object(id) => vec![BoardRef::Object(*id)],
-        ChoiceOption::Player(player) => vec![BoardRef::Player(*player)],
-        ChoiceOption::Action(PriorityAction::Pass) => vec![],
-        ChoiceOption::Action(
+        DecisionOption::Object(id) => vec![BoardRef::Object(*id)],
+        DecisionOption::Player(player) => vec![BoardRef::Player(*player)],
+        DecisionOption::Action(PriorityAction::Pass) => vec![],
+        DecisionOption::Action(
             PriorityAction::CastSpell(id) | PriorityAction::PlayLand(id) | PriorityAction::ActivateAbility(id, _),
         ) => vec![BoardRef::Object(*id)],
-        ChoiceOption::AttackerTarget(attacker, target) => vec![BoardRef::Object(*attacker), attack_target_ref(target)],
-        ChoiceOption::BlockerAttacker(blocker, attacker) => {
+        DecisionOption::AttackerTarget(attacker, target) => vec![BoardRef::Object(*attacker), attack_target_ref(target)],
+        DecisionOption::BlockerAttacker(blocker, attacker) => {
             vec![BoardRef::Object(*blocker), BoardRef::Object(*attacker)]
         }
-        ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id)
+        DecisionOption::Trigger(trigger) => std::iter::once(trigger.source.id)
             .chain(trigger.triggered_by.iter().copied())
             .map(BoardRef::Object)
             .collect(),
-        ChoiceOption::Replacement(_) => option.effect_source().into_iter().map(BoardRef::Object).collect(),
-        ChoiceOption::CostPart(part) => part.paid_with.iter().copied().map(BoardRef::Object).collect(),
+        DecisionOption::Replacement(_) => option.effect_source().into_iter().map(BoardRef::Object).collect(),
+        DecisionOption::CostPart(part) => part.paid_with.iter().copied().map(BoardRef::Object).collect(),
         // An existence that has left is no board thing.
-        ChoiceOption::LastKnown(_)
-        | ChoiceOption::NormalCost
-        | ChoiceOption::AlternativeCost(_)
-        | ChoiceOption::AdditionalCost(_)
-        | ChoiceOption::Number(_)
-        | ChoiceOption::Modes(_)
-        | ChoiceOption::Color(_)
-        | ChoiceOption::CreatureType(_)
-        | ChoiceOption::CardType(_)
-        | ChoiceOption::CounterType(_)
-        | ChoiceOption::ManaType(_) => vec![],
+        DecisionOption::LastKnown(_)
+        | DecisionOption::NormalCost
+        | DecisionOption::AlternativeCost(_)
+        | DecisionOption::AdditionalCost(_)
+        | DecisionOption::Number(_)
+        | DecisionOption::Modes(_)
+        | DecisionOption::Color(_)
+        | DecisionOption::CreatureType(_)
+        | DecisionOption::CardType(_)
+        | DecisionOption::CounterType(_)
+        | DecisionOption::ManaType(_) => vec![],
     };
     let modes = match option {
-        ChoiceOption::Modes(modes) => Some(modes.clone()),
+        DecisionOption::Modes(modes) => Some(modes.clone()),
         _ => None,
     };
     OptionView { label: option_label(game, option), what_it_does: what_the_option_does(option), refs, attacker: option.attacker(), modes }
@@ -250,9 +250,9 @@ mod tests {
         let mut game = setup_two_player_game();
         let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
         let blocker = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
-        let attack = option_view(&game, &ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(1)));
+        let attack = option_view(&game, &DecisionOption::AttackerTarget(attacker, AttackTarget::Player(1)));
         assert_eq!(attack.refs, [BoardRef::Object(attacker), BoardRef::Player(1)], "{}", attack.label);
-        let block = option_view(&game, &ChoiceOption::BlockerAttacker(blocker, attacker));
+        let block = option_view(&game, &DecisionOption::BlockerAttacker(blocker, attacker));
         assert_eq!(block.refs, [BoardRef::Object(blocker), BoardRef::Object(attacker)], "{}", block.label);
     }
 
@@ -263,21 +263,21 @@ mod tests {
     fn a_chosen_values_options_are_words_and_a_chosen_player_is_a_seat() {
         let mut game = setup_two_player_game();
         let source = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-        let shown = |kind: ChoiceKind, option: ChoiceOption| {
-            let prompt = Prompt::pick_n(&game, 0, &ChoiceContext::new(kind), &[option], (1, 1));
+        let shown = |kind: DecisionKind, option: DecisionOption| {
+            let prompt = Prompt::pick_n(&game, 0, &DecisionContext::new(kind), &[option], (1, 1));
             (prompt.question, prompt.options[0].label.clone(), prompt.options[0].refs.clone())
         };
-        let (question, label, refs) = shown(ChoiceKind::ChooseColor { source }, ChoiceOption::Color(Color::Blue));
+        let (question, label, refs) = shown(DecisionKind::ChooseColor { source }, DecisionOption::Color(Color::Blue));
         assert!(question.starts_with("Choose a color for "), "{question}");
         assert_eq!((label.as_str(), refs), ("Blue", vec![]));
         let (question, label, refs) =
-            shown(ChoiceKind::ChooseCreatureType { source }, ChoiceOption::CreatureType(CreatureType::TimeLord));
+            shown(DecisionKind::ChooseCreatureType { source }, DecisionOption::CreatureType(CreatureType::TimeLord));
         assert!(question.starts_with("Choose a creature type for "), "{question}");
         assert_eq!((label.as_str(), refs), ("Time Lord", vec![]));
-        let (question, label, refs) = shown(ChoiceKind::ChooseCardType { source }, ChoiceOption::CardType(CardType::Artifact));
+        let (question, label, refs) = shown(DecisionKind::ChooseCardType { source }, DecisionOption::CardType(CardType::Artifact));
         assert!(question.starts_with("Choose a card type for "), "{question}");
         assert_eq!((label.as_str(), refs), ("Artifact", vec![]));
-        let (_, _, refs) = shown(ChoiceKind::ChoosePlayer { source }, ChoiceOption::Player(1));
+        let (_, _, refs) = shown(DecisionKind::ChoosePlayer { source }, DecisionOption::Player(1));
         assert_eq!(refs, [BoardRef::Player(1)]);
     }
 }

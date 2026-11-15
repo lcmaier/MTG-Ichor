@@ -49,7 +49,7 @@ use mtgsim::types::triggers::{
     EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -678,11 +678,11 @@ fn its_power_is_read_as_the_effect_applies() {
     );
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![ChoiceOption::Player(1)],
+        vec![DecisionOption::Player(1)],
     );
     place_triggers(&mut game, &dp);
     pump(&mut game, brute, 3);

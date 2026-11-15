@@ -130,7 +130,7 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, TokenDef};
 use mtgsim::types::ids::{IdCollection, IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneSet};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -988,7 +988,7 @@ fn observation_rows(game: &GameState, seat: PlayerId) -> usize {
 }
 
 impl AgentCensus {
-    fn count(&self, game: &GameState, seat: PlayerId, context: &ChoiceContext) {
+    fn count(&self, game: &GameState, seat: PlayerId, context: &DecisionContext) {
         let arrived = Instant::now();
         let kind = format!("{:?}", context.kind);
         let name = kind.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default();
@@ -1120,7 +1120,7 @@ struct AtTheAgent<D> {
 
 impl<D> AtTheAgent<D> {
     /// A decision has reached the agent: count it, and build what the agent sees.
-    fn on_decision(&self, game: &GameState, player: PlayerId, context: &ChoiceContext) {
+    fn on_decision(&self, game: &GameState, player: PlayerId, context: &DecisionContext) {
         if let Some(census) = &self.census {
             census.count(game, player, context);
         }
@@ -1131,12 +1131,12 @@ impl<D> AtTheAgent<D> {
 }
 
 impl<D: DecisionProvider> DecisionProvider for AtTheAgent<D> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.on_decision(game, player, context);
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.on_decision(game, player, context);
         self.inner.pick_number(game, player, context, min, max)
     }
@@ -1145,9 +1145,9 @@ impl<D: DecisionProvider> DecisionProvider for AtTheAgent<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -1155,7 +1155,7 @@ impl<D: DecisionProvider> DecisionProvider for AtTheAgent<D> {
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.on_decision(game, player, context);
         self.inner.choose_ordering(game, player, context, items)
     }

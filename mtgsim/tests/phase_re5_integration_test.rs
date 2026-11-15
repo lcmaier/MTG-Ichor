@@ -39,12 +39,12 @@ use mtgsim::types::replacement::{
     Rounding,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
 /// The CR 616.1 prompt, matched by kind alone.
-const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -323,7 +323,7 @@ fn a_multiplier_reading_power_is_asked_at_the_entry_door_only() {
         let small = put_on_battlefield(&mut game, fixture_doubler_on_small_creatures(), 0);
         put_on_battlefield(&mut game, your_creatures_enter_with_a_counter(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if small_first { small } else { plain })]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(if small_first { small } else { plain })]);
         let bears = reanimate_with(&mut game, vanilla_creature(1, 1, &[]), 0, &dp);
         assert!(dp.is_empty(), "one prompt");
         count(&game, bears, CounterType::PlusOnePlusOne)
@@ -384,7 +384,7 @@ fn a_multiplier_beside_two_counter_writers_makes_their_order_observable() {
         let walker = put_in_graveyard(&mut game, loyalty_three(), 0);
         // CR 306.5b's loyalty is the walker's own effect.
         let source = |applying| {
-            ChoiceOption::Object(match applying {
+            DecisionOption::Object(match applying {
                 Applying::Doubler => doubler,
                 Applying::Charger => charger,
                 Applying::Loyalty => walker,
@@ -444,7 +444,7 @@ fn a_count_halved_to_zero_meets_the_performers_guard_not_never_happens() {
     put_on_battlefield(&mut game, fixture_doubler_by(PlayerSet::Opponents), 0);
     let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let start = game.recorded_events().records().len();
-    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(halver)]);
+    let dp = RecordingDecisionProvider::choosing([DecisionOption::Object(halver)]);
 
     let performed = game
         .execute_actions(
@@ -699,7 +699,7 @@ fn the_creatures_controller_orders_scales_beside_an_opponents_vigor() {
         let vigor = put_on_battlefield(&mut game, primal_vigor(), 1);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if scales_first { scales } else { vigor })]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(if scales_first { scales } else { vigor })]);
         resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
         assert!(dp.is_empty(), "one prompt");
         count(&game, bears, CounterType::PlusOnePlusOne)
@@ -784,7 +784,7 @@ fn you_order_vorinclex_beside_hardened_scales() {
         let scales = put_on_battlefield(&mut game, hardened_scales(), 0);
         let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if vorinclex_first { vorinclex } else { scales })]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(if vorinclex_first { vorinclex } else { scales })]);
         resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
         assert!(dp.is_empty(), "one prompt");
         count(&game, bears, CounterType::PlusOnePlusOne)
@@ -1142,7 +1142,7 @@ fn a_plus_on_every_kind_beside_an_enters_with_of_a_new_kind_is_a_real_order() {
         put_on_battlefield(&mut game, your_permanents_enter_with_a_charge_counter(), 0);
         let shimmerer = put_in_graveyard(&mut game, adaptive_shimmerer(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(if constrictor_first { constrictor } else { shimmerer })]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(if constrictor_first { constrictor } else { shimmerer })]);
         game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).expect("it enters");
         assert!(dp.is_empty(), "one prompt");
         (count(&game, shimmerer, CounterType::PlusOnePlusOne), count(&game, shimmerer, CounterType::Charge))

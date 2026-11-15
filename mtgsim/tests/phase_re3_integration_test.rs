@@ -28,7 +28,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, ReplacementOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption, ReplacementOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -180,7 +180,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 
 /// The CR 616.1 prompt this file's boards produce — the subject is a player, so
 /// there is no affected object.
-const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };
 
 // ---------------------------------------------------------------------------
 // CR 614.5 over a player subject
@@ -435,7 +435,7 @@ fn the_gaining_player_chooses_between_the_archive_and_tainted_remedy() {
         put_on_battlefield(&mut game, tainted_remedy(), 0);
         let before = life(&game, 1);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(archive)]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(archive)]);
         gain_life(&mut game, 1, 3, &dp);
         assert!(dp.is_empty(), "one prompt");
         before - life(&game, 1)
@@ -446,7 +446,7 @@ fn the_gaining_player_chooses_between_the_archive_and_tainted_remedy() {
         let remedy = put_on_battlefield(&mut game, tainted_remedy(), 0);
         let before = life(&game, 1);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(remedy)]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(remedy)]);
         gain_life(&mut game, 1, 3, &dp);
         assert!(dp.is_empty(), "one prompt");
         before - life(&game, 1)
@@ -519,7 +519,7 @@ fn two_words_rows_are_a_choice_and_each_draw_uses_one_up() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
         PICK_REPLACEMENT,
-        vec![ChoiceOption::Replacement(ReplacementOption::FromResolution { source: words, resolution: second })],
+        vec![DecisionOption::Replacement(ReplacementOption::FromResolution { source: words, resolution: second })],
     );
     draw_one(&mut game, 0, &dp);
     assert!(dp.is_empty(), "two rows, so CR 616.1 asks which one applies");

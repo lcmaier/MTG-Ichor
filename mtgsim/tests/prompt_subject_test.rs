@@ -1,12 +1,12 @@
 //! Every prompt a game raises says which object it is about.
 //!
-//! `backlog.md` §2.21: a `ChoiceContext` is supposed to carry enough that a
+//! `backlog.md` §2.21: a `DecisionContext` is supposed to carry enough that a
 //! client can highlight *what* the question is about, and until this test
 //! nothing enforced it. The discipline lived in prose on each variant; the one
 //! consumer in the tree, `ui/cli.rs`, is omniscient; and
 //! `RandomDecisionProvider` picks by index without asking what a prompt means,
 //! so the fuzz harness cannot notice a variant that dropped its source.
-//! `ChoiceKind::subject` is the contract (`codebase-state.md` item 141's
+//! `DecisionKind::subject` is the contract (`codebase-state.md` item 141's
 //! payload rule): its exhaustive match makes a new variant decide at compile
 //! time, and this file checks the runtime half — whole games at two seats and
 //! four, each deck a different sixty-card window of the registry, plus one of
@@ -25,14 +25,14 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+use mtgsim::ui::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
 
 /// The variants that may answer `subject()` with `None`, and the rule that
 /// makes each one so. Beside the assertion rather than in the engine so that
-/// adding a name here is a visible decision in review; `ChoiceKind::subject`'s
+/// adding a name here is a visible decision in review; `DecisionKind::subject`'s
 /// doc is the same list with the reasons. `Discard` is not here: its `None` is
 /// allowed only in the cleanup step, which the recorder checks.
 const SUBJECT_LESS: &[(&str, &str)] = &[
@@ -58,7 +58,7 @@ struct Raised {
 }
 
 impl Raised {
-    fn of(kind: &ChoiceKind, at_cleanup: bool) -> Self {
+    fn of(kind: &DecisionKind, at_cleanup: bool) -> Self {
         Raised { variant: kind.as_str().to_string(), subject: kind.subject(), at_cleanup }
     }
 
@@ -87,7 +87,7 @@ impl Recorder {
         }
     }
 
-    fn record(&self, game: &GameState, ctx: &ChoiceContext) {
+    fn record(&self, game: &GameState, ctx: &DecisionContext) {
         let at_cleanup = matches!(
             (game.phase.phase_type, game.phase.step),
             (PhaseType::Ending, Some(StepType::Cleanup))
@@ -101,8 +101,8 @@ impl DecisionProvider for Recorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.record(game, context);
@@ -113,7 +113,7 @@ impl DecisionProvider for Recorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -125,9 +125,9 @@ impl DecisionProvider for Recorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -139,8 +139,8 @@ impl DecisionProvider for Recorder {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         self.record(game, context);
         self.inner.choose_ordering(game, player, context, items)
@@ -220,59 +220,59 @@ fn every_prompt_a_game_raises_says_what_it_is_about() {
 fn every_variant_decides_its_subject() {
     let id = ObjectId::UNASSIGNED;
     let kinds = vec![
-        ChoiceKind::PriorityAction,
-        ChoiceKind::DeclareAttackers,
-        ChoiceKind::DeclareBlockers,
-        ChoiceKind::AssignCombatDamage { attacker_id: id },
-        ChoiceKind::AssignTrampleDamage { attacker_id: id, defending_target: ObjectOrPlayerId::Player(1) },
-        ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(2)) },
-        ChoiceKind::ChooseAlternativeCost { spell_id: id },
-        ChoiceKind::ChooseAdditionalCosts { spell_id: id },
-        ChoiceKind::SelectRecipients {
+        DecisionKind::PriorityAction,
+        DecisionKind::DeclareAttackers,
+        DecisionKind::DeclareBlockers,
+        DecisionKind::AssignCombatDamage { attacker_id: id },
+        DecisionKind::AssignTrampleDamage { attacker_id: id, defending_target: ObjectOrPlayerId::Player(1) },
+        DecisionKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(2)) },
+        DecisionKind::ChooseAlternativeCost { spell_id: id },
+        DecisionKind::ChooseAdditionalCosts { spell_id: id },
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpTo(2)),
             spell_id: id,
         },
-        ChoiceKind::GenericManaAllocation { spell_or_ability_id: id, mana_cost: ManaCost::build(&[], 2) },
-        ChoiceKind::OrderCostReductions { spell_id: id },
-        ChoiceKind::OrderCostPayments { spell_or_ability_id: id },
-        ChoiceKind::OrderSimultaneousEntries { player: 0 },
-        ChoiceKind::ManaAbilityWindow { spell_or_ability_id: id, remaining_cost: ManaCost::build(&[], 1) },
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: id, count: 1 },
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) },
-        ChoiceKind::ChooseReplacementEffect { affected_object: None },
-        ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: id },
-        ChoiceKind::ApplyOptionalEffect { source: id },
-        ChoiceKind::AllocateNextDamage { source: id, remaining: 3 },
-        ChoiceKind::ChooseDamageSource { source: id },
-        ChoiceKind::ChoosePlayer { source: id },
-        ChoiceKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::CounterPutter },
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
-        ChoiceKind::ChooseCopySource { source: id },
-        ChoiceKind::CommanderToCommandZoneSba { commander: id },
-        ChoiceKind::Discard { source: Some(id) },
-        ChoiceKind::Scry { source: Some(id), n: 2 },
-        ChoiceKind::OrderLibraryCards { source: Some(id), bottom: true },
-        ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
-        ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::Second },
-        ChoiceKind::AcceptAsObjectEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
-        ChoiceKind::ChooseDelayedTriggerEvent { source: id },
-        ChoiceKind::ChooseEnteringDefender { object: id },
-        ChoiceKind::DivideAmong { source: id },
-        ChoiceKind::ChooseModes { source: id, words: Vec::new() },
-        ChoiceKind::PayAsItResolves {
+        DecisionKind::GenericManaAllocation { spell_or_ability_id: id, mana_cost: ManaCost::build(&[], 2) },
+        DecisionKind::OrderCostReductions { spell_id: id },
+        DecisionKind::OrderCostPayments { spell_or_ability_id: id },
+        DecisionKind::OrderSimultaneousEntries { player: 0 },
+        DecisionKind::ManaAbilityWindow { spell_or_ability_id: id, remaining_cost: ManaCost::build(&[], 1) },
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: id, count: 1 },
+        DecisionKind::ChooseReplacementEffect { affected_object: Some(id) },
+        DecisionKind::ChooseReplacementEffect { affected_object: None },
+        DecisionKind::ApplyOptionalReplacement { affected_object: None, source: id },
+        DecisionKind::ApplyOptionalEffect { source: id },
+        DecisionKind::AllocateNextDamage { source: id, remaining: 3 },
+        DecisionKind::ChooseDamageSource { source: id },
+        DecisionKind::ChoosePlayer { source: id },
+        DecisionKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::CounterPutter },
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
+        DecisionKind::ChooseCopySource { source: id },
+        DecisionKind::CommanderToCommandZoneSba { commander: id },
+        DecisionKind::Discard { source: Some(id) },
+        DecisionKind::Scry { source: Some(id), n: 2 },
+        DecisionKind::OrderLibraryCards { source: Some(id), bottom: true },
+        DecisionKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
+        DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::Second },
+        DecisionKind::AcceptAsObjectEnters { object: id, source: id, offer: EntryOffer::Pay(Cost::PayLife(2)) },
+        DecisionKind::ChooseDelayedTriggerEvent { source: id },
+        DecisionKind::ChooseEnteringDefender { object: id },
+        DecisionKind::DivideAmong { source: id },
+        DecisionKind::ChooseModes { source: id, words: Vec::new() },
+        DecisionKind::PayAsItResolves {
             source: id,
             offer: vec![Cost::Sacrifice(mtgsim::types::effects::ObjectFilter::All, 1)],
             any_amount_of: Some(ManaCost::build(&[], 1)),
         },
-        ChoiceKind::ChooseAmountToPay {
+        DecisionKind::ChooseAmountToPay {
             source: id,
             of: AmountOf::AnyAmountOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Set(vec![0, 2])),
         },
-        ChoiceKind::ChooseColor { source: id },
-        ChoiceKind::ChooseCreatureType { source: id },
-        ChoiceKind::ChooseCardType { source: id },
-        ChoiceKind::ChooseNumber { source: id, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
+        DecisionKind::ChooseColor { source: id },
+        DecisionKind::ChooseCreatureType { source: id },
+        DecisionKind::ChooseCardType { source: id },
+        DecisionKind::ChooseNumber { source: id, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();
@@ -284,48 +284,48 @@ fn every_variant_decides_its_subject() {
     // Every variant has a place, by a match the compiler holds to the enum:
     // a new variant does not compile here until it has one, and the places
     // the fixtures above reach must be all of them.
-    let place = |kind: &ChoiceKind| match kind {
-        ChoiceKind::PriorityAction => 0,
-        ChoiceKind::DeclareAttackers => 1,
-        ChoiceKind::DeclareBlockers => 2,
-        ChoiceKind::AssignCombatDamage { .. } => 3,
-        ChoiceKind::AssignTrampleDamage { .. } => 4,
-        ChoiceKind::ChooseXValue { .. } => 5,
-        ChoiceKind::ChooseAlternativeCost { .. } => 6,
-        ChoiceKind::ChooseAdditionalCosts { .. } => 7,
-        ChoiceKind::SelectRecipients { .. } => 8,
-        ChoiceKind::GenericManaAllocation { .. } => 9,
-        ChoiceKind::OrderCostReductions { .. } => 10,
-        ChoiceKind::ManaAbilityWindow { .. } => 11,
-        ChoiceKind::ChooseSacrificeForCost { .. } => 12,
-        ChoiceKind::ChooseReplacementEffect { .. } => 13,
-        ChoiceKind::OrderTriggers { .. } => 14,
-        ChoiceKind::ApplyOptionalReplacement { .. } => 15,
-        ChoiceKind::ApplyOptionalEffect { .. } => 16,
-        ChoiceKind::AllocateNextDamage { .. } => 17,
-        ChoiceKind::ChooseDamageSource { .. } => 18,
-        ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
-        ChoiceKind::ChoosePlayer { .. } => 20,
-        ChoiceKind::ChoosePlayerAsObjectEnters { .. } => 21,
-        ChoiceKind::ChooseEnteringDefender { .. } => 22,
-        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
-        ChoiceKind::ChooseCopySource { .. } => 24,
-        ChoiceKind::CommanderToCommandZoneSba { .. } => 25,
-        ChoiceKind::Discard { .. } => 26,
-        ChoiceKind::Scry { .. } => 27,
-        ChoiceKind::OrderLibraryCards { .. } => 28,
-        ChoiceKind::LegendRule { .. } => 29,
-        ChoiceKind::AcceptAsObjectEnters { .. } => 30,
-        ChoiceKind::DivideAmong { .. } => 31,
-        ChoiceKind::OrderCostPayments { .. } => 32,
-        ChoiceKind::OrderSimultaneousEntries { .. } => 33,
-        ChoiceKind::ChooseModes { .. } => 34,
-        ChoiceKind::PayAsItResolves { .. } => 35,
-        ChoiceKind::ChooseAmountToPay { .. } => 36,
-        ChoiceKind::ChooseColor { .. } => 37,
-        ChoiceKind::ChooseCreatureType { .. } => 38,
-        ChoiceKind::ChooseCardType { .. } => 39,
-        ChoiceKind::ChooseNumber { .. } => 40,
+    let place = |kind: &DecisionKind| match kind {
+        DecisionKind::PriorityAction => 0,
+        DecisionKind::DeclareAttackers => 1,
+        DecisionKind::DeclareBlockers => 2,
+        DecisionKind::AssignCombatDamage { .. } => 3,
+        DecisionKind::AssignTrampleDamage { .. } => 4,
+        DecisionKind::ChooseXValue { .. } => 5,
+        DecisionKind::ChooseAlternativeCost { .. } => 6,
+        DecisionKind::ChooseAdditionalCosts { .. } => 7,
+        DecisionKind::SelectRecipients { .. } => 8,
+        DecisionKind::GenericManaAllocation { .. } => 9,
+        DecisionKind::OrderCostReductions { .. } => 10,
+        DecisionKind::ManaAbilityWindow { .. } => 11,
+        DecisionKind::ChooseSacrificeForCost { .. } => 12,
+        DecisionKind::ChooseReplacementEffect { .. } => 13,
+        DecisionKind::OrderTriggers { .. } => 14,
+        DecisionKind::ApplyOptionalReplacement { .. } => 15,
+        DecisionKind::ApplyOptionalEffect { .. } => 16,
+        DecisionKind::AllocateNextDamage { .. } => 17,
+        DecisionKind::ChooseDamageSource { .. } => 18,
+        DecisionKind::ChooseDelayedTriggerEvent { .. } => 19,
+        DecisionKind::ChoosePlayer { .. } => 20,
+        DecisionKind::ChoosePlayerAsObjectEnters { .. } => 21,
+        DecisionKind::ChooseEnteringDefender { .. } => 22,
+        DecisionKind::ChooseAuxiliaryZoneChange { .. } => 23,
+        DecisionKind::ChooseCopySource { .. } => 24,
+        DecisionKind::CommanderToCommandZoneSba { .. } => 25,
+        DecisionKind::Discard { .. } => 26,
+        DecisionKind::Scry { .. } => 27,
+        DecisionKind::OrderLibraryCards { .. } => 28,
+        DecisionKind::LegendRule { .. } => 29,
+        DecisionKind::AcceptAsObjectEnters { .. } => 30,
+        DecisionKind::DivideAmong { .. } => 31,
+        DecisionKind::OrderCostPayments { .. } => 32,
+        DecisionKind::OrderSimultaneousEntries { .. } => 33,
+        DecisionKind::ChooseModes { .. } => 34,
+        DecisionKind::PayAsItResolves { .. } => 35,
+        DecisionKind::ChooseAmountToPay { .. } => 36,
+        DecisionKind::ChooseColor { .. } => 37,
+        DecisionKind::ChooseCreatureType { .. } => 38,
+        DecisionKind::ChooseCardType { .. } => 39,
+        DecisionKind::ChooseNumber { .. } => 40,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
     assert_eq!(reached, (0..41).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");

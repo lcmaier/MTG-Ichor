@@ -354,7 +354,7 @@ mod tests {
     use crate::cards::authoring::spell_ability;
     use crate::cards::printings::{forest, mind_rot};
     use crate::test_support::{AtEachPrompt, place_on_battlefield, put_in_hand};
-    use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+    use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::types::ids::ObjectOrPlayerId;
@@ -739,9 +739,9 @@ mod tests {
         let rot = put_spell_on_stack(&mut game, mind_rot(), 0, vec![ObjectOrPlayerId::Player(1)]);
         game.stack_entries.get_mut(&rot).expect("just put there").x_value = Some(3);
         let answers = test_dp();
-        answers.expect_choice(ChoiceKind::Discard { source: None }, vec![ChoiceOption::Object(one), ChoiceOption::Object(other)]);
+        answers.expect_choice(DecisionKind::Discard { source: None }, vec![DecisionOption::Object(one), DecisionOption::Object(other)]);
         let asked = std::cell::Cell::new(false);
-        let seat = AtEachPrompt::new(answers, |game: &GameState, _: &ChoiceContext| {
+        let seat = AtEachPrompt::new(answers, |game: &GameState, _: &DecisionContext| {
             let facts = game.stack_object_facts(rot).expect("on the stack until it finishes");
             let targets: Vec<_> = facts.announced.targets().flat_map(TargetInstance::as_resolved_targets).collect();
             assert!(facts.is_spell);

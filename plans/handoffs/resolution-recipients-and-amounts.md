@@ -674,7 +674,7 @@ opponent" body is a target per opponent, 57 cards (decision 5).
 - In 6b only, the big audited smoke (decision 4 changes what a binding names):
   `fuzz_games --audit`, 1,000 games at seed 777, both pools.
 - `specdb owed --phase "Phase 7"` clean.
-- The dev GUI's tests only if a `ChoiceKind` changes; none is planned.
+- The dev GUI's tests only if a `DecisionKind` changes; none is planned.
 
 ## Filed at the close-out, if the decisions stand
 

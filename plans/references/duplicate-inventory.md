@@ -784,7 +784,7 @@ One table per section, in the report's order; **where** names §3's group.
 | 16 | `ManaCost, ManaType` | `types/mana::colored_count`, `ui/ask::pips_owed` | merge | M2 | a cost's pips of one type; `colored_count` has only test callers and misses the `Colorless` spelling |
 | 17 | `Option<[u64]>, [u64], u64` | `scenario/setup::generic_split`, `ui/ask::forced_allocation` | keep |  | a standard split against detecting a forced answer |
 | 18 | `str, str` | `scenario/text::player_number_after`, `state/decision_log/text::parsed` | false positive |  | unrelated parsers |
-| 19 | `ChoiceOption, GameState` | `ui/choice_types::as_logged`, `ui/display::option_label`, `prompt::option_view` | keep |  | the log's fixed printed name, read without the layers, against the live label |
+| 19 | `DecisionOption, GameState` | `ui/decision_types::as_logged`, `ui/display::option_label`, `prompt::option_view` | keep |  | the log's fixed printed name, read without the layers, against the live label |
 | 20 | `GameState, ObjectId -> String` | `oracle/characteristics::get_effective_name`, `ui/display::card_name`, `ui/display::named` | merge | M5 | `card_name` is `get_effective_name` with a fallback; `named` is a label |
 | 21 | `GameState, PlayerId -> Vec<ObjectId>` | `oracle/board::permanents_controlled_by`, `oracle/legality::legal_attackers`, `oracle/legality::legal_blockers` | merge | M1 | `legal_blockers` restates `can_block`'s blocker half |
 | 22 | `GameState, PlayerId, u32` | `engine/triggers/history::begin_turn_history`, `engine/turns::expire_until_your_next_turn`, `state/game_state::begin_turn` | keep |  | the history needs a lagging copy of the turn, which `begin_turn` overwrites |

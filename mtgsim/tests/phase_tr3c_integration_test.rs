@@ -50,7 +50,7 @@ use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, EventRole, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_record;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -119,13 +119,13 @@ fn resolve_all(game: &mut GameState, dp: &dyn DecisionProvider) {
 /// keeping the options it was offered as the log words them; every other
 /// prompt takes its first option.
 struct ChoosingSource {
-    wanted: ChoiceOption,
+    wanted: DecisionOption,
     offered: RefCell<Vec<String>>,
     rest: RecordingDecisionProvider,
 }
 
 impl ChoosingSource {
-    fn new(wanted: ChoiceOption) -> Self {
+    fn new(wanted: DecisionOption) -> Self {
         ChoosingSource { wanted, offered: RefCell::new(Vec::new()), rest: RecordingDecisionProvider::picking(0) }
     }
 
@@ -139,11 +139,11 @@ impl DecisionProvider for ChoosingSource {
         &self,
         game: &GameState,
         player: PlayerId,
-        ctx: &ChoiceContext,
-        options: &[ChoiceOption],
+        ctx: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        if !matches!(ctx.kind, ChoiceKind::ChooseDamageSource { .. }) {
+        if !matches!(ctx.kind, DecisionKind::ChooseDamageSource { .. }) {
             return self.rest.pick_n(game, player, ctx, options, bounds);
         }
         let logged: Vec<String> = options.iter().map(|o| o.as_logged(game)).collect();
@@ -152,7 +152,7 @@ impl DecisionProvider for ChoosingSource {
         vec![at]
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, ctx: &DecisionContext, min: u64, max: u64) -> u64 {
         self.rest.pick_number(game, player, ctx, min, max)
     }
 
@@ -160,16 +160,16 @@ impl DecisionProvider for ChoosingSource {
         &self,
         game: &GameState,
         player: PlayerId,
-        ctx: &ChoiceContext,
+        ctx: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.rest.allocate(game, player, ctx, total, buckets, mins, maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, ctx: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.rest.choose_ordering(game, player, ctx, items)
     }
 }
@@ -177,7 +177,7 @@ impl DecisionProvider for ChoosingSource {
 /// Circle of Protection: Red's effect, resolved for its controller P0 as its
 /// ability resolves, choosing `wanted` as CR 609.7a's source. Returns the
 /// options offered, as the log words them.
-fn circle_chooses(game: &mut GameState, circle: ObjectId, wanted: ChoiceOption) -> Vec<String> {
+fn circle_chooses(game: &mut GameState, circle: ObjectId, wanted: DecisionOption) -> Vec<String> {
     let ctx = ResolutionContext {
         ability_source: game.object_ref(circle),
         ..ResolutionContext::untargeted(circle, 0, mtgsim::events::cause::GeneratedBy::Spell)
@@ -189,7 +189,7 @@ fn circle_chooses(game: &mut GameState, circle: ObjectId, wanted: ChoiceOption) 
 
 /// Activate Circle of Protection: Red for P0 from a pool of exactly `{1}`
 /// and resolve it, choosing `wanted`. Returns the options offered.
-fn activate_circle(game: &mut GameState, circle: ObjectId, wanted: ChoiceOption) -> Vec<String> {
+fn activate_circle(game: &mut GameState, circle: ObjectId, wanted: DecisionOption) -> Vec<String> {
     game.players[0].mana_pool.add(ManaType::White, 1);
     let dp = ManaWindowStop::new(ChoosingSource::new(wanted));
     game.activate_ability(0, circle, 0, &dp).unwrap();
@@ -198,16 +198,16 @@ fn activate_circle(game: &mut GameState, circle: ObjectId, wanted: ChoiceOption)
 }
 
 /// A source as it is now.
-fn now(id: ObjectId) -> ChoiceOption {
-    ChoiceOption::Object(id)
+fn now(id: ObjectId) -> DecisionOption {
+    DecisionOption::Object(id)
 }
 
 /// A source as it last existed, once it has left.
-fn as_it_was(object: ObjectRef) -> ChoiceOption {
-    ChoiceOption::LastKnown(object)
+fn as_it_was(object: ObjectRef) -> DecisionOption {
+    DecisionOption::LastKnown(object)
 }
 
-fn logged(game: &GameState, options: &[ChoiceOption]) -> Vec<String> {
+fn logged(game: &GameState, options: &[DecisionOption]) -> Vec<String> {
     options.iter().map(|o| o.as_logged(game)).collect()
 }
 
@@ -229,7 +229,7 @@ fn a_shield_prevents_the_damage_its_chosen_source_deals_after_it_died() {
 
     destroy(&mut game, myr);
     // The Myr's controller, P1, targets P0.
-    resolve_all(&mut game, &RecordingDecisionProvider::choosing([ChoiceOption::Player(0)]));
+    resolve_all(&mut game, &RecordingDecisionProvider::choosing([DecisionOption::Player(0)]));
 
     assert_eq!(life(&game, 0), 20, "the Myr that died is the source the Circle chose");
     assert!(game.replacement_effects.is_empty(), "and the shield is spent (CR 615.8)");
@@ -715,7 +715,7 @@ fn place(game: &mut GameState) {
 }
 
 /// Put the one waiting trigger on the stack with `target` as its target.
-fn place_targeting(game: &mut GameState, target: ChoiceOption) {
+fn place_targeting(game: &mut GameState, target: DecisionOption) {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(select(), vec![target]);
     game.perform_sba_and_triggers(&dp).unwrap();
@@ -727,16 +727,16 @@ fn place_targeting(game: &mut GameState, target: ChoiceOption) {
 fn resolve_may(game: &mut GameState, yes: bool, sacrifice: Option<ObjectId>) {
     let resolving = *game.stack.last().expect("something on the stack");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, if yes { vec![ChoiceOption::Object(resolving)] } else { vec![] });
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, if yes { vec![DecisionOption::Object(resolving)] } else { vec![] });
     if let Some(chosen) = sacrifice {
-        dp.expect_choice(select(), vec![ChoiceOption::Object(chosen)]);
+        dp.expect_choice(select(), vec![DecisionOption::Object(chosen)]);
     }
     game.resolve_top_of_stack(&dp).unwrap();
     assert!(dp.is_empty(), "the may, and the sacrifice where it was a choice");
 }
 
-fn select() -> ChoiceKind {
-    ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }
+fn select() -> DecisionKind {
+    DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }
 }
 
 fn zone(game: &GameState, id: ObjectId) -> Zone {
@@ -773,7 +773,7 @@ fn the_manticore_deals_damage_equal_to_the_sacrificed_creatures_power() {
     assert_eq!(zone(&game, ogre), Zone::Graveyard);
     assert_eq!(game.pending_triggers.len(), 1, "\"when you do\" triggered, checked as it was made");
     assert!(game.delayed_triggers.is_empty(), "and never waits");
-    place_targeting(&mut game, ChoiceOption::Player(1));
+    place_targeting(&mut game, DecisionOption::Player(1));
     resolve_all(&mut game, &test_dp());
 
     assert_eq!(life(&game, 1), 17);
@@ -800,7 +800,7 @@ fn the_manticores_first_trigger_has_no_target_and_its_second_waits_for_responses
     assert!(top_targets(&game).is_empty(), "the enters trigger goes on the stack without a target");
 
     resolve_may(&mut game, true, None);
-    place_targeting(&mut game, ChoiceOption::Player(1));
+    place_targeting(&mut game, DecisionOption::Player(1));
     assert_eq!(zone(&game, ogre), Zone::Graveyard, "the creature is sacrificed first");
     assert_eq!(top_targets(&game), vec![vec![ObjectOrPlayerId::Player(1)]], "the second ability has the target");
     assert_eq!(life(&game, 1), 20, "and the damage waits on the stack, where players may respond");
@@ -822,7 +822,7 @@ fn only_the_triggers_own_sacrifice_makes_the_manticore_deal_damage() {
     // In response, the altar's cost sacrifices the ogre: a sacrifice, but
     // not this ability's.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: altar, count: 1 }, vec![ChoiceOption::Object(ogre)]);
+    dp.expect_choice(DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: altar, count: 1 }, vec![DecisionOption::Object(ogre)]);
     game.activate_ability(0, altar, 0, &dp).unwrap();
     game.resolve_top_of_stack(&dp).unwrap();
     assert_eq!(zone(&game, ogre), Zone::Graveyard);
@@ -846,7 +846,7 @@ fn the_sacrificed_creatures_power_is_read_as_it_last_existed() {
 
     resolve_may(&mut game, true, None);
     assert_eq!(zone(&game, bear), Zone::Graveyard);
-    place_targeting(&mut game, ChoiceOption::Player(1));
+    place_targeting(&mut game, DecisionOption::Player(1));
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 1), 17, "3: the anthem's +1/+1 as it last existed");
 }
@@ -865,7 +865,7 @@ fn the_manticore_sacrifices_one_creature_and_triggers_once() {
     resolve_may(&mut game, true, Some(ogre));
     assert_eq!((zone(&game, ogre), zone(&game, bear)), (Zone::Graveyard, Zone::Battlefield));
     assert_eq!(game.pending_triggers.len(), 1);
-    place_targeting(&mut game, ChoiceOption::Player(1));
+    place_targeting(&mut game, DecisionOption::Player(1));
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 1), 17);
 }
@@ -895,7 +895,7 @@ fn cornered_crook_cast_from_hand_deals_3_once_an_artifact_is_sacrificed() {
 
     resolve_may(&mut game, true, None);
     assert_eq!(zone(&game, trinket), Zone::Graveyard);
-    place_targeting(&mut game, ChoiceOption::Player(1));
+    place_targeting(&mut game, DecisionOption::Player(1));
     resolve_all(&mut game, &test_dp());
     assert_eq!(life(&game, 1), 17);
 }
@@ -915,7 +915,7 @@ fn cornered_crooks_target_is_chosen_for_its_second_ability() {
 
     resolve_may(&mut game, true, None);
     assert!(game.stack.is_empty(), "the second ability has triggered, and is not yet on the stack");
-    place_targeting(&mut game, ChoiceOption::Player(1));
+    place_targeting(&mut game, DecisionOption::Player(1));
     assert_eq!(top_targets(&game), vec![vec![ObjectOrPlayerId::Player(1)]]);
     let top = *game.stack.last().unwrap();
     assert_eq!(game.stack_entries[&top].ability_ref.map(|i| i.source.id), Some(crook), "Cornered Crook's (CR 603.7e)");
@@ -937,7 +937,7 @@ fn cornered_crook_killed_in_response_deals_its_damage_as_it_last_existed() {
     place(&mut game);
     // The Warhammer is an artifact too, so the sacrifice is a choice.
     resolve_may(&mut game, true, Some(trinket));
-    place_targeting(&mut game, ChoiceOption::Object(wall));
+    place_targeting(&mut game, DecisionOption::Object(wall));
 
     destroy(&mut game, crook);
     assert_eq!(zone(&game, crook), Zone::Graveyard);
@@ -958,7 +958,7 @@ fn a_circle_that_chose_cornered_crook_prevents_its_damage_after_it_dies() {
     let circle = put_on_battlefield(&mut game, circle_of_protection_red(), 1);
     place(&mut game);
     resolve_may(&mut game, true, None);
-    place_targeting(&mut game, ChoiceOption::Player(1));
+    place_targeting(&mut game, DecisionOption::Player(1));
 
     let ctx = ResolutionContext {
         ability_source: game.object_ref(circle),
@@ -1048,8 +1048,8 @@ fn when_you_do_asks_about_that_action_and_no_other_instruction() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(select(), vec![ChoiceOption::Object(first)]);
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![]);
+    dp.expect_choice(select(), vec![DecisionOption::Object(first)]);
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![]);
     game.resolve_top_of_stack(&dp).unwrap();
     assert!(dp.is_empty());
     assert_eq!(zone(&game, first), Zone::Graveyard);
@@ -1060,8 +1060,8 @@ fn when_you_do_asks_about_that_action_and_no_other_instruction() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.cast_spell(0, tithe, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).unwrap();
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(select(), vec![ChoiceOption::Object(second)]);
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Object(tithe)]);
+    dp.expect_choice(select(), vec![DecisionOption::Object(second)]);
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![DecisionOption::Object(tithe)]);
     game.resolve_top_of_stack(&dp).unwrap();
     assert!(dp.is_empty());
     assert_eq!((zone(&game, second), zone(&game, third)), (Zone::Graveyard, Zone::Graveyard));

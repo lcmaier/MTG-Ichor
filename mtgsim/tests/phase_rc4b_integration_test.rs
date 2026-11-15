@@ -36,7 +36,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -488,11 +488,11 @@ fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: bear,
             remaining_cost: ManaCost::build(&[ManaType::Green], 0),
         },
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))],
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(land, tap))],
     );
     let start = game.recorded_events().records().len();
     game.cast_spell(0, bear, &dp).expect("the Forest pays for it");
@@ -532,11 +532,11 @@ fn test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::ManaAbilityWindow {
+        DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: bear,
             remaining_cost: ManaCost::build(&[ManaType::Green], 1),
         },
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))],
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(land, tap))],
     );
     let start = game.recorded_events().records().len();
     assert!(game.cast_spell(0, bear, &dp).is_err(), "{{1}}{{G}} against one Forest");
@@ -563,11 +563,11 @@ fn test_a_rewound_cast_leaves_no_zone_change() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt,
         },
-        vec![ChoiceOption::Player(1)],
+        vec![DecisionOption::Player(1)],
     );
     let start = game.recorded_events().records().len();
     assert!(game.cast_spell(0, bolt, &dp).is_err());

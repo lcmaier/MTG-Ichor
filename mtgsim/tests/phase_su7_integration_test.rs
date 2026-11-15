@@ -21,7 +21,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, put_spell_on_stack};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::decision::{DecisionProvider, PriorityAction};
 use mtgsim::ui::display::named;
@@ -42,8 +42,8 @@ fn find(game: &GameState, name: &str) -> ObjectId {
 /// `about`'s why at `player`'s priority question, as the priority loop asks
 /// it: the candidates in order, and the answer rejected before, if any.
 fn at_priority(game: &GameState, player: PlayerId, about: WhyAbout, rejected: Option<Rejection>) -> Why {
-    let options: Vec<ChoiceOption> = candidate_priority_actions(game, player).into_iter().map(ChoiceOption::Action).collect();
-    let context = ChoiceContext { kind: ChoiceKind::PriorityAction, rejected };
+    let options: Vec<DecisionOption> = candidate_priority_actions(game, player).into_iter().map(DecisionOption::Action).collect();
+    let context = DecisionContext { kind: DecisionKind::PriorityAction, rejected };
     why(game, about, Some(&OpenQuestion { player, context: &context, options: &options }))
 }
 
@@ -116,13 +116,13 @@ fn the_window_says_why_each_mana_ability_is_not_offered() {
          battlefield: Citanul Hierophants | controller 0, arrived this turn\n"
     ));
     let bears = find(&game, "Grizzly Bears");
-    let options: Vec<ChoiceOption> = mtgsim::oracle::mana_supply::ManaAbilityWindowOffer::read(&game, 0)
+    let options: Vec<DecisionOption> = mtgsim::oracle::mana_supply::ManaAbilityWindowOffer::read(&game, 0)
         .options(&game)
         .into_iter()
-        .map(|(source, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability)))
+        .map(|(source, ability)| DecisionOption::Action(PriorityAction::ActivateAbility(source, ability)))
         .collect();
     let remaining_cost = mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1);
-    let context = ChoiceContext { kind: ChoiceKind::ManaAbilityWindow { spell_or_ability_id: bears, remaining_cost }, rejected: None };
+    let context = DecisionContext { kind: DecisionKind::ManaAbilityWindow { spell_or_ability_id: bears, remaining_cost }, rejected: None };
     let asked = |name: &str| why(&game, WhyAbout::Object(find(&game, name)), Some(&OpenQuestion { player: 0, context: &context, options: &options }));
 
     let mountain = asked("Mountain");
@@ -154,12 +154,12 @@ fn the_window_names_a_source_waiting_for_mana_it_does_not_offer_yet() {
     let untapped_cube = ids[2];
     assert_eq!(named(&game, untapped_cube), format!("Doubling Cube ({untapped_cube})"));
     let remaining_cost = mtgsim::types::mana::ManaCost::build(&[ManaType::Green], 1);
-    let context = ChoiceContext { kind: ChoiceKind::ManaAbilityWindow { spell_or_ability_id: hydra, remaining_cost }, rejected: None };
+    let context = DecisionContext { kind: DecisionKind::ManaAbilityWindow { spell_or_ability_id: hydra, remaining_cost }, rejected: None };
     let window = |game: &GameState| {
-        let options: Vec<ChoiceOption> = mtgsim::oracle::mana_supply::ManaAbilityWindowOffer::read(game, 0)
+        let options: Vec<DecisionOption> = mtgsim::oracle::mana_supply::ManaAbilityWindowOffer::read(game, 0)
             .options(game)
             .into_iter()
-            .map(|(source, ability)| ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability)))
+            .map(|(source, ability)| DecisionOption::Action(PriorityAction::ActivateAbility(source, ability)))
             .collect();
         not_offered_yet(game, &OpenQuestion { player: 0, context: &context, options: &options })
     };
@@ -167,7 +167,7 @@ fn the_window_names_a_source_waiting_for_mana_it_does_not_offer_yet() {
     let label = format!("Doubling Cube ({untapped_cube}) · {{3}}, {{T}}: Double the amount of each type of unspent mana you have.");
     let reason = "Player 0's mana pool does not hold the mana".to_string();
     assert_eq!(window(&game), [NotOfferedYet { source: untapped_cube, label, reason, rule: Some("601.2h") }]);
-    let priority = ChoiceContext { kind: ChoiceKind::PriorityAction, rejected: None };
+    let priority = DecisionContext { kind: DecisionKind::PriorityAction, rejected: None };
     assert!(not_offered_yet(&game, &OpenQuestion { player: 0, context: &priority, options: &[] }).is_empty(), "the window's alone");
 
     game.players[0].mana_pool.add(ManaType::Green, 3);
@@ -359,18 +359,18 @@ impl Asking {
 }
 
 impl DecisionProvider for Asking {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
         let question = OpenQuestion { player, context, options };
         self.whys.borrow_mut().push(self.about.iter().map(|&about| why(game, about, Some(&question))).collect());
         self.picks.borrow_mut().pop_front().unwrap_or_default()
     }
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: u64) -> u64 {
         panic!("only picks here")
     }
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: u64, _: &[DecisionOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
         panic!("only picks here")
     }
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: &[DecisionOption]) -> Vec<usize> {
         panic!("only picks here")
     }
 }
@@ -474,14 +474,14 @@ fn an_answer_reversed_at_this_question_is_said_on_its_own_tier() {
 fn a_player_is_among_a_target_questions_options_or_not() {
     let game = built(&format!("{MAIN}hand 0: Lightning Bolt\nbattlefield: Forest | controller 1\n"));
     let bolt = find(&game, "Lightning Bolt");
-    let context = ChoiceContext::new(ChoiceKind::SelectRecipients {
+    let context = DecisionContext::new(DecisionKind::SelectRecipients {
         recipient: mtgsim::types::effects::EffectRecipient::Target(
             mtgsim::types::effects::SelectionFilter::Any,
             mtgsim::types::effects::TargetCount::Exactly(1),
         ),
         spell_id: bolt,
     });
-    let options = [ChoiceOption::Player(0), ChoiceOption::Player(1)];
+    let options = [DecisionOption::Player(0), DecisionOption::Player(1)];
     let question = OpenQuestion { player: 0, context: &context, options: &options };
     let answer = why(&game, WhyAbout::Player(1), Some(&question));
     assert_eq!(answer.title, "Player 1");

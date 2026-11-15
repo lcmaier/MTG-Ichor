@@ -21,7 +21,7 @@ use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -93,14 +93,14 @@ impl RoundTrip<'_> {
 }
 
 impl DecisionProvider for RoundTrip<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::PriorityAction) && game.priority_player == game.active_player {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
+        if matches!(context.kind, DecisionKind::PriorityAction) && game.priority_player == game.active_player {
             self.check(game);
         }
         self.agent.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.agent.pick_number(game, player, context, min, max)
     }
 
@@ -108,16 +108,16 @@ impl DecisionProvider for RoundTrip<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.agent.allocate(game, player, context, total, buckets, mins, maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.agent.choose_ordering(game, player, context, items)
     }
 

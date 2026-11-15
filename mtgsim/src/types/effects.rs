@@ -1346,7 +1346,7 @@ pub enum EffectRecipient {
     /// fizzles if all targets become illegal (rule 608.2b).
     Target(SelectionFilter, TargetCount),
     /// The label of a question that chooses objects without targeting them
-    /// (CR 115.10): what `ChoiceKind::SelectRecipients` carries for a choose
+    /// (CR 115.10): what `DecisionKind::SelectRecipients` carries for a choose
     /// step's objects ([`ValueChoice::Objects`]), an edict's pick and an
     /// Aura's host as it enters. No card writes it as what a verb acts on: a
     /// card chooses with a choose step, and the registry's tests refuse one

@@ -653,7 +653,7 @@ point.
   any combination of colors"); the type recorded as the source entered; or
   a type the named permanents could produce. **The choice is asked as the
   ability resolves (`backlog.md` §2.19), never in the window**: the window offers the
-  ability. A new `ChoiceKind` carries the window's remaining cost when it is
+  ability. A new `DecisionKind` carries the window's remaining cost when it is
   asked inside one, so an agent can pick the color a pip needs. Everywhere
   stays five abilities: it has every basic land type, and CR 305.6 gives it
   five.
@@ -839,7 +839,7 @@ card-by-card hunt runs in each PR's brief.
 | **MA-1, the inventory and the exact check** | Landed 2026-10-05 (#225): §10, and the archive's "MA-1" for the shape as sized | | | item 162's offer customer |
 | **`mana-ability-costs`, every cost a mana ability can have, in the check** (MA-1's review, 2026-10-06) | Every cost a mana ability can have, read per `Cost` arm with no wildcard into what one use spends: its tap (once a payment, since only `{Q}` untaps inside one), itself, counters (their count over N uses), life (one budget with the action's own life payment, CR 119.4), others' sacrifice (one fodder pool), mana in (a pool multiplier's input; a converter's is `any-color-plus-painlands-plus-signets`'s rule). Sorcery timing read, and CR 602.5's "activate only if" conditions once `permission-architecture.md` gives them a surface, in the order one window can change them (Mox Opal beside Krark-Clan Ironworks). The fold of replacement effects by state rather than order: 2^n·n! leaves at six effects become at most 2^n states. The choice search as a dynamic program over what the cost's pips still need, exact with no cap. **Its first commit is the stress board**: Nyxbloom Ancient registered beside Mana Reflection, fifteen distinct dual lands, a pool multiplier and three- to five-color costs, read in callgrind before the dynamic program and after | ~350–450 engine, ~300–400 tests: 650–850 | the stress board; the 116 printed cards whose mana costs life, counters, a tap with another sacrifice, or `{Q}` | item 213; MA-1's review, themes C and D |
 | **MA-2, the legal values of X** | Landed 2026-10-18 (#259): §10, and the archive's "MA-2" for the plan as sized | | | `cast-census.md` §8's X row |
-| **`any-color-plus-painlands-plus-signets`, a color chosen at resolution, a mana ability that does more, a mana ability with a mana cost** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `ChoiceKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` `ironworks-loop`) | `backlog.md` §2.19 |
+| **`any-color-plus-painlands-plus-signets`, a color chosen at resolution, a mana ability that does more, a mana ability with a mana cost** | §3.10's spec type and its sweep of `ManaOutput` sites; the choice at resolution, a `DecisionKind`; riders through the resolver; a mana ability's mana cost opening a window; §3.3's converter rules, with the combination cap stated as a cost and counted in fuzz. Cards: Birds of Paradise, a painland (Llanowar Wastes), Gilded Lotus ("three of any one color"), a Signet, a Treasure maker with `backlog.md` §2.27's Treasure | ~700 engine, ~800 tests: 1,500–2,000 | five cards; the Ironworks loop's three facilities (`roadmap-v2.md` `ironworks-loop`) | `backlog.md` §2.19 |
 | **`chosen-color-plus-could-produce`, the chosen color and "could produce"** | `backlog.md` §2.2's record, its mana half (the choice at entry, `EnterMods`, the permanent's field); "could produce" with its fixpoint. Cards: Thriving Grove, Coldsteel Heart, Exotic Orchard, Reflecting Pool | ~550 engine, ~650 tests: 1,200–1,500 | four cards | `backlog.md` §2.2's mana half |
 | **`convoke-delve-improvise`, paying with permanents or cards** | §3.9: the entries; the payment prompt in `plan_payment`; the taps and exiles through the chokepoint. Cards: Stoke the Flames, Treasure Cruise, Reverse Engineer, a waterbend card. Assist and offering go here if the hunt keeps it in band, else to C with a card each | ~900 engine, ~1,000 tests: 1,900–2,400 | four cards | `cast-census.md` §7's payment row |
 | **`mana-payment-solver`, a person's seat: the solver and item 211** | §3.12's solver and decorator, wired in the dev GUI behind the toggle, with a `fuzz_games` flag off by default; §3.11's shape C (a `SeatMode` field, the "add mana" entry, CR 605.3a's window at priority). A GUI PR: `engineering-practices.md#the-dev-gui`'s review | ~600 engine and client, ~600 tests: 1,100–1,400 | the CLI and dev GUI person's seat | `backlog.md` §2.18's solver (§2.22 rows 6 and 7), item 211 |
@@ -945,9 +945,9 @@ seven were taken as recommended at #224's review** (the owner,
   reader after the move pays it once. It is why the window's saving (§3.8)
   is 0.7 points, not 6.
 - **The window's prompt has no subject at a priority question.**
-  `ChoiceKind::ManaAbilityWindow` names the spell or ability being paid for.
+  `DecisionKind::ManaAbilityWindow` names the spell or ability being paid for.
   Shape C's window at priority pays for nothing, so `mana-payment-solver` makes that field an
-  `Option` or adds a kind, and decides which with `ChoiceKind::subject()`'s
+  `Option` or adds a kind, and decides which with `DecisionKind::subject()`'s
   match (A4j).
 
 Found by MA-2's plan (2026-10-17, at #259):
@@ -1063,7 +1063,7 @@ registered and pooled, and Protean Hydra is castable.
 in closed form, decision 2 at the owner's review, with a fallback to no
 bound if it ever costs half a point. A cost change that applies by mana
 value (CR 202.3e) was found to make the total piecewise, and is guarded and
-owed (item 274). `ChooseXValue`'s values are boxed, so `ChoiceKind` stays
+owed (item 274). `ChooseXValue`'s values are boxed, so `DecisionKind` stays
 48 bytes. The census had two question kinds without rows, now added. 994
 code and 943 tests added, against ~600–640 and ~720 sized.
 
@@ -1487,7 +1487,7 @@ waits".
 
 **The names.** The kind covers colored pips once a type has two classes, so
 `GenericManaAllocation` no longer says what it asks. Proposed:
-`ChoiceKind::WhichManaPays`, its options `ChoiceOption::Mana(ManaUnit)`, one
+`DecisionKind::WhichManaPays`, its options `DecisionOption::Mana(ManaUnit)`, one
 option kind for a plain unit and a snow one. That is a counted sweep by
 `replace_exact.py`, 21 kind sites and 13 option sites in the crate and one
 in the dev GUI, with no answer re-scripted. A client gets each bucket as a
@@ -2142,7 +2142,7 @@ card in a row of this build.
   sites that script a split, the scenario format's `split` word, and the
   random agent's answer.
 - **Renamed by a counted sweep:** `GenericManaAllocation`, 11 sites in
-  `src` and 10 in `tests`; `ChoiceOption::ManaType`, 7 and 6, and one in the
+  `src` and 10 in `tests`; `DecisionOption::ManaType`, 7 and 6, and one in the
   dev GUI; the record `ManaSpent`, which gives its name to the event, 43
   sites.
 - **Removed:** `types/mana.rs`'s thirty unit tests of the dormant subsystem.

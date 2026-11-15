@@ -24,7 +24,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+use mtgsim::ui::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -104,7 +104,7 @@ fn the_bolts_damage_reads_back_its_batch() {
     let text = include_str!("../scenarios/bolt-into-giant-growth.scenario");
     let BuiltScenario { mut game, setup } =
         Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}"));
-    let seats = RecordingDecisionProvider::choosing([ChoiceOption::Action(mtgsim::ui::decision::PriorityAction::Pass)])
+    let seats = RecordingDecisionProvider::choosing([DecisionOption::Action(mtgsim::ui::decision::PriorityAction::Pass)])
         .stopping_at_every_priority_point();
     let driver = SetupDriver::new(setup, &seats);
     for _ in 0..3 {
@@ -196,99 +196,99 @@ fn upkeep_of(game: &mut GameState, player: PlayerId) {
     panic!("player {player}'s upkeep never began");
 }
 
-/// Every question kind, built here in `ChoiceKind`'s order. A kind added to
+/// Every question kind, built here in `DecisionKind`'s order. A kind added to
 /// the enum does not compile in `place` until it is listed, and a kind left
 /// out of the list fails the order's assertion.
-fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
+fn every_kind(object: ObjectId) -> Vec<DecisionKind> {
     let kinds = vec![
-        ChoiceKind::PriorityAction,
-        ChoiceKind::DeclareAttackers,
-        ChoiceKind::DeclareBlockers,
-        ChoiceKind::AssignCombatDamage { attacker_id: object },
-        ChoiceKind::AssignTrampleDamage { attacker_id: object, defending_target: ObjectOrPlayerId::Player(1) },
-        ChoiceKind::ChooseXValue { spell_id: object, values: Box::new(LegalXValues::zero_through(1)) },
-        ChoiceKind::ChooseAlternativeCost { spell_id: object },
-        ChoiceKind::ChooseAdditionalCosts { spell_id: object },
-        ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Controller, spell_id: object },
-        ChoiceKind::GenericManaAllocation { spell_or_ability_id: object, mana_cost: ManaCost::build(&[], 2) },
-        ChoiceKind::OrderCostReductions { spell_id: object },
-        ChoiceKind::ManaAbilityWindow { spell_or_ability_id: object, remaining_cost: ManaCost::build(&[], 1) },
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: object, count: 1 },
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(object) },
-        ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First },
-        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(object), source: object },
-        ChoiceKind::ApplyOptionalEffect { source: object },
-        ChoiceKind::AllocateNextDamage { source: object, remaining: 2 },
-        ChoiceKind::ChooseDamageSource { source: object },
-        ChoiceKind::ChooseDelayedTriggerEvent { source: object },
-        ChoiceKind::ChoosePlayer { source: object },
-        ChoiceKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::Controller },
-        ChoiceKind::ChooseEnteringDefender { object },
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
-        ChoiceKind::ChooseCopySource { source: object },
-        ChoiceKind::CommanderToCommandZoneSba { commander: object },
-        ChoiceKind::Discard { source: None },
-        ChoiceKind::Scry { source: None, n: 1 },
-        ChoiceKind::OrderLibraryCards { source: None, bottom: true },
-        ChoiceKind::LegendRule { legend_name: "Grizzly Bears".to_string() },
-        ChoiceKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
-        ChoiceKind::DivideAmong { source: object },
-        ChoiceKind::OrderCostPayments { spell_or_ability_id: object },
-        ChoiceKind::OrderSimultaneousEntries { player: 0 },
-        ChoiceKind::ChooseModes { source: object, words: Vec::new() },
-        ChoiceKind::PayAsItResolves { source: object, offer: vec![Cost::Mana(ManaCost::build(&[], 3))], any_amount_of: None },
-        ChoiceKind::ChooseAmountToPay {
+        DecisionKind::PriorityAction,
+        DecisionKind::DeclareAttackers,
+        DecisionKind::DeclareBlockers,
+        DecisionKind::AssignCombatDamage { attacker_id: object },
+        DecisionKind::AssignTrampleDamage { attacker_id: object, defending_target: ObjectOrPlayerId::Player(1) },
+        DecisionKind::ChooseXValue { spell_id: object, values: Box::new(LegalXValues::zero_through(1)) },
+        DecisionKind::ChooseAlternativeCost { spell_id: object },
+        DecisionKind::ChooseAdditionalCosts { spell_id: object },
+        DecisionKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Controller, spell_id: object },
+        DecisionKind::GenericManaAllocation { spell_or_ability_id: object, mana_cost: ManaCost::build(&[], 2) },
+        DecisionKind::OrderCostReductions { spell_id: object },
+        DecisionKind::ManaAbilityWindow { spell_or_ability_id: object, remaining_cost: ManaCost::build(&[], 1) },
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: object, count: 1 },
+        DecisionKind::ChooseReplacementEffect { affected_object: Some(object) },
+        DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First },
+        DecisionKind::ApplyOptionalReplacement { affected_object: Some(object), source: object },
+        DecisionKind::ApplyOptionalEffect { source: object },
+        DecisionKind::AllocateNextDamage { source: object, remaining: 2 },
+        DecisionKind::ChooseDamageSource { source: object },
+        DecisionKind::ChooseDelayedTriggerEvent { source: object },
+        DecisionKind::ChoosePlayer { source: object },
+        DecisionKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::Controller },
+        DecisionKind::ChooseEnteringDefender { object },
+        DecisionKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
+        DecisionKind::ChooseCopySource { source: object },
+        DecisionKind::CommanderToCommandZoneSba { commander: object },
+        DecisionKind::Discard { source: None },
+        DecisionKind::Scry { source: None, n: 1 },
+        DecisionKind::OrderLibraryCards { source: None, bottom: true },
+        DecisionKind::LegendRule { legend_name: "Grizzly Bears".to_string() },
+        DecisionKind::AcceptAsObjectEnters { object, source: object, offer: EntryOffer::Pay(Cost::PayLife(2)) },
+        DecisionKind::DivideAmong { source: object },
+        DecisionKind::OrderCostPayments { spell_or_ability_id: object },
+        DecisionKind::OrderSimultaneousEntries { player: 0 },
+        DecisionKind::ChooseModes { source: object, words: Vec::new() },
+        DecisionKind::PayAsItResolves { source: object, offer: vec![Cost::Mana(ManaCost::build(&[], 3))], any_amount_of: None },
+        DecisionKind::ChooseAmountToPay {
             source: object,
             of: AmountOf::AnyAmountOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 2 }),
         },
-        ChoiceKind::ChooseColor { source: object },
-        ChoiceKind::ChooseCreatureType { source: object },
-        ChoiceKind::ChooseCardType { source: object },
-        ChoiceKind::ChooseNumber { source: object, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
+        DecisionKind::ChooseColor { source: object },
+        DecisionKind::ChooseCreatureType { source: object },
+        DecisionKind::ChooseCardType { source: object },
+        DecisionKind::ChooseNumber { source: object, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
     ];
-    let place = |kind: &ChoiceKind| match kind {
-        ChoiceKind::PriorityAction => 0,
-        ChoiceKind::DeclareAttackers => 1,
-        ChoiceKind::DeclareBlockers => 2,
-        ChoiceKind::AssignCombatDamage { .. } => 3,
-        ChoiceKind::AssignTrampleDamage { .. } => 4,
-        ChoiceKind::ChooseXValue { .. } => 5,
-        ChoiceKind::ChooseAlternativeCost { .. } => 6,
-        ChoiceKind::ChooseAdditionalCosts { .. } => 7,
-        ChoiceKind::SelectRecipients { .. } => 8,
-        ChoiceKind::GenericManaAllocation { .. } => 9,
-        ChoiceKind::OrderCostReductions { .. } => 10,
-        ChoiceKind::ManaAbilityWindow { .. } => 11,
-        ChoiceKind::ChooseSacrificeForCost { .. } => 12,
-        ChoiceKind::ChooseReplacementEffect { .. } => 13,
-        ChoiceKind::OrderTriggers { .. } => 14,
-        ChoiceKind::ApplyOptionalReplacement { .. } => 15,
-        ChoiceKind::ApplyOptionalEffect { .. } => 16,
-        ChoiceKind::AllocateNextDamage { .. } => 17,
-        ChoiceKind::ChooseDamageSource { .. } => 18,
-        ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
-        ChoiceKind::ChoosePlayer { .. } => 20,
-        ChoiceKind::ChoosePlayerAsObjectEnters { .. } => 21,
-        ChoiceKind::ChooseEnteringDefender { .. } => 22,
-        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
-        ChoiceKind::ChooseCopySource { .. } => 24,
-        ChoiceKind::CommanderToCommandZoneSba { .. } => 25,
-        ChoiceKind::Discard { .. } => 26,
-        ChoiceKind::Scry { .. } => 27,
-        ChoiceKind::OrderLibraryCards { .. } => 28,
-        ChoiceKind::LegendRule { .. } => 29,
-        ChoiceKind::AcceptAsObjectEnters { .. } => 30,
-        ChoiceKind::DivideAmong { .. } => 31,
-        ChoiceKind::OrderCostPayments { .. } => 32,
-        ChoiceKind::OrderSimultaneousEntries { .. } => 33,
-        ChoiceKind::ChooseModes { .. } => 34,
-        ChoiceKind::PayAsItResolves { .. } => 35,
-        ChoiceKind::ChooseAmountToPay { .. } => 36,
-        ChoiceKind::ChooseColor { .. } => 37,
-        ChoiceKind::ChooseCreatureType { .. } => 38,
-        ChoiceKind::ChooseCardType { .. } => 39,
-        ChoiceKind::ChooseNumber { .. } => 40,
+    let place = |kind: &DecisionKind| match kind {
+        DecisionKind::PriorityAction => 0,
+        DecisionKind::DeclareAttackers => 1,
+        DecisionKind::DeclareBlockers => 2,
+        DecisionKind::AssignCombatDamage { .. } => 3,
+        DecisionKind::AssignTrampleDamage { .. } => 4,
+        DecisionKind::ChooseXValue { .. } => 5,
+        DecisionKind::ChooseAlternativeCost { .. } => 6,
+        DecisionKind::ChooseAdditionalCosts { .. } => 7,
+        DecisionKind::SelectRecipients { .. } => 8,
+        DecisionKind::GenericManaAllocation { .. } => 9,
+        DecisionKind::OrderCostReductions { .. } => 10,
+        DecisionKind::ManaAbilityWindow { .. } => 11,
+        DecisionKind::ChooseSacrificeForCost { .. } => 12,
+        DecisionKind::ChooseReplacementEffect { .. } => 13,
+        DecisionKind::OrderTriggers { .. } => 14,
+        DecisionKind::ApplyOptionalReplacement { .. } => 15,
+        DecisionKind::ApplyOptionalEffect { .. } => 16,
+        DecisionKind::AllocateNextDamage { .. } => 17,
+        DecisionKind::ChooseDamageSource { .. } => 18,
+        DecisionKind::ChooseDelayedTriggerEvent { .. } => 19,
+        DecisionKind::ChoosePlayer { .. } => 20,
+        DecisionKind::ChoosePlayerAsObjectEnters { .. } => 21,
+        DecisionKind::ChooseEnteringDefender { .. } => 22,
+        DecisionKind::ChooseAuxiliaryZoneChange { .. } => 23,
+        DecisionKind::ChooseCopySource { .. } => 24,
+        DecisionKind::CommanderToCommandZoneSba { .. } => 25,
+        DecisionKind::Discard { .. } => 26,
+        DecisionKind::Scry { .. } => 27,
+        DecisionKind::OrderLibraryCards { .. } => 28,
+        DecisionKind::LegendRule { .. } => 29,
+        DecisionKind::AcceptAsObjectEnters { .. } => 30,
+        DecisionKind::DivideAmong { .. } => 31,
+        DecisionKind::OrderCostPayments { .. } => 32,
+        DecisionKind::OrderSimultaneousEntries { .. } => 33,
+        DecisionKind::ChooseModes { .. } => 34,
+        DecisionKind::PayAsItResolves { .. } => 35,
+        DecisionKind::ChooseAmountToPay { .. } => 36,
+        DecisionKind::ChooseColor { .. } => 37,
+        DecisionKind::ChooseCreatureType { .. } => 38,
+        DecisionKind::ChooseCardType { .. } => 39,
+        DecisionKind::ChooseNumber { .. } => 40,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
     assert_eq!(places, (0..41).collect::<Vec<_>>(), "every kind, once, in order");
@@ -304,9 +304,9 @@ fn every_question_kind_answers_a_why() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let card = put_in_hand(&mut game, grizzly_bears(), 1);
-    let options = [ChoiceOption::Object(bears)];
+    let options = [DecisionOption::Object(bears)];
     for kind in every_kind(bears) {
-        let context = ChoiceContext::new(kind.clone());
+        let context = DecisionContext::new(kind.clone());
         let question = OpenQuestion { player: 0, context: &context, options: &options };
         for about in [WhyAbout::Object(card), WhyAbout::Object(bears), WhyAbout::Player(1), WhyAbout::Event(EventId(0))] {
             for answer in [why(&game, about, Some(&question)), why_from_trace(&game, about, Some(&question), &[])] {
@@ -328,12 +328,12 @@ fn a_departed_player_is_named_at_choose_player_as_object_enters() {
     let mut game = setup_game(4);
     let entering = put_in_hand(&mut game, grizzly_bears(), 0);
     game.player_lost[3] = true;
-    let context = ChoiceContext::new(ChoiceKind::ChoosePlayerAsObjectEnters {
+    let context = DecisionContext::new(DecisionKind::ChoosePlayerAsObjectEnters {
         object: entering,
         source: entering,
         role: EntryRole::Controller,
     });
-    let options = [ChoiceOption::Player(1), ChoiceOption::Player(2)];
+    let options = [DecisionOption::Player(1), DecisionOption::Player(2)];
     let question = OpenQuestion { player: 0, context: &context, options: &options };
 
     let departed = why(&game, WhyAbout::Player(3), Some(&question));
@@ -354,8 +354,8 @@ fn devours_filter_says_why_a_permanent_is_not_offered() {
     let elder = put_in_hand(&mut game, thunder_thrash_elder(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let land = put_on_battlefield(&mut game, CardRegistry::default_registry().create("Mountain").unwrap(), 0);
-    let context = ChoiceContext::new(ChoiceKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard });
-    let options = [ChoiceOption::Object(bears)];
+    let context = DecisionContext::new(DecisionKind::ChooseAuxiliaryZoneChange { entering: elder, source: elder, to: Zone::Graveyard });
+    let options = [DecisionOption::Object(bears)];
     let question = OpenQuestion { player: 0, context: &context, options: &options };
 
     let answer = why(&game, WhyAbout::Object(land), Some(&question));
@@ -381,8 +381,8 @@ fn an_ordering_says_what_another_ability_answered() {
     game.change_zone(second, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp)).unwrap();
     assert_eq!(game.pending_triggers.len(), 1, "the first Warden's, waiting");
 
-    let context = ChoiceContext::new(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First });
-    let options = [ChoiceOption::Object(first)];
+    let context = DecisionContext::new(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First });
+    let options = [DecisionOption::Object(first)];
     let question = OpenQuestion { player: 0, context: &context, options: &options };
     let records = trace.records();
     let said = lines(&why_from_trace(&game, WhyAbout::Object(second), Some(&question), &records), "At this question");

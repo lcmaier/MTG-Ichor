@@ -6,7 +6,7 @@
 //! and marked clickable, chosen, or the prompt's subject. `app` draws them and
 //! reports clicks; nothing here knows egui.
 //!
-//! No case per `ChoiceKind`: a click is read off the primitive and off the
+//! No case per `DecisionKind`: a click is read off the primitive and off the
 //! board things each option names (`prompt::OptionView::refs`).
 
 use std::sync::Arc;
@@ -17,7 +17,7 @@ use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::choice_types::modes_as_logged;
+use mtgsim::ui::decision_types::modes_as_logged;
 use mtgsim::ui::display::{delayed_trigger_in_log, target_with_share};
 use mtgsim::ui::waiting::{TriggersIn, Waiting};
 use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
@@ -941,7 +941,7 @@ pub struct Item {
     /// An option names it, so a click means something.
     pub clickable: bool,
     pub chosen: bool,
-    /// The prompt is about it (`ChoiceKind::subject()`).
+    /// The prompt is about it (`DecisionKind::subject()`).
     pub subject: bool,
     pub tapped: bool,
     /// Shown on hover, what it is now; empty for none.

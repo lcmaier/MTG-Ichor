@@ -26,7 +26,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 fn zone_of(game: &GameState, id: ObjectId) -> Zone {
@@ -344,8 +344,8 @@ fn test_a_colossus_commander_goes_to_the_command_zone_and_its_owners_library_is_
     let dp = ScriptedDecisionProvider::new();
     // Only 903.9b asks: the Colossus's own clause is mandatory.
     dp.expect_choice(
-        ChoiceKind::ApplyOptionalReplacement { affected_object: Some(colossus), source: colossus },
-        vec![ChoiceOption::Object(colossus)],
+        DecisionKind::ApplyOptionalReplacement { affected_object: Some(colossus), source: colossus },
+        vec![DecisionOption::Object(colossus)],
     );
     let ctx = ActionContext::new(&dp);
     game.change_zone(colossus, Zone::Graveyard, ZoneChangeAct::Sacrificed, &ctx).unwrap();

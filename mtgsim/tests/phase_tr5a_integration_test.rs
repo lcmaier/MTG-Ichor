@@ -40,7 +40,7 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DamageRecipient, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -66,11 +66,11 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 
 /// `card` cast by `player` from exactly `pool`, each instance of "target"
 /// answered with the next of `targets`.
-fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)], targets: &[ChoiceOption]) -> ObjectId {
+fn cast_at(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)], targets: &[DecisionOption]) -> ObjectId {
     let aim = ScriptedDecisionProvider::new();
     for target in targets {
         aim.expect_choice(
-            ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+            DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
             vec![target.clone()],
         );
     }
@@ -343,8 +343,8 @@ fn them_over_an_attack_is_each_attacker() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::DeclareAttackers,
-        vec![ChoiceOption::AttackerTarget(first, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(second, AttackTarget::Player(1))],
+        DecisionKind::DeclareAttackers,
+        vec![DecisionOption::AttackerTarget(first, AttackTarget::Player(1)), DecisionOption::AttackerTarget(second, AttackTarget::Player(1))],
     );
     game.process_declare_attackers(&dp).unwrap();
     resolve_all(&mut game, &test_dp());
@@ -496,7 +496,7 @@ fn a_reach_block(game: &mut GameState) -> (ObjectId, ObjectId) {
     game.add_counters(blocker, CounterType::PlusOnePlusOne, 1);
     set_attacking(game, flier, 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareBlockers, vec![ChoiceOption::BlockerAttacker(blocker, flier)]);
+    dp.expect_choice(DecisionKind::DeclareBlockers, vec![DecisionOption::BlockerAttacker(blocker, flier)]);
     game.process_declare_blockers(&dp).unwrap();
     assert!(dp.is_empty(), "reach let it block the flier");
     (flier, blocker)

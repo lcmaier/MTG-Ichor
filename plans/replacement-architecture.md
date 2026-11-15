@@ -2680,10 +2680,10 @@ take a `&dyn DecisionProvider`. The 44 test `advance_turn` calls funnel through
 
 ## 7. DecisionProvider surface
 
-One new `ChoiceKind`, plus one reused shape:
+One new `DecisionKind`, plus one reused shape:
 
 ```rust
-// ui/choice_types.rs
+// ui/decision_types.rs
 /// CR 616.1 — two or more replacement/prevention effects want the same event.
 /// Only asked when there is a genuine choice (2+ candidates in the forced
 /// bucket); a single candidate applies without a prompt.
@@ -2695,7 +2695,7 @@ AllocateNextDamage { source: ObjectId, remaining: u64 },  // named in RD's desig
 ```
 
 The 616.1 prompt is a `pick_n` with bounds `(1, 1)` over
-`ChoiceOption::Object`-shaped candidates. **The option order is part of the
+`DecisionOption::Object`-shaped candidates. **The option order is part of the
 decision** (`CLAUDE.md`, determinism): candidates are gathered in the
 battlefield table's id order and registry insertion order, never a raw
 `HashMap` sweep. A `fuzz_games --seed N` run must still reproduce line-for-line.
@@ -3300,8 +3300,8 @@ The titles, in order, so `§9 RD decision N` still lands; each was read against 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
 | **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `ObjectSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~560 engine, ~300 cards, ~750 tests ≈ 1,500–1,700** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
-| **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::NextDamage`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
-| **RD-3 — damage matched by its source** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (`cant-be-targeted`'s rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
+| **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::NextDamage`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `DecisionKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
+| **RD-3 — damage matched by its source** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `DecisionKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (`cant-be-targeted`'s rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
 | **RD-4 — redirection and unpreventable damage** | `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` (16 `Primitive::DealDamage` sites, 25 `GameAction::DealDamage` constructions, mechanical), the restriction consult at application, `PlayerSet` on `ApplyReplacement::to` | `apply_rewrite` **1**, `from_rewrite` **1**, the two site counts above; `is_prohibited` callers **+1**. Predicted **~300 engine, ~200 cards, ~500 tests ≈ 1,000–1,200** | low-medium — two independent features that share only the consume-after-apply rule RD-2 lands |
 
 **≈ 5,700–6,500 across four, each at or inside the band, RD-2 at its top —
@@ -3812,7 +3812,7 @@ built, what it measured, and the trace-page argument.*
 and "at random" choosers, N cards as one batch of N members; `GameAction::Scry`
 with `EventPattern::Scry`, `GameEvent::Scried` and a performer that reorders
 the library in the arm and proposes nothing; CR 701.22b as `never_happens`'
-fourth arm; `ChoiceKind::{Discard, Scry, ScryOrder}`; `ReplacementDef::by:
+fourth arm; `DecisionKind::{Discard, Scry, ScryOrder}`; `ReplacementDef::by:
 Option<SourceFilter>` — CR 101.2's "by" asked of a replacement effect, and
 **not** the `caused_by` on `EventPattern::ZoneChange` decision 8 wrote, because
 `Restriction::Event` reuses that pattern and already carries a `by`;

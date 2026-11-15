@@ -48,7 +48,7 @@ use mtgsim::types::triggers::{
     TriggerEvent, TriggerOrigin, TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -534,7 +534,7 @@ fn simultaneous_events_trigger_a_once_delayed_trigger_once_by_its_controllers_ch
     let spell = resolve_spell(&mut game, next_death(), 0);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseDelayedTriggerEvent { source: spell }, vec![ChoiceOption::Object(big)]);
+    dp.expect_choice(DecisionKind::ChooseDelayedTriggerEvent { source: spell }, vec![DecisionOption::Object(big)]);
     destroy_together(&mut game, &[small, big], &dp);
     assert!(dp.is_empty(), "the controller chose, at the trigger");
     let pending = the_delayed_pending(&game);
@@ -572,10 +572,10 @@ fn two_attackers_declared_at_once_ask_a_once_delayed_trigger_s_controller() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::DeclareAttackers,
-        vec![ChoiceOption::AttackerTarget(small, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(big, AttackTarget::Player(1))],
+        DecisionKind::DeclareAttackers,
+        vec![DecisionOption::AttackerTarget(small, AttackTarget::Player(1)), DecisionOption::AttackerTarget(big, AttackTarget::Player(1))],
     );
-    dp.expect_choice(ChoiceKind::ChooseDelayedTriggerEvent { source: spell }, vec![ChoiceOption::Object(big)]);
+    dp.expect_choice(DecisionKind::ChooseDelayedTriggerEvent { source: spell }, vec![DecisionOption::Object(big)]);
     game.process_declare_attackers(&dp).unwrap();
     assert!(dp.is_empty(), "both attacked, and the controller chose");
     assert_eq!(the_delayed_pending(&game).binding.triggering_object(EventRole::Attacker).map(|s| s.id), Some(big));
@@ -882,7 +882,7 @@ fn a_delayed_trigger_takes_the_x_of_the_spell_that_created_it() {
     game.players[0].mana_pool.add(ManaType::Green, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 3);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: bounty, values: Box::new(LegalXValues::zero_through(3)) }, 3);
+    dp.expect_number(DecisionKind::ChooseXValue { spell_id: bounty, values: Box::new(LegalXValues::zero_through(3)) }, 3);
     game.cast_spell(0, bounty, &ManaWindowStop::new(dp)).expect("castable from exactly its cost");
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.delayed_triggers[0].x_value, Some(3));

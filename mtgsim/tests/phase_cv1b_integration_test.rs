@@ -72,7 +72,7 @@ use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::state::game_state::StepType;
 use mtgsim::types::triggers::TriggerSubject;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -406,7 +406,7 @@ fn a_move_no_row_names_leaves_every_registry_alone() {
 fn a_spell_whose_target_left_and_came_back_does_not_resolve() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::choosing([ChoiceOption::Object(bears)]));
+    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::choosing([DecisionOption::Object(bears)]));
     let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].announced.targets().next().unwrap().as_resolved_targets().collect();
     assert_eq!(announced, vec![ObjectOrPlayerId::Object(bears)]);
 
@@ -428,7 +428,7 @@ fn two_references_to_one_creature_both_end_at_one_move() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     resolve_spell(&mut game, giant_growth(), 1, &[bears]);
-    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::choosing([ChoiceOption::Object(bears)]));
+    let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], RecordingDecisionProvider::choosing([DecisionOption::Object(bears)]));
 
     leave_and_return(&mut game, bears, Zone::Exile, ZoneChangeAct::Put);
     assert_eq!(pt(&game, bears), (Some(2), Some(2)));
@@ -495,8 +495,8 @@ fn a_stolen_creature_destroyed_goes_home_as_a_new_object() {
     deal_damage(&mut game, red, ObjectOrPlayerId::Object(bears), 1);
     let aim = ScriptedDecisionProvider::new();
     aim.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: bears },
-        vec![ChoiceOption::Object(bears)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: bears },
+        vec![DecisionOption::Object(bears)],
     );
     let bolt = cast_from_pool(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], aim);
     let announced: Vec<ObjectOrPlayerId> = game.stack_entries[&bolt].announced.targets().next().unwrap().as_resolved_targets().collect();
@@ -596,7 +596,7 @@ fn copying_one_donor_twice_applies_its_static_ability_once() {
     let copier = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     for _ in 0..2 {
-        resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::choosing([ChoiceOption::Object(donor)]));
+        resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::choosing([DecisionOption::Object(donor)]));
     }
     assert_eq!(get_effective_name(&game, copier), "Anthem Bearer");
     assert_eq!(pt(&game, bears), (Some(3), Some(3)), "one anthem, not two");
@@ -686,7 +686,7 @@ fn a_lasting_copy_of_one_object_leaves_the_earlier_copys_other_object_alone() {
     let mirrorform_row = copy_rows_on(&game, first);
     assert_eq!(copy_rows_on(&game, second), mirrorform_row);
 
-    resolve_spell_with(&mut game, lasting_shape(), 0, &[first], &RecordingDecisionProvider::choosing([ChoiceOption::Object(plain)]));
+    resolve_spell_with(&mut game, lasting_shape(), 0, &[first], &RecordingDecisionProvider::choosing([DecisionOption::Object(plain)]));
     assert_eq!(get_effective_name(&game, first), "Grizzly Bears");
     assert_eq!(get_effective_name(&game, second), "Anthem Bearer");
     assert_eq!(copy_rows_on(&game, second), mirrorform_row, "the earlier row keeps the other creature");
@@ -823,7 +823,7 @@ fn mirrorform_of_a_copy_copies_what_it_copied_and_keeps_it() {
     let angel = put_on_battlefield(&mut game, serra_angel(), 1);
     let donor = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    resolve_spell_with(&mut game, cytoshape(), 1, &[donor], &RecordingDecisionProvider::choosing([ChoiceOption::Object(angel)]));
+    resolve_spell_with(&mut game, cytoshape(), 1, &[donor], &RecordingDecisionProvider::choosing([DecisionOption::Object(angel)]));
     assert_eq!(get_effective_name(&game, donor), "Serra Angel");
 
     resolve_spell(&mut game, mirrorform(), 0, &[donor]);
@@ -869,7 +869,7 @@ fn an_indefinite_copy_shows_again_with_its_statics_when_a_later_copy_ends() {
     let other = put_on_battlefield(&mut game, grizzly_bears(), 0);
     assert_eq!(pt(&game, other), (Some(3), Some(3)), "the copied anthem");
 
-    resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::choosing([ChoiceOption::Object(other)]));
+    resolve_spell_with(&mut game, cytoshape(), 0, &[copier], &RecordingDecisionProvider::choosing([DecisionOption::Object(other)]));
     assert_eq!(get_effective_name(&game, copier), "Grizzly Bears");
     assert_eq!(pt(&game, other), (Some(2), Some(2)), "hidden for the turn");
 
@@ -964,8 +964,8 @@ fn top_targets(game: &GameState) -> (ObjectId, Vec<ObjectOrPlayerId>) {
 fn place_targeting(game: &mut GameState, target: ObjectId) -> ObjectId {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: target },
-        vec![ChoiceOption::Object(target)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: target },
+        vec![DecisionOption::Object(target)],
     );
     game.perform_sba_and_triggers(&dp).unwrap();
     assert!(dp.is_empty(), "the target was asked for as the trigger was put on the stack");
@@ -978,7 +978,7 @@ fn place_targeting(game: &mut GameState, target: ObjectId) -> ObjectId {
 fn resolve_may(game: &mut GameState, yes: bool) {
     let (trigger, _) = top_targets(game);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: trigger }, if yes { vec![ChoiceOption::Object(trigger)] } else { vec![] });
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source: trigger }, if yes { vec![DecisionOption::Object(trigger)] } else { vec![] });
     game.resolve_top_of_stack(&dp).unwrap();
     assert!(dp.is_empty(), "the may was asked as it resolved");
 }
@@ -1121,7 +1121,7 @@ fn a_clone_of_cryptoplasm_copies_what_it_copies_and_has_its_ability() {
 
     let clone = mtgsim::test_support::put_in_graveyard(&mut game, printings::clone(), 1);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: clone }, vec![ChoiceOption::Object(crypto)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: clone }, vec![DecisionOption::Object(crypto)]);
     game.change_zone(clone, Zone::Battlefield, ZoneChangeAct::Put, &mtgsim::engine::actions::ActionContext::new(&dp))
         .unwrap();
     assert_eq!(get_effective_name(&game, clone), "Serra Angel");
@@ -1214,7 +1214,7 @@ fn a_declined_may_keeps_the_next_instance_on_its_own_target() {
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source }, vec![]);
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source }, vec![]);
     game.resolve_effect(&effect, &ctx, &dp).unwrap();
     assert_eq!((pt(&game, first), pt(&game, second)), ((Some(2), Some(2)), (Some(3), Some(3))));
 }
@@ -1265,7 +1265,7 @@ fn a_later_copy_takes_back_the_counters_a_doubler_made_of_the_exception() {
 
     let spark = mtgsim::test_support::put_in_graveyard(&mut game, printings::spark_double(), 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: spark }, vec![ChoiceOption::Object(bears)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: spark }, vec![DecisionOption::Object(bears)]);
     game.change_zone(spark, Zone::Battlefield, ZoneChangeAct::Put, &mtgsim::engine::actions::ActionContext::new(&dp))
         .unwrap();
     assert!(dp.is_empty());

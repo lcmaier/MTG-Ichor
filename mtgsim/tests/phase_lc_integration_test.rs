@@ -14,7 +14,7 @@ use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::types::colors::Color;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::engine::actions::ZoneChangeAct;
@@ -27,7 +27,7 @@ fn cast_and_resolve_targeted_spell(
     dp: &ScriptedDecisionProvider,
     spell_id: mtgsim::types::ids::ObjectId,
 ) {
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell_id))]);
     // No target to script: one legal target on these boards, so the choice
     // is forced and no prompt is made.
     let result = game.run_priority_round(dp).unwrap();
@@ -36,7 +36,7 @@ fn cast_and_resolve_targeted_spell(
     // Both pass → resolve. The caster is asked while another spell in hand is
     // castable; the opponent has `Pass` alone, which the engine takes.
     if candidate_priority_actions(game, game.active_player).len() > 1 {
-        dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
     }
     game.run_priority_round(dp).unwrap();
 }

@@ -101,9 +101,9 @@ fn x_cant_be_zero_asks_the_gate_for_one_x() {
 
 /// The why's lines at `kind`'s question to player 0, about `about`, each as
 /// its text and its rule.
-fn why_lines(game: &GameState, kind: mtgsim::ui::choice_types::ChoiceKind, about: mtgsim::types::ids::ObjectId) -> Vec<(String, Option<&'static str>)> {
+fn why_lines(game: &GameState, kind: mtgsim::ui::decision_types::DecisionKind, about: mtgsim::types::ids::ObjectId) -> Vec<(String, Option<&'static str>)> {
     use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
-    let context = mtgsim::ui::choice_types::ChoiceContext::new(kind);
+    let context = mtgsim::ui::decision_types::DecisionContext::new(kind);
     let answer = why(game, WhyAbout::Object(about), Some(&OpenQuestion { player: 0, context: &context, options: &[] }));
     assert_eq!(answer.sections[0].heading, "At this question");
     answer.sections[0].lines.iter().map(|line| (line.text.clone(), line.rule)).collect()
@@ -119,8 +119,8 @@ fn legal_values(game: &GameState, card: mtgsim::types::ids::ObjectId) -> mtgsim:
     legal_x_values(game, 0, &total, data.x_cant_be_zero).unwrap()
 }
 
-fn choose_x(card: mtgsim::types::ids::ObjectId, values: mtgsim::oracle::x_values::LegalXValues) -> mtgsim::ui::choice_types::ChoiceKind {
-    mtgsim::ui::choice_types::ChoiceKind::ChooseXValue { spell_id: card, values: Box::new(values) }
+fn choose_x(card: mtgsim::types::ids::ObjectId, values: mtgsim::oracle::x_values::LegalXValues) -> mtgsim::ui::decision_types::DecisionKind {
+    mtgsim::ui::decision_types::DecisionKind::ChooseXValue { spell_id: card, values: Box::new(values) }
 }
 
 /// The why of X's bound says what the closed form read (setup-architecture
@@ -170,7 +170,7 @@ fn the_why_of_the_generic_split_names_the_clamp() {
     let card = put_in_hand(&mut game, ember_lesson(false), 0);
     game.players[0].mana_pool.add(ManaType::Red, 2);
     game.players[0].mana_pool.add(ManaType::Green, 1);
-    let kind = mtgsim::ui::choice_types::ChoiceKind::GenericManaAllocation {
+    let kind = mtgsim::ui::decision_types::DecisionKind::GenericManaAllocation {
         spell_or_ability_id: card,
         mana_cost: ManaCost::build(&[ManaType::Red], 1),
     };
@@ -188,7 +188,7 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupDriver};
 use mtgsim::state::game::Halt;
 use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode, Stop};
 
 /// Protean Hydra in player 0's hand, `forests` Forests to pay with, and
@@ -243,36 +243,36 @@ fn refused(text: &str, as_a_set: bool) -> String {
 struct AsTamiyosSet<'a>(&'a dyn DecisionProvider);
 
 impl DecisionProvider for AsTamiyosSet<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.0.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         use mtgsim::oracle::x_values::{LegalXValues, XOffer};
-        let ChoiceKind::ChooseXValue { spell_id, .. } = &context.kind else {
+        let DecisionKind::ChooseXValue { spell_id, .. } = &context.kind else {
             return self.0.pick_number(game, player, context, min, max);
         };
         let set = vec![0, 1, 4, 6, 7];
         let values = LegalXValues { offered: XOffer::Set(set.clone()), ..LegalXValues::zero_through(7) };
-        let kind = ChoiceKind::ChooseXValue { spell_id: *spell_id, values: Box::new(values) };
-        let options: Vec<ChoiceOption> = set.iter().map(|&x| ChoiceOption::Number(x)).collect();
-        set[self.0.pick_n(game, player, &ChoiceContext::new(kind), &options, (1, 1))[0]]
+        let kind = DecisionKind::ChooseXValue { spell_id: *spell_id, values: Box::new(values) };
+        let options: Vec<DecisionOption> = set.iter().map(|&x| DecisionOption::Number(x)).collect();
+        set[self.0.pick_n(game, player, &DecisionContext::new(kind), &options, (1, 1))[0]]
     }
 
     fn allocate(
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.0.allocate(game, player, context, total, buckets, mins, maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.0.choose_ordering(game, player, context, items)
     }
 
@@ -354,7 +354,7 @@ fn offered_x(seat: &ScriptedDecisionProvider) -> XOffer {
     seat.asked()
         .into_iter()
         .find_map(|kind| match kind {
-            ChoiceKind::ChooseXValue { values, .. } => Some(values.offered),
+            DecisionKind::ChooseXValue { values, .. } => Some(values.offered),
             _ => None,
         })
         .expect("X was asked")
@@ -363,23 +363,23 @@ fn offered_x(seat: &ScriptedDecisionProvider) -> XOffer {
 /// `seat` casts `card` at the priority question, announces `x`, targets
 /// `target` if it names one, and taps `lands` in turn, one in each window.
 fn script_the_cast(seat: &ScriptedDecisionProvider, game: &GameState, card: ObjectId, x: u64, target: Option<PlayerId>, lands: &[ObjectId]) {
-    seat.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(card))]);
+    seat.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(card))]);
     seat.expect_number(choose_x(card, LegalXValues::zero_through(x)), x);
     if let Some(target) = target {
-        seat.expect_choice(blaze_target(card), vec![ChoiceOption::Player(target)]);
+        seat.expect_choice(blaze_target(card), vec![DecisionOption::Player(target)]);
     }
     for &land in lands {
         let tap = get_effective_abilities(game, land)[0].id;
         seat.expect_choice(
-            ChoiceKind::ManaAbilityWindow { spell_or_ability_id: card, remaining_cost: ManaCost::zero() },
-            vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))],
+            DecisionKind::ManaAbilityWindow { spell_or_ability_id: card, remaining_cost: ManaCost::zero() },
+            vec![DecisionOption::Action(PriorityAction::ActivateAbility(land, tap))],
         );
     }
 }
 
 /// Blaze's "any target".
-fn blaze_target(card: ObjectId) -> ChoiceKind {
-    ChoiceKind::SelectRecipients {
+fn blaze_target(card: ObjectId) -> DecisionKind {
+    DecisionKind::SelectRecipients {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: card,
     }
@@ -396,7 +396,7 @@ fn blaze_is_cast_with_the_x_its_caster_announces() {
     let card = put_in_hand(&mut game, blaze(), 0);
     let seat = ScriptedDecisionProvider::new();
     seat.expect_number(choose_x(card, LegalXValues::zero_through(3)), 3);
-    seat.expect_choice(blaze_target(card), vec![ChoiceOption::Player(1)]);
+    seat.expect_choice(blaze_target(card), vec![DecisionOption::Player(1)]);
     game.cast_spell(0, card, &seat).expect("castable");
     assert_eq!(offered_x(&seat), XOffer::Interval { at_least: 0, at_most: 4 });
     assert_eq!(game.stack_entries[&card].x_value, Some(3));
@@ -413,7 +413,7 @@ fn an_x_past_a_byte_is_paid_whole() {
     let card = put_in_hand(&mut game, blaze(), 0);
     let seat = ScriptedDecisionProvider::new();
     seat.expect_number(choose_x(card, LegalXValues::zero_through(256)), 256);
-    seat.expect_choice(blaze_target(card), vec![ChoiceOption::Player(1)]);
+    seat.expect_choice(blaze_target(card), vec![DecisionOption::Player(1)]);
     game.cast_spell(0, card, &seat).expect("castable");
     assert_eq!(game.stack_entries[&card].x_value, Some(256));
     assert_eq!(game.players[0].mana_pool.total(), 0, "{{256}}{{R}} paid of 257");

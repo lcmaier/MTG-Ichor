@@ -37,7 +37,7 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{EventKind, EventKindMask};
 use crate::types::zones::{Zone, ZoneSet};
 use crate::ui::ask::ask_order_cost_payments;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, CostPart, Rejection};
+use crate::ui::decision_types::{DecisionKind, DecisionOption, CostPart, Rejection};
 use crate::ui::decision::FirstLegalAnswer;
 
 /// The channels a payment's parts can change, and so all a reader is asked
@@ -435,8 +435,8 @@ impl GameState {
                 false => Unasked::OneGame(Elision::PaymentOrder),
             };
             self.note_unasked(player, why, || {
-                let order = (0..n).map(|part| ChoiceOption::CostPart(plan.part(part))).collect();
-                (ChoiceKind::OrderCostPayments { spell_or_ability_id: source }, UnaskedAnswer::Order(order))
+                let order = (0..n).map(|part| DecisionOption::CostPart(plan.part(part))).collect();
+                (DecisionKind::OrderCostPayments { spell_or_ability_id: source }, UnaskedAnswer::Order(order))
             });
             if self.audit_is_on() {
                 self.audit_payment_orders(plan, &must, &[], player, source);
@@ -714,8 +714,8 @@ mod tests {
         game.players[0].mana_pool.add(ManaType::Green, 6);
         let costs = [Cost::Mana(ManaCost::build(&[ManaType::Green, ManaType::Green], 2)), Cost::Sacrifice(creature(), 1)];
         let answers = ScriptedDecisionProvider::new();
-        let part = |cost: &Cost, paid_with: Vec<ObjectId>| ChoiceOption::CostPart(CostPart { cost: cost.clone(), paid_with });
-        answers.expect_order(ChoiceKind::OrderCostPayments { spell_or_ability_id: omnath }, vec![part(&costs[0], Vec::new()), part(&costs[1], vec![omnath])]);
+        let part = |cost: &Cost, paid_with: Vec<ObjectId>| DecisionOption::CostPart(CostPart { cost: cost.clone(), paid_with });
+        answers.expect_order(DecisionKind::OrderCostPayments { spell_or_ability_id: omnath }, vec![part(&costs[0], Vec::new()), part(&costs[1], vec![omnath])]);
         let plan = game.plan_payment(&costs, 0, omnath, &ActionContext::paying_cost(&answers, 0, omnath)).expect("payable");
         let nothing_forced = MustPrecede::closed(vec![vec![false; 2]; 2]).expect("no edges, no cycle");
         game.audit_payment_orders(&plan, &nothing_forced, &[], 0, omnath);

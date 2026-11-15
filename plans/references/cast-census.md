@@ -168,7 +168,7 @@ with 107 and 702 where those send.
   **Watching:** 601.2g and 605.3a (the window, and mana abilities at a
   priority question); 106.4; 601.2f's lock-in; 732.1; 400.7d (what paid,
   item 30).
-- **The question kinds** (`ChoiceKind`). At v1, the why must say for every
+- **The question kinds** (`DecisionKind`). At v1, the why must say for every
   question what it ranges over, and why a candidate was dropped, in the CR
   rule that drops it. The rules: 115 and 601.2c for a target, 701.21a for a
   sacrifice, 614.13a for an auxiliary move, 707.6 for a copy's choice, 800.4a
@@ -524,9 +524,9 @@ asked (the "mana with {X}" cost row, `hybrid-and-phyrexian-payment`'s).
 ## 9. The question kinds
 
 <!-- cast-census: begin QUESTIONS -->
-29 kinds, parsed from `pub enum ChoiceKind` in `mtgsim/src/ui/choice_types.rs`; `ui::why::refusals` answers 11 with a check (`ChooseAuxiliaryZoneChange`, `ChooseCopySource`, `ChooseEnteringController`, `ChooseReplacementEffect`, `ChooseXValue`, `DeclareAttackers`, `DeclareBlockers`, `GenericManaAllocation`, `ManaAbilityWindow`, `OrderTriggers`, `PriorityAction`), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it ranges over (`ranges_over`). Of the 18 it does not check, 2 are **filtered**: a check drops a candidate the question could have named. 3 are **bounds**: the options are amounts, and the why explains a limit. 13 are **no**: every candidate is offered.
+29 kinds, parsed from `pub enum DecisionKind` in `mtgsim/src/ui/decision_types.rs`; `ui::why::refusals` answers 11 with a check (`ChooseAuxiliaryZoneChange`, `ChooseCopySource`, `ChooseEnteringController`, `ChooseReplacementEffect`, `ChooseXValue`, `DeclareAttackers`, `DeclareBlockers`, `GenericManaAllocation`, `ManaAbilityWindow`, `OrderTriggers`, `PriorityAction`), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it ranges over (`ranges_over`). Of the 18 it does not check, 2 are **filtered**: a check drops a candidate the question could have named. 3 are **bounds**: the options are amounts, and the why explains a limit. 13 are **no**: every candidate is offered.
 
-| `ChoiceKind` | its options | filtered | what a why reads | owner | slot |
+| `DecisionKind` | its options | filtered | what a why reads | owner | slot |
 |---|---|---|---|---|---|
 | `PriorityAction` | lands, spells, abilities, and Pass | yes | `can_play_land`, `can_cast`, `can_activate` (SU-7) | built (SU-7) | -- |
 | `DeclareAttackers` | creatures and what each may attack | yes | `can_attack` (SU-7) | built (SU-7) | -- |
@@ -564,7 +564,7 @@ asked (the "mana with {X}" cost row, `hybrid-and-phyrexian-payment`'s).
 **The shape at v1** (the owner, 2026-10-05), **built by SU-8** (#226) but
 for the three kinds other owners hold. Every kind has a line saying what the
 question ranges over, `ui::why::ranges_over`, an exhaustive match, so a new
-`ChoiceKind` decides its line at birth; and `ui::why::refusals` matches every
+`DecisionKind` decides its line at birth; and `ui::why::refusals` matches every
 kind with no wildcard. SU-8 reads the trace for two kinds, the effects a CR
 616.1 choice applied already and what the triggered abilities answered about
 the events an ordering's abilities triggered on, and gives three a reason from
@@ -665,7 +665,7 @@ the battlefield and no keyword family but affinity and equip.
      you control" and blight are the same arms.
    - **Owner:** `cost-architecture.md` `remaining-costs`. **Slot:** before C, beside `hybrid-and-phyrexian-payment`.
 4. **The 24 question kinds the why does not explain.** Item 212 and #222's
-   review reply both said "of 30"; `ChoiceKind` has 27, and the why answers 3.
+   review reply both said "of 30"; `DecisionKind` has 27, and the why answers 3.
    - **v1:** §9.
    - **Owner:** `setup-architecture.md` §7c, with each filtered kind's owner.
      **Slot:** SU-8 for the line every kind gets and for the two trace kinds;

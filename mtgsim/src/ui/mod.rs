@@ -1,4 +1,4 @@
-pub mod choice_types;
+pub mod decision_types;
 pub mod ask;
 pub mod decision;
 pub mod display;

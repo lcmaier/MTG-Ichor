@@ -38,7 +38,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -81,16 +81,16 @@ fn cast_paying(
 }
 
 /// The script's next answer to a choice of objects or players: `chosen`.
-fn picks(answers: &ScriptedDecisionProvider, chosen: Vec<ChoiceOption>) {
-    answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, chosen);
+fn picks(answers: &ScriptedDecisionProvider, chosen: Vec<DecisionOption>) {
+    answers.expect_choice(DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, chosen);
 }
 
 /// What each prompt offered: who was asked, the question, and its options,
 /// a number's as its least and most.
 #[derive(Default)]
 struct Asked {
-    of_options: RefCell<Vec<(PlayerId, ChoiceKind, Vec<ChoiceOption>)>>,
-    of_numbers: RefCell<Vec<(PlayerId, ChoiceKind, u64, u64)>>,
+    of_options: RefCell<Vec<(PlayerId, DecisionKind, Vec<DecisionOption>)>>,
+    of_numbers: RefCell<Vec<(PlayerId, DecisionKind, u64, u64)>>,
 }
 
 /// A provider that notes each prompt in `asked` and answers through `inner`.
@@ -107,12 +107,12 @@ impl<D> Watching<D> {
 }
 
 impl<D: DecisionProvider> DecisionProvider for Watching<D> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.asked.of_options.borrow_mut().push((player, context.kind.clone(), options.to_vec()));
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.asked.of_numbers.borrow_mut().push((player, context.kind.clone(), min, max));
         self.inner.pick_number(game, player, context, min, max)
     }
@@ -121,16 +121,16 @@ impl<D: DecisionProvider> DecisionProvider for Watching<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
     }
 
@@ -248,8 +248,8 @@ fn a_draw_whose_target_player_has_left_is_no_ones() {
     }
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let answers = ScriptedDecisionProvider::new();
-    picks(&answers, vec![ChoiceOption::Player(1)]);
-    picks(&answers, vec![ChoiceOption::Object(bears)]);
+    picks(&answers, vec![DecisionOption::Player(1)]);
+    picks(&answers, vec![DecisionOption::Object(bears)]);
     cast_paying(&mut game, combat_tutorial(), &[(ManaType::Blue, 3)], answers);
     game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
 
@@ -304,7 +304,7 @@ fn a_draw_goes_to_its_target_player() {
     }
     // No creature to target, so "up to one" is none and is not asked.
     let answers = ScriptedDecisionProvider::new();
-    picks(&answers, vec![ChoiceOption::Player(1)]);
+    picks(&answers, vec![DecisionOption::Player(1)]);
     cast_paying(&mut game, combat_tutorial(), &[(ManaType::Blue, 3)], answers);
 
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
@@ -336,7 +336,7 @@ fn expel_choosing(number: u64, anthem: bool) -> (Rc<Asked>, ObjectId, [bool; 4],
     assert!(game.stack.contains(&spell), "cast with nothing chosen: the number is no part of casting it");
 
     let answers = ScriptedDecisionProvider::new();
-    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 10 }) };
+    let any_number = DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 10 }) };
     answers.expect_number(any_number, number);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
@@ -356,7 +356,7 @@ fn expel_the_interlopers_offers_0_through_10_and_destroys_from_the_number_up() {
     let asked = asked.of_numbers.borrow();
     let [(chooser, kind, least, most)] = asked.as_slice() else { panic!("one question, asked as it resolves: {asked:?}") };
     assert_eq!((*chooser, *least, *most), (0, 0, 10), "its controller, from 0 through 10");
-    assert!(matches!(kind, ChoiceKind::ChooseNumber { source, .. } if *source == spell), "the question names the spell: {kind:?}");
+    assert!(matches!(kind, DecisionKind::ChooseNumber { source, .. } if *source == spell), "the question names the spell: {kind:?}");
     assert_eq!(left, [true, true, false, false], "power 3 and power 5 are 3 or more");
     assert!(land_left, "a land has no power, and is no creature");
 
@@ -391,15 +391,15 @@ fn wash_out_returns_the_permanents_of_the_color_chosen_as_it_resolves() {
     let (spell, _) = cast_paying(&mut game, wash_out(), &[(ManaType::Blue, 4)], ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_choice(ChoiceKind::ChooseColor { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Color(Color::Blue)]);
+    answers.expect_choice(DecisionKind::ChooseColor { source: ObjectId::UNASSIGNED }, vec![DecisionOption::Color(Color::Blue)]);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
 
     let asked = asked.of_options.borrow();
     let [(chooser, kind, offered)] = asked.as_slice() else { panic!("one question, asked as it resolves: {asked:?}") };
     assert_eq!(*chooser, 0, "its controller chooses");
-    assert!(matches!(kind, ChoiceKind::ChooseColor { source } if *source == spell), "the question names the spell: {kind:?}");
-    assert_eq!(*offered, Color::ALL.map(ChoiceOption::Color).to_vec(), "the five colors");
+    assert!(matches!(kind, DecisionKind::ChooseColor { source } if *source == spell), "the question names the spell: {kind:?}");
+    assert_eq!(*offered, Color::ALL.map(DecisionOption::Color).to_vec(), "the five colors");
     assert!(game.players[0].hand.contains(&mine) && game.players[1].hand.contains(&theirs), "each blue permanent to its owner's hand");
     assert!(game.battlefield.contains_key(&red) && game.battlefield.contains_key(&land), "a red creature and a colorless land stay");
 }
@@ -432,15 +432,15 @@ fn kindred_dominance_spares_the_creature_type_chosen_as_it_resolves() {
 
     let answers = ScriptedDecisionProvider::new();
     answers.expect_choice(
-        ChoiceKind::ChooseCreatureType { source: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::CreatureType(CreatureType::Elf)],
+        DecisionKind::ChooseCreatureType { source: ObjectId::UNASSIGNED },
+        vec![DecisionOption::CreatureType(CreatureType::Elf)],
     );
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
 
     let asked = asked.of_options.borrow();
     let [(_, _, offered)] = asked.as_slice() else { panic!("one question: {asked:?}") };
-    assert_eq!(*offered, CreatureType::ALL.map(ChoiceOption::CreatureType).to_vec(), "every creature type the rule lists");
+    assert_eq!(*offered, CreatureType::ALL.map(DecisionOption::CreatureType).to_vec(), "every creature type the rule lists");
     assert!(game.battlefield.contains_key(&elf) && game.battlefield.contains_key(&their_elf), "the Elves are of the chosen type");
     assert!(game.battlefield.contains_key(&elf_warrior), "an Elf Warrior is an Elf");
     assert!(!game.battlefield.contains_key(&goblin), "the Goblin is not");
@@ -475,10 +475,10 @@ fn world_queller_keeps_a_card_type_for_each_players_edict() {
         let trigger = *game.stack.last().expect("the trigger is on the stack");
 
         let answers = ScriptedDecisionProvider::new();
-        let may = ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED };
+        let may = DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED };
         if chooses {
             answers.expect_take(may);
-            answers.expect_choice(ChoiceKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CardType(CardType::Artifact)]);
+            answers.expect_choice(DecisionKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![DecisionOption::CardType(CardType::Artifact)]);
         } else {
             answers.expect_choice(may, Vec::new());
         }
@@ -491,8 +491,8 @@ fn world_queller_keeps_a_card_type_for_each_players_edict() {
             // player is asked which.
             let [_, (chooser, kind, offered)] = asked.as_slice() else { panic!("the may, then the card type: {asked:?}") };
             assert_eq!(*chooser, 0);
-            assert!(matches!(kind, ChoiceKind::ChooseCardType { source } if *source == trigger), "the question names the ability resolving");
-            assert_eq!(*offered, CardType::ALL.map(ChoiceOption::CardType).to_vec(), "every card type");
+            assert!(matches!(kind, DecisionKind::ChooseCardType { source } if *source == trigger), "the question names the ability resolving");
+            assert_eq!(*offered, CardType::ALL.map(DecisionOption::CardType).to_vec(), "every card type");
         } else {
             assert_eq!(asked.len(), 1, "declined, nothing more is asked");
         }
@@ -514,8 +514,8 @@ fn world_queller_trigger_waiting(game: &mut GameState) {
 /// `card_type`.
 fn queller_chooses(card_type: CardType) -> ScriptedDecisionProvider {
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_take(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED });
-    answers.expect_choice(ChoiceKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CardType(card_type)]);
+    answers.expect_take(DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED });
+    answers.expect_choice(DecisionKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![DecisionOption::CardType(card_type)]);
     answers
 }
 
@@ -542,7 +542,7 @@ fn world_queller_asks_each_player_in_turn_order() {
     world_queller_trigger_waiting(&mut game);
     let answers = queller_chooses(CardType::Artifact);
     for [_, picked] in relics {
-        picks(&answers, vec![ChoiceOption::Object(picked)]);
+        picks(&answers, vec![DecisionOption::Object(picked)]);
     }
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("the trigger resolves");
@@ -563,14 +563,14 @@ fn a_player_chosen_as_the_spell_resolves_is_who_the_next_step_acts_on() {
     cast(&mut game, bestowed_favors(), ManaType::Green, ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    let a_player = || ChoiceKind::ChoosePlayer { source: ObjectId::UNASSIGNED };
-    answers.expect_choice(a_player(), vec![ChoiceOption::Player(2)]);
-    answers.expect_choice(a_player(), vec![ChoiceOption::Player(1)]);
+    let a_player = || DecisionKind::ChoosePlayer { source: ObjectId::UNASSIGNED };
+    answers.expect_choice(a_player(), vec![DecisionOption::Player(2)]);
+    answers.expect_choice(a_player(), vec![DecisionOption::Player(1)]);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
 
-    let offered: Vec<Vec<ChoiceOption>> = asked.of_options.borrow().iter().map(|(_, _, options)| options.clone()).collect();
-    assert_eq!(offered, [[0, 1, 2].map(ChoiceOption::Player).to_vec(), [1, 2].map(ChoiceOption::Player).to_vec()]);
+    let offered: Vec<Vec<DecisionOption>> = asked.of_options.borrow().iter().map(|(_, _, options)| options.clone()).collect();
+    assert_eq!(offered, [[0, 1, 2].map(DecisionOption::Player).to_vec(), [1, 2].map(DecisionOption::Player).to_vec()]);
     assert_eq!([0, 1, 2].map(|seat| game.players[seat].hand.len()), [0, 0, 1], "the first player chosen draws");
     let tokens: Vec<Option<PlayerId>> =
         game.battlefield.keys().filter(|id| game.objects[id].is_token).map(|id| get_effective_controller(&game, id)).collect();
@@ -612,10 +612,10 @@ fn by_invitation_only_has_each_player_sacrifice_the_number_chosen() {
     cast_paying(&mut game, by_invitation_only(), &[(ManaType::White, 5)], ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 13 }) };
+    let any_number = DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 13 }) };
     answers.expect_number(any_number, 2);
-    picks(&answers, vec![ChoiceOption::Object(creatures[0][0]), ChoiceOption::Object(creatures[0][1])]);
-    picks(&answers, vec![ChoiceOption::Object(creatures[1][1]), ChoiceOption::Object(creatures[1][2])]);
+    picks(&answers, vec![DecisionOption::Object(creatures[0][0]), DecisionOption::Object(creatures[0][1])]);
+    picks(&answers, vec![DecisionOption::Object(creatures[1][1]), DecisionOption::Object(creatures[1][2])]);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
 
@@ -641,10 +641,10 @@ fn a_card_type_is_chosen_from_the_few_the_text_prints() {
     cast(&mut game, sorcery("Fixture Turn", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_choice(ChoiceKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CardType(CardType::Artifact)]);
+    answers.expect_choice(DecisionKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![DecisionOption::CardType(CardType::Artifact)]);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
-    assert_eq!(asked.of_options.borrow()[0].2, printed.map(ChoiceOption::CardType).to_vec(), "the three printed, and no other");
+    assert_eq!(asked.of_options.borrow()[0].2, printed.map(DecisionOption::CardType).to_vec(), "the three printed, and no other");
     assert!(game.battlefield[&relic].tapped && !game.battlefield[&bears].tapped);
 }
 
@@ -670,11 +670,11 @@ fn a_choice_of_objects_is_among_what_an_earlier_choice_describes() {
     cast(&mut game, sorcery("Fixture Hue", (ManaType::Black, Color::Black), text, effect), ManaType::Black, ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_choice(ChoiceKind::ChooseColor { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Color(Color::Blue)]);
-    picks(&answers, vec![ChoiceOption::Object(blue[1])]);
+    answers.expect_choice(DecisionKind::ChooseColor { source: ObjectId::UNASSIGNED }, vec![DecisionOption::Color(Color::Blue)]);
+    picks(&answers, vec![DecisionOption::Object(blue[1])]);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
-    assert_eq!(asked.of_options.borrow()[1].2, blue.map(ChoiceOption::Object).to_vec(), "the blue creatures, and not the red one");
+    assert_eq!(asked.of_options.borrow()[1].2, blue.map(DecisionOption::Object).to_vec(), "the blue creatures, and not the red one");
     assert!(game.battlefield.contains_key(&blue[0]) && !game.battlefield.contains_key(&blue[1]) && game.battlefield.contains_key(&red));
 }
 
@@ -693,7 +693,7 @@ fn a_count_reads_the_creature_type_chosen() {
     cast(&mut game, sorcery("Fixture Melody", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_choice(ChoiceKind::ChooseCreatureType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CreatureType(CreatureType::Elf)]);
+    answers.expect_choice(DecisionKind::ChooseCreatureType { source: ObjectId::UNASSIGNED }, vec![DecisionOption::CreatureType(CreatureType::Elf)]);
     game.resolve_top_of_stack(&answers).expect("it resolves");
     assert_eq!(game.players[0].hand.len(), 2, "your two Elves, and not an opponent's");
 }
@@ -703,8 +703,8 @@ fn a_count_reads_the_creature_type_chosen() {
 /// after player 1 has left the game, when `leaves`.
 fn resolve_at_an_opponent_who(leaves: bool, game: &mut GameState, text: &'static str, effect: Effect, creature: ObjectId, answers: ScriptedDecisionProvider) {
     let targets = ScriptedDecisionProvider::new();
-    picks(&targets, vec![ChoiceOption::Player(1)]);
-    picks(&targets, vec![ChoiceOption::Object(creature)]);
+    picks(&targets, vec![DecisionOption::Player(1)]);
+    picks(&targets, vec![DecisionOption::Object(creature)]);
     cast(game, sorcery("Fixture Absent", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, targets);
     if leaves {
         game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
@@ -730,10 +730,10 @@ fn a_choice_never_made_does_not_leave_an_earlier_answer_for_the_next_step() {
         let mut game = stocked(3);
         let creatures = [0, 2].map(|seat| put_on_battlefield(&mut game, grizzly_bears(), seat));
         let answers = ScriptedDecisionProvider::new();
-        let a_player = || ChoiceKind::ChoosePlayer { source: ObjectId::UNASSIGNED };
-        answers.expect_choice(a_player(), vec![ChoiceOption::Player(2)]);
+        let a_player = || DecisionKind::ChoosePlayer { source: ObjectId::UNASSIGNED };
+        answers.expect_choice(a_player(), vec![DecisionOption::Player(2)]);
         if !leaves {
-            answers.expect_choice(a_player(), vec![ChoiceOption::Player(0)]);
+            answers.expect_choice(a_player(), vec![DecisionOption::Player(0)]);
         }
         resolve_at_an_opponent_who(leaves, &mut game, text, effect, creatures[0], answers);
         let drawn = [0, 2].map(|seat| game.players[seat].hand.len());
@@ -759,7 +759,7 @@ fn a_filter_naming_a_choice_never_made_describes_nothing() {
         let goblin = put_on_battlefield(&mut game, creature_of("A Goblin", Color::Red, CreatureType::Goblin), 2);
         let answers = ScriptedDecisionProvider::new();
         if !leaves {
-            answers.expect_choice(ChoiceKind::ChooseCreatureType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CreatureType(CreatureType::Elf)]);
+            answers.expect_choice(DecisionKind::ChooseCreatureType { source: ObjectId::UNASSIGNED }, vec![DecisionOption::CreatureType(CreatureType::Elf)]);
         }
         resolve_at_an_opponent_who(leaves, &mut game, text, effect, elf, answers);
         assert_eq!(game.battlefield.contains_key(&goblin), leaves, "no type chosen, nothing destroyed: {leaves}");
@@ -775,11 +775,11 @@ fn the_player_an_earlier_target_named_can_be_the_chooser() {
     let effect = Effect::Sequence(vec![lose_life(target_opponent(), 1), choose_number(the_target(), 0, 2), draw_cards(you(), the_chosen_number())]);
     let mut game = stocked(3);
     let targets = ScriptedDecisionProvider::new();
-    picks(&targets, vec![ChoiceOption::Player(2)]);
+    picks(&targets, vec![DecisionOption::Player(2)]);
     cast(&mut game, sorcery("Fixture Toll", (ManaType::Black, Color::Black), text, effect), ManaType::Black, targets);
 
     let answers = ScriptedDecisionProvider::new();
-    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 2 }) };
+    let any_number = DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 2 }) };
     answers.expect_number(any_number, 2);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
@@ -835,7 +835,7 @@ fn duneblast_spares_the_creature_chosen_and_destroys_the_rest() {
         cast_paying(&mut game, duneblast(), &pool, ScriptedDecisionProvider::new());
 
         let answers = ScriptedDecisionProvider::new();
-        picks(&answers, if spares_one { vec![ChoiceOption::Object(hexproof)] } else { Vec::new() });
+        picks(&answers, if spares_one { vec![DecisionOption::Object(hexproof)] } else { Vec::new() });
         game.resolve_top_of_stack(&answers).expect("it resolves");
         assert_eq!(game.battlefield.contains_key(&hexproof), spares_one);
         assert!(!game.battlefield.contains_key(&mine) && !game.battlefield.contains_key(&theirs), "the rest are destroyed");
@@ -853,13 +853,13 @@ fn two_changes_after_a_choice_act_on_the_one_creature_chosen() {
     cast(&mut game, chosen_champion(), ManaType::Green, ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    picks(&answers, vec![ChoiceOption::Object(second)]);
+    picks(&answers, vec![DecisionOption::Object(second)]);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
 
     let asked = asked.of_options.borrow();
     let [(_, _, offered)] = asked.as_slice() else { panic!("asked once: {asked:?}") };
-    assert_eq!(*offered, [first, second].map(ChoiceOption::Object).to_vec(), "the creatures you control");
+    assert_eq!(*offered, [first, second].map(DecisionOption::Object).to_vec(), "the creatures you control");
     assert_eq!((get_effective_power(&game, second), get_effective_toughness(&game, second)), (Some(4), Some(4)));
     assert!(has_keyword(&game, second, KeywordFlag::Trample));
     assert_eq!(get_effective_power(&game, first), Some(2));
@@ -872,11 +872,11 @@ fn two_changes_after_a_choice_act_on_the_one_creature_chosen() {
 fn a_number_a_target_opponent_chooses_is_asked_of_that_opponent() {
     let mut game = setup_game(3);
     let targets = ScriptedDecisionProvider::new();
-    picks(&targets, vec![ChoiceOption::Player(2)]);
+    picks(&targets, vec![DecisionOption::Player(2)]);
     let (spell, _) = cast(&mut game, damnations_tally(), ManaType::Black, targets);
 
     let answers = ScriptedDecisionProvider::new();
-    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 3 }) };
+    let any_number = DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 3 }) };
     answers.expect_number(any_number, 2);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
@@ -884,7 +884,7 @@ fn a_number_a_target_opponent_chooses_is_asked_of_that_opponent() {
     let asked = asked.of_numbers.borrow();
     let [(chooser, kind, least, most)] = asked.as_slice() else { panic!("one question: {asked:?}") };
     assert_eq!((*chooser, *least, *most), (2, 0, 3), "the target opponent, between 0 and 3");
-    assert!(matches!(kind, ChoiceKind::ChooseNumber { source, .. } if *source == spell));
+    assert!(matches!(kind, DecisionKind::ChooseNumber { source, .. } if *source == spell));
     assert_eq!([0, 1, 2].map(|seat| game.players[seat].life_total), [20, 20, 18]);
 }
 
@@ -904,10 +904,10 @@ fn a_chosen_player_makes_the_choices_a_later_step_gives_them() {
     cast(&mut game, sorcery("Fixture Parley", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_choice(ChoiceKind::ChoosePlayer { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Player(2)]);
-    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 1, at_most: 2 }) };
+    answers.expect_choice(DecisionKind::ChoosePlayer { source: ObjectId::UNASSIGNED }, vec![DecisionOption::Player(2)]);
+    let any_number = DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 1, at_most: 2 }) };
     answers.expect_number(any_number, 2);
-    answers.expect_take(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED });
+    answers.expect_take(DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED });
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
 
@@ -937,12 +937,12 @@ fn a_chosen_creature_that_left_and_came_back_is_no_longer_the_one_chosen() {
         let flickered = put_on_battlefield(&mut game, grizzly_bears(), 0);
         let other = put_on_battlefield(&mut game, grizzly_bears(), 0);
         let targets = ScriptedDecisionProvider::new();
-        picks(&targets, vec![ChoiceOption::Object(flickered)]);
+        picks(&targets, vec![DecisionOption::Object(flickered)]);
         cast(&mut game, sorcery("Fixture Blink", (ManaType::White, Color::White), text, effect()), ManaType::White, targets);
 
         let answers = ScriptedDecisionProvider::new();
         let chosen = if chosen_is_flickered { flickered } else { other };
-        picks(&answers, vec![ChoiceOption::Object(chosen)]);
+        picks(&answers, vec![DecisionOption::Object(chosen)]);
         game.resolve_top_of_stack(&answers).expect("it resolves");
 
         // The card is back under the id it left with, so the id alone would

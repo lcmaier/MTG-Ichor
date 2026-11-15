@@ -21,7 +21,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{CounterType, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 fn on_battlefield(game: &GameState, id: ObjectId) -> bool {
@@ -215,7 +215,7 @@ fn soul_wardens_gain_triggers_nykthos_paragon_at_the_next_placement() {
     place(&mut game, &test_dp());
     let ability = *game.stack.last().unwrap();
     let yes = ScriptedDecisionProvider::new();
-    yes.expect_choice(ChoiceKind::ApplyOptionalEffect { source: ability }, vec![ChoiceOption::Object(ability)]);
+    yes.expect_choice(DecisionKind::ApplyOptionalEffect { source: ability }, vec![DecisionOption::Object(ability)]);
     game.resolve_top_of_stack(&yes).unwrap();
     assert_eq!((plus_counters(&game, paragon), plus_counters(&game, bears)), (1, 1));
 }
@@ -235,11 +235,11 @@ fn blood_artists_drain_triggers_the_opponents_vengeful_warchief() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![ChoiceOption::Player(1)],
+        vec![DecisionOption::Player(1)],
     );
     place(&mut game, &dp);
     game.resolve_top_of_stack(&test_dp()).unwrap();
