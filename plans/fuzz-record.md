@@ -269,8 +269,9 @@ growth ×3.94 to ×4.03; the copy check names nothing new. The release tests pas
 checked fixture sitting at two seats, now ten new fixtures with By Invitation Only's, reads 0
 errors and 0 panics. 175 s.
 
-**Rerun at the owner's review (2026-11-15)**, against **base** `070e0470`, the reviewed tree above:
-**round7** `02d32f76`, one word per kind of kept choice, the registry's check on order alone, four
+**Rerun at the owner's first build review (2026-11-15)**, the first after the six reviews of the
+design note, against **base** `070e0470`, the reviewed tree above: **round7** `02d32f76` (the
+arm's name counts the design note's six), one word per kind of kept choice, the registry's check on order alone, four
 renames, and seven printed cards registered from what had been fixtures (Wash Out, Kindred
 Dominance, World Queller, Duneblast, The Nipton Lottery, By Invitation Only, Combat Tutorial),
 none pooled. Predicted, before either arm ran: the performance pool `IDENTICAL` at both seats,
@@ -282,7 +283,7 @@ Performance **IDENTICAL** at both seats; stress differs, as predicted. Audit agr
 **-0.07%**; growth ×3.94 to ×4.03; the copy check names nothing new. The release tests pass, and
 the checked stress and fixture sittings at two seats read 0 errors and 0 panics. 189 s.
 
-**Rerun at the owner's ninth round (2026-11-15)**, against **base** `22f17505` (round 8's tree,
+**Rerun at the owner's third build review (2026-11-15)**, against **base** `22f17505` (the second's tree,
 with `main`'s `Decision*` rename merged): **new** `fe68e565`, five more printed cards registered
 from what had been fixtures (Elven Rite, Remedy, Rolling Thunder, Mogg Mob, Essence of the Wild),
 none pooled, and Inside Out's fixture cut to its first line. Predicted, before either arm ran: the
@@ -295,7 +296,7 @@ in one arm and not the other; growth ×3.94 to ×4.02; the copy check names noth
 tests pass, and the checked stress and fixture sittings at two seats read 0 errors and 0 panics.
 The §3 stress column below is this arm's. 219 s.
 
-**§3, 50 games at seed 12345**, the new baseline: performance the shipped arm's, stress round 9's:
+**§3, 50 games at seed 12345**, the new baseline: performance the shipped arm's, stress the third build review's:
 
 | | performance | stress |
 |---|---:|---:|
