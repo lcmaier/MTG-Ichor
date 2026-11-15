@@ -4,11 +4,11 @@
 //! recipient word takes. A recipient pairs with every verb in
 //! [`super::instructions`], so a new one works with all of them at once.
 
-use crate::types::card_types::{CardType, Subtype, Supertype};
+use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, DividedCount, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
-    SelectionFilter, TargetCount,
+    AmountExpr, Antecedent, Choice, ChoiceKind, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef,
+    PlayerSet, SelectionFilter, TargetCount, ValueIs,
 };
 use crate::types::triggers::EventRole;
 use crate::types::zones::ZoneSet;
@@ -58,7 +58,15 @@ pub fn targets(count: u32, filter: SelectionFilter) -> EffectRecipient {
 /// `total` "divided as you choose among" `among` targets matching `what`: one
 /// instance of "target" (CR 115.3) whose announcement also divides (CR 601.2d).
 pub fn divided_among_targeted(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
-    EffectRecipient::Target(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
+    EffectRecipient::Target(what, divided(among, total))
+}
+
+/// "[Total] distributed among [among]", "divided as you choose among": a
+/// count that also splits `total` among what is chosen, at least one each
+/// (CR 601.2d, 608.2d). A choose step's count for objects chosen and divided
+/// as it runs, none of them a target.
+pub fn divided(among: TargetCount, total: impl Into<AmountExpr>) -> TargetCount {
+    TargetCount::Divided(Box::new(DividedCount { among, total: total.into() }))
 }
 
 /// "It", "that creature", "them": what was chosen for the `ix`th instance of
@@ -93,23 +101,6 @@ pub fn any_other_target() -> EffectRecipient {
 /// than the permanent: `target_permanent(another(ObjectFilter::All))`, Flickerwisp's.
 pub fn another_target(filter: SelectionFilter) -> EffectRecipient {
     target(SelectionFilter::Another(Box::new(filter)))
-}
-
-// ---------------------------------------------------------------------------
-// CR 115.10's objects chosen, not targeted
-// ---------------------------------------------------------------------------
-
-/// "Choose a [permanent the filter describes]": its controller picks one as
-/// the instruction applies (CR 608.2d), and it is no target (CR 115.10a).
-pub fn chosen_permanent(filter: ObjectFilter) -> EffectRecipient {
-    EffectRecipient::Choose(SelectionFilter::Permanent(filter), TargetCount::Exactly(1))
-}
-
-/// `total` distributed among `among` objects matching `what`, none of them
-/// targets: chosen and divided as the instruction applies, at least one
-/// each (CR 608.2d). [`divided_among_targeted`] is the targets' division.
-pub fn divided_among_untargeted(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
-    EffectRecipient::Choose(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +178,78 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
 }
 
 // ---------------------------------------------------------------------------
+// What a choose step before this one chose (CR 608.2d)
+// ---------------------------------------------------------------------------
+//
+// One word for each thing a later step can read, each written where that kind
+// of thing goes: a player or objects as what a verb acts on, a number as an
+// amount, a color or a type wherever the card could print one. The step that
+// chose it is `super::instructions::choose_player`, `choose_objects`,
+// `choose_color` and their siblings.
+
+/// "That player", "the chosen player": the player chosen, while they are in
+/// the game.
+pub fn the_chosen_player() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceKind::Player)
+}
+
+/// "It", "that creature", "the chosen creatures": the objects chosen, each
+/// while it is still the object chosen (CR 400.7), with its share where an
+/// amount was divided among them.
+pub fn the_chosen_objects() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceKind::Objects)
+}
+
+/// "The chosen color", where a card could print a color: Wash Out's
+/// "permanents of the color of your choice" is
+/// `each(color(the_chosen_color()))`, as "red permanents" is
+/// `each(color(Color::Red))`.
+pub fn the_chosen_color() -> PrintedOrChosen<Color> {
+    PrintedOrChosen::Chosen
+}
+
+/// "The chosen creature type", where a card could print one: Kindred
+/// Dominance's "creatures that aren't of the chosen type" is
+/// `creature().other_than(creature_type(the_chosen_creature_type()))`.
+pub fn the_chosen_creature_type() -> PrintedOrChosen<CreatureType> {
+    PrintedOrChosen::Chosen
+}
+
+/// "The chosen card type", where a card could print one: World Queller's
+/// "a permanent of their choice of that type" picks among
+/// `card_type(the_chosen_card_type())`.
+pub fn the_chosen_card_type() -> PrintedOrChosen<CardType> {
+    PrintedOrChosen::Chosen
+}
+
+/// A color or a type as a card names it: the one it prints, or the one a
+/// choose step before this step chose. Each filter word for a quality takes
+/// either, as an amount takes a number or "the chosen number".
+pub enum PrintedOrChosen<T> {
+    Printed(T),
+    Chosen,
+}
+
+impl<T> From<T> for PrintedOrChosen<T> {
+    fn from(printed: T) -> Self {
+        PrintedOrChosen::Printed(printed)
+    }
+}
+
+/// "One of the chosen objects", in a filter: Duneblast's "destroy the rest"
+/// is `destroy(each(creature().other_than(one_of_the_chosen())))`.
+pub fn one_of_the_chosen() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceKind::Objects)
+}
+
+/// "The chosen number", "that many" after a number is chosen, as an amount:
+/// Expel the Interlopers' "power greater than or equal to the chosen number"
+/// is `power_at_least(the_chosen_number())`.
+pub fn the_chosen_number() -> AmountExpr {
+    AmountExpr::ChosenAs(ChoiceKind::Number)
+}
+
+// ---------------------------------------------------------------------------
 // The player who does a resolving instruction
 // ---------------------------------------------------------------------------
 
@@ -223,9 +286,30 @@ pub fn non(filter: ObjectFilter) -> ObjectFilter {
 }
 
 /// "Black", "red source" (CR 105.2): an object that is `which`, among any
-/// others it is.
-pub fn color(which: Color) -> ObjectFilter {
-    ObjectFilter::ByColor(which)
+/// others it is; or of the color a choose step chose.
+pub fn color(which: impl Into<PrintedOrChosen<Color>>) -> ObjectFilter {
+    match which.into() {
+        PrintedOrChosen::Printed(color) => ObjectFilter::ByColor(color),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceKind::Color),
+    }
+}
+
+/// "Elf", "Goblin" (CR 205.3m): an object of the creature type, or of the
+/// creature type a choose step chose.
+pub fn creature_type(which: impl Into<PrintedOrChosen<CreatureType>>) -> ObjectFilter {
+    match which.into() {
+        PrintedOrChosen::Printed(creature_type) => ObjectFilter::BySubtype(Subtype::Creature(creature_type)),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceKind::CreatureType),
+    }
+}
+
+/// "Artifact", "enchantment" (CR 205.2a): an object of the card type, or of
+/// the card type a choose step chose.
+pub fn card_type(which: impl Into<PrintedOrChosen<CardType>>) -> ObjectFilter {
+    match which.into() {
+        PrintedOrChosen::Printed(card_type) => ObjectFilter::ByType(card_type),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceKind::CardType),
+    }
 }
 
 /// "You control" (CR 110.2), read against the effect's controller (CR
@@ -271,6 +355,27 @@ pub fn other_than_this() -> ObjectFilter {
 /// "Forest", "Aura", "Elf" (CR 205.3): an object with `subtype`.
 pub fn with_subtype(subtype: Subtype) -> ObjectFilter {
     ObjectFilter::BySubtype(subtype)
+}
+
+/// "With power 3 or greater", "with power greater than or equal to the
+/// chosen number" (CR 208).
+pub fn power_at_least(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Power, is: Box::new(ValueIs::AtLeast(amount.into())) }
+}
+
+/// "With power 2 or less" (CR 208).
+pub fn power_at_most(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Power, is: Box::new(ValueIs::AtMost(amount.into())) }
+}
+
+/// "With toughness 4 or greater" (CR 208).
+pub fn toughness_at_least(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Toughness, is: Box::new(ValueIs::AtLeast(amount.into())) }
+}
+
+/// "With toughness 2 or less" (CR 208).
+pub fn toughness_at_most(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Toughness, is: Box::new(ValueIs::AtMost(amount.into())) }
 }
 
 /// "Basic" (CR 205.4c); "nonbasic land" is `land().and(non(basic()))`.

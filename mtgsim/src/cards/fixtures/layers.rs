@@ -4,14 +4,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    artifact, as_long_as, basic, becomes_colorless, becomes_types, color, creature, creatures_you_control, draw_cards, each, each_in, functioning_in,
+    artifact, as_long_as, basic, becomes_colorless, becomes_types, color, creature, creatures_you_control, each, each_in, functioning_in,
     gains_keyword, gets, host, is_also_color, land, non, spell_ability, static_ability, switch_power_and_toughness,
-    target_creature, target_permanent, this_object, with_subtype, you, you_control, you_have,
+    target_creature, target_permanent, this_object, with_subtype, you_control, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, PlaneswalkerType, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Condition, Effect, ObjectFilter, PlayerFact, PlayerRef, SelectionFilter, TypeChange};
+use crate::types::effects::{AmountExpr, Condition, ObjectFilter, PlayerFact, PlayerRef, SelectionFilter, TypeChange};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
@@ -19,26 +19,20 @@ use crate::types::zones::ZoneSet;
 /// Inside Out Fixture — {1}{U}
 /// Instant
 /// Switch target creature's power and toughness until end of turn.
-/// Draw a card.
 ///
-/// **Inside Out's shape at a cost the engine can pay**: the printed cost is
-/// {1}{U/R}, and no payment path handles a hybrid pip until
-/// `hybrid-and-phyrexian-payment`. A registry that feeds the dev GUI may not
-/// quietly recost a card, so this is a fixture under its own name. Layer 7d
-/// gets its registered source from `printings::merfolk_thaumaturgist`,
-/// whose text needs nothing the engine lacks.
+/// **Half of Inside Out, its first line**, at a cost the engine can pay:
+/// Inside Out is {1}{U/R}, no payment path handles a hybrid pip until
+/// `hybrid-and-phyrexian-payment`, and its "Draw a card." tests nothing
+/// here. The card is registered once a hybrid pip can be paid. Layer 7d
+/// gets its registered source from `printings::merfolk_thaumaturgist`.
 pub fn inside_out_fixture() -> Arc<CardData> {
+    let text = "Switch target creature's power and toughness until end of turn.";
     CardDataBuilder::new("Inside Out Fixture")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
         .color(Color::Blue)
         .card_type(CardType::Instant)
-        .ability(spell_ability(
-            "Switch target creature's power and toughness until end of turn.\nDraw a card.",
-            Effect::Sequence(vec![
-                switch_power_and_toughness(target_creature()).until_end_of_turn(),
-                draw_cards(you(), 1),
-            ]),
-        ))
+        .rules_text(text)
+        .ability(spell_ability(text, switch_power_and_toughness(target_creature()).until_end_of_turn()))
         .build()
 }
 

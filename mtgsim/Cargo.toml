@@ -2,6 +2,7 @@
 name = "mtgsim"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
 # The measured floor, not the edition's: the pin comment in
 # `.github/workflows/ci.yml` has the last reading, its date and why the tree
 # cannot go lower. CI builds on that pinned toolchain, not on this one; what

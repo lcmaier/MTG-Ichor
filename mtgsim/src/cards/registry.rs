@@ -6,10 +6,10 @@ use crate::objects::card_data::CardData;
 use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
-    fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
+    fic, fin, fut, gpt, grn, gtc, mh3, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
+    mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, pip, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
     uds, ulg, usg,
-    vis, war, wth, wwk, zen, znr,
+    vis, vow, war, woe, wth, wwk, zen, znr,
 };
 
 /// The board an engine change is measured against — **representative, not
@@ -28,7 +28,7 @@ use super::sets::{
 /// seed-deterministic rows — turns, spells cast, creatures died — are what an
 /// addition invalidates and what still has to be re-measured. Registering a
 /// card is still not the same act as adding one here.
-const PERFORMANCE_POOL: [&str; 128] = [
+const PERFORMANCE_POOL: [&str; 129] = [
     "Plains",
     "Island",
     "Swamp",
@@ -573,6 +573,12 @@ const PERFORMANCE_POOL: [&str; 128] = [
     // registered and stays out: the same choice behind spree, and its third
     // mode wipes the board.
     "Feast of the Victorious Dead",
+    // CR 608.2d's value chosen as an effect resolves: a number its
+    // controller chooses as the spell resolves, kept, and read by the next
+    // step's filter. Five mana and a sorcery. A number at or below the
+    // least power on the board destroys every creature, which the random
+    // agent picks often: 0 alone is one answer in eleven.
+    "Expel the Interlopers",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -709,7 +715,8 @@ impl CardRegistry {
         // - The four `*_spell_fixture` cards are an Aura's or an Artifact's
         //   effect cast as an Instant, sparing machinery their phase did not
         //   need.
-        // - Inside Out Fixture is Inside Out at a cost with no hybrid pip.
+        // - Inside Out Fixture is Inside Out's first line, at a cost with no
+        //   hybrid pip.
         // - Cloudspire Mesa and Moonlit Steppe are invented Lands; the ten
         //   real dual lands below are what `fuzz_games::random_deck` draws its
         //   nonbasic land slots from.
@@ -1237,6 +1244,32 @@ impl CardRegistry {
         // a spree mode, and counters divided among creatures not targeted.
         registry.register("Final Showdown", otj::final_showdown);
         registry.register("Feast of the Victorious Dead", mat::feast_of_the_victorious_dead);
+        // A value chosen as an effect resolves, kept, and read by a later
+        // step: a number, and a filter comparing each creature's power with
+        // it.
+        registry.register("Expel the Interlopers", woe::expel_the_interlopers);
+        // The other kinds a choose step chooses, each on a printed card: a
+        // color, a creature type, a card type on a triggered ability,
+        // objects chosen and objects drawn at random, and a number read as
+        // an edict's count. Board wipes all but World Queller; none pooled.
+        registry.register("Wash Out", inv::wash_out);
+        registry.register("Kindred Dominance", c17::kindred_dominance);
+        registry.register("World Queller", zen::world_queller);
+        registry.register("Duneblast", ktk::duneblast);
+        registry.register("The Nipton Lottery", pip::the_nipton_lottery);
+        registry.register("By Invitation Only", vow::by_invitation_only);
+        // A player verb whose target player has left, beside a target that
+        // keeps the spell resolving.
+        registry.register("Combat Tutorial", fin::combat_tutorial);
+        // Fixtures until the owner's rule at #330's review: each was a
+        // printed card's whole text, and is that card now. Divisions among
+        // targets on a cast, an activation and a shield, and a copy as a
+        // creature enters.
+        registry.register("Elven Rite", sth::elven_rite);
+        registry.register("Remedy", vis::remedy);
+        registry.register("Rolling Thunder", tmp::rolling_thunder);
+        registry.register("Mogg Mob", mh3::mogg_mob);
+        registry.register("Essence of the Wild", isd::essence_of_the_wild);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);
@@ -1767,33 +1800,346 @@ mod instance_references {
         }
     }
 
+    /// The verbs that act on one player: a draw, a discard, a life change.
+    fn acts_on_one_player(primitive: &crate::types::effects::Primitive) -> bool {
+        use crate::types::effects::Primitive;
+        matches!(
+            primitive,
+            Primitive::DrawCards(_)
+                | Primitive::LoseLife(_)
+                | Primitive::Mill(_)
+                | Primitive::PutTopCardsIntoHand(_)
+                | Primitive::Discard(..)
+                | Primitive::Scry(_)
+                | Primitive::GainLife(_)
+                | Primitive::SetLifeTotal(_)
+                | Primitive::LoseGame
+                | Primitive::WinGame
+                | Primitive::ExtraTurn
+                | Primitive::CreateToken(..)
+                | Primitive::GetCounters { .. }
+        )
+    }
+
+    /// Whether `recipient` can hand a verb, or a choose step, a player.
+    fn can_name_a_player(recipient: &EffectRecipient, whole: &Effect) -> bool {
+        use crate::types::effects::{ChoiceKind, SelectionFilter};
+        match recipient {
+            EffectRecipient::Implicit
+            | EffectRecipient::Controller
+            | EffectRecipient::TriggeringPlayer
+            | EffectRecipient::Referred
+            | EffectRecipient::DefendingPlayer(_)
+            | EffectRecipient::AttackedBy(_)
+            | EffectRecipient::EachOf(_) => true,
+            EffectRecipient::ChosenAs(kept) => *kept == ChoiceKind::Player,
+            EffectRecipient::Target(filter, _) => matches!(filter.without_another(), SelectionFilter::Player(_) | SelectionFilter::Any),
+            EffectRecipient::SameInstanceAs(ix) => whole.instance(*ix).is_some_and(|clause| can_name_a_player(clause, whole)),
+            EffectRecipient::ThisObject
+            | EffectRecipient::Choose(..)
+            | EffectRecipient::Triggering(_)
+            | EffectRecipient::FilteredPermanents(_)
+            | EffectRecipient::FilteredObjectsIn(..)
+            | EffectRecipient::Host
+            | EffectRecipient::Group(_)
+            | EffectRecipient::ChosenBy(_) => false,
+        }
+    }
+
+    /// Each verb of `effect` that acts on one player and is written on a
+    /// recipient that can name none, and how many such verbs it has.
+    fn player_verb_problems(what: &str, effect: &Effect) -> (Vec<String>, usize) {
+        let (mut problems, mut verbs) = (Vec::new(), 0);
+        if let Some(node) = effect.modal() {
+            for (place, mode) in node.indexed_modes() {
+                let (more, counted) = player_verb_problems(&format!("{what}, mode {place}"), &mode.effect);
+                problems.extend(more);
+                verbs += counted;
+            }
+            return (problems, verbs);
+        }
+        for_each_atom(effect, &mut |primitive, recipient| {
+            if acts_on_one_player(primitive) {
+                verbs += 1;
+                if !can_name_a_player(recipient, effect) {
+                    problems.push(format!("{what}: {primitive:?} acts on a player, and {recipient:?} names none"));
+                }
+            }
+        });
+        (problems, verbs)
+    }
+
+    /// A verb that acts on one player is written on a recipient that can name
+    /// one. A recipient that names only objects hands the verb nobody, and
+    /// it does nothing (`resolve::player_acted_on`). The last lines show
+    /// the check refusing.
+    #[test]
+    fn every_player_verb_is_written_on_a_recipient_that_can_name_a_player() {
+        use crate::cards::authoring::{creature, draw_cards, each, target_player, the_chosen_objects, the_chosen_player};
+        let registry = CardRegistry::fixture_pool();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        let mut verbs = 0;
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut check = |what: String, effect: &Effect| {
+                let (problems, counted) = player_verb_problems(&what, effect);
+                assert!(problems.is_empty(), "{problems:#?}");
+                verbs += counted;
+            };
+            for (i, ability) in card.abilities.iter().enumerate() {
+                if ability.ability_type != crate::objects::card_data::AbilityType::Spell {
+                    check(format!("{name} ability #{i}"), &ability.effect);
+                }
+            }
+            if let Some(effect) = crate::objects::card_data::spell_effect(&card.abilities) {
+                check(format!("{name} as a spell"), &effect);
+            }
+        }
+        assert!(verbs > 0, "no registered card has a player verb, so this check reads nothing");
+        assert_eq!(player_verb_problems("a draw on creatures", &draw_cards(each(creature()), 1)).0.len(), 1);
+        assert_eq!(player_verb_problems("a draw on chosen objects", &draw_cards(the_chosen_objects(), 1)).0.len(), 1);
+        assert!(player_verb_problems("a draw on a target player", &draw_cards(target_player(), 1)).0.is_empty());
+        assert!(player_verb_problems("a draw on a chosen player", &draw_cards(the_chosen_player(), 1)).0.is_empty());
+    }
+
+    /// Each place `effect` reads something no choose step has chosen yet,
+    /// and how many reads it makes. A later step reads what a choose step
+    /// chose, like a variable read after it is set: the read comes after
+    /// the choose step, in the same spell or ability, never from another
+    /// mode (which may not have been chosen), never after the "may" or "if"
+    /// the choice sat inside (which may not have happened), and never inside
+    /// something that outlasts the resolution, since what was chosen is gone
+    /// with it. A choose step itself acts on nothing and has a chooser that
+    /// can name a player, and no verb is written on the question's label.
+    ///
+    /// A read is found in a step's `Debug` print (`ChosenAs(..)`), so a read
+    /// however deep in a filter or an amount is one this sees.
+    fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
+        use crate::types::effects::{ChoiceKind, ChosenHow, Primitive};
+
+        fn names_read_in(printed: &str) -> Vec<&str> {
+            printed.split("ChosenAs(").skip(1).filter_map(|rest| rest.split(')').next()).collect()
+        }
+
+        struct Walk<'a> {
+            /// The effect whose instances of "target" a back-reference names.
+            whole: &'a Effect,
+            problems: Vec<String>,
+            reads: usize,
+        }
+
+        impl<'a> Walk<'a> {
+            fn read(&mut self, printed: &str, kept: &[ChoiceKind]) {
+                for name in names_read_in(printed) {
+                    self.reads += 1;
+                    if !kept.iter().any(|kept_as| format!("{kept_as:?}") == name) {
+                        self.problems.push(format!("reads {name}, which no step before it keeps: {printed}"));
+                    }
+                }
+            }
+
+            /// `effect`, with `kept` the choices made before it.
+            fn step(&mut self, effect: &'a Effect, kept: &mut Vec<ChoiceKind>) {
+                match effect {
+                    Effect::Atom(primitive, recipient) => {
+                        let outlasts_the_resolution = matches!(
+                            primitive,
+                            Primitive::GrantAbility(..)
+                                | Primitive::CreateReplacement(..)
+                                | Primitive::Restrict(..)
+                                | Primitive::CreateDelayedTrigger(_)
+                                | Primitive::ExileUntil { .. }
+                        );
+                        match outlasts_the_resolution {
+                            true => self.read(&format!("{primitive:?}"), &[]),
+                            false => self.read(&format!("{primitive:?}"), kept),
+                        }
+                        self.read(&format!("{recipient:?}"), kept);
+                        if matches!(recipient, EffectRecipient::Choose(..)) {
+                            self.problems.push(format!("{recipient:?} is a question's label: a card chooses with a choose step"));
+                        }
+                        if let Primitive::ChooseValue { kind, how, .. } = primitive {
+                            if *recipient != EffectRecipient::Implicit {
+                                self.problems.push(format!("a choose step acts on nothing, and is written on {recipient:?}"));
+                            }
+                            if let ChosenHow::By(chooser) = how
+                                && !can_name_a_player(chooser, self.whole)
+                            {
+                                self.problems.push(format!("{chooser:?} names no player to make the choice"));
+                            }
+                            kept.push(*kind);
+                        }
+                    }
+                    Effect::Sequence(steps) => steps.iter().for_each(|step| self.step(step, kept)),
+                    // A mode reads what was kept before the modes, never
+                    // what another mode keeps: that one may not be chosen.
+                    // Its instances of "target" are its own.
+                    Effect::Modal(node) => {
+                        for mode in &node.modes {
+                            let outer = std::mem::replace(&mut self.whole, &mode.effect);
+                            self.step(&mode.effect, &mut kept.clone());
+                            self.whole = outer;
+                        }
+                    }
+                    // What is kept behind an "if" or a "may" may not have
+                    // been kept at all, so nothing after it reads the name.
+                    Effect::Conditional(condition, inner) => {
+                        self.read(&format!("{condition:?}"), kept);
+                        self.step(inner, &mut kept.clone());
+                    }
+                    Effect::Optional { chooser, effect: inner } => {
+                        self.read(&format!("{chooser:?}"), kept);
+                        self.step(inner, &mut kept.clone());
+                    }
+                    Effect::ForEach(over, inner) => {
+                        self.read(&format!("{over:?}"), kept);
+                        self.step(inner, kept);
+                    }
+                    Effect::Repeat(times, inner) => {
+                        self.read(&format!("{times:?}"), kept);
+                        self.step(inner, kept);
+                    }
+                    Effect::FunctionsIn(_, inner) | Effect::Remember(inner) => self.step(inner, kept),
+                    // Another ability, resolving on its own: it reads what
+                    // its own steps keep.
+                    Effect::Triggered(def) => self.step(&def.effect, &mut Vec::new()),
+                    Effect::Replacement(def) => self.read(&format!("{def:?}"), &[]),
+                    Effect::Restriction(def) => self.read(&format!("{def:?}"), &[]),
+                    Effect::CostModification(def) => self.read(&format!("{def:?}"), &[]),
+                    Effect::TriggerMultiplier(def) => self.read(&format!("{def:?}"), &[]),
+                }
+            }
+        }
+
+        let mut walk = Walk { whole: effect, problems: Vec::new(), reads: 0 };
+        walk.step(effect, &mut Vec::new());
+        (walk.problems, walk.reads)
+    }
+
+    /// On every card and castable fixture, a step that reads what a choose
+    /// step kept comes after that step, in the same spell or ability. A name
+    /// read with nothing kept under it acts on nothing or errors as the
+    /// spell resolves, on the stack and paid for; caught here it is a typo.
+    #[test]
+    fn every_chosen_name_read_is_kept_by_a_step_before_it() {
+        let registry = CardRegistry::fixture_pool();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        let mut reads = 0;
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut check = |what: String, effect: &Effect| {
+                let (problems, read) = chosen_name_problems(effect);
+                assert!(problems.is_empty(), "{what}: {problems:#?}");
+                reads += read;
+            };
+            for (i, ability) in card.abilities.iter().enumerate() {
+                if ability.ability_type != crate::objects::card_data::AbilityType::Spell {
+                    check(format!("{name} ability #{i}"), &ability.effect);
+                }
+            }
+            // A spell's paragraphs resolve as one, so a later one reads what
+            // an earlier one kept.
+            if let Some(effect) = crate::objects::card_data::spell_effect(&card.abilities) {
+                check(format!("{name} as a spell"), &effect);
+            }
+        }
+        assert!(reads >= 9, "the walk found {reads} reads of a kept name; nine castable fixtures make one or more each");
+    }
+
+    /// The check above fails where it should: a read with no choose step, a
+    /// read before its choose step, from another mode, from outside a "may",
+    /// or by an ability that outlasts the resolution; a chooser that names
+    /// no player; a choose step written on a recipient; and a verb written
+    /// on the question's label.
+    #[test]
+    fn a_chosen_name_read_out_of_place_is_refused() {
+        use crate::cards::authoring::{
+            choose_color, choose_number, choose_objects, choose_one, color, creature, destroy, draw_cards, each, gains_ability, spell_ability,
+            the_chosen_color, the_chosen_number, the_chosen_objects, you,
+        };
+        use crate::types::effects::{ChoiceKind, ChosenHow, PlayerRef, Primitive, SelectionFilter, TargetCount, ValueChoice};
+
+        let problems = |effect: Effect| chosen_name_problems(&effect).0;
+        let destroys_the_chosen = || destroy(the_chosen_objects());
+        let chooses_a_creature = || choose_objects(you(), creature(), TargetCount::Exactly(1));
+        let chooses_a_number = || choose_number(you(), 0, 3);
+
+        assert_eq!(problems(choose_number(each(creature()), 0, 3)).len(), 1, "a chooser that names no player");
+        let may_choose = Effect::Optional { chooser: PlayerRef::You, effect: Box::new(chooses_a_number()) };
+        let reads_it_after = draw_cards(you(), the_chosen_number());
+        assert_eq!(problems(Effect::Sequence(vec![may_choose, reads_it_after])).len(), 1, "kept inside a may, read outside it");
+
+        assert!(problems(Effect::Sequence(vec![chooses_a_creature(), destroys_the_chosen()])).is_empty(), "kept, then read");
+        assert_eq!(problems(destroys_the_chosen()).len(), 1, "read, and never kept");
+        assert_eq!(problems(Effect::Sequence(vec![destroys_the_chosen(), chooses_a_creature()])).len(), 1, "read before it is kept");
+        assert_eq!(
+            problems(Effect::Sequence(vec![choose_color(you()), draw_cards(you(), the_chosen_number())])).len(),
+            1,
+            "a color kept, and a number read"
+        );
+        assert_eq!(
+            problems(Effect::Sequence(vec![choose_number(you(), 0, 3), destroy(each(creature().and(color(the_chosen_color()))))])).len(),
+            1,
+            "a read inside a filter is seen"
+        );
+        assert_eq!(problems(choose_one([chooses_a_creature(), destroys_the_chosen()])).len(), 1, "kept in one mode, read in another");
+        let lasting = gains_ability(each(creature()), spell_ability("", draw_cards(you(), the_chosen_number()))).until_end_of_turn();
+        assert_eq!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), lasting])).len(), 1, "read by an ability that outlasts it");
+        let on_a_recipient = Effect::Atom(
+            Primitive::ChooseValue { kind: ChoiceKind::Color, what: ValueChoice::Color, how: ChosenHow::By(you()) },
+            you(),
+        );
+        assert_eq!(problems(on_a_recipient).len(), 1, "a choose step on a recipient");
+        let on_the_label = destroy(EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)));
+        assert_eq!(problems(on_the_label).len(), 1, "a verb on the question's label");
+    }
+
+
     /// A division's total has two homes: the clause carries it to the
-    /// announcement (CR 601.2d) or to the choice made as the effect applies
-    /// (608.2d), and the atom prints it. Nothing reads the atom's copy, so
-    /// this is what keeps them one number, on every card and castable fixture.
-    /// A shield prints none, each row's count being its target's share.
+    /// announcement (CR 601.2d), or the choose step to the choice made as
+    /// the effect applies (608.2d), and the atom that acts by the shares
+    /// prints it. Nothing reads the atom's copy, so this is what keeps them
+    /// one number, on every card and castable fixture. A shield prints none,
+    /// each row's count being its target's share.
     #[test]
     fn every_divided_atom_prints_what_its_clause_divides() {
-        use crate::types::effects::{Primitive, TargetCount};
+        use crate::types::effects::{AmountExpr, ChoiceKind, Primitive, TargetCount, ValueChoice};
         let pool = CardRegistry::fixture_pool();
         let mut names: Vec<String> = pool.cards.keys().cloned().collect();
         names.sort();
         let mut divided = 0;
         for name in names {
             for ability in (pool.cards[name.as_str()])().abilities.iter() {
+                // What each choose step of the ability divides, by the name
+                // it keeps the objects and their shares under.
+                let mut kept_divisions: Vec<(ChoiceKind, &AmountExpr)> = Vec::new();
+                for_each_atom(&ability.effect, &mut |primitive, _| {
+                    if let Primitive::ChooseValue { kind, what: ValueChoice::Objects(_, TargetCount::Divided(clause)), .. } = primitive {
+                        kept_divisions.push((*kind, &clause.total));
+                    }
+                });
                 for_each_atom(&ability.effect, &mut |primitive, recipient| {
-                    let (EffectRecipient::Target(_, TargetCount::Divided(clause)) | EffectRecipient::Choose(_, TargetCount::Divided(clause))) = recipient
-                    else {
-                        return;
+                    let (total, kept) = match recipient {
+                        EffectRecipient::Target(_, TargetCount::Divided(clause)) => (&clause.total, false),
+                        EffectRecipient::ChosenAs(kept_as) => match kept_divisions.iter().find(|(name, _)| name == kept_as) {
+                            Some((_, total)) => (*total, true),
+                            None => return,
+                        },
+                        _ => return,
                     };
-                    divided += 1;
                     match primitive {
                         Primitive::DealDamage { amount, .. } | Primitive::AddCounters { amount, .. } => {
-                            assert_eq!(amount, &clause.total, "{name} prints one amount and divides another");
+                            assert_eq!(amount, total, "{name} prints one amount and divides another");
                         }
                         Primitive::CreateReplacement(..) => {}
+                        // A verb that reads no share acts alike on each
+                        // object a choose step divided among.
+                        _ if kept => return,
                         other => panic!("{name} divides {other:?}, which reads no share"),
                     }
+                    divided += 1;
                 });
             }
         }
@@ -1882,20 +2228,6 @@ mod instance_references {
             | Primitive::CreateReplacement(_, d, _) => Some(*d),
             _ => None,
         }
-    }
-
-    /// The builder refuses a second change chained to a choice made as the
-    /// effect applies, which would choose again; one change is built. The
-    /// refusal is a debug assertion, so the test runs where it fires.
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "a second change chained to a choice would choose again")]
-    fn a_change_chained_to_a_choice_is_refused() {
-        use crate::cards::authoring::{chosen_permanent, creatures_you_control, gains_keyword};
-        use crate::types::keywords::KeywordFlag;
-        let one = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn();
-        assert!(!matches!(one, Effect::Sequence(_)), "one change is one atom, nothing chained");
-        let _ = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).and_gets(1, 1).until_end_of_turn();
     }
 
     /// For every registered card, the stored lists of instances of "target"

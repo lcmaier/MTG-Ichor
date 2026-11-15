@@ -9039,7 +9039,14 @@ scan of the history log, and the place in a turn that reads a tally since
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 291".
 
 292. **A one-player instruction whose player is gone acts on its controller
-     instead.** `resolve_player_for_self` (`engine/resolve.rs`) finds the one
+     instead.** — ✅ closed. `player_acted_on` answers "you" for a verb
+     written on its controller and otherwise the first player the recipient
+     found who is still in the game, or no one, and each of the 13 verbs
+     does nothing for no one. Vindictive Lich's discard mode, its opponent
+     gone, no longer discards its controller's hand (shown failing first),
+     and a registry test refuses a player verb written on a recipient that
+     can name no player. As filed:
+     `resolve_player_for_self` (`engine/resolve.rs`) finds the one
      player for 13 primitives: a draw, a discard, a mill, a gain, a loss, a
      life total set, a scry, a token's controller, an extra turn, a win, a
      loss of the game, counters, and the top cards put into a hand. For
@@ -9058,15 +9065,9 @@ scan of the history log, and the place in a turn that reads a tally since
      `TriggeringPlayer` on an arm with no player where `resolve_player_for_self`
      answers the controller, who draws; and `EntersAttacking::Player`. Both
      inside the 60–80 lines below.
-     **Reachability (2026-10-22):** unreachable — every registered card
-     names one of its arms, and each that targets a player has that one
-     target, so CR 608.2b keeps the whole spell or ability from resolving.
-     **Sized:** the exhaustive match `DealDamage` got, with "no player" an
-     answer that does nothing: ~60–80 lines over the resolver and its 12
-     call sites, and a fixture for each board, shown failing first.
-     **Slotted:** `resolution-recipients-and-amounts`,
-     beside item 268's "that player" and row 39's `named_player` (the owner
-     had put it beside item 291, 2026-10-20).
+     **Reachability (2026-11-15):** closed — PR #330, brought forward with
+     item 425 (its decision 4). It had been reachable: Vindictive Lich at
+     three seats, measured at the design stop.
 
 293. **~~Every state-based check walks every object twice.~~ — ✅ CLOSED 2026-10-21 (PR
      #267, CL-1).** — archived.
@@ -10398,16 +10399,21 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~240–400 lines over four cards' constraints.
      **Slotted:** `tarkir-dragonstorm-decks`.
 
-394. **A filter compares only power, and only to a fixed number.**
-     `ObjectFilter::PowerLE` takes an `i32`. No leaf reads mana value (Despark, Sun
-     Titan, Tocasia's Welcome) or toughness (Colfenor's Urn), compares to an amount
-     (the life you lost, Betor; a spell's mana value, Hammerhead Tyrant; the chosen
-     number, Expel the Interlopers; mentor's "lesser power", Legion Warboss), or asks
-     whether a permanent is tapped (Mana Geyser). `backlog.md` §2.43's leaf is the
-     other filter the decks ask for.
+394. **A filter reads no mana value, and does not ask whether a permanent is
+     tapped.** Narrowed at PR #330, which built the comparison: one filter,
+     `ObjectFilter::WithValue { of, is }`, reads power or toughness and
+     compares it at least, at most, exactly or strictly less than an amount
+     the resolution reads first (the chosen number, Expel the Interlopers;
+     mentor's "lesser power" has its arm). What is left: mana value as a
+     third `ObjectValue` (Despark, Sun Titan, Tocasia's Welcome; a spell's,
+     Hammerhead Tyrant), which arrives with the amounts that read one, and
+     "tapped" (Mana Geyser). `backlog.md` §2.43's leaf is the other filter
+     the decks ask for. The comparison has "less than" and no "greater
+     than": Fell the Mighty's "power greater than target creature's power"
+     is written as not "at most" (#330's pre-review, left to the owner).
 
-     **Reachability (2026-11-06):** unreachable — no registered card writes one.
-     **Sized:** ~170–250 lines: four leaves, each with `filter_reads`' arm.
+     **Reachability (2026-11-15):** unreachable — no registered card writes one.
+     **Sized:** ~70–110 lines: an `ObjectValue` arm with its reads, and one leaf.
      **Slotted:** `tarkir-dragonstorm-decks`, its cheap gaps at step 9's close.
 
 395. **No condition counts what you control.** `PlayerFact::ControlsPermanent` asks
@@ -10424,7 +10430,9 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      the object a trigger is about ("if that spell's power is 4 or greater", Eshki;
      "if it was attacking", Zurgo, whose mobilize plays); who has the most life
      (dethrone, Scourge of the Throne); who attacked you last turn (Weathered
-     Sentinels); and how many attackers are at you (Mangara).
+     Sentinels); and how many attackers are at you (Mangara). "A player with
+     the most life or tied for most life" also limits who a choose step may
+     choose (The Black Gate), which its `PlayerSet` cannot say (PR #330).
 
      **Reachability (2026-11-06):** unreachable — no registered card asks one.
      **Sized:** ~155–235 lines: a `Condition` arm each.
@@ -10786,22 +10794,25 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
 
 ### Found by `choose-as-an-effect-resolves` (2026-11-14)
 
-425. **A player chosen as an effect applies is refused.**
+425. **A player chosen as an effect applies is refused.** — ✅ closed. A
+     choose step chooses a player (`ValueChoice::Player`, asked as
+     `ChoosePlayer` or drawn at random), keeps them, and a verb on "the
+     chosen" acts on them while they are in the game. As filed:
      `EffectRecipient::Choose` over `SelectionFilter::Player` or `Any` errs at
      resolution: "choose a player" is decision 7's `ChoosePlayer`, a value with
      its own kind and words, and a player verb finds its player through
      `resolve_player_for_self`, which no choice reaches. The Black Gate's
      "choose a player with the most life or tied for most life" is one, and
      decision 7 counts 38 such cards.
-     **Reachability (2026-11-14):** unreachable — no registered card chooses a
-     player as an effect applies.
-     **Slotted:** `values-chosen-at-resolution`, with decision 7's
-     `ChoosePlayer`.
-     **Sized:** ~40–80 lines beside that kind: the arm, its player verbs'
-     reads, and the error removed.
+     **Reachability (2026-11-15):** closed — PR #330.
 
-426. **"It" after a choice made as the effect applies has no word.** A later
-     instruction naming what a `Choose` chose cannot be written:
+426. **"It" after a choice made as the effect applies has no word.** — ✅
+     closed. A choose step keeps what it chose under a name
+     (`ChoiceKind`), and a later step reads the name: as what a verb acts
+     on, as an amount, or inside a filter. Every choice of objects is a
+     choose step, so a chain on "the chosen" never chooses again, and the
+     builder's refusal of a chain went with the shape it guarded. As filed:
+     a later instruction naming what a `Choose` chose cannot be written:
      `SameInstanceAs` names an instance of "target", which a choice is not,
      and nothing keeps a resolution's picks for a later atom. A chained
      change ("choose a creature you control; it gets +2/+2 and gains
@@ -10812,14 +10823,7 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      "a copy of it", Gideon's Sacrifice's "the chosen permanent", The
      Elderspell's "put two loyalty counters on it", and The Black Gate's
      "that player".
-     **Reachability (2026-11-14):** unreachable — Final Showdown names its
-     creature once, and no registered card chains on a choice.
-     **Slotted:** `values-chosen-at-resolution`, whose "that player" and "the
-     chosen [type]" need the same word; its design decides the shape, such
-     as a recipient naming an earlier choice of the resolution as
-     `SameInstanceAs` names an earlier target.
-     **Sized:** ~80–150 lines: the walk keeps each choice's picks by its
-     place, a recipient reads them, and `ContinuousChange` chains on it.
+     **Reachability (2026-11-15):** closed — PR #330.
 
 427. **The dev GUI's click tests reached their coverage on some deals only.**
      — ✅ closed. `devgui/tests/random_clicks.rs` asserts that its dealt games
@@ -10831,3 +10835,137 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      16–18, which failed before. The seeds were not re-picked (the owner, at
      #326's review: a test made to pass by its seeds proves nothing).
      **Reachability (2026-11-14):** closed — #326.
+
+### Found by `value-chosen-as-an-effect-resolves` (2026-11-15)
+
+428. **A chosen value cannot outlive the resolution that chose it.** What a
+     choose step keeps is gone when its spell or ability finishes resolving,
+     and the registry's tests refuse a kept name in anything that outlasts
+     it. So these cannot be written: an effect made with the value it read
+     (The Black Gate's "can't attack that player", Conjurer's Ban, Twins of
+     Discord, Zombie Boa); a change's own parameter from a choice (Akroma's
+     Blessing's protection from the chosen color, Terraformer, Linvala) and
+     the ones chosen inline (Mistform Dreamer); a chosen object a lasting
+     effect or a later trigger names (Gideon's Sacrifice, Azra Oddsmaker).
+     Three kinds are read only that way and have no question yet: a basic
+     land type, a keyword, and a card name, with its catalog and Garth
+     One-Eye's "a card name that hasn't been chosen".
+     **Reachability (2026-11-15):** unreachable — no registered card keeps a
+     chosen value past its resolution, and the registry's test refuses one.
+     **Sized:** ~1,200–2,000 lines with its tests, about 130 printed cards.
+     **Slotted:** `values-kept-past-the-resolution`.
+
+429. **One choose step has one chooser.** A step asks the one player its
+     chooser names, or nobody. Not written: a value each player or each
+     opponent chooses (16 cards, CR 608.2e's order then one action), a
+     word chosen from a printed few, a choice that excludes what an earlier
+     one picked (Gluntch, the Bestower's second and third players;
+     Fortunate Few), and "choose a number" with no bounds printed (Void,
+     Squee's Revenge; Choice of Damnations).
+     **Reachability (2026-11-15):** unreachable — no registered card has
+     any.
+     **Sized:** inside the row's ~1,000–1,600 lines with its tests.
+     **Slotted:** `several-choosers-at-one-step`.
+
+430. **A chosen player or object is named by a verb, an amount's number and
+     a filter, and nowhere else.** A player word does not read one: "the
+     creatures that player controls" (a filter's controller) and "you and
+     that player" (a group) have no chosen arm. A chosen object is not the
+     thing a number is read off or the thing that deals damage (Crush
+     Underfoot's "it deals damage equal to its power"), and "its
+     controller" of a chosen object is refused. And a kept name is written
+     into a filter where a resolution matches each object against it (a
+     sweep, a count, a choice's and an edict's candidates); a filter read
+     anywhere else in a resolution, a copy's set among them, refuses the
+     name, loudly.
+     **Reachability (2026-11-15):** unreachable — no registered card writes
+     one, and the filter table refuses a name nobody read.
+     **Sized:** ~60–110 lines: an arm on the player words and on the
+     antecedents, and the fill called at the remaining sites.
+     **Slotted:** `resolution-recipients-and-amounts`.
+
+431. **A token copy of a chosen object is not written.** Season of Weaving,
+     Calamity, Galloping Inferno: "create a token that's a copy of it"
+     after a choice.
+     **Reachability (2026-11-15):** unreachable — no registered card makes a
+     token copy.
+     **Sized:** ~15–30 lines beside the token copy: the chosen object as its
+     donor.
+     **Slotted:** `token-copies`.
+
+432. **A chosen value is never read over a hidden zone, nor kept secret.**
+     62 printed filters read a chosen value over a hand or a library, most
+     of them a card name, and The Toymaker's Trap chooses its number in
+     secret. Every choice here is announced as it is made. A value drawn
+     at random is the other way round: nobody is asked, so no decision is
+     logged, and it is not noted as an unasked answer is; a client learns
+     the pick from what the next step does. Territorial Hellkite and Ruhan
+     of the Fomori read the pick only as an attack requirement (#330's
+     pre-review, left to the owner).
+     **Reachability (2026-11-15):** unreachable — no registered card has
+     either.
+     **Sized:** with the model, not counted apart.
+     **Slotted:** `information-model`.
+
+433. **A mana ability has nowhere to keep a choice.** What a choose step
+     keeps is kept on the stack object resolving, and a mana ability
+     resolves none (CR 605.3b), so "add one mana of the chosen color" after
+     a choice in the same ability is an error as it resolves.
+     **Reachability (2026-11-15):** unreachable — no registered mana ability
+     chooses.
+     **Sized:** ~30–60 lines: the kept list on the mana ability's own
+     resolution.
+     **Slotted:** `chosen-color-plus-could-produce`.
+
+434. **`EffectRecipient::Choose` is a label, and still a recipient's arm.**
+     No card writes it since every choice of objects became a choose step:
+     it is what `DecisionKind::SelectRecipients` carries for a choice that
+     targets nothing (a choose step's objects, an edict's pick, an Aura's
+     host). It stays an `EffectRecipient` variant, refused wherever a verb
+     would act on it, until that question carries a label of its own.
+     **Reachability (2026-11-15):** not wrong — the registry's tests refuse
+     a card that writes it, and a resolution refuses it loudly.
+     **Sized:** ~40–70 lines: a label type on the question, and the arm
+     removed from each match.
+     **Slotted:** `card-and-object-model`.
+
+435. **An amount or a player word that reads a choice never made is an
+     error.** A choose step whose chooser is not there (a target that went
+     illegal while the spell still resolves, a player gone) chooses
+     nothing, and CR 608.2b's "any part of the effect that requires that
+     information won't happen" holds where the engine can tell: a verb on
+     "the chosen" acts on nothing, a filter naming the choice describes no
+     object, a later choose step chooses nothing. An amount ("you draw that
+     many cards") and a player word ("that player may") cannot say "this
+     step should not happen" from where they are read, so each errs, as an
+     X never chosen does. The exact answer needs each step's list of the
+     names it reads, asked before the step acts.
+     **Reachability (2026-11-15):** unreachable — it needs a spell with a
+     second target that keeps it resolving after its choosing player left,
+     and no registered card or castable fixture has one.
+     **Sized:** ~120–200 lines: a read-set per step, built as
+     `binding_reads.rs` builds a trigger's, and the two-target board.
+     **Slotted:** `several-choosers-at-one-step`.
+
+436. **A creature type is chosen from 316 buttons in the dev GUI.** The
+     window draws a choice of one as a button an option, which is five for
+     a color and 316 for a creature type; nobody has looked at that prompt
+     in the window, and its test builds one option.
+     **Reachability (2026-11-15):** reachable, not wrong — Kindred
+     Dominance's fixture asks it; every type is offered and any can be
+     picked.
+     **Sized:** ~60–120 lines in the dev GUI: a filter box over a long
+     list, plain Rust under a test.
+     **Slotted:** `devgui-at-five-seats`.
+
+437. **Two choices of one kind from one source are one question to a
+     client.** A choose step's question carries its kind and the object
+     resolving, so Bestowed Favors' "choose a player" and its "choose an
+     opponent" are both `ChoosePlayer { source }`, told apart by their
+     order and their options; Gluntch, the Bestower asks three. A mode's
+     question carries its words (#320); a choose step's does not.
+     **Reachability (2026-11-15):** reachable, not wrong — the fixture
+     plays right; an AI client or a log reader has only the order.
+     **Sized:** ~40–80 lines: the step's words on the question, cut as a
+     mode's are.
+     **Slotted:** `several-choosers-at-one-step`.

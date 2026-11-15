@@ -95,7 +95,34 @@ to change that client. #326's review turned down "a provider answers by index"
 for the battlefield's sort, and #328 turned down "a save reloads alike". A
 sentence on the practices page, beside the client guard.
 
+**A general cleanup of files that outgrew their job** (the owner, at #330's
+review, 2026-11-15), at the next process and CI breakpoint. The first:
+`cards/registry.rs` is 2,283 lines, about 970 of them 19 tests, most of those
+lints run over every card (back-references, division totals, modal nodes,
+player verbs, reads of a kept choice); they move to a module of their own,
+each with a doc saying the card mistake it catches. The pass looks for the
+others the same way: a file whose test module or helpers are larger than what
+the file is for.
+
+**Ruling tests beside their cards** (the owner, at #330's review,
+2026-11-15), in a process or audit PR: one `mtgsim/tests/rulings.rs` with a
+module per set file, mirroring `mtgsim/src/cards/sets/`, so a card's rulings
+and their boards are read in one place (one file, since each file in
+`mtgsim/tests/` builds as its own program). 270 `// RULING:` annotations sit
+in about 60 test files today; `check_rulings.py` reads them wherever they are,
+so the move needs no gate change. A card registered after this lands puts its
+ruling tests there from the start.
+
+**The board fails a Sizing row whose work has landed and whose State cell is
+empty** (raised at #330's review, 2026-11-15). Seven rows of steps 1 to 5
+stayed empty after they landed (`route-review`, readiness, and five more),
+and nothing noticed: the board reads an empty cell as "not landed". A row
+whose name has a ✅ heading in an architecture doc, or whose PR has merged,
+and whose cell is empty, fails `check_state_of_play.py --check`.
+
 ## Open, for the owner
+
+
 
 **Should the mana pool join the write gate's fields?** Raised at
 `mana-provenance`'s design (2026-11-13). `check_invariants.py`'s `EVENT_FIELDS`

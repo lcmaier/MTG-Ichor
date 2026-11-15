@@ -290,10 +290,10 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 3. **`card-layer-cleanup`** | §C | Every card filed by its first printing and every deck a decklist (the owner, 2026-10-29), before the rows below register their cards |
 | 4. **`pausing-at-a-decision`**, the design | below | Every choice kind after it is built to one rule at the decision boundary, its options named by what they are; its build waits for the AI harness, after v0.5 |
 | 5. **`tarkir-dragonstorm-decks`**' gap census ahead of what is left of **`modes-plus-choice-kinds`**, with `divided-among-targets` built in it and **`mana-provenance`**'s design before its `costs-and-choices-at-resolution`, then **`fork-test-at-every-decision`** | below, `mana-architecture.md` | The census first, moved up from step 13 (the owner, 2026-11-06, #314): it depends on nothing built after it, every design ahead and every row's card list read it, and what it finds is slotted to `tarkir-dragonstorm-decks` or a row by name. Each of the 385 cards is read against the tree, since the card census misses parameters, and it sees a card's blockers up to the first row not built, so each row's card-by-card hunt finishes it. Then the choices a card asks for, designed against one decision boundary before the decks write any, and the check that holds them to it before more are written. A cost paid in mana as an effect resolves (Rhystic Study) runs through the cast's payment, which `mana-provenance`'s source axis reshapes, so that design says first whether its build must lead too (the owner, 2026-11-06, #314) |
-| 6. **`linked-abilities`** | below | Before every card that remembers a choice adds a field of its own |
+| 6. **`linked-abilities`**, with **`card-and-object-model`**'s design beside it | below | Before every card that remembers a choice adds a field of its own. The object model is designed with it, since both decide what an object holds, and every row after them adds readers of that shape: one permanent of several cards, a change that survives a zone change (the owner, 2026-11-15, #330; it was at step 9) |
 | 7. **`resolution-recipients-and-amounts`**, then **`mana-ability-costs`**, **`mana-provenance`**, **`any-color-plus-painlands-plus-signets`** | below, `mana-architecture.md` | On #295's settled design, after steps 5 and 6, whose types it writes. Then the mana that frees the most deck cards for the fewest PRs: any-color mana alone is 62 `tdc` cards, and `mana-ability-costs` widens the check the others extend (the owner, at #224's and #225's reviews; moved up from step 14, 2026-11-06, #314) |
 | 8. **`information-model-design`**, then **`information-model`** | A, B | 39 `tdc` cards, the dev GUI's one-player view and an AI's observation read through it |
-| 9. **`permission-design`**, with **`card-and-object-model`**, `text-changing-effects`' design, `cant-cast-play-or-activate`'s reasons and CR 610.5's grant at cast designed beside it; **`command-zone-casting`**, **`game-formats`**, **`multiplayer-rules`**, with teams designed in it, then the decks' cheap gaps | `permission-architecture.md`, below, B | One cast path for who may cast what and which characteristics it is cast with; then a commander cast from the command zone (CR 903.8), Commander at any number of seats, and CR 800 and 802 |
+| 9. **`permission-design`**, on `card-and-object-model`'s design, with `text-changing-effects`' design, `cant-cast-play-or-activate`'s reasons and CR 610.5's grant at cast designed beside it; **`command-zone-casting`**, **`game-formats`**, **`multiplayer-rules`**, with teams designed in it, then the decks' cheap gaps | `permission-architecture.md`, below, B | One cast path for who may cast what and which characteristics it is cast with; then a commander cast from the command zone (CR 903.8), Commander at any number of seats, and CR 800 and 802 |
 | 10. **`player-scoped-values`**, then **`cant-be-targeted`**, then **`cant-cast-play-or-activate`** | `cant-effects-architecture.md` | `tdc`'s cards need both |
 | 11. **`combat-restrictions`**, **`cant-pay-costs`**, **`combat-requirements`** with costs to attack (CR 508.1g–h), then **`as-though-effects`**'s permission half, then **`layers-combat-and-counters`** | `cant-effects-architecture.md`, B, below | Combat's "can't"s are the largest family (1,267 of 1,277 Tier-1a clauses), and `as-though-effects` is cut against them; a cost to attack is paid as the declaration is made, so it is designed with the declaration's solver; row 7's combat builds read the declaration `combat-requirements` reshapes |
 | 12. **`rulings-for-every-card`** | §C | Every registered card's rulings tested before the decks add the rest of their 385 |
@@ -739,13 +739,13 @@ name for, and a phase of the critical path that no Row cell names.
 <!-- v0.5 sizing: begin -->
 | Step | Row | State | PRs | Stop | Splits | Rests on |
 |---|---|---|---|---|---|---|
-| 1 | `route-review` | | 1 | | | |
-| 2 | `A6e`, readiness | | 2 | | | |
-| 3 | `card-layer-cleanup` | ✅ 2026-11-01 | 5 | | | |
-| 4 | `pausing-at-a-decision`, the design | ✅ 2026-11-02 | 1 | | | |
-| 5 | `options-named-by-what-they-are`, of `modes-plus-choice-kinds` | | 1 | | | |
-| 5 | `divided-among-targets` | | 1 | | | |
-| 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 | 1 | | | |
+| 1 | `route-review` | ✅ 2026-10-29 (PR #298) | 1 | | | |
+| 2 | `A6e`, readiness | ✅ 2026-10-30 (PRs #299, #300) | 2 | | | |
+| 3 | `card-layer-cleanup` | ✅ 2026-11-01 (PRs #301, #302, #303, #304, #305) | 5 | | | |
+| 4 | `pausing-at-a-decision`, the design | ✅ 2026-11-02 (PR #306) | 1 | | | |
+| 5 | `options-named-by-what-they-are`, of `modes-plus-choice-kinds` | ✅ 2026-11-02 (PR #307) | 1 | | | |
+| 5 | `divided-among-targets` | ✅ 2026-11-03 (PR #308) | 1 | | | |
+| 5 | `tarkir-dragonstorm-decks`, the gap census | ✅ 2026-11-06 (PR #315) | 1 | | | |
 | 5 | `orders-the-cr-hands-a-player` | ✅ 2026-11-06 (PR #316) | 1 | no | no | Design: 350–650 at its table's 1.7× is 600–1,100; measured at 3,030 touched, past the band's top, in `fuzz-record.md`'s block, with the pool as a walk input and item 30's sacrifice pulled forward |
 | 5 | `modes-chosen-and-resolved`, the first of `modal-spells-and-abilities` | ✅ 2026-11-07 (PR #318) | 1 | no | split | Design: the row's 1,360–2,070 at 1.7× was 2,300–3,500, split at the brief (2026-11-07); this half 1,500–2,300 by it, measured at 2,035 touched in `fuzz-record.md`'s block |
 | 5 | `mode-rules-and-costs`, the second | ✅ 2026-11-07 (PR #319) | 1 | no | split | Design: the row's rest, 700–1,200; 1,410–2,380 re-counted at its intake with items 345 and 413 and the brief's cards, and the picker split off at the point it set. Measured at 3,091 touched, past the band's top, in `fuzz-record.md`'s block |
@@ -753,8 +753,11 @@ name for, and a phase of the critical path that no Row cell names.
 | 5 | `mana-provenance`, the design | ✅ 2026-11-13 (PR #323) | 1 | it is one | no | Nearest: #306 and #224, one PR each. It answers that `Primitive::Pay` does not need the build first, so `mana-ability-costs` and the build stay at step 7 |
 | 5 | `pay-as-an-effect-resolves`, the first of `costs-and-choices-at-resolution` | ✅ 2026-11-13 (PR #324) | 1 | no | split | Design: the row's 1,150–1,800 at 1.7× was 2,000–3,050, split at the brief (2026-11-13); this half 1,350–2,100 by it, the payment's share of code 600–950 and tests 550–850 |
 | 5 | `choose-as-an-effect-resolves`, the second | ✅ 2026-11-14 (PR #326) | 1 | no | no | Design: the row's rest, about 600–950 at the same 1.7×: decision 8's `Choose` at resolution and the untargeted division. Measured at 1,071 added, 1,410 touched, past its top with the pre-review's tests, inside the brief's 1,500 |
-| 5 | `values-chosen-at-resolution` | | 1–2 | no | may | Design: 1,010–1,570 at 1.7× is 1,700–2,700 |
+| 5 | `value-chosen-as-an-effect-resolves`, the first of `values-chosen-at-resolution` | ✅ 2026-11-15 (PR #330) | 1 | no, #330 | split | Design: the row's 1,010–1,570 at 1.7× was 1,700–2,700; split in three at its design stop (2026-11-15), this PR 1,290–2,130 by its note's piece count. Measured at 2,744 added, 3,054 touched, past the band's top with the pre-review's tests: code 1,344, tests 1,400 |
+| 5 | `several-choosers-at-one-step`, the second | | 1 | no | may | Guess: 1,000–1,600, from the design table's share for the vote and piles plus the 16 "each player chooses" cards and the word kind |
+| 5 | `values-kept-past-the-resolution`, the third | | 1–2 | no | may | Guess: 1,200–2,000, about 130 printed cards across the write-in, a change's parameter and three kinds; it may split at its brief |
 | 5 | `fork-test-at-every-decision` | | 1–2 | no | may | Nearest: #159's fork test, one PR. A second if the fork does not separate from the paused game, which `setup-architecture.md#7e-pausing-at-a-decision` calls one consumer's two halves |
+| 6 | `card-and-object-model`, the design | | 1 | it is one | no | Nearest: #306. Moved up from step 9 (the owner, 2026-11-15, #330) |
 | 6 | `linked-abilities` | | 3–4 | own PR | likely | Nearest: RH, a record reshaped under all its readers, a design and three builds. Five items sum 230–360, one unsized; CR 607's 20 atoms are all open |
 | 7 | `resolution-recipients-and-amounts` | | 2–3 | no, #295 | yes, in two | Design: its note's two builds carried 665–1,210 and 930–1,490. Five items have joined since; `batches-durations-and-control` carried a like size into two PRs at 1.16× |
 | 7 | `mana-ability-costs` | | 1 | no | no | Design: 650–850 at its doc's 1.4× is up to 1,190, with the stress board first. CR 602.5's read rides `command-zone-casting`, the first build of the surface it needs |
@@ -765,8 +768,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 8 | `information-model-design` | | 1 | it is one | no | Nearest: #306 and #266, one PR each, with item 357's `ui/` decision in it |
 | 8 | `information-model` | | 3–6 | above | likely | Nearest: TR-4, the frame's readers, four PRs. The route's 1–2 is a count before design, about 3×. It holds every search and reveal: 39 deck cards wait on it, by the gap census, and no instruction searches yet |
 | 9 | `permission-design` | | 1 | it is one | no | Nearest: #306. `cant-cast-play-or-activate`'s reasons and CR 610.5's grant are designed in it |
-| 9 | `card-and-object-model`, the design | | 1 | it is one | no | Nearest: #306 |
-| 9 | `text-changing-effects`, the design | | 0–1 | it is one | no | Guess: rides `card-and-object-model`'s PR unless its review splits it |
+| 9 | `text-changing-effects`, the design | | 0–1 | it is one | no | Guess: rides `permission-design`'s PR unless its review splits it; it was to ride `card-and-object-model`'s before that moved to step 6 |
 | 9 | `command-zone-casting` | | 1–3 | rides `permission-design` | may | Guess until `permission-design` sizes it. Nearest: CM-1, the first sweep on the cast, one PR at 1,783, and six items wait on the cast path's shape |
 | 9 | `game-formats` | | 2–3 | no | likely | Sum: six items at 265–325, about 1,000 at 3×, on top of formats as data, deck validation, the legality table and the designation |
 | 9 | `multiplayer-rules` | | 2–4 | rides, for teams | likely | Sum: 650–890 at 3× is 2,000–2,700, one item unsized and item 342's ~195 filter sites in it. The route's 1 is a count before design |
@@ -797,10 +799,12 @@ name for, and a phase of the critical path that no Row cell names.
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-06:** 73–138 route PRs, 15–40 of them the
-decks' cards and gaps.
+**What the rows sum to, read 2026-11-15:** 73–135 route PRs left, 15–40 of them
+the decks' cards and gaps. (Read 2026-11-06 it was 73–138: seven route PRs landed
+since, and three rows split.)
 
-**The forecast: each step's range at that reading**, at #315's merge, the rows
+**The forecast: each step's range at that reading**, at #330's design stop, when
+step 5 passed its 9–13 as `values-chosen-at-resolution` split in three, the rows
 landed by then at what they took. The table above moves as rows split, land and
 are re-sized; this one stays, so the board can say when a step has passed what
 the date below was computed from. A landed row's PR cell is what it took. A step
@@ -816,11 +820,11 @@ and the date below with it.
 | 2 | 2 |
 | 3 | 5 |
 | 4 | 1 |
-| 5 | 9–13 |
-| 6 | 3–4 |
-| 7 | 5–8 |
+| 5 | 14–16 |
+| 6 | 4–5 |
+| 7 | 7–9 |
 | 8 | 4–7 |
-| 9 | 8–15 |
+| 9 | 7–14 |
 | 10 | 3–6 |
 | 11 | 9–14 |
 | 12 | 3–6 |
@@ -836,17 +840,18 @@ plan whose last rows joined it, so work is counted the way the rows left are. Of
 177 merge commits in the eight weeks to #313, 87 were on the route, 27 the dev
 GUI, 36 audit, 13 process and docs, and 14 detours: 2.0 merged PRs for each route
 PR, and 36% audit, process and detours. The item 6 audit's plan said 13–20 PRs and
-ran to 28, its cleanup builds among them. At that rate the route is 146–276 merged
+ran to 28, its cleanup builds among them. At that rate the route is 146–270 merged
 PRs. Held to about 1.5 for each route PR, with audits on a budget (the owner,
 2026-11-13: a hunt of one PR when a subsystem closes and the whole audit once, at
 v0.5's close, `spine-phase-audit.md#when-it-runs`), the process PR
-at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–207. So
-**about 110–275 merged PRs**.
+at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–203. So
+**about 110–270 merged PRs**.
 
 **A date, and what it assumes.** The route ran 10.9 PRs a week over those eight
-weeks and 5 in its slowest fortnight, the dev GUI's. 73 PRs at the first pace is
-about 7 weeks and 138 at the second 28, so **between about New Year and late May
-2027**. Each range's midpoint, 106 PRs at 8 a week, gives early February. It
+weeks and 5 in its slowest fortnight, the dev GUI's. From 2026-11-15, 73 PRs at
+the first pace is about 7 weeks and 135 at the second 27, so **between about New
+Year and late May 2027**. Each range's midpoint, 104 PRs at 8 a week, gives
+mid-February, a week later than the reading of 2026-11-06. It
 assumes the owner's review keeps pace and no row's design doubles it as TR-5's did.
 The gap census held the date: its gaps are 5–9 PRs where the five-decks row guessed
 5–10, and it sees a card's blockers only up to its first row not built, so each

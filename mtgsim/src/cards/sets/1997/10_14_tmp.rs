@@ -3,15 +3,18 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    artifact, at_beginning_of, chosen_by, create_replacement, create_tokens, creature, draw_cards, each, every_permanent_and_player, land,
-    loses_all_abilities, sacrifice, skip, spell_ability, static_ability, static_replacement, target_player, triggered_ability, whenever, you, Whose,
+    artifact, at_beginning_of, chosen_by, create_replacement, create_tokens, creature, deal_damage_divided, divided_among_targeted, draw_cards,
+    each, every_permanent_and_player, land, loses_all_abilities, sacrifice, skip, spell_ability, static_ability, static_replacement,
+    target_player, triggered_ability, whenever, you, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, Effect, ObjectSet, Pick, PlayerSet, TokenDef};
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::effects::{
+    AmountExpr, Choice, ChoiceScope, ChoiceSide, Effect, ObjectSet, Pick, PlayerSet, SelectionFilter, TargetCount, TokenDef,
+};
+use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::replacement::{AmountRewrite, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 
 /// Diabolic Edict — {1}{B}
@@ -274,6 +277,42 @@ pub fn root_maze() -> Arc<CardData> {
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ),
         ))
+        .build()
+}
+
+/// Rolling Thunder — {X}{R}{R}
+/// Sorcery
+///
+/// > Rolling Thunder deals X damage divided as you choose among any number
+/// > of targets.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// A total the X announced before the targets sets (CR 601.2b, 601.2d).
+///
+/// # The rulings, and where each is tested
+///
+/// - *"You choose how many targets Rolling Thunder has and how the damage is
+///   divided as you cast the spell. Each target must receive at least 1
+///   damage."* (#1) →
+///   `phase_divided_among_targets_integration_test::a_total_of_x_is_divided_as_the_targets_are_announced`.
+/// - *"If some, but not all, of the targets become illegal ..., the original
+///   division of damage still applies, but no damage is dealt to illegal
+///   targets. If all the targets are illegal, the spell won't resolve."* (#2)
+///   → `phase_divided_among_targets_integration_test::rolling_thunder_keeps_its_division_over_illegal_targets`.
+/// - *"If Rolling Thunder is copied, the copy will retain the original damage
+///   division. ..."* (#3) → a disposition: a spell is not copied yet
+///   (`spell-copies`).
+/// - *"If X is 0, you can't choose any targets."* (#4) →
+///   `phase_divided_among_targets_integration_test::rolling_thunder_with_x_of_zero_has_no_targets`.
+pub fn rolling_thunder() -> Arc<CardData> {
+    let text = "Rolling Thunder deals X damage divided as you choose among any number of targets.";
+    CardDataBuilder::new("Rolling Thunder")
+        .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red), ManaSymbol::Colored(ManaType::Red)]))
+        .color(Color::Red)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, AmountExpr::X))))
         .build()
 }
 

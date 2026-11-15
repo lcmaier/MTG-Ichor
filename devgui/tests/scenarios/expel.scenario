@@ -1,0 +1,20 @@
+# A value chosen as a spell resolves. Player 0 casts Expel the Interlopers
+# with nothing chosen, and as it resolves the window asks for a number from 0
+# to 10 (CR 608.2d). A 3 destroys the Hill Giant (3/3) and spares the Grizzly
+# Bears (2/2) and the Savannah Lions (2/1).
+turn 3
+active 0
+step precombat main
+
+hand 0: Expel the Interlopers
+library 0: Plains | x8
+library 1: Plains | x8
+
+battlefield: Plains | controller 0
+battlefield: Plains | controller 0
+battlefield: Plains | controller 0
+battlefield: Plains | controller 0
+battlefield: Plains | controller 0
+battlefield: Savannah Lions | controller 0
+battlefield: Grizzly Bears | controller 1
+battlefield: Hill Giant | controller 1

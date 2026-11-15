@@ -6,21 +6,23 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, choose,
-    choose_each_targeting_a_different_player, choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_repeatable, choose_up_to,
-    creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, divided_among_targeted, dies, discard, distribute_counters, draw_cards, each, enters,
-    exile, gain_life, gets, has_base_power_and_toughness, lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield,
-    spell_ability, spree, static_ability, tap, target_creature, target_permanent, target_player, targets, the_target, this_object,
-    triggered_ability, whenever, you, you_have,
+    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, at_random, choose,
+    choose_each_targeting_a_different_player, choose_number, choose_objects, choose_one, choose_one_or_both_if, choose_pawprints_worth,
+    choose_player, choose_repeatable, choose_up_to, create_tokens, creature, creatures_you_control, deal_damage, deal_damage_divided, destroy,
+    divided_among_targeted, dies, discard, draw_cards, each, enters, exile, gain_life, gets, has_base_power_and_toughness,
+    lose_life, mill, planeswalker, return_to_the_battlefield, spell_ability, spree, static_ability, tap,
+    target_creature, target_opponent, target_permanent, target_player, targets, the_chosen_number, the_chosen_objects, the_chosen_player,
+    the_target, this_object, triggered_ability, whenever, you, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
-    ReturnUnder, SelectionFilter, TargetCount,
+    AmountExpr, Condition, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
+    ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 
@@ -202,26 +204,6 @@ pub fn scattering_flicker() -> Arc<CardData> {
         .build()
 }
 
-/// Mogg Mob Fixture — {2}{R}
-/// Creature — Goblin, 3/3.
-///
-/// A division on an activation (CR 602.2b), three among up to three, so two
-/// targets ask. Sacrificing it is the cost, so the amount and the shares are
-/// fixed before its source is gone, and the source deals the damage as it last
-/// existed (CR 113.7a).
-pub fn mogg_mob_fixture() -> Arc<CardData> {
-    let text = "Sacrifice this creature: It deals 3 damage divided as you choose among one, two, or three targets.";
-    CardDataBuilder::new("Mogg Mob Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Red], 2))
-        .color(Color::Red)
-        .card_type(CardType::Creature)
-        .subtype(Subtype::Creature(CreatureType::Goblin))
-        .power_toughness(3, 3)
-        .rules_text(text)
-        .ability(activated_ability(text, vec![Cost::SacrificeSelf], deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 3), 3.into()))))
-        .build()
-}
-
 /// Dragonlord Atarka Fixture — {5}{R}{G}
 /// Creature — Dragon, 8/8, unlegendary.
 ///
@@ -263,51 +245,6 @@ pub fn magma_opus_fixture() -> Arc<CardData> {
                 tap(targets(2, SelectionFilter::Permanent(ObjectFilter::All))),
             ]),
         ))
-        .build()
-}
-
-/// Elven Rite Fixture — {1}{G}, a sorcery.
-///
-/// Counters divided, the other half of CR 601.2d's "damage or counters".
-pub fn elven_rite_fixture() -> Arc<CardData> {
-    let text = "Distribute two +1/+1 counters among one or two target creatures.";
-    CardDataBuilder::new("Elven Rite Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
-        .color(Color::Green)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(
-            text,
-            distribute_counters(divided_among_targeted(SelectionFilter::Creature, TargetCount::Between(1, 2), 2.into()), CounterType::PlusOnePlusOne),
-        ))
-        .build()
-}
-
-/// Remedy Fixture — {1}{W}, an instant.
-///
-/// A prevention divided: each target a shield of its own share (CR 615.7).
-pub fn remedy_fixture() -> Arc<CardData> {
-    let text = "Prevent the next 5 damage that would be dealt this turn to any number of targets, divided as you choose.";
-    CardDataBuilder::new("Remedy Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::White], 1))
-        .color(Color::White)
-        .card_type(CardType::Instant)
-        .rules_text(text)
-        .ability(spell_ability(text, prevent_the_next_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, 5.into()))))
-        .build()
-}
-
-/// Rolling Thunder Fixture — {X}{R}, a sorcery.
-///
-/// A total the X announced before the targets sets (CR 601.2b, 601.2d).
-pub fn rolling_thunder_fixture() -> Arc<CardData> {
-    let text = "Rolling Thunder Fixture deals X damage divided as you choose among any number of targets.";
-    CardDataBuilder::new("Rolling Thunder Fixture")
-        .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
-        .color(Color::Red)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(text, deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, AmountExpr::X))))
         .build()
 }
 
@@ -568,4 +505,98 @@ pub fn kindled_option() -> Arc<CardData> {
             choose_one_or_both_if(you_have(PlayerFact::ControlsPermanent(artifact())), [deal_damage(target_creature(), 2), draws_then_discards]),
         ))
         .build()
+}
+
+// ---------------------------------------------------------------------------
+// CR 608.2d's value chosen as an effect resolves, kept, and used
+// ---------------------------------------------------------------------------
+//
+// The invented ones: a chooser or a pairing no printed card's whole text
+// gives. The printed cards that choose (Expel the Interlopers, Wash Out,
+// Kindred Dominance, World Queller, Duneblast, The Nipton Lottery and By
+// Invitation Only) are registered in their sets.
+
+/// A sorcery of one color whose text is `text` and whose steps are `steps`.
+fn choosing_sorcery(name: &str, color: (ManaType, Color), generic: u8, text: &'static str, steps: Vec<Effect>) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .mana_cost(ManaCost::build(&[color.0], generic))
+        .color(color.1)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, Effect::Sequence(steps)))
+        .build()
+}
+
+/// Bestowed Favors — {G}, a sorcery.
+///
+/// A player you choose, twice: Gluntch, the Bestower's "choose a second
+/// player to draw a card. Then choose a third player to create two Treasure
+/// tokens", as a draw and a token's controller. The second choice takes the
+/// first's place, each read by the step after it. Gluntch's three players
+/// differ, which a choice cannot say yet (`several-choosers-at-one-step`),
+/// so this is not its text.
+pub fn bestowed_favors() -> Arc<CardData> {
+    choosing_sorcery(
+        "Bestowed Favors",
+        (ManaType::Green, Color::Green),
+        0,
+        "Choose a player. That player draws a card. Then choose an opponent. That player creates a 1/1 white Soldier creature token.",
+        vec![
+            choose_player(you(), PlayerSet::Everyone),
+            draw_cards(the_chosen_player(), 1),
+            choose_player(you(), PlayerSet::Opponents),
+            create_tokens(the_chosen_player(), 1, TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier])),
+        ],
+    )
+}
+
+/// Consequences at Random — {R}, a sorcery.
+///
+/// A player drawn at random, nobody asked: Truth or Consequences' "choose an
+/// opponent at random. [It] deals 3 damage to that player for each
+/// consequences vote", without its vote.
+pub fn consequences_at_random() -> Arc<CardData> {
+    choosing_sorcery(
+        "Consequences at Random",
+        (ManaType::Red, Color::Red),
+        0,
+        "Choose an opponent at random. Consequences at Random deals 3 damage to that player.",
+        vec![choose_player(at_random(), PlayerSet::Opponents), deal_damage(the_chosen_player(), 3)],
+    )
+}
+
+/// Chosen Champion — {G}, a sorcery.
+///
+/// One choice and two changes that name it: "it" after "choose a creature
+/// you control" is the creature chosen, never a second choice. No card
+/// prints the sentence this way; Feast of the Victorious Dead and Final
+/// Showdown print the choice with one verb.
+pub fn chosen_champion() -> Arc<CardData> {
+    choosing_sorcery(
+        "Chosen Champion",
+        (ManaType::Green, Color::Green),
+        0,
+        "Choose a creature you control. It gets +2/+2 and gains trample until end of turn.",
+        vec![
+            choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
+            gets(the_chosen_objects(), 2, 2).and_gains_keyword(KeywordFlag::Trample).until_end_of_turn(),
+        ],
+    )
+}
+
+/// Damnation's Tally — {B}, a sorcery.
+///
+/// A number another player chooses, read as an amount: Choice of
+/// Damnations' "target opponent chooses a number", between printed bounds
+/// since an open number has no kind yet (`several-choosers-at-one-step`).
+/// The chooser is the spell's one instance of "target", and the verb after
+/// it names the same player.
+pub fn damnations_tally() -> Arc<CardData> {
+    choosing_sorcery(
+        "Damnation's Tally",
+        (ManaType::Black, Color::Black),
+        0,
+        "Target opponent chooses a number between 0 and 3. That player loses that much life.",
+        vec![choose_number(target_opponent(), 0, 3), lose_life(the_target(), the_chosen_number())],
+    )
 }

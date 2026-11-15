@@ -244,7 +244,7 @@ fn every_variant_decides_its_subject() {
         DecisionKind::ApplyOptionalEffect { source: id },
         DecisionKind::AllocateNextDamage { source: id, remaining: 3 },
         DecisionKind::ChooseDamageSource { source: id },
-        DecisionKind::ChooseOpponent { source: id },
+        DecisionKind::ChoosePlayer { source: id },
         DecisionKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::CounterPutter },
         DecisionKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
         DecisionKind::ChooseCopySource { source: id },
@@ -269,6 +269,10 @@ fn every_variant_decides_its_subject() {
             of: AmountOf::AnyAmountOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Set(vec![0, 2])),
         },
+        DecisionKind::ChooseColor { source: id },
+        DecisionKind::ChooseCreatureType { source: id },
+        DecisionKind::ChooseCardType { source: id },
+        DecisionKind::ChooseNumber { source: id, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();
@@ -301,7 +305,7 @@ fn every_variant_decides_its_subject() {
         DecisionKind::AllocateNextDamage { .. } => 17,
         DecisionKind::ChooseDamageSource { .. } => 18,
         DecisionKind::ChooseDelayedTriggerEvent { .. } => 19,
-        DecisionKind::ChooseOpponent { .. } => 20,
+        DecisionKind::ChoosePlayer { .. } => 20,
         DecisionKind::ChoosePlayerAsObjectEnters { .. } => 21,
         DecisionKind::ChooseEnteringDefender { .. } => 22,
         DecisionKind::ChooseAuxiliaryZoneChange { .. } => 23,
@@ -318,7 +322,11 @@ fn every_variant_decides_its_subject() {
         DecisionKind::ChooseModes { .. } => 34,
         DecisionKind::PayAsItResolves { .. } => 35,
         DecisionKind::ChooseAmountToPay { .. } => 36,
+        DecisionKind::ChooseColor { .. } => 37,
+        DecisionKind::ChooseCreatureType { .. } => 38,
+        DecisionKind::ChooseCardType { .. } => 39,
+        DecisionKind::ChooseNumber { .. } => 40,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
-    assert_eq!(reached, (0..37).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
+    assert_eq!(reached, (0..41).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

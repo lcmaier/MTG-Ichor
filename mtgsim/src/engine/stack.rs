@@ -73,6 +73,7 @@ impl GameState {
             }),
             cost_choices: entry.cost_choices.clone(),
             x_value: entry.x_value,
+            choices: Vec::new(),
             announced: entry.announced.clone(),
             identity: entry.ability_ref,
             trigger: entry.trigger.clone(),

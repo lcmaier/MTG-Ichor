@@ -488,7 +488,7 @@ impl GameState {
             ModeChooser::AnOpponent => match self.opponents_of(player_id).as_slice() {
                 [] => return Err(format!("an opponent chooses {source_id}'s modes, and player {player_id} has none in the game")),
                 [only] => *only,
-                several => crate::ui::ask::ask_choose_opponent(dp, self, player_id, source_id, several),
+                several => crate::ui::ask::ask_choose_player(dp, self, player_id, source_id, several),
             },
         };
         Ok(ask_choose_modes(dp, self, chooser, source_id, node.words(), groups))

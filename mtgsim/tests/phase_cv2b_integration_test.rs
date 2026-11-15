@@ -27,7 +27,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use mtgsim::cards::printings::{
-    self, adaptive_shimmerer, culling_drone, darksteel_myr, doubling_season, glorious_anthem, grizzly_bears, isamaru_hound_of_konda,
+    self, adaptive_shimmerer, culling_drone, darksteel_myr, doubling_season, essence_of_the_wild, glorious_anthem, grizzly_bears,
+    isamaru_hound_of_konda,
     march_of_the_machines, master_biomancer, sol_ring, spark_double, tarmogoyf,
 };
 use mtgsim::cards::fixtures::{grist_insect_clause, loyalty_probe};
@@ -1173,22 +1174,6 @@ fn a_later_copy_puts_back_the_status_an_addition_replaced() {
     }
 }
 
-/// Essence of the Wild — "Creatures you control enter as a copy of this
-/// creature."
-fn essence_of_the_wild() -> Arc<CardData> {
-    CardDataBuilder::new("Essence of the Wild")
-        .card_type(CardType::Creature)
-        .subtype(Subtype::Creature(CreatureType::Avatar))
-        .color(Color::Green)
-        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green, ManaType::Green], 3))
-        .power_toughness(6, 6)
-        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
-            EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::battlefield_filter(creatures_you_control()),
-            Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
-        )))))
-        .build()
-}
 
 /// An artifact that "enters tapped" and is an artifact creature "as long as
 /// it's tapped": a status write that makes a copy effect applicable.

@@ -216,6 +216,8 @@ fn option_view(game: &GameState, option: &DecisionOption) -> OptionView {
         | DecisionOption::Number(_)
         | DecisionOption::Modes(_)
         | DecisionOption::Color(_)
+        | DecisionOption::CreatureType(_)
+        | DecisionOption::CardType(_)
         | DecisionOption::CounterType(_)
         | DecisionOption::ManaType(_) => vec![],
     };
@@ -236,6 +238,8 @@ fn attack_target_ref(target: &AttackTarget) -> BoardRef {
 #[cfg(test)]
 mod tests {
     use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};
+    use mtgsim::types::card_types::{CardType, CreatureType};
+    use mtgsim::types::colors::Color;
 
     use super::*;
 
@@ -250,5 +254,30 @@ mod tests {
         assert_eq!(attack.refs, [BoardRef::Object(attacker), BoardRef::Player(1)], "{}", attack.label);
         let block = option_view(&game, &DecisionOption::BlockerAttacker(blocker, attacker));
         assert_eq!(block.refs, [BoardRef::Object(blocker), BoardRef::Object(attacker)], "{}", block.label);
+    }
+
+    /// A value chosen as an effect resolves is a word and no board thing, so
+    /// it is a button and nothing on the board lights up; a chosen player is
+    /// their seat. The question names what asks.
+    #[test]
+    fn a_chosen_values_options_are_words_and_a_chosen_player_is_a_seat() {
+        let mut game = setup_two_player_game();
+        let source = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let shown = |kind: DecisionKind, option: DecisionOption| {
+            let prompt = Prompt::pick_n(&game, 0, &DecisionContext::new(kind), &[option], (1, 1));
+            (prompt.question, prompt.options[0].label.clone(), prompt.options[0].refs.clone())
+        };
+        let (question, label, refs) = shown(DecisionKind::ChooseColor { source }, DecisionOption::Color(Color::Blue));
+        assert!(question.starts_with("Choose a color for "), "{question}");
+        assert_eq!((label.as_str(), refs), ("Blue", vec![]));
+        let (question, label, refs) =
+            shown(DecisionKind::ChooseCreatureType { source }, DecisionOption::CreatureType(CreatureType::TimeLord));
+        assert!(question.starts_with("Choose a creature type for "), "{question}");
+        assert_eq!((label.as_str(), refs), ("Time Lord", vec![]));
+        let (question, label, refs) = shown(DecisionKind::ChooseCardType { source }, DecisionOption::CardType(CardType::Artifact));
+        assert!(question.starts_with("Choose a card type for "), "{question}");
+        assert_eq!((label.as_str(), refs), ("Artifact", vec![]));
+        let (_, _, refs) = shown(DecisionKind::ChoosePlayer { source }, DecisionOption::Player(1));
+        assert_eq!(refs, [BoardRef::Player(1)]);
     }
 }

@@ -13,7 +13,7 @@ use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
 use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
+    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef, ValueIs,
 };
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ReplacedEvent;
@@ -1615,9 +1615,9 @@ fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
 /// is CR 616.1c's step, which never shares a bucket with these.
 #[derive(Debug, Default)]
 struct EntryWrites {
-    /// +1/+1 counters: power up (CR 122.1a).
+    /// +1/+1 counters: power up, and toughness with it (CR 122.1a).
     raises_power: bool,
-    /// -1/-1 counters: power down.
+    /// -1/-1 counters: power down, and toughness with it.
     lowers_power: bool,
     /// What the members' edits add.
     added_types: Vec<CardType>,
@@ -1754,6 +1754,8 @@ impl EntryWrites {
             | ObjectFilter::ThisTurn(_)
             | ObjectFilter::ThisCombat(_)
             | ObjectFilter::NotSource
+            | ObjectFilter::OneOf(_)
+            | ObjectFilter::ChosenAs(_)
             | ObjectFilter::ByController(_)
             | ObjectFilter::ByOwner(_) => false,
             // An added value can only turn its leaf on.
@@ -1762,11 +1764,21 @@ impl EntryWrites {
             ObjectFilter::BySupertype(s) => negated && self.added_supertypes.contains(s),
             // No edit adds a color yet.
             ObjectFilter::ByColor(_) => false,
-            ObjectFilter::PowerLE(_) => {
-                if negated {
-                    self.lowers_power
+            // A +1/+1 counter raises power and toughness alike, and a -1/-1
+            // lowers both. A raise unmatches "at most" and "less than", a
+            // drop "at least", and either "exactly"; negated, the reverse.
+            // An amount still to be read can move either way.
+            ObjectFilter::WithValue { is, .. } => {
+                let (raised, lowered) = if negated {
+                    (self.lowers_power, self.raises_power)
                 } else {
-                    self.raises_power
+                    (self.raises_power, self.lowers_power)
+                };
+                match &**is {
+                    _ if !matches!(is.amount(), AmountExpr::Fixed(_)) => self.raises_power || self.lowers_power,
+                    ValueIs::AtMost(_) | ValueIs::LessThan(_) => raised,
+                    ValueIs::AtLeast(_) => lowered,
+                    ValueIs::Exactly(_) => self.raises_power || self.lowers_power,
                 }
             }
             // An entry only adds counters, which can turn "at least" on and

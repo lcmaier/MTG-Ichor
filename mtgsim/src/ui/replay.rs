@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn a_pick_finds_its_option_wherever_the_build_lists_it() {
         let game = setup_two_player_game();
-        let kind = DecisionKind::ChooseOpponent { source: ObjectId::UNASSIGNED };
+        let kind = DecisionKind::ChoosePlayer { source: ObjectId::UNASSIGNED };
         let picked = Chosen::Picks(vec!["player 0".to_string()]);
         let answer = answering(&game, &kind, picked).pick_n(&game, 0, &DecisionContext::new(kind), &the_seats_the_other_way_round(), (1, 1));
         assert_eq!(answer, vec![1]);

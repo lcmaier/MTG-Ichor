@@ -698,6 +698,7 @@ mod tests {
             cast: None,
             cost_choices: crate::state::battlefield::CostChoices::NONE,
             x_value: None,
+            choices: Vec::new(),
             announced: crate::engine::announcement::Announcement::NONE,
             identity: None,
             trigger: None,

@@ -3,13 +3,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    choose_each_targeting_a_different_player, chosen_by, creature, dies, discard, draw_cards, lose_life, sacrifice,
-    static_replacement, target_opponent, triggered_ability, whenever, you_and_that_player,
+    choose_creature_type, choose_each_targeting_a_different_player, chosen_by, creature, destroy, dies, discard, draw_cards, each, lose_life,
+    creature_type, sacrifice, spell_ability, static_replacement, target_opponent, the_chosen_creature_type, triggered_ability, whenever, you,
+    you_and_that_player,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, DiscardChooser, ModalCount, Pick, PlayerSet};
+use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, DiscardChooser, Effect, ModalCount, Pick, PlayerSet};
 use crate::types::triggers::TriggerSubject;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
@@ -85,6 +86,42 @@ pub fn alms_collector() -> Arc<CardData> {
                 Rewrite::Prevent,
             )
             .with_then(draw_cards(you_and_that_player(), 1)),
+        ))
+        .build()
+}
+
+/// Kindred Dominance — {5}{B}{B}
+/// Sorcery
+///
+/// > Choose a creature type. Destroy all creatures that aren't of the chosen
+/// > type.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// A creature type chosen as the spell resolves (CR 205.3m, 608.2d), and
+/// every creature not of it destroyed.
+///
+/// # The rulings, and where each is tested
+///
+/// All three → `phase_value_chosen_as_an_effect_resolves_integration_test::kindred_dominance_spares_the_creature_type_chosen_as_it_resolves`:
+/// - *"Once Kindred Dominance begins to resolve, no players may take other
+///   actions until it's done. ..."* (#1): the type is the one question asked.
+/// - *"You must choose an existing creature type, such as Vampire or Cat.
+///   Card types such as "artifact" can't be chosen."* (#2): the offer is CR
+///   205.3m's list.
+/// - *"You can't choose multiple creature types, such as "Cat Warrior." A Cat
+///   Warrior is both a Cat and a Warrior. ..."* (#3): one type is chosen, and
+///   an Elf Warrior survives the choice of Elf.
+pub fn kindred_dominance() -> Arc<CardData> {
+    let text = "Choose a creature type. Destroy all creatures that aren't of the chosen type.";
+    CardDataBuilder::new("Kindred Dominance")
+        .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 5))
+        .color(Color::Black)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![choose_creature_type(you()), destroy(each(creature().other_than(creature_type(the_chosen_creature_type()))))]),
         ))
         .build()
 }

@@ -173,7 +173,7 @@ fn fixture_doubler_on_small_creatures() -> Arc<CardData> {
         "Fixture Small Doubler",
         ReplacementDef::new(
             EventPattern::AddCounters { counter: None, by: None },
-            ObjectSet::battlefield_filter(ObjectFilter::PowerLE(2)),
+            ObjectSet::battlefield_filter(mtgsim::cards::authoring::power_at_most(2)),
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
     )

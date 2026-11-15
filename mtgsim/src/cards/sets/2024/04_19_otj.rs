@@ -3,13 +3,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    artifact, chosen_permanent, creature, creatures_you_control, deal_damage, destroy, each, gains_keyword, loses_all_abilities, spell_ability, spree,
-    target_creature, target_permanent,
+    artifact, choose_objects, creature, creatures_you_control, deal_damage, destroy, each, gains_keyword, loses_all_abilities, spell_ability,
+    spree, target_creature, target_permanent, the_chosen_objects, you,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
+use crate::types::effects::{Effect, TargetCount};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -69,7 +70,8 @@ pub fn explosive_derailment() -> Arc<CardData> {
 ///
 /// The second mode chooses without targeting (CR 115.10a), so its creature
 /// is chosen as the spell resolves (608.2d): after the first mode has taken
-/// every creature's abilities, and before the third destroys them. The
+/// every creature's abilities, and before the third destroys them. It is
+/// two steps, the choice and the change on what was chosen. The
 /// indestructible it gains is later than the loss (CR 613.7), so the chosen
 /// creature survives the wipe. Spree's own rulings are Explosive
 /// Derailment's: one modal node writes both.
@@ -79,6 +81,10 @@ pub fn final_showdown() -> Arc<CardData> {
                 + {3}{W}{W} — Destroy all creatures.";
     let one_generic_mana = || vec![Cost::Mana(ManaCost::build(&[], 1))];
     let board_wipe_mana = vec![Cost::Mana(ManaCost::build(&[ManaType::White, ManaType::White], 3))];
+    let chosen_creature_gains_indestructible = Effect::Sequence(vec![
+        choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
+        gains_keyword(the_chosen_objects(), KeywordFlag::Indestructible).until_end_of_turn(),
+    ]);
     CardDataBuilder::new("Final Showdown")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .color(Color::White)
@@ -88,7 +94,7 @@ pub fn final_showdown() -> Arc<CardData> {
             text,
             spree([
                 (one_generic_mana(), loses_all_abilities(each(creature())).until_end_of_turn()),
-                (one_generic_mana(), gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn()),
+                (one_generic_mana(), chosen_creature_gains_indestructible),
                 (board_wipe_mana, destroy(each(creature()))),
             ]),
         ))

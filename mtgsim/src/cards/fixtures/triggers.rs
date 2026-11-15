@@ -25,12 +25,8 @@ pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 32] = [
     ("Fixture Mourning Ink", fixture_mourning_ink),
     ("Fixture Mourner's Tithe", fixture_mourners_tithe),
     ("Fixture First Creature's Tithe", fixture_first_creature_tithe),
-    ("Mogg Mob Fixture", super::mogg_mob_fixture),
     ("Dragonlord Atarka Fixture", super::dragonlord_atarka_fixture),
     ("Magma Opus Fixture", super::magma_opus_fixture),
-    ("Elven Rite Fixture", super::elven_rite_fixture),
-    ("Remedy Fixture", super::remedy_fixture),
-    ("Rolling Thunder Fixture", super::rolling_thunder_fixture),
     ("Meteor Swarm Fixture", super::meteor_swarm_fixture),
     ("Omnath, Locus of Mana Fixture", super::omnath_locus_of_mana_fixture),
     ("Tithing Engine", super::tithing_engine),
@@ -52,6 +48,10 @@ pub const CASTABLE: [(&str, fn() -> Arc<CardData>); 32] = [
     ("Tribute Offering", super::tribute_offering),
     ("Divided Envoy", super::divided_envoy),
     ("Twofold Tithe", super::twofold_tithe),
+    ("Bestowed Favors", super::bestowed_favors),
+    ("Consequences at Random", super::consequences_at_random),
+    ("Chosen Champion", super::chosen_champion),
+    ("Damnation's Tally", super::damnations_tally),
 ];
 
 /// Fixture Curtain — {W}, instant: "Target creature becomes blocked." CR

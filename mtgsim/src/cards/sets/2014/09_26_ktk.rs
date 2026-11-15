@@ -2,13 +2,50 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{create_tokens, creature, spell_ability, static_replacement, you, you_control};
+use crate::cards::authoring::{
+    choose_objects, create_tokens, creature, destroy, each, one_of_the_chosen, spell_ability, static_replacement, you, you_control,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType};
 use crate::types::colors::Color;
-use crate::types::effects::{CounterType, ObjectSet, TokenDef};
+use crate::types::effects::{CounterType, Effect, ObjectSet, TargetCount, TokenDef};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
+
+/// Duneblast — {4}{W}{B}{G}
+/// Sorcery
+///
+/// > Choose up to one creature. Destroy the rest.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// Up to one creature chosen as the spell resolves, none of them a target
+/// (CR 115.10a, 608.2d), and "the rest" every creature other than it.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"You decide which creature to spare as Duneblast resolves. This choice
+///   doesn't target the creature. If you don't choose a creature, then all
+///   creatures will be destroyed."* (#1) →
+///   `phase_value_chosen_as_an_effect_resolves_integration_test::duneblast_spares_the_creature_chosen_and_destroys_the_rest`.
+pub fn duneblast() -> Arc<CardData> {
+    let text = "Choose up to one creature. Destroy the rest.";
+    CardDataBuilder::new("Duneblast")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::Black, ManaType::Green], 4))
+        .color(Color::White)
+        .color(Color::Black)
+        .color(Color::Green)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![
+                choose_objects(you(), creature(), TargetCount::UpTo(1)),
+                destroy(each(creature().other_than(one_of_the_chosen()))),
+            ]),
+        ))
+        .build()
+}
 
 /// Hardened Scales — {G}
 /// Enchantment

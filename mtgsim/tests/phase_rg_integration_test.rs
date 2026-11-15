@@ -198,13 +198,13 @@ fn opposite_statuses_are_an_order_and_equal_ones_are_not() {
     assert_eq!(entry.counter_count(CounterType::Charge), 1);
 }
 
-/// `PowerLE` can be unmatched only by something that raises power. Beside a
+/// "Power N or less" can be unmatched only by something that raises power. Beside a
 /// status and a charge counter nothing does, so nothing is asked; it was
 /// asked before the table, whatever stood beside it.
 #[test]
 fn a_power_filter_beside_members_that_raise_no_power_is_not_asked() {
     let mut game = setup_two_player_game();
-    let small = and(creatures(), ObjectFilter::PowerLE(2));
+    let small = and(creatures(), mtgsim::cards::authoring::power_at_most(2));
     put_on_battlefield(&mut game, entry_effect("Small creatures enter tapped", small, EnterModsTemplate::tapped()), 1);
     put_on_battlefield(&mut game, entry_effect("Creatures enter charged", creatures(), with_a_charge_counter()), 1);
     let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
@@ -213,6 +213,31 @@ fn a_power_filter_beside_members_that_raise_no_power_is_not_asked() {
     assert_eq!(entry.counter_count(CounterType::Charge), 1);
     // The elision is recorded in the game's log (`plans/elisions.md` §3).
     mtgsim::test_support::assert_not_asked(&game, 0, "ChooseReplacementEffect", "every order leaves one game (CR 616.1)");
+}
+
+/// The other comparison reads the other way: "power 2 or greater" can be
+/// unmatched only by something that lowers power. Beside a +1/+1 counter
+/// nothing is asked. Beside a -1/-1 counter the order is the controller's:
+/// the counter first leaves a 1/1 the tapper no longer describes.
+#[test]
+fn a_power_at_least_filter_is_an_order_only_beside_what_lowers_power() {
+    let big = || and(creatures(), mtgsim::cards::authoring::power_at_least(2));
+    let counter = |kind| EnterModsTemplate::with_counters(kind, 1);
+
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, entry_effect("Big creatures enter tapped", big(), EnterModsTemplate::tapped()), 1);
+    put_on_battlefield(&mut game, entry_effect("Creatures enter stronger", creatures(), counter(CounterType::PlusOnePlusOne)), 1);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    assert!(game.battlefield[&bears].tapped);
+    mtgsim::test_support::assert_not_asked(&game, 0, "ChooseReplacementEffect", "every order leaves one game (CR 616.1)");
+
+    for (weaker_first, tapped) in [(true, false), (false, true)] {
+        let mut game = setup_two_player_game();
+        let tapper = put_on_battlefield(&mut game, entry_effect("Big creatures enter tapped", big(), EnterModsTemplate::tapped()), 1);
+        let weaker = put_on_battlefield(&mut game, entry_effect("Creatures enter weaker", creatures(), counter(CounterType::MinusOneMinusOne)), 1);
+        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[if weaker_first { weaker } else { tapper }]);
+        assert_eq!(game.battlefield[&bears].tapped, tapped, "the -1/-1 counter first unmatches the tapper");
+    }
 }
 
 /// Premise (a) with an edit. Adding Mutant can turn a leaf only on, so it can

@@ -35,6 +35,8 @@ use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
 use crate::engine::trace_records;
 use crate::events::unasked::{Unasked, UnaskedAnswer};
+use crate::types::card_types::{CardType, CreatureType};
+use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::effects::{EffectRecipient, ModeIndex};
 use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
@@ -1292,31 +1294,87 @@ pub fn ask_choose_amount_to_pay(
     of: AmountOf,
     values: XOffer,
 ) -> u64 {
-    if values.has_one_value() {
-        let amount = values.at_least();
-        game.note_unasked(payer, Unasked::OneLegalAnswer, || {
-            (DecisionKind::ChooseAmountToPay { source, of, values: Box::new(values) }, UnaskedAnswer::Number(amount))
-        });
-        return amount;
-    }
-    let ctx = DecisionContext::new(DecisionKind::ChooseAmountToPay { source, of, values: Box::new(values.clone()) });
-    pick_from_offer(dp, game, payer, &ctx, values, "choose_amount_to_pay")
+    number_unless_forced(dp, game, payer, values, |values| DecisionKind::ChooseAmountToPay { source, of, values }, "choose_amount_to_pay")
 }
 
-/// CR 608.2d — choose which of `candidates`, the opponents still in the game,
-/// is the "an opponent" `source`'s resolving instruction names. With one the
-/// choice is forced, and answered unasked.
-pub fn ask_choose_opponent(
+/// One of `values`, asked of `player` as the question `asked_as` makes of
+/// them. One value is answered unasked, and recorded.
+fn number_unless_forced(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    values: XOffer,
+    asked_as: impl FnOnce(Box<XOffer>) -> DecisionKind,
+    asking: &str,
+) -> u64 {
+    if values.has_one_value() {
+        let only = values.at_least();
+        game.note_unasked(player, Unasked::OneLegalAnswer, || (asked_as(Box::new(values)), UnaskedAnswer::Number(only)));
+        return only;
+    }
+    let ctx = DecisionContext::new(asked_as(Box::new(values.clone())));
+    pick_from_offer(dp, game, player, &ctx, values, asking)
+}
+
+/// One of `candidates`, asked of `chooser` as `kind`, each offered as the
+/// option `offered_as` makes of it. With one the choice is forced, and
+/// answered unasked.
+fn one_unless_forced<T: Copy>(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    kind: DecisionKind,
+    candidates: &[T],
+    offered_as: fn(T) -> DecisionOption,
+    asking: &str,
+) -> T {
+    let options: Vec<DecisionOption> = candidates.iter().map(|candidate| offered_as(*candidate)).collect();
+    let index = pick_unless_forced(dp, game, chooser, DecisionContext::new(kind), &options, (1, 1), asking);
+    candidates[index[0]]
+}
+
+/// CR 608.2d — choose which of `candidates`, players still in the game, is
+/// the one `source`'s resolving instruction names: "choose a player", or the
+/// "an opponent" an instruction names.
+pub fn ask_choose_player(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
     source: ObjectId,
     candidates: &[PlayerId],
 ) -> PlayerId {
-    let options: Vec<DecisionOption> = candidates.iter().map(|p| DecisionOption::Player(*p)).collect();
-    let ctx = DecisionContext::new(DecisionKind::ChooseOpponent { source });
-    let index = pick_unless_forced(dp, game, chooser, ctx, &options, (1, 1), "choose_opponent");
-    candidates[index[0]]
+    one_unless_forced(dp, game, chooser, DecisionKind::ChoosePlayer { source }, candidates, DecisionOption::Player, "choose_player")
+}
+
+/// CR 608.2d, 105.4 — choose one of the five colors as `source`'s
+/// instruction applies.
+pub fn ask_choose_color(dp: &dyn DecisionProvider, game: &GameState, chooser: PlayerId, source: ObjectId) -> Color {
+    one_unless_forced(dp, game, chooser, DecisionKind::ChooseColor { source }, &Color::ALL, DecisionOption::Color, "choose_color")
+}
+
+/// CR 608.2d, 205.3m — choose a creature type as `source`'s instruction
+/// applies, among the rule's list.
+pub fn ask_choose_creature_type(dp: &dyn DecisionProvider, game: &GameState, chooser: PlayerId, source: ObjectId) -> CreatureType {
+    let kind = DecisionKind::ChooseCreatureType { source };
+    one_unless_forced(dp, game, chooser, kind, &CreatureType::ALL, DecisionOption::CreatureType, "choose_creature_type")
+}
+
+/// CR 608.2d, 205.2a — choose one of `candidates`, the card types the
+/// instruction may name, as `source`'s instruction applies.
+pub fn ask_choose_card_type(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    candidates: &[CardType],
+) -> CardType {
+    one_unless_forced(dp, game, chooser, DecisionKind::ChooseCardType { source }, candidates, DecisionOption::CardType, "choose_card_type")
+}
+
+/// CR 608.2d — choose a number among `values` as `source`'s instruction
+/// applies, asked as an X is.
+pub fn ask_choose_number(dp: &dyn DecisionProvider, game: &GameState, chooser: PlayerId, source: ObjectId, values: XOffer) -> u64 {
+    number_unless_forced(dp, game, chooser, values, |values| DecisionKind::ChooseNumber { source, values }, "choose_number")
 }
 
 /// CR 508.4 — choose what a permanent put onto the battlefield attacking

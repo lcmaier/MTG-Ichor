@@ -206,6 +206,47 @@ fn the_lichs_modes_are_ticked_in_the_picker_and_logged_by_what_they_are() {
     assert!(text.lines().any(|line| line.contains("player 0 ChooseModes picks modes 1, 3")), "{text}");
 }
 
+/// `expel.scenario`, clicked through: Expel the Interlopers is cast with
+/// nothing to choose, and as it resolves the window shows a number field
+/// from 0 to 10 under a question naming the spell. A 3 destroys the Hill
+/// Giant and spares the two creatures of power 2.
+#[test]
+fn a_number_chosen_as_a_spell_resolves_is_typed_into_the_windows_number_field() {
+    let engine = spawn(from_board("expel.scenario"));
+    let mut state = WindowState::default();
+    let mut kinds = Vec::new();
+    loop {
+        state.receive(next(&engine));
+        let prompt = state.prompt.as_ref().unwrap_or_else(|| panic!("{}", state.status()));
+        kinds.push(prompt.kind.clone());
+        let labeled = |label: &str| prompt.options.iter().position(|option| option.label.contains(label));
+        let click = match prompt.kind.as_str() {
+            "ChooseNumber" => break,
+            "PriorityAction" => labeled("Expel the Interlopers").or(prompt.pass),
+            "ManaAbilityWindow" => labeled("Plains"),
+            other => panic!("{other} asked before the number"),
+        };
+        let answer = state.input(Input::OptionButton(click.expect("an option to click"))).expect("one click answers");
+        engine.answers.send(answer).unwrap();
+    }
+    assert!(!kinds.iter().any(|kind| kind == "SelectRecipients"), "nothing is chosen as it is cast: {kinds:?}");
+
+    let view = state.prompt_view().expect("the number is asked");
+    assert!(view.question.contains("Choose a number for Expel the Interlopers"), "{}", view.question);
+    let field = view.number.expect("a number field");
+    assert_eq!((field.min, field.max), (0, 10));
+    assert_eq!(state.input(Input::Number(3)), None, "typing a number answers nothing yet");
+    engine.answers.send(state.input(Input::Done).expect("Done answers with the number typed")).unwrap();
+
+    state.receive(next(&engine));
+    let board = state.board_view().expect("a board after it resolves");
+    let creatures: Vec<String> =
+        board.seats.iter().flat_map(|seat| &seat.zones).filter(|zone| zone.key == "Creatures").flat_map(|zone| &zone.items).map(|item| item.title.clone()).collect();
+    let there = |name: &str| creatures.iter().any(|title| title.contains(name));
+    assert!(!there("Hill Giant"), "power 3 is 3 or more: {creatures:?}");
+    assert!(there("Grizzly Bears") && there("Savannah Lions"), "power 2 is less than 3: {creatures:?}");
+}
+
 /// A game from a scenario: the log's start is the file, its seed and its
 /// text verbatim, so it is a save even after the file changes, and the game
 /// plays from the board to its end.

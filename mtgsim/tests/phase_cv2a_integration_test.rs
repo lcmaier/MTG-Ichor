@@ -22,7 +22,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{activated_ability, spell_ability};
+use mtgsim::cards::authoring::{activated_ability, an_opponent_controls, spell_ability};
 use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
 use mtgsim::cards::printings::{
     self, chainbreaker, citanul_hierophants, cytoshape, diabolic_edict, doubling_season, dryad_arbor, grizzly_bears, master_biomancer, root_maze,
@@ -268,9 +268,10 @@ fn colossus() -> Arc<CardData> {
         .build()
 }
 
-/// Essence of the Wild — "Creatures you control enter as a copy of this
-/// creature." Named by the caller, so two can be told apart.
-fn essence_of_the_wild(name: &str, power: i32, toughness: i32) -> Arc<CardData> {
+/// Essence of the Wild's ability on a creature named and sized by the
+/// caller: two printed Essences are alike, so a board that needs to tell
+/// which one a copy came from names them apart.
+fn an_essence_named(name: &str, power: i32, toughness: i32) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Avatar))
@@ -660,16 +661,17 @@ fn a_clone_of_a_creature_with_x_in_its_cost_has_x_as_zero() {
     assert_eq!(cost.mana_value(), 1);
 }
 
-/// Two Essence-shaped fixtures are two CR 616.1c effects, so the entering
-/// Bear's controller orders them, and the one applied last wins: a second
-/// copy replaces the first rather than merging with it. Essence of the Wild's
-/// third ruling, which is unlinked because the card is a fixture here.
+/// Two Essences are two CR 616.1c effects, so the entering Bear's controller
+/// orders them, and the one applied last wins: a second copy replaces the
+/// first rather than merging with it. Named apart, since two printed
+/// Essences would make the same creature either way.
+// RULING: Essence of the Wild #3 - "If you control more than one Essence of the Wild, creatures you control will enter as a copy of the one whose copy effect you apply last."
 #[test]
 fn two_essences_give_the_one_applied_last() {
     for (first, last) in [("Essence A", "Essence B"), ("Essence B", "Essence A")] {
         let mut game = setup_two_player_game();
-        let a = put_on_battlefield(&mut game, essence_of_the_wild("Essence A", 6, 6), 0);
-        let b = put_on_battlefield(&mut game, essence_of_the_wild("Essence B", 4, 4), 0);
+        let a = put_on_battlefield(&mut game, an_essence_named("Essence A", 6, 6), 0);
+        let b = put_on_battlefield(&mut game, an_essence_named("Essence B", 4, 4), 0);
         let chosen = if first == "Essence A" { a } else { b };
         let dp = ById::new().then(0, "ChooseReplacementEffect", &[chosen]);
         let bears = enter(&mut game, grizzly_bears(), 0, &dp);
@@ -686,11 +688,12 @@ fn two_essences_give_the_one_applied_last() {
 /// copy an Essence. The Clone chooses the Colossus rather than the Essence so
 /// the result can only come from Essence's effect applying second. CR 616.1
 /// still asks the order, which `classify` cannot prove moot.
+// RULING: Essence of the Wild #7 - "If a creature such as Clone is entering under your control, there will be two copy effects to apply: the creature's own and Essence of the Wild's. No matter what order these effects are applied, the creature will be a copy of Essence of the Wild when it enters."
 #[test]
 fn a_clone_beside_essence_of_the_wild_enters_as_the_essence() {
     for clone_first in [false, true] {
         let mut game = setup_two_player_game();
-        let essence = put_on_battlefield(&mut game, essence_of_the_wild("Essence of the Wild", 6, 6), 0);
+        let essence = put_on_battlefield(&mut game, printings::essence_of_the_wild(), 0);
         let big = put_on_battlefield(&mut game, colossus(), 1);
         let clone = put_in_graveyard(&mut game, printings::clone(), 0);
         let dp = if clone_first {
@@ -708,11 +711,12 @@ fn a_clone_beside_essence_of_the_wild_enters_as_the_essence() {
 /// Wild, becomes an Essence before "enters tapped" could apply, and the copy
 /// has no such ability, so it enters untapped (Essence's eighth ruling).
 /// Nothing is asked.
+// RULING: Essence of the Wild #8 - "Other "enters" replacement abilities printed on the creature entering won't be applied because the creature will already be Essence of the Wild at that point (and therefore it won't have those abilities). For example, a creature that normally enters tapped will enter as an untapped Essence of the Wild, and a creature that would normally enter with counters on it will enter as an Essence of the Wild with no counters."
 // COVERS: ATOM-616.1c-001
 #[test]
 fn rusted_sentinel_under_essence_of_the_wild_enters_untapped() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, essence_of_the_wild("Essence of the Wild", 6, 6), 0);
+    put_on_battlefield(&mut game, printings::essence_of_the_wild(), 0);
     let dp = ManaWindowStop::new(ById::new());
     let sentinel = cast_from_pool(&mut game, 0, rusted_sentinel(), &[(ManaType::Colorless, 4)], &dp).expect("castable");
     game.resolve_top_of_stack(&dp).expect("it resolves");
@@ -720,6 +724,125 @@ fn rusted_sentinel_under_essence_of_the_wild_enters_untapped() {
     assert_eq!(get_effective_name(&game, sentinel), "Essence of the Wild");
     assert!(!game.battlefield[&sentinel].tapped, "the copy has no 'enters tapped' to apply");
     assert!(dp.inner().asked().is_empty());
+}
+
+/// **Half of Urabrask the Hidden**, its second line: "Creatures your
+/// opponents control enter tapped." An enters-tapped that is no ability of
+/// the entering creature.
+fn urabrask_the_hidden_fixture() -> Arc<CardData> {
+    let text = "Creatures your opponents control enter tapped.";
+    CardDataBuilder::new("Urabrask the Hidden Fixture")
+        .card_type(CardType::Creature)
+        .color(Color::Red)
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 3))
+        .power_toughness(4, 4)
+        .rules_text(text)
+        .ability(textless_static(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature).and(an_opponent_controls())),
+            Rewrite::EnterWith(EnterModsTemplate::tapped()),
+        )))))
+        .build()
+}
+
+/// An "enters tapped" from outside the entering creature still applies to
+/// it after it has become an Essence (CR 616.1c, then the rest), so it is a
+/// tapped Essence of the Wild.
+// RULING: Essence of the Wild #1 - "External abilities may still affect how a creature enters. For example, if your opponent controls Urabrask the Hidden, which reads, in part, "Creatures your opponents control enter tapped," a creature entering under your control will be a tapped Essence of the Wild."
+#[test]
+fn an_enters_tapped_from_outside_still_taps_the_essence_copy() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, printings::essence_of_the_wild(), 0);
+    put_on_battlefield(&mut game, urabrask_the_hidden_fixture(), 1);
+    let dp = ById::new();
+    let bears = enter(&mut game, grizzly_bears(), 0, &dp);
+    assert_eq!(get_effective_name(&game, bears), "Essence of the Wild");
+    assert!(game.battlefield[&bears].tapped, "the opponent's effect still taps it");
+}
+
+/// What a copy takes is the copiable values (CR 707.2): not the Essence's
+/// tapped status, its counters, or a pump on it.
+// RULING: Essence of the Wild #4 - "Creatures you control don't copy whether Essence of the Wild is tapped or untapped, whether it has any counters on it or any Auras and Equipment attached to it, or any non-copy effects that have changed its power, toughness, types, color, or so on."
+#[test]
+fn an_essence_copy_takes_none_of_its_status_counters_or_pumps() {
+    let mut game = setup_two_player_game();
+    let essence = put_on_battlefield(&mut game, printings::essence_of_the_wild(), 0);
+    game.battlefield.get_mut(&essence).expect("on the battlefield").tapped = true;
+    game.execute_action(
+        GameAction::AddCounters { subject: ObjectOrPlayerId::Object(essence), counter: CounterType::PlusOnePlusOne, n: 1, by: 0 },
+        &mtgsim::test_support::test_ctx(),
+    )
+    .expect("a counter on the Essence");
+    let pump = Effect::Atom(
+        Primitive::ModifyPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(3), Duration::UntilEndOfTurn),
+        EffectRecipient::ThisObject,
+    );
+    let ctx = ResolutionContext {
+        source: essence,
+        ability_source: None,
+        controller: 0,
+        generated_by: mtgsim::events::cause::GeneratedBy::Spell,
+        targets: ChosenTargets::one(Vec::new()),
+        replaced_event: None,
+        trigger: None,
+    };
+    game.resolve_effect(&pump, &ctx, &mtgsim::test_support::test_dp()).expect("the pump applies");
+    assert_eq!(get_effective_power(&game, essence), Some(10), "6, a counter and +3");
+
+    let bears = enter(&mut game, grizzly_bears(), 0, &ById::new());
+    assert_eq!(get_effective_name(&game, bears), "Essence of the Wild");
+    assert!(!game.battlefield[&bears].tapped);
+    assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 0);
+    assert_eq!((get_effective_power(&game, bears), get_effective_toughness(&game, bears)), (Some(6), Some(6)));
+}
+
+/// A creature entering as an Essence has none of its own abilities as it
+/// enters, so its "when this enters" does not trigger. Without the Essence
+/// it does.
+// RULING: Essence of the Wild #5 - "Because creatures you control enter as copies of Essence of the Wild, any "enters" triggered abilities printed on such creatures won't trigger."
+#[test]
+fn a_creature_entering_as_an_essence_does_not_trigger_its_enters_ability() {
+    for with_essence in [true, false] {
+        let mut game = setup_two_player_game();
+        if with_essence {
+            put_on_battlefield(&mut game, printings::essence_of_the_wild(), 0);
+        }
+        let wisp = enter(&mut game, printings::flickerwisp(), 0, &ById::new());
+        assert_eq!(game.pending_triggers.is_empty(), with_essence, "with Essence of the Wild: {with_essence}");
+        assert_eq!(get_effective_name(&game, wisp) == "Essence of the Wild", with_essence);
+    }
+}
+
+/// An invented 2/2: "This creature enters under an opponent's control."
+fn defector_fixture() -> Arc<CardData> {
+    CardDataBuilder::new("Defector Fixture")
+        .card_type(CardType::Creature)
+        .color(Color::Black)
+        .mana_cost(ManaCost::build(&[ManaType::Black], 1))
+        .power_toughness(2, 2)
+        .rules_text("This creature enters under an opponent's control.")
+        .ability(replacement(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::SourceOnly,
+            Rewrite::EnterUnderControlOf(PlayerRef::Opponent),
+        ))
+        .build()
+}
+
+/// CR 616.1b ahead of 616.1c: player 0's Defector is player 1's before any
+/// Essence is asked whether it applies, so player 1's Essence makes it a copy
+/// and player 0's does not.
+// RULING: Essence of the Wild #6 - "Replacement effects that modify how a creature enters are applied in the following order: first control-changing effects (such as Gather Specimens), then copy effects (such as the abilities of Essence of the Wild and Clone), then all other effects."
+#[test]
+fn a_control_change_on_entry_decides_whose_essence_applies() {
+    for essence_controller in [0, 1] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, printings::essence_of_the_wild(), essence_controller);
+        let defector = enter(&mut game, defector_fixture(), 0, &ById::new());
+        assert_eq!(get_effective_controller(&game, defector), Some(1), "Essence under player {essence_controller}");
+        let expected = if essence_controller == 1 { "Essence of the Wild" } else { "Defector Fixture" };
+        assert_eq!(get_effective_name(&game, defector), expected, "Essence under player {essence_controller}");
+    }
 }
 
 /// Infinite Reflection's "enter as a copy of enchanted creature": the donor

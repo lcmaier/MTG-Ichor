@@ -21,9 +21,11 @@
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::PhaseType;
 use crate::types::costs::Cost;
+use crate::types::card_types::CardType;
 use crate::types::effects::{
-    AmountExpr, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
-    ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, TargetCount, TokenDef, TypeChange,
+    AmountExpr, ChosenHow, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration, Effect,
+    EffectRecipient, ExtraPhasesAfter, ManaOutput, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet, Primitive, ReturnUnder,
+    SelectionFilter, TargetCount, TokenDef, TypeChange, ValueChoice,
 };
 use crate::types::mana::ManaCost;
 
@@ -195,24 +197,25 @@ const EACH_TARGETS_SHARE: u64 = 0;
 /// that divides nothing is a card written with the wrong word, refused where
 /// every card is built, in the registry's tests.
 fn total_divided(division: &EffectRecipient) -> AmountExpr {
-    let (EffectRecipient::Target(_, TargetCount::Divided(divided)) | EffectRecipient::Choose(_, TargetCount::Divided(divided))) = division
-    else {
-        debug_assert!(false, "{division:?} divides nothing: write it with `divided_among_targeted` or `divided_among_untargeted`");
+    let EffectRecipient::Target(_, TargetCount::Divided(divided)) = division else {
+        debug_assert!(false, "{division:?} divides nothing: write it with `divided_among_targeted`");
         return AmountExpr::Fixed(0);
     };
     divided.total.clone()
 }
 
 /// "[This] deals [total] damage divided as you choose among [division]": its
-/// targets announced and divided as it is cast (CR 601.2d), or objects chosen
-/// and divided as it resolves (608.2d). The atom prints the division's total.
+/// targets announced and divided as it is cast (CR 601.2d). The atom prints
+/// the division's total. A division among objects not targeted is a choose
+/// step's (`choose_objects` with a `divided` count), and the verb after it
+/// acts on `the_chosen` by their shares.
 pub fn deal_damage_divided(division: EffectRecipient) -> Effect {
     let total = total_divided(&division);
     deal_damage(division, total)
 }
 
-/// "Distribute [total] [counter]s among [division]", put by you: targets (CR
-/// 601.2d) or objects chosen as it resolves (608.2d), as the division says.
+/// "Distribute [total] [counter]s among [division]", put by you: targets
+/// announced and divided as it is cast (CR 601.2d).
 pub fn distribute_counters(division: EffectRecipient, counter: CounterType) -> Effect {
     let total = total_divided(&division);
     put_counters(division, counter, total)
@@ -287,6 +290,63 @@ pub fn create_delayed_trigger(recipient: EffectRecipient, template: DelayedTrigg
 /// says otherwise (610.3c).
 pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>, under: ReturnUnder) -> Effect {
     Effect::Atom(Primitive::ExileUntil { until: Box::new(until.into()), refers_to: None, under }, recipient)
+}
+
+// ---------------------------------------------------------------------------
+// A choice made as the effect resolves (CR 608.2d)
+// ---------------------------------------------------------------------------
+//
+// A step that chooses and does nothing else: "[chooser] chooses [something]".
+// What it chose is kept under the name of its kind for the steps after it,
+// which read it with `recipients::chosen` and `recipients::the_chosen`. The
+// chooser is a recipient naming one player, `you()` nearly always, or
+// `at_random()`.
+
+fn choose_step(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
+    Effect::Atom(Primitive::ChooseValue { kind: what.kind(), what, how: chooser.into() }, EffectRecipient::Implicit)
+}
+
+/// "At random", where a choose step's chooser goes: nobody is asked.
+pub fn at_random() -> ChosenHow {
+    ChosenHow::AtRandom
+}
+
+/// "[Chooser] chooses a color" (CR 105.4).
+pub fn choose_color(chooser: impl Into<ChosenHow>) -> Effect {
+    choose_step(chooser, ValueChoice::Color)
+}
+
+/// "[Chooser] chooses a creature type" (CR 205.3m).
+pub fn choose_creature_type(chooser: impl Into<ChosenHow>) -> Effect {
+    choose_step(chooser, ValueChoice::CreatureType)
+}
+
+/// "[Chooser] chooses a card type" (CR 205.2a).
+pub fn choose_card_type(chooser: impl Into<ChosenHow>) -> Effect {
+    choose_step(chooser, ValueChoice::CardType(None))
+}
+
+/// "[Chooser] chooses artifact or enchantment": one of the card types the
+/// text prints.
+pub fn choose_card_type_among(chooser: impl Into<ChosenHow>, printed: impl IntoIterator<Item = CardType>) -> Effect {
+    choose_step(chooser, ValueChoice::CardType(Some(printed.into_iter().collect())))
+}
+
+/// "[Chooser] chooses a number between [least] and [most]".
+pub fn choose_number(chooser: impl Into<ChosenHow>, least: u64, most: u64) -> Effect {
+    choose_step(chooser, ValueChoice::Number { least, most })
+}
+
+/// "[Chooser] chooses a player", "an opponent": one of `among`, read
+/// against the controller (CR 109.5).
+pub fn choose_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
+    choose_step(chooser, ValueChoice::Player(among))
+}
+
+/// "[Chooser] chooses up to one creature", "a creature you control": `count`
+/// of the permanents `among` describes, none of them a target (CR 115.10a).
+pub fn choose_objects(chooser: impl Into<ChosenHow>, among: ObjectFilter, count: TargetCount) -> Effect {
+    choose_step(chooser, ValueChoice::Objects(SelectionFilter::Permanent(among), count))
 }
 
 // ---------------------------------------------------------------------------
@@ -375,15 +435,6 @@ impl ContinuousChange {
 
     /// The instructions, each lasting `duration`.
     pub(super) fn lasting(self, duration: Duration) -> Effect {
-        // "It" after "choose a creature" names what a choice made as the
-        // effect applies chose, a word `values-chosen-at-resolution` designs:
-        // until then a second change would choose again. Every card is built
-        // in the registry's tests, so this refuses one there.
-        debug_assert!(
-            !(matches!(self.recipient, EffectRecipient::Choose(..)) && self.steps.len() > 1),
-            "a second change chained to a choice would choose again: {:?}",
-            self.recipient
-        );
         let again = match &self.recipient {
             EffectRecipient::Target(..) => EffectRecipient::SameInstanceAs(0),
             recipient => recipient.clone(),

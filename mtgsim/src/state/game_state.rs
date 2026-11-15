@@ -199,6 +199,10 @@ pub struct ResolvingObject {
     /// The X its controller chose for it (CR 107.3), carried for
     /// `PermanentState::x_value` as `cast` is. `None` for a spell with no X.
     pub x_value: Option<u64>,
+    /// What its choose steps have kept so far as it resolves (CR 608.2d),
+    /// each under its name: "the chosen number", "it". Empty until one runs,
+    /// and gone with the object.
+    pub choices: Vec<(crate::types::effects::ChoiceKind, crate::types::effects::ChosenValue)>,
     /// What its modes and instances of "target" announced, for
     /// `stack_object_facts`: the resolution holds the entry itself until the
     /// object finishes.
@@ -1369,17 +1373,30 @@ impl GameState {
         from: &[ObjectId],
         count: usize,
     ) -> Vec<ObjectId> {
+        self.random_indices(from.len(), count).into_iter().map(|i| from[i]).collect()
+    }
+
+    /// `count` different indices into a list of `len` items, picked at random
+    /// and sorted: which items "choose N at random" takes. A list shorter
+    /// than `count` gives every index (CR 101.3: as much as can be done).
+    /// Drawn from the game's seeded `rng`, so the same seed picks the same
+    /// items.
+    pub(crate) fn random_indices(&mut self, len: usize, count: usize) -> Vec<usize> {
         use rand::seq::SliceRandom;
-        // CR 101.3 — as much as it can, which for a short hand is all of it.
-        let count = count.min(from.len());
+        let count = count.min(len);
         if count == 0 {
             return Vec::new();
         }
-        let mut positions: Vec<usize> = (0..from.len()).collect();
-        positions.shuffle(&mut self.rng);
-        positions.truncate(count);
-        positions.sort();
-        positions.into_iter().map(|i| from[i]).collect()
+        let mut indices: Vec<usize> = (0..len).collect();
+        indices.shuffle(&mut self.rng);
+        indices.truncate(count);
+        indices.sort();
+        indices
+    }
+
+    /// One of `from`, picked at random; `None` of an empty list.
+    pub(crate) fn random_one_of<T: Copy>(&mut self, from: &[T]) -> Option<T> {
+        self.random_indices(from.len(), 1).first().map(|&index| from[index])
     }
 
     // --- Deterministic iteration ---

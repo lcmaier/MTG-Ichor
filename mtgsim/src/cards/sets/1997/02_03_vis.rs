@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{add_phases, creature, each, spell_ability, untap, you};
+use crate::cards::authoring::{add_phases, creature, divided_among_targeted, each, prevent_the_next_damage_divided, spell_ability, untap, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{Effect, ExtraPhasesAfter, ObjectFilter};
+use crate::types::effects::{Effect, ExtraPhasesAfter, ObjectFilter, SelectionFilter, TargetCount};
 use crate::types::history::ObjectFact;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -55,5 +55,45 @@ pub fn relentless_assault() -> Arc<CardData> {
                 add_phases(you(), vec![PhaseType::Combat, PhaseType::Postcombat], ExtraPhasesAfter::ThisMainPhase),
             ]),
         ))
+        .build()
+}
+
+/// Remedy — {1}{W}
+/// Instant
+///
+/// > Prevent the next 5 damage that would be dealt this turn to any number
+/// > of targets, divided as you choose.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// A prevention divided among targets as it is cast: each target a shield
+/// of its own share (CR 615.7).
+///
+/// # The rulings, and where each is tested
+///
+/// - *"You divide the prevention effects as you cast Remedy, not as it
+///   resolves. Each target must be assigned at least 1 prevention "shield."
+///   ..."* (#1) →
+///   `phase_divided_among_targets_integration_test::a_divided_prevention_gives_each_target_its_own_shield`.
+/// - *"If some of the targets become illegal, the original division of
+///   prevention effects still applies, but the effects that would have been
+///   created for illegal targets aren't created at all."* (#2) →
+///   `phase_divided_among_targets_integration_test::remedy_keeps_its_division_when_a_target_becomes_illegal`.
+/// - *"If multiple sources would deal damage to an affected target at once,
+///   that target or that target's controller chooses which source's damage
+///   to prevent for each "shield.""* (#3) →
+///   `phase_rd2_integration_test::remedy_over_two_attackers_lets_the_shielded_player_choose`.
+/// - *"If multiple replacement effects apply to a player or permanent being
+///   dealt damage, that player or the controller of that permanent chooses
+///   the order to apply them, ..."* (#4) →
+///   `phase_divided_among_targets_integration_test::two_remedies_on_one_creature_are_ordered_by_its_controller`.
+pub fn remedy() -> Arc<CardData> {
+    let text = "Prevent the next 5 damage that would be dealt this turn to any number of targets, divided as you choose.";
+    CardDataBuilder::new("Remedy")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(text, prevent_the_next_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, 5.into()))))
         .build()
 }

@@ -247,12 +247,32 @@ pub enum DecisionKind {
     /// games. `source` is the delayed trigger's (CR 603.7d–g).
     ChooseDelayedTriggerEvent { source: ObjectId },
 
-    /// CR 608.2d — `source`'s resolving instruction names "an opponent" it
-    /// did not target, and its controller chooses which as it applies the
-    /// instruction (Akroan Horse's ruling: "in a multiplayer game, you choose
-    /// the opponent as the ability resolves"). The options are the opponents
-    /// still in the game; with one, nothing is asked.
-    ChooseOpponent { source: ObjectId },
+    /// CR 608.2d — a player `source` names without targeting, chosen as its
+    /// instruction applies: "choose a player", "choose an opponent", the "an
+    /// opponent" an instruction names (Akroan Horse's ruling: "in a
+    /// multiplayer game, you choose the opponent as the ability resolves"),
+    /// and CR 700.2e's opponent who chooses a mode. The options are the
+    /// players the choice admits, still in the game; with one, nothing is
+    /// asked.
+    ChoosePlayer { source: ObjectId },
+
+    /// CR 608.2d, 105.4 — a color chosen as `source`'s instruction applies.
+    /// The options are the five colors.
+    ChooseColor { source: ObjectId },
+
+    /// CR 608.2d, 205.3m — a creature type chosen as `source`'s instruction
+    /// applies. The options are the rule's list.
+    ChooseCreatureType { source: ObjectId },
+
+    /// CR 608.2d, 205.2a — a card type chosen as `source`'s instruction
+    /// applies. The options are the rule's list, or the few the card prints
+    /// ("artifact or enchantment").
+    ChooseCardType { source: ObjectId },
+
+    /// CR 608.2d — a number chosen as `source`'s instruction applies
+    /// ("choose a number between 0 and 10"), among `values`. A `pick_number`,
+    /// as [`Self::ChooseXValue`] asks; one value is answered unasked.
+    ChooseNumber { source: ObjectId, values: Box<crate::oracle::x_values::XOffer> },
 
     /// CR 614.12a — an entry replacement asks for a player as `object`
     /// enters, before it does, and `role` says what the player will be: the
@@ -468,7 +488,11 @@ impl DecisionKind {
             DecisionKind::AllocateNextDamage { source, .. } => Some(*source),
             DecisionKind::ChooseDamageSource { source } => Some(*source),
             DecisionKind::ChooseDelayedTriggerEvent { source } => Some(*source),
-            DecisionKind::ChooseOpponent { source } => Some(*source),
+            DecisionKind::ChoosePlayer { source }
+            | DecisionKind::ChooseColor { source }
+            | DecisionKind::ChooseCreatureType { source }
+            | DecisionKind::ChooseCardType { source }
+            | DecisionKind::ChooseNumber { source, .. } => Some(*source),
             DecisionKind::ChoosePlayerAsObjectEnters { source, .. } => Some(*source),
             DecisionKind::ChooseEnteringDefender { object } => Some(*object),
             DecisionKind::AcceptAsObjectEnters { source, .. } => Some(*source),
@@ -515,7 +539,11 @@ impl DecisionKind {
             DecisionKind::AllocateNextDamage { .. } => "AllocateNextDamage",
             DecisionKind::ChooseDamageSource { .. } => "ChooseDamageSource",
             DecisionKind::ChooseDelayedTriggerEvent { .. } => "ChooseDelayedTriggerEvent",
-            DecisionKind::ChooseOpponent { .. } => "ChooseOpponent",
+            DecisionKind::ChoosePlayer { .. } => "ChoosePlayer",
+            DecisionKind::ChooseColor { .. } => "ChooseColor",
+            DecisionKind::ChooseCreatureType { .. } => "ChooseCreatureType",
+            DecisionKind::ChooseCardType { .. } => "ChooseCardType",
+            DecisionKind::ChooseNumber { .. } => "ChooseNumber",
             DecisionKind::ChoosePlayerAsObjectEnters { .. } => "ChoosePlayerAsObjectEnters",
             DecisionKind::ChooseEnteringDefender { .. } => "ChooseEnteringDefender",
             DecisionKind::AcceptAsObjectEnters { .. } => "AcceptAsObjectEnters",
@@ -604,6 +632,10 @@ pub enum DecisionOption {
     Modes(Vec<ModeIndex>),
     /// A color
     Color(Color),
+    /// A creature type (CR 205.3m).
+    CreatureType(crate::types::card_types::CreatureType),
+    /// A card type (CR 205.2a).
+    CardType(crate::types::card_types::CardType),
     /// A counter type
     CounterType(CounterType),
     /// A mana type (for generic allocation)
@@ -774,6 +806,10 @@ impl DecisionOption {
             DecisionOption::Number(number) => format!("number {number}"),
             DecisionOption::Modes(modes) => modes_as_logged(modes),
             DecisionOption::Color(color) => format!("color {}", color_name(*color).to_lowercase()),
+            DecisionOption::CreatureType(creature_type) => {
+                format!("creature type {}", crate::types::card_types::Subtype::Creature(*creature_type).word())
+            }
+            DecisionOption::CardType(card_type) => format!("card type {card_type:?}"),
             DecisionOption::CounterType(counter) => format!("counter {}", counter.name()),
             DecisionOption::ManaType(mana) => format!("mana {}", ManaSymbol::Colored(*mana)),
             DecisionOption::Trigger(TriggerOption { source, ability, triggered_by }) => {

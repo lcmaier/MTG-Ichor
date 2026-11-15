@@ -139,6 +139,30 @@ pub struct EffectiveCharacteristics {
 
 The battlefield field survives as the seed. (Since item 368 it is `control_began_turn`, which entering sets and the control sweep advances: TR-4d gave a change of control the moment this amendment says it lacks, and a steal that ended interrupted control, which no row is left to say.) The Layer 2 arm of `apply_modification` overwrites it **only when the controller actually changes**: CR 302.6 asks whether control was *continuous*, and gaining control of a permanent you already control is not a change.
 
+#### Why a steal does not write the controller
+
+Asked more than once, most recently at #330's review (the owner, 2026-11-15): why is "who controls this" computed, when a `controller` field could be updated by each effect that changes control?
+
+**The field exists, for what is set once.** `PermanentState.controller` is who the permanent entered under the control of, written as it enters and by nothing after. Reanimate ("Put target creature card from a graveyard onto the battlefield under your control") on an opponent's card is this case: the field says you, and nothing is recomputed. While no control-changing effect exists anywhere in the game, every read of a controller is that field, one lookup (`RegistryScopeSummary::any_control_changing`).
+
+**A steal is an effect, and its ending is not a write** (CR 613.1b: control-changing effects apply in Layer 2, each for its duration, the later timestamp over the earlier). The board that a written field gets wrong:
+
+1. Alice controls Grizzly Bears, which entered under her control.
+2. Bob enchants it with Control Magic ("You control enchanted creature"). Bob controls it.
+3. Carol casts Act of Treason on it ("Gain control of target creature until end of turn"). Hers is the later effect, so Carol controls it.
+4. At end of turn Carol's effect ends. Control Magic still applies, so the Bears go to **Bob**, not to Alice.
+5. Had Control Magic been destroyed during Carol's turn, they would go to **Alice** instead.
+
+A field Carol's spell overwrote holds "Carol", and what to write back at step 4 depends on which earlier effects are still alive at that moment. That is the list of effects, read again, which is what the Layer 2 walk does.
+
+Three more boards of the same kind:
+
+- **A steal that ends on a condition.** Olivia Voldaren: "Gain control of target Vampire for as long as you control Olivia Voldaren." If Olivia is stolen or dies, the Vampire goes back. A field would have to be repaired at every event that can end any steal, which is the reconciling at chokepoints that §5.2 and `CLAUDE.md`'s "Registry membership is not effect existence" record as having cost a redesign.
+- **A player leaves the game.** Every effect giving that player control ends at once (CR 800.4a).
+- **A stolen Glorious Anthem.** "Creatures you control get +1/+1" follows the thief (CR 109.5), inside the same walk that works out the Anthem was stolen: Layer 2 is applied before Layer 7 reads "you".
+
+**What it costs.** Nothing while no control effect exists. Otherwise the layer walk, whose frames §12's memo keeps until the board changes. So the derived answer is no slower than a field in the common case, and the field would be wrong in the others.
+
 ### 3.3 `ContinuousEffect`
 
 ```rust
