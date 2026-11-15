@@ -273,14 +273,19 @@ impl ManaComponent {
     }
 
     /// Mana added symbol for symbol, an X left as an {X} that no value of X
-    /// replaces. Two uses:
+    /// turns into generic mana. Two callers:
     ///
-    /// - Fireball's printed {X}{R} previewed before it is cast, as the cast
-    ///   offer and its label show it: under Thalia it reads {1}{X}{R}.
-    /// - An additional cost's mana: Burst Lightning's kicker {4}, where there
-    ///   is no X and the two adds agree. Thieving Skydiver's kicker {X} would
-    ///   keep an {X} here that no payment pays, though CR 107.3a makes it the
-    ///   announced X; no registered card has one yet.
+    /// - [`preview_mana_cost`], a spell's cost with today's cost changes
+    ///   applied, before anything is announced. The engine reads it to decide
+    ///   which spells it offers (under Thalia, Lightning Bolt costs {1}{R}),
+    ///   and puts its least X in first, so no {X} arrives from there. The
+    ///   "can't cast" message prints it with X unannounced: Fireball "does
+    ///   not cover its cost {1}{X}{R}".
+    /// - An additional cost's mana, Burst Lightning's kicker {4}, where there
+    ///   is no X and the two adds agree. A kicker {X} (Thieving Skydiver)
+    ///   belongs in [`Self::add_with_x_counted`], since CR 107.3a makes it the
+    ///   announced X. `cost-architecture.md`'s `remaining-costs` row owns
+    ///   that, with an X in a non-mana cost; no registered card has either.
     fn add_with_x_left_as_x(&mut self, mana: &ManaCost) {
         for symbol in &mana.symbols {
             match symbol {
