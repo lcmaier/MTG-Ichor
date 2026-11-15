@@ -1,44 +1,70 @@
-# Handoff — `values-chosen-at-resolution`, the design note (first of two)
+# Handoff — `values-chosen-at-resolution`, the design note (first of three)
 
 **Opened 2026-11-14** on `choices/value-chosen-as-an-effect-resolves` off
 `7f0e97ef` (#328's merge), as `roadmap-v2.md` §3a step 5, row
 `values-chosen-at-resolution`: the last design in `choices-architecture.md`.
-This PR is its first half. This file is the design note, reviewed before
-the build; the row's last PR deletes it. Every count and line below was
-read against `7f0e97ef`. **Revised after the design stop's fresh read**
-(the `owner-review` agent, the same day): decision 2 and the split's homes
-are new, and decision 5 now builds on step 7's settled player words.
+This file is the design note, reviewed before the build; the row's last PR
+deletes it. Every count and line below was read against `7f0e97ef`.
 
-Decision 7's kinds were settled at #307's review (`choices-architecture.md#decision-7--a-value-chosen-as-an-effect-applies-cr-6082d`:
-option A, a `ChoiceKind` per value). This note decides what is still open:
-what names an earlier choice and where its picks are kept (item 426),
-whether an object gets a choosing instruction of its own, how a value
-reaches the instructions that read it, how a player verb finds a chosen
-player, and the split.
+**Revised after the design stop's fresh read** (the `owner-review` agent,
+2026-11-14), and **at #330's first review round (2026-11-15)**:
+
+- **Decisions 4 and 5 are settled, both A** (the owner): item 292 comes
+  forward, and the row is three PRs.
+- **Decisions 1 to 3 are rewritten.** The first draft sorted its shapes by
+  how a card's sentences are built: a choice "in a sentence of its own" was
+  one type and a choice "inside the verb's clause" another. The review asked
+  for what the game piece does instead. There is one shape now: a step
+  chooses, the answer is kept, later steps use it.
+- **The number comparison is one generic leaf**, where the first draft added
+  `PowerAtLeast` alone.
+
+## The model: choose, keep, use
+
+A resolving spell or ability is a short list of steps, run in the order
+printed (CR 608.2c). This PR adds one kind of step and one small store.
+
+- **Choose.** A step asks a player for something, or draws it at random,
+  and does nothing else.
+- **Keep.** The answer goes into the resolution's list of choices, under a
+  name the card gives it. The list is empty when the spell or ability starts
+  to resolve, and is thrown away when it finishes.
+- **Use.** A later step reads a name wherever it would otherwise hold a
+  plain value: what it acts on, a number, or a filter's color, type or set
+  of objects.
+
+| Card | Its steps |
+|---|---|
+| Expel the Interlopers | choose a number from 0 to 10, kept as `number` → destroy each creature with power at least `number` |
+| Duneblast | choose up to one creature, kept as `spared` → destroy each creature not in `spared` |
+| Feast of the Victorious Dead, its counters | choose any number of creatures you control and split the counters among them, kept as `fed` → put each one's share on it |
+| Gluntch, the Bestower, its draw | choose a player, kept as `drawer` → `drawer` draws a card |
+
+**What of a card's English still reaches the engine**, each because a rule
+turns on it:
+
+- the order of the steps (CR 608.2c);
+- "target" against "choose": a target is announced as the spell is cast and
+  checked again as it resolves (CR 115, 608.2b), a choice is made as its
+  step runs (608.2d). That split is #326's;
+- who chooses: you, another player the card names, or no one, at random.
+
+Nothing else does. Whether the card says "it", "that creature", "the chosen
+creature" or "the rest", and whether it chooses in a sentence of its own or
+inside the verb's ("distribute … among"), the steps are the same.
 
 ## Where the work sits
 
 All of it is inside one stack object's resolution, the RESOLVE step of
 `engine-map.md#11-the-path-in-one-sketch`: `resolve_top_of_stack` →
-`resolve_effect` → each instruction in turn. Today an instruction can choose
-objects as it applies (decision 8, landed in #326: `EffectRecipient::Choose`,
-asked through `SelectRecipients`), and nothing after it can name what it
-chose. This PR adds three things on that step:
+`resolve_effect` → each step in turn. Today a step can choose objects as it
+applies (decision 8, landed in #326: `EffectRecipient::Choose`, asked
+through `SelectRecipients`), and nothing after it can name what it chose.
 
-- **An instruction that only chooses**: a color, a creature type, a card
-  type, a number, a player or objects, asked through `ui::ask` under its own
-  `ChoiceKind` (decision 7's), or drawn at random.
-- **A record of what each choice picked**, kept for the rest of the
-  resolution (decision 1).
-- **The words that read it back**: "it" and "that player" as an
-  instruction's recipient, "the chosen [value]" and "the rest" in a filter
-  or an amount (decision 3), and a player verb reading the player it was
-  handed (decision 4).
-
-Two places off that step change too. The filter table
-(`engine/object_filter.rs`) gains two leaves, which only a resolution's own
-reads answer. And every client reads the new kinds: the dev GUI's words, the
-decision log, setup lines, the why panel and the random agent.
+Off that step, the filter table (`engine/object_filter.rs`) gains the
+generic number comparison and a plain "one of these objects" leaf, and
+every client reads the new kinds: the dev GUI's words, the decision log,
+setup lines, the why panel and the random agent.
 
 ## The intake
 
@@ -53,16 +79,17 @@ lists two items and no backlog entries:
 - **Item 426, "'it' after a choice made as the effect applies has no
   word"**, which makes the registry refuse a chained change on a choice
   (`cards/authoring/instructions.rs:382`). Taken: decision 1. Sized ~80–150;
-  re-counted at 110–180 with the store's skips and its checks.
+  re-counted at 70–120.
 
 Two more come in:
 
-- **Item 394's power leaf.** Item 394 ("a filter compares only power, and
-  only to a fixed number") is slotted to step 9's cheap gaps. Only the leaf
-  Expel the Interlopers needs comes forward, power compared to an
-  `AmountExpr` (~40–60, decision 3); mana value, toughness, mentor's "lesser
-  power" and "tapped" stay where they are slotted, and the item narrows.
-- **Item 292, proposed (decision 4).** "A one-player instruction whose
+- **Item 394, most of it.** Item 394 ("a filter compares only power, and
+  only to a fixed number") is slotted to step 9's cheap gaps. Expel needs
+  power compared to the chosen number. Decision 3 builds that as the one
+  leaf every such comparison is, so power and toughness, each three ways and
+  against any amount, land here; mana value follows when the type that says
+  which number is read gains it (step 7), and "tapped" stays slotted.
+- **Item 292, settled (decision 4).** "A one-player instruction whose
   player is gone acts on its controller instead", slotted to step 7's
   `resolution-recipients-and-amounts`, its second PR. Its verdict of
   2026-10-22 says unreachable because every registered card that targets a
@@ -97,7 +124,7 @@ under 40 was read by hand, and so were the 37 player cards.
 a number", Choice of Damnations); no one, at random, on 13 (12 players,
 Blitzwing's keyword); each player or each opponent in turn on 16 (CR 608.2e:
 Patriarch's Bidding, friend or foe, Seize the Spotlight). The last are
-several choosers at one instruction, a vote's walk without its count.
+several choosers at one step, a vote's walk without its count.
 
 **What reads the value afterwards.** A card can sit in several rows;
 "lasting" is a duration or a later event in the same clause.
@@ -105,7 +132,7 @@ several choosers at one instruction, a vote's walk without its count.
 | Reader | Cards | Lasting | Example |
 |---|---:|---:|---|
 | a filter over cards in a zone (a hand, a library, a graveyard, what was revealed) | 62 | — | Cabal Therapy's "all cards with that name" |
-| a filter over permanents or spells, read as the instruction applies | 67 | 39 | Expel's "power greater than or equal to the chosen number"; Kindred Dominance |
+| a filter over permanents or spells, read as the step applies | 67 | 39 | Expel's "power greater than or equal to the chosen number"; Kindred Dominance |
 | …of those, a "can't", a requirement or a later trigger that reads the filter after the resolution (CR 611.2c's second sentence) | about 10, by hand | all | The Black Gate, Conjurer's Ban, Twins of Discord, Zombie Boa |
 | the verb's player: "that player draws", "you and that player each" | 49 (37 of the 38 players) | 26 | Gluntch's "choose a second player to draw a card" |
 | a condition: "if that card has the chosen name", "for each player who chose" | 27 | 10 | Predict |
@@ -123,34 +150,55 @@ Three kinds have no reader this PR can build with a printed card:
   ability", a change's parameter.
 - **A card name**: 38 of the 46 read a hidden zone (`information-model`'s),
   and the other 8 are lasting ("spells with the chosen name can't be cast",
-  Conjurer's Ban) or linked (step 6). None is writable with this PR's words.
+  Conjurer's Ban) or linked (step 6). None is writable with this PR's steps.
 
 And the word: 12 of the 17 sort each player by a word (friend or foe) or ask
 each opponent, which is the several-choosers walk; "odd or even" (5) reads
-mana value or power by parity, a leaf of its own.
+mana value or power by parity, a predicate of its own.
 
-### The objects, by what the next clause does with them
+### The objects, by what the next step does with them
 
-Of the 75 cards in `Choose`'s family (#326's census), 68 name the chosen
-object again (item 426's word count). Read by hand for its role
-(`choice-kinds-census.py --names` on the family, 2026-11-14):
+Of the 75 cards whose controller chooses a permanent as an effect applies
+(#326's census), 68 name the chosen object again. Read by hand for what the
+card then does with it (`choice-kinds-census.py --names` on the family,
+2026-11-14):
 
-| The chosen object, in the clause after the choice | About | Example |
+| The chosen object, after the choice | About | Example |
 |---|---:|---|
-| what the next instruction acts on: "it gains", "put … on it", "untap it" | 13 | Final Showdown, The Elderspell, The Nipton Lottery |
-| what the next instruction spares: "destroy the rest", "each creature not chosen" | 11 | Duneblast, Last One Standing, Celestial Judgment |
-| what is copied: "a copy of it", "becomes a copy of that creature" | 8 | Cytoshape, Season of Weaving, Polymorphous Rush |
-| named by a lasting effect or a later trigger: "is dealt to that creature instead", "whenever that creature deals combat damage this turn" | 4 | Gideon's Sacrifice, Azra Oddsmaker |
-| what deals damage, or whose power is read | 2 | Crush Underfoot, Benthic Anomaly |
+| is what the next step acts on: "it gains", "put … on it", "untap it" | 13 | Final Showdown, The Elderspell, The Nipton Lottery |
+| is what the next step spares: "destroy the rest", "each creature not chosen" | 11 | Duneblast, Last One Standing, Celestial Judgment |
+| is copied: "a copy of it", "becomes a copy of that creature" | 8 | Cytoshape, Season of Weaving, Polymorphous Rush |
+| is named by a lasting effect or a later trigger: "is dealt to that creature instead" | 4 | Gideon's Sacrifice, Azra Oddsmaker |
+| deals damage, or has its power read | 2 | Crush Underfoot, Benthic Anomaly |
 | the rest: a card in a hand, each player choosing, a choice with a payment | ~30 | Despise, Tunnel of Love, Mudslide |
 
-So most object choices are a sentence of their own, and the next
-instruction acts on something else: the rest of the board, a copy, a
-source. The brief's chain ("choose a creature you control; it gets +2/+2
-and gains trample") is printed nowhere in that phrasing (Scryfall,
+So most object choices are used for something other than "the next verb
+acts on it". The brief's chain ("choose a creature you control; it gets
++2/+2 and gains trample") is printed nowhere in that phrasing (Scryfall,
 `o:/choose (a|an|another) [a-z ]*creature[^.]*\. (it|that creature) (gets|gains)[^.]* and (gains|gets)/`,
-0, 2026-11-14); The Nipton Lottery's run of instructions on its chosen
-creature is the printed form.
+0, 2026-11-14); The Nipton Lottery's run of steps on its chosen creature is
+the printed form.
+
+### A number read off an object, and compared
+
+Scryfall, `game:paper -is:funny`, `total_cards` for each phrase, read
+2026-11-15. By phrase, so a condition's "if its power is 4 or greater" is
+counted beside a filter's; the grid's shape is the point, not a cell.
+
+| | N or less | N or greater | exactly N | against an amount ("less than", "greater than", "equal to" something read) |
+|---|---:|---:|---:|---:|
+| power | 176 | 250 | — | 53 |
+| toughness | 25 | 24 | — | 15 |
+| mana value | 406 | 107 | 76 | 110 |
+
+Queries: `o:/power [0-9x]+ or less/`, `o:/power [0-9x]+ or greater/`, the
+same two for `toughness` and `mana value`, `o:/with mana value [0-9x]+[ ,.](?!or)/`,
+`o:/power (less than|greater than)/`, `o:/toughness (less than|greater than)/`,
+`o:/mana value (less than|greater than|equal to)/`. Beside them:
+`o:/with (lesser|greater) (power|toughness|mana value)/`, 30 (another
+object's number as the amount, Legion Warboss's mentor), and
+`o:/(mana value|power) of the chosen quality/`, 7 (odd or even, a different
+predicate).
 
 ### The rulings read
 
@@ -172,264 +220,269 @@ creature is the printed form.
 
 - **CR 608.2d**: choices not made while casting are announced "while
   applying the effect", and no illegal or impossible option may be chosen.
-- **CR 608.2c**: instructions are followed in the order written, read as
-  English: "it" and "that player" look back.
+- **CR 608.2c**: instructions are followed in the order written.
 - **CR 608.2h** and **CR 611.2c**: information is determined once, as the
   effect is applied; a continuous effect from a resolution that changes
   characteristics fixes its set then, and one that changes the rules keeps
   reading. 611.2c is the rule that *watches* this one: it is why a "can't"
   made from a chosen value must carry the value itself.
 - **CR 607.2d**: on a permanent, "the chosen [value]" names the choice its
-  linked ability made. That is step 6's (`linked-abilities`, 202 cards that
-  choose as a permanent enters), the next row; the words this PR adds are
-  the ones that row's static abilities read (decision 3).
-- **CR 603.7c**: a delayed trigger refers to what the instruction that
-  created it named, players included: Faramir, Prince of Ithilien's "that
-  player" reaches its delayed trigger through `Effect::Remember`, once a
-  choosing instruction notes what it chose.
+  linked ability made. That is step 6's, `linked-abilities`; "Linked
+  abilities" below says what this note fixes for it.
+- **CR 603.7c**: a delayed trigger refers to what the step that created it
+  named, players included: Faramir, Prince of Ithilien's "that player"
+  reaches its delayed trigger through `Effect::Remember`, once a choose step
+  notes what it chose.
 - **CR 105.4** (one of the five colors), **205.3m** (the creature types,
   Time Lord the one of two words), **205.2a** (the card types), **700.2e**
   (another player choosing a mode, which `ChoosePlayer` also asks).
-- **CR 400.7**: an object chosen and then moved is a new object, which "it"
-  does not follow unless a rule says so; the picks are kept by existence
-  (`ObjectRef`), as step 7's decision 1 keeps targets.
+- **CR 400.7**: an object chosen and then moved is a new object, which a
+  later step does not find unless a rule says so; chosen objects are kept by
+  existence (`ObjectRef`), as step 7's decision 1 keeps targets.
 
-## The shapes the decisions name
+## The shapes
+
+What the decisions below recommend, in one place.
 
 ```rust
 // types/effects.rs
-/// Which choice a word names: the place, from 0 in printed order, of the
-/// instruction that made it among the effect's choosing instructions.
-pub struct ChoiceSite(u8);
+
+/// The name a card gives one of its choices so a later step can read it:
+/// "number", "spared". Local to one spell or ability.
+pub struct ChoiceName(pub &'static str);
 
 enum Primitive {
     // …
-    /// CR 608.2d — choose, as the instruction applies; nothing else happens.
-    /// Its atom's recipient is `Implicit`.
-    ChooseValue { value: ValueChoice, how: ChosenHow },
+    /// Choose something as this step runs (CR 608.2d) and keep it under
+    /// `name`. Nothing else happens.
+    ChooseValue { name: ChoiceName, what: ValueChoice, how: ChosenHow },
 }
 
+/// What a choose step asks for.
 pub enum ValueChoice {
-    Color,                                  // CR 105.4's five
-    CreatureType,                           // CR 205.3m's list
-    CardType(Option<Vec<CardType>>),        // CR 205.2a's, or a printed few (Season of Gathering)
-    Number { least: u64, most: u64 },
-    Player(PlayerSet),
-    Objects(SelectionFilter, TargetCount),  // decision 2
+    Color,                                  // one of the five colors
+    CreatureType,                           // one creature type
+    CardType(Option<Vec<CardType>>),        // one card type, or one of a printed few ("artifact or enchantment")
+    Number { least: u64, most: u64 },       // "a number between 0 and 10"
+    Player(PlayerSet),                      // "a player", "an opponent"
+    Objects(SelectionFilter, TargetCount),  // "up to one creature"; a divided count also splits an amount among them
 }
 
+/// Who makes the choice.
 pub enum ChosenHow {
-    /// The player this recipient names chooses: `Controller`, or a target
-    /// player, an instance of "target" as an edict's chooser is.
-    By(EffectRecipient),
-    /// Drawn from `GameState.rng`; nothing asked (decision 7).
-    AtRandom,
+    By(EffectRecipient),  // you, or a target player
+    AtRandom,             // drawn from the game's seeded rng; nobody is asked
 }
 
-// The words (decision 3), each naming a site.
-EffectRecipient::SameChoiceAs(ChoiceSite)   // "it", "that player"
-ObjectFilter::OfChosenValue(ChoiceSite)     // "of the chosen color"; for objects, "is one of the chosen"
-ObjectFilter::PowerAtLeast(AmountExpr)      // item 394's leaf
-AmountExpr::ChosenNumber(ChoiceSite)        // "the chosen number", "that many"
-
-// state/game_state.rs, on ResolvingObject, beside `x_value`
-pub choices_made: Vec<Option<ChoiceMade>>,  // by site; `None` for a site the walk passed
-
-pub enum ChoiceMade {
-    Objects { chosen: Vec<ObjectRef>, shares: Vec<u64> },  // `shares` empty unless divided
-    Player(PlayerId),
+/// What a choose step kept: the answer to a `ValueChoice`, arm for arm.
+pub enum ChosenValue {
     Color(Color),
     CreatureType(CreatureType),
     CardType(CardType),
     Number(u64),
+    Player(PlayerId),
+    Objects { chosen: Vec<ObjectRef>, shares: Vec<u64> },  // `shares` is empty unless an amount was split
 }
+
+// A later step reads a name where it would otherwise hold a plain value.
+EffectRecipient::ChosenAs(ChoiceName)  // act on the objects, or the player, kept under the name
+AmountExpr::ChosenAs(ChoiceName)       // the number kept under the name
+ObjectFilter::ChosenAs(ChoiceName)     // an object of the chosen color or type, or one of the chosen objects
+
+// "Creatures with power 3 or greater", "toughness 2 or less": one leaf for
+// every number read off an object and compared with another number.
+ObjectFilter::ValueIs(ObjectValue, Comparison, AmountExpr)
+pub enum Comparison { AtLeast, AtMost, Exactly }
+
+// state/game_state.rs, on the record of the spell or ability now resolving,
+// beside the X chosen as it resolves
+pub choices: Vec<(ChoiceName, ChosenValue)>,
 ```
 
-Each kind's authoring helper names its word for the call site
-(`of_the_chosen_color(site)`, `of_the_chosen_creature_type(site)`), all
-building the one leaf, and `cards::registry`'s test checks that each word
-names a site of a kind it reads.
+Expel the Interlopers, written with them:
+
+```rust
+sequence([
+    choose_number("number", 0, 10),
+    destroy(all(creature().and(power_at_least(chosen("number"))))),
+])
+```
 
 ## Decisions
 
-### Decision 1 — what names an earlier choice, and where its picks are kept (item 426)
+### Decision 1 — what a later step names a choice by (item 426)
 
-**Retrofit cost if chosen wrong.** Every card that chooses and then names
-the choice is written against this, and `linked-abilities` (step 6) reads
-the same words. Changing the reference later is a sweep over every such
-card.
+**Retrofit cost if chosen wrong.** Every card that chooses and then uses
+the choice is written against the key. Changing it later is a sweep over
+those cards and their tests; no game, log or saved decision moves, since a
+key never leaves the card's definition.
 
-**The problem both options share.** A choice is made by one instruction
-and read by later ones. Something must name *which* choice a later word
-reads, and something must keep the picks until then. The text names them
-by what was chosen ("it", "that player", "the chosen color"), and one
-ability can make two choices of one kind (Tunnel of Love's two creatures,
-"the chosen creatures"; Gluntch's three players; Benevolent Offering's two
-paragraphs, each "Choose an opponent").
+**What happens, start to finish.**
 
-**What a choice site is, in both.** Every instruction that makes a CR
-608.2d choice: `ChooseValue`, a `Choose` recipient (decision 2), and an
-edict's `ChosenBy`, whose picks are kept the same way, so that none becomes
-a site later and moves every number after it. Counted in printed order
-across a spell's spell abilities, as `SameInstanceAs` counts instances
-(`card_data::spell_effect`: Benevolent Offering's two paragraphs are sites 0
-and 1); a mode is its own scope. A "you may" is no site (its answer is CR
-118.12's), nor a mode (chosen at cast), nor a payment's amount (the
-resolution's X).
+1. A spell or ability starts to resolve. The engine already keeps one
+   record for whatever is resolving right now (`ResolvingObject`,
+   `state/game_state.rs:181`); it holds, among other things, the X chosen as
+   an effect resolves (`x_value`, `:201`). The record gains an empty list of
+   choices.
+2. A choose step asks its question and adds one entry: a key and what was
+   picked.
+3. A later step that names the key reads the entry.
+4. The spell or ability finishes resolving, and the record goes, the list
+   with it (CR 608.2n).
 
-- **A. By the site's place, as `SameInstanceAs` names a target.**
-  `SameChoiceAs(site)` is "it" and "that player" as an instruction's
-  recipient; decision 3's words name a site the same way. The picks are kept
-  on the resolving object, `ResolvingObject.choices_made`
-  (`state/game_state.rs:181`), as `x_value` keeps CR 107.3f's X chosen as
-  the effect resolves: every reader that holds the resolution's context
-  reaches it there, `evaluate_amount` and `resolve_player_ref` included,
-  with no new argument. The walk's `choice_cursor`, beside
-  `instance_cursor` (`engine/resolve.rs:164`), says which site an
-  instruction is; a branch not taken (a false "if", a declined "may") moves
-  it past the branch's sites and leaves them `None`, so an instruction
-  naming one does nothing. A choosing instruction notes what it chose for an
-  `Effect::Remember` around it (`note_acted_on`), which carries a chosen
-  player to a delayed trigger (CR 603.7c). `ContinuousChange` writes
-  `SameChoiceAs(ChoiceSite(0))` after a `Choose`, as it writes
-  `SameInstanceAs(0)` after a target, and the refusal goes.
-  *Code*: 110–180. *Performance*: nothing for an effect that makes no
-  choice; an empty `Vec` clones without allocating. *Upkeep*: a site the
-  author counts, checked by `cards::registry`'s tests as `SameInstanceAs` is
-  (each names a site before it, in its scope, of a kind its reader takes),
-  with a twin of `a_chained_change_refers_to_the_target_its_first_change_declared`
-  (`cards/registry.rs:1816`) for a chain on a choice.
-- **B. A binding: the choice scopes the instructions after it, and the
-  words name it by kind.** `Effect::Choosing { choice, then }`; "the chosen
-  number" is the innermost enclosing choice of a number, with no site.
-  Reads like the card. *Upkeep*: a new `Effect` combinator every walk takes
-  (`instances`, the registry's checks, the resolver), decision 8's `Choose`
-  recipient a second shape beside it, and two choices of one kind in one
-  scope (Tunnel of Love) needing a site after all.
+It lives on that record because every step is already handed the
+resolution's context, which finds the record: nothing new is passed around.
+(Kept as a local of the resolver's walk instead, the list would be handed
+down to 28 call sites of the amount reader alone.) A spell that makes no
+choice pays nothing: an empty list allocates nothing, at resolution or when
+a fork copies the game. A CR 615.5 rider and a mana ability resolve no stack
+object, so a choice in one is refused, loudly, as an X chosen there is
+today: no printed rider chooses, and the 12 mana abilities that choose a
+color are `chosen-color-plus-could-produce`'s (step 14).
 
-**Where the picks live, a sub-choice inside A.** On the walk instead, beside
-`last_cost_answer`, every reader would be handed the walk: the resolution's
-`evaluate_amount` has 28 call sites, and `resolve_player_ref` and
-`matches_for_effect` take only the context. A CR 615.5 rider and a mana
-ability resolve no stack object, so a choice in one is refused, loudly, as X
-is: no printed rider chooses, and the 12 mana abilities that choose a color
-are `chosen-color-plus-could-produce`'s (step 14), which gives them their
-home.
+**The one real choice is the key.** Three cards show the difference:
 
-**Recommendation: A**, the picks on the resolving object. It is
-`SameInstanceAs`' shape and the brief's; and a site's place is the clause's
-identity, fixed by the card, the same in every process and fork, never a
-position in a list the engine builds as it runs.
+| | Expel the Interlopers | Gluntch: three players, each used by the next sentence, all different | Cultural Exchange: two sets of creatures, then swapped |
+|---|---|---|---|
+| **A. a name the card gives** | `number` | `first`, `second`, `third`; the second choice excludes `first` | `theirs`, `ours` |
+| **B. the kind of thing, latest wins** | "the number" | "the player" works sentence by sentence; "different" needs every player chosen so far | needs "the first objects" and "the second", a position after all |
+| **C. a counted place** | choice 0 | choices 0, 1, 2 | choices 0 and 1 |
 
-### Decision 2 — whether an object is chosen by an instruction of its own
+- **A. A name the card gives**, `ChoiceName(&'static str)`. A choose step
+  writes its name; a step that runs again replaces its own entry (Season of
+  Weaving's mode chosen twice). A name nothing wrote this time, because its
+  step sat in a branch not taken, reads as nothing: a step acting on it does
+  nothing and a filter matches nothing; an amount with no value is a card
+  bug and an error. `cards::registry`'s test, which builds every card,
+  checks that each name read is written earlier in the same ability, by one
+  step, of a kind its reader takes. *Code*: 70–120. *Performance*: a list of
+  a few entries, searched by name; nothing when empty. *Upkeep*: a name is a
+  string, so a typo fails that test, not the compiler; inserting or
+  reordering steps never re-points a reader.
+- **B. The kind of thing chosen, the latest winning.** No names, and the
+  compiler checks the kind. Two picks of one kind alive at once need a
+  second selector, "all so far" or "the nth", which is a position again
+  (Cultural Exchange, Tunnel of Love's "the chosen creatures", Gluntch's
+  three different players). *Upkeep*: a card that inserts a choice of the
+  same kind between a choice and its reader changes what the reader finds.
+- **C. A counted place.** The first draft's `ChoiceSite`: the engine numbers
+  an ability's choose steps in printed order from 0, and a reader gives the
+  number, as `SameInstanceAs(usize)` names a target today. No strings.
+  *Upkeep*: a number the author counts; a branch not taken must still
+  advance the count; and a step inserted later re-points every reader after
+  it, silently where two choices are of one kind.
+
+**Recommendation: A.** It is the cache the review pictured: a key, a value,
+a short life. It reads at the call site (`chosen("spared")`), and it is the
+answer step 7's decision 3 took for "the sacrificed creature", named by its
+act and not by its cost's place, for the reason C fails here.
+
+### Decision 2 — one shape for a choice of objects
 
 **Retrofit cost if chosen wrong.** The 75 object cards are written one way
-or the other; Final Showdown is the one registered card that moves.
+or the other. Two registered cards and #326's fixtures move under A.
 
-**The problem.** Decision 8 built a choice of objects as the recipient of
-the instruction that acts on them: Final Showdown's "Choose a creature you
-control. It gains indestructible" is `gains_keyword(chosen_permanent(…))`.
-That holds the 13 cards whose next instruction acts on the chosen object.
-The other two thirds of the table above choose in a sentence of their own
-and then act on something else: the rest of the board (Duneblast), a copy
-(Cytoshape), a source (Crush Underfoot). With nothing acting on the chosen
-object, there is no recipient to carry the choice.
+**What the game piece does.** Duneblast: the player picks up to one
+creature; every other creature is destroyed. Final Showdown's second mode:
+the player picks a creature they control; it gains indestructible. Feast of
+the Victorious Dead: the player picks creatures they control and splits the
+counters among them; each gets its share. Each is "choose, then use".
 
-- **A. Both, by the text's shape.** A choice printed as its own sentence is
-  `ChooseValue(Objects(…))`, and the instructions after it name it
-  (`SameChoiceAs`, or `Not(OfChosenValue(site))` for "the rest"). A choice
-  inside the instruction that acts on what is chosen ("distribute three
-  counters among any number of creatures you control", Feast of the
-  Victorious Dead) stays decision 8's `Choose` recipient. Both are sites. A
-  value printed inline (Wash Out's "permanents of the color of your choice")
-  is a `ChooseValue` just before its reader, since a filter cannot ask: the
-  choice is made as that instruction applies either way (CR 608.2c). Final
-  Showdown moves to the first form; Feast stays. A copy effect's donor keeps
-  its own kind, chosen by the copy as it applies (`ChooseCopySource`,
-  Cytoshape as built). *Code*: 20–40, with objects at random free
-  (`ChosenHow::AtRandom`: Last One Standing, The Nipton Lottery). *Upkeep*:
-  two spellings for two printed shapes; which one a card takes is read off
-  its text, which no registry check sees, so it is a review rule.
-- **B. One spelling: every object choice is `ChooseValue`.** Feast's
-  "distribute" becomes a choice with its shares kept at the site, then a
-  put that reads them. `Choose` leaves cards and stays only as
-  `SelectRecipients`' label, as the edict's prompt uses it
-  (`engine/resolve.rs:2486`). *Code*: 60–110: Feast and #326's division
-  fixtures rewritten, `recipients_for`'s `Choose` arm moved into the
-  instruction. *Upkeep*: one spelling; a printed "distribute among" becomes
-  two instructions where the card has one.
-- **C. Objects wait.** Only `Choose` and `SameChoiceAs`; "the rest", copies
-  and sources wait for a later row. *Code*: none. *Upkeep*: 19 of the
-  family's printed shapes stay unwritable after the subsystem closes.
+**What #326 built.** The choosing is done by the recipient of the step that
+acts on what is chosen (`EffectRecipient::Choose`): Final Showdown is
+`gains_keyword(chosen_permanent(…))`, one step that both asks and acts. That
+fits only the 13 cards whose next step acts on the chosen object; Duneblast
+has no step that acts on its creature at all.
 
-**Recommendation: A.** It writes each card as it is printed, the way the
-value kinds already split into a sentence of their own and inline, and
-keeps #326's division as built.
+- **A. One shape: every choice is a choose step.** `ChooseValue` with
+  `ValueChoice::Objects` asks through #326's `SelectRecipients` and its
+  division, unchanged, and keeps the objects with their shares; the steps
+  after read the name. Final Showdown and Feast become two steps each. No
+  card writes `EffectRecipient::Choose` again: it stays only as the
+  question's label on `SelectRecipients`, as the edict's prompt already uses
+  it (`engine/resolve.rs:2486`), until that payload's own cleanup. Objects
+  chosen at random come free (Last One Standing, The Nipton Lottery).
+  *Code*: 60–110: `recipients_for`'s `Choose` arm and
+  `chosen_by_the_controller` move behind the step, the two cards and #326's
+  fixtures are rewritten. *Upkeep*: one way to write a choice.
+- **B. Two shapes, by the card's sentence** (the first draft's
+  recommendation): a choice in a sentence of its own is a choose step, a
+  choice inside the verb's sentence stays the recipient. *Code*: 20–40.
+  *Upkeep*: two ways to write one thing, picked by reading grammar, which no
+  check can see.
+- **C. Objects wait.** Only today's recipient, plus a way to name it again.
+  *Upkeep*: "the rest", copies and sources stay unwritable after the
+  subsystem closes.
 
-### Decision 3 — how a chosen value reaches what reads it
+**Recommendation: A.** A copy effect's donor keeps its own question
+(`ChooseCopySource`, Cytoshape as built), and an edict's "a creature of
+their choice" stays as built: its pick is the sacrifice (CR 701.21a).
 
-**Retrofit cost if chosen wrong.** Each reader type gains its words now,
-and step 6's linked abilities answer the same words off a permanent; a
-shape that serves only the resolution would be redone there.
+### Decision 3 — how a step reads a kept value
 
-| Reader | Cards | Under A | Built here |
-|---|---:|---|---|
-| a filter over permanents, read as the instruction applies | ~57 | `OfChosenValue(site)`: the object is the chosen color, has the chosen creature or card type, or is one of the chosen objects; item 394's `PowerAtLeast(AmountExpr)` with `ChosenNumber` | yes: Expel and the fixtures |
-| an edict's pick filter | 1 | the same leaf, read by the edict's candidates | yes: World Queller's model |
-| an amount | 10 | `ChosenNumber(site)` | yes |
-| the player as a payer, a chooser or who gains control | — | `PlayerRef::NamedBy(SameChoiceAs(site))`, read as the instruction applies, as #324's payer is | yes |
-| the player in a filter ("creatures that player controls") or a group ("you and that player") | 4 + | step 7's `PlayerRef::Named(PlayerAntecedent)` and `PlayerGroup.named`, with a chosen arm (decision 4) | no: step 7's second PR |
-| a filter over cards in a zone | 62 | the same leaves; the search or reveal is `information-model`'s | no |
-| an effect that outlasts the resolution and reads the value later: a "can't", a requirement, a later trigger | ~10 | the effect holds the value it was made with | no: refused; the split's third row |
-| a change's own parameter, and the inline ones | 47 + 34 | the change holds the value | no: refused; the split's third row |
+**Retrofit cost if chosen wrong.** Confined to the resolver and the filter
+table; no card changes, since a card writes `chosen("number")` either way.
 
-**Which reads are a resolution's.** Today `TextReferents` is one asker for
-every reader outside the layer walk: a target's legality
-(`engine/targeting.rs:713`), an effect's text read through
-`object_matches_filter_of_source` (`:727`), a restriction's set at each
-query (`engine/restriction/predicate.rs:284`), a replacement's "caused by"
-(`engine/replacement/gather.rs:763`) and a resolution's filter
-(`engine/resolve.rs:2602`). So the words need a field that says an asker is
-the resolution's: **`FilterIdentity.resolution: Option<&ResolutionContext>`**
-(`engine/targeting.rs:230`), set only by `filter_identity_for`
-(`engine/resolve.rs:2609`), which `matches_for_effect`, `permanents_matching`
-and a choice's or an edict's candidates already use. Every other asker
-builds its identity with `None`, and the leaves refuse there with a refusal
-of their own (`FilterRefusal::NotAResolution`), a malformed question. A
-"can't" made by a resolution never holds a word (refused as it is made), so
-it never reads a later resolution's choices.
+**The direct way.** A step that names a choice looks it up as it runs, and
+everything downstream gets a plain value:
 
-- **A. Each word is answered where it is read, as "you" is.** A resolution
-  answers off its resolving object: `evaluate_amount` reads `ChosenNumber`,
-  `player_named_by` (`engine/resolve.rs:3059`) reads `SameChoiceAs`, and the
-  filter table asks through `FilterReferents` (`engine/object_filter.rs:35`)
-  for `chosen_value(site)` and `amount(expr)`, which `TextReferents` answers
-  only when its identity is a resolution's. `OfChosenValue` reads the
-  characteristics through the table's frame, as every leaf does. An effect
-  that outlasts the resolution is written with the values it read as it is
-  made, the narrow write-in the refused rows need, built with their first
-  cards. *Code*: 130–200 with item 394's leaf. *Upkeep*: a new reader is one
-  leaf in the type that reads it; step 6 answers the same leaves off a
-  permanent's linked choice in the layer walk's referents.
-- **B. The resolution writes the value in before any reader sees it.**
-  Each instruction naming a choice is rewritten as it is reached ("of the
-  chosen color" to `ByColor(Red)`, the number to `Fixed(7)`), so every
-  reader and every effect it makes holds plain values. *Code*: a rewrite
-  over every type a word can sit in, and over each of `Primitive`'s ~60
-  arms that holds one. *Upkeep*: every new leaf or arm needs its rewrite;
-  and step 6's static abilities cannot be rewritten ("the last chosen
-  color" changes while the ability exists), so they need A's leaves anyway.
+| Where the name sits | What the step does with it | Cards |
+|---|---|---:|
+| as what the step acts on (`EffectRecipient::ChosenAs`) | hands the verb the kept objects, or the kept player | the 13 objects; 37 players |
+| as a number (`AmountExpr::ChosenAs`) | the amount reader returns the kept number | 10 |
+| inside a filter (`ObjectFilter::ChosenAs`, or an amount in a comparison) | just before the resolution matches the filter, it writes the kept values in: "of the chosen color" becomes "red", "not chosen" becomes "not one of these three objects", "power at least the chosen number" becomes "power at least 7" | ~57, the 11 "the rest" among them |
 
-**Recommendation: A**, with the write-in where an effect outlasts the
-resolution, and only there.
+- **A. Looked up where the step runs.** Two lookups (what a step acts on,
+  an amount) and one small function over `ObjectFilter` that returns the
+  filter with its names filled, called at the four places a resolution
+  matches a filter: a sweep (`permanents_matching`, `engine/resolve.rs:2676`),
+  a count, a choice's candidates and an edict's. The filter table never
+  hears about choices. It gains one plain leaf, "one of these objects", for
+  a filled set. Amounts in a comparison are read at the same moment, which
+  is CR 608.2h's "determined only once, when the effect is applied". An
+  effect that outlasts the resolution (a "can't", a replacement) gets its
+  filter filled the same way as it is made, so it holds the value it was
+  made with: that is the third row's work, and the function is this one.
+  *Code*: 110–180 with the comparison below. *Upkeep*: a new place a name can
+  sit is one arm of the fill.
+- **B. Asked through the filter table** (the first draft's recommendation).
+  The table's leaves ask their asker for "the chosen value", so the bundle
+  the table is asked with gains two methods and a field marking a
+  resolution's reads, and the other askers a refusal. *Upkeep*: every asker
+  of the table learns about choices in order to refuse them.
 
-**Item 394's twin.** `PowerAtLeast(AmountExpr)` beside `PowerLE(i32)`
-reads as two shapes for one question. The build renames `PowerLE` to
-`PowerAtMost` (24 lines, a counted sweep through `replace_exact.py`), its
-`i32` kept until item 394's other leaves bring the amount; say if you would
-rather it waited for them.
+**Recommendation: A.** The first draft priced A as a rewrite of every
+instruction; that was wrong. Only a filter needs writing into, because only
+a filter is handed to code the resolution does not own.
+
+**Why `TextReferents` exists**, since the first draft leaned on it. A
+filter is stored as the card wrote it: "creatures you control", "another
+creature". "You" and "this" are not fixed: on a static ability "you" is
+whoever controls the permanent now (CR 109.5), on a spell it is the caster.
+So whoever asks "does this object match?" must also say who "you" is and
+which object "this" is, and `TextReferents` (`engine/object_filter.rs:69`)
+is that small bundle. It is what lets one table of leaves serve targeting,
+costs, "can't" effects, replacements and resolution. Under A this PR does
+not touch it.
+
+**The comparison, reshaped.** The first draft added `PowerAtLeast` beside
+the existing `PowerLE(i32)`. The grid above is one question, a number read
+off an object compared with another number, so it is one leaf:
+`ValueIs(which number, how compared, with what)`. "Which number" is the
+type amounts already use for "its power" (`ObjectValue`: power and
+toughness today; step 7 adds mana value and counters, and the leaf takes
+them with no change). "How compared" is at least, at most or exactly, since
+exact matches are printed too. "With what" is any amount: a printed number,
+X, the chosen number. Built here: power and toughness, all three
+comparisons, and `PowerLE` folded in (its five readers in the engine and 24
+lines that name it). The table compares plain numbers; an asker that can
+read amounts fills them first, as above. One leaf with a comparison, where
+the review suggested `NumberAtLeast` and `NumberAtMost`, because the exact
+case would be a third twin; say if you would rather have the twins.
 
 ### Decision 4 — a player verb's player: item 292 with item 425
+
+**Settled: A** (the owner, at #330's first review round, 2026-11-15).
 
 **What is wrong today.** `resolve_player_for_self` (`engine/resolve.rs:3461`)
 finds the one player for the 13 verbs item 292 lists: a mill, the top cards
@@ -451,100 +504,110 @@ the surviving opponent's mode still resolves.
 
 **How it fits step 7's settled words.** Step 7's decision 4
 (`handoffs/resolution-recipients-and-amounts.md`, settled at #295,
-2026-10-26) makes every player word one reader, `Player(PlayerAntecedent)`
-on both enums, with "nobody" an answer that does nothing, which is item
-292's fix; it keeps an instance's own word, so "that player" after a target
-stays `SameInstanceAs`. A chosen player's "that player" as a recipient is
-`SameChoiceAs`, the same kind of word. Its other two places, a filter's
-"that player controls" and a group's "you and that player", are
-`PlayerAntecedent`'s, which is not built yet: they get a chosen arm there.
+2026-10-26) makes every player word one reader, with "nobody" an answer
+that does nothing, which is item 292's fix. A chosen player as what a step
+acts on is `ChosenAs`, read as a target player is. Its other two places, a
+filter's "that player controls" and a group's "you and that player", are
+that design's player words, not built yet: they get a chosen arm there.
 
 - **A. Item 292 comes forward, whole.** One reader returns the player the
-  route found, for every recipient that names one (a target, a chosen
+  step was handed, for every recipient that names one (a target, a chosen
   player, a trigger's player, a remembered one, defending player), the
-  controller only for `Implicit` and `Controller`, and nobody otherwise:
-  each of the 13 verbs does nothing for nobody, as `DealDamage` already
-  does (CR 608.2b's "won't affect", 603.6's "unable to be found"). Row 39's
-  two sites, `named_player` and `EntersAttacking::Player`, answer nobody the
-  same way. `cards::registry` gains a check that no player verb has a
-  recipient naming only objects. This is step 7's reader in step 7's shape;
-  its second PR changes which arms feed it as it folds `TriggeringPlayer`
-  into `PlayerAntecedent`, as it would have anyway, and loses item 292's
-  60–80. *Code*: 60–100.
-- **B. The chosen player's arm only.** `SameChoiceAs` joins the arms that
-  read the slice; item 292 stays with step 7, its verdict changed to
-  "reachable, wrong today". *Code*: ~10.
-
-**Recommendation: A.** It is the same function in the shape step 7 settled,
-and B would leave a known wrong answer reachable through two more route PRs.
-Either way the chosen arm of `PlayerAntecedent` is filed into step 7's note.
+  controller only for "you", and nobody otherwise: each of the 13 verbs
+  does nothing for nobody, as `DealDamage` already does (CR 608.2b's "won't
+  affect", 603.6's "unable to be found"). Row 39's two sites, `named_player`
+  and `EntersAttacking::Player`, answer nobody the same way.
+  `cards::registry` gains a check that no player verb has a recipient naming
+  only objects. Step 7's second PR changes which recipients feed the reader,
+  as it would have anyway, and loses item 292's 60–80. *Code*: 60–100.
+- **B. The chosen player's arm only**; item 292 stays with step 7, its
+  verdict changed to "reachable, wrong today". *Code*: ~10.
 
 `player_the_instruction_names` (`engine/resolve.rs:2961`) keeps asking
-Akroan Horse's "an opponent gains control" as the instruction applies, under
-`ChoosePlayer`: an implicit choice inside a word the instruction reads,
-where `ChooseValue` is the printed "choose a player".
+Akroan Horse's "an opponent gains control" as the step applies, under
+`ChoosePlayer`: a choice the rules imply inside one step, with nothing kept.
 
 ### Decision 5 — the split, and where the rest goes
 
+**Settled: A, three rows** (the owner, at #330's first review round,
+2026-11-15). The intake writes the split into `choices-architecture.md`'s
+"The build, sized" table before the build, which also moves Selvala's
+Stampede, a vote, off this row.
+
 The design's table gives the row 560–870 code and 450–700 tests, plus item
 426's 80–150 and item 394's leaf; at the table's 1.7× that is 1,700–2,700
-for the row. Re-counted piece by piece for this half. A count set at a
-design stop is read with its top as the expected size
+for the row. Re-counted piece by piece for this PR. A count set at a design
+stop is read with its top as the expected size
 (`references/sizing-calibration.md#set-at-a-design-stop`: 20 rows, a mean
 of 1.06 times the top, 0.53–1.70), so no ratio goes on these.
 
 | Piece | Code | Tests |
 |---|---:|---:|
 | The kinds: `ChooseColor`, `ChooseCreatureType`, `ChooseCardType`, `ChooseNumber`, and `ChooseOpponent` widened to `ChoosePlayer`; `ChoiceOption::CreatureType` and `CardType`; each with its subject, `as_str`, question, option label, why, setup line, decision-log text and replay; `ui::ask`; the random agent | 140–220 | 50–90 |
-| `ChooseValue`, `ValueChoice` and `ChosenHow`: each kind's options (105.4's five, 205.3m's list with its missing fifteen, 205.2a's or a printed few, a number's range, a player set, an object filter) and at random | 170–260 | 100–170 |
-| Decision 1: the sites, the store, the cursor and its skips, `SameChoiceAs`, `Remember`'s note, the chain, the registry's checks | 110–180 | 80–130 |
-| Decision 2's A: Final Showdown to its own sentence | 20–40 | 20–40 |
-| Decision 3: `OfChosenValue`, `ChosenNumber`, `PowerAtLeast` and the rename, the resolution's identity and its refusal, `NamedBy`'s arm | 130–200 | 70–120 |
+| The choose step: `ChooseValue`, `ValueChoice`, `ChosenHow`; each kind's options (the five colors, CR 205.3m's list with its missing fifteen, the card types or a printed few, a number's range, a player set, an object filter) and at random | 170–260 | 100–170 |
+| Decision 1: the list on the resolving record, names, the lookups, `Remember`'s note, the chain, the registry's checks | 70–120 | 60–100 |
+| Decision 2: the object choice behind the step; Final Showdown, Feast and #326's fixtures rewritten | 60–110 | 40–80 |
+| Decision 3: the fill, the "one of these objects" leaf, `ValueIs` with `PowerLE` folded in | 110–180 | 80–130 |
 | Decision 4: item 292 and item 425, the Lich and its twin, item 292's two boards | 60–100 | 60–100 |
 | Expel the Interlopers registered and pooled; the fixtures below | 130–190 | 130–210 |
 | The dev GUI's words and tests | 15–40 | 15–30 |
-| **This half** | **775–1,230** | **525–890** |
+| **This PR** | **755–1,220** | **535–910** |
 
-**1,300–2,120.** `CreatureType` goes under `counted_enum!` for its list,
+**1,290–2,130.** `CreatureType` goes under `counted_enum!` for its list,
 which re-indents its ~300 variants: a whitespace-only change, read with
 `git diff -w` and counted apart.
 
-- **A. Three rows.** *This PR*: every kind above, made by you, by a player
-  the text names, or at random, with decisions 1 to 4: 1,300–2,120. *The
-  second* (the brief's): several choosers at one instruction — votes
-  (701.38, 33 cards, the per-player walk's starting seat), piles (700.3,
-  21), the 16 "each player chooses" values and their readers ("a type
-  chosen this way"), the word kind (12 of its 17 sort or ask each player;
-  "odd or even"'s parity leaf), a choice excluding an earlier one's pick
-  (Gluntch, Fortunate Few), and an open "choose a number" (Void, Squee's
-  Revenge), whose unbounded pick needs a policy for the random agent and the
-  GUI; a guess of 1,000–1,600. *A third, new*, `values-kept-past-the-resolution`:
-  the write-in for an effect that outlasts the resolution (~10), a change's
-  parameter from a choice (47) and the inline ones (34), with the two kinds
-  read only that way (a basic land type, a keyword) and the card name (its
-  catalog, and whether its names are the process's registry or the game's,
-  since a game is built from a `CardRegistry` passed in, `scenario/build.rs`);
-  a guess of 1,200–2,000, which may split at its brief. The subsystem closes
-  with the third.
-- **B. Two rows, as the brief.** Every one-chooser kind here, the card name,
-  the word, the keyword and the basic land type each shown by a fixture whose
-  reader no printed card has (or by a branch per keyword under a condition,
-  a second spelling of a change's parameter for two cards): about
-  1,620–2,640, past the band's top. The refused rows still need a home, so
-  the second PR grows by the third row's work.
+- **A. Three rows.** *This PR*: a color, a creature type, a card type, a
+  number, a player and objects, chosen by you, by a player the text names,
+  or at random, with decisions 1 to 4. *The second* (the brief's): several
+  choosers at one step — votes (701.38, 33 cards, the per-player walk's
+  starting seat), piles (700.3, 21), the 16 "each player chooses" values and
+  their readers ("a type chosen this way"), the word kind (12 of its 17 sort
+  or ask each player; "odd or even"'s predicate), a choice excluding an
+  earlier one's pick (Gluntch, Fortunate Few), and an open "choose a number"
+  (Void, Squee's Revenge), whose unbounded pick needs a policy for the
+  random agent and the GUI; a guess of 1,000–1,600. *A third, new*,
+  `values-kept-past-the-resolution`: an effect that outlasts the resolution
+  holding the value it was made with (~10), a change's parameter from a
+  choice (47) and the inline ones (34), with the two kinds read only that
+  way (a basic land type, a keyword) and the card name (its catalog, and
+  whether its names are the process's registry or the game's, since a game
+  is built from a `CardRegistry` passed in, `scenario/build.rs`); a guess of
+  1,200–2,000, which may split at its brief. The subsystem closes with the
+  third.
+- **B. Two rows, as the brief.** Every one-chooser kind here, four of them
+  shown only by a fixture no printed card backs: about 1,620–2,640, past
+  the band's top.
 
-**Recommendation: A.** This PR stays in the band with a printed model for
-every board, and every refused row has a row that owns it. The intake writes
-the split into `choices-architecture.md`'s "The build, sized" table before
-the build, which also moves Selvala's Stampede, a vote, off this row.
+## Linked abilities: what this note fixes for step 6, and what it leaves
+
+The review asked whether `linked-abilities` should come into this design.
+**No, with one thing fixed here.**
+
+*What it is.* CR 607: "As this enters, choose a color" on one ability and
+"creatures of the chosen color get +1/+1" on another of the same permanent
+(202 cards choose as a permanent enters). The choice is kept on the
+permanent, for as long as it stays, and belongs to that pair of abilities.
+It is a row of its own, a design and three builds, and holds more than
+chosen values: the cards exiled with a permanent, the cost paid as it
+entered.
+
+*Why it stays out.* Its questions are about where a permanent keeps a
+record and how long, which this PR never meets: this list lives for one
+resolution. Under decision 3's A the two share little: what a kept value is
+(`ChosenValue`) and the function that writes kept values into a filter.
+
+*What is fixed here for it.* Both are written against "a list of kept
+choices", never against the resolution, so step 6 can hand the same
+function a permanent's list. And a name may turn out to be the link CR
+607.2d describes, the same name written by one ability and read by another
+of the same card; that is step 6's decision, and nothing here forecloses it.
 
 ## The binding table
 
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
-| what a choice site picked | as its instruction applies (CR 608.2d) | latched: determined once (608.2h); objects kept by existence (`ObjectRef`, CR 400.7) and found only while each is the same object | `ResolvingObject.choices_made`, by site | `SameChoiceAs`, `OfChosenValue`, `ChosenNumber`, `NamedBy(SameChoiceAs)` | with the resolving object (CR 608.2n); a mode's on leaving the mode |
-| which site an instruction is | as the walk reaches it | live | `ResolutionWalk.choice_cursor` | the store's writer | each walk; saved and restored around a mode, as `instance_cursor` is |
-| that a filter is read by a resolution | at each read | live | `FilterIdentity.resolution` | the two leaves, through the referents | with the read |
+| what a choose step kept | as the step runs (CR 608.2d) | latched: determined once (608.2h); objects kept by existence (`ObjectRef`, CR 400.7) and found only while each is the same object | the resolving record's `choices`, by name | a step acting on it, an amount, a filter as it is filled | with the resolving record (CR 608.2n) |
 | a value an effect keeps past the resolution | — | — | not built: refused | — | the third row |
 
 ## The kinds, as decision 7 settled them
@@ -572,8 +635,7 @@ options; the dev GUI words each now.
   `counted_enum!` for `ALL`.
 - **Expel the Interlopers** in a new `cards/sets/2023/09_08_woe.rs`, its
   first printing (Wilds of Eldraine), registered and pooled, its ruling in
-  `rulings-ledger.json`: `ChooseValue { Number { least: 0, most: 10 } }`,
-  then a destroy of `creature().and(PowerAtLeast(ChosenNumber(ChoiceSite(0))))`.
+  `rulings-ledger.json`, written as under "The shapes".
 - **The fixtures**, in `cards::fixtures::choices`, each naming the printed
   card it models:
   - a color: Wash Out, "Return all permanents of the color of your choice
@@ -582,7 +644,7 @@ options; the dev GUI words each now.
     creatures that aren't of the chosen type";
   - a card type: World Queller, "you may choose a card type. If you do, each
     player sacrifices a permanent of their choice of that type", the edict's
-    pick filter reading the site;
+    candidates filled from the kept type;
   - a player you choose: Gluntch's "Choose a second player to draw a card"
     and "choose a third player to create two Treasure tokens", a draw and a
     token's controller (its rule that the three differ goes to the second
@@ -590,7 +652,7 @@ options; the dev GUI words each now.
   - a player at random: Truth or Consequences' last sentence, "choose an
     opponent at random. [It] deals 3 damage to that player", without its
     vote;
-  - objects in a sentence of their own, at random: The Nipton Lottery,
+  - objects at random, then several steps on them: The Nipton Lottery,
     "Choose a creature at random. You gain control of that creature until
     end of turn. Untap it. It gains haste until end of turn. Then destroy
     all other creatures";
@@ -598,7 +660,7 @@ options; the dev GUI words each now.
     creature. Destroy the rest";
   - the brief's chain, "choose a creature you control; it gets +2/+2 and
     gains trample until end of turn", which no card prints in that phrasing:
-    a fixture of `ContinuousChange`'s shape, choosing once.
+    one choose step and a two-change `ContinuousChange` reading its name.
 
 ## Atoms and their boards
 
@@ -608,17 +670,17 @@ options; the dev GUI words each now.
 | Atom | What it asks | Planned test |
 |---|---|---|
 | `ATOM-608.2d-001` (partly covered) | choices not made while casting are announced as the effect applies, and no illegal option is chosen | Expel's board: the number asked as it resolves, 0 through 10 offered (its ruling); stays `COVERS-PARTIAL`, its own board being a "you may sacrifice" |
-| `ATOM-608.2d-002` (partly covered) | an untargeted division gives each at least one | not this PR's: #326's division, unchanged under decision 2's A |
-| `ATOM-608.2e-001` | several players' choices in APNAP order, then the action at once | the second row's: several choosers at one instruction |
+| `ATOM-608.2d-002` (partly covered) | an untargeted division gives each at least one | #326's tests, moved with Feast to the choose step (decision 2) |
+| `ATOM-608.2e-001` | several players' choices in APNAP order, then the action at once | the second row's: several choosers at one step |
 | `ATOM-105.4-001` | a color choice offers the five, and refuses "colorless" | the Wash Out board: the offer equals the five colors. A sixth answer cannot be written (`Color` has five arms and no colorless), which the test's comment says rather than claiming a refusal it never reaches |
 | `ATOM-205.3m-001` | Human is a creature type, Forest is not | the Kindred Dominance board: the offer equals CR 205.3m's list as `tmnt.txt` prints it, read by the test, Human and Time Lord among it; Forest is a `LandType` and cannot be offered, said the same way |
 | 201.4, 700.2e | — | covered already |
 
 And the boards the binding table and decision 4 owe:
 
-- **The picks are kept by existence (CR 400.7)**: a chosen creature moved
-  between the choice and the instruction that names it is not found, and
-  that instruction does nothing. A rule test, no printed card.
+- **Chosen objects are kept by existence (CR 400.7)**: a chosen creature
+  moved between the choice and the step that names it is not found, and
+  that step does nothing. A rule test, no printed card.
 - **The player boards run at three seats**, so "choose an opponent" has two
   candidates: one asked, one drawn from the seeded `rng`.
 - **Vindictive Lich at three seats**, failing first, and its twin.
@@ -634,7 +696,9 @@ the dev GUI's tests, since `ChoiceKind` gains arms the window words; every
 unregistered; the branch. The middle arm asks no new question, so it is
 predicted `IDENTICAL` to `main` except in a game where a player verb's
 player is gone (decision 4, at three seats or more), which its dumps will
-name game by game; the branch moves with Expel alone.
+name game by game; the branch moves with Expel alone. Final Showdown and
+Feast ask the same questions in the same order under decision 2's A, so
+they move nothing.
 
 ## Filed at the close-out, if the decisions stand
 
@@ -652,10 +716,10 @@ Each with its home:
   kinds; the card name, its catalog's question, and Garth One-Eye's "a card
   name that hasn't been chosen", decision 7's record of what an ability
   chose before.
-- Step 7's notes (`resolution-recipients-and-amounts`): `PlayerAntecedent`'s
-  chosen arm for "that player controls" and "you and that player"; and
-  `Antecedent`'s chosen-object arm, twin to its `TargetOfInstance`, for
-  Crush Underfoot's "it deals damage equal to its power".
+- Step 7's notes (`resolution-recipients-and-amounts`): its player words'
+  chosen arm, for "that player controls" and "you and that player"; and the
+  chosen object as the thing a number is read off or the thing that deals
+  damage, for Crush Underfoot's "it deals damage equal to its power".
 - `token-copies`: a token copy of a chosen object (Season of Weaving,
   Calamity, Galloping Inferno).
 - `information-model`: a chosen value read over a hidden zone (62 filters,
@@ -664,5 +728,5 @@ Each with its home:
   admission (The Black Gate).
 - `chosen-color-plus-could-produce`: a choice in a mana ability, which
   resolves no stack object.
-- Item 394 narrowed to its remaining leaves; items 425 and 426 closed; item
-  292 closed under decision 4's A.
+- Item 394 narrowed to mana value, which arrives with step 7's amounts, and
+  "tapped"; items 425 and 426 closed; item 292 closed.
