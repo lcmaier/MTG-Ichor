@@ -34,7 +34,7 @@ use std::sync::Arc;
 use mtgsim::engine::layers::types::EffectId;
 use mtgsim::state::replacement_effects::ReplacementEffectId;
 use mtgsim::state::restrictions::RestrictionId;
-use mtgsim::cards::authoring::{activated_ability, choose_objects, creature, gets, spell_ability, the_chosen, you};
+use mtgsim::cards::authoring::{activated_ability, choose_objects, creature, gets, spell_ability, the_chosen_objects, you};
 use mtgsim::cards::printings::{
     self, chainbreaker, circle_of_protection_red, cryptoplasm, cytoshape, giant_growth, grizzly_bears, mending_hands, mirrorform, mirrorweave,
 };
@@ -63,7 +63,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, ChoiceName, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectSet, PlayerSet, Primitive, SelectionFilter,
     TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId, RowId};
@@ -468,7 +468,7 @@ fn chosen_pump() -> Arc<CardData> {
             "Choose a creature. It gets +2/+2 until end of turn.",
             Effect::Sequence(vec![
                 choose_objects(you(), creature(), TargetCount::Exactly(1)),
-                gets(the_chosen(ChoiceName::Objects), 2, 2).until_end_of_turn(),
+                gets(the_chosen_objects(), 2, 2).until_end_of_turn(),
             ]),
         ))
         .build()

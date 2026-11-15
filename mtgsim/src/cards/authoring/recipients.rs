@@ -177,42 +177,56 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
     EffectRecipient::ChosenBy(Box::new(choice))
 }
 
-/// "It", "that player", "the chosen creature" as what a verb acts on: the
-/// objects or the player a choose step before it kept under `name`
-/// ([`super::instructions::choose_objects`], `choose_player`).
-pub fn the_chosen(name: ChoiceName) -> EffectRecipient {
-    debug_assert!(matches!(name, ChoiceName::Player | ChoiceName::Objects), "a verb acts on a chosen player or chosen objects, never on {name:?}");
-    EffectRecipient::ChosenAs(name)
+// ---------------------------------------------------------------------------
+// What a choose step before this one chose (CR 608.2d)
+// ---------------------------------------------------------------------------
+//
+// One word for each thing a later step can read, each written where its kind
+// of thing goes: a player or objects as what a verb acts on, a color or a type
+// inside a filter, a number as an amount. The step that chose it is
+// `super::instructions::choose_player`, `choose_objects`, `choose_color` and
+// their siblings.
+
+/// "That player", "the chosen player": the player chosen, while they are in
+/// the game.
+pub fn the_chosen_player() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceName::Player)
 }
 
-/// "The chosen number" as an amount, "of the chosen color" and "the chosen
-/// creature" inside a filter: what a choose step before it kept under
-/// `name`: `power_at_least(chosen(ChoiceName::Number))`,
-/// `creature().and(chosen(ChoiceName::Color))`,
-/// `creature().other_than(chosen(ChoiceName::Objects))`.
-pub fn chosen(name: ChoiceName) -> ChosenWord {
-    ChosenWord(name)
+/// "It", "that creature", "the chosen creatures": the objects chosen, each
+/// while it is still the object chosen (CR 400.7), with its share where an
+/// amount was divided among them.
+pub fn the_chosen_objects() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceName::Objects)
 }
 
-/// [`chosen`]'s word, until the place it is written says whether it is an
-/// amount or a filter. Each place takes the names that hold its kind of
-/// thing, and refuses another where every card is built, in the registry's
-/// tests.
-pub struct ChosenWord(ChoiceName);
-
-impl From<ChosenWord> for AmountExpr {
-    fn from(chosen: ChosenWord) -> Self {
-        debug_assert!(matches!(chosen.0, ChoiceName::Number), "an amount reads a chosen number, never {:?}", chosen.0);
-        AmountExpr::ChosenAs(chosen.0)
-    }
+/// "Of the chosen color", in a filter: Wash Out's "permanents of the color
+/// of your choice" is `each(of_the_chosen_color())`.
+pub fn of_the_chosen_color() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceName::Color)
 }
 
-impl From<ChosenWord> for ObjectFilter {
-    fn from(chosen: ChosenWord) -> Self {
-        let describes_objects = matches!(chosen.0, ChoiceName::Color | ChoiceName::CreatureType | ChoiceName::CardType | ChoiceName::Objects);
-        debug_assert!(describes_objects, "a filter reads a chosen color, type or objects, never {:?}", chosen.0);
-        ObjectFilter::ChosenAs(chosen.0)
-    }
+/// "Of the chosen type" after "choose a creature type", in a filter.
+pub fn of_the_chosen_creature_type() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceName::CreatureType)
+}
+
+/// "Of the chosen type" after "choose a card type", in a filter.
+pub fn of_the_chosen_card_type() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceName::CardType)
+}
+
+/// "One of the chosen objects", in a filter: Duneblast's "destroy the rest"
+/// is `destroy(each(creature().other_than(one_of_the_chosen())))`.
+pub fn one_of_the_chosen() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceName::Objects)
+}
+
+/// "The chosen number", "that many" after a number is chosen, as an amount:
+/// Expel the Interlopers' "power greater than or equal to the chosen number"
+/// is `power_at_least(the_chosen_number())`.
+pub fn the_chosen_number() -> AmountExpr {
+    AmountExpr::ChosenAs(ChoiceName::Number)
 }
 
 // ---------------------------------------------------------------------------

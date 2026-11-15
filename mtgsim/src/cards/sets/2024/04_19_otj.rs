@@ -4,13 +4,13 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     artifact, choose_objects, creature, creatures_you_control, deal_damage, destroy, each, gains_keyword, loses_all_abilities, spell_ability,
-    spree, target_creature, target_permanent, the_chosen, you,
+    spree, target_creature, target_permanent, the_chosen_objects, you,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::effects::{ChoiceName, Effect, TargetCount};
+use crate::types::effects::{Effect, TargetCount};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -83,7 +83,7 @@ pub fn final_showdown() -> Arc<CardData> {
     let board_wipe_mana = vec![Cost::Mana(ManaCost::build(&[ManaType::White, ManaType::White], 3))];
     let it_gains_indestructible = Effect::Sequence(vec![
         choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
-        gains_keyword(the_chosen(ChoiceName::Objects), KeywordFlag::Indestructible).until_end_of_turn(),
+        gains_keyword(the_chosen_objects(), KeywordFlag::Indestructible).until_end_of_turn(),
     ]);
     CardDataBuilder::new("Final Showdown")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))

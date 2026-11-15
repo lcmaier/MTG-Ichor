@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{choose_number, chosen, creature, destroy, each, power_at_least, spell_ability, you};
+use crate::cards::authoring::{choose_number, creature, destroy, each, power_at_least, spell_ability, the_chosen_number, you};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{ChoiceName, Effect};
+use crate::types::effects::Effect;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Expel the Interlopers — {3}{W}{W}
@@ -38,7 +38,7 @@ pub fn expel_the_interlopers() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 choose_number(you(), 0, 10),
-                destroy(each(creature().and(power_at_least(chosen(ChoiceName::Number))))),
+                destroy(each(creature().and(power_at_least(the_chosen_number())))),
             ]),
         ))
         .build()

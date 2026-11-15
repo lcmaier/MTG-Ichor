@@ -8,9 +8,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
-    choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, chosen, creature,
+    choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, creature,
     creatures_you_control, destroy, draw_cards, exile, lose_life, power_at_least, power_at_most, put_counters, return_to_the_battlefield,
-    spell_ability, tap, target_creature, target_opponent, target_player, the_chosen, the_target, toughness_at_least, toughness_at_most, you,
+    of_the_chosen_card_type, of_the_chosen_color, of_the_chosen_creature_type, spell_ability, tap, target_creature, target_opponent,
+    target_player, the_chosen_number, the_chosen_objects, the_chosen_player, the_target, toughness_at_least, toughness_at_most, you,
     you_control,
 };
 use mtgsim::cards::fixtures::{
@@ -31,7 +32,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ChoiceName, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, ObjectValue, PlayerRef, PlayerSet,
+    AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, ObjectValue, PlayerRef, PlayerSet,
     ReturnUnder, SelectionFilter, TargetCount, ValueIs,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -591,7 +592,7 @@ fn a_card_type_is_chosen_from_the_few_the_text_prints() {
 
 /// "Each permanent of the chosen card type".
 fn each_of_the_chosen_card_type() -> EffectRecipient {
-    EffectRecipient::FilteredPermanents(ObjectFilter::All.and(chosen(ChoiceName::CardType)))
+    EffectRecipient::FilteredPermanents(of_the_chosen_card_type())
 }
 
 /// A choice reads a value chosen before it: "choose a color, then a
@@ -602,8 +603,8 @@ fn a_choice_of_objects_is_among_what_an_earlier_choice_describes() {
     let text = "Choose a color. Choose a creature of that color. Destroy it.";
     let effect = Effect::Sequence(vec![
         choose_color(you()),
-        choose_objects(you(), creature().and(chosen(ChoiceName::Color)), TargetCount::Exactly(1)),
-        destroy(the_chosen(ChoiceName::Objects)),
+        choose_objects(you(), creature().and(of_the_chosen_color()), TargetCount::Exactly(1)),
+        destroy(the_chosen_objects()),
     ]);
     let mut game = setup_two_player_game();
     let blue = [0, 1].map(|seat| put_on_battlefield(&mut game, creature_of("A Blue", Color::Blue, CreatureType::Merfolk), seat));
@@ -624,7 +625,7 @@ fn a_choice_of_objects_is_among_what_an_earlier_choice_describes() {
 #[test]
 fn a_count_reads_the_creature_type_chosen() {
     let text = "Choose a creature type. Draw a card for each permanent you control of that type.";
-    let of_that_type = ObjectSet::battlefield_filter(ObjectFilter::All.and(chosen(ChoiceName::CreatureType)).and(you_control()));
+    let of_that_type = ObjectSet::battlefield_filter(of_the_chosen_creature_type().and(you_control()));
     let effect = Effect::Sequence(vec![choose_creature_type(you()), draw_cards(you(), AmountExpr::CountOf(of_that_type))]);
     let mut game = stocked(2);
     for seat in [0, 0, 1] {
@@ -663,9 +664,9 @@ fn a_choice_never_made_does_not_leave_an_earlier_answer_for_the_next_step() {
     for leaves in [true, false] {
         let effect = Effect::Sequence(vec![
             choose_player(you(), PlayerSet::Everyone),
-            draw_cards(the_chosen(ChoiceName::Player), 1),
+            draw_cards(the_chosen_player(), 1),
             choose_player(target_opponent(), PlayerSet::Everyone),
-            draw_cards(the_chosen(ChoiceName::Player), 2),
+            draw_cards(the_chosen_player(), 2),
             tap(target_creature()),
         ]);
         let mut game = stocked(3);
@@ -692,7 +693,7 @@ fn a_filter_naming_a_choice_never_made_describes_nothing() {
     for leaves in [true, false] {
         let effect = Effect::Sequence(vec![
             choose_creature_type(target_opponent()),
-            destroy(EffectRecipient::FilteredPermanents(creature().other_than(chosen(ChoiceName::CreatureType)))),
+            destroy(EffectRecipient::FilteredPermanents(creature().other_than(of_the_chosen_creature_type()))),
             tap(target_creature()),
         ]);
         let mut game = setup_game(3);
@@ -713,7 +714,7 @@ fn a_filter_naming_a_choice_never_made_describes_nothing() {
 #[test]
 fn the_player_an_earlier_target_named_can_be_the_chooser() {
     let text = "Target opponent loses 1 life. That player chooses a number between 0 and 2. You draw that many cards.";
-    let effect = Effect::Sequence(vec![lose_life(target_opponent(), 1), choose_number(the_target(), 0, 2), draw_cards(you(), chosen(ChoiceName::Number))]);
+    let effect = Effect::Sequence(vec![lose_life(target_opponent(), 1), choose_number(the_target(), 0, 2), draw_cards(you(), the_chosen_number())]);
     let mut game = stocked(3);
     let targets = ScriptedDecisionProvider::new();
     picks(&targets, vec![ChoiceOption::Player(2)]);
@@ -832,12 +833,12 @@ fn a_number_a_target_opponent_chooses_is_asked_of_that_opponent() {
 #[test]
 fn a_chosen_player_makes_the_choices_a_later_step_gives_them() {
     let text = "Choose an opponent. That player chooses a number between 1 and 2, then may draw a card. You draw cards equal to the chosen number.";
-    let that_player = || the_chosen(ChoiceName::Player);
+    let that_player = || the_chosen_player();
     let effect = Effect::Sequence(vec![
         choose_player(you(), PlayerSet::Opponents),
         choose_number(that_player(), 1, 2),
         Effect::Optional { chooser: PlayerRef::NamedBy(Box::new(that_player())), effect: Box::new(draw_cards(that_player(), 1)) },
-        draw_cards(you(), chosen(ChoiceName::Number)),
+        draw_cards(you(), the_chosen_number()),
     ]);
     let mut game = stocked(3);
     cast(&mut game, sorcery("Fixture Parley", (ManaType::Blue, Color::Blue), text, effect), ManaType::Blue, ScriptedDecisionProvider::new());
@@ -868,7 +869,7 @@ fn a_chosen_creature_that_left_and_came_back_is_no_longer_the_one_chosen() {
             choose_objects(you(), creature(), TargetCount::Exactly(1)),
             exile(target_creature()),
             return_to_the_battlefield(the_target(), ReturnUnder::Owner),
-            destroy(the_chosen(ChoiceName::Objects)),
+            destroy(the_chosen_objects()),
         ])
     };
     for chosen_is_flickered in [true, false] {

@@ -3,13 +3,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    at_beginning_of, choose_objects, creatures_you_control, divided, gain_life, put_counters, the_chosen, triggered_ability, you, Whose,
+    at_beginning_of, choose_objects, creatures_you_control, divided, gain_life, put_counters, the_chosen_objects, triggered_ability, you,
+    Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, ChoiceName, Condition, CounterType, Effect, PlayerSet, TargetCount};
+use crate::types::effects::{AmountExpr, Condition, CounterType, Effect, PlayerSet, TargetCount};
 use crate::types::history::{CountIs, HistoryCount, HistorySpan, TurnFact};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
@@ -49,7 +50,7 @@ pub fn feast_of_the_victorious_dead() -> Arc<CardData> {
             effect: Effect::Sequence(vec![
                 gain_life(you(), that_many.clone()),
                 choose_objects(you(), creatures_you_control(), divided(TargetCount::AnyNumber, that_many.clone())),
-                put_counters(the_chosen(ChoiceName::Objects), CounterType::PlusOnePlusOne, that_many),
+                put_counters(the_chosen_objects(), CounterType::PlusOnePlusOne, that_many),
             ]),
         }))
         .build()

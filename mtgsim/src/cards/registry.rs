@@ -2057,40 +2057,40 @@ mod instance_references {
     #[test]
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
-            choose_color, choose_number, choose_objects, choose_one, chosen, creature, destroy, draw_cards, each, gains_ability, spell_ability,
-            the_chosen, you,
+            choose_color, choose_number, choose_objects, choose_one, creature, destroy, draw_cards, each, gains_ability, of_the_chosen_color,
+            spell_ability, the_chosen_number, the_chosen_objects, you,
         };
         use crate::types::effects::{ChoiceName, ChosenHow, PlayerRef, Primitive, SelectionFilter, TargetCount, ValueChoice};
 
         let problems = |effect: Effect| chosen_name_problems(&effect).0;
-        let destroys_the_chosen = || destroy(the_chosen(ChoiceName::Objects));
+        let destroys_the_chosen = || destroy(the_chosen_objects());
         let chooses_a_creature = || choose_objects(you(), creature(), TargetCount::Exactly(1));
         let chooses_a_number = || choose_number(you(), 0, 3);
 
         let on_a_number = Effect::Atom(Primitive::Destroy, EffectRecipient::ChosenAs(ChoiceName::Number));
         assert_eq!(problems(Effect::Sequence(vec![chooses_a_number(), on_a_number])).len(), 1, "a verb on a chosen number");
-        let draws = draw_cards(the_chosen(ChoiceName::Objects), 1);
+        let draws = draw_cards(the_chosen_objects(), 1);
         assert_eq!(problems(Effect::Sequence(vec![chooses_a_creature(), draws])).len(), 1, "a player verb on chosen objects");
         assert_eq!(problems(choose_number(each(creature()), 0, 3)).len(), 1, "a chooser that names no player");
         let may_choose = Effect::Optional { chooser: PlayerRef::You, effect: Box::new(chooses_a_number()) };
-        let reads_it_after = draw_cards(you(), chosen(ChoiceName::Number));
+        let reads_it_after = draw_cards(you(), the_chosen_number());
         assert_eq!(problems(Effect::Sequence(vec![may_choose, reads_it_after])).len(), 1, "kept inside a may, read outside it");
 
         assert!(problems(Effect::Sequence(vec![chooses_a_creature(), destroys_the_chosen()])).is_empty(), "kept, then read");
         assert_eq!(problems(destroys_the_chosen()).len(), 1, "read, and never kept");
         assert_eq!(problems(Effect::Sequence(vec![destroys_the_chosen(), chooses_a_creature()])).len(), 1, "read before it is kept");
         assert_eq!(
-            problems(Effect::Sequence(vec![choose_color(you()), draw_cards(you(), chosen(ChoiceName::Number))])).len(),
+            problems(Effect::Sequence(vec![choose_color(you()), draw_cards(you(), the_chosen_number())])).len(),
             1,
             "a color kept, and a number read"
         );
         assert_eq!(
-            problems(Effect::Sequence(vec![choose_number(you(), 0, 3), destroy(each(creature().and(chosen(ChoiceName::Color))))])).len(),
+            problems(Effect::Sequence(vec![choose_number(you(), 0, 3), destroy(each(creature().and(of_the_chosen_color())))])).len(),
             1,
             "a read inside a filter is seen"
         );
         assert_eq!(problems(choose_one([chooses_a_creature(), destroys_the_chosen()])).len(), 1, "kept in one mode, read in another");
-        let lasting = gains_ability(each(creature()), spell_ability("", draw_cards(you(), chosen(ChoiceName::Number)))).until_end_of_turn();
+        let lasting = gains_ability(each(creature()), spell_ability("", draw_cards(you(), the_chosen_number()))).until_end_of_turn();
         assert_eq!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), lasting])).len(), 1, "read by an ability that outlasts it");
         let on_a_recipient = Effect::Atom(
             Primitive::ChooseValue { name: ChoiceName::Color, what: ValueChoice::Color, how: ChosenHow::By(you()) },
@@ -2101,16 +2101,6 @@ mod instance_references {
         assert_eq!(problems(on_the_label).len(), 1, "a verb on the question's label");
     }
 
-    /// The card words refuse a name where its kind of thing cannot be read:
-    /// a number is nothing a filter describes. A debug assertion, so the
-    /// test runs where it fires.
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "a filter reads a chosen color, type or objects")]
-    fn a_chosen_number_written_into_a_filter_is_refused() {
-        use crate::cards::authoring::{chosen, creature};
-        let _ = creature().and(chosen(crate::types::effects::ChoiceName::Number));
-    }
 
     /// A division's total has two homes: the clause carries it to the
     /// announcement (CR 601.2d), or the choose step to the choice made as

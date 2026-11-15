@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
-    choose_objects, creatures_you_control, divided, gains_keyword, put_counters, spell_ability, the_chosen, you,
+    choose_objects, creatures_you_control, divided, gains_keyword, put_counters, spell_ability, the_chosen_objects, you,
 };
 use mtgsim::cards::printings::{feast_of_the_victorious_dead, final_showdown, grizzly_bears, savannah_lions};
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
@@ -18,7 +18,7 @@ use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, ChoiceName, CounterType, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount, TokenDef,
+    AmountExpr, CounterType, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
@@ -33,7 +33,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 fn it_gains_indestructible() -> [Effect; 2] {
     [
         choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
-        gains_keyword(the_chosen(ChoiceName::Objects), KeywordFlag::Indestructible).until_end_of_turn(),
+        gains_keyword(the_chosen_objects(), KeywordFlag::Indestructible).until_end_of_turn(),
     ]
 }
 
@@ -64,7 +64,7 @@ fn frost_blessing_fixture() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 choose_objects(you(), creatures_you_control(), divided(TargetCount::AnyNumber, 3)),
-                put_counters(the_chosen(ChoiceName::Objects), CounterType::PlusOnePlusOne, 3),
+                put_counters(the_chosen_objects(), CounterType::PlusOnePlusOne, 3),
             ]),
         ))
         .build()

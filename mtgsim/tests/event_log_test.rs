@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{activated_ability, choose_objects, creature, gets, spell_ability, the_chosen, you};
+use mtgsim::cards::authoring::{activated_ability, choose_objects, creature, gets, spell_ability, the_chosen_objects, you};
 use mtgsim::cards::printings::{
     banishing_light, blessed_wine, clone, cryptoplasm, gisela_blade_of_goldnight, grizzly_bears, holy_strength, mending_hands, merfolk_thaumaturgist,
     paladin_of_atonement, pinpoint_avalanche, pyroclasm, safe_passage, seeds_of_strength, soul_warden,
@@ -28,7 +28,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::costs::Cost;
-use mtgsim::types::effects::{ChoiceName, Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
+use mtgsim::types::effects::{Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId, UntilReturnId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, EventKind};
@@ -357,7 +357,7 @@ fn chosen_pump() -> Arc<CardData> {
             "Choose a creature. It gets +2/+2 until end of turn.",
             Effect::Sequence(vec![
                 choose_objects(you(), creature(), TargetCount::Exactly(1)),
-                gets(the_chosen(ChoiceName::Objects), 2, 2).until_end_of_turn(),
+                gets(the_chosen_objects(), 2, 2).until_end_of_turn(),
             ]),
         ))
         .build()

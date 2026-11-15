@@ -8,12 +8,14 @@ use std::sync::Arc;
 use crate::cards::authoring::{
     activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, at_beginning_of, at_random,
     choose, choose_card_type, choose_color, choose_creature_type, choose_each_targeting_a_different_player, choose_number, choose_objects,
-    choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_player, choose_repeatable, choose_up_to, chosen, chosen_by,
+    choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_player, choose_repeatable, choose_up_to, chosen_by,
+    of_the_chosen_card_type, of_the_chosen_color, of_the_chosen_creature_type, one_of_the_chosen, the_chosen_number, the_chosen_objects,
+    the_chosen_player,
     create_tokens, creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, divided_among_targeted, dies, discard,
     distribute_counters, draw_cards, each, each_player, enters, exile, gain_control_of, gain_life, gains_keyword, gets,
     has_base_power_and_toughness, lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_hand, return_to_the_battlefield,
     sacrifice, spell_ability, spree, static_ability, tap, target_creature, target_opponent, target_permanent, target_player, targets,
-    the_chosen, the_target, this_object, triggered_ability, untap, whenever, you, you_have, Whose,
+    the_target, this_object, triggered_ability, untap, whenever, you, you_have, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
@@ -21,7 +23,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceName, ChoiceScope, ChoiceSide, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount,
+    AmountExpr, Choice, ChoiceScope, ChoiceSide, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount,
     ObjectFilter, Pick, PlayerFact, PlayerRef, PlayerSet, ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
@@ -602,7 +604,7 @@ pub fn wash_out_fixture() -> Arc<CardData> {
         (ManaType::Blue, Color::Blue),
         3,
         "Return all permanents of the color of your choice to their owners' hands.",
-        vec![choose_color(you()), return_to_hand(each(ObjectFilter::All.and(chosen(ChoiceName::Color))))],
+        vec![choose_color(you()), return_to_hand(each(of_the_chosen_color()))],
     )
 }
 
@@ -620,7 +622,7 @@ pub fn kindred_dominance_fixture() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 choose_creature_type(you()),
-                destroy(each(creature().other_than(chosen(ChoiceName::CreatureType)))),
+                destroy(each(creature().other_than(of_the_chosen_creature_type()))),
             ]),
         ))
         .build()
@@ -638,7 +640,7 @@ pub fn world_queller_fixture() -> Arc<CardData> {
     let each_sacrifices_one_of_the_type = sacrifice(chosen_by(Choice {
         chooser: each_player(),
         among: ChoiceScope::ChoosersPermanents,
-        picks: vec![Pick::exactly(1, chosen(ChoiceName::CardType).into())],
+        picks: vec![Pick::exactly(1, of_the_chosen_card_type())],
         acts_on: ChoiceSide::Chosen,
     }));
     CardDataBuilder::new("World Queller Fixture")
@@ -670,7 +672,7 @@ pub fn by_invitation_only_fixture() -> Arc<CardData> {
     let each_sacrifices_that_many = sacrifice(chosen_by(Choice {
         chooser: each_player(),
         among: ChoiceScope::ChoosersPermanents,
-        picks: vec![Pick::exactly(chosen(ChoiceName::Number), creature())],
+        picks: vec![Pick::exactly(the_chosen_number(), creature())],
         acts_on: ChoiceSide::Chosen,
     }));
     CardDataBuilder::new("By Invitation Only Fixture")
@@ -698,9 +700,9 @@ pub fn bestowed_favors() -> Arc<CardData> {
         "Choose a player. That player draws a card. Then choose an opponent. That player creates a 1/1 white Soldier creature token.",
         vec![
             choose_player(you(), PlayerSet::Everyone),
-            draw_cards(the_chosen(ChoiceName::Player), 1),
+            draw_cards(the_chosen_player(), 1),
             choose_player(you(), PlayerSet::Opponents),
-            create_tokens(the_chosen(ChoiceName::Player), 1, TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier])),
+            create_tokens(the_chosen_player(), 1, TokenDef::creature(1, 1, &[Color::White], &[CreatureType::Soldier])),
         ],
     )
 }
@@ -716,7 +718,7 @@ pub fn consequences_at_random() -> Arc<CardData> {
         (ManaType::Red, Color::Red),
         0,
         "Choose an opponent at random. Consequences at Random deals 3 damage to that player.",
-        vec![choose_player(at_random(), PlayerSet::Opponents), deal_damage(the_chosen(ChoiceName::Player), 3)],
+        vec![choose_player(at_random(), PlayerSet::Opponents), deal_damage(the_chosen_player(), 3)],
     )
 }
 
@@ -726,7 +728,7 @@ pub fn consequences_at_random() -> Arc<CardData> {
 /// "that creature" and the last on every other.
 pub fn the_nipton_lottery_fixture() -> Arc<CardData> {
     let text = "Choose a creature at random. You gain control of that creature until end of turn. Untap it. It gains haste until end of turn. Then destroy all other creatures.";
-    let that_creature = || the_chosen(ChoiceName::Objects);
+    let that_creature = || the_chosen_objects();
     CardDataBuilder::new("The Nipton Lottery Fixture")
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Red], 2))
         .color(Color::Black)
@@ -740,7 +742,7 @@ pub fn the_nipton_lottery_fixture() -> Arc<CardData> {
                 gain_control_of(that_creature()).until_end_of_turn(),
                 untap(that_creature()),
                 gains_keyword(that_creature(), KeywordFlag::Haste).until_end_of_turn(),
-                destroy(each(creature().other_than(chosen(ChoiceName::Objects)))),
+                destroy(each(creature().other_than(one_of_the_chosen()))),
             ]),
         ))
         .build()
@@ -762,7 +764,7 @@ pub fn duneblast_fixture() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 choose_objects(you(), creature(), TargetCount::UpTo(1)),
-                destroy(each(creature().other_than(chosen(ChoiceName::Objects)))),
+                destroy(each(creature().other_than(one_of_the_chosen()))),
             ]),
         ))
         .build()
@@ -782,7 +784,7 @@ pub fn chosen_champion() -> Arc<CardData> {
         "Choose a creature you control. It gets +2/+2 and gains trample until end of turn.",
         vec![
             choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
-            gets(the_chosen(ChoiceName::Objects), 2, 2).and_gains_keyword(KeywordFlag::Trample).until_end_of_turn(),
+            gets(the_chosen_objects(), 2, 2).and_gains_keyword(KeywordFlag::Trample).until_end_of_turn(),
         ],
     )
 }
@@ -800,6 +802,6 @@ pub fn damnations_tally() -> Arc<CardData> {
         (ManaType::Black, Color::Black),
         0,
         "Target opponent chooses a number between 0 and 3. That player loses that much life.",
-        vec![choose_number(target_opponent(), 0, 3), lose_life(the_target(), chosen(ChoiceName::Number))],
+        vec![choose_number(target_opponent(), 0, 3), lose_life(the_target(), the_chosen_number())],
     )
 }
