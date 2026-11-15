@@ -1086,18 +1086,19 @@ pub fn delayed_trigger_in_log(source: &str, id: DelayedTriggerId) -> String {
     format!("{source}'s delayed trigger {}", id.0)
 }
 
-/// An ability by its source, named as the line names it: "Soul Warden
-/// (#3)'s ability", or a delayed trigger by its number.
-fn ability_in_log(source: String, identity: AbilityRef) -> String {
+/// An ability as the ability of its source, the way a countered or fizzled
+/// line names it: "Soul Warden (#3)'s ability", or a delayed trigger by its
+/// number.
+fn ability_of_its_source_in_log(source: String, identity: AbilityRef) -> String {
     match identity.ability.delayed_trigger() {
         Some(id) => delayed_trigger_in_log(&source, id),
         None => format!("{source}'s ability"),
     }
 }
 
-/// An ability that triggered or resolved: its source alone for an object's
-/// own, a delayed trigger by its number.
-fn triggered_ability_in_log(source: String, identity: AbilityRef) -> String {
+/// An ability as its source alone, the way a triggered or resolved line names
+/// it: "Soul Warden (#3)", or a delayed trigger by its number.
+fn ability_as_its_source_in_log(source: String, identity: AbilityRef) -> String {
     match identity.ability.delayed_trigger() {
         Some(id) => delayed_trigger_in_log(&source, id),
         None => source,
@@ -1173,14 +1174,14 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         AbilityActivated { identity, controller, .. } => format!(
             "AbilityActivated: {} [{}]", named(identity.source.id), player_in_log(*controller)),
         AbilityTriggered { trigger, origin, controller, .. } => {
-            let ability = triggered_ability_in_log(named(origin.source()), origin.identity());
+            let ability = ability_as_its_source_in_log(named(origin.source()), origin.identity());
             // An object's own trigger also by the number that orders it among
             // the waiting ones; a delayed trigger's name is its number.
             let number = if origin.identity().ability.delayed_trigger().is_some() { String::new() } else { format!(" #{}", trigger.0) };
             format!("AbilityTriggered: {ability} [{}]{number}", player_in_log(*controller))
         }
         AbilityResolved { identity, controller } => format!(
-            "AbilityResolved: {} [{}]", triggered_ability_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
+            "AbilityResolved: {} [{}]", ability_as_its_source_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
         DelayedTriggerCreated { id, source, controller, rules_text, duration } => {
             let fires = match duration {
                 DelayedDuration::Once => "once",
@@ -1310,10 +1311,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         ),
         AbilityCountered { identity, controller, countered_by } => format!(
             "AbilityCountered: {} [{}] countered by {}",
-            ability_in_log(named(identity.source.id), *identity), player_in_log(*controller), named(countered_by.id)),
+            ability_of_its_source_in_log(named(identity.source.id), *identity), player_in_log(*controller), named(countered_by.id)),
         SpellFizzled { spell, controller } => format!("SpellFizzled: {} [{}] {DOES_NOT_RESOLVE}", named(spell.id), player_in_log(*controller)),
         AbilityFizzled { identity, controller } => format!(
-            "AbilityFizzled: {} [{}] {DOES_NOT_RESOLVE}", ability_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
+            "AbilityFizzled: {} [{}] {DOES_NOT_RESOLVE}", ability_of_its_source_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
         PlayerLost { player_id } => format!("PlayerLost: {} by {}", player_in_log(*player_id), cause_words(cause, named)),
         PlayerWon { player_id } => format!("PlayerWon: {}", player_in_log(*player_id)),
         GameEndedInADraw => format!("GameEndedInADraw: by {}", cause_words(cause, named)),

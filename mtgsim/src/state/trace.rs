@@ -875,18 +875,32 @@ impl GameState {
     /// The text is `ui::display::format_event`'s, the same line
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
+    ///
+    /// Bare beside its two siblings, the one exception to twins naming their
+    /// case (`engineering-practices.md#names`): its dispatch asks no player
+    /// anything, and each sibling's name says what it adds to that.
     pub(crate) fn emit_event(&mut self, event: GameEvent, cause: EventCause) -> Result<(), String> {
         let stamp = self.events.stamp_caused_by(cause);
         self.emit_record(event, stamp, None)
     }
 
     /// The same door for a record emitted outside any batch whose dispatch
-    /// may have to ask a player something: `AttackersDeclared` and
-    /// `BlockersDeclared`, the records that can carry two occurrences of one
-    /// arm, which CR 603.7b's choice for a delayed trigger asks between. The
-    /// turn-based action that emits each holds the provider, and its context
-    /// names the cause.
-    pub(crate) fn emit_event_with_provider(&mut self, event: GameEvent, ctx: &ActionContext) -> Result<(), String> {
+    /// may need a player's choice about a trigger, asked through `ctx`'s
+    /// provider. Two kinds of record:
+    ///
+    /// - `AttackersDeclared` and `BlockersDeclared`, each one event that can
+    ///   hold several attacks or blocks. A delayed trigger waiting for "the
+    ///   next time a creature you control attacks" sees two creatures attack
+    ///   at once, and its controller chooses which attack triggers it
+    ///   (CR 603.7b).
+    /// - `AbilityActivated`, since a triggered mana ability resolves at the
+    ///   dispatch, right after the mana ability that triggered it (CR 605.4a):
+    ///   Fertile Ground's "adds an additional one mana of any color" asks for
+    ///   the color there.
+    ///
+    /// The action that emits each holds the provider, and its context names
+    /// the cause.
+    pub(crate) fn emit_event_with_trigger_choices(&mut self, event: GameEvent, ctx: &ActionContext) -> Result<(), String> {
         let stamp = self.events.stamp_caused_by(ctx.cause);
         self.emit_record(event, stamp, Some(ctx))
     }

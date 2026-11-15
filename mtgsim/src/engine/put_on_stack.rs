@@ -568,7 +568,7 @@ impl GameState {
             return Ok(());
         }
         let by = self.existence_for_record(by)?;
-        let previous = self.events.open_batch();
+        let previous = self.events.open_or_join_batch();
         let joined = previous.is_some();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         let mut emitted = Ok(());
@@ -606,7 +606,7 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from, source_lki };
-        self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
+        self.emit_event_with_trigger_choices(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).

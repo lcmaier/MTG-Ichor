@@ -1845,7 +1845,7 @@ with one `BatchId`, run as the outermost `execute_actions` that opened
 that batch closes it, before its riders; or one unbatched record, run
 inside `emit_event` before it returns.** The window is
 `records_since(mark)`, with `mark` the stream's sequence number at the
-outermost `open_batch`. A batch's riders then run as a new batch with its
+outermost `open_or_join_batch`. A batch's riders then run as a new batch with its
 own dispatch (`execute_riders`; `replacement-architecture.md` §2b.6,
 decision 5, built in RH-3), so every live read is taken immediately after
 the event (item 175), and "one window, one batch id" holds.

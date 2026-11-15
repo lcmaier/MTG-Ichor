@@ -85,7 +85,7 @@ fn assemble_total_cost(base: Vec<Cost>, additional: &[&AdditionalCost]) -> Total
     for cost in base {
         match cost {
             Cost::Mana(base) => {
-                total.mana.add_base(&base);
+                total.mana.add_with_x_counted(&base);
                 total.has_mana_cost = true;
             }
             other => total.non_mana.push(other),
@@ -94,7 +94,7 @@ fn assemble_total_cost(base: Vec<Cost>, additional: &[&AdditionalCost]) -> Total
     for cost in additional.iter().flat_map(|additional| additional.costs()) {
         match cost {
             Cost::Mana(more) => {
-                total.mana.add(more);
+                total.mana.add_with_x_left_as_x(more);
                 total.has_mana_cost = true;
             }
             other => total.non_mana.push(other.clone()),
@@ -165,7 +165,7 @@ pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -
         return printed.clone();
     }
     let mut mana = ManaComponent::EMPTY;
-    mana.add(printed);
+    mana.add_with_x_left_as_x(printed);
     modify(game, &mut mana, &instances, |sources, _| gather_order(sources));
     mana.at(0)
 }
@@ -208,7 +208,7 @@ impl TotalCostInX {
     /// CR 601.2f modifies the total of a cast, and 602.2b of an activation.
     pub fn of_a_payment(mana: &ManaCost, others: &[Cost]) -> TotalCostInX {
         let mut component = ManaComponent::EMPTY;
-        component.add_base(mana);
+        component.add_with_x_counted(mana);
         TotalCostInX { mana: component, non_mana: others.to_vec(), has_mana_cost: true }
     }
 
@@ -257,8 +257,12 @@ impl ManaComponent {
     pub const EMPTY: ManaComponent =
         ManaComponent { pips: Vec::new(), generic: 0, x_symbol_count: 0, generic_reduction: 0, at_least: 0 };
 
-    /// A base cost's mana, whose X is the announced X.
-    fn add_base(&mut self, mana: &ManaCost) {
+    /// Mana whose each X is counted, to become that much generic mana once
+    /// X has a value ([`Self::at`]). Fireball's {X}{R} as it is cast: X is
+    /// announced (CR 107.3a), and at X = 3 the cost is {3}{R}. Leyline
+    /// Tyrant's "you may pay any amount of {R}" as its trigger resolves: X is
+    /// chosen then (CR 107.3f).
+    fn add_with_x_counted(&mut self, mana: &ManaCost) {
         for symbol in &mana.symbols {
             match symbol {
                 ManaSymbol::X => self.x_symbol_count += 1,
@@ -268,8 +272,21 @@ impl ManaComponent {
         }
     }
 
-    /// Mana whose symbols are kept as printed, an X among them.
-    fn add(&mut self, mana: &ManaCost) {
+    /// Mana added symbol for symbol, an X left as an {X} that no value of X
+    /// turns into generic mana. Two callers:
+    ///
+    /// - [`preview_mana_cost`], a spell's cost with today's cost changes
+    ///   applied, before anything is announced. The engine reads it to decide
+    ///   which spells it offers (under Thalia, Lightning Bolt costs {1}{R}),
+    ///   and puts its least X in first, so no {X} arrives from there. The
+    ///   "can't cast" message prints it with X unannounced: Fireball "does
+    ///   not cover its cost {1}{X}{R}".
+    /// - An additional cost's mana, Burst Lightning's kicker {4}, where there
+    ///   is no X and the two adds agree. A kicker {X} (Thieving Skydiver)
+    ///   belongs in [`Self::add_with_x_counted`], since CR 107.3a makes it the
+    ///   announced X. `cost-architecture.md`'s `remaining-costs` row owns
+    ///   that, with an X in a non-mana cost; no registered card has either.
+    fn add_with_x_left_as_x(&mut self, mana: &ManaCost) {
         for symbol in &mana.symbols {
             match symbol {
                 ManaSymbol::Generic => self.generic += 1,
@@ -485,7 +502,7 @@ mod tests {
     /// `symbols` as one component, kept as printed.
     fn component(symbols: &[ManaSymbol]) -> ManaComponent {
         let mut mana = ManaComponent::EMPTY;
-        mana.add(&cost(symbols));
+        mana.add_with_x_left_as_x(&cost(symbols));
         mana
     }
 
