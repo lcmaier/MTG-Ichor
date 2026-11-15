@@ -280,24 +280,36 @@ seven cards.
 Performance **IDENTICAL** at both seats; stress differs, as predicted. Audit agreed (176,224 /
 182,557 at two seats, 449,073 / 491,435 at four); instructions a decision 0.5072 M → 0.5069 M,
 **-0.07%**; growth ×3.94 to ×4.03; the copy check names nothing new. The release tests pass, and
-the checked stress and fixture sittings at two seats read 0 errors and 0 panics. The §3 stress
-column below is this arm's. 189 s.
+the checked stress and fixture sittings at two seats read 0 errors and 0 panics. 189 s.
 
-**§3, 50 games at seed 12345**, the new baseline: performance the shipped arm's, stress round7's:
+**Rerun at the owner's ninth round (2026-11-15)**, against **base** `22f17505` (round 8's tree,
+with `main`'s `Decision*` rename merged): **new** `fe68e565`, five more printed cards registered
+from what had been fixtures (Elven Rite, Remedy, Rolling Thunder, Mogg Mob, Essence of the Wild),
+none pooled, and Inside Out's fixture cut to its first line. Predicted, before either arm ran: the
+performance pool `IDENTICAL` at both seats; the stress pool moves with the five cards.
+
+Performance **IDENTICAL** at both seats; stress differs, as predicted. Audit agreed (176,224 /
+175,161 at two seats, 449,073 / 457,527 at four); instructions a decision 0.5066 M → 0.5068 M,
+**+0.05%**, the two functions past half a point `CardRegistry::create` and `random_deck` inlined
+in one arm and not the other; growth ×3.94 to ×4.02; the copy check names nothing new. The release
+tests pass, and the checked stress and fixture sittings at two seats read 0 errors and 0 panics.
+The §3 stress column below is this arm's. 219 s.
+
+**§3, 50 games at seed 12345**, the new baseline: performance the shipped arm's, stress round 9's:
 
 | | performance | stress |
 |---|---:|---:|
-| Wins by seat | 21 / 28 | 28 / 21 |
-| Wins by effect | 1 | 1 |
-| Avg turns | 28.2 | 26.7 |
-| Spells cast | 22.4 | 18.7 |
-| Creatures died | 7.7 | 4.3 |
-| Total damage | 67.4 | 41.8 |
-| **Layer walks** | **355** | **373** |
-| **Memo hits** | **52,366** | **65,302** |
-| **Frames/walk** | **12.01** | **12.18** |
-| **Dependency checks** | **12** | **6** |
-| Decisions | 200 | 245 |
+| Wins by seat | 21 / 28 | 26 / 24 |
+| Wins by effect | 1 | 0 |
+| Avg turns | 28.2 | 26.8 |
+| Spells cast | 22.4 | 20.1 |
+| Creatures died | 7.7 | 5.6 |
+| Total damage | 67.4 | 44.1 |
+| **Layer walks** | **355** | **368** |
+| **Memo hits** | **52,366** | **54,495** |
+| **Frames/walk** | **12.01** | **10.78** |
+| **Dependency checks** | **12** | **17** |
+| Decisions | 200 | 223 |
 
 **Re-recorded 2026-11-14 for `sweep-order`, a battlefield sweep walks the table in id order**
 (`design/sweep-order`, PR #328, a detour at the owner's word from #326's review). No card moves and no
