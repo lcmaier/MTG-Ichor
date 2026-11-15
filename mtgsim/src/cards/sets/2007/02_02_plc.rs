@@ -16,8 +16,8 @@ use crate::types::mana::{ManaCost, ManaType};
 ///
 /// The pool's only Layer 7d source, and the reason it is a creature rather than
 /// the instant that already existed as a fixture: `fixtures::inside_out_fixture`
-/// simplifies a hybrid cost the engine cannot express, so it cannot be
-/// registered without lying about the card (see its doc comment).
+/// is half of Inside Out at a cost without its hybrid pip, which the engine
+/// cannot pay, so the card cannot be registered yet (see its doc comment).
 ///
 /// It is also the first `AbilityType::Activated` ability in the registry —
 /// every other registered ability is a spell, a mana ability, or a static — so
