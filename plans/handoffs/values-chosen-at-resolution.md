@@ -18,6 +18,8 @@ deletes it. Every count and line below was read against `7f0e97ef`.
   chooses, the answer is kept, later steps use it.
 - **The number comparison is one generic leaf**, where the first draft added
   `PowerAtLeast` alone.
+- **At the second round (2026-11-15), decision 1 is settled: A**, a name the
+  card gives. Decisions 2 and 3 are open.
 
 ## The model: choose, keep, use
 
@@ -372,10 +374,11 @@ color are `chosen-color-plus-could-produce`'s (step 14).
   advance the count; and a step inserted later re-points every reader after
   it, silently where two choices are of one kind.
 
-**Recommendation: A.** It is the cache the review pictured: a key, a value,
-a short life. It reads at the call site (`chosen("spared")`), and it is the
-answer step 7's decision 3 took for "the sacrificed creature", named by its
-act and not by its cost's place, for the reason C fails here.
+**Settled: A, a name the card gives** (the owner, at #330's second review
+round, 2026-11-15). It is the cache the first round pictured: a key, a
+value, a short life. It reads at the call site (`chosen("spared")`), and it
+is the answer step 7's decision 3 took for "the sacrificed creature", named
+by its act and not by its cost's place, for the reason C fails here.
 
 ### Decision 2 — one shape for a choice of objects
 
