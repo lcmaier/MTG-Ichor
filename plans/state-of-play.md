@@ -319,6 +319,7 @@ is an open plate.
 - `plans/handoffs/modes-plus-choice-kinds.md`
 - `plans/handoffs/process-pr.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
+- `plans/handoffs/sweep-order.md`
 
 ## What this file deliberately does not know
 
