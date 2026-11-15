@@ -217,9 +217,9 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
 - **Size a phase before writing it, and split it in the doc, not in the
   moment.** Implementation PRs run 1,500–2,500 lines.
 - **The band counts code plus tests** (`mtgsim/src`, `mtgsim/tests`), net of generated
-  files (the board, the ledger, `specdb.py build`'s), docs beside it. **A commit that only
-  moves code counts zero**, its imports and paths too, once a script in the PR body
-  shows each moved item byte for byte. Track it at every commit; flag a crossing at once.
+  files (the board, the ledger, `specdb.py build`'s); docs and card definitions (`cards/sets/`,
+  `cards/fixtures/`, `cards/tokens.rs`, a card's registration) are beside it (the owner, #330). **A commit that only
+  moves code counts zero**, its imports and paths too, once a script in the PR body shows each moved item byte for byte. Track it at every commit; flag a crossing at once.
 - **Hunt the gaps card by card before counting**: read every clause of every
   card the phase names against the tree, and list each facility its rows do not
   name.
@@ -300,9 +300,9 @@ A shape drawn from the cards the brief names, uncounted, is not ready for review
   `fuzz-record.md`; `performance_pool()` panics on a name no longer registered.
 - **Before a word in a card's text becomes structural, find two more cards in
   the bucket that print it.** Structure is the expensive direction to be wrong in.
-- **A fixture takes a printed card's words and shape where one has them, its
-  doc naming the card. It must not wear that name while behaving differently,
-  nor be cited in the corpus or plans as evidence about printed Magic.**
+- **A printed card's whole text is that card**, registered in its first printing's set with its
+  rulings; a fixture is a half-card or an invented card (the owner, #330), its doc naming any card
+  it borrows from, never wearing that name while behaving differently or cited as printed Magic.
 - **The pool measures cost; `--require` measures coverage.** The unforced count
   is not a target. Run `--require` once per phase that adds a card and record
   its resolutions beside its copies per deck, since a count compares only per
