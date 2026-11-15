@@ -1827,8 +1827,8 @@ mod instance_references {
                         assert!(!chains_on_a_choice(pair), "{what}: a change chained to a choice made as the effect applies chooses again");
                         if let [Effect::Atom(first, recipient), Effect::Atom(second, EffectRecipient::SameInstanceAs(ix))] = pair
                             && let Some(own) = declared_at(recipient)
-                            && change_duration(first).is_some()
-                            && change_duration(first) == change_duration(second)
+                            && continuous_effect_duration(first).is_some()
+                            && continuous_effect_duration(first) == continuous_effect_duration(second)
                         {
                             assert_eq!(*ix, own, "{what}: a change chained to instance {own} of \"target\" names instance {ix}");
                             *chains += 1;
@@ -1866,7 +1866,7 @@ mod instance_references {
 
     /// How long the continuous change a primitive makes lasts; `None` for a
     /// primitive that makes none.
-    fn change_duration(primitive: &crate::types::effects::Primitive) -> Option<crate::types::effects::Duration> {
+    fn continuous_effect_duration(primitive: &crate::types::effects::Primitive) -> Option<crate::types::effects::Duration> {
         use crate::types::effects::Primitive;
         match primitive {
             Primitive::SetPowerToughness(_, _, d)
@@ -1892,7 +1892,7 @@ mod instance_references {
     /// would ask the choice twice.
     fn chains_on_a_choice(pair: &[Effect]) -> bool {
         matches!(pair, [Effect::Atom(first, chosen @ EffectRecipient::Choose(..)), Effect::Atom(second, again)]
-            if change_duration(first).is_some() && change_duration(first) == change_duration(second) && chosen == again)
+            if continuous_effect_duration(first).is_some() && continuous_effect_duration(first) == continuous_effect_duration(second) && chosen == again)
     }
 
     /// The refusal bites: "choose a creature you control; it gains
