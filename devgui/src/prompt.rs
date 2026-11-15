@@ -216,6 +216,8 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         | ChoiceOption::Number(_)
         | ChoiceOption::Modes(_)
         | ChoiceOption::Color(_)
+        | ChoiceOption::CreatureType(_)
+        | ChoiceOption::CardType(_)
         | ChoiceOption::CounterType(_)
         | ChoiceOption::ManaType(_) => vec![],
     };

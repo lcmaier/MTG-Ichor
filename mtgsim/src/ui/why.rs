@@ -244,6 +244,8 @@ fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
         | ChoiceOption::AdditionalCost(_)
         | ChoiceOption::Number(_)
         | ChoiceOption::Color(_)
+        | ChoiceOption::CreatureType(_)
+        | ChoiceOption::CardType(_)
         | ChoiceOption::CounterType(_)
         | ChoiceOption::ManaType(_) => Vec::new(),
     }
@@ -321,8 +323,10 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             };
             not_an_opponent_refusal(game, question.player, player, to)
         }
-        (ChoiceKind::ChooseOpponent { .. }, WhyAbout::Player(player)) => {
-            not_an_opponent_refusal(game, question.player, player, "To control it")
+        // Offered every player the choice admits: one not offered is the
+        // chooser where only an opponent may be named, or has left the game.
+        (ChoiceKind::ChoosePlayer { .. }, WhyAbout::Player(player)) if !offered => {
+            not_an_opponent_refusal(game, question.player, player, "To be chosen")
         }
         (ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to }, WhyAbout::Object(id)) if !offered => {
             auxiliary_refusal(game, question.player, (*entering, *source, *to), id).into_iter().collect()
@@ -362,7 +366,11 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | ChoiceKind::ChooseDamageSource { .. }
             | ChoiceKind::ChooseDelayedTriggerEvent { .. }
             | ChoiceKind::ChoosePlayerAsObjectEnters { .. }
-            | ChoiceKind::ChooseOpponent { .. }
+            | ChoiceKind::ChoosePlayer { .. }
+            | ChoiceKind::ChooseColor { .. }
+            | ChoiceKind::ChooseCreatureType { .. }
+            | ChoiceKind::ChooseCardType { .. }
+            | ChoiceKind::ChooseNumber { .. }
             | ChoiceKind::ChooseEnteringDefender { .. }
             | ChoiceKind::AcceptAsObjectEnters { .. }
             | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
@@ -534,9 +542,17 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
         ChoiceKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::CounterPutter, .. } => {
             (format!("the opponents still in the game, one of whom may put counters on {} as it enters", n(object)), Some("702.104a"))
         }
-        ChoiceKind::ChooseOpponent { source } => {
-            (format!("the opponents still in the game, one of whom {}'s instruction names", n(source)), Some("608.2d"))
+        ChoiceKind::ChoosePlayer { source } => {
+            (format!("the players still in the game {}'s instruction may name, one of whom it names", n(source)), Some("608.2d"))
         }
+        ChoiceKind::ChooseColor { source } => (format!("the five colors, one of which {}'s instruction names", n(source)), Some("105.4")),
+        ChoiceKind::ChooseCreatureType { source } => {
+            (format!("the creature types, one of which {}'s instruction names", n(source)), Some("205.3m"))
+        }
+        ChoiceKind::ChooseCardType { source } => {
+            (format!("the card types {}'s instruction may name, one of which it names", n(source)), Some("205.2a"))
+        }
+        ChoiceKind::ChooseNumber { source, .. } => (format!("the numbers {}'s instruction may be given", n(source)), Some("608.2d")),
         ChoiceKind::ChooseEnteringDefender { object } => {
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }

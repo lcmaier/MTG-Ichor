@@ -186,7 +186,11 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         | ChoiceKind::AllocateNextDamage { .. }
         | ChoiceKind::ChooseDamageSource { .. }
         | ChoiceKind::ChoosePlayerAsObjectEnters { .. }
-        | ChoiceKind::ChooseOpponent { .. }
+        | ChoiceKind::ChoosePlayer { .. }
+        | ChoiceKind::ChooseColor { .. }
+        | ChoiceKind::ChooseCreatureType { .. }
+        | ChoiceKind::ChooseCardType { .. }
+        | ChoiceKind::ChooseNumber { .. }
         | ChoiceKind::ChooseEnteringDefender { .. }
         | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
         | ChoiceKind::ChooseCopySource { .. } => LineAnswer::Unanswered,

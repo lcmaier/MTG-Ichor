@@ -2990,7 +2990,7 @@ impl GameState {
         if matches!(who, PlayerRef::Opponent) && Self::opponent_among(recipients, ctx).is_none() {
             let opponents = self.opponents_of(ctx.controller);
             if opponents.len() > 1 {
-                return Ok(crate::ui::ask::ask_choose_opponent(dp, self, ctx.controller, ctx.effect_source(), &opponents));
+                return Ok(crate::ui::ask::ask_choose_player(dp, self, ctx.controller, ctx.effect_source(), &opponents));
             }
         }
         self.resolve_player_ref(who, recipients, ctx)

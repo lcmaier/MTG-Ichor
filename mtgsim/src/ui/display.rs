@@ -485,7 +485,11 @@ pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
         ChoiceKind::ChooseDelayedTriggerEvent { source } => {
             format!("Choose which event triggers {}'s delayed ability", n(source))
         }
-        ChoiceKind::ChooseOpponent { source } => format!("Choose the opponent {} names", n(source)),
+        ChoiceKind::ChoosePlayer { source } => format!("Choose the player {} names", n(source)),
+        ChoiceKind::ChooseColor { source } => format!("Choose a color for {}", n(source)),
+        ChoiceKind::ChooseCreatureType { source } => format!("Choose a creature type for {}", n(source)),
+        ChoiceKind::ChooseCardType { source } => format!("Choose a card type for {}", n(source)),
+        ChoiceKind::ChooseNumber { source, .. } => format!("Choose a number for {}", n(source)),
         ChoiceKind::ChoosePlayerAsObjectEnters { object, role, .. } => match role {
             EntryRole::Controller => format!("Choose the opponent who controls {} as it enters", n(object)),
             EntryRole::CounterPutter => format!("Choose the opponent who may put counters on {} as it enters", n(object)),
@@ -544,6 +548,8 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
             several => format!("Modes {}", several.iter().map(ToString::to_string).collect::<Vec<_>>().join(" and ")),
         },
         ChoiceOption::Color(color) => color_name(*color).to_string(),
+        ChoiceOption::CreatureType(creature_type) => crate::types::card_types::Subtype::Creature(*creature_type).word(),
+        ChoiceOption::CardType(card_type) => format!("{card_type:?}"),
         ChoiceOption::CounterType(counter) => counter.name().to_string(),
         ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
         ChoiceOption::Trigger(TriggerOption { source, ability, triggered_by }) => {

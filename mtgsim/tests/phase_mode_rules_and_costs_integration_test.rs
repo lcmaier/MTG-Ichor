@@ -319,7 +319,7 @@ fn with_two_opponents_the_caster_picks_which_chooses() {
     let spell = put_in_hand(&mut game, tribute_offering(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 2);
     let answers = ScriptedDecisionProvider::new();
-    answers.expect_choice(ChoiceKind::ChooseOpponent { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Player(2)]);
+    answers.expect_choice(ChoiceKind::ChoosePlayer { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Player(2)]);
     chooses_modes(&answers, &[2]);
     let (showing, shown) = Showing::new(answers);
     game.cast_spell(0, spell, &ManaWindowStop::new(showing)).expect("castable");

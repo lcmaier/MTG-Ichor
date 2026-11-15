@@ -221,7 +221,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::AllocateNextDamage { source: object, remaining: 2 },
         ChoiceKind::ChooseDamageSource { source: object },
         ChoiceKind::ChooseDelayedTriggerEvent { source: object },
-        ChoiceKind::ChooseOpponent { source: object },
+        ChoiceKind::ChoosePlayer { source: object },
         ChoiceKind::ChoosePlayerAsObjectEnters { object, source: object, role: EntryRole::Controller },
         ChoiceKind::ChooseEnteringDefender { object },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: object, source: object, to: Zone::Graveyard },
@@ -242,6 +242,10 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
             of: AmountOf::AnyAmountOf(ManaCost::build(&[mtgsim::types::mana::ManaType::Red], 0)),
             values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 2 }),
         },
+        ChoiceKind::ChooseColor { source: object },
+        ChoiceKind::ChooseCreatureType { source: object },
+        ChoiceKind::ChooseCardType { source: object },
+        ChoiceKind::ChooseNumber { source: object, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
     ];
     let place = |kind: &ChoiceKind| match kind {
         ChoiceKind::PriorityAction => 0,
@@ -264,7 +268,7 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::AllocateNextDamage { .. } => 17,
         ChoiceKind::ChooseDamageSource { .. } => 18,
         ChoiceKind::ChooseDelayedTriggerEvent { .. } => 19,
-        ChoiceKind::ChooseOpponent { .. } => 20,
+        ChoiceKind::ChoosePlayer { .. } => 20,
         ChoiceKind::ChoosePlayerAsObjectEnters { .. } => 21,
         ChoiceKind::ChooseEnteringDefender { .. } => 22,
         ChoiceKind::ChooseAuxiliaryZoneChange { .. } => 23,
@@ -281,9 +285,13 @@ fn every_kind(object: ObjectId) -> Vec<ChoiceKind> {
         ChoiceKind::ChooseModes { .. } => 34,
         ChoiceKind::PayAsItResolves { .. } => 35,
         ChoiceKind::ChooseAmountToPay { .. } => 36,
+        ChoiceKind::ChooseColor { .. } => 37,
+        ChoiceKind::ChooseCreatureType { .. } => 38,
+        ChoiceKind::ChooseCardType { .. } => 39,
+        ChoiceKind::ChooseNumber { .. } => 40,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..37).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..41).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

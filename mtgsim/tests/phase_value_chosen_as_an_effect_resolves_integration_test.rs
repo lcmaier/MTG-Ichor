@@ -18,7 +18,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, forest, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, ObjectValue, SelectionFilter, TargetCount, ValueIs,
@@ -172,6 +172,35 @@ fn a_draw_whose_target_player_has_left_is_no_ones() {
     game.resolve_top_of_stack(&test_dp()).expect("it resolves: one target is still legal");
     assert_eq!(game.players[0].hand.len(), 0, "the departed player's draw is no one's");
     assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 1, "the creature is still affected");
+}
+
+// ---------------------------------------------------------------------------
+// What a choice of a kind offers
+// ---------------------------------------------------------------------------
+
+/// CR 205.3m — the creature types are the rule's list, word for word as the
+/// rules file prints it: Human is one, the two-word Time Lord is one, and
+/// Forest, a land type, is not a `CreatureType` at all.
+#[test]
+fn the_creature_types_are_the_ones_the_rule_lists() {
+    let rules = include_str!("../../MTG-Rules/versions/tmnt.txt");
+    let rule = rules.lines().find(|line| line.starts_with("205.3m ")).expect("the rules file has CR 205.3m");
+    let one_word = rule.split("one word long: ").nth(1).expect("the rule lists its one-word types").trim_end_matches('.');
+    let mut printed: Vec<String> =
+        one_word.split(", ").map(|word| word.trim_start_matches("and ").replace('\u{2019}', "'")).chain(["Time Lord".to_string()]).collect();
+    let mut ours: Vec<String> = CreatureType::ALL.iter().map(|creature_type| Subtype::Creature(*creature_type).word()).collect();
+    printed.sort();
+    ours.sort();
+    assert_eq!(ours, printed);
+    assert!(ours.contains(&"Human".to_string()) && ours.contains(&"Time Lord".to_string()));
+    assert!(!ours.contains(&"Forest".to_string()));
+}
+
+/// CR 105.4 — "choose a color" is one of the five; "multicolored" and
+/// "colorless" are not colors, and `Color` has no arm to say either.
+#[test]
+fn the_colors_are_the_five() {
+    assert_eq!(Color::ALL, [Color::White, Color::Blue, Color::Black, Color::Red, Color::Green]);
 }
 
 /// The same spell with its player still here: that player draws, and its
