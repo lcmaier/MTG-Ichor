@@ -5,7 +5,9 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{creatures_you_control, spell_ability};
+use mtgsim::cards::authoring::{
+    choose_objects, creatures_you_control, divided, gains_keyword, put_counters, spell_ability, the_chosen, you,
+};
 use mtgsim::cards::printings::{feast_of_the_victorious_dead, final_showdown, grizzly_bears, savannah_lions};
 use mtgsim::engine::actions::{GameAction, ZoneChangeAct};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -16,7 +18,7 @@ use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, CounterType, DividedCount, Duration, Effect, EffectRecipient, PlayerRef, Primitive, SelectionFilter, TargetCount, TokenDef,
+    AmountExpr, ChoiceName, CounterType, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
@@ -25,6 +27,15 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
+
+/// "Choose a creature you control. It gains indestructible until end of
+/// turn.": the choice, and the change on what was chosen.
+fn it_gains_indestructible() -> [Effect; 2] {
+    [
+        choose_objects(you(), creatures_you_control(), TargetCount::Exactly(1)),
+        gains_keyword(the_chosen(ChoiceName::Objects), KeywordFlag::Indestructible).until_end_of_turn(),
+    ]
+}
 
 /// **Fixture.** Final Showdown's second mode alone: "Choose a creature you
 /// control. It gains indestructible until end of turn."
@@ -35,13 +46,7 @@ fn showdown_fixture() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text(text)
-        .ability(spell_ability(
-            text,
-            Effect::Atom(
-                Primitive::GrantKeywordFlag(KeywordFlag::Indestructible, Duration::UntilEndOfTurn),
-                EffectRecipient::Choose(SelectionFilter::Permanent(creatures_you_control()), TargetCount::Exactly(1)),
-            ),
-        ))
+        .ability(spell_ability(text, Effect::Sequence(it_gains_indestructible().to_vec())))
         .build()
 }
 
@@ -50,7 +55,6 @@ fn showdown_fixture() -> Arc<CardData> {
 /// counters among any number of creatures you control."
 fn frost_blessing_fixture() -> Arc<CardData> {
     let text = "Distribute three +1/+1 counters among any number of creatures you control.";
-    let among = TargetCount::Divided(Box::new(DividedCount { among: TargetCount::AnyNumber, total: AmountExpr::Fixed(3) }));
     CardDataBuilder::new("Fixture Frost Blessing")
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .color(Color::Green)
@@ -58,10 +62,10 @@ fn frost_blessing_fixture() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            Effect::Atom(
-                Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(3), by: PlayerRef::You },
-                EffectRecipient::Choose(SelectionFilter::Permanent(creatures_you_control()), among),
-            ),
+            Effect::Sequence(vec![
+                choose_objects(you(), creatures_you_control(), divided(TargetCount::AnyNumber, 3)),
+                put_counters(the_chosen(ChoiceName::Objects), CounterType::PlusOnePlusOne, 3),
+            ]),
         ))
         .build()
 }
@@ -107,17 +111,18 @@ fn chosen_beside_a_target() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::GrantKeywordFlag(KeywordFlag::Indestructible, Duration::UntilEndOfTurn),
-                    EffectRecipient::Choose(SelectionFilter::Permanent(creatures_you_control()), TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(
-                    Primitive::DealDamage { amount: AmountExpr::Fixed(4), unpreventable: false },
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                ),
-                Effect::Atom(Primitive::Tap, EffectRecipient::SameInstanceAs(0)),
-            ]),
+            Effect::Sequence(
+                it_gains_indestructible()
+                    .into_iter()
+                    .chain([
+                        Effect::Atom(
+                            Primitive::DealDamage { amount: AmountExpr::Fixed(4), unpreventable: false },
+                            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                        ),
+                        Effect::Atom(Primitive::Tap, EffectRecipient::SameInstanceAs(0)),
+                    ])
+                    .collect(),
+            ),
         ))
         .build()
 }

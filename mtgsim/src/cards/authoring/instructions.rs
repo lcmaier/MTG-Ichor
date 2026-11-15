@@ -197,24 +197,25 @@ const EACH_TARGETS_SHARE: u64 = 0;
 /// that divides nothing is a card written with the wrong word, refused where
 /// every card is built, in the registry's tests.
 fn total_divided(division: &EffectRecipient) -> AmountExpr {
-    let (EffectRecipient::Target(_, TargetCount::Divided(divided)) | EffectRecipient::Choose(_, TargetCount::Divided(divided))) = division
-    else {
-        debug_assert!(false, "{division:?} divides nothing: write it with `divided_among_targeted` or `divided_among_untargeted`");
+    let EffectRecipient::Target(_, TargetCount::Divided(divided)) = division else {
+        debug_assert!(false, "{division:?} divides nothing: write it with `divided_among_targeted`");
         return AmountExpr::Fixed(0);
     };
     divided.total.clone()
 }
 
 /// "[This] deals [total] damage divided as you choose among [division]": its
-/// targets announced and divided as it is cast (CR 601.2d), or objects chosen
-/// and divided as it resolves (608.2d). The atom prints the division's total.
+/// targets announced and divided as it is cast (CR 601.2d). The atom prints
+/// the division's total. A division among objects not targeted is a choose
+/// step's (`choose_objects` with a `divided` count), and the verb after it
+/// acts on `the_chosen` by their shares.
 pub fn deal_damage_divided(division: EffectRecipient) -> Effect {
     let total = total_divided(&division);
     deal_damage(division, total)
 }
 
-/// "Distribute [total] [counter]s among [division]", put by you: targets (CR
-/// 601.2d) or objects chosen as it resolves (608.2d), as the division says.
+/// "Distribute [total] [counter]s among [division]", put by you: targets
+/// announced and divided as it is cast (CR 601.2d).
 pub fn distribute_counters(division: EffectRecipient, counter: CounterType) -> Effect {
     let total = total_divided(&division);
     put_counters(division, counter, total)
@@ -434,15 +435,6 @@ impl ContinuousChange {
 
     /// The instructions, each lasting `duration`.
     pub(super) fn lasting(self, duration: Duration) -> Effect {
-        // "It" after "choose a creature" names what a choice made as the
-        // effect applies chose, a word `values-chosen-at-resolution` designs:
-        // until then a second change would choose again. Every card is built
-        // in the registry's tests, so this refuses one there.
-        debug_assert!(
-            !(matches!(self.recipient, EffectRecipient::Choose(..)) && self.steps.len() > 1),
-            "a second change chained to a choice would choose again: {:?}",
-            self.recipient
-        );
         let again = match &self.recipient {
             EffectRecipient::Target(..) => EffectRecipient::SameInstanceAs(0),
             recipient => recipient.clone(),

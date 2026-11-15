@@ -612,12 +612,8 @@ impl GameState {
             // checked against the verb's own event (CR 101.2), so a "can't"
             // removes a candidate rather than refusing a choice.
             EffectRecipient::ChosenBy(choice) => each(self.choose_as_it_applies(primitive, choice, declared, walk, ctx, dp)?),
-            EffectRecipient::Choose(filter, count) => {
-                let (chosen, shares) = self.choose_objects(recipient, filter, count, Some(ctx.controller), ctx, dp)?;
-                Ok(match shares.is_empty() {
-                    true => Recipients::Each { clause: recipient, found: Cow::Owned(chosen) },
-                    false => Recipients::Divided { clause: recipient, shares: chosen.into_iter().zip(shares).collect() },
-                })
+            EffectRecipient::Choose(..) => {
+                Err(format!("{recipient:?} on {:?} is a question's label: a card chooses objects with a choose step", ctx.source))
             }
             // "It", "that player": what a choose step of this resolution kept.
             EffectRecipient::ChosenAs(name) => self.kept_as_recipients(primitive, recipient, *name, ctx),

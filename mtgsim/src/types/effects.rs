@@ -1344,13 +1344,12 @@ pub enum EffectRecipient {
     /// Select with targeting rules — hexproof/shroud/protection apply,
     /// fizzles if all targets become illegal (rule 608.2b).
     Target(SelectionFilter, TargetCount),
-    /// "Choose a creature you control" (CR 115.10): the controller picks as
-    /// the instruction applies (CR 608.2d), never as the spell or ability is
-    /// put on the stack, so it is no instance of "target". Hexproof and shroud
-    /// stop only targeting (CR 702.11b, 702.18a), nothing re-checks the choice
-    /// (608.2b), and with nothing to choose the instruction does nothing, so
-    /// the spell is castable on an empty board. A `Divided` count divides
-    /// among what is chosen, at least one each (608.2d).
+    /// The label of a question that chooses objects without targeting them
+    /// (CR 115.10): what `ChoiceKind::SelectRecipients` carries for a choose
+    /// step's objects ([`ValueChoice::Objects`]), an edict's pick and an
+    /// Aura's host as it enters. No card writes it as what a verb acts on: a
+    /// card chooses with a choose step, and the registry's tests refuse one
+    /// that does not.
     Choose(SelectionFilter, TargetCount),
     /// CR 115.3 — an instance of "target" that an **earlier atom of this same
     /// effect** already announced.

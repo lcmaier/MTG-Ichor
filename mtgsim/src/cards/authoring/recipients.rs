@@ -58,7 +58,15 @@ pub fn targets(count: u32, filter: SelectionFilter) -> EffectRecipient {
 /// `total` "divided as you choose among" `among` targets matching `what`: one
 /// instance of "target" (CR 115.3) whose announcement also divides (CR 601.2d).
 pub fn divided_among_targeted(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
-    EffectRecipient::Target(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
+    EffectRecipient::Target(what, divided(among, total))
+}
+
+/// "[Total] distributed among [among]", "divided as you choose among": a
+/// count that also splits `total` among what is chosen, at least one each
+/// (CR 601.2d, 608.2d). A choose step's count for objects chosen and divided
+/// as it runs, none of them a target.
+pub fn divided(among: TargetCount, total: impl Into<AmountExpr>) -> TargetCount {
+    TargetCount::Divided(Box::new(DividedCount { among, total: total.into() }))
 }
 
 /// "It", "that creature", "them": what was chosen for the `ix`th instance of
@@ -93,23 +101,6 @@ pub fn any_other_target() -> EffectRecipient {
 /// than the permanent: `target_permanent(another(ObjectFilter::All))`, Flickerwisp's.
 pub fn another_target(filter: SelectionFilter) -> EffectRecipient {
     target(SelectionFilter::Another(Box::new(filter)))
-}
-
-// ---------------------------------------------------------------------------
-// CR 115.10's objects chosen, not targeted
-// ---------------------------------------------------------------------------
-
-/// "Choose a [permanent the filter describes]": its controller picks one as
-/// the instruction applies (CR 608.2d), and it is no target (CR 115.10a).
-pub fn chosen_permanent(filter: ObjectFilter) -> EffectRecipient {
-    EffectRecipient::Choose(SelectionFilter::Permanent(filter), TargetCount::Exactly(1))
-}
-
-/// `total` distributed among `among` objects matching `what`, none of them
-/// targets: chosen and divided as the instruction applies, at least one
-/// each (CR 608.2d). [`divided_among_targeted`] is the targets' division.
-pub fn divided_among_untargeted(what: SelectionFilter, among: TargetCount, total: AmountExpr) -> EffectRecipient {
-    EffectRecipient::Choose(what, TargetCount::Divided(Box::new(DividedCount { among, total })))
 }
 
 // ---------------------------------------------------------------------------

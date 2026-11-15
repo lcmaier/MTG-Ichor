@@ -1896,6 +1896,9 @@ mod instance_references {
                             false => self.read(&format!("{primitive:?}"), kept),
                         }
                         self.read(&format!("{recipient:?}"), kept);
+                        if matches!(recipient, EffectRecipient::Choose(..)) {
+                            self.problems.push(format!("{recipient:?} is a question's label: a card chooses with a choose step"));
+                        }
                         if let Primitive::ChooseValue { name, .. } = primitive {
                             if *recipient != EffectRecipient::Implicit {
                                 self.problems.push(format!("a choose step acts on nothing, and is written on {recipient:?}"));
@@ -1973,15 +1976,15 @@ mod instance_references {
 
     /// The check above fails where it should: a name read with no choose
     /// step, read before its choose step, read from another mode, read by
-    /// an ability that outlasts the resolution, and a choose step written on
-    /// a recipient.
+    /// an ability that outlasts the resolution, a choose step written on a
+    /// recipient, and a verb written on the question's label.
     #[test]
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
             choose_color, choose_number, choose_objects, choose_one, chosen, creature, destroy, draw_cards, each, gains_ability, spell_ability,
             the_chosen, you,
         };
-        use crate::types::effects::{ChoiceName, ChosenHow, Primitive, TargetCount, ValueChoice};
+        use crate::types::effects::{ChoiceName, ChosenHow, Primitive, SelectionFilter, TargetCount, ValueChoice};
 
         let problems = |effect: Effect| chosen_name_problems(&effect).0;
         let destroys_the_chosen = || destroy(the_chosen(ChoiceName::Objects));
@@ -2008,31 +2011,48 @@ mod instance_references {
             you(),
         );
         assert_eq!(problems(on_a_recipient).len(), 1, "a choose step on a recipient");
+        let on_the_label = destroy(EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)));
+        assert_eq!(problems(on_the_label).len(), 1, "a verb on the question's label");
     }
 
     /// A division's total has two homes: the clause carries it to the
-    /// announcement (CR 601.2d) or to the choice made as the effect applies
-    /// (608.2d), and the atom prints it. Nothing reads the atom's copy, so
-    /// this is what keeps them one number, on every card and castable fixture.
-    /// A shield prints none, each row's count being its target's share.
+    /// announcement (CR 601.2d), or the choose step to the choice made as
+    /// the effect applies (608.2d), and the atom that acts by the shares
+    /// prints it. Nothing reads the atom's copy, so this is what keeps them
+    /// one number, on every card and castable fixture. A shield prints none,
+    /// each row's count being its target's share.
     #[test]
     fn every_divided_atom_prints_what_its_clause_divides() {
-        use crate::types::effects::{Primitive, TargetCount};
+        use crate::types::effects::{AmountExpr, ChoiceName, Primitive, TargetCount, ValueChoice};
         let pool = CardRegistry::fixture_pool();
         let mut names: Vec<String> = pool.cards.keys().cloned().collect();
         names.sort();
         let mut divided = 0;
         for name in names {
             for ability in (pool.cards[name.as_str()])().abilities.iter() {
+                // What each choose step of the ability divides, by the name
+                // it keeps the objects and their shares under.
+                let mut kept_divisions: Vec<(ChoiceName, &AmountExpr)> = Vec::new();
+                for_each_atom(&ability.effect, &mut |primitive, _| {
+                    if let Primitive::ChooseValue { name, what: ValueChoice::Objects(_, TargetCount::Divided(clause)), .. } = primitive {
+                        kept_divisions.push((*name, &clause.total));
+                    }
+                });
                 for_each_atom(&ability.effect, &mut |primitive, recipient| {
-                    let (EffectRecipient::Target(_, TargetCount::Divided(clause)) | EffectRecipient::Choose(_, TargetCount::Divided(clause))) = recipient
-                    else {
-                        return;
+                    let total = match recipient {
+                        EffectRecipient::Target(_, TargetCount::Divided(clause)) => &clause.total,
+                        EffectRecipient::ChosenAs(kept_as) if primitive.divides() => {
+                            match kept_divisions.iter().find(|(name, _)| name == kept_as) {
+                                Some((_, total)) => *total,
+                                None => return,
+                            }
+                        }
+                        _ => return,
                     };
                     divided += 1;
                     match primitive {
                         Primitive::DealDamage { amount, .. } | Primitive::AddCounters { amount, .. } => {
-                            assert_eq!(amount, &clause.total, "{name} prints one amount and divides another");
+                            assert_eq!(amount, total, "{name} prints one amount and divides another");
                         }
                         Primitive::CreateReplacement(..) => {}
                         other => panic!("{name} divides {other:?}, which reads no share"),
@@ -2127,19 +2147,6 @@ mod instance_references {
         }
     }
 
-    /// The builder refuses a second change chained to a choice made as the
-    /// effect applies, which would choose again; one change is built. The
-    /// refusal is a debug assertion, so the test runs where it fires.
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "a second change chained to a choice would choose again")]
-    fn a_change_chained_to_a_choice_is_refused() {
-        use crate::cards::authoring::{chosen_permanent, creatures_you_control, gains_keyword};
-        use crate::types::keywords::KeywordFlag;
-        let one = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn();
-        assert!(!matches!(one, Effect::Sequence(_)), "one change is one atom, nothing chained");
-        let _ = gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).and_gets(1, 1).until_end_of_turn();
-    }
 
     /// For every registered card, the stored lists of instances of "target"
     /// (CR 115.3) — `AbilityDef::instances` on each def, `CardData::spell_instances`
