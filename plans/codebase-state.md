@@ -10928,18 +10928,13 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~80–150 lines: the walk keeps each choice's picks by its
      place, a recipient reads them, and `ContinuousChange` chains on it.
 
-427. **The dev GUI's click tests reach their coverage on some deals only.**
-     `devgui/tests/random_clicks.rs` asserts that its dealt games close the
-     why panel and show an option's words, and a pooled card reshapes every
-     deal. With Feast of the Victorious Dead pooled, seeds 1–3 asked 213 whys
-     and closed the panel none of the times, and three of seven triples tried
-     from 4 to 27 failed one assertion or two; 4–6 fails on the tree before
-     the pool changed too. The close is one input among a board's items and
-     the panel's links, so a pool change can fail the test with no defect in
-     the window.
-     **Reachability (2026-11-14):** reached on this branch, the seeds
-     re-picked to 13–15.
-     **Slotted:** `devgui-at-five-seats`, the dev GUI's next row.
-     **Sized:** ~15–30 lines: an open panel closed at a rate of its own
-     rather than as one link among many, and an option's words read off a
-     review board's modal card rather than a deal.
+427. **The dev GUI's click tests reached their coverage on some deals only.**
+     — ✅ closed. `devgui/tests/random_clicks.rs` asserts that its dealt games
+     close the why panel, and the close was drawn as one input among a
+     board's items and the panel's links. With Feast of the Victorious Dead
+     pooled, seeds 1–3 asked 213 whys and closed the panel none of the times.
+     The close now has odds of its own (`CLOSE_ONE_IN`), so reaching it is the
+     click policy's, not the deal's: seeds 1–3 pass, and so do 4–6, 7–9 and
+     16–18, which failed before. The seeds were not re-picked (the owner, at
+     #326's review: a test made to pass by its seeds proves nothing).
+     **Reachability (2026-11-14):** closed — #326.

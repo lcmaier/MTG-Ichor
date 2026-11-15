@@ -62,7 +62,7 @@ merges.
   `choices-architecture.md`: decision 8 whole, through one route from a
   recipient to what its verb acts on (item 28 closed), and the division among
   objects not targeted. Final Showdown registered, Feast of the Victorious Dead
-  pooled; items 425 to 427 found, a player chosen, "it" after a choice and
-  the dev GUI's click tests' deals.
+  pooled; items 425 and 426 found, a player chosen and "it" after a choice,
+  and item 427, the dev GUI's click tests' deals, found and closed.
 - Next: `values-chosen-at-resolution`, decision 7's kinds, which closes the
   subsystem; item 425 is its, and item 426 asks its design.
