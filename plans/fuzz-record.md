@@ -202,6 +202,44 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-14 for `sweep-order`, a battlefield sweep walks the table in id order**
+(`design/sweep-order`, PR #328, a detour at the owner's word from #326's review). No card moves and no
+pool changes, so neither §3 column is re-recorded. Two `close_out.py` sittings against **main**
+`cf7a68d9` (#327's merge): the first with **c1** `57d0cc96` (the sweeps alone) and **engine**
+`2facb69d` (the filed-source tables too); the second, after the pre-review's fixes, with **final**
+`64647774` against **idmain** `82122d66`, a throwaway arm never pushed: `main` with each of its
+timestamp sorts keyed on the id instead, so it plays C's games on `main`'s code.
+
+**Predictions, before any arm ran**:
+- main → c1 and main → engine: gameplay rows move on both pools at both seats, since every option
+  list the battlefield feeds changes order and the random agents pick differently; the audit agrees;
+- c1 → engine: every row identical, the tables walking in the order c1 sorted to;
+- instructions per decision 1 to 3% lower, main → engine, not at identical counters;
+- growth within ×4.35.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | differ (predicted) | differ (predicted) |
+| cost rows, `main` → c1 and `main` → engine | the same readings to the digit | the same readings to the digit |
+| audit, engine and final, performance / stress, dispatches agreed | 178,423 / 179,606 | 413,860 / 431,943 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6600 M → 0.8627 M, +30.71%, different games |
+| the same, 100 games | | 0.6196 M → 0.6382 M, +3.0%, different games |
+| gameplay and cost rows, final vs idmain, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| instructions / decision, final vs idmain, callgrind, the Commander board | | 0.8775 M → 0.8623 M, **-1.74%** |
+| clone, worst decision (`clone_bound_test`), engine | 41 allocations, 6.8 KB; 10.1 KB on the 50-Goblin board | |
+| clone, c1 → the tables, the same games, every checkpoint | allocations equal or 1–4 fewer, 0–0.7 KB less | |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**The instructions prediction missed, and the miss was the reading's, not the code's.** C changes
+which games the agents play, so `main` → engine compares different games: the 20 seeds ran 111 turns
+a game against 95, and 650 dependency checks against 362; 100 seeds, 92 turns against 89. A per-decision
+total across different games is not the code's cost. idmain plays engine's games on `main`'s code,
+every counter identical, and reads C at **-1.74%**: the sorts and the timestamp copy gone, the
+state-based sweeps and the priority list walking the table without collecting. Native, 200 Commander
+games at eight threads: 1.93 s → 1.88 s. The copy check's twelve compositions are the sweeps naming
+`battlefield` where they called a sweep function, each with its own rule's predicate, and stay. 299 s
+and 218 s.
+
 **Re-recorded 2026-11-14 for `ordered-sweeps-sort-their-matches`, an ordered sweep sorts what it keeps**
 (`state/ordered-sweeps-sort-their-matches`, PR #325, a detour off the route: `codebase-state.md` item 77's
 first part). No card moves and no pool changes, so neither §3 column is re-recorded. One

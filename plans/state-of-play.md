@@ -240,7 +240,7 @@ cell, and no ✅ heading records, in the docs' order.
 |---|---:|
 | Cards registered | 232 |
 | …of them in `PERFORMANCE_POOL` | 127 |
-| `#[test]` functions | 3100 |
+| `#[test]` functions | 3099 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -319,7 +319,6 @@ is an open plate.
 - `plans/handoffs/modes-plus-choice-kinds.md`
 - `plans/handoffs/process-pr.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
-- `plans/handoffs/sweep-order.md`
 
 ## What this file deliberately does not know
 
