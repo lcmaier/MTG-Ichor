@@ -1086,9 +1086,10 @@ pub fn delayed_trigger_in_log(source: &str, id: DelayedTriggerId) -> String {
     format!("{source}'s delayed trigger {}", id.0)
 }
 
-/// An ability as its source's, the way a countered or fizzled line names it:
-/// "Soul Warden (#3)'s ability", or a delayed trigger by its number.
-fn ability_as_possessive_in_log(source: String, identity: AbilityRef) -> String {
+/// An ability as the ability of its source, the way a countered or fizzled
+/// line names it: "Soul Warden (#3)'s ability", or a delayed trigger by its
+/// number.
+fn ability_of_its_source_in_log(source: String, identity: AbilityRef) -> String {
     match identity.ability.delayed_trigger() {
         Some(id) => delayed_trigger_in_log(&source, id),
         None => format!("{source}'s ability"),
@@ -1310,10 +1311,10 @@ pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnno
         ),
         AbilityCountered { identity, controller, countered_by } => format!(
             "AbilityCountered: {} [{}] countered by {}",
-            ability_as_possessive_in_log(named(identity.source.id), *identity), player_in_log(*controller), named(countered_by.id)),
+            ability_of_its_source_in_log(named(identity.source.id), *identity), player_in_log(*controller), named(countered_by.id)),
         SpellFizzled { spell, controller } => format!("SpellFizzled: {} [{}] {DOES_NOT_RESOLVE}", named(spell.id), player_in_log(*controller)),
         AbilityFizzled { identity, controller } => format!(
-            "AbilityFizzled: {} [{}] {DOES_NOT_RESOLVE}", ability_as_possessive_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
+            "AbilityFizzled: {} [{}] {DOES_NOT_RESOLVE}", ability_of_its_source_in_log(named(identity.source.id), *identity), player_in_log(*controller)),
         PlayerLost { player_id } => format!("PlayerLost: {} by {}", player_in_log(*player_id), cause_words(cause, named)),
         PlayerWon { player_id } => format!("PlayerWon: {}", player_in_log(*player_id)),
         GameEndedInADraw => format!("GameEndedInADraw: by {}", cause_words(cause, named)),
