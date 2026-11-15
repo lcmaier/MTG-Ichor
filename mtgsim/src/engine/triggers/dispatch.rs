@@ -1721,7 +1721,7 @@ impl GameState {
                 };
                 let mana = matched.is_some() && is_mana_ability(def, &record.event);
                 self.trace(|| {
-                    trace_records::trigger(
+                    trace_records::event_trigger(
                         self,
                         *seq,
                         &identity,
