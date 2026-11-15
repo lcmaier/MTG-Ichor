@@ -4,7 +4,15 @@
 ids need ordering at all ("every time I see it it feels like a mistake"), and
 turned down the answer that a `DecisionProvider` picks by index. This note is
 read-only research: no engine change rides with it. It is deleted when the
-owner decides and whatever is decided lands.
+work it decides lands.
+
+**Revised 2026-11-14 at the owner's first read.** The first draft recommended
+keeping the sort because a saved scenario reloads and sweeps alike only under
+timestamp order. The owner: that is "the same 'tail wagging the dog' mistake
+that got us here in the first place — bend the auxiliary system to fit the
+engine, not the other way around", to be a standing rule (queued in
+`process-pr.md`). With the scenario's reason struck, nothing in the engine
+needs the sort, and the recommendation is C.
 
 **The question.** A sweep of the battlefield whose order no rule names (the
 state-based checks, the legal actions, the trigger sources, a "destroy all
@@ -18,19 +26,59 @@ that order do?
 
 | | **A. Keep the sort** (today) | **B. Drop it where nothing reads the order** | **C. Id order everywhere** |
 |---|---|---|---|
-| Retrofit | none | two sweeps, the only ones whose result is a count or an `any`: `a_combatant_strikes_first` in `engine/combat/steps.rs` and `AmountExpr::CountOf` in `engine/resolve.rs` walk the table under an `ORDER-FREE:` tag, each sorting first when the trace is on, as `battlefield_ordered_where` does. ~15 lines | the four sweep functions become the table's walk; `check_invariants.py`'s unordered rule, its message and the 35 `ORDER-FREE:` tags reworded; CLAUDE.md's determinism section, `clone-architecture.md`'s order rule, and the eight architecture docs plus `engine-map`, `codebase-state`, `glossary`, `backlog`, `elisions` and `id-hasher` where they name the sweeps, rewritten; 8 tests rewritten (the probe below), the save's round trip among them, which needs the `scenario` writer to keep a timestamp sort of its own |
-| Saves | nothing | two sorts, too small to read | the sort, which #325 left under half a point of instructions on the Commander board (`fuzz-record.md`, the ordered-sweeps block). Not the `Vec` each sweep collects: item 77 found the allocation, not the sort, is the cost, and a sweep that performs actions as it goes snapshots the board either way |
+| Retrofit | none | two sweeps, the only ones whose result is a count or an `any`: `a_combatant_strikes_first` in `engine/combat/steps.rs` and `AmountExpr::CountOf` in `engine/resolve.rs` walk the table under an `ORDER-FREE:` tag, each sorting first when the trace is on, as `battlefield_ordered_where` does. ~15 lines | below |
+| Saves | nothing | two sorts, too small to read | the sort, which #325 left under half a point of instructions on the Commander board (`fuzz-record.md`, the ordered-sweeps block), and one rule fewer to hold: a battlefield walk is the table's walk. Not the `Vec` each sweep collects: item 77 found the allocation, not the sort, is the cost, and a sweep that performs actions as it goes snapshots the board either way |
 | Moves | nothing | no gameplay row; the `any` stops after a different number of layer walks, so the diagnostics rows move | every option list the battlefield feeds: the legal actions, attackers and blockers, mana sources, the `OrderTriggers` and CR 616.1 candidates, each simultaneous batch's member order and so its log lines. The A/B moves on every row the bots touch; that alone is no design cost |
-| What it gives up | — | — | that two routes to one board sweep it alike (below) |
 
-**Recommended: A.** C saves less than half a point and costs the one property
-the sort exists for, which is not the rules and not the providers: the order is
-a function of the board, so every route to the same board walks it the same
-way. B is correct but buys nothing measurable for a trace branch at each site.
-One thing does want fixing whichever is taken: `a_combatant_strikes_first`'s
-comment justifies its sort by a `HashMap` whose order differs per process,
-which CL-1 removed; it should say the walk count is a diagnostics fixture, or
-go with B. That rides with the next PR touching `engine/combat/steps.rs`.
+**Recommended: C.** No rule and no engine reader needs the sort (the next two
+sections); what needed it was the scenario's round trip, and the scenario
+adapts.
+
+**C's retrofit, engine first:**
+
+- **The sweeps.** `battlefield_ordered`, `battlefield_ordered_where` and
+  `battlefield_ids_ordered` become the table's walk, and their audit and trace
+  branch go with the sort. Whether the three keep their names or callers walk
+  `battlefield` directly is the build's naming call.
+- **The three hash-keyed source sets still need an order.**
+  `trigger_sources` (an `IdMap`), `trigger_multiplier_sources` and
+  `cost_modification_ability_sources` (`IdSet`s) iterate in hash order, which a
+  rebuild can change (CL-1's rule 3). `in_battlefield_order` and the cost
+  gather sort them by timestamp today; under C they sort by id. So `ObjectId`
+  gains `Ord`, reversing `clone-architecture.md`'s "no `Ord` on purpose", or
+  those three sort on `raw()`. `Ord` is the honest one: id order becomes an
+  order the engine names.
+- **The gate and its words.** `check_invariants.py`'s unordered rule keeps
+  the hash-keyed fields and drops `battlefield`; its message and the 35
+  `ORDER-FREE:` tags reworded where they cite timestamp order. CLAUDE.md's
+  determinism section, `clone-architecture.md`'s order rule, and the eight
+  architecture docs plus `engine-map`, `codebase-state`, `glossary`,
+  `backlog`, `elisions` and `id-hasher` where they name the sweeps.
+- **Tests (the probe below): 8 in debug.** The four `ordered_sweeps` unit
+  tests go with the sort. The two CR 613.7e reattachment tests assert where
+  the permanent sorts in a sweep; they assert its timestamp instead, which is
+  the rule's content. The board-scale token test reads a list in sweep order
+  and is re-pinned or reads by identity.
+
+**The scenario adapts (the auxiliary side):**
+
+- **The writer** (`scenario/write.rs`) sorts the battlefield by timestamp
+  itself, as it already sorts the commanders, since the loader stamps in line
+  order and CR 613.7's comparisons must read the same after a load.
+- **The round trip** (`scenario_round_trip_test.rs`) compares the
+  battlefield by timestamp order in its own `places`, not by the engine's
+  sweep. What it checks is that the board came back, and a loaded board's ids
+  are renumbered by design (`setup-architecture.md#42-names-not-ids`).
+- **A reloaded board presents its lists in another order** than the board it
+  was saved from, because its ids are minted in line order. Nothing in the
+  engine reads that; a replay finds answers by identity. Making a reload
+  present alike would mean the file carrying creation order apart from line
+  order, a format change bought for presentation, so this note does not
+  propose it.
+
+B folds into C (the sort it drops is gone everywhere). If the owner keeps A
+instead, `a_combatant_strikes_first`'s comment, which justifies its sort by a
+`HashMap` order CL-1 removed, still wants fixing.
 
 ## Who sees the order, and does a rule fix it
 
@@ -76,29 +124,29 @@ rules ask only that the game not depend on it.
 
 So id order is the order the cards were *constructed* in: seat 0's whole deck
 before seat 1's, each in decklist order, then tokens and copies as made. It is
-deterministic but is not part of the game the CR describes, and the one
-operation that rebuilds a game from its CR description, the save, does not
-keep it. Timestamp order is CR state, which every route preserves because it
-must for CR 613.7's own comparisons.
+deterministic, the same in a fork and in every process, and that is all the
+engine asks of an order no rule names. The save does not keep it, and under C
+that is the scenario's to absorb (above), not the engine's.
 
-**What that would show, under C.** The owner saves a board from the dev GUI and
-loads it: the legal actions, mana sources and attackers come back in another
-order, a state-based batch on the reloaded board logs its deaths in another
-order, and the window's auto-ordered triggers stack differently than they would
-have on the board it was saved from. Nothing is wrong by the rules; the same
-board just presents differently depending on how it was reached. In a
-four-seat game every sweep would also list seat 0's permanents first, and a
-reanimated creature would keep its old place in every list.
+**What C shows, and who it shows it to.** A board saved from the dev GUI and
+loaded lists its legal actions, mana sources and attackers in another order,
+and a state-based batch on it logs its deaths in another order. In a four-seat
+game every list starts with seat 0's permanents, and a reanimated creature
+keeps its old place. All of it is presentation to a client, which can sort
+what it is handed as it likes (the window by timestamp, a seat by its own
+permanents first).
 
 ## What would change the answer
 
-- **A measurement putting the sort back above a point or two.** Today's reading
-  is under half a point after #325. If the sweep's cost returns, item 77's
-  "derive less" (a maintained timestamp order, lent rather than collected) is
-  the cheaper recovery, and it keeps A's property.
-- **The owner deciding that a reloaded or hand-written board need not present
-  as the one it came from.** Then C's retrofit buys under half a point and a
-  simpler invariant ("walk the table"), at the cost of the docs rewrite above.
+- **A rule found that orders a sweep's members.** The rules pass above found
+  none; one would be a timestamp sort at that sweep, named for its rule, not a
+  sort on every sweep.
+- **An engine reader, not a client, that needs timestamp order from a sweep.**
+  The census found none: each reader feeds a player's choice, a simultaneous
+  batch or a client, and CR 613.7's own comparisons read the timestamps
+  themselves. The layer walk's member order (`engine/layers/board.rs`) was
+  not traced by hand; the probe's passing tests include the layer suite and
+  its memo audit.
 
 ## The probe: C's test cost, measured
 

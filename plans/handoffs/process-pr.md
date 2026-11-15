@@ -87,6 +87,14 @@ the engine; and a shape cut to one card is a v1 gap of its own kind, as #324's
 `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of the 46 whose
 amount is chosen as it is paid.
 
+**An auxiliary system bends to fit the engine, never the other way** (the
+owner, at #328, 2026-11-14, a standing rule). A reason for an engine shape that
+lives in a client (the scenario format and its round trip, a
+`DecisionProvider`, a bot, the dev GUI, the trace, a test helper) is a reason
+to change that client. #326's review turned down "a provider answers by index"
+for the battlefield's sort, and #328 turned down "a save reloads alike". A
+sentence on the practices page, beside the client guard.
+
 ## Open, for the owner
 
 **Should the mana pool join the write gate's fields?** Raised at
