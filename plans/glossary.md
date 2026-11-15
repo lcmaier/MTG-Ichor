@@ -631,12 +631,12 @@ and the change is where a reader would look for it.
 
 **person** / **agent** — who plays a seat, which the engine does not ask:
 since `codebase-state.md` item 193 it offers both the same list and tells
-both what it rejected (`ChoiceContext::rejected`). An *agent* is a program
+both what it rejected (`DecisionContext::rejected`). An *agent* is a program
 (the random provider, a harness's policy, a test's script), and not choosing
 a rejected action again is its own policy. A *person* plays through a client,
 may take a canceled action again (CR 732.2), and is the seat full control
 and auto-yield are for. Not *player*, the CR's word for whoever plays.
-→ `ui::choice_types::Rejection`, `ui::random`.
+→ `ui::decision_types::Rejection`, `ui::random`.
 
 **yield** — a person's standing pass, Arena's word and not the CR's: until
 the turn ends, until the stack changes, or until their own next turn. Set at a

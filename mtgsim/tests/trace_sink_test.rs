@@ -32,7 +32,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -71,7 +71,7 @@ fn traced_combat(label: &str) -> (TraceBuffer, GameState, ObjectId, ObjectId, Ob
     let (mut game, attacker, first, second) = shield_board();
     let trace = install_trace(&mut game, label);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
+    dp.expect_allocation(DecisionKind::AssignCombatDamage { attacker_id: attacker }, vec![(DecisionOption::Object(first), 2), (DecisionOption::Object(second), 1)]);
     game.process_combat_damage(&dp, false).unwrap();
     game.trace_objects();
     (trace, game, attacker, first, second)
@@ -210,7 +210,7 @@ fn the_sink_changes_nothing_the_game_does() {
 
     let (mut game, attacker, first, second) = shield_board();
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
+    dp.expect_allocation(DecisionKind::AssignCombatDamage { attacker_id: attacker }, vec![(DecisionOption::Object(first), 2), (DecisionOption::Object(second), 1)]);
     game.process_combat_damage(&dp, false).unwrap();
     assert!(!game.trace_is_on());
 
@@ -304,14 +304,14 @@ impl<D: DecisionProvider> DecisionProvider for EveryPriorityPoint<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.0.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.0.pick_number(game, player, context, min, max)
     }
 
@@ -319,16 +319,16 @@ impl<D: DecisionProvider> DecisionProvider for EveryPriorityPoint<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.0.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.0.choose_ordering(game, player, context, items)
     }
 
@@ -349,17 +349,17 @@ impl DecisionProvider for DeclinesItsFirstWindow {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::ManaAbilityWindow { .. }) && !self.declined.replace(true) {
+        if matches!(context.kind, DecisionKind::ManaAbilityWindow { .. }) && !self.declined.replace(true) {
             return Vec::new();
         }
         self.agent.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.agent.pick_number(game, player, context, min, max)
     }
 
@@ -367,16 +367,16 @@ impl DecisionProvider for DeclinesItsFirstWindow {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.agent.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.agent.choose_ordering(game, player, context, items)
     }
 }
@@ -458,7 +458,7 @@ fn a_test_writes_its_trace_to_a_file_for_the_spine_script() {
     let (mut game, attacker, first, second) = shield_board();
     let sink = mtgsim::test_support::install_trace_file(&mut game, &path, "rd-2 trace A");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id: attacker }, vec![(ChoiceOption::Object(first), 2), (ChoiceOption::Object(second), 1)]);
+    dp.expect_allocation(DecisionKind::AssignCombatDamage { attacker_id: attacker }, vec![(DecisionOption::Object(first), 2), (DecisionOption::Object(second), 1)]);
     game.process_combat_damage(&dp, false).unwrap();
     game.trace_objects();
     sink.flush().unwrap();

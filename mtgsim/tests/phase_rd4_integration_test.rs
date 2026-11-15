@@ -25,7 +25,7 @@ use mtgsim::objects::card_data::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::state::restrictions::RegisteredRestriction;
-use mtgsim::ui::choice_types::ChoiceOption;
+use mtgsim::ui::decision_types::DecisionOption;
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -723,7 +723,7 @@ fn under_a_cant_be_prevented_row_the_angel_still_mills_and_reverse_damage_gains_
 
     // Reverse Damage names its source at resolution — RD-3's chosen source —
     // and the Angel's mill applies first.
-    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(bolt_source), ChoiceOption::Object(angel)]);
+    let dp = RecordingDecisionProvider::choosing([DecisionOption::Object(bolt_source), DecisionOption::Object(angel)]);
     let ctx = ActionContext::new(&dp);
     resolve_spell_with(
         &mut game,

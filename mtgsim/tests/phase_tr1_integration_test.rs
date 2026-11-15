@@ -58,7 +58,7 @@ use mtgsim::types::triggers::{
     TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -121,11 +121,11 @@ fn stack_sources(game: &GameState) -> Vec<ObjectId> {
 /// A `SelectRecipients` expectation for Blood Artist's "target player".
 fn expect_target_player(dp: &ScriptedDecisionProvider, player: PlayerId) {
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Player(PlayerSet::Everyone), TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![ChoiceOption::Player(player)],
+        vec![DecisionOption::Player(player)],
     );
 }
 
@@ -554,7 +554,7 @@ fn a_player_with_two_different_triggers_chooses_their_order() {
     assert_eq!(pending(&game), 2);
     let dp = ScriptedDecisionProvider::new();
     // The drawer's goes on first.
-    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![ChoiceOption::Object(drawer), ChoiceOption::Object(gainer)]);
+    dp.expect_order(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![DecisionOption::Object(drawer), DecisionOption::Object(gainer)]);
     place(&mut game, &dp);
 
     assert_eq!(stack_sources(&game), vec![drawer, gainer]);
@@ -609,7 +609,7 @@ fn one_abilitys_agreeing_triggers_are_not_ordered_and_each_is_still_targeted() {
     let recorded = game.recorded_events();
     let unasked = recorded.unasked();
     assert!(
-        unasked.iter().any(|u| matches!(u.kind, ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First })),
+        unasked.iter().any(|u| matches!(u.kind, DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First })),
         "the order is recorded as unasked"
     );
 }
@@ -636,7 +636,7 @@ fn identical_triggers_that_read_different_bindings_are_asked_their_order() {
     // One ability of the Mourner's, each trigger named by the creature that
     // died: `b`'s goes on the stack first, so `a`'s resolves first.
     let order = vec![pending_trigger_for(&game, mourner, b), pending_trigger_for(&game, mourner, a)];
-    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
+    dp.expect_order(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First }, order);
     place(&mut game, &dp);
     assert_eq!(game.stack.len(), 2);
 }
@@ -725,8 +725,8 @@ fn attack_triggers_fire_as_attackers_are_declared() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::DeclareAttackers,
-        vec![ChoiceOption::AttackerTarget(a, AttackTarget::Player(1)), ChoiceOption::AttackerTarget(b, AttackTarget::Player(1))],
+        DecisionKind::DeclareAttackers,
+        vec![DecisionOption::AttackerTarget(a, AttackTarget::Player(1)), DecisionOption::AttackerTarget(b, AttackTarget::Player(1))],
     );
     game.process_declare_attackers(&dp).unwrap();
 
@@ -1265,11 +1265,11 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     advance_to(&mut game, 0, StepType::Upkeep);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![ChoiceOption::Object(target)],
+        vec![DecisionOption::Object(target)],
     );
     place(&mut game, &dp);
     game.players[0].life_total = 10;
@@ -1292,11 +1292,11 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     advance_to(&mut game, 0, StepType::Upkeep);
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
             spell_id: ObjectId::UNASSIGNED,
         },
-        vec![ChoiceOption::Object(target)],
+        vec![DecisionOption::Object(target)],
     );
     place(&mut game, &dp);
     let ability = *game.stack.last().unwrap();
@@ -2056,8 +2056,8 @@ fn cast_from_exact_pool(card: Arc<CardData>, pool: &[ManaType], kick: bool) -> (
         game.players[0].mana_pool.add(t, 1);
     }
     let dp = ScriptedDecisionProvider::new();
-    let kicked = if kick { vec![ChoiceOption::AdditionalCost(kicker_red())] } else { Vec::new() };
-    dp.expect_choice(ChoiceKind::ChooseAdditionalCosts { spell_id: id }, kicked);
+    let kicked = if kick { vec![DecisionOption::AdditionalCost(kicker_red())] } else { Vec::new() };
+    dp.expect_choice(DecisionKind::ChooseAdditionalCosts { spell_id: id }, kicked);
     game.cast_spell(0, id, &dp).expect("cast from an exact pool");
     assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
     resolve_top(&mut game, &test_dp());
@@ -2251,8 +2251,8 @@ impl PriorityQueueWatcher {
         }
     }
 
-    fn check(&self, game: &GameState, context: &ChoiceContext) {
-        if !matches!(context.kind, ChoiceKind::PriorityAction) {
+    fn check(&self, game: &GameState, context: &DecisionContext) {
+        if !matches!(context.kind, DecisionKind::PriorityAction) {
             return;
         }
         self.prompts.set(self.prompts.get() + 1);
@@ -2269,8 +2269,8 @@ impl DecisionProvider for PriorityQueueWatcher {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.check(game, context);
@@ -2281,7 +2281,7 @@ impl DecisionProvider for PriorityQueueWatcher {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -2293,9 +2293,9 @@ impl DecisionProvider for PriorityQueueWatcher {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -2308,8 +2308,8 @@ impl DecisionProvider for PriorityQueueWatcher {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         self.check(game, context);
         self.inner.choose_ordering(game, player, context, items)

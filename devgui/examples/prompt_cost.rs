@@ -50,7 +50,7 @@ use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::GameState;
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::types::effects::ModeIndex;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, modes_as_logged};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, modes_as_logged};
 use mtgsim::ui::why::{OpenQuestion, WhyAbout, why};
 
 const RUNS: usize = 200;
@@ -118,9 +118,9 @@ fn main() {
     let in_hand = game.state.players[asked].hand.first().copied();
     match (prompt_kind.as_str(), busiest, in_hand) {
         ("PriorityAction", Some(busiest), Some(in_hand)) => {
-            let options: Vec<ChoiceOption> =
-                candidate_priority_actions(&game.state, asked).into_iter().map(ChoiceOption::Action).collect();
-            let context = ChoiceContext::new(ChoiceKind::PriorityAction);
+            let options: Vec<DecisionOption> =
+                candidate_priority_actions(&game.state, asked).into_iter().map(DecisionOption::Action).collect();
+            let context = DecisionContext::new(DecisionKind::PriorityAction);
             let question = OpenQuestion { player: asked, context: &context, options: &options };
             let at_the_seat = |about| game.state.audit_each_frame_once(|| why(&game.state, about, Some(&question)));
             reading("why, at a question", || at_the_seat(WhyAbout::Object(busiest)));

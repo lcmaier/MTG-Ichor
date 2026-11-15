@@ -2309,7 +2309,7 @@ and its points are TR-4d's rather than this check's.
 The registry's entries are candidates at every dispatch. A `Once` entry
 that matches is removed as it queues (603.7b); if several records in one
 window match it, the controller chooses which one causes it
-(`ChoiceKind::ChooseDelayedTriggerEvent { delayed: DelayedTriggerId }`,
+(`DecisionKind::ChooseDelayedTriggerEvent { delayed: DelayedTriggerId }`,
 asked at the trigger because 603.7b puts the choice there, two or more
 candidates only — Tatsumasa under a doubler is the corpus's board). A
 `ThisTurn` entry matches every time and is dropped at cleanup with the
@@ -2675,9 +2675,9 @@ placement's progress record. A fork resumes at the fork model's own boundary,
 a priority grant, and never inside a pass, which is why a pass may hold its
 bound on what CR 603.3b lets it place (item 371) as a local.
 
-**The ordering prompt is `ChoiceKind::OrderTriggers { player, tier }`**,
+**The ordering prompt is `DecisionKind::OrderTriggers { player, tier }`**,
 subject `None` (it is about several objects, like `DeclareAttackers`), asked
-through `choose_ordering` with the pending entries as `ChoiceOption`s in
+through `choose_ordering` with the pending entries as `DecisionOption`s in
 `seq` order, two or more only. **Its elision is item 163's, as TR-2b
 corrected it**: one player's entries give the same game in either order,
 and the engine does not ask, when every one of these holds — each the
@@ -2887,7 +2887,7 @@ countered spell's frame, which `SpellCountered` carries with `Lki.entry`
 The ability goes on the stack regardless; the choice is at resolution
 (ATOM-603.5-001). **Built in TR-2b** (main item 24). `Effect::Optional {
 chooser, effect }` asks its chooser, `You` unless the text names another
-player, through `ChoiceKind::ApplyOptionalEffect { source }`: a pick of none or
+player, through `DecisionKind::ApplyOptionalEffect { source }`: a pick of none or
 one, its subject the resolving object.
 
 **The answer lives in the resolver's walk.** `ResolutionWalk` carries
@@ -3054,9 +3054,9 @@ interaction points", at the item 6 audit (2026-10-22). `plans/engine-map.md`
 ## 9. DecisionProvider surface
 
 Every kind names its subject at birth (A4j) and is asked with two or more
-options (`CLAUDE.md`); each is an arm in every `src` match over `ChoiceKind`.
+options (`CLAUDE.md`); each is an arm in every `src` match over `DecisionKind`.
 
-| `ChoiceKind` | Method | Subject | Rule | Phase |
+| `DecisionKind` | Method | Subject | Rule | Phase |
 |---|---|---|---|---|
 | `OrderTriggers { player, tier }` | `choose_ordering` | `None` (several objects) | 603.3b; elided per item 163 | TR-1 |
 | `ApplyOptionalEffect { source }` | `pick_n` (yes/no) | the resolving object | 603.5; main item 24 | TR-2b |
@@ -3497,7 +3497,7 @@ existence, the frame of a departure and of damage a `DepartedFrame`, CR
 400.7c's re-point. Item 103: `targeting::matched` at the six sites that
 swallowed a filter's `Err`, and a frame answering for a source the store has
 lost. Item 99's first half and its resolving-object gap: `damage_sources`,
-CR 609.7a's one enumeration, with `ChoiceOption::LastKnown`; its command-zone
+CR 609.7a's one enumeration, with `DecisionOption::LastKnown`; its command-zone
 half is `game-formats`'s. Cornered Crook registered, not pooled (187 → 188). Twenty-four
 tests; ATOM-603.12-001 covered.
 

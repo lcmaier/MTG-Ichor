@@ -22,7 +22,7 @@ use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -77,17 +77,17 @@ fn cast(game: &mut GameState, card: Arc<CardData>, mana: ManaType, answers: Scri
 }
 
 /// The script's next answer: `chosen`, picked from what a choice offers.
-fn picks(answers: &ScriptedDecisionProvider, chosen: Vec<ChoiceOption>) {
-    answers.expect_choice(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, chosen);
+fn picks(answers: &ScriptedDecisionProvider, chosen: Vec<DecisionOption>) {
+    answers.expect_choice(DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, chosen);
 }
 
 /// The script's next answer: `shares`, the division among what was chosen.
-fn divides(answers: &ScriptedDecisionProvider, shares: Vec<(ChoiceOption, u64)>) {
-    answers.expect_allocation(ChoiceKind::DivideAmong { source: ObjectId::UNASSIGNED }, shares);
+fn divides(answers: &ScriptedDecisionProvider, shares: Vec<(DecisionOption, u64)>) {
+    answers.expect_allocation(DecisionKind::DivideAmong { source: ObjectId::UNASSIGNED }, shares);
 }
 
 fn the_asked(answers: &ScriptedDecisionProvider) -> Vec<&'static str> {
-    answers.asked().iter().map(ChoiceKind::as_str).collect()
+    answers.asked().iter().map(DecisionKind::as_str).collect()
 }
 
 fn plus_ones(game: &GameState, id: ObjectId) -> u32 {
@@ -134,13 +134,13 @@ fn a_choice_beside_a_target_is_asked_as_it_resolves_and_the_target_keeps_its_pla
     let theirs = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
 
     let at_cast = ScriptedDecisionProvider::new();
-    picks(&at_cast, vec![ChoiceOption::Object(theirs)]);
+    picks(&at_cast, vec![DecisionOption::Object(theirs)]);
     let (spell, at_cast) = cast(&mut game, chosen_beside_a_target(), ManaType::White, at_cast);
     assert_eq!(the_asked(&at_cast), ["SelectRecipients"], "the target, and nothing else");
     assert_eq!(game.stack_entries[&spell].announced.targets().count(), 1);
 
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(lions)]);
+    picks(&at_resolution, vec![DecisionOption::Object(lions)]);
     game.resolve_top_of_stack(&at_resolution).expect("the spell resolves");
 
     assert_eq!(the_asked(&at_resolution), ["SelectRecipients"], "the choice");
@@ -162,7 +162,7 @@ fn a_choice_beside_a_target_is_never_asked_when_the_target_is_gone() {
     let lions = put_on_battlefield(&mut game, savannah_lions(), 0);
     let theirs = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
     let at_cast = ScriptedDecisionProvider::new();
-    picks(&at_cast, vec![ChoiceOption::Object(theirs)]);
+    picks(&at_cast, vec![DecisionOption::Object(theirs)]);
     let (_, _) = cast(&mut game, chosen_beside_a_target(), ManaType::White, at_cast);
 
     game.change_zone(theirs, Zone::Exile, ZoneChangeAct::Put, &test_ctx()).unwrap();
@@ -208,7 +208,7 @@ fn shroud_does_not_stop_a_choice() {
     let shrouded = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Shroud]), 0);
     let (_, _) = cast(&mut game, showdown_fixture(), ManaType::White, ScriptedDecisionProvider::new());
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(shrouded)]);
+    picks(&at_resolution, vec![DecisionOption::Object(shrouded)]);
     game.resolve_top_of_stack(&at_resolution).expect("the spell resolves");
     assert_eq!(the_asked(&at_resolution), ["SelectRecipients"]);
     assert!(has_keyword(&game, shrouded, KeywordFlag::Indestructible));
@@ -230,8 +230,8 @@ fn a_division_among_creatures_not_targeted_is_made_as_the_spell_resolves() {
     assert!(game.stack_entries[&spell].announced.targets().next().is_none());
 
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
-    divides(&at_resolution, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(lions), 1)]);
+    picks(&at_resolution, vec![DecisionOption::Object(bears), DecisionOption::Object(lions)]);
+    divides(&at_resolution, vec![(DecisionOption::Object(bears), 2), (DecisionOption::Object(lions), 1)]);
     game.resolve_top_of_stack(&at_resolution).expect("the spell resolves");
 
     assert_eq!(the_asked(&at_resolution), ["SelectRecipients", "DivideAmong"]);
@@ -250,8 +250,8 @@ fn a_division_may_be_among_fewer_objects_than_it_could_be() {
     let (_, _) = cast(&mut game, frost_blessing_fixture(), ManaType::Green, ScriptedDecisionProvider::new());
 
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
-    divides(&at_resolution, vec![(ChoiceOption::Object(bears), 2), (ChoiceOption::Object(lions), 1)]);
+    picks(&at_resolution, vec![DecisionOption::Object(bears), DecisionOption::Object(lions)]);
+    divides(&at_resolution, vec![(DecisionOption::Object(bears), 2), (DecisionOption::Object(lions), 1)]);
     game.resolve_top_of_stack(&at_resolution).expect("the spell resolves");
 
     assert_eq!((plus_ones(&game, bears), plus_ones(&game, lions), plus_ones(&game, third)), (2, 1, 0));
@@ -269,8 +269,8 @@ fn a_chosen_object_receives_at_least_one() {
     let (_, _) = cast(&mut game, frost_blessing_fixture(), ManaType::Green, ScriptedDecisionProvider::new());
 
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
-    divides(&at_resolution, vec![(ChoiceOption::Object(bears), 3), (ChoiceOption::Object(lions), 0)]);
+    picks(&at_resolution, vec![DecisionOption::Object(bears), DecisionOption::Object(lions)]);
+    divides(&at_resolution, vec![(DecisionOption::Object(bears), 3), (DecisionOption::Object(lions), 0)]);
     let _ = game.resolve_top_of_stack(&at_resolution);
 }
 
@@ -294,7 +294,7 @@ fn a_division_with_one_object_to_choose_puts_everything_on_it() {
 
 /// The script's next answer: the spree modes at `places`.
 fn chooses_modes(answers: &ScriptedDecisionProvider, places: &[u8]) {
-    answers.expect_choice(ChoiceKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() }, vec![ChoiceOption::modes(places)]);
+    answers.expect_choice(DecisionKind::ChooseModes { source: ObjectId::UNASSIGNED, words: Vec::new() }, vec![DecisionOption::modes(places)]);
 }
 
 /// Final Showdown cast by player 0 with the modes at `places`, from enough
@@ -321,7 +321,7 @@ fn final_showdown_chooses_its_creature_as_it_resolves() {
 
     assert_eq!(cast_final_showdown(&mut game, &[2]), ["ChooseModes"], "no creature is named as it is cast");
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(lions)]);
+    picks(&at_resolution, vec![DecisionOption::Object(lions)]);
     game.resolve_top_of_stack(&at_resolution).expect("it resolves");
 
     assert_eq!(the_asked(&at_resolution), ["SelectRecipients"]);
@@ -344,7 +344,7 @@ fn final_showdown_spares_the_creature_it_chose() {
 
     cast_final_showdown(&mut game, &[1, 2, 3]);
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(bears)]);
+    picks(&at_resolution, vec![DecisionOption::Object(bears)]);
     game.resolve_top_of_stack(&at_resolution).expect("it resolves");
     game.perform_sba_and_triggers(&test_dp()).unwrap();
 
@@ -400,8 +400,8 @@ fn feast_of_the_victorious_dead_divides_its_counters_as_it_resolves() {
     assert!(game.stack_entries[&feast].announced.targets().next().is_none(), "no creature is named as it is put on the stack");
 
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(bears), ChoiceOption::Object(lions)]);
-    divides(&at_resolution, vec![(ChoiceOption::Object(bears), 1), (ChoiceOption::Object(lions), 2)]);
+    picks(&at_resolution, vec![DecisionOption::Object(bears), DecisionOption::Object(lions)]);
+    divides(&at_resolution, vec![(DecisionOption::Object(bears), 1), (DecisionOption::Object(lions), 2)]);
     game.resolve_top_of_stack(&at_resolution).expect("it resolves");
 
     assert_eq!(the_asked(&at_resolution), ["SelectRecipients", "DivideAmong"]);
@@ -421,7 +421,7 @@ fn feast_of_the_victorious_dead_counts_the_deaths_as_it_resolves() {
     dies(&mut game, theirs[1]);
 
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(lions)]);
+    picks(&at_resolution, vec![DecisionOption::Object(lions)]);
     game.resolve_top_of_stack(&at_resolution).expect("it resolves");
 
     assert_eq!(game.players[0].life_total, 22);
@@ -470,7 +470,7 @@ fn feast_of_the_victorious_dead_counts_a_token_and_a_card_no_longer_in_the_grave
     to_the_end_step(&mut game);
 
     let at_resolution = ScriptedDecisionProvider::new();
-    picks(&at_resolution, vec![ChoiceOption::Object(bears)]);
+    picks(&at_resolution, vec![DecisionOption::Object(bears)]);
     game.resolve_top_of_stack(&at_resolution).expect("it resolves");
     assert_eq!(game.players[0].life_total, 22, "the token and the exiled card both count");
     assert_eq!(plus_ones(&game, bears), 2);

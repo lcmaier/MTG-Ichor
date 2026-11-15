@@ -40,7 +40,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ fn lose_one() -> Effect {
 /// A provider that answers the one "you may" `source` asks.
 fn answering_may(source: ObjectId, yes: bool) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source }, if yes { vec![ChoiceOption::Object(source)] } else { Vec::new() });
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source }, if yes { vec![DecisionOption::Object(source)] } else { Vec::new() });
     dp
 }
 
@@ -395,7 +395,7 @@ fn each_opponent_chooses_in_turn_and_sacrifices_at_once() {
         first.push(put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat));
         put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat);
     }
-    let dp = RecordingDecisionProvider::choosing(first.iter().copied().map(ChoiceOption::Object));
+    let dp = RecordingDecisionProvider::choosing(first.iter().copied().map(DecisionOption::Object));
     let each_opponent = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents));
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_opponent, 1), &ctx, &dp).unwrap();
@@ -421,7 +421,7 @@ fn each_player_chooses_in_apnap_order_and_the_caster_waits_their_turn() {
         first.push(put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat));
         put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat);
     }
-    let dp = RecordingDecisionProvider::choosing(first.iter().copied().map(ChoiceOption::Object));
+    let dp = RecordingDecisionProvider::choosing(first.iter().copied().map(DecisionOption::Object));
     let each_player = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone));
     let ctx = ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell);
     game.resolve_effect(&sacrifices(each_player, 1), &ctx, &dp).unwrap();

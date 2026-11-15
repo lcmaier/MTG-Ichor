@@ -41,21 +41,21 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
 /// The discard prompt, matched by kind alone (`ScriptedDecisionProvider`
 /// compares discriminants).
-const PICK_DISCARD: ChoiceKind = ChoiceKind::Discard { source: None };
+const PICK_DISCARD: DecisionKind = DecisionKind::Discard { source: None };
 /// The scry's "which go on the bottom" prompt.
-const PICK_SCRY: ChoiceKind = ChoiceKind::Scry { source: None, n: 0 };
+const PICK_SCRY: DecisionKind = DecisionKind::Scry { source: None, n: 0 };
 /// CR 701.22a's "in any order", either group.
-const ORDER_SCRY: ChoiceKind = ChoiceKind::OrderLibraryCards { source: None, bottom: false };
+const ORDER_SCRY: DecisionKind = DecisionKind::OrderLibraryCards { source: None, bottom: false };
 /// CR 616.1's choice between two applicable effects.
-const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };
 /// CR 616.1's "you may … instead" prompt.
-const APPLY_OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalReplacement {
+const APPLY_OPTIONAL: DecisionKind = DecisionKind::ApplyOptionalReplacement {
     affected_object: None,
     source: ObjectId::UNASSIGNED,
 };
@@ -224,7 +224,7 @@ fn test_mind_rot_discards_two_of_the_targets_choice() {
     let hand = deal_hand(&mut game, 1, 4);
     let dp = test_dp();
     // The victim picks, not the caster — CR 701.9b's "the affected player".
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[1]), ChoiceOption::Object(hand[3])]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[1]), DecisionOption::Object(hand[3])]);
 
     resolve_spell_at(&mut game, mind_rot(), 0, 1, &dp);
 
@@ -241,7 +241,7 @@ fn test_a_discard_of_two_is_one_batch() {
     let mut game = setup_two_player_game();
     let hand = deal_hand(&mut game, 1, 4);
     let dp = test_dp();
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[0]), ChoiceOption::Object(hand[1])]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[0]), DecisionOption::Object(hand[1])]);
 
     resolve_spell_at(&mut game, mind_rot(), 0, 1, &dp);
 
@@ -336,7 +336,7 @@ fn test_a_cleanup_discard_of_three_is_one_prompt_and_one_batch() {
     // Eleven after the draw step against a maximum of seven: four go, in one
     // prompt.
     let hand = game.state.players[active].hand.clone();
-    dp.expect_choice(PICK_DISCARD, hand[..4].iter().map(|&card| ChoiceOption::Object(card)).collect());
+    dp.expect_choice(PICK_DISCARD, hand[..4].iter().map(|&card| DecisionOption::Object(card)).collect());
     game.run_turn(&dp).expect("turn");
 
     assert_eq!(game.state.players[active].hand.len(), 7);
@@ -377,7 +377,7 @@ fn test_a_looting_instruction_whose_draw_the_thief_stole_still_discards() {
     fill_library(&mut game, 1, 5);
     let hand = deal_hand(&mut game, 1, 3);
     let dp = test_dp();
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[0])]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[0])]);
 
     // "Target player draws a card, then discards a card", resolved by the
     // Thief's controller at the opponent — one resolution, two instructions.
@@ -409,7 +409,7 @@ fn test_a_looting_instruction_draws_then_discards() {
     fill_library(&mut game, 1, 5);
     let hand = deal_hand(&mut game, 1, 3);
     let dp = test_dp();
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[0])]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[0])]);
 
     let looting = fixture_sequence(
         "Fixture Loot",
@@ -455,7 +455,7 @@ fn test_opt_can_bottom_the_card_it_looked_at() {
     fill_library(&mut game, 0, 5);
     let before = library_top_down(&game, 0);
     let dp = test_dp();
-    dp.expect_choice(PICK_SCRY, vec![ChoiceOption::Object(before[0])]);
+    dp.expect_choice(PICK_SCRY, vec![DecisionOption::Object(before[0])]);
 
     resolve_spell(&mut game, opt(), 0, &dp);
 
@@ -480,9 +480,9 @@ fn test_scry_three_bottoms_one_and_reorders_the_rest() {
     let before = library_top_down(&game, 0);
     let dp = test_dp();
     // Of the top three, the middle one goes to the bottom …
-    dp.expect_choice(PICK_SCRY, vec![ChoiceOption::Object(before[1])]);
+    dp.expect_choice(PICK_SCRY, vec![DecisionOption::Object(before[1])]);
     // … and the other two are put back the other way round.
-    dp.expect_order(ORDER_SCRY, vec![ChoiceOption::Object(before[2]), ChoiceOption::Object(before[0])]);
+    dp.expect_order(ORDER_SCRY, vec![DecisionOption::Object(before[2]), DecisionOption::Object(before[0])]);
 
     let scry3 = fixture_spell("Fixture Scry Three", Primitive::Scry(AmountExpr::Fixed(3)));
     resolve_spell_at(&mut game, scry3, 0, 0, &dp);
@@ -505,7 +505,7 @@ fn test_scry_four_orders_both_groups() {
     fill_library(&mut game, 0, 6);
     let before = library_top_down(&game, 0);
     let dp = test_dp();
-    let card = |at: usize| ChoiceOption::Object(before[at]);
+    let card = |at: usize| DecisionOption::Object(before[at]);
     dp.expect_choice(PICK_SCRY, vec![card(0), card(1)]);
     // Top group first (the cards staying), then the bottom group.
     dp.expect_order(ORDER_SCRY, vec![card(3), card(2)]);
@@ -596,7 +596,7 @@ fn test_a_scry_announces_what_was_actually_looked_at() {
     // Two cards there, not three: one prompt for the split and — with both
     // staying on top, as they were — one for their order.
     dp.expect_choice(PICK_SCRY, vec![]);
-    dp.expect_order(ORDER_SCRY, library_top_down(&game, 0).into_iter().map(ChoiceOption::Object).collect());
+    dp.expect_order(ORDER_SCRY, library_top_down(&game, 0).into_iter().map(DecisionOption::Object).collect());
 
     let scry3 = fixture_spell("Fixture Scry Three", Primitive::Scry(AmountExpr::Fixed(3)));
     resolve_spell_at(&mut game, scry3, 0, 0, &dp);
@@ -647,7 +647,7 @@ fn test_a_scry_with_cards_to_spare_looked_at_all_of_them() {
     fill_library(&mut game, 0, 9);
     let dp = test_dp();
     dp.expect_choice(PICK_SCRY, vec![]);
-    let top_three = library_top_down(&game, 0)[..3].iter().map(|&card| ChoiceOption::Object(card)).collect();
+    let top_three = library_top_down(&game, 0)[..3].iter().map(|&card| DecisionOption::Object(card)).collect();
     dp.expect_order(ORDER_SCRY, top_three);
 
     let scry3 = fixture_spell("Fixture Scry Three", Primitive::Scry(AmountExpr::Fixed(3)));
@@ -696,7 +696,7 @@ fn test_an_amount_rewrite_over_a_scry_makes_it_bigger() {
     let before = library_top_down(&game, 0);
     let dp = test_dp();
     // Two cards looked at rather than one, so both prompts are real.
-    dp.expect_choice(PICK_SCRY, vec![ChoiceOption::Object(before[0])]);
+    dp.expect_choice(PICK_SCRY, vec![DecisionOption::Object(before[0])]);
 
     resolve_spell(&mut game, opt(), 0, &dp);
 
@@ -744,7 +744,7 @@ fn test_a_scry_doubler_beside_eligeth_is_a_real_choice() {
     let dp = test_dp();
     // The enchantment's first: applying it makes the scry 2, and Eligeth then
     // draws that many.
-    dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(doubler)]);
+    dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(doubler)]);
 
     let scry1 = fixture_spell("Fixture Scry One", Primitive::Scry(AmountExpr::Fixed(1)));
     resolve_spell_at(&mut game, scry1, 0, 0, &dp);
@@ -845,8 +845,8 @@ fn test_nephalia_academy_redirects_an_opponents_discard_to_the_library() {
     fill_library(&mut game, 1, 3);
     let hand = deal_hand(&mut game, 1, 2);
     let dp = test_dp();
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[0])]);
-    dp.expect_choice(APPLY_OPTIONAL, vec![ChoiceOption::Object(academy)]); // "you may" — yes
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[0])]);
+    dp.expect_choice(APPLY_OPTIONAL, vec![DecisionOption::Object(academy)]); // "you may" — yes
 
     let discard_one = fixture_spell(
         "Fixture Discard One",
@@ -867,7 +867,7 @@ fn test_nephalia_academy_can_be_declined() {
     fill_library(&mut game, 1, 3);
     let hand = deal_hand(&mut game, 1, 2);
     let dp = test_dp();
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[0])]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[0])]);
     dp.expect_choice(APPLY_OPTIONAL, vec![]); // "you may" — no
 
     let discard_one = fixture_spell(
@@ -890,7 +890,7 @@ fn test_nephalia_academy_ignores_a_discard_you_caused_yourself() {
     fill_library(&mut game, 1, 3);
     let hand = deal_hand(&mut game, 1, 2);
     let dp = test_dp();
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[0])]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[0])]);
 
     let discard_one = fixture_spell(
         "Fixture Discard One",
@@ -917,7 +917,7 @@ fn test_nephalia_academy_ignores_the_cleanup_discard() {
 
     // Eight after the draw step: one goes.
     let first = game.state.players[active].hand[0];
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(first)]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(first)]);
     game.run_turn(&dp).expect("turn");
 
     assert_eq!(
@@ -937,7 +937,7 @@ fn test_without_the_academy_an_opponents_discard_goes_to_the_graveyard() {
     fill_library(&mut game, 1, 3);
     let hand = deal_hand(&mut game, 1, 2);
     let dp = test_dp();
-    dp.expect_choice(PICK_DISCARD, vec![ChoiceOption::Object(hand[0])]);
+    dp.expect_choice(PICK_DISCARD, vec![DecisionOption::Object(hand[0])]);
 
     let discard_one = fixture_spell(
         "Fixture Discard One",

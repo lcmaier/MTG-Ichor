@@ -19,7 +19,7 @@
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use crate::ui::decision::{DecisionProvider, SeatMode};
 
 /// Answers `D`'s seat's trigger order in the order it is offered, and passes
@@ -39,8 +39,8 @@ impl<D: DecisionProvider> DecisionProvider for AutoOrderTriggers<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.inner.pick_n(game, player, context, options, bounds)
@@ -50,7 +50,7 @@ impl<D: DecisionProvider> DecisionProvider for AutoOrderTriggers<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -61,9 +61,9 @@ impl<D: DecisionProvider> DecisionProvider for AutoOrderTriggers<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -74,10 +74,10 @@ impl<D: DecisionProvider> DecisionProvider for AutoOrderTriggers<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::OrderTriggers { .. }) {
+        if matches!(context.kind, DecisionKind::OrderTriggers { .. }) {
             return oldest_source_first(game, items);
         }
         self.inner.choose_ordering(game, player, context, items)
@@ -91,10 +91,10 @@ impl<D: DecisionProvider> DecisionProvider for AutoOrderTriggers<D> {
 /// The triggers' positions, the oldest source's first: CR 613.7's timestamps
 /// as they are now, so a source that has left counts as arriving where it
 /// went. Stable, so one source's triggers keep the order offered.
-fn oldest_source_first(game: &GameState, items: &[ChoiceOption]) -> Vec<usize> {
+fn oldest_source_first(game: &GameState, items: &[DecisionOption]) -> Vec<usize> {
     let mut order: Vec<usize> = (0..items.len()).collect();
     order.sort_by_key(|&i| match &items[i] {
-        ChoiceOption::Trigger(trigger) => game.object_timestamp(trigger.source.id),
+        DecisionOption::Trigger(trigger) => game.object_timestamp(trigger.source.id),
         _ => u64::MAX,
     });
     order
@@ -107,18 +107,18 @@ mod tests {
     use crate::engine::actions::ZoneChangeAct;
     use crate::test_support::{put_in_hand, setup_two_player_game, test_ctx};
     use crate::types::zones::Zone;
-    use crate::ui::choice_types::{TriggerOption, TriggeredAbility};
+    use crate::ui::decision_types::{TriggerOption, TriggeredAbility};
     use crate::types::ids::{new_object_id, ObjectId};
     use crate::types::triggers::TriggerTier;
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::ui::full_control::{FullControl, FullControlSwitch};
 
-    fn three_triggers() -> Vec<ChoiceOption> {
-        (0..3).map(|_| ChoiceOption::Object(new_object_id())).collect()
+    fn three_triggers() -> Vec<DecisionOption> {
+        (0..3).map(|_| DecisionOption::Object(new_object_id())).collect()
     }
 
-    fn order_triggers() -> ChoiceContext {
-        ChoiceContext::new(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First })
+    fn order_triggers() -> DecisionContext {
+        DecisionContext::new(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First })
     }
 
     /// The person beneath is scripted with nothing, so a prompt that reached
@@ -149,7 +149,7 @@ mod tests {
         }
         let trigger = |source: ObjectId| {
             let source = game.object_ref(source).expect("on the battlefield");
-            ChoiceOption::Trigger(TriggerOption { source, ability: TriggeredAbility::Delayed { refers_to: Vec::new() }, triggered_by: Vec::new() })
+            DecisionOption::Trigger(TriggerOption { source, ability: TriggeredAbility::Delayed { refers_to: Vec::new() }, triggered_by: Vec::new() })
         };
         let offered = [trigger(made_first), trigger(made_second)];
         let seat = AutoOrderTriggers::new(ScriptedDecisionProvider::new());
@@ -163,8 +163,8 @@ mod tests {
     fn every_other_prompt_reaches_the_person() {
         let game = setup_two_player_game();
         let person = ScriptedDecisionProvider::new();
-        let scry_order = ChoiceContext::new(ChoiceKind::OrderLibraryCards { source: None, bottom: true });
-        let cards = [ChoiceOption::Object(new_object_id()), ChoiceOption::Object(new_object_id())];
+        let scry_order = DecisionContext::new(DecisionKind::OrderLibraryCards { source: None, bottom: true });
+        let cards = [DecisionOption::Object(new_object_id()), DecisionOption::Object(new_object_id())];
         person.expect_order(scry_order.kind.clone(), vec![cards[1].clone(), cards[0].clone()]);
         let seat = AutoOrderTriggers::new(person);
 

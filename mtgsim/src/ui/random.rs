@@ -43,7 +43,7 @@ use crate::oracle::mana_supply::{available_mana_sources, controls_a_pool_multipl
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, PlayerId};
 use crate::types::mana::{ManaBag, ManaCost, ManaSymbol, ManaType};
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
+use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// What a mana window's options can do for the pips a cost still owes.
@@ -71,7 +71,7 @@ pub(crate) fn mana_window_preference(
     game: &GameState,
     player: PlayerId,
     remaining: &ManaCost,
-    options: &[ChoiceOption],
+    options: &[DecisionOption],
 ) -> WindowPreference {
     let mut wanted: Vec<ManaType> = Vec::new();
     let mut owes_a_pip = false;
@@ -96,7 +96,7 @@ pub(crate) fn mana_window_preference(
     // A pool multiplier doubles what the pool holds as it resolves, so
     // everything else is tapped first (`mana-architecture.md` §3.3).
     let (held, first): (Vec<usize>, Vec<usize>) = (0..options.len()).partition(|&i| {
-        matches!(&options[i], ChoiceOption::Action(PriorityAction::ActivateAbility(perm, ab)) if is_pool_multiplier(game, *perm, *ab))
+        matches!(&options[i], DecisionOption::Action(PriorityAction::ActivateAbility(perm, ab)) if is_pool_multiplier(game, *perm, *ab))
     });
     let any = if first.is_empty() { held.clone() } else { first.clone() };
     if !owes_a_pip {
@@ -127,7 +127,7 @@ pub(crate) fn mana_window_preference(
     let mut useful: Vec<(usize, usize)> = Vec::new();
     let mut unreadable = false;
     for &i in &first {
-        let ChoiceOption::Action(PriorityAction::ActivateAbility(perm, ab)) = &options[i] else {
+        let DecisionOption::Action(PriorityAction::ActivateAbility(perm, ab)) = &options[i] else {
             unreadable = true;
             continue;
         };
@@ -168,7 +168,7 @@ struct WindowSeen {
 /// Implements the 4-primitive `DecisionProvider` trait. The `ask_*` functions
 /// in `ui::ask` handle semantic context; this provider just picks randomly
 /// among the options presented to it — with one exception: during a
-/// `ChoiceKind::ManaAbilityWindow`, it always activates (never randomly
+/// `DecisionKind::ManaAbilityWindow`, it always activates (never randomly
 /// declines) until the per-window activation cap is hit, at which point it
 /// declines so the 601.2g / 602.1b loop exits and the engine rolls back any
 /// unpayable cost. See `pick_n` for details.
@@ -243,8 +243,8 @@ impl RandomDecisionProvider {
 
     /// The actions not to choose at this prompt: at a priority prompt, every
     /// action its window has rejected, `context`'s included; none elsewhere.
-    fn actions_to_skip(&self, context: &ChoiceContext) -> Vec<PriorityAction> {
-        if !matches!(context.kind, ChoiceKind::PriorityAction) {
+    fn actions_to_skip(&self, context: &DecisionContext) -> Vec<PriorityAction> {
+        if !matches!(context.kind, DecisionKind::PriorityAction) {
             return Vec::new();
         }
         let mut rejected = self.rejected_in_window.borrow_mut();
@@ -267,8 +267,8 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         if options.is_empty() || bounds.1 == 0 {
@@ -280,7 +280,7 @@ impl DecisionProvider for RandomDecisionProvider {
         // (`mana_window_preference`) and declines only at the per-window cap
         // (against `{1}: Add one mana of any color` cycled forever) or when a pip
         // is owed that nothing offered makes; an unpayable cost rolls back.
-        if let ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } =
+        if let DecisionKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } =
             &context.kind
         {
             let seen = match self.window.get() {
@@ -304,7 +304,7 @@ impl DecisionProvider for RandomDecisionProvider {
                     WindowPreference::Hopeless => return Vec::new(),
                 };
             let idx = pick_from[rng.random_range(0..pick_from.len())];
-            if let ChoiceOption::Action(PriorityAction::ActivateAbility(permanent, ability)) = &options[idx]
+            if let DecisionOption::Action(PriorityAction::ActivateAbility(permanent, ability)) = &options[idx]
                 && is_pool_multiplier(game, *permanent, *ability)
             {
                 self.previous_pool_multiplier.set(Some((*permanent, seen.owed_at_first)));
@@ -324,7 +324,7 @@ impl DecisionProvider for RandomDecisionProvider {
         // blocks one attacker (CR 509.1a) unless an effect lets it block more,
         // which this policy never uses. For blocks the engine's re-ask remains
         // the net, and this branch just spares it.
-        if matches!(context.kind, ChoiceKind::DeclareAttackers | ChoiceKind::DeclareBlockers) {
+        if matches!(context.kind, DecisionKind::DeclareAttackers | DecisionKind::DeclareBlockers) {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);
             let mut declared: crate::types::ids::IdSet<ObjectId> = crate::types::ids::IdSet::new();
@@ -333,7 +333,7 @@ impl DecisionProvider for RandomDecisionProvider {
                 if picked.len() >= count {
                     break;
                 }
-                if let ChoiceOption::AttackerTarget(creature, _) | ChoiceOption::BlockerAttacker(creature, _) = &options[idx] {
+                if let DecisionOption::AttackerTarget(creature, _) | DecisionOption::BlockerAttacker(creature, _) = &options[idx] {
                     if declared.insert(*creature) {
                         picked.push(idx);
                     }
@@ -351,7 +351,7 @@ impl DecisionProvider for RandomDecisionProvider {
         // for it.
         let skip = self.actions_to_skip(context);
         let mut indices: Vec<usize> = (0..options.len())
-            .filter(|&i| !matches!(&options[i], ChoiceOption::Action(action) if skip.contains(action)))
+            .filter(|&i| !matches!(&options[i], DecisionOption::Action(action) if skip.contains(action)))
             .collect();
         indices.shuffle(&mut *rng);
         indices.truncate(count);
@@ -363,7 +363,7 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _context: &ChoiceContext,
+        _context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -383,9 +383,9 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -402,7 +402,7 @@ impl DecisionProvider for RandomDecisionProvider {
         // A pool multiplier's input is paid with what the cost it feeds does
         // not need for a pip, so the doubling keeps that mana, when the split
         // can be made that way.
-        if let ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } = &context.kind
+        if let DecisionKind::GenericManaAllocation { spell_or_ability_id, .. } = &context.kind
             && let Some((multiplier, owed)) = self.previous_pool_multiplier.get()
             && multiplier == *spell_or_ability_id
         {
@@ -411,7 +411,7 @@ impl DecisionProvider for RandomDecisionProvider {
                 .iter()
                 .zip(&caps)
                 .map(|(bucket, &cap)| match bucket {
-                    ChoiceOption::ManaType(mana_type) => cap.saturating_sub(owed[*mana_type as usize]),
+                    DecisionOption::ManaType(mana_type) => cap.saturating_sub(owed[*mana_type as usize]),
                     _ => cap,
                 })
                 .collect();
@@ -446,8 +446,8 @@ impl DecisionProvider for RandomDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _context: &ChoiceContext,
-        items: &[ChoiceOption],
+        _context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         let mut rng = self.rng.borrow_mut();
         let mut indices: Vec<usize> = (0..items.len()).collect();
@@ -467,7 +467,7 @@ mod tests {
 
     /// The window's options for player 0, as `ask_activate_mana_ability`
     /// builds them, and what each produces.
-    fn window_options(game: &GameState) -> (Vec<ChoiceOption>, Vec<ManaType>) {
+    fn window_options(game: &GameState) -> (Vec<DecisionOption>, Vec<ManaType>) {
         let legal = ManaAbilityWindowOffer::read(game, 0).options(game);
         let produces: std::collections::HashMap<_, _> = available_mana_sources(game, 0)
             .into_iter()
@@ -475,14 +475,14 @@ mod tests {
             .collect();
         let options = legal
             .iter()
-            .map(|(p, a)| ChoiceOption::Action(PriorityAction::ActivateAbility(*p, *a)))
+            .map(|(p, a)| DecisionOption::Action(PriorityAction::ActivateAbility(*p, *a)))
             .collect();
         let types = legal.iter().map(|k| produces[k]).collect();
         (options, types)
     }
 
-    fn window(remaining: ManaCost) -> ChoiceContext {
-        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+    fn window(remaining: ManaCost) -> DecisionContext {
+        DecisionContext::new(DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: crate::types::ids::new_object_id(),
             remaining_cost: remaining,
         })
@@ -517,7 +517,7 @@ mod tests {
             let dp = RandomDecisionProvider::seeded(seed);
             let ctx = window(ManaCost::build(&[ManaType::Green, ManaType::Blue], 0));
             let pick = dp.pick_n(&game, 0, &ctx, &options, (0, 1));
-            let ChoiceOption::Action(PriorityAction::ActivateAbility(perm, _)) = options[pick[0]]
+            let DecisionOption::Action(PriorityAction::ActivateAbility(perm, _)) = options[pick[0]]
             else {
                 panic!("not an activation")
             };
@@ -560,7 +560,7 @@ mod tests {
     fn test_random_dp_pick_n_empty() {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction);
         let result = dp.pick_n(&game, 0, &ctx, &[], (0, 0));
         assert!(result.is_empty());
     }
@@ -569,8 +569,8 @@ mod tests {
     fn test_random_dp_pick_n_selects_within_bounds() {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
-        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
-        let options = vec![ChoiceOption::Action(PriorityAction::Pass); 3];
+        let ctx = DecisionContext::new(DecisionKind::PriorityAction);
+        let options = vec![DecisionOption::Action(PriorityAction::Pass); 3];
         let result = dp.pick_n(&game, 0, &ctx, &options, (1, 2));
         assert!(!result.is_empty() && result.len() <= 2);
         for &idx in &result {
@@ -579,22 +579,22 @@ mod tests {
     }
 
     /// `[Pass, Cast, Cast, Cast]`, the casts of fresh ids.
-    fn priority_options() -> Vec<ChoiceOption> {
-        let mut options = vec![ChoiceOption::Action(PriorityAction::Pass)];
-        options.extend((0..3).map(|_| ChoiceOption::Action(PriorityAction::CastSpell(crate::types::ids::new_object_id()))));
+    fn priority_options() -> Vec<DecisionOption> {
+        let mut options = vec![DecisionOption::Action(PriorityAction::Pass)];
+        options.extend((0..3).map(|_| DecisionOption::Action(PriorityAction::CastSpell(crate::types::ids::new_object_id()))));
         options
     }
 
-    fn action(option: &ChoiceOption) -> PriorityAction {
+    fn action(option: &DecisionOption) -> PriorityAction {
         match option {
-            ChoiceOption::Action(action) => action.clone(),
+            DecisionOption::Action(action) => action.clone(),
             other => panic!("{other:?} is no priority action"),
         }
     }
 
     /// The window asking again, having reversed `rejected`.
-    fn re_ask(rejected: &ChoiceOption) -> ChoiceContext {
-        ChoiceContext { kind: ChoiceKind::PriorityAction, rejected: Some(Rejection::Reversed(action(rejected))) }
+    fn re_ask(rejected: &DecisionOption) -> DecisionContext {
+        DecisionContext { kind: DecisionKind::PriorityAction, rejected: Some(Rejection::Reversed(action(rejected))) }
     }
 
     /// Item 193: the agent skips what its window rejected, which the engine no
@@ -604,9 +604,9 @@ mod tests {
     #[test]
     fn a_rejected_action_is_skipped_and_the_draw_is_the_filtered_lists() {
         let game = setup_basic_game();
-        let first = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let first = DecisionContext::new(DecisionKind::PriorityAction);
         let options = priority_options();
-        let filtered: Vec<ChoiceOption> =
+        let filtered: Vec<DecisionOption> =
             options.iter().enumerate().filter(|(i, _)| *i != 2).map(|(_, option)| option.clone()).collect();
         for seed in 0..64 {
             let (told, twin) = (RandomDecisionProvider::seeded(seed), RandomDecisionProvider::seeded(seed));
@@ -623,7 +623,7 @@ mod tests {
     #[test]
     fn a_windows_rejections_add_up_and_a_new_window_forgets_them() {
         let game = setup_basic_game();
-        let first = ChoiceContext::new(ChoiceKind::PriorityAction);
+        let first = DecisionContext::new(DecisionKind::PriorityAction);
         let options = priority_options();
         let dp = RandomDecisionProvider::seeded(7);
         dp.pick_n(&game, 0, &first, &options, (1, 1));
@@ -641,7 +641,7 @@ mod tests {
         let game = setup_basic_game();
         let spell_id = crate::types::ids::new_object_id();
         let values = Box::new(crate::oracle::x_values::LegalXValues::zero_through(10));
-        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, values });
+        let ctx = DecisionContext::new(DecisionKind::ChooseXValue { spell_id, values });
         let result = dp.pick_number(&game, 0, &ctx, 0, 10);
         assert!(result <= 10);
     }
@@ -652,8 +652,8 @@ mod tests {
         let game = setup_basic_game();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
-        let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id: id_a });
-        let buckets = vec![ChoiceOption::Object(id_a), ChoiceOption::Object(id_b)];
+        let ctx = DecisionContext::new(DecisionKind::AssignCombatDamage { attacker_id: id_a });
+        let buckets = vec![DecisionOption::Object(id_a), DecisionOption::Object(id_b)];
         let mins = vec![0, 0];
         let result = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins, None);
         assert_eq!(result.len(), 2);
@@ -666,17 +666,17 @@ mod tests {
     fn a_declaration_names_each_creature_once() {
         let game = setup_basic_game();
         let creatures: [ObjectId; 3] = std::array::from_fn(|_| crate::types::ids::new_object_id());
-        let options: Vec<ChoiceOption> = creatures
+        let options: Vec<DecisionOption> = creatures
             .iter()
-            .flat_map(|&id| [1, 2].map(|player| ChoiceOption::AttackerTarget(id, crate::state::battlefield::AttackTarget::Player(player))))
+            .flat_map(|&id| [1, 2].map(|player| DecisionOption::AttackerTarget(id, crate::state::battlefield::AttackTarget::Player(player))))
             .collect();
-        let context = ChoiceContext::new(ChoiceKind::DeclareAttackers);
+        let context = DecisionContext::new(DecisionKind::DeclareAttackers);
         for seed in 0..50 {
             let picked = RandomDecisionProvider::seeded(seed).pick_n(&game, 0, &context, &options, (0, options.len()));
             let named: Vec<ObjectId> = picked
                 .iter()
                 .filter_map(|&i| match options[i] {
-                    ChoiceOption::AttackerTarget(id, _) => Some(id),
+                    DecisionOption::AttackerTarget(id, _) => Some(id),
                     _ => None,
                 })
                 .collect();

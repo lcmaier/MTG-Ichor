@@ -460,7 +460,7 @@ each re-answers **one named question at one named read**:
 | May this block: evasion, tapped | 15, 1 | `can_block`'s pair checks, `can_be_a_blocker` | the permission half |
 | May this be targeted: hexproof, shroud | 5 | `validate_targets`, and CR 608.2b's re-check | the permission half, its seam cut by `cant-be-targeted` |
 | May this be activated: haste, a use limit | 4, 2 | `summoning_sickness_forbids`, once as an activation begins (CR 602.5a; never at the tap and untap costs, since #316) and in `mana_supply`, not at the attack; the loyalty and exhaust limits | the permission half |
-| How is this creature's damage assigned | 19 | a "may" at CR 510.1c, a choice kind no census has counted | the permission half, with its `ChoiceKind` |
+| How is this creature's damage assigned | 19 | a "may" at CR 510.1c, a choice kind no census has counted | the permission half, with its `DecisionKind` |
 | What does this source's damage do | 2 | wither's and infect's reads (Everlasting Torment, Phyrexian Unlife) | those keywords' first cards |
 | What number does this rule read | 24, 1 | crew, saddle and station's power sum (22), Loot's and Zimone's assignment, adapt's counter check | `remaining-costs` for crew, saddle and station; each other with its mechanic |
 | Is this card where the rule says | 1 | Shaman's Trance's cast from a graveyard | `casting-from-other-zones` |
@@ -646,7 +646,7 @@ The exile has to be a member of the batch beside the death for that choice to
 exist, which is this entry's facility — a rewrite yielding members inserted in
 phase 1 — plus one thing Harm's Way does not need: two members moving one
 object to two zones turn the CR 704.7 same-subject *collapse* into a *prompt*
-(~40 lines and a `ChoiceKind`). Lich's Mirror's fifteenth ruling is the same
+(~40 lines and a `DecisionKind`). Lich's Mirror's fifteenth ruling is the same
 board with a shuffle. The engine takes the graveyard outcome today and never
 asks (`codebase-state.md` item 125; `replacement-architecture.md` §11 item
 63). **Two customers is the bar, and it is met — what is open is the slot,
@@ -1215,7 +1215,7 @@ mechanic rather than a migration, which is why it is here and not in
   `--no-auto-pay` dropped it. `AutoPayer` went at
   `orders-the-cr-hands-a-player` (2026-11-06), the engine eliding the one
   prompt it still answered.
-  **The stack invariant is one decorator per `ChoiceKind`**, so composition
+  **The stack invariant is one decorator per `DecisionKind`**, so composition
   commutes and stack order carries no meaning — that is what a third
   automation (priority passing, auto-block) extends rather than a scope enum
   inside the payer.
@@ -1290,7 +1290,7 @@ mechanic rather than a migration, which is why it is here and not in
   evaluates any `AmountExpr` since; an earlier line here said `Fixed` alone)
   and never asks a `DecisionProvider` anything, so a new atom would still
   resolve without the color being chosen. The choice belongs at
-  resolution, not at activation — `ChoiceKind::ManaAbilityWindow`'s docs
+  resolution, not at activation — `DecisionKind::ManaAbilityWindow`'s docs
   already anticipate a Cavern of Souls whose second mode is "add one mana of
   any color", and today that mode would have to be five abilities. **The
   fuzz pool sidestepped it on 2026-09-03** with a five-type land, Everywhere
@@ -1302,7 +1302,7 @@ mechanic rather than a migration, which is why it is here and not in
   `any-color-plus-painlands-plus-signets`, also decides whether `random_deck`
   deals a printed any-color land in the fixture's place.
 - **Size** — small-to-medium. A `ManaOutput` arm (or a `ManaAtom`) for "one
-  mana of any color", one `ChoiceKind` asked in `resolve_mana_effect`, and
+  mana of any color", one `DecisionKind` asked in `resolve_mana_effect`, and
   `fuzz_games::land_mana_colors` learning to read it. **Riders are not
   carriable, which this line used to claim** (item 212's census,
   2026-10-05). `resolve_mana_effect` resolves a `Sequence` of `ProduceMana`
@@ -1337,7 +1337,7 @@ mechanic rather than a migration, which is why it is here and not in
 
 ### 2.21 Can a client render what it is being asked? — **shipped 2026-09-18 (A4j)**
 
-- **What shipped.** `ChoiceKind::subject() -> Option<ObjectId>`, matched
+- **What shipped.** `DecisionKind::subject() -> Option<ObjectId>`, matched
   without a wildcard, so a new variant cannot compile without deciding which
   object it is about. `tests/prompt_subject_test.rs` walks whole games at two
   seats and four, each deck a different window of the registry, and checks
@@ -1391,15 +1391,15 @@ mechanic rather than a migration, which is why it is here and not in
 
 - **Rules** — none. This is an engine-interface question, not a CR one, which
   is why it needs writing down: nothing in the CR will fail if we get it wrong.
-- **Verdict** — a `ChoiceContext` is supposed to carry enough that a UI can say
+- **Verdict** — a `DecisionContext` is supposed to carry enough that a UI can say
   *why* a player is being asked and highlight *what* they may pick, and today
-  it does: the options are `ChoiceOption`s naming real objects and players, and
-  each `ChoiceKind` carries its source (`ChooseSacrificeForCost`'s
+  it does: the options are `DecisionOption`s naming real objects and players, and
+  each `DecisionKind` carries its source (`ChooseSacrificeForCost`'s
   `spell_or_ability_id`, `ApplyOptionalReplacement`'s and
   `ChooseAuxiliaryZoneChange`'s `source`, whose doc argues the point outright:
   "why am I being asked this is answered by the source and by nothing else on
   this prompt"). **But nothing enforces it.** The discipline lives in prose on
-  individual variants, there is no test that a new `ChoiceKind` carries a
+  individual variants, there is no test that a new `DecisionKind` carries a
   source, and the only consumer that would notice is `ui/cli.rs`, which is
   omniscient and formats a line of text. The next variant added under time
   pressure can drop the source and every test will pass.
@@ -1410,7 +1410,7 @@ mechanic rather than a migration, which is why it is here and not in
   and still be unable to tell the player what it wants from them.
 - **Size** — small if taken as a gate rather than a redesign. The shape:
   a `fn subject(&self) -> Option<ObjectId>` (or a richer `PromptSubject`) that
-  every `ChoiceKind` answers, matched exhaustively so a new variant must
+  every `DecisionKind` answers, matched exhaustively so a new variant must
   decide, plus a test that walks a game and asserts every prompt raised carries
   one. The variants that legitimately have no subject — `PriorityAction`,
   `Discard { source: None }` — say `None` and say why, which is the same discipline
@@ -1548,7 +1548,7 @@ mechanic rather than a migration, which is why it is here and not in
      decorators are for.
   3. **At most one decorator answers any one prompt**, so composition
      commutes and stack order carries no meaning (`ui/mana_window_stop.rs`,
-     CM-4's review). Two predicates on one `ChoiceKind` coexist when they are
+     CM-4's review). Two predicates on one `DecisionKind` coexist when they are
      disjoint — the stop answers the window once covered, a solver while it
      is not. **Full control is therefore a switch above the stack, never a
      wrapper in it and never a handle inside each decorator** (amended at
@@ -1562,7 +1562,7 @@ mechanic rather than a migration, which is why it is here and not in
   `cast.rs` asked recipients from two sites, casting and activating, and A4i's
   `put_on_stack.rs` asks from one. A loose grep reads 28 today because two
   test-function names in `tests/phase_rd_integration_test.rs` match `ask_…(`; count calls.
-  `ChoiceKind` has **25 variants**, every one answering `subject()` since A4j
+  `DecisionKind` has **25 variants**, every one answering `subject()` since A4j
   (PR #168). **Two decorators, both CM-4's, both stateless.** The wiring, as
   this census read it (`AutoPayer` went at `orders-the-cr-hands-a-player`):
   the dev GUI ran `AutoPayer(ManaWindowStop(seat))` for a person,
@@ -1867,7 +1867,7 @@ mechanic rather than a migration, which is why it is here and not in
     and the random agent draws nothing on a one-option `pick_n` (item 145,
     lever 10), so skipping the prompt would move no counter and no stream;
     what it costs is the fixture migration — **148 scripted
-    `ChoiceKind::PriorityAction` expectations, 134 in ten test files and 14
+    `DecisionKind::PriorityAction` expectations, 134 in ten test files and 14
     in `src` unit tests**, an upper bound since some answer a longer list —
     against ~10 lines at `run_priority_round`. Item 145's class, owed for
     item 145's reason; `codebase-state.md` item 164. **Built 2026-09-30
@@ -1946,7 +1946,7 @@ mechanic rather than a migration, which is why it is here and not in
   40 life), 200 / 200 / 100 games at seed 12345, from a throwaway counting
   provider — a pure function of the seed, like every fixture row:
 
-  | `ask_*` | `ChoiceKind` | asked of | class | per game |
+  | `ask_*` | `DecisionKind` | asked of | class | per game |
   |---|---|---|---|---|
   | `choose_priority_action` | `PriorityAction` | the seat with priority | **B**, the boundary — but **188 / 314 / 476** of these offer more than `Pass`; the rest are forced and a harness skips them unobserved | 2,219 / 2,505 / 3,502 |
   | `choose_attackers` | `DeclareAttackers` | the active player | **B** — CR 508.1's turn-based action, a decision of its own and never a parameter | 34 / 32 / 45 |
@@ -2015,7 +2015,7 @@ mechanic rather than a migration, which is why it is here and not in
   too, and is the shape Phase 10's harness doc starts from. CR 603.3b's
   ordering joins the residual the day triggers exist, asked of each trigger's
   controller in APNAP order — classified **C**, residual, at birth (row 8 of
-  the census above), before the `ChoiceKind` exists.
+  the census above), before the `DecisionKind` exists.
 
   **Per class, the cost of each way.** A **B** row is an observation and
   costs one prompt's encoding. A **P** row answered by policy costs nothing
@@ -2338,7 +2338,7 @@ comment sweep found the `TODO` in `Game::setup` with no owner.
 |---|---|
 | **Rules** | CR 103.5 (declarations in turn order from the starting player, then each mulligan taken, then N cards to the bottom); 103.5c (in a multiplayer game the first mulligan is free); 103.5b ("any time [that player] could mulligan"); 903.5a — Commander is the same rule |
 | **Verdict** | a stub whose configuration is already in place; the engine answers the game's first decision for the player |
-| **Size** | ~100 lines in `Game::setup`: two `ChoiceKind`s, the loop CR 103.5 states, 103.5c keyed on the player count, and the random provider's policy — keep, always, so no fuzz counter moves; the pool moves only if an agent ever mulligans |
+| **Size** | ~100 lines in `Game::setup`: two `DecisionKind`s, the loop CR 103.5 states, 103.5c keyed on the player count, and the random provider's policy — keep, always, so no fuzz counter moves; the pool moves only if an agent ever mulligans |
 | **Blocks** | every game's opening: the RL harness's first decision (the post-RE audit's fork model, `codebase-state.md` main item 41) and a person's seat |
 | **Atoms** | `ATOM-103.5-001` |
 | **Owner** | `game-formats`, in `setup-architecture.md`, which owns CR 103: every game opens with CR 103.5, the five-seat table is the first a person sits down at, and `roadmap-v2.md` §D brings Commander's mulligans forward with the formats; CR 103.5c's free mulligan is keyed on the seat count |
@@ -2526,7 +2526,7 @@ take it from.
 | **Size** | small: one `Display` decision, the four renderers, the viewer's regex, and the `format_event` fixtures that assert a line's text; a docs pass over the trace pages' examples is not owed (they are pinned) |
 | **Blocks** | nothing on the spine; the readability of every log, trace and prompt line, and main item 141's wire shape, which should not inherit a spelling by accident |
 | **Atoms** | none |
-| **Owner** | `names-and-hygiene-sweeps`, before release: one spelling for every human-facing line, swept once against a tree that has stopped growing, and the decision log's words with it, since `ChoiceOption::as_logged` writes `#N` too. Nothing on the route reads it. Filed 2026-09-18 from the owner's review of A4c (PR #170) |
+| **Owner** | `names-and-hygiene-sweeps`, before release: one spelling for every human-facing line, swept once against a tree that has stopped growing, and the decision log's words with it, since `DecisionOption::as_logged` writes `#N` too. Nothing on the route reads it. Filed 2026-09-18 from the owner's review of A4c (PR #170) |
 
 ### 2.37 Which clause fits which slot — parity written 2026-11-13, the matrix at v0.5's close
 
@@ -2605,7 +2605,7 @@ and moves that animate. Four things stand between the engine and that client:
   a GUI for one human renders one player's view.
 - **The wire surface is not serializable.** `serde` is not a dependency, and
   `codebase-state.md` main item 141's payload rule is unmet in two places:
-  `SelectRecipients` carries an `EffectRecipient` tree, and `ChoiceOption`'s
+  `SelectRecipients` carries an `EffectRecipient` tree, and `DecisionOption`'s
   cost options carry `Cost` trees.
 - **The decision loop needs a thread that can block.** `Game::run(&dp)` calls
   the provider and waits for the answer. Forge and XMage share the design:
@@ -2617,7 +2617,7 @@ and moves that animate. Four things stand between the engine and that client:
   (§2.32), deck validation (§2.13), and Phase 9's Commander state.
 
 **What a client already gets**, so Phase 10's design starts from it: prompts
-that name their subject (`ChoiceKind::subject()`, matched exhaustively); a
+that name their subject (`DecisionKind::subject()`, matched exhaustively); a
 post-replacement stream of performed events to animate from; an `ObjectId`
 that survives a zone change, which main item 10's plan keeps, so a card moving
 from hand to battlefield animates as one object; effective characteristics
@@ -2635,7 +2635,7 @@ does is data beside it; `information-model` decides what each seat's copy holds.
 what a client is handed and what it answers with, since a seat's copy and the
 structure it arrives in inform each other, and the CLI's AI games need it as
 much as Phase 10 does. The vocabulary is unified and the forms are not: one
-table per `ChoiceKind` of its name, its log word, its scenario word and its
+table per `DecisionKind` of its name, its log word, its scenario word and its
 fields, which v1's documentation can be generated from, while a `then:` line
 stays a macro over several questions, written before any id exists. Four
 things wait on it:
@@ -2747,7 +2747,7 @@ covers them too. The options, with what each costs:
   words or another language cannot change them, and a change of wording is an
   engine PR.
 - **Each client words the engine's typed facts itself.** The engine keeps the
-  facts (`CombatError`, the option reasons, `LayerExplanation`, `ChoiceKind`)
+  facts (`CombatError`, the option reasons, `LayerExplanation`, `DecisionKind`)
   and drops the words. Each client is then free to word them, at the cost of
   one copy per client that can drift: `codebase-state.md` item 188's class,
   for words. The engine's own trace and the scenario text still need words,

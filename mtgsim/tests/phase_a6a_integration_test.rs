@@ -38,7 +38,7 @@ use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::{EventRole, TriggerCondition, TriggerDef};
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -60,11 +60,11 @@ impl DecisionProvider for WindowWatch {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::PriorityAction) {
+        if matches!(context.kind, DecisionKind::PriorityAction) {
             self.prompts.set(self.prompts.get() + 1);
             if !game.events.held().is_empty() {
                 self.held.set(self.held.get() + 1);
@@ -73,7 +73,7 @@ impl DecisionProvider for WindowWatch {
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.inner.pick_number(game, player, context, min, max)
     }
 
@@ -81,9 +81,9 @@ impl DecisionProvider for WindowWatch {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -94,8 +94,8 @@ impl DecisionProvider for WindowWatch {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
     }

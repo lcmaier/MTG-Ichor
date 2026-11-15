@@ -82,14 +82,14 @@ pub struct AnswerLine {
     /// The step as a scenario spells it ([`position_word`]).
     pub step: String,
     pub player: PlayerId,
-    /// The kind as [`crate::ui::choice_types::ChoiceKind::as_str`] spells it.
+    /// The kind as [`crate::ui::decision_types::DecisionKind::as_str`] spells it.
     pub kind: String,
     /// The question had one legal answer.
     pub forced: bool,
     pub chosen: Chosen,
 }
 
-/// What an answer chose, each option as `ChoiceOption::as_logged` writes it.
+/// What an answer chose, each option as `DecisionOption::as_logged` writes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Chosen {
     Picks(Vec<String>),

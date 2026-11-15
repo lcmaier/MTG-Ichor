@@ -1080,7 +1080,7 @@ with `plans/references/vocabulary-census.py` when a design needs it.
 - **keys** — a thing named by identity: `AttackTarget`, `ObjectOrPlayer`,
   `ObjectOrPlayerId`, `ReplacementInstanceId`
 - **record** — the game's record and its observers, reached through a
-  payload, which §4c reads: `ChoiceKind`, `ChoiceOption`,
+  payload, which §4c reads: `DecisionKind`, `DecisionOption`,
   `CounterEffectKind`, `DepartedObject`, `Elision`, `EntryOffer`, `EntryRole`,
   `EventCause`, `GameEvent`, `GameRuleReplacement`, `GeneratedBy`, `Unasked`,
   `UnaskedAnswer`, `UnattachRoute`

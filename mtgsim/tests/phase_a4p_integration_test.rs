@@ -20,7 +20,7 @@
 
 use mtgsim::cards::printings::{ancestral_recall, lightning_bolt};
 use mtgsim::state::game_state::GameState;
-use mtgsim::ui::choice_types::ChoiceOption;
+use mtgsim::ui::decision_types::DecisionOption;
 use mtgsim::test_support::{
     put_in_hand, setup_game, stock_libraries, test_dp, RecordingDecisionProvider,
 };
@@ -68,7 +68,7 @@ fn any_target_damage_does_not_resolve_against_a_seat_that_left_the_game() {
     let bolt = put_in_hand(&mut game, lightning_bolt(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
-    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Player(3)]);
+    let dp = RecordingDecisionProvider::choosing([DecisionOption::Player(3)]);
     game.cast_spell(0, bolt, &dp).expect("{R} is in the pool and the seats are legal");
     assert_eq!(
         game.stack_entries[&bolt].announced.targets().next().unwrap().as_resolved_targets().collect::<Vec<_>>(),
@@ -111,7 +111,7 @@ fn a_seat_that_left_the_game_is_not_among_the_players_a_cast_offers() {
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     let before = hand_size(&game, 2);
 
-    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Player(3), ChoiceOption::Player(2)]);
+    let dp = RecordingDecisionProvider::choosing([DecisionOption::Player(3), DecisionOption::Player(2)]);
     game.cast_spell(0, recall, &dp)
         .expect("three seats are in the game, so CR 601.2c has a legal target");
     assert_eq!(

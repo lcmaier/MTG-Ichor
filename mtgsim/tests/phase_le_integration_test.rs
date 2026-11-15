@@ -22,7 +22,7 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -246,13 +246,13 @@ fn test_lightning_bolt_does_not_kill_tarmogoyf_because_bolt_itself_grows_it() {
     game.active_player = 1;
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(bolt_id))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(bolt_id))]);
     dp.expect_choice(
-        ChoiceKind::SelectRecipients {
+        DecisionKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: bolt_id,
         },
-        vec![ChoiceOption::Object(goyf)],
+        vec![DecisionOption::Object(goyf)],
     );
     assert_eq!(
         game.run_priority_round(&dp).unwrap(),

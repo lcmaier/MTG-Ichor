@@ -21,7 +21,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::CounterType;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -430,7 +430,7 @@ fn ghosts_beside_furnace_does_not_commute_and_the_damaged_player_chooses() {
             let ghosts = put_on_battlefield(&mut game, ghosts_of_the_innocent(), 0);
             let furnace = put_on_battlefield(&mut game, furnace_of_rath(), 0);
             let source = source_for(&mut game, 0);
-            let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(if ghosts_first { ghosts } else { furnace })]);
+            let dp = RecordingDecisionProvider::choosing([DecisionOption::Object(if ghosts_first { ghosts } else { furnace })]);
             bolt_player_with(&mut game, &dp, source, 1, 3);
             assert_eq!(dp.prompts(), 1, "two candidates, then one");
             20 - life(&game, 1)
@@ -461,7 +461,7 @@ fn giselas_prevention_beside_an_opponents_furnace_does_not_commute() {
             let gisela = put_on_battlefield(&mut game, gisela_blade_of_goldnight(), 0);
             let furnace = put_on_battlefield(&mut game, furnace_of_rath(), 1);
             let source = source_for(&mut game, 1);
-            let dp = RecordingDecisionProvider::choosing([ChoiceOption::Object(if gisela_first { gisela } else { furnace })]);
+            let dp = RecordingDecisionProvider::choosing([DecisionOption::Object(if gisela_first { gisela } else { furnace })]);
             bolt_player_with(&mut game, &dp, source, 0, 5);
             20 - life(&game, 0)
         })
@@ -567,11 +567,11 @@ fn trample_assigns_lethal_before_furnace_doubles() {
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_allocation(
-        ChoiceKind::AssignTrampleDamage {
+        DecisionKind::AssignTrampleDamage {
             attacker_id: mammoth,
             defending_target: ObjectOrPlayerId::Player(1),
         },
-        vec![(ChoiceOption::Object(blocker), 2), (ChoiceOption::Player(1), 1)],
+        vec![(DecisionOption::Object(blocker), 2), (DecisionOption::Player(1), 1)],
     );
     let assignments = assign_combat_damage(&game, &dp, 0, false);
     // The floor the prompt carried, which is this test's claim: CR 702.19b's
@@ -1138,15 +1138,15 @@ mod the_damage_cards {
     // prompt is the target.
     #[test]
     fn samite_healer_taps_for_a_count_of_one_and_the_row_names_the_healer() {
-        use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+        use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
         use mtgsim::ui::decision::ScriptedDecisionProvider;
 
         let mut game = setup_two_player_game();
         let healer = put_on_battlefield(&mut game, samite_healer(), 0);
         let dp = ScriptedDecisionProvider::new();
         dp.expect_choice(
-            ChoiceKind::SelectRecipients { recipient: any_target(), spell_id: healer },
-            vec![ChoiceOption::Player(1)],
+            DecisionKind::SelectRecipients { recipient: any_target(), spell_id: healer },
+            vec![DecisionOption::Player(1)],
         );
         game.activate_ability(0, healer, 0, &dp).expect("{T} is payable");
         assert!(game.battlefield[&healer].tapped);
@@ -1215,7 +1215,7 @@ mod the_damage_cards {
     /// source, wherever the candidates list it.
     fn naming(options: impl IntoIterator<Item = mtgsim::types::ids::ObjectId>) -> mtgsim::test_support::RecordingDecisionProvider {
         mtgsim::test_support::RecordingDecisionProvider::choosing(
-            options.into_iter().map(mtgsim::ui::choice_types::ChoiceOption::Object),
+            options.into_iter().map(mtgsim::ui::decision_types::DecisionOption::Object),
         )
     }
 

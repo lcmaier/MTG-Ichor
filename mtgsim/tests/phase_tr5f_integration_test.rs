@@ -39,7 +39,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::triggers::{DefenderFilter, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::{format_event_log, format_record, log_lines};
 
@@ -57,10 +57,10 @@ fn stocked(players: usize) -> GameState {
 
 /// Player 0 declares `attacks`, each attacker against its player.
 fn declare(game: &mut GameState, attacks: &[(ObjectId, PlayerId)]) {
-    let declared = attacks.iter().map(|&(attacker, player)| ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(player))).collect();
+    let declared = attacks.iter().map(|&(attacker, player)| DecisionOption::AttackerTarget(attacker, AttackTarget::Player(player))).collect();
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareAttackers, declared);
+    dp.expect_choice(DecisionKind::DeclareAttackers, declared);
     game.process_declare_attackers(&dp).unwrap();
 }
 
@@ -598,9 +598,9 @@ fn each_token_chooses_what_it_attacks_at_four_seats() {
     declare(&mut game, &[(garrison, 1)]);
 
     let dp = ScriptedDecisionProvider::new();
-    let asked = ChoiceKind::ChooseEnteringDefender { object: ObjectId::UNASSIGNED };
-    dp.expect_choice(asked.clone(), vec![ChoiceOption::Player(2)]);
-    dp.expect_choice(asked, vec![ChoiceOption::Player(3)]);
+    let asked = DecisionKind::ChooseEnteringDefender { object: ObjectId::UNASSIGNED };
+    dp.expect_choice(asked.clone(), vec![DecisionOption::Player(2)]);
+    dp.expect_choice(asked, vec![DecisionOption::Player(3)]);
     resolve_all(&mut game, &dp);
     let attacks: Vec<_> = tokens(&game).into_iter().map(|token| attack_of(&game, token)).collect();
     assert_eq!(attacks, [Some(AttackTarget::Player(2)), Some(AttackTarget::Player(3))]);
@@ -739,7 +739,7 @@ fn parallel_lives_doubles_the_attacking_tokens() {
     let garrison = put_on_battlefield(&mut game, hanweir_garrison(), 0);
     declare(&mut game, &[(garrison, 1)]);
 
-    let dp = RecordingDecisionProvider::choosing([ChoiceOption::Player(1)]);
+    let dp = RecordingDecisionProvider::choosing([DecisionOption::Player(1)]);
     resolve_all(&mut game, &dp);
     let humans = tokens(&game);
     assert_eq!(humans.len(), 4);
@@ -917,7 +917,7 @@ fn relentless_assault_untaps_what_attacked_and_attack_triggers_fire_again() {
         game.advance_turn(&dp).unwrap();
     }
     let attack = ScriptedDecisionProvider::new();
-    attack.expect_choice(ChoiceKind::DeclareAttackers, vec![ChoiceOption::AttackerTarget(hellrider, AttackTarget::Player(1))]);
+    attack.expect_choice(DecisionKind::DeclareAttackers, vec![DecisionOption::AttackerTarget(hellrider, AttackTarget::Player(1))]);
     game.process_declare_attackers(&attack).unwrap();
     assert_eq!(game.pending_triggers.len(), 1, "Hellrider's, in the second combat");
     resolve_all(&mut game, &test_dp());

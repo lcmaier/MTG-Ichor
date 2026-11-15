@@ -44,7 +44,7 @@ use mtgsim::types::triggers::{
     TargetedBy, TriggerMultiplierDef, TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -257,8 +257,8 @@ fn each_doubled_instance_makes_its_own_choice() {
     let healer = reanimate(&mut game, watcher("Hopeful", whenever(enters(TriggerSubject::ThisObject), may_gain)), 0);
     assert_eq!(waiting_from(&game, healer), 2);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_take(ChoiceKind::ApplyOptionalEffect { source: healer });
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: healer }, Vec::new());
+    dp.expect_take(DecisionKind::ApplyOptionalEffect { source: healer });
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source: healer }, Vec::new());
     resolve_all(&mut game, &dp);
     assert_eq!(life(&game, 0), before + 1, "one said yes and the other no");
 }
@@ -355,7 +355,7 @@ fn a_do_this_only_once_trigger_doubled_acts_once() {
     reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert_eq!(waiting_from(&game, grower), 2, "both trigger");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_take(ChoiceKind::ApplyOptionalEffect { source: grower });
+    dp.expect_take(DecisionKind::ApplyOptionalEffect { source: grower });
     resolve_all(&mut game, &dp);
     assert_eq!(game.battlefield[&grower].counter_count(CounterType::PlusOnePlusOne), 1, "the second does nothing, and asks nothing");
 }
@@ -433,7 +433,7 @@ fn a_copied_multiplier_is_found_through_the_registry_summary() {
         trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::ChooseCopySource { source: spell }, vec![ChoiceOption::Object(donor)]);
+    dp.expect_choice(DecisionKind::ChooseCopySource { source: spell }, vec![DecisionOption::Object(donor)]);
     game.resolve_effect(&cytoshape().abilities[0].effect, &ctx, &dp).unwrap();
     assert!(game.continuous_effects.summary().any_copied_trigger_multiplier);
 
@@ -570,8 +570,8 @@ fn place_each_at_the_opponent(game: &mut GameState, triggers: usize) {
     let dp = ScriptedDecisionProvider::new();
     for _ in 0..triggers {
         dp.expect_choice(
-            ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-            vec![ChoiceOption::Player(1)],
+            DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+            vec![DecisionOption::Player(1)],
         );
     }
     game.perform_sba_and_triggers(&dp).unwrap();
@@ -668,7 +668,7 @@ fn elrond_master_of_healing() -> Arc<CardData> {
         .build()
 }
 
-const PICK_SCRY: ChoiceKind = ChoiceKind::Scry { source: None, n: 0 };
+const PICK_SCRY: DecisionKind = DecisionKind::Scry { source: None, n: 0 };
 
 /// `player` scries `n`, keeping every card on top in the order it was.
 fn scry(game: &mut GameState, player: PlayerId, n: u64) {
@@ -678,8 +678,8 @@ fn scry(game: &mut GameState, player: PlayerId, n: u64) {
         dp.expect_choice(PICK_SCRY, Vec::new());
     }
     if looked_at > 1 {
-        let top_down = game.players[player].library.iter().rev().take(looked_at).map(|&card| ChoiceOption::Object(card)).collect();
-        dp.expect_order(ChoiceKind::OrderLibraryCards { source: None, bottom: false }, top_down);
+        let top_down = game.players[player].library.iter().rev().take(looked_at).map(|&card| DecisionOption::Object(card)).collect();
+        dp.expect_order(DecisionKind::OrderLibraryCards { source: None, bottom: false }, top_down);
     }
     game.execute_action(GameAction::Scry { player, n }, &ActionContext::new(&dp)).expect("the scry is performed");
 }
@@ -688,8 +688,8 @@ fn scry(game: &mut GameState, player: PlayerId, n: u64) {
 fn place_choosing(game: &mut GameState, targets: Vec<ObjectId>) {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        targets.into_iter().map(ChoiceOption::Object).collect(),
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        targets.into_iter().map(DecisionOption::Object).collect(),
     );
     game.perform_sba_and_triggers(&dp).unwrap();
 }
@@ -798,8 +798,8 @@ fn two_of_elronds_creatures_targeted_by_one_ability_trigger_it_twice() {
     resolve_all(&mut game, &test_dp());
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::Object(bears[0]), ChoiceOption::Object(bears[1]), ChoiceOption::Object(plain)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Object(bears[0]), DecisionOption::Object(bears[1]), DecisionOption::Object(plain)],
     );
     game.activate_ability(1, wand, 0, &dp).expect("the opponent's ability targets three creatures");
     assert_eq!(waiting_from(&game, elrond), 2, "the two with a counter, each once");
@@ -826,8 +826,8 @@ fn a_count_of_other_creatures_leaves_out_the_abilitys_own_permanent() {
     resolve_all(&mut game, &test_dp());
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-        vec![ChoiceOption::Player(1)],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+        vec![DecisionOption::Player(1)],
     );
     game.activate_ability(0, pinger, 0, &dp).expect("it is activated");
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
@@ -1020,7 +1020,7 @@ fn two_teysas_make_three_as_the_legend_rule_kills_one() {
     resolve_all(&mut game, &test_dp());
     put_on_battlefield(&mut game, teysa_karlov(), 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::LegendRule { legend_name: "Teysa Karlov".into() }, vec![ChoiceOption::Object(first)]);
+    dp.expect_choice(DecisionKind::LegendRule { legend_name: "Teysa Karlov".into() }, vec![DecisionOption::Object(first)]);
     game.perform_sba_and_triggers(&dp).unwrap();
     assert!(dp.is_empty(), "the legend rule chose");
     let stacked = game.stack.iter().filter(|id| game.stack_entries[*id].ability_ref.is_some_and(|i| i.source.id == mourner)).count();
@@ -1054,10 +1054,10 @@ fn x_target_creatures_takes_exactly_the_announced_x() {
     game.players[0].mana_pool.add(ManaType::Blue, 3);
     let card = put_in_hand(&mut game, tap_x(), 0);
     let seat = ScriptedDecisionProvider::new();
-    seat.expect_number(ChoiceKind::ChooseXValue { spell_id: card, values: Box::new(LegalXValues::zero_through(2)) }, 2);
+    seat.expect_number(DecisionKind::ChooseXValue { spell_id: card, values: Box::new(LegalXValues::zero_through(2)) }, 2);
     seat.expect_choice(
-        ChoiceKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: card },
-        vec![ChoiceOption::Object(bears[0]), ChoiceOption::Object(bears[1])],
+        DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: card },
+        vec![DecisionOption::Object(bears[0]), DecisionOption::Object(bears[1])],
     );
     game.cast_spell(0, card, &seat).expect("castable");
     assert!(seat.is_empty());

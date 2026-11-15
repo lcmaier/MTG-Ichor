@@ -240,9 +240,9 @@ primitives, rather than one method per kind of decision.
 | `allocate` | Distribute a quantity across recipients (damage assignment, generic mana) |
 | `choose_ordering` | Order a set (trigger stacking, library arrangement) |
 
-What a given choice *means* is carried alongside it by a `ChoiceContext` with a
-`ChoiceKind` enum — `DeclareAttackers`, `AssignTrampleDamage`, `ChooseXValue`, and so on.
-Adding a new decision to the engine means adding a `ChoiceKind` variant: the trait and every
+What a given choice *means* is carried alongside it by a `DecisionContext` with a
+`DecisionKind` enum — `DeclareAttackers`, `AssignTrampleDamage`, `ChooseXValue`, and so on.
+Adding a new decision to the engine means adding a `DecisionKind` variant: the trait and every
 implementation of it stay unchanged, and exhaustive matching makes the compiler point at
 every UI site that needs a new screen.
 
@@ -319,7 +319,7 @@ mtgsim/src/
 ├── types/          ids, mana, effects, costs, cost_modification, replacement,
 │                   restriction, triggers, history, card_types, colors, keywords,
 │                   keyword_actions, zones
-└── ui/             decision (trait), ask (typed bridge), choice_types, display,
+└── ui/             decision (trait), ask (typed bridge), decision_types, display,
                     random, auto_payer, auto_yield, auto_order_triggers,
                     full_control, mana_window_stop, replay, waiting, why,
                     what_happened

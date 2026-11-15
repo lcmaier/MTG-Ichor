@@ -21,7 +21,7 @@ use mtgsim::types::effects::{
     CounterType, Duration, EffectRecipient, ObjectFilter, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 use mtgsim::test_support::{put_on_battlefield, setup_two_player_game};
@@ -168,8 +168,8 @@ fn test_legend_rule_sees_granted_legendary_supertype() {
     // The legend rule now fires, so the controller must choose which to keep.
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(
-        ChoiceKind::LegendRule { legend_name: "Ornithopter".to_string() },
-        vec![ChoiceOption::Object(a)],
+        DecisionKind::LegendRule { legend_name: "Ornithopter".to_string() },
+        vec![DecisionOption::Object(a)],
     );
     game.check_state_based_actions_loop(&dp).unwrap();
     let survivors = [a, b].iter().filter(|id| game.battlefield.contains_key(id)).count();

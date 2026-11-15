@@ -846,7 +846,7 @@ eventually gets written for one.
 
 **The choice site, and what carries the chosen id (`codebase-state.md` item
 40).** Cytoshape's donor is a CR 707.4 *choice* made on resolution, so it gets
-its own decision site and its own `ChoiceKind::ChooseCopySource { source }`.
+its own decision site and its own `DecisionKind::ChooseCopySource { source }`.
 **Not `SelectRecipients`, which a choice at resolution reuses** — there the
 chosen permanent *is* what the primitive acts on, and here it is the exact
 opposite: the donor is the one permanent a copy effect does **not** change. A
@@ -1491,7 +1491,7 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 
 ### 7a. CV-1 — the capture, the row and the two legs — ✅ 2026-09-02
 
-**Shipped.** `CopiableValues` captured at `END_OF_LAYER_1` (`engine/layers/copy.rs`), `EffectModification::CopyFrom` applied at `LAYER_ORDER[0]`, `Primitive::Copy(CopyRoles, Duration)`, `ChoiceKind::ChooseCopySource`, both gate legs, `register_copied_static_effects`; Cytoshape (pooled, 62 → 63) and Mirrorweave. Trace page `cv-1-a-copy-is-a-snapshot.html`.
+**Shipped.** `CopiableValues` captured at `END_OF_LAYER_1` (`engine/layers/copy.rs`), `EffectModification::CopyFrom` applied at `LAYER_ORDER[0]`, `Primitive::Copy(CopyRoles, Duration)`, `DecisionKind::ChooseCopySource`, both gate legs, `register_copied_static_effects`; Cytoshape (pooled, 62 → 63) and Mirrorweave. Trace page `cv-1-a-copy-is-a-snapshot.html`.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/copy-effects-architecture-landed.md`, "CV-1" (evicted 2026-09-11).
 

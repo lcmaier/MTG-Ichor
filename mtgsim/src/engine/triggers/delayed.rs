@@ -41,7 +41,7 @@ use crate::types::triggers::{
 };
 use crate::types::zones::UntilReturn;
 use crate::ui::ask::ask_choose_delayed_trigger_event;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionKind, DecisionOption};
 
 impl GameState {
     /// CR 603.7a — a delayed triggered ability is created, through the one
@@ -391,10 +391,10 @@ impl GameState {
             if several {
                 self.note_unasked(kept.controller, Unasked::OneGame(Elision::DelayedTriggerCause), || {
                     let cause = match kept.binding.triggering_event().and_then(|t| t.objects.objects().next()) {
-                        Some((_, object)) => ChoiceOption::Object(object.id),
-                        None => ChoiceOption::Number(kept.binding.first_record().map_or(0, |r| r.seq.0 as u64)),
+                        Some((_, object)) => DecisionOption::Object(object.id),
+                        None => DecisionOption::Number(kept.binding.first_record().map_or(0, |r| r.seq.0 as u64)),
                     };
-                    (ChoiceKind::ChooseDelayedTriggerEvent { source }, UnaskedAnswer::Picks(vec![cause]))
+                    (DecisionKind::ChooseDelayedTriggerEvent { source }, UnaskedAnswer::Picks(vec![cause]))
                 });
             }
             return Some(kept);
@@ -412,12 +412,12 @@ impl GameState {
             distinct.iter().map(|e| e.binding.triggering_event().and_then(|t| t.objects.objects().next()).map(|(_, object)| object.id)).collect();
         let objects_tell = by_object.iter().all(Option::is_some)
             && by_object.iter().enumerate().all(|(i, a)| by_object[..i].iter().all(|b| b != a));
-        let options: Vec<ChoiceOption> = distinct
+        let options: Vec<DecisionOption> = distinct
             .iter()
             .zip(&by_object)
             .map(|(entry, object)| match object {
-                Some(id) if objects_tell => ChoiceOption::Object(*id),
-                _ => ChoiceOption::Number(entry.binding.first_record().map_or(0, |r| r.seq.0 as u64)),
+                Some(id) if objects_tell => DecisionOption::Object(*id),
+                _ => DecisionOption::Number(entry.binding.first_record().map_or(0, |r| r.seq.0 as u64)),
             })
             .collect();
         let controller = distinct[0].controller;

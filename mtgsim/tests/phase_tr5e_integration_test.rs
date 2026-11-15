@@ -36,7 +36,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{DefenderFilter, EventRole, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_event_log;
 
@@ -54,10 +54,10 @@ fn stocked(players: usize) -> GameState {
 
 /// Player 0 declares `attacks`, each attacker against its player.
 fn declare(game: &mut GameState, attacks: &[(ObjectId, PlayerId)]) {
-    let declared = attacks.iter().map(|&(attacker, player)| ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(player))).collect();
+    let declared = attacks.iter().map(|&(attacker, player)| DecisionOption::AttackerTarget(attacker, AttackTarget::Player(player))).collect();
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::DeclareAttackers, declared);
+    dp.expect_choice(DecisionKind::DeclareAttackers, declared);
     game.process_declare_attackers(&dp).unwrap();
 }
 
@@ -103,7 +103,7 @@ fn a_counter_on_the_attackers() -> Effect {
 /// is, in the order they triggered.
 fn ordered_by(game: &GameState, player: PlayerId, source: ObjectId) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_order(ChoiceKind::OrderTriggers { player, tier: TriggerTier::First }, pending_triggers_of(game, source));
+    dp.expect_order(DecisionKind::OrderTriggers { player, tier: TriggerTier::First }, pending_triggers_of(game, source));
     dp
 }
 
@@ -362,7 +362,7 @@ fn hellrider_deals_each_attackers_damage_to_what_it_attacks() {
     let dp = ScriptedDecisionProvider::new();
     // Hellrider's three triggers, one for each attacker, in the order they
     // triggered.
-    dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, pending_triggers_of(&game, rider));
+    dp.expect_order(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First }, pending_triggers_of(&game, rider));
     resolve_all(&mut game, &dp);
     assert_eq!([1, 2, 3].map(|p| before[p - 1] - life(&game, p)), [1, 1, 1]);
 }

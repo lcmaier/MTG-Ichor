@@ -52,11 +52,11 @@ use mtgsim::types::mana::{
 use mtgsim::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 /// CR 616.1's choice between two applicable effects.
-const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
+const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -638,7 +638,7 @@ fn contamination_line_beside_mana_reflection_is_a_real_choice() {
         let reflection = put_on_battlefield(&mut game, mana_reflection(), 0);
         put_on_battlefield(&mut game, contamination(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(reflection)]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(reflection)]);
         tap_for_mana(&mut game, forest(), 0, &dp).unwrap();
         assert!(dp.is_empty(), "one prompt");
         pool(&game, 0, ManaType::Black)
@@ -648,7 +648,7 @@ fn contamination_line_beside_mana_reflection_is_a_real_choice() {
         put_on_battlefield(&mut game, mana_reflection(), 0);
         let contamination = put_on_battlefield(&mut game, contamination(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(PICK_REPLACEMENT, vec![ChoiceOption::Object(contamination)]);
+        dp.expect_choice(PICK_REPLACEMENT, vec![DecisionOption::Object(contamination)]);
         tap_for_mana(&mut game, forest(), 0, &dp).unwrap();
         assert!(dp.is_empty(), "one prompt");
         pool(&game, 0, ManaType::Black)

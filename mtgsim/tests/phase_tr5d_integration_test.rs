@@ -50,7 +50,7 @@ use mtgsim::types::triggers::{
     TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_record;
 
@@ -698,7 +698,7 @@ fn cast_with_x(game: &mut GameState, card: Arc<CardData>, x: u64) {
     let id = put_in_hand(game, card, 0);
     game.players[0].mana_pool.add(ManaType::Red, x + 2);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
+    dp.expect_number(DecisionKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
     game.cast_spell(0, id, &dp).expect("it is castable");
     game.resolve_top_of_stack(&dp).expect("it resolves");
 }
@@ -751,8 +751,8 @@ fn goblin_negotiation_counts_the_damage_already_marked() {
     let id = put_in_hand(&mut game, goblin_negotiation(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 5);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(3)) }, 3);
-    dp.expect_choice(ChoiceKind::SelectRecipients { recipient: target_creature(), spell_id: id }, vec![ChoiceOption::Object(wall)]);
+    dp.expect_number(DecisionKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(3)) }, 3);
+    dp.expect_choice(DecisionKind::SelectRecipients { recipient: target_creature(), spell_id: id }, vec![DecisionOption::Object(wall)]);
     game.cast_spell(0, id, &dp).expect("it is castable");
     game.resolve_top_of_stack(&dp).expect("it resolves");
 
@@ -856,7 +856,7 @@ fn a_riders_damage_during_the_resolution_is_not_dealt_this_way() {
 
     let id = put_in_hand(&mut game, fixture_sorcery(siphon), 0);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::SelectRecipients { recipient: at_a_player, spell_id: id }, vec![ChoiceOption::Player(1)]);
+    dp.expect_choice(DecisionKind::SelectRecipients { recipient: at_a_player, spell_id: id }, vec![DecisionOption::Player(1)]);
     game.cast_spell(0, id, &dp).expect("it is castable");
     game.resolve_top_of_stack(&dp).expect("it resolves");
 

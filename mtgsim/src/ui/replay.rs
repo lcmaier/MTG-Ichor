@@ -25,7 +25,7 @@ use crate::state::trace::COMMIT;
 use crate::types::ids::PlayerId;
 
 use super::ask::{allocation_fits, forced_allocation, number_fits, only_number, only_order, only_pick, order_fits, pick_fits};
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_of};
+use super::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_of};
 use super::decision::{DecisionProvider, SeatMode, Stop};
 
 /// A replay of a log's answers.
@@ -104,7 +104,7 @@ impl<'a> Replay<'a> {
     /// Where the answer to this prompt comes from, passing over the forced
     /// lines no question asks; `only` is the prompt's one legal answer, if it
     /// has one.
-    fn next<T>(&self, game: &GameState, player: PlayerId, kind: &ChoiceKind, only: Option<T>) -> Next<'_, T> {
+    fn next<T>(&self, game: &GameState, player: PlayerId, kind: &DecisionKind, only: Option<T>) -> Next<'_, T> {
         if self.control.superseded.load(Ordering::Relaxed) {
             Stop::Superseded.raise();
         }
@@ -159,7 +159,7 @@ impl<'a> Replay<'a> {
     }
 
     /// The options `chosen` names, found in `options` by what each is.
-    fn found(&self, line: &AnswerLine, game: &GameState, options: &[ChoiceOption], chosen: &[String]) -> Vec<usize> {
+    fn found(&self, line: &AnswerLine, game: &GameState, options: &[DecisionOption], chosen: &[String]) -> Vec<usize> {
         let mut found = Vec::new();
         for option in chosen {
             match position_of(options, game, option, &found) {
@@ -192,8 +192,8 @@ impl DecisionProvider for Replay<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         let line = match self.next(game, player, &context.kind, only_pick(options.len(), bounds)) {
@@ -208,7 +208,7 @@ impl DecisionProvider for Replay<'_> {
         picks
     }
 
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         let line = match self.next(game, player, &context.kind, only_number(min, max)) {
             Next::Line(line) => line,
             Next::Forced(only) => return only,
@@ -224,9 +224,9 @@ impl DecisionProvider for Replay<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -250,7 +250,7 @@ impl DecisionProvider for Replay<'_> {
         allocation
     }
 
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         let line = match self.next(game, player, &context.kind, only_order(items.len())) {
             Next::Line(line) => line,
             Next::Forced(only) => return only,
@@ -281,17 +281,17 @@ mod tests {
     use crate::types::costs::Cost;
     use crate::types::effects::ObjectFilter;
     use crate::types::ids::ObjectId;
-    use crate::ui::choice_types::CostPart;
+    use crate::ui::decision_types::CostPart;
     use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
     /// A replay of one line, player 0's answer to `kind` where `game` stands.
-    fn answering<'a>(game: &GameState, kind: &ChoiceKind, chosen: Chosen) -> Replay<'a> {
+    fn answering<'a>(game: &GameState, kind: &DecisionKind, chosen: Chosen) -> Replay<'a> {
         let (turn, step) = (game.turn_number, position_word(game.phase));
         Replay::new(vec![AnswerLine { number: 1, turn, step, player: 0, kind: kind.as_str().to_string(), forced: false, chosen }])
     }
 
-    fn the_seats_the_other_way_round() -> [ChoiceOption; 2] {
-        [ChoiceOption::Player(1), ChoiceOption::Player(0)]
+    fn the_seats_the_other_way_round() -> [DecisionOption; 2] {
+        [DecisionOption::Player(1), DecisionOption::Player(0)]
     }
 
     /// The log wrote player 0's share first. Offered player 1 first, the
@@ -299,27 +299,27 @@ mod tests {
     #[test]
     fn a_share_follows_its_bucket_wherever_the_build_lists_it() {
         let game = setup_two_player_game();
-        let kind = ChoiceKind::DivideAmong { source: ObjectId::UNASSIGNED };
+        let kind = DecisionKind::DivideAmong { source: ObjectId::UNASSIGNED };
         let shares = Chosen::Allocation(vec![(1, "player 0".to_string()), (2, "player 1".to_string())]);
-        let answer = answering(&game, &kind, shares).allocate(&game, 0, &ChoiceContext::new(kind), 3, &the_seats_the_other_way_round(), &[1, 1], None);
+        let answer = answering(&game, &kind, shares).allocate(&game, 0, &DecisionContext::new(kind), 3, &the_seats_the_other_way_round(), &[1, 1], None);
         assert_eq!(answer, vec![2, 1]);
     }
 
     #[test]
     fn a_pick_finds_its_option_wherever_the_build_lists_it() {
         let game = setup_two_player_game();
-        let kind = ChoiceKind::ChooseOpponent { source: ObjectId::UNASSIGNED };
+        let kind = DecisionKind::ChooseOpponent { source: ObjectId::UNASSIGNED };
         let picked = Chosen::Picks(vec!["player 0".to_string()]);
-        let answer = answering(&game, &kind, picked).pick_n(&game, 0, &ChoiceContext::new(kind), &the_seats_the_other_way_round(), (1, 1));
+        let answer = answering(&game, &kind, picked).pick_n(&game, 0, &DecisionContext::new(kind), &the_seats_the_other_way_round(), (1, 1));
         assert_eq!(answer, vec![1]);
     }
 
     #[test]
     fn an_order_finds_its_items_wherever_the_build_lists_them() {
         let game = setup_two_player_game();
-        let kind = ChoiceKind::OrderCostReductions { spell_id: ObjectId::UNASSIGNED };
+        let kind = DecisionKind::OrderCostReductions { spell_id: ObjectId::UNASSIGNED };
         let ordered = Chosen::Order(vec!["player 0".to_string(), "player 1".to_string()]);
-        let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &ChoiceContext::new(kind), &the_seats_the_other_way_round());
+        let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &DecisionContext::new(kind), &the_seats_the_other_way_round());
         assert_eq!(answer, vec![1, 0]);
     }
 
@@ -330,11 +330,11 @@ mod tests {
     fn an_order_of_two_sacrifices_finds_each_by_what_pays_it() {
         let mut game = setup_two_player_game();
         let (bears, lions) = (put_on_battlefield(&mut game, grizzly_bears(), 0), put_on_battlefield(&mut game, savannah_lions(), 0));
-        let sacrificing = |filter, paid_by| ChoiceOption::CostPart(CostPart { cost: Cost::Sacrifice(filter, 1), paid_with: vec![paid_by] });
+        let sacrificing = |filter, paid_by| DecisionOption::CostPart(CostPart { cost: Cost::Sacrifice(filter, 1), paid_with: vec![paid_by] });
         let options = [sacrificing(ObjectFilter::All, bears), sacrificing(ObjectFilter::Token, lions)];
-        let kind = ChoiceKind::OrderCostPayments { spell_or_ability_id: ObjectId::UNASSIGNED };
+        let kind = DecisionKind::OrderCostPayments { spell_or_ability_id: ObjectId::UNASSIGNED };
         let ordered = Chosen::Order(vec![options[1].as_logged(&game), options[0].as_logged(&game)]);
-        let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &ChoiceContext::new(kind), &options);
+        let answer = answering(&game, &kind, ordered).choose_ordering(&game, 0, &DecisionContext::new(kind), &options);
         assert_eq!(answer, vec![1, 0]);
     }
 
@@ -346,7 +346,7 @@ mod tests {
         let mut game = setup_two_player_game();
         let forest = put_in_hand(&mut game, CardRegistry::default_registry().create("Forest").unwrap(), 0);
         let seats = ScriptedDecisionProvider::new();
-        seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::PlayLand(forest))]);
+        seats.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::PlayLand(forest))]);
         game.pause_layer_audit();
         let replay = Replay::new(Vec::new()).then(&seats);
         assert_eq!(game.run_priority_round(&replay), Ok(PriorityResult::ActionTaken));

@@ -26,7 +26,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
 use crate::ui::auto_yield::Yields;
-use crate::ui::choice_types::{ChoiceContext, ChoiceOption};
+use crate::ui::decision_types::{DecisionContext, DecisionOption};
 use crate::ui::decision::{DecisionProvider, SeatMode};
 
 /// Full control's switch, shared by the client that flips it and the
@@ -89,8 +89,8 @@ impl<D: DecisionProvider, R: DecisionProvider> DecisionProvider for FullControl<
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.routed().pick_n(game, player, context, options, bounds)
@@ -100,7 +100,7 @@ impl<D: DecisionProvider, R: DecisionProvider> DecisionProvider for FullControl<
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -111,9 +111,9 @@ impl<D: DecisionProvider, R: DecisionProvider> DecisionProvider for FullControl<
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -124,8 +124,8 @@ impl<D: DecisionProvider, R: DecisionProvider> DecisionProvider for FullControl<
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         self.routed().choose_ordering(game, player, context, items)
     }
@@ -148,19 +148,19 @@ mod tests {
     use crate::test_support::setup_two_player_game;
     use crate::types::ids::new_object_id;
     use crate::types::mana::ManaCost;
-    use crate::ui::choice_types::ChoiceKind;
+    use crate::ui::decision_types::DecisionKind;
     use crate::ui::decision::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
     use crate::ui::mana_window_stop::ManaWindowStop;
 
-    fn covered_window() -> ChoiceContext {
-        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+    fn covered_window() -> DecisionContext {
+        DecisionContext::new(DecisionKind::ManaAbilityWindow {
             spell_or_ability_id: new_object_id(),
             remaining_cost: ManaCost::zero(),
         })
     }
 
-    fn a_source() -> Vec<ChoiceOption> {
-        vec![ChoiceOption::Action(PriorityAction::ActivateAbility(
+    fn a_source() -> Vec<DecisionOption> {
+        vec![DecisionOption::Action(PriorityAction::ActivateAbility(
             new_object_id(),
             crate::types::ids::new_ability_id(),
         ))]
@@ -204,15 +204,15 @@ mod tests {
     fn full_control_cancels_the_yields_it_supersedes() {
         use crate::ui::auto_yield::{AutoYield, Yield};
         let game = setup_two_player_game();
-        let priority = ChoiceContext::new(ChoiceKind::PriorityAction);
-        let cast = ChoiceOption::Action(PriorityAction::CastSpell(new_object_id()));
-        let options = vec![ChoiceOption::Action(PriorityAction::Pass), cast.clone()];
+        let priority = DecisionContext::new(DecisionKind::PriorityAction);
+        let cast = DecisionOption::Action(PriorityAction::CastSpell(new_object_id()));
+        let options = vec![DecisionOption::Action(PriorityAction::Pass), cast.clone()];
         let yields = Yields::default();
         assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let person = ScriptedDecisionProvider::new();
-        person.expect_choice(ChoiceKind::PriorityAction, vec![cast.clone()]);
+        person.expect_choice(DecisionKind::PriorityAction, vec![cast.clone()]);
         let raw = ScriptedDecisionProvider::new();
-        raw.expect_choice(ChoiceKind::PriorityAction, vec![cast]);
+        raw.expect_choice(DecisionKind::PriorityAction, vec![cast]);
         let switch = FullControlSwitch::default();
         let seat = FullControl::new(AutoYield::new(person, yields.clone()), raw, switch.clone()).superseding(yields);
 
@@ -230,7 +230,7 @@ mod tests {
         let mut game = setup_two_player_game();
         game.set_turn_position(Phase::new(PhaseType::Precombat));
         let raw = ScriptedDecisionProvider::new();
-        raw.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+        raw.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
         let switch = FullControlSwitch::default();
         switch.set(true);
         let dp = DispatchDecisionProvider::new(vec![

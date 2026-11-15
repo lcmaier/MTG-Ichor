@@ -45,7 +45,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{AmountOf, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{AmountOf, DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -56,18 +56,18 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 /// A payment's question, matched by its kind alone: a script compares the
 /// variant and never its fields, so `UNASSIGNED` fills them. A test that
 /// means a field reads it back off `asked()`.
-const PAY: ChoiceKind = ChoiceKind::PayAsItResolves { source: ObjectId::UNASSIGNED, offer: Vec::new(), any_amount_of: None };
+const PAY: DecisionKind = DecisionKind::PayAsItResolves { source: ObjectId::UNASSIGNED, offer: Vec::new(), any_amount_of: None };
 
 /// "You may [do something]"'s question, matched by its kind alone.
-const OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED };
+const OPTIONAL: DecisionKind = DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED };
 
 /// A mana window's question, matched by its kind alone.
-fn window() -> ChoiceKind {
-    ChoiceKind::ManaAbilityWindow { spell_or_ability_id: ObjectId::UNASSIGNED, remaining_cost: ManaCost::zero() }
+fn window() -> DecisionKind {
+    DecisionKind::ManaAbilityWindow { spell_or_ability_id: ObjectId::UNASSIGNED, remaining_cost: ManaCost::zero() }
 }
 
-fn amount() -> ChoiceKind {
-    ChoiceKind::ChooseAmountToPay {
+fn amount() -> DecisionKind {
+    DecisionKind::ChooseAmountToPay {
         source: ObjectId::UNASSIGNED,
         of: AmountOf::AnyAmountOf(ManaCost::zero()),
         values: Box::new(XOffer::Interval { at_least: 0, at_most: 0 }),
@@ -108,8 +108,8 @@ fn cast(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(Ma
     let aim = ScriptedDecisionProvider::new();
     for picks in aims {
         aim.expect_choice(
-            ChoiceKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
-            picks.iter().map(|&o| ChoiceOption::Object(o)).collect(),
+            DecisionKind::SelectRecipients { recipient: mtgsim::types::effects::EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED },
+            picks.iter().map(|&o| DecisionOption::Object(o)).collect(),
         );
     }
     game.cast_spell(player, id, &ManaWindowStop::new(aim)).expect("castable from exactly its cost");
@@ -133,7 +133,7 @@ fn resolve_with(game: &mut GameState, script: ScriptedDecisionProvider) -> Scrip
 
 /// The payment questions `dp` was asked, by whom.
 fn paid_asked(dp: &ScriptedDecisionProvider) -> Vec<PlayerId> {
-    dp.asked_of().into_iter().filter(|(_, kind)| matches!(kind, ChoiceKind::PayAsItResolves { .. })).map(|(p, _)| p).collect()
+    dp.asked_of().into_iter().filter(|(_, kind)| matches!(kind, DecisionKind::PayAsItResolves { .. })).map(|(p, _)| p).collect()
 }
 
 fn hand(game: &GameState, player: PlayerId) -> usize {
@@ -214,7 +214,7 @@ fn mana_abilities_are_activated_while_the_payment_resolves() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_take(PAY);
     let tap = get_effective_abilities(&game, land)[0].id;
-    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))]);
+    dp.expect_choice(window(), vec![DecisionOption::Action(PriorityAction::ActivateAbility(land, tap))]);
     let dp = resolve_with(&mut game, dp);
 
     assert_eq!(paid_asked(&dp), vec![1], "that player is asked");
@@ -238,7 +238,7 @@ fn rhystic_study_draws_when_that_player_declines() {
     dp.expect_choice(PAY, Vec::new());
     dp.expect_take(OPTIONAL);
     let dp = resolve_with(&mut game, dp);
-    let order: Vec<bool> = dp.asked().iter().map(|kind| matches!(kind, ChoiceKind::PayAsItResolves { .. })).collect();
+    let order: Vec<bool> = dp.asked().iter().map(|kind| matches!(kind, DecisionKind::PayAsItResolves { .. })).collect();
     assert_eq!(order, vec![true, false], "the payment, then the draw");
     assert_eq!(hand(&game, 0), before + 1);
 }
@@ -282,7 +282,7 @@ fn a_window_that_ends_unpaid_is_a_decline() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_take(PAY);
     let tap = get_effective_abilities(&game, lands[0])[0].id;
-    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(lands[0], tap))]);
+    dp.expect_choice(window(), vec![DecisionOption::Action(PriorityAction::ActivateAbility(lands[0], tap))]);
     dp.expect_choice(window(), Vec::new());
     resolve_with(&mut game, dp);
 
@@ -388,7 +388,7 @@ fn cast_clash_of_wills(game: &mut GameState, x: u64) -> ObjectId {
     let id = put_in_hand(game, clash_of_wills(), 0);
     pool_of(game, 0, &[(ManaType::Blue, 1), (ManaType::Colorless, x)]);
     let aim = ScriptedDecisionProvider::new();
-    aim.expect_number(ChoiceKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
+    aim.expect_number(DecisionKind::ChooseXValue { spell_id: id, values: Box::new(LegalXValues::zero_through(x)) }, x);
     game.cast_spell(0, id, &ManaWindowStop::new(aim)).expect("castable for X");
     id
 }
@@ -398,7 +398,7 @@ fn offers(dp: &ScriptedDecisionProvider) -> Vec<Vec<Cost>> {
     dp.asked()
         .into_iter()
         .filter_map(|kind| match kind {
-            ChoiceKind::PayAsItResolves { offer, .. } => Some(offer),
+            DecisionKind::PayAsItResolves { offer, .. } => Some(offer),
             _ => None,
         })
         .collect()
@@ -423,7 +423,7 @@ fn clash_of_wills_offers_the_x_it_was_cast_with() {
         }
         let dp = resolve_with(&mut game, dp);
         assert_eq!(offers(&dp), vec![vec![Cost::Mana(ManaCost::build(&[], 2))]], "the X it was cast with");
-        assert!(dp.asked().iter().all(|kind| !matches!(kind, ChoiceKind::ChooseAmountToPay { .. })), "no X chosen as it resolves");
+        assert!(dp.asked().iter().all(|kind| !matches!(kind, DecisionKind::ChooseAmountToPay { .. })), "no X chosen as it resolves");
         assert_eq!(game.battlefield.contains_key(&bears), pays, "paid: {pays}");
     }
 }
@@ -634,12 +634,12 @@ fn an_amount_is_chosen_as_it_is_paid_and_is_x() {
     dp.expect_number(amount(), 2);
     for &land in &islands {
         let tap = get_effective_abilities(&game, land)[0].id;
-        dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))]);
+        dp.expect_choice(window(), vec![DecisionOption::Action(PriorityAction::ActivateAbility(land, tap))]);
     }
     let dp = resolve_with(&mut game, dp);
 
     let offered = dp.asked().into_iter().find_map(|kind| match kind {
-        ChoiceKind::ChooseAmountToPay { values, of, .. } => Some((*values, of)),
+        DecisionKind::ChooseAmountToPay { values, of, .. } => Some((*values, of)),
         _ => None,
     });
     assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 2 }, AmountOf::XIn(x_and_blue()))));
@@ -683,11 +683,11 @@ fn any_amount_of_red_is_paid_in_red() {
     dp.expect_take(PAY);
     dp.expect_number(amount(), 3);
     let tap = get_effective_abilities(&game, land)[0].id;
-    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(land, tap))]);
+    dp.expect_choice(window(), vec![DecisionOption::Action(PriorityAction::ActivateAbility(land, tap))]);
     let dp = resolve_with(&mut game, dp);
 
     let offered = dp.asked().into_iter().find_map(|kind| match kind {
-        ChoiceKind::ChooseAmountToPay { values, of, .. } => Some((*values, of)),
+        DecisionKind::ChooseAmountToPay { values, of, .. } => Some((*values, of)),
         _ => None,
     });
     assert_eq!(offered, Some((XOffer::Interval { at_least: 0, at_most: 3 }, AmountOf::AnyAmountOf(red()))));
@@ -756,7 +756,7 @@ fn an_amount_left_unpaid_leaves_no_x_for_the_next_payer() {
     dp.expect_take(PAY);
     dp.expect_number(amount(), 2);
     let tap = get_effective_abilities(&game, islands[0])[0].id;
-    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(islands[0], tap))]);
+    dp.expect_choice(window(), vec![DecisionOption::Action(PriorityAction::ActivateAbility(islands[0], tap))]);
     dp.expect_choice(window(), Vec::new());
     dp.expect_choice(PAY, Vec::new());
     dp.expect_take(PAY);
@@ -785,7 +785,7 @@ fn an_amount_that_could_not_be_paid_is_asked_again_below_it() {
     dp.expect_take(PAY);
     dp.expect_number(amount(), 2);
     let tap = get_effective_abilities(&game, islands[0])[0].id;
-    dp.expect_choice(window(), vec![ChoiceOption::Action(PriorityAction::ActivateAbility(islands[0], tap))]);
+    dp.expect_choice(window(), vec![DecisionOption::Action(PriorityAction::ActivateAbility(islands[0], tap))]);
     dp.expect_choice(window(), Vec::new());
     dp.expect_take(PAY);
     dp.expect_number(amount(), 1);
@@ -795,7 +795,7 @@ fn an_amount_that_could_not_be_paid_is_asked_again_below_it() {
         .asked()
         .into_iter()
         .filter_map(|kind| match kind {
-            ChoiceKind::ChooseAmountToPay { values, .. } => Some(*values),
+            DecisionKind::ChooseAmountToPay { values, .. } => Some(*values),
             _ => None,
         })
         .collect();
@@ -855,14 +855,14 @@ fn contamination_asks_which_creature_pays() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_take(PAY);
     dp.expect_choice(
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id: ObjectId::UNASSIGNED, count: 1 },
-        vec![ChoiceOption::Object(second)],
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id: ObjectId::UNASSIGNED, count: 1 },
+        vec![DecisionOption::Object(second)],
     );
     let dp = resolve_with(&mut game, dp);
     assert!(game.battlefield.contains_key(&first) && !game.battlefield.contains_key(&second));
     assert!(game.battlefield.contains_key(&contamination));
     let named = dp.asked().into_iter().find_map(|kind| match kind {
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => Some(spell_or_ability_id),
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => Some(spell_or_ability_id),
         _ => None,
     });
     assert!(named.is_some_and(|id| id != contamination), "the resolving trigger, {named:?}");

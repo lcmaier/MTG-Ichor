@@ -23,7 +23,7 @@ use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, PlayerRef, Pri
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent};
 use mtgsim::types::zones::DrawFilter;
-use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision_types::DecisionKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ fn resolve_opt(game: &mut GameState, caster: PlayerId) {
     let card = opt();
     let source = put_in_graveyard(game, card.clone(), caster);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::Scry { source: None, n: 0 }, vec![]);
+    dp.expect_choice(DecisionKind::Scry { source: None, n: 0 }, vec![]);
     resolve_as(game, source, caster, &spell_effect(&card.abilities).expect("a spell"), &dp);
 }
 

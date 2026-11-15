@@ -45,7 +45,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption, EntryRole};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption, EntryRole};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -577,8 +577,8 @@ fn test_a_power_filter_beside_counters_is_a_real_choice() {
     let dp = ScriptedDecisionProvider::new();
     let shimmerer = put_in_graveyard(&mut game, adaptive_shimmerer(), 0);
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
-        vec![ChoiceOption::Object(shimmerer)],
+        DecisionKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
+        vec![DecisionOption::Object(shimmerer)],
     );
     game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();
@@ -591,8 +591,8 @@ fn test_a_power_filter_beside_counters_is_a_real_choice() {
     let dp = ScriptedDecisionProvider::new();
     let shimmerer = put_in_graveyard(&mut game, adaptive_shimmerer(), 0);
     dp.expect_choice(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
-        vec![ChoiceOption::Object(enters_tapped)],
+        DecisionKind::ChooseReplacementEffect { affected_object: Some(shimmerer) },
+        vec![DecisionOption::Object(enters_tapped)],
     );
     game.change_zone(shimmerer, Zone::Battlefield, ZoneChangeAct::Put, &ActionContext::new(&dp))
         .unwrap();
@@ -661,8 +661,8 @@ fn test_three_player_opponent_of_your_choice_is_asked_before_the_entry() {
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.cast_spell(0, id, &test_dp()).expect("it is castable");
     dp.expect_choice(
-        ChoiceKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::Controller },
-        vec![ChoiceOption::Player(2)],
+        DecisionKind::ChoosePlayerAsObjectEnters { object: id, source: id, role: EntryRole::Controller },
+        vec![DecisionOption::Player(2)],
     );
     game.resolve_top_of_stack(&dp).expect("it resolves");
 

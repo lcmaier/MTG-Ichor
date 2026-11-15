@@ -49,7 +49,7 @@ use mtgsim::types::effects::{AmountExpr, ColorChange, Duration, Effect, EffectRe
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
@@ -285,7 +285,7 @@ fn bridge_from_below_can_make_its_token_before_it_exiles_itself() {
         let dp = ScriptedDecisionProvider::new();
         let order = if token_first { [2, 1] } else { [1, 2] };
         let bridges = order.map(|place| pending_trigger_at_place(&game, bridge, place)).to_vec();
-        dp.expect_order(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, bridges);
+        dp.expect_order(DecisionKind::OrderTriggers { player: 0, tier: TriggerTier::First }, bridges);
         resolve_all(&mut game, &dp);
         assert_eq!(tokens_of(&game, 0), usize::from(token_first), "token_first: {token_first}");
         assert_eq!(zone(&game, bridge), Some(Zone::Exile));
@@ -538,7 +538,7 @@ fn guerrilla_tactics_triggers_on_an_optional_discard_an_opponent_causes() {
     };
     let dp = ScriptedDecisionProvider::new();
     let spell = next_object(&game);
-    dp.expect_choice(ChoiceKind::ApplyOptionalEffect { source: spell }, vec![ChoiceOption::Object(spell)]);
+    dp.expect_choice(DecisionKind::ApplyOptionalEffect { source: spell }, vec![DecisionOption::Object(spell)]);
     resolve_spell_at_player(&mut game, &may_discard, 1, 0, &dp);
 
     assert_eq!(zone(&game, tactics), Some(Zone::Graveyard), "discarded by choice");

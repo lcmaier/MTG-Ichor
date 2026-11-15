@@ -24,7 +24,7 @@ use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerI
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::decision_types::{DecisionKind, DecisionOption};
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -80,8 +80,8 @@ impl GameState {
                     (0..mine.len()).collect()
                 } else if self.trigger_order_cannot_change_outcome(&entries) {
                     self.note_unasked(player, Unasked::OneGame(Elision::TriggerOrder), || {
-                        let triggers = entries.iter().map(|t| ChoiceOption::Trigger(self.trigger_option(t))).collect();
-                        (ChoiceKind::OrderTriggers { player, tier }, UnaskedAnswer::Order(triggers))
+                        let triggers = entries.iter().map(|t| DecisionOption::Trigger(self.trigger_option(t))).collect();
+                        (DecisionKind::OrderTriggers { player, tier }, UnaskedAnswer::Order(triggers))
                     });
                     (0..mine.len()).collect()
                 } else {

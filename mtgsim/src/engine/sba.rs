@@ -21,7 +21,7 @@ use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_legend_to_keep, ask_take_or_leave};
-use crate::ui::choice_types::ChoiceKind;
+use crate::ui::decision_types::DecisionKind;
 use crate::ui::decision::DecisionProvider;
 
 /// CR 704.5f/i/j/m's "put into its owner's graveyard": a move named by where
@@ -281,7 +281,7 @@ impl GameState {
                 }
                 // A state-based action, not a replacement effect: only CR
                 // 903.9b's hand or library move is one.
-                let kind = ChoiceKind::CommanderToCommandZoneSba { commander: id };
+                let kind = DecisionKind::CommanderToCommandZoneSba { commander: id };
                 if ask_take_or_leave(dp, self, owner, id, kind, "commander_to_command_zone") {
                     let to_command = GameAction::ZoneChange {
                         object: id,
@@ -603,7 +603,7 @@ mod tests {
     use crate::types::colors::Color;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
-    use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+    use crate::ui::decision_types::{DecisionKind, DecisionOption};
     use crate::ui::decision::ScriptedDecisionProvider;
 
     #[test]
@@ -747,7 +747,7 @@ mod tests {
         let arrived: Vec<_> = game.arrivals_since_last_sba_check.iter().map(|arrival| arrival.id).collect();
         assert_eq!(arrived, [token, commander], "in the order they arrived");
 
-        dp.expect_choice(ChoiceKind::CommanderToCommandZoneSba { commander }, vec![ChoiceOption::Object(commander)]);
+        dp.expect_choice(DecisionKind::CommanderToCommandZoneSba { commander }, vec![DecisionOption::Object(commander)]);
         assert!(game.check_state_based_actions(&dp).unwrap());
         assert!(!game.objects.contains_key(&token), "CR 704.5d");
         assert_eq!(game.objects[&commander].zone, Zone::Command, "CR 704.6d, offered and taken");
@@ -965,8 +965,8 @@ mod tests {
         // The player is asked, and keeps the one that is about to die anyway.
         let dp = ScriptedDecisionProvider::new();
         dp.expect_choice(
-            ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
-            vec![ChoiceOption::Object(doomed)],
+            DecisionKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
+            vec![DecisionOption::Object(doomed)],
         );
 
         assert!(game.check_state_based_actions(&dp).unwrap());
@@ -1006,8 +1006,8 @@ mod tests {
 
         let dp = ScriptedDecisionProvider::new();
         dp.expect_choice(
-            ChoiceKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
-            vec![ChoiceOption::Object(healthy)],
+            DecisionKind::LegendRule { legend_name: "Isamaru, Hound of Konda".to_string() },
+            vec![DecisionOption::Object(healthy)],
         );
 
         assert!(game.check_state_based_actions(&dp).unwrap());
@@ -1077,9 +1077,9 @@ mod tests {
         assert!(game.battlefield.contains_key(&id2));
 
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_choice(ChoiceKind::LegendRule {
+        dp.expect_choice(DecisionKind::LegendRule {
             legend_name: "Isamaru, Hound of Konda".to_string(),
-        }, vec![ChoiceOption::Object(id1)]);
+        }, vec![DecisionOption::Object(id1)]);
         let performed = game.check_state_based_actions(&dp).unwrap();
         assert!(performed);
 
@@ -1098,7 +1098,7 @@ mod tests {
         // controller *index* order: identical to APNAP only while player 0 is
         // active, which is why this test makes player 1 active.
         //
-        // `ScriptedDecisionProvider` matches on the `ChoiceKind` variant and
+        // `ScriptedDecisionProvider` matches on the `DecisionKind` variant and
         // not its payload, so the queue *is* the ask order. Keeping index 0 on
         // the first prompt and index 1 on the second makes the survivors say
         // who was asked first.
@@ -1124,12 +1124,12 @@ mod tests {
 
         let dp = ScriptedDecisionProvider::new();
         dp.expect_choice(
-            ChoiceKind::LegendRule { legend_name: String::new() },
-            vec![ChoiceOption::Object(p1_first)],
+            DecisionKind::LegendRule { legend_name: String::new() },
+            vec![DecisionOption::Object(p1_first)],
         );
         dp.expect_choice(
-            ChoiceKind::LegendRule { legend_name: String::new() },
-            vec![ChoiceOption::Object(p0_second)],
+            DecisionKind::LegendRule { legend_name: String::new() },
+            vec![DecisionOption::Object(p0_second)],
         );
         assert!(game.check_state_based_actions(&dp).unwrap());
 

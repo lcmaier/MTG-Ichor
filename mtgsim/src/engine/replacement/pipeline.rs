@@ -32,7 +32,7 @@ use crate::oracle::characteristics::{get_effective_power, get_effective_types, O
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_take_or_leave;
 use crate::ui::ask::ask_accept_as_object_enters;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption, EntryOffer, EntryRole};
+use crate::ui::decision_types::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
 use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
 use crate::ui::ask::ask_choose_player_as_object_enters;
@@ -614,8 +614,8 @@ pub(crate) fn apply_replacements(
             unsuppressed = rest.map(|c| (c.instance, c.members)).collect();
             if let Some(chooser) = chooser {
                 game.note_unasked(chooser, Unasked::OneGame(Elision::ReplacementOrder), || {
-                    let kind = ChoiceKind::ChooseReplacementEffect { affected_object: subject_object(subject) };
-                    (kind, UnaskedAnswer::Picks(vec![ChoiceOption::Replacement(game.replacement_option(&first.instance, &frame))]))
+                    let kind = DecisionKind::ChooseReplacementEffect { affected_object: subject_object(subject) };
+                    (kind, UnaskedAnswer::Picks(vec![DecisionOption::Replacement(game.replacement_option(&first.instance, &frame))]))
                 });
             }
             (first, Decided::OrderInvariant)
@@ -650,7 +650,7 @@ pub(crate) fn apply_replacements(
                 format!("optional replacement on {:?} has no player to ask", subject)
             })?;
             game.diagnostics.record_replacement_prompt();
-            let kind = ChoiceKind::ApplyOptionalReplacement { affected_object: subject_object(subject), source: chosen.source };
+            let kind = DecisionKind::ApplyOptionalReplacement { affected_object: subject_object(subject), source: chosen.source };
             if !ask_take_or_leave(ctx.dp, game, chooser, chosen.source, kind, "apply_optional_replacement") {
                 // Marking it applied is CR 614.5's "one opportunity" — being
                 // offered and refusing *is* the opportunity.

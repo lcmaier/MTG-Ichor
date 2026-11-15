@@ -25,7 +25,7 @@ use super::event::{EventRecord, GameEvent};
 use super::unasked::{Unasked, UnaskedAnswer, UnaskedChoice};
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::ChoiceKind;
+use crate::ui::decision_types::DecisionKind;
 
 /// Every branch's records, shared by every handle of one game.
 ///
@@ -233,7 +233,7 @@ impl GameState {
 
     /// Record that `player` was not asked a question and why, building the
     /// question and its answer only when something records.
-    pub(crate) fn note_unasked(&self, player: PlayerId, why: Unasked, question: impl FnOnce() -> (ChoiceKind, UnaskedAnswer)) {
+    pub(crate) fn note_unasked(&self, player: PlayerId, why: Unasked, question: impl FnOnce() -> (DecisionKind, UnaskedAnswer)) {
         if let Some(recorder) = self.events.recorder() {
             let (kind, answer) = question();
             recorder.note(UnaskedChoice { before: self.events.next_seq(), player, kind, answer, why });
@@ -265,7 +265,7 @@ mod tests {
         UnaskedChoice {
             before: EventId(before),
             player: 0,
-            kind: ChoiceKind::PriorityAction,
+            kind: DecisionKind::PriorityAction,
             answer: UnaskedAnswer::Picks(Vec::new()),
             why: Unasked::OneLegalAnswer,
         }

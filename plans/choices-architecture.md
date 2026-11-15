@@ -9,7 +9,7 @@
 > 702.21 (a cost paid as an effect resolves, and ward); 601.2d and 608.2d's
 > last sentence (a division); 601.2h's and 613.7m's orders; 608.2d–e's
 > values, with 700.3 (piles), 701.38 (votes) and 201.4 (names); and every
-> `ChoiceKind` and `ChoiceOption` these add. The boundary's rule, the log's
+> `DecisionKind` and `DecisionOption` these add. The boundary's rule, the log's
 > format and the typed matcher are
 > `setup-architecture.md#7e-pausing-at-a-decision`'s. On what exists,
 > `codebase-state.md` wins; on what is being built, this file does;
@@ -316,7 +316,7 @@ targets cannot be chosen cannot be chosen) and whose count rule is one of the
 rows above. Under #306's decision 2b an answer names what it chose; the
 question is what one option is.
 
-- **A. One pick over the modes**, `ChoiceOption::Mode(n)` with n the mode's
+- **A. One pick over the modes**, `DecisionOption::Mode(n)` with n the mode's
   printed place, through `pick_n` with the count's bounds. Covers the first
   two rows. The others each need more: zero-or-two is not a range, so it needs
   a rejection and a re-ask; a repeat needs a second question (an allocation
@@ -325,7 +325,7 @@ question is what one option is.
   for the rest. *Upkeep*: every new count rule is a new prompt or a new
   rejection.
 - **B. One pick over the legal sets of modes**,
-  `ChoiceOption::Modes(Vec<ModeIndex>)`: each option is one whole choice (a
+  `DecisionOption::Modes(Vec<ModeIndex>)`: each option is one whole choice (a
   set, or with repeats a multiset in printed order), listed only if the count
   rule allows it and each of its modes is legal. One `pick_n` of exactly one,
   for every row. Zero-or-two lists the empty set and the pairs; a raised count
@@ -390,8 +390,8 @@ identity, not a position in the offered list: the card fixes it, and an
 illegal mode dropped from the list does not renumber the others. It is one
 type, `ModeIndex`, in every place a mode is named: `StackEntry.chosen_modes`
 (`Vec<usize>` today) and `Condition::ModeChosen` (`usize` today, 8 uses) both
-move to it. The question is `ChoiceKind::ChooseModes { source }`, one `pick_n`
-of exactly one over `ChoiceOption::Modes(Vec<ModeIndex>)`. The log writes
+move to it. The question is `DecisionKind::ChooseModes { source }`, one `pick_n`
+of exactly one over `DecisionOption::Modes(Vec<ModeIndex>)`. The log writes
 `modes 1, 3`, `modes 2, 2` for a mode chosen twice, and `no modes` for the
 empty set; a script names `Modes(vec![1, 3])`, found wherever a build lists it
 by derived equality (`setup-architecture.md#7e-pausing-at-a-decision`,
@@ -439,7 +439,7 @@ second Demonic Pact, a copy, or the same card back from a zone starts empty,
 and a control change keeps the record (Demonic Pact's rulings: "refers only
 to that specific Demonic Pact", and a new controller "can choose only the
 third or fourth mode"). An entry holds the turn it was last written and what
-was chosen: the modes, or the value as its `ChoiceOption`. The node's flag
+was chosen: the modes, or the value as its `DecisionOption`. The node's flag
 says which scope it reads. "This turn" reads the entry only if its turn is
 now, and a write on a later turn starts it over; "hasn't been chosen" reads
 it whole. It is written as the modes are announced, since a countered
@@ -666,11 +666,11 @@ is missing is a payment inside a resolution, and where "unless" is spelled.
   chose to pay an optional cost, and one who could not did not. So Mana Leak
   counters a tapped-out player's spell. `Cant` stays what `CostAnswer`'s doc
   says it is, a mandatory action that could not start.
-- **The kinds.** The offer is `ChoiceKind::PayAsItResolves { source, offer }`,
+- **The kinds.** The offer is `DecisionKind::PayAsItResolves { source, offer }`,
   `offer` the costs as `AcceptAsObjectEnters`' `EntryOffer::Pay` carries one,
   so a client can tell a payment from a gift; it is a take or leave
   (`ask_take_or_leave`), logged and scripted as `ApplyOptionalEffect`'s is,
-  asked of the payer. An amount chosen as it is paid is `ChoiceKind::ChooseAmountToPay
+  asked of the payer. An amount chosen as it is paid is `DecisionKind::ChooseAmountToPay
   { source, values }`, `ChooseXValue`'s shape (a `pick_number` over an
   interval, or `Number` options when a rule cuts a gap) with the resolving
   object as its subject, since `ChooseXValue`'s `spell_id` names a spell
@@ -732,7 +732,7 @@ the effect applies, so it is chosen, applied and gone within the atom, held in
 the resolution's walk like any value chosen there, and never on the stack
 object. Feast of the Victorious Dead's counters are divided this way.
 
-**The prompt, for both.** `ChoiceKind::DivideAmong { source }` over
+**The prompt, for both.** `DecisionKind::DivideAmong { source }` over
 `allocate`, its buckets the chosen objects and players (named by what each
 is, #306's decision 4), each bucket's least 1, its total the clause's amount.
 At announcement it follows the instance's targets (601.2d); at resolution it
@@ -814,11 +814,11 @@ with today's symbols no order changes the total
   which the CR-first rule does not allow once a printed board reaches it, and
   Omnath's does.
 
-**The kinds.** `ChoiceKind::OrderCostPayments { spell_or_ability_id }` over
+**The kinds.** `DecisionKind::OrderCostPayments { spell_or_ability_id }` over
 `choose_ordering`, each item a part named as decision 4b names a cost (its
 kind and its whole cost); two parts alike in every word are one cost twice,
 either order the same game, and the matcher takes them in turn.
-`ChoiceKind::OrderSimultaneousEntries { player }` over `choose_ordering`, its
+`DecisionKind::OrderSimultaneousEntries { player }` over `choose_ordering`, its
 items the entering objects by what each is; alike objects never reach it.
 A card's own "in any order" (Ponder, 171 cards) is a library order and already
 has a kind, `ScryOrder`, built for CR 701.22a's; it is widened to
@@ -912,8 +912,8 @@ options only. Two values are no one's here: a color chosen in a mana ability
 while drafting, as a permanent attaches or transforms, or as a replacement
 applies, each its own mechanic's. Two remember what they chose
 before (Garth One-Eye's card name, The Toymaker's Trap's number), through
-decision 2's record of what an ability has chosen. Today `ChoiceKind::ChooseOpponent`
-is the one such kind (Akroan Horse's opponent), and `ChoiceOption` has `Color`,
+decision 2's record of what an ability has chosen. Today `DecisionKind::ChooseOpponent`
+is the one such kind (Akroan Horse's opponent), and `DecisionOption` has `Color`,
 `Player`, `Number` and `CounterType`.
 
 **The problem.** Each value is one rule's question, CR 608.2d's, with a
@@ -930,10 +930,10 @@ know what is being chosen and among what.
   Hellkite's at random in `tdc`; its options say whether only opponents are
   offered, and it is 700.2e's "which opponent chooses the mode" too). Each has
   its `source` as subject and its options a typed arm:
-  `ChoiceOption::CreatureType(CreatureType)`, `LandType(LandType)`,
+  `DecisionOption::CreatureType(CreatureType)`, `LandType(LandType)`,
   `CardType(CardType)` (the three enums `types/card_types.rs` already has),
   `Keyword(KeywordFlag)` (`types/keywords.rs`), `CardName`, `Word`.
-  *Upkeep*: `ChoiceKind`'s exhaustive matches gain ten arms and rename one; a
+  *Upkeep*: `DecisionKind`'s exhaustive matches gain ten arms and rename one; a
   client words each.
 - **B. One kind, `ChooseValue { source, value: ValueKind }`**, with the same
   option arms. *Upkeep*: one arm in each exhaustive match, and a heuristic
@@ -964,7 +964,7 @@ know what is being chosen and among what.
 - **At random** (a player, a mode) draws from `GameState.rng` and asks
   nothing.
 
-**Decided in review: A.** It is `ChooseOpponent`'s precedent, `ChoiceKind`'s
+**Decided in review: A.** It is `ChooseOpponent`'s precedent, `DecisionKind`'s
 doc's contract ("adding a new variant here is the only change"), and each
 kind's `subject` and wording stay one match arm. B saves arms in matches that
 are exhaustive on purpose.
@@ -1082,9 +1082,9 @@ estimate of 440–760 (the ratio the later rows are re-sized by).
 - **The order-dependent tests** (item 361): all 44 tests that failed with
   every `picking(n)` list reversed name what they chose and pass reversed.
 - **A trigger and a replacement effect named by what each is** (item 336):
-  `ChoiceOption::Trigger` (its source as the existence that triggered, its
+  `DecisionOption::Trigger` (its source as the existence that triggered, its
   ability by definition, granter and place, what triggered it; a delayed
-  one by what it refers to) and `ChoiceOption::Replacement` (a registry row
+  one by what it refers to) and `DecisionOption::Replacement` (a registry row
   by its source and the stack object whose resolution made it, a static
   ability, counters, or CR 903.9b's rule). An ability's place and text are
   captured where the engine read it, through CR 614.12's frame for an
@@ -1093,7 +1093,7 @@ estimate of 440–760 (the ratio the later rows are re-sized by).
   ability without knowing where it sits. What triggered a trigger is named
   by id, since a dies trigger's event is about the card's new object in the
   graveyard, which no script written before the event can name.
-- **The typed matcher**: `ChoiceOption` derives `PartialEq`; scripts, the
+- **The typed matcher**: `DecisionOption` derives `PartialEq`; scripts, the
   recording provider and setup lines find a name through `position_named`:
   two equal options are taken in turn, a name fitting two different ones is
   refused. `(n of m)` is gone, and `Replay`'s tests offer each list in another
@@ -1106,7 +1106,7 @@ replay finds a logged answer by its words, not by parsing them, since three
 arms carry what the log does not write (an existence's epoch, a cost's
 filters, an ability's internal id), so a parse yields only part of an option.
 **Retrofit, if a later need asks for it:** `Replay::found` and a parser per
-`ChoiceOption` arm, about 200–300 lines, about one arm more per arm added; no
+`DecisionOption` arm, about 200–300 lines, about one arm more per arm added; no
 engine code or log's words change, so no game, record or fixture moves.
 
 A row's label shows what made it (the owner, at #307, after playing the
@@ -1125,7 +1125,7 @@ PR #308. 1,578 lines of code and tests against ~1,200–1,650, added and removed
   `total`, and `TargetCount` gains `Between` and `AnyNumber`. The total caps
   the targets on every shape, and a floor past it refuses the announcement.
 - **The announcement**: a second walk in `announce_targets`, after every
-  instance's targets, so all three paths ask `ChoiceKind::DivideAmong`. One
+  instance's targets, so all three paths ask `DecisionKind::DivideAmong`. One
   split is not asked. Reading the total there fixes it (CR 608.2d's last
   sentence). `ask_select_recipients` no longer asks for more than it offers,
   on any count, so "X target creatures" past the board rewinds.
@@ -1194,8 +1194,8 @@ touched (1,882 added) against ~1,500–2,300.
   `StackEntry.chosen_modes` and `Condition::ModeChosen` (item 31).
 - **The offer** (option B): `oracle::modes` lists the sets the count allows of the
   modes whose targets can all be chosen, and castability asks it for the first
-  (`CannotCast::NoLegalModes`, `CannotActivate::NoLegalModes`). `ChoiceKind::ChooseModes`
-  over `ChoiceOption::Modes`; the log writes `mode 2`, `modes 1, 3`, `no modes`.
+  (`CannotCast::NoLegalModes`, `CannotActivate::NoLegalModes`). `DecisionKind::ChooseModes`
+  over `DecisionOption::Modes`; the log writes `mode 2`, `modes 1, 3`, `no modes`.
 - **The announcement and resolution** (option A): a cast, an activation and a
   trigger's placement each announce the chosen modes' targets after the effect's
   own, a scope per mode (item 153); the `Modal` arm walks the chosen modes in

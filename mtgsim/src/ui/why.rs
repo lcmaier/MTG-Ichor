@@ -37,7 +37,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::ui::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
-use crate::ui::choice_types::{AmountOf, ChoiceContext, ChoiceKind, ChoiceOption, EntryRole, Rejection};
+use crate::ui::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryRole, Rejection};
 use crate::ui::decision::PriorityAction;
 use crate::ui::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
@@ -59,8 +59,8 @@ pub enum WhyAbout {
 #[derive(Clone, Copy, Debug)]
 pub struct OpenQuestion<'a> {
     pub player: PlayerId,
-    pub context: &'a ChoiceContext,
-    pub options: &'a [ChoiceOption],
+    pub context: &'a DecisionContext,
+    pub options: &'a [DecisionOption],
 }
 
 /// One answer, about one object.
@@ -124,8 +124,8 @@ pub fn why_from_trace(game: &GameState, about: WhyAbout, at: Option<&OpenQuestio
 
 /// Whether a why at a question of this kind reads the trace, so that a client
 /// asks it of a replay rather than of the seat.
-pub fn read_from_the_trace(kind: &ChoiceKind) -> bool {
-    matches!(kind, ChoiceKind::ChooseReplacementEffect { .. } | ChoiceKind::OrderTriggers { .. })
+pub fn read_from_the_trace(kind: &DecisionKind) -> bool {
+    matches!(kind, DecisionKind::ChooseReplacementEffect { .. } | DecisionKind::OrderTriggers { .. })
 }
 
 fn answer(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>, trace: Option<&[TraceRecord]>) -> Why {
@@ -182,7 +182,7 @@ fn question_words(game: &GameState, open: &OpenQuestion) -> String {
 fn at_this_question(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> WhySection {
     let asked = player_name(question.player);
     let mut lines = vec![WhyLine::new(format!("{asked}: {}", question_words(game, question)))];
-    let offered: Vec<&ChoiceOption> = question.options.iter().filter(|option| names(option, about)).collect();
+    let offered: Vec<&DecisionOption> = question.options.iter().filter(|option| names(option, about)).collect();
     if !offered.is_empty() {
         lines.push(WhyLine::new(format!("Offered to {asked}:")));
         lines.extend(offered.iter().map(|option| WhyLine::under(option_label(game, option)).naming(game, &option_objects(option))));
@@ -206,12 +206,12 @@ fn at_this_question(game: &GameState, about: WhyAbout, question: &OpenQuestion, 
 }
 
 /// Does `option` name `about`?
-fn names(option: &ChoiceOption, about: WhyAbout) -> bool {
+fn names(option: &DecisionOption, about: WhyAbout) -> bool {
     match about {
         WhyAbout::Object(id) => option_objects(option).contains(&id),
         WhyAbout::Player(player) => matches!(
             option,
-            ChoiceOption::Player(named) | ChoiceOption::AttackerTarget(_, AttackTarget::Player(named)) if *named == player
+            DecisionOption::Player(named) | DecisionOption::AttackerTarget(_, AttackTarget::Player(named)) if *named == player
         ),
         // No option is an event: a question chooses among what is now.
         WhyAbout::Event(_) => false,
@@ -220,41 +220,41 @@ fn names(option: &ChoiceOption, about: WhyAbout) -> bool {
 
 /// The objects an option names: an action's object, or both sides of an
 /// attack or a block. One arm per kind of option and no wildcard.
-fn option_objects(option: &ChoiceOption) -> Vec<ObjectId> {
+fn option_objects(option: &DecisionOption) -> Vec<ObjectId> {
     match option {
-        ChoiceOption::Object(id)
-        | ChoiceOption::Action(
+        DecisionOption::Object(id)
+        | DecisionOption::Action(
             PriorityAction::CastSpell(id) | PriorityAction::PlayLand(id) | PriorityAction::ActivateAbility(id, _),
         ) => vec![*id],
-        ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(_)) => vec![*attacker],
-        ChoiceOption::AttackerTarget(attacker, AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
+        DecisionOption::AttackerTarget(attacker, AttackTarget::Player(_)) => vec![*attacker],
+        DecisionOption::AttackerTarget(attacker, AttackTarget::Planeswalker(id) | AttackTarget::Battle(id)) => {
             vec![*attacker, *id]
         }
-        ChoiceOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
-        ChoiceOption::Trigger(trigger) => std::iter::once(trigger.source.id).chain(trigger.triggered_by.iter().copied()).collect(),
-        ChoiceOption::Replacement(_) => option.effect_source().into_iter().collect(),
-        ChoiceOption::CostPart(part) => part.paid_with.clone(),
+        DecisionOption::BlockerAttacker(blocker, attacker) => vec![*blocker, *attacker],
+        DecisionOption::Trigger(trigger) => std::iter::once(trigger.source.id).chain(trigger.triggered_by.iter().copied()).collect(),
+        DecisionOption::Replacement(_) => option.effect_source().into_iter().collect(),
+        DecisionOption::CostPart(part) => part.paid_with.clone(),
         // No object on the board: the existence has left.
-        ChoiceOption::LastKnown(_)
-        | ChoiceOption::Action(PriorityAction::Pass)
-        | ChoiceOption::Modes(_)
-        | ChoiceOption::Player(_)
-        | ChoiceOption::NormalCost
-        | ChoiceOption::AlternativeCost(_)
-        | ChoiceOption::AdditionalCost(_)
-        | ChoiceOption::Number(_)
-        | ChoiceOption::Color(_)
-        | ChoiceOption::CounterType(_)
-        | ChoiceOption::ManaType(_) => Vec::new(),
+        DecisionOption::LastKnown(_)
+        | DecisionOption::Action(PriorityAction::Pass)
+        | DecisionOption::Modes(_)
+        | DecisionOption::Player(_)
+        | DecisionOption::NormalCost
+        | DecisionOption::AlternativeCost(_)
+        | DecisionOption::AdditionalCost(_)
+        | DecisionOption::Number(_)
+        | DecisionOption::Color(_)
+        | DecisionOption::CounterType(_)
+        | DecisionOption::ManaType(_) => Vec::new(),
     }
 }
 
 /// Does the answer the question rejected name `about`?
 fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
     match rejected {
-        Rejection::Reversed(action) => names(&ChoiceOption::Action(action.clone()), about),
+        Rejection::Reversed(action) => names(&DecisionOption::Action(action.clone()), about),
         Rejection::IllegalBlocks { blocks, .. } => {
-            blocks.iter().any(|&(blocker, attacker)| names(&ChoiceOption::BlockerAttacker(blocker, attacker), about))
+            blocks.iter().any(|&(blocker, attacker)| names(&DecisionOption::BlockerAttacker(blocker, attacker), about))
         }
         Rejection::OrderLeavesACostUnpaid(_) => false,
     }
@@ -287,15 +287,15 @@ fn not_an_opponent_refusal(game: &GameState, chooser: PlayerId, player: PlayerId
 fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: Option<&[TraceRecord]>) -> Vec<WhyLine> {
     let offered = question.options.iter().any(|option| names(option, about));
     match (&question.context.kind, about) {
-        (ChoiceKind::PriorityAction, WhyAbout::Object(id)) => priority_refusals(game, question, id),
-        (ChoiceKind::DeclareAttackers, WhyAbout::Object(id)) => {
-            let attacking = question.options.iter().any(|o| matches!(o, ChoiceOption::AttackerTarget(a, _) if *a == id));
+        (DecisionKind::PriorityAction, WhyAbout::Object(id)) => priority_refusals(game, question, id),
+        (DecisionKind::DeclareAttackers, WhyAbout::Object(id)) => {
+            let attacking = question.options.iter().any(|o| matches!(o, DecisionOption::AttackerTarget(a, _) if *a == id));
             match can_attack(game, question.player, id) {
                 Err(error) if !attacking => vec![refusal("To attack", combat_refusal(game, &error, Declaring::Attackers))],
                 _ => Vec::new(),
             }
         }
-        (ChoiceKind::DeclareAttackers, WhyAbout::Player(player)) if !question.options.iter().any(|o| names(o, about)) => {
+        (DecisionKind::DeclareAttackers, WhyAbout::Player(player)) if !question.options.iter().any(|o| names(o, about)) => {
             if player == question.player {
                 vec![refusal("To be attacked", ("a creature attacks one of its controller's opponents".to_string(), Some("506.2")))]
             } else if !game.in_game(player) {
@@ -304,74 +304,74 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
                 Vec::new()
             }
         }
-        (ChoiceKind::DeclareBlockers, WhyAbout::Object(id)) => block_refusals(game, question, id),
-        (ChoiceKind::ManaAbilityWindow { .. }, WhyAbout::Object(id)) => window_refusals(game, question, id),
-        (ChoiceKind::ChooseXValue { spell_id, values, .. }, WhyAbout::Object(id)) if id == *spell_id => {
+        (DecisionKind::DeclareBlockers, WhyAbout::Object(id)) => block_refusals(game, question, id),
+        (DecisionKind::ManaAbilityWindow { .. }, WhyAbout::Object(id)) => window_refusals(game, question, id),
+        (DecisionKind::ChooseXValue { spell_id, values, .. }, WhyAbout::Object(id)) if id == *spell_id => {
             x_refusals(game, question.player, id, values)
         }
-        (ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost }, WhyAbout::Object(id))
+        (DecisionKind::GenericManaAllocation { spell_or_ability_id, mana_cost }, WhyAbout::Object(id))
             if id == *spell_or_ability_id =>
         {
             generic_split_refusals(game, question.player, mana_cost)
         }
-        (ChoiceKind::ChoosePlayerAsObjectEnters { role, .. }, WhyAbout::Player(player)) => {
+        (DecisionKind::ChoosePlayerAsObjectEnters { role, .. }, WhyAbout::Player(player)) => {
             let to = match role {
                 EntryRole::Controller => "To control it",
                 EntryRole::CounterPutter => "To put its counters on",
             };
             not_an_opponent_refusal(game, question.player, player, to)
         }
-        (ChoiceKind::ChooseOpponent { .. }, WhyAbout::Player(player)) => {
+        (DecisionKind::ChooseOpponent { .. }, WhyAbout::Player(player)) => {
             not_an_opponent_refusal(game, question.player, player, "To control it")
         }
-        (ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to }, WhyAbout::Object(id)) if !offered => {
+        (DecisionKind::ChooseAuxiliaryZoneChange { entering, source, to }, WhyAbout::Object(id)) if !offered => {
             auxiliary_refusal(game, question.player, (*entering, *source, *to), id).into_iter().collect()
         }
-        (ChoiceKind::ChooseCopySource { source }, WhyAbout::Object(id)) if !offered => vec![copy_refusal(game, *source, id)],
-        (ChoiceKind::ChooseReplacementEffect { .. }, WhyAbout::Object(id)) if !offered => {
+        (DecisionKind::ChooseCopySource { source }, WhyAbout::Object(id)) if !offered => vec![copy_refusal(game, *source, id)],
+        (DecisionKind::ChooseReplacementEffect { .. }, WhyAbout::Object(id)) if !offered => {
             trace.map(|trace| applied_already(game, trace, id)).unwrap_or_default()
         }
-        (ChoiceKind::OrderTriggers { .. }, WhyAbout::Object(id)) if !offered => {
+        (DecisionKind::OrderTriggers { .. }, WhyAbout::Object(id)) if !offered => {
             trace.map(|trace| asked_about_these_events(game, trace, id)).unwrap_or_default()
         }
         (
-            ChoiceKind::PriorityAction
-            | ChoiceKind::DeclareAttackers
-            | ChoiceKind::DeclareBlockers
-            | ChoiceKind::AssignCombatDamage { .. }
-            | ChoiceKind::AssignTrampleDamage { .. }
-            | ChoiceKind::ChooseModes { .. }
-            | ChoiceKind::ChooseXValue { .. }
-            | ChoiceKind::ChooseAlternativeCost { .. }
-            | ChoiceKind::ChooseAdditionalCosts { .. }
-            | ChoiceKind::SelectRecipients { .. }
-            | ChoiceKind::DivideAmong { .. }
-            | ChoiceKind::GenericManaAllocation { .. }
-            | ChoiceKind::OrderCostReductions { .. }
-            | ChoiceKind::OrderCostPayments { .. }
-            | ChoiceKind::OrderSimultaneousEntries { .. }
-            | ChoiceKind::ManaAbilityWindow { .. }
-            | ChoiceKind::ChooseSacrificeForCost { .. }
-            | ChoiceKind::ChooseReplacementEffect { .. }
-            | ChoiceKind::OrderTriggers { .. }
-            | ChoiceKind::ApplyOptionalReplacement { .. }
-            | ChoiceKind::ApplyOptionalEffect { .. }
-            | ChoiceKind::PayAsItResolves { .. }
-            | ChoiceKind::ChooseAmountToPay { .. }
-            | ChoiceKind::AllocateNextDamage { .. }
-            | ChoiceKind::ChooseDamageSource { .. }
-            | ChoiceKind::ChooseDelayedTriggerEvent { .. }
-            | ChoiceKind::ChoosePlayerAsObjectEnters { .. }
-            | ChoiceKind::ChooseOpponent { .. }
-            | ChoiceKind::ChooseEnteringDefender { .. }
-            | ChoiceKind::AcceptAsObjectEnters { .. }
-            | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
-            | ChoiceKind::ChooseCopySource { .. }
-            | ChoiceKind::CommanderToCommandZoneSba { .. }
-            | ChoiceKind::Discard { .. }
-            | ChoiceKind::Scry { .. }
-            | ChoiceKind::OrderLibraryCards { .. }
-            | ChoiceKind::LegendRule { .. },
+            DecisionKind::PriorityAction
+            | DecisionKind::DeclareAttackers
+            | DecisionKind::DeclareBlockers
+            | DecisionKind::AssignCombatDamage { .. }
+            | DecisionKind::AssignTrampleDamage { .. }
+            | DecisionKind::ChooseModes { .. }
+            | DecisionKind::ChooseXValue { .. }
+            | DecisionKind::ChooseAlternativeCost { .. }
+            | DecisionKind::ChooseAdditionalCosts { .. }
+            | DecisionKind::SelectRecipients { .. }
+            | DecisionKind::DivideAmong { .. }
+            | DecisionKind::GenericManaAllocation { .. }
+            | DecisionKind::OrderCostReductions { .. }
+            | DecisionKind::OrderCostPayments { .. }
+            | DecisionKind::OrderSimultaneousEntries { .. }
+            | DecisionKind::ManaAbilityWindow { .. }
+            | DecisionKind::ChooseSacrificeForCost { .. }
+            | DecisionKind::ChooseReplacementEffect { .. }
+            | DecisionKind::OrderTriggers { .. }
+            | DecisionKind::ApplyOptionalReplacement { .. }
+            | DecisionKind::ApplyOptionalEffect { .. }
+            | DecisionKind::PayAsItResolves { .. }
+            | DecisionKind::ChooseAmountToPay { .. }
+            | DecisionKind::AllocateNextDamage { .. }
+            | DecisionKind::ChooseDamageSource { .. }
+            | DecisionKind::ChooseDelayedTriggerEvent { .. }
+            | DecisionKind::ChoosePlayerAsObjectEnters { .. }
+            | DecisionKind::ChooseOpponent { .. }
+            | DecisionKind::ChooseEnteringDefender { .. }
+            | DecisionKind::AcceptAsObjectEnters { .. }
+            | DecisionKind::ChooseAuxiliaryZoneChange { .. }
+            | DecisionKind::ChooseCopySource { .. }
+            | DecisionKind::CommanderToCommandZoneSba { .. }
+            | DecisionKind::Discard { .. }
+            | DecisionKind::Scry { .. }
+            | DecisionKind::OrderLibraryCards { .. }
+            | DecisionKind::LegendRule { .. },
             _,
         ) => Vec::new(),
     }
@@ -445,66 +445,66 @@ fn generic_split_refusals(game: &GameState, player: PlayerId, mana_cost: &ManaCo
 /// What a question ranges over, said to a why about something it does not
 /// offer, and the rule; one arm per kind and no wildcard, so a new kind says
 /// at birth what it asks about.
-fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String, Option<&'static str>) {
+fn ranges_over(game: &GameState, kind: &DecisionKind, asked: PlayerId) -> (String, Option<&'static str>) {
     let n = |id: &ObjectId| named(game, *id);
     let who = player_name(asked);
     match kind {
-        ChoiceKind::PriorityAction => (
+        DecisionKind::PriorityAction => (
             format!("the lands {who} can play, the spells {who} can cast, the abilities {who} can activate, and passing"),
             Some("117.1"),
         ),
-        ChoiceKind::DeclareAttackers => (format!("the creatures {who} controls that can attack, and what each can attack"), Some("508.1a")),
-        ChoiceKind::DeclareBlockers => (format!("the creatures {who} controls that can block, and what each can block"), Some("509.1a")),
-        ChoiceKind::AssignCombatDamage { attacker_id } => {
+        DecisionKind::DeclareAttackers => (format!("the creatures {who} controls that can attack, and what each can attack"), Some("508.1a")),
+        DecisionKind::DeclareBlockers => (format!("the creatures {who} controls that can block, and what each can block"), Some("509.1a")),
+        DecisionKind::AssignCombatDamage { attacker_id } => {
             (format!("how {}'s combat damage is divided among the creatures blocking it", n(attacker_id)), Some("510.1c"))
         }
-        ChoiceKind::AssignTrampleDamage { attacker_id, .. } => (
+        DecisionKind::AssignTrampleDamage { attacker_id, .. } => (
             format!("how {}'s combat damage is divided among the creatures blocking it and what it attacks", n(attacker_id)),
             Some("702.19b"),
         ),
-        ChoiceKind::ChooseModes { source, .. } => (
+        DecisionKind::ChooseModes { source, .. } => (
             format!("the groups of {}'s modes its count allows, leaving out a mode whose targets have no legal choice", n(source)),
             Some("700.2a"),
         ),
-        ChoiceKind::ChooseXValue { spell_id, .. } => (format!("the value of X for {}", n(spell_id)), Some("601.2b")),
-        ChoiceKind::ChooseAlternativeCost { spell_id } => {
+        DecisionKind::ChooseXValue { spell_id, .. } => (format!("the value of X for {}", n(spell_id)), Some("601.2b")),
+        DecisionKind::ChooseAlternativeCost { spell_id } => {
             (format!("whether {} is cast for its mana cost or for an alternative cost", n(spell_id)), Some("118.9"))
         }
-        ChoiceKind::ChooseAdditionalCosts { spell_id } => {
+        DecisionKind::ChooseAdditionalCosts { spell_id } => {
             (format!("which of {}'s optional additional costs are paid", n(spell_id)), Some("118.8"))
         }
-        ChoiceKind::SelectRecipients { spell_id, .. } => {
+        DecisionKind::SelectRecipients { spell_id, .. } => {
             (format!("the objects and players {} may target or choose", n(spell_id)), Some("601.2c"))
         }
-        ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } => {
+        DecisionKind::GenericManaAllocation { spell_or_ability_id, .. } => {
             (format!("the mana in the pool that pays the generic part of {}'s cost", n(spell_or_ability_id)), Some("601.2h"))
         }
-        ChoiceKind::OrderCostReductions { spell_id } => {
+        DecisionKind::OrderCostReductions { spell_id } => {
             (format!("the order the cost reductions apply to {} in", n(spell_id)), Some("601.2f"))
         }
-        ChoiceKind::OrderCostPayments { spell_or_ability_id } => {
+        DecisionKind::OrderCostPayments { spell_or_ability_id } => {
             (format!("the order {who} pays the costs of {} in", n(spell_or_ability_id)), Some("601.2h"))
         }
-        ChoiceKind::OrderSimultaneousEntries { .. } => {
+        DecisionKind::OrderSimultaneousEntries { .. } => {
             (format!("the objects {who} controls that arrived together and whose timestamps can change the game"), Some("613.7m"))
         }
-        ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } => {
+        DecisionKind::ManaAbilityWindow { spell_or_ability_id, .. } => {
             (format!("the mana abilities {who} can activate to pay for {}", n(spell_or_ability_id)), Some("601.2g"))
         }
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => {
+        DecisionKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => {
             (format!("the permanents {who} controls that can be sacrificed to pay for {}", n(spell_or_ability_id)), Some("701.21a"))
         }
-        ChoiceKind::ChooseReplacementEffect { .. } => (
+        DecisionKind::ChooseReplacementEffect { .. } => (
             "the replacement and prevention effects that apply to the event, from the first step of CR 616.1's order that has any"
                 .to_string(),
             Some("616.1"),
         ),
-        ChoiceKind::OrderTriggers { .. } => {
+        DecisionKind::OrderTriggers { .. } => {
             (format!("{who}'s triggered abilities that triggered together, in the order they go on the stack"), Some("603.3b"))
         }
-        ChoiceKind::ApplyOptionalReplacement { source, .. } => (format!("whether {}'s effect applies", n(source)), Some("614.1a")),
-        ChoiceKind::ApplyOptionalEffect { source } => (format!("whether {} does what it says {who} may", n(source)), Some("603.5")),
-        ChoiceKind::PayAsItResolves { source, offer, any_amount_of } => (
+        DecisionKind::ApplyOptionalReplacement { source, .. } => (format!("whether {}'s effect applies", n(source)), Some("614.1a")),
+        DecisionKind::ApplyOptionalEffect { source } => (format!("whether {} does what it says {who} may", n(source)), Some("603.5")),
+        DecisionKind::PayAsItResolves { source, offer, any_amount_of } => (
             format!(
                 "whether {who} pays {}'s cost as it resolves: {}",
                 n(source),
@@ -512,52 +512,52 @@ fn ranges_over(game: &GameState, kind: &ChoiceKind, asked: PlayerId) -> (String,
             ),
             Some("118.12"),
         ),
-        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => {
+        DecisionKind::ChooseAmountToPay { source, of: AmountOf::XIn(cost), .. } => {
             (format!("the X in {cost} as {} resolves, each X one {who} can pay", n(source)), Some("107.3f"))
         }
-        ChoiceKind::ChooseAmountToPay { source, of: AmountOf::AnyAmountOf(unit), .. } => {
+        DecisionKind::ChooseAmountToPay { source, of: AmountOf::AnyAmountOf(unit), .. } => {
             (format!("how many {unit} {who} pays as {} resolves, each amount one {who} can pay", n(source)), Some("107.3f"))
         }
-        ChoiceKind::DivideAmong { source } => (format!("the targets {} divides among, each receiving at least one", n(source)), Some("601.2d")),
-        ChoiceKind::AllocateNextDamage { source, remaining } => {
+        DecisionKind::DivideAmong { source } => (format!("the targets {} divides among, each receiving at least one", n(source)), Some("601.2d")),
+        DecisionKind::AllocateNextDamage { source, remaining } => {
             (format!("the damage {}'s effect prevents, {remaining} at most", n(source)), Some("615.7"))
         }
-        ChoiceKind::ChooseDamageSource { source } => {
+        DecisionKind::ChooseDamageSource { source } => {
             (format!("every permanent and every spell on the stack, as the source {} names", n(source)), Some("609.7a"))
         }
-        ChoiceKind::ChooseDelayedTriggerEvent { source } => {
+        DecisionKind::ChooseDelayedTriggerEvent { source } => {
             (format!("the events that happened at once, any of which triggers {}'s delayed ability", n(source)), Some("603.7b"))
         }
-        ChoiceKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::Controller, .. } => {
+        DecisionKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::Controller, .. } => {
             (format!("the opponents still in the game, one of whom controls {} as it enters", n(object)), Some("614.12a"))
         }
-        ChoiceKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::CounterPutter, .. } => {
+        DecisionKind::ChoosePlayerAsObjectEnters { object, role: EntryRole::CounterPutter, .. } => {
             (format!("the opponents still in the game, one of whom may put counters on {} as it enters", n(object)), Some("702.104a"))
         }
-        ChoiceKind::ChooseOpponent { source } => {
+        DecisionKind::ChooseOpponent { source } => {
             (format!("the opponents still in the game, one of whom {}'s instruction names", n(source)), Some("608.2d"))
         }
-        ChoiceKind::ChooseEnteringDefender { object } => {
+        DecisionKind::ChooseEnteringDefender { object } => {
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }
-        ChoiceKind::AcceptAsObjectEnters { object, offer, .. } => (
+        DecisionKind::AcceptAsObjectEnters { object, offer, .. } => (
             format!("whether to {} as {} enters", crate::ui::display::entry_offer_words(offer), n(object)),
             Some("614.12a"),
         ),
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, .. } => {
+        DecisionKind::ChooseAuxiliaryZoneChange { entering, source, .. } => {
             (format!("the objects {}'s effect may move as {} enters", n(source), n(entering)), Some("614.13a"))
         }
-        ChoiceKind::ChooseCopySource { source } => (format!("the permanents {}'s effect may copy", n(source)), None),
-        ChoiceKind::CommanderToCommandZoneSba { commander } => {
+        DecisionKind::ChooseCopySource { source } => (format!("the permanents {}'s effect may copy", n(source)), None),
+        DecisionKind::CommanderToCommandZoneSba { commander } => {
             (format!("whether {} goes to the command zone", n(commander)), Some("903.9a"))
         }
-        ChoiceKind::Discard { .. } => (format!("the cards in {who}'s hand"), Some("701.9b")),
-        ChoiceKind::Scry { .. } => (format!("the cards {who} is looking at, any of which go to the bottom"), Some("701.22a")),
-        ChoiceKind::OrderLibraryCards { bottom, .. } => {
+        DecisionKind::Discard { .. } => (format!("the cards in {who}'s hand"), Some("701.9b")),
+        DecisionKind::Scry { .. } => (format!("the cards {who} is looking at, any of which go to the bottom"), Some("701.22a")),
+        DecisionKind::OrderLibraryCards { bottom, .. } => {
             let pile = if *bottom { "bottom" } else { "top" };
             (format!("the order of the cards going on the {pile}"), Some("701.22a"))
         }
-        ChoiceKind::LegendRule { legend_name } => {
+        DecisionKind::LegendRule { legend_name } => {
             (format!("the permanents named {legend_name} {who} controls, one of which stays"), Some("704.5j"))
         }
     }
@@ -693,7 +693,7 @@ fn priority_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) ->
     let player = question.player;
     let offered = |ability: AbilityId| {
         question.options.iter().any(|option| {
-            matches!(option, ChoiceOption::Action(PriorityAction::ActivateAbility(source, offered))
+            matches!(option, DecisionOption::Action(PriorityAction::ActivateAbility(source, offered))
                 if *source == id && *offered == ability)
         })
     };
@@ -777,7 +777,7 @@ fn window_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> V
 /// one option, so it is offered when any instance of its definition is.
 fn window_offers(question: &OpenQuestion, source: ObjectId, ability: AbilityId) -> bool {
     question.options.iter().any(|option| {
-        matches!(option, ChoiceOption::Action(PriorityAction::ActivateAbility(offered_source, offered))
+        matches!(option, DecisionOption::Action(PriorityAction::ActivateAbility(offered_source, offered))
             if *offered_source == source && offered.definition() == ability.definition())
     })
 }
@@ -801,7 +801,7 @@ pub struct NotOfferedYet {
 /// grants it has; none at any other question. A source spent another way,
 /// tapped or summoning sick, is no source yet, and its right-click says why.
 pub fn not_offered_yet(game: &GameState, question: &OpenQuestion) -> Vec<NotOfferedYet> {
-    if !matches!(question.context.kind, ChoiceKind::ManaAbilityWindow { .. }) {
+    if !matches!(question.context.kind, DecisionKind::ManaAbilityWindow { .. }) {
         return Vec::new();
     }
     let player = question.player;
@@ -822,7 +822,7 @@ pub fn not_offered_yet(game: &GameState, question: &OpenQuestion) -> Vec<NotOffe
             let short = game.can_pay_costs(ability.costs(), player, source) == Err(CannotPay::PoolShort);
             let rest: Vec<Cost> = ability.costs().iter().filter(|cost| !matches!(cost, Cost::Mana(_))).cloned().collect();
             if short && !summoning_sickness_forbids(game, source, ability.costs()) && game.can_pay_costs(&rest, player, source).is_ok() {
-                let option = ChoiceOption::Action(PriorityAction::ActivateAbility(source, ability.id));
+                let option = DecisionOption::Action(PriorityAction::ActivateAbility(source, ability.id));
                 let (reason, rule) = cannot_pay(player, &CannotPay::PoolShort);
                 not_yet.push(NotOfferedYet { source, label: option_label(game, &option), reason, rule });
             }
@@ -839,7 +839,7 @@ fn block_refusals(game: &GameState, question: &OpenQuestion, id: ObjectId) -> Ve
     let defender = question.player;
     let offered = |blocker: ObjectId, attacker: ObjectId| {
         question.options.iter().any(|option| {
-            matches!(option, ChoiceOption::BlockerAttacker(b, a) if *b == blocker && *a == attacker)
+            matches!(option, DecisionOption::BlockerAttacker(b, a) if *b == blocker && *a == attacker)
         })
     };
     let attackers: Vec<ObjectId> = game

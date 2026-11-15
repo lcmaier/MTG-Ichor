@@ -27,7 +27,7 @@ use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCou
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaSpent, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -349,11 +349,11 @@ fn equip(
     // White is the only mana in the pool, so the split is forced too.
     if let Some(target) = target {
         dp.expect_choice(
-            ChoiceKind::SelectRecipients {
+            DecisionKind::SelectRecipients {
                 recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 spell_id: equipment,
             },
-            vec![ChoiceOption::Object(target)],
+            vec![DecisionOption::Object(target)],
         );
     }
     let idx = equip_ability_index(game, equipment);

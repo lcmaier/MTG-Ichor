@@ -5,7 +5,7 @@ use std::mem::discriminant;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, position_named};
+use super::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_named};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
@@ -100,8 +100,8 @@ impl DecisionProvider for DispatchDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.dp_for(player).pick_n(game, player, context, options, bounds)
@@ -111,7 +111,7 @@ impl DecisionProvider for DispatchDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -122,9 +122,9 @@ impl DecisionProvider for DispatchDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -135,8 +135,8 @@ impl DecisionProvider for DispatchDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         self.dp_for(player).choose_ordering(game, player, context, items)
     }
@@ -158,15 +158,15 @@ impl DecisionProvider for DispatchDecisionProvider {
 /// - `allocate`: distribute a total across buckets (damage, mana, etc.)
 /// - `choose_ordering`: reorder a list (scry, stack ordering, etc.)
 ///
-/// `ChoiceContext` carries the semantic kind so impls can specialize.
+/// `DecisionContext` carries the semantic kind so impls can specialize.
 pub trait DecisionProvider {
     /// Pick N items from a list of options. Bounds: (min, max) selections.
     fn pick_n(
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize>;
 
@@ -175,7 +175,7 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         min: u64,
         max: u64,
     ) -> u64;
@@ -189,9 +189,9 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64>;
@@ -201,8 +201,8 @@ pub trait DecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize>;
 
     /// The seat's mode. The default, every field off, is an agent's; a
@@ -223,19 +223,19 @@ pub trait DecisionProvider {
 pub(crate) struct AsksNobody;
 
 impl DecisionProvider for AsksNobody {
-    fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, options: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, _: &GameState, _: PlayerId, _: &DecisionContext, options: &[DecisionOption], _: (usize, usize)) -> Vec<usize> {
         vec![options.len()]
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: u64, max: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: u64, max: u64) -> u64 {
         max.saturating_add(1)
     }
 
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, total: u64, buckets: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &DecisionContext, total: u64, buckets: &[DecisionOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
         vec![total.saturating_add(1); buckets.len().max(1)]
     }
 
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         vec![items.len()]
     }
 }
@@ -246,15 +246,15 @@ impl DecisionProvider for AsksNobody {
 pub(crate) struct FirstLegalAnswer;
 
 impl DecisionProvider for FirstLegalAnswer {
-    fn pick_n(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, _: &[ChoiceOption], (at_least, _): (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, _: &GameState, _: PlayerId, _: &DecisionContext, _: &[DecisionOption], (at_least, _): (usize, usize)) -> Vec<usize> {
         (0..at_least).collect()
     }
 
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
+    fn pick_number(&self, _: &GameState, _: PlayerId, _: &DecisionContext, min: u64, _: u64) -> u64 {
         min
     }
 
-    fn allocate(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, total: u64, buckets: &[ChoiceOption], mins: &[u64], maxs: Option<&[u64]>) -> Vec<u64> {
+    fn allocate(&self, _: &GameState, _: PlayerId, _: &DecisionContext, total: u64, buckets: &[DecisionOption], mins: &[u64], maxs: Option<&[u64]>) -> Vec<u64> {
         let mut shares: Vec<u64> = (0..buckets.len()).map(|at| mins.get(at).copied().unwrap_or(0)).collect();
         let mut left = total.saturating_sub(shares.iter().sum());
         for (at, share) in shares.iter_mut().enumerate() {
@@ -266,7 +266,7 @@ impl DecisionProvider for FirstLegalAnswer {
         shares
     }
 
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         (0..items.len()).collect()
     }
 }
@@ -278,9 +278,9 @@ impl DecisionProvider for FirstLegalAnswer {
 /// A single scripted expectation: what kind of decision we expect, and what to return.
 #[derive(Debug)]
 pub struct ScriptedExpectation {
-    /// The ChoiceKind we expect the engine to ask for (discriminant match, fields ignored).
+    /// The DecisionKind we expect the engine to ask for (discriminant match, fields ignored).
     /// No `Any` fallback — every scripted decision must declare what it expects.
-    pub expected_kind: ChoiceKind,
+    pub expected_kind: DecisionKind,
     pub response: ScriptedResponse,
 }
 
@@ -289,19 +289,19 @@ pub struct ScriptedExpectation {
 #[derive(Debug)]
 pub enum ScriptedResponse {
     /// The options to pick.
-    Choose(Vec<ChoiceOption>),
+    Choose(Vec<DecisionOption>),
     Number(u64),
     /// Each bucket with its amount: the decision log's allocation.
-    Allocation(Vec<(ChoiceOption, u64)>),
+    Allocation(Vec<(DecisionOption, u64)>),
     /// The items, first first.
-    Order(Vec<ChoiceOption>),
+    Order(Vec<DecisionOption>),
     /// A take-or-leave question's one option, taken.
     Take,
 }
 
 /// The positions in `options` of the options `chosen` names, each found by
 /// [`position_named`] past those already found; every one must be offered.
-fn found_indices(options: &[ChoiceOption], game: &GameState, chosen: &[ChoiceOption]) -> Vec<usize> {
+fn found_indices(options: &[DecisionOption], game: &GameState, chosen: &[DecisionOption]) -> Vec<usize> {
     let mut found = Vec::new();
     for option in chosen {
         match position_named(options, game, option, &found) {
@@ -317,7 +317,7 @@ fn found_indices(options: &[ChoiceOption], game: &GameState, chosen: &[ChoiceOpt
 }
 
 /// A test-oriented generic decision provider with a single queue of
-/// `ScriptedExpectation`s. Each expectation pairs a mandatory `ChoiceKind`
+/// `ScriptedExpectation`s. Each expectation pairs a mandatory `DecisionKind`
 /// (discriminant-matched) with a `ScriptedResponse`.
 ///
 /// Every test must state what decision it expects — this is the entire point
@@ -329,7 +329,7 @@ pub struct ScriptedDecisionProvider {
     allocation_mins: RefCell<Vec<Vec<u64>>>,
     /// Every prompt's player and kind, in prompt order — see [`Self::asked`]
     /// and [`Self::asked_of`].
-    asked: RefCell<Vec<(PlayerId, ChoiceKind)>>,
+    asked: RefCell<Vec<(PlayerId, DecisionKind)>>,
     mode: SeatMode,
 }
 
@@ -375,20 +375,20 @@ impl ScriptedDecisionProvider {
     /// carried: a `ChooseXValue`'s values, a window's remaining cost. The
     /// queue matches a kind by its variant alone, so what a question offered
     /// is read here, as [`Self::allocation_mins`] reads a split's floors.
-    pub fn asked(&self) -> Vec<ChoiceKind> {
+    pub fn asked(&self) -> Vec<DecisionKind> {
         self.asked.borrow().iter().map(|(_, kind)| kind.clone()).collect()
     }
 
     /// [`Self::asked`] with the player each prompt asked, so a test can say
     /// who answered as well as what.
-    pub fn asked_of(&self) -> Vec<(PlayerId, ChoiceKind)> {
+    pub fn asked_of(&self) -> Vec<(PlayerId, DecisionKind)> {
         self.asked.borrow().clone()
     }
 
     /// Enqueue a pick_n expectation naming the options to pick, so an engine
     /// change that lists them in another order breaks nothing. An empty list
     /// picks none.
-    pub fn expect_choice(&self, kind: ChoiceKind, chosen: Vec<ChoiceOption>) {
+    pub fn expect_choice(&self, kind: DecisionKind, chosen: Vec<DecisionOption>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation { expected_kind: kind, response: ScriptedResponse::Choose(chosen) });
     }
 
@@ -397,7 +397,7 @@ impl ScriptedDecisionProvider {
     /// trigger's stack object or a token entering, which no script can name
     /// beforehand. Refused when more than one option is offered. Leaving it
     /// is `expect_choice` of nothing.
-    pub fn expect_take(&self, kind: ChoiceKind) {
+    pub fn expect_take(&self, kind: DecisionKind) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
             response: ScriptedResponse::Take,
@@ -405,7 +405,7 @@ impl ScriptedDecisionProvider {
     }
 
     /// Enqueue a pick_number expectation.
-    pub fn expect_number(&self, kind: ChoiceKind, n: u64) {
+    pub fn expect_number(&self, kind: DecisionKind, n: u64) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
             response: ScriptedResponse::Number(n),
@@ -414,7 +414,7 @@ impl ScriptedDecisionProvider {
 
     /// Enqueue an allocate expectation that names every bucket the engine
     /// offers, in any order, with what it gets.
-    pub fn expect_allocation(&self, kind: ChoiceKind, amounts: Vec<(ChoiceOption, u64)>) {
+    pub fn expect_allocation(&self, kind: DecisionKind, amounts: Vec<(DecisionOption, u64)>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation {
             expected_kind: kind,
             response: ScriptedResponse::Allocation(amounts),
@@ -423,13 +423,13 @@ impl ScriptedDecisionProvider {
 
     /// Enqueue a choose_ordering expectation that names the items, first
     /// first.
-    pub fn expect_order(&self, kind: ChoiceKind, order: Vec<ChoiceOption>) {
+    pub fn expect_order(&self, kind: DecisionKind, order: Vec<DecisionOption>) {
         self.queue.borrow_mut().push_back(ScriptedExpectation { expected_kind: kind, response: ScriptedResponse::Order(order) });
     }
 
     /// Pop the front expectation and validate. Panics if queue is empty or
     /// kind doesn't match — every DP call must have a corresponding expectation.
-    fn pop_and_validate(&self, player: PlayerId, actual_kind: &ChoiceKind, method_name: &str) -> ScriptedResponse {
+    fn pop_and_validate(&self, player: PlayerId, actual_kind: &DecisionKind, method_name: &str) -> ScriptedResponse {
         self.asked.borrow_mut().push((player, actual_kind.clone()));
         let mut queue = self.queue.borrow_mut();
         let expectation = match queue.pop_front() {
@@ -467,7 +467,7 @@ impl ScriptedDecisionProvider {
     /// engine takes without asking (`engine::priority`).
     pub fn queue_main_phase_passes(&self) {
         for _ in 0..2 {
-            self.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);
+            self.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::Pass)]);
         }
     }
 }
@@ -491,8 +491,8 @@ impl DecisionProvider for ScriptedDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
+        context: &DecisionContext,
+        options: &[DecisionOption],
         _bounds: (usize, usize),
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "pick_n") {
@@ -502,8 +502,8 @@ impl DecisionProvider for ScriptedDecisionProvider {
                 vec![0]
             }
             // A number answers a pick over numbers by value: CR 601.2b's X as
-            // a set with a gap (`ChoiceKind::ChooseXValue`).
-            ScriptedResponse::Number(n) => match options.iter().position(|option| matches!(option, ChoiceOption::Number(offered) if *offered == n)) {
+            // a set with a gap (`DecisionKind::ChooseXValue`).
+            ScriptedResponse::Number(n) => match options.iter().position(|option| matches!(option, DecisionOption::Number(offered) if *offered == n)) {
                 Some(index) => vec![index],
                 None => panic!("ScriptedDecisionProvider: number {n} is not offered: {options:?}"),
             },
@@ -518,7 +518,7 @@ impl DecisionProvider for ScriptedDecisionProvider {
         &self,
         _game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         _min: u64,
         _max: u64,
     ) -> u64 {
@@ -535,16 +535,16 @@ impl DecisionProvider for ScriptedDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         _total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         per_bucket_mins: &[u64],
         _per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.allocation_mins.borrow_mut().push(per_bucket_mins.to_vec());
         match self.pop_and_validate(player, &context.kind, "allocate") {
             ScriptedResponse::Allocation(amounts) => {
-                let named: Vec<ChoiceOption> = amounts.iter().map(|(bucket, _)| bucket.clone()).collect();
+                let named: Vec<DecisionOption> = amounts.iter().map(|(bucket, _)| bucket.clone()).collect();
                 let at = found_indices(buckets, game, &named);
                 assert_eq!(
                     at.len(),
@@ -570,8 +570,8 @@ impl DecisionProvider for ScriptedDecisionProvider {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
-        items: &[ChoiceOption],
+        context: &DecisionContext,
+        items: &[DecisionOption],
     ) -> Vec<usize> {
         match self.pop_and_validate(player, &context.kind, "choose_ordering") {
             ScriptedResponse::Order(order) => found_indices(items, game, &order),

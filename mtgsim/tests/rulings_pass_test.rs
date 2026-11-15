@@ -48,7 +48,7 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
 use std::sync::Arc;
@@ -63,7 +63,7 @@ use std::sync::Arc;
 /// forced, so nothing is scripted but the cast itself.
 fn cast_and_resolve(game: &mut GameState, spell: ObjectId) {
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::CastSpell(spell))]);
+    dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(spell))]);
     assert_eq!(
         game.run_priority_round(&dp).unwrap(),
         PriorityResult::ActionTaken

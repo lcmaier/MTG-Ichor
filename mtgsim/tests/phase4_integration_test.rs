@@ -22,7 +22,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::{ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::types::replacement::EnterMods;
 
@@ -144,8 +144,8 @@ fn test_vigilance_doesnt_tap() {
 
     let scripted = ScriptedDecisionProvider::new();
     scripted.expect_choice(
-        mtgsim::ui::choice_types::ChoiceKind::DeclareAttackers,
-        vec![ChoiceOption::AttackerTarget(angel, AttackTarget::Player(1))],
+        mtgsim::ui::decision_types::DecisionKind::DeclareAttackers,
+        vec![DecisionOption::AttackerTarget(angel, AttackTarget::Player(1))],
     );
     game.process_declare_attackers(&scripted).unwrap();
 
@@ -240,11 +240,11 @@ fn test_trample_overflow_to_player() {
 
     let scripted = ScriptedDecisionProvider::new();
     scripted.expect_allocation(
-        ChoiceKind::AssignTrampleDamage {
+        DecisionKind::AssignTrampleDamage {
             attacker_id: mammoth,
             defending_target: ObjectOrPlayerId::Player(1),
         },
-        vec![(ChoiceOption::Object(lions), 1), (ChoiceOption::Player(1), 2)],
+        vec![(DecisionOption::Object(lions), 1), (DecisionOption::Player(1), 2)],
     );
     let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
@@ -374,11 +374,11 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     // Deathtouch: lethal=1.
     let scripted = ScriptedDecisionProvider::new();
     scripted.expect_allocation(
-        ChoiceKind::AssignTrampleDamage {
+        DecisionKind::AssignTrampleDamage {
             attacker_id: trampler,
             defending_target: ObjectOrPlayerId::Player(1),
         },
-        vec![(ChoiceOption::Object(blocker), 1), (ChoiceOption::Player(1), 3)],
+        vec![(DecisionOption::Object(blocker), 1), (DecisionOption::Player(1), 3)],
     );
     let assignments = assign_combat_damage(&game, &scripted, 0, false);
 

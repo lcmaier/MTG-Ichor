@@ -14,7 +14,7 @@ use mtgsim::test_support::{put_in_graveyard, put_in_library, put_on_battlefield,
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
+use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -219,7 +219,7 @@ struct AskingWhy<'a> {
 }
 
 impl AskingWhy<'_> {
-    fn ask(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption]) {
+    fn ask(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption]) {
         let question = OpenQuestion { player, context, options };
         let ids: Vec<ObjectId> = game.objects.keys().collect();
         let about = ids.into_iter().map(WhyAbout::Object).chain((0..game.num_players()).map(WhyAbout::Player));
@@ -231,11 +231,11 @@ impl AskingWhy<'_> {
 }
 
 impl DecisionProvider for AskingWhy<'_> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, options: &[ChoiceOption], bounds: (usize, usize)) -> Vec<usize> {
+    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
         self.ask(game, player, context, options);
         self.inner.pick_n(game, player, context, options, bounds)
     }
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
         self.ask(game, player, context, &[]);
         self.inner.pick_number(game, player, context, min, max)
     }
@@ -243,16 +243,16 @@ impl DecisionProvider for AskingWhy<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &ChoiceContext,
+        context: &DecisionContext,
         total: u64,
-        buckets: &[ChoiceOption],
+        buckets: &[DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
         self.ask(game, player, context, buckets);
         self.inner.allocate(game, player, context, total, buckets, mins, maxs)
     }
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
         self.ask(game, player, context, items);
         self.inner.choose_ordering(game, player, context, items)
     }
