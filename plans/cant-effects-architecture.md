@@ -537,7 +537,7 @@ The same list as `replacement-architecture.md` §3.3, in the same order, and
 getting it wrong has the same failure mode — a card that silently does nothing.
 
 1. **Static abilities of permanents**, read off each object's **effective**
-   ability list during a `battlefield_ids_ordered` sweep. Not a registry scan,
+   ability list during a sweep of the battlefield. Not a registry scan,
    for the reason `gather` gives: it is what makes Humility strip a restriction,
    and it asks CR 614.17a's "must exist before the event" at the one instant
    that matters.

@@ -579,11 +579,16 @@ review; none of them is a new mechanism. Their source is
 game reaches a choice, a log or a count.
 
 1. **Order.** C iterates in id order, which is the same in every process, so
-   the hasher can no longer leak through these stores. It is not the rules'
-   order, though, and `ObjectId` has no `Ord` on purpose. A choice, a log or a
-   count still sorts by timestamp. `check_invariants.py`'s unordered rule keeps
-   reading the three fields: its type pattern gains the table's name, and the
-   `ORDER-FREE:` tags stay.
+   the hasher can no longer leak through these stores. **Since #328 that is
+   the engine's order wherever no rule names one** (the owner, 2026-11-14): no
+   rule fixes the order of a sweep's members, since CR 603.3b, 616.1, 704.5j
+   and 101.4c hand each such order to a player. So a battlefield sweep is the
+   table's walk, `ObjectId` has `Ord`, and the nine filed-source sets are
+   tables too; `check_invariants.py`'s unordered rule reads the hash-keyed
+   fields left. A rule that compares timestamps reads them (CR 613.7), and the
+   scenario writer, whose loader mints ids in line order, sorts by timestamp
+   itself. Until #328 a choice, a log or a count sorted by timestamp, and
+   `ObjectId` had no `Ord` on purpose.
 2. **Sharing is never observed.** No `Arc::ptr_eq`, `Arc::strong_count` or
    address decides anything in the engine. A copy on write is not a
    `Diagnostics` row: an unforked game copies nothing and a forked one does,

@@ -150,7 +150,7 @@ not (§3); `mod.rs` files declare and re-export only
 | `engine/costs.rs`, `engine/mana.rs` | CR 601.2h/602.2b payment; CR 605 mana abilities |
 | `engine/payment_order.rs`, `engine/simultaneous_timestamps.rs` | the two orders the CR hands a player: CR 601.2h's payment, CR 613.7m's timestamps, each asked only where the orders' outcomes differ, and each's audit |
 | `engine/zone_function.rs`, `engine/keywords.rs`, `engine/trace_records.rs` | CR 113.6's `functions_in`; lifelink and deathtouch on damage; every trace record's shape |
-| `state/game_state.rs` | `GameState` and `StackEntry`; timestamps and `battlefield_ids_ordered`; `perform_entry`, `register_static_effects` and the printed-source sets |
+| `state/game_state.rs` | `GameState` and `StackEntry`; timestamps and `battlefield_ids`; `perform_entry`, `register_static_effects` and the printed-source sets |
 | `state/battlefield.rs`, `state/player.rs` | `PermanentState` and its one constructor for an entry; `PlayerState` |
 | `state/continuous_effects.rs`, `state/replacement_effects.rs`, `state/restrictions.rs`, `state/duration_registry.rs` | the three registries of resolution-created rows, their shared CR 514.2 expiry, and `RegistryScopeSummary`, the gates' granted and copied legs |
 | `state/layer_memo.rs`, `state/history.rs`, `state/history_log.rs`, `state/diagnostics.rs`, `state/trace.rs` | the layer memo; `GameHistory`, what the game remembers: the history log (one row per event a card can ask about, kept for the whole game in `Arc`-chained chunks), each player's `PlayerHistory` beside it, and each ability's "this turn" facts; seed-deterministic work counters; the trace sink and `emit_event` |
@@ -335,7 +335,7 @@ The prompts the engine answers itself, and why: `elisions.md` §2, §3.
 | A `ZoneChange` names its act and a proposal its cause, with no catchall | `ZoneChangeAct` `types/zones.rs:226`, `EventCause` `events/cause.rs:21` | `replacement-architecture.md` §2b.2, §2b.3 |
 | Performers are loud; callers check legality | the `Untap` arm `engine/actions.rs:1645`; `Primitive::Untap` `engine/resolve.rs:1030` | `replacement-architecture.md` §9 (RA-2) |
 | "Becomes" events fire on the transition only | the `Tap` arm `engine/actions.rs:1706` | CR 603.2e |
-| An observable order goes through the timestamp order | `battlefield_ordered` `state/game_state.rs:1375`, `battlefield_ids_ordered` `state/game_state.rs:1385`, keyed on `PermanentState::timestamp` `state/battlefield.rs:63` | `plans/id-hasher.md` §6; the gate, `engineering-practices.md#invariant-gates` |
+| An observable order is id order, the table's walk | `ObjectTable::iter` `state/shared_stores.rs:305`, ordered by `ObjectId` `types/ids.rs:117` | `clone-architecture.md` decision 7; the gate, `engineering-practices.md#invariant-gates` |
 | One performer, one emitter | `move_object` `engine/zones.rs:50`, `announce_zone_change` `engine/actions.rs:2133` | `replacement-architecture.md` §11, item 20 |
 | A simultaneous rule needs a batch | `execute_actions` `engine/actions.rs:821`; `decide_just_before_entry` in `engine/actions.rs` | `replacement-architecture.md` §4.2 |
 | No decision state off `GameState` past the next anchor | §2.6 | `setup-architecture.md#7e-pausing-at-a-decision`, decision 3 |

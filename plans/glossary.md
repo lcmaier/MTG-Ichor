@@ -785,7 +785,8 @@ that looks live.
 
 **sweep** — an iteration over a zone, usually the battlefield, performed for one
 rule. Routing a sweep through the chokepoint makes its order observable, so it
-needs `battlefield_ids_ordered` even where the old direct-write loop did not.
+needs a deterministic one even where the old direct-write loop did not: the
+battlefield table's walk, in id order.
 
 **departed** / **departing** — a player who has left the game (CR 104.5), and
 the objects and effects that were theirs. The CR's own phrase is "a player who

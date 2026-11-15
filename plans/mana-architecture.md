@@ -462,7 +462,8 @@ determinism rule).
 the battlefield, then drops the ones the player does not control. The
 inventory keeps the player's permanents first and sorts only those, about 9
 of the board's 40–60. Timestamps come from one monotonic counter and never
-tie (`battlefield_ordered`'s doc), so the order is exactly the full sort's.
+tie, so the order is exactly the full sort's. Since #328 there is no sort: the
+inventory walks the battlefield table in id order.
 The probe measured the whole sort at about 2,700 instructions an inventory
 (the sorted and unsorted inventories' difference); sorting nine leaves a
 few hundred of it. That is about 0.5 points saved, an estimate MA-1 measures.
