@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::engine::object_filter::{EarlierTargets, TextReferents};
 use crate::engine::targeting::FilterIdentity;
 use crate::engine::actions::{
@@ -208,6 +210,20 @@ impl ResolutionWalk {
     }
 }
 
+/// What one atom's verb acts on, as [`GameState::recipients_for`] finds it.
+enum Recipients<'a> {
+    /// Nothing, and the instruction does nothing, not even a player verb's
+    /// default player: an attack that has ended, no defending player.
+    Nothing,
+    /// The objects and players the verb acts on in one instruction (CR
+    /// 608.2f), read with `clause`: for a back-reference, the clause that
+    /// declared its instance.
+    Each { clause: &'a EffectRecipient, found: Cow<'a, [ObjectOrPlayerId]> },
+    /// Each object or player with its share of a division: announced with
+    /// the targets (CR 601.2d), or chosen as the effect applies (608.2d).
+    Divided { clause: &'a EffectRecipient, shares: Vec<(ObjectOrPlayerId, u64)> },
+}
+
 impl GameState {
     /// Resolve an effect tree in the given context.
     ///
@@ -303,12 +319,8 @@ impl GameState {
         result
     }
 
-    /// One instruction of [`Self::resolve_effect_at`]'s walk.
-    ///
-    /// **The one place `ctx.targets` is indexed.** Each atom is handed its own
-    /// instance as a flat slice, so no primitive can reach a neighboring
-    /// instance's targets, and an atom whose instance fizzled is handed an
-    /// empty one rather than the spell's first (CR 608.2b).
+    /// One instruction of [`Self::resolve_effect_at`]'s walk. An atom's verb
+    /// acts on what [`Self::recipients_for`] finds.
     fn resolve_effect_step(
         &mut self,
         effect: &Effect,
@@ -323,114 +335,11 @@ impl GameState {
             walk.last_cost_answer = Some(CostAnswer::Does);
         }
         match effect {
-            // "That creature", "that player": not an instance of "target" but
-            // a fact bound at dispatch, handed to the primitive as the target
-            // slice it already reads — empty when CR 603.6 finds nothing.
-            Effect::Atom(
-                primitive,
-                recipient @ (EffectRecipient::Triggering(_)
-                | EffectRecipient::TriggeringPlayer
-                | EffectRecipient::Referred),
-            ) => {
-                let bound = self.bound_targets(recipient, ctx)?;
-                self.resolve_primitive(primitive, recipient, &bound, ctx, dp, walk)
-            }
-            // "The player or planeswalker it's attacking", "defending player":
-            // read as the instruction applies. Once its creature attacks
-            // nothing, there is nothing to act on, and the instruction does
-            // nothing rather than reaching a primitive's default player.
-            Effect::Atom(primitive, recipient @ EffectRecipient::AttackedBy(creature)) => {
-                let attacked = self.attacked_by(*creature, ctx);
-                if attacked.is_empty() {
-                    return Ok(());
-                }
-                self.resolve_primitive(primitive, recipient, &attacked, ctx, dp, walk)
-            }
-            Effect::Atom(primitive, recipient @ EffectRecipient::DefendingPlayer(creature)) => {
-                let Some(defending) = self.defending_player_of(*creature, ctx) else { return Ok(()) };
-                self.resolve_primitive(primitive, recipient, &[ObjectOrPlayerId::Player(defending)], ctx, dp, walk)
-            }
-            // "Each player", "you and that player": every player the group names,
-            // in APNAP order (CR 101.4), handed to the primitive as its players.
-            // Only a primitive that says what several players at once means takes it.
-            Effect::Atom(primitive, recipient @ EffectRecipient::EachOf(group)) => {
-                // A draw is one instruction per player (CR 121.2c); damage to
-                // them, or a loss of life, is one event, a member each.
-                if !matches!(
-                    primitive,
-                    Primitive::DrawCards(_) | Primitive::DealDamage { .. } | Primitive::LoseLife(_)
-                ) {
-                    return Err(format!(
-                        "{:?} on {:?} is not built for {:?}; a draw, damage and a life loss are",
-                        recipient, ctx.source, primitive
-                    ));
-                }
-                let players: Vec<ObjectOrPlayerId> =
-                    self.players_in(group, ctx).into_iter().map(ObjectOrPlayerId::Player).collect();
-                self.resolve_primitive(primitive, recipient, &players, ctx, dp, walk)
-            }
-            // "That creature and this creature": each member found as it would
-            // be alone, and every object they find handed to the primitive at
-            // once, so it acts on them in one instruction (CR 608.2f).
-            Effect::Atom(primitive, recipient @ EffectRecipient::Group(members)) => {
-                let mut found: Vec<ObjectOrPlayerId> = Vec::new();
-                for member in members {
-                    for target in self.resolve_group_member(member, ctx)? {
-                        if !found.contains(&target) {
-                            found.push(target);
-                        }
-                    }
-                }
-                self.resolve_primitive(primitive, recipient, &found, ctx, dp, walk)
-            }
-            // "This creature": no instance of "target" either (CR 113.7a), and
-            // empty when the source is no longer the object the ability is of.
-            Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
-                let this: Vec<ObjectOrPlayerId> =
-                    self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect();
-                self.resolve_primitive(primitive, recipient, &this, ctx, dp, walk)
-            }
-            // "Each [permanent]": every permanent the filter matches as the
-            // instruction applies (CR 611.2c's set), handed to the primitive as
-            // the objects it acts on in one instruction (CR 608.2f), so a
-            // primitive that reads only its objects reaches them too.
-            Effect::Atom(primitive, recipient @ EffectRecipient::FilteredPermanents(_)) => {
-                let each: Vec<ObjectOrPlayerId> =
-                    self.affected_permanents(recipient, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect();
-                self.resolve_primitive(primitive, recipient, &each, ctx, dp, walk)
-            }
-            // CR 608.2d — objects a player chooses as the effect applies,
-            // checked against the verb's own event (CR 101.2), so a "can't"
-            // removes a candidate rather than refusing a choice.
-            Effect::Atom(primitive, recipient @ EffectRecipient::ChosenBy(choice)) => {
-                let chosen = self.choose_as_it_applies(primitive, choice, declared, walk, ctx, dp)?;
-                self.resolve_primitive(primitive, recipient, &chosen, ctx, dp, walk)
-            }
-            Effect::Atom(primitive, recipient) => {
-                match instance_of(recipient, declared, &mut walk.instance_cursor) {
-                    // The atom that declared the division acts by the shares;
-                    // a later one naming its instance ("each of those
-                    // creatures") reads the targets alone, as `clause` does.
-                    Some((ix, clause)) if recipient.is_divided() => {
-                        let shares = shares_of_surviving_targets(declared.division(ix), ctx.targets.instance(ix), ctx)?;
-                        self.resolve_divided(primitive, clause, &shares, ctx, dp, walk)
-                    }
-                    Some((ix, clause)) => {
-                        self.resolve_primitive(primitive, clause, ctx.targets.instance(ix), ctx, dp, walk)
-                    }
-                    // `Instance(ix)` naming a clause that does not exist: a
-                    // card-authoring error, loud rather than silently
-                    // targetless. `cards::registry`'s own test refuses one at
-                    // registration, so this is the belt to that's braces.
-                    None if matches!(recipient, EffectRecipient::SameInstanceAs(_)) => Err(format!(
-                        "{:?} on {:?} names an instance of \"target\" the effect never declared (CR 115.3)",
-                        recipient, ctx.source
-                    )),
-                    // Implicit, Controller, the other filtered sweeps, Host —
-                    // none reads a chosen target.
-                    None => self.resolve_primitive(primitive, recipient, &[], ctx, dp, walk),
-                }
-            }
+            Effect::Atom(primitive, recipient) => match self.recipients_for(primitive, recipient, declared, walk, ctx, dp)? {
+                Recipients::Nothing => Ok(()),
+                Recipients::Each { clause, found } => self.resolve_primitive(primitive, clause, &found, ctx, dp, walk),
+                Recipients::Divided { clause, shares } => self.resolve_divided(primitive, clause, &shares, ctx, dp, walk),
+            },
 
             Effect::Sequence(effects) => {
                 for sub in effects {
@@ -617,8 +526,172 @@ impl GameState {
         }
     }
 
-    /// An atom CR 601.2d divided, acting in one instruction on each surviving
-    /// target by that target's share (`shares`). A target CR 608.2b found
+    /// What an atom's verb acts on: the one route from an atom's recipient
+    /// to the objects and players its verb reaches, so a verb reads its slice
+    /// and never its recipient to find them.
+    ///
+    /// **Where an atom's own instance is indexed.** Each atom is handed its
+    /// instance as a flat slice, so no primitive can reach a neighboring
+    /// instance's targets, and an atom whose instance fizzled is handed an
+    /// empty one rather than the spell's first (CR 608.2b). A player an
+    /// instruction names beside its recipient ("that player" as a payer, an
+    /// edict's chooser, "until that enchantment leaves") reads its own
+    /// instance where it is named.
+    fn recipients_for<'a>(
+        &mut self,
+        primitive: &Primitive,
+        recipient: &'a EffectRecipient,
+        declared: DeclaredInstances<'a>,
+        walk: &mut ResolutionWalk,
+        ctx: &'a ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Recipients<'a>, String> {
+        let each = |found: Vec<ObjectOrPlayerId>| Ok(Recipients::Each { clause: recipient, found: Cow::Owned(found) });
+        match recipient {
+            // "That creature", "that player": not an instance of "target" but
+            // a fact bound at dispatch — empty when CR 603.6 finds nothing.
+            EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
+                each(self.bound_targets(recipient, ctx)?)
+            }
+            // "The player or planeswalker it's attacking", "defending player":
+            // read as the instruction applies. Once its creature attacks
+            // nothing, there is nothing to act on, and the instruction does
+            // nothing rather than reaching a primitive's default player.
+            EffectRecipient::AttackedBy(creature) => {
+                let attacked = self.attacked_by(*creature, ctx);
+                if attacked.is_empty() {
+                    return Ok(Recipients::Nothing);
+                }
+                each(attacked)
+            }
+            EffectRecipient::DefendingPlayer(creature) => match self.defending_player_of(*creature, ctx) {
+                Some(defending) => each(vec![ObjectOrPlayerId::Player(defending)]),
+                None => Ok(Recipients::Nothing),
+            },
+            // "Each player", "you and that player": every player the group names,
+            // in APNAP order (CR 101.4). Only a verb that says what several
+            // players at once means takes it: a draw is one instruction per
+            // player (CR 121.2c); damage to them, or a loss of life, is one
+            // event, a member each.
+            EffectRecipient::EachOf(group) => {
+                if !matches!(primitive, Primitive::DrawCards(_) | Primitive::DealDamage { .. } | Primitive::LoseLife(_)) {
+                    return Err(format!(
+                        "{:?} on {:?} is not built for {:?}; a draw, damage and a life loss are",
+                        recipient, ctx.source, primitive
+                    ));
+                }
+                each(self.players_in(group, ctx).into_iter().map(ObjectOrPlayerId::Player).collect())
+            }
+            // "That creature and this creature": each member found as it would
+            // be alone, and every object they find acted on in one instruction
+            // (CR 608.2f).
+            EffectRecipient::Group(members) => {
+                let mut found: Vec<ObjectOrPlayerId> = Vec::new();
+                for member in members {
+                    for target in self.resolve_group_member(member, ctx)? {
+                        if !found.contains(&target) {
+                            found.push(target);
+                        }
+                    }
+                }
+                each(found)
+            }
+            // "This creature": no instance of "target" either (CR 113.7a), and
+            // empty when the source is no longer the object the ability is of.
+            EffectRecipient::ThisObject => each(self.this_object(ctx).map(ObjectOrPlayerId::Object).into_iter().collect()),
+            // "Each [permanent]": every permanent the filter matches as the
+            // instruction applies (CR 611.2c's set), acted on in one
+            // instruction (CR 608.2f).
+            EffectRecipient::FilteredPermanents(filter) => {
+                each(self.permanents_matching(filter, ctx).into_iter().map(ObjectOrPlayerId::Object).collect())
+            }
+            // CR 608.2d — objects a player chooses as the effect applies,
+            // checked against the verb's own event (CR 101.2), so a "can't"
+            // removes a candidate rather than refusing a choice.
+            EffectRecipient::ChosenBy(choice) => each(self.choose_as_it_applies(primitive, choice, declared, walk, ctx, dp)?),
+            EffectRecipient::Choose(filter, count) => self.chosen_by_the_controller(recipient, filter, count, ctx, dp),
+            _ => match instance_of(recipient, declared, &mut walk.instance_cursor) {
+                // The atom that declared the division acts by the shares;
+                // a later one naming its instance ("each of those
+                // creatures") reads the targets alone, as `clause` does.
+                Some((ix, clause)) if recipient.is_divided() => Ok(Recipients::Divided {
+                    clause,
+                    shares: shares_of_surviving_targets(declared.division(ix), ctx.targets.instance(ix), ctx)?,
+                }),
+                Some((ix, clause)) => Ok(Recipients::Each { clause, found: Cow::Borrowed(ctx.targets.instance(ix)) }),
+                // `Instance(ix)` naming a clause that does not exist: a
+                // card-authoring error, loud rather than silently
+                // targetless. `cards::registry`'s own test refuses one at
+                // registration, so this is the belt to that's braces.
+                None if matches!(recipient, EffectRecipient::SameInstanceAs(_)) => Err(format!(
+                    "{:?} on {:?} names an instance of \"target\" the effect never declared (CR 115.3)",
+                    recipient, ctx.source
+                )),
+                // Implicit, Controller, the other filtered sweeps, Host —
+                // none names an object.
+                None => each(Vec::new()),
+            },
+        }
+    }
+
+    /// [`EffectRecipient::Choose`]: the controller picks from what the filter
+    /// matches now (CR 608.2d), and for a division then splits the amount
+    /// among the picks, at least one each. "Distribute three counters among
+    /// any number of creatures" places all three, so a division takes at
+    /// least one object while there is one, and no more than the amount;
+    /// fewer than the most is the player's (CR 608.2d). A choice of nothing
+    /// hands the verb nothing, as a fizzled instance does.
+    ///
+    /// The candidates are the filter's, as a target's are: the choice is made
+    /// before the verb, and a "can't" on the verb is checked as it acts, so
+    /// "choose a creature; put a counter on it" may choose one that can't
+    /// have counters put on it. An edict's pick differs because the pick is
+    /// the sacrifice, and CR 701.21a lets no player sacrifice what can't be
+    /// sacrificed.
+    fn chosen_by_the_controller<'a>(
+        &self,
+        recipient: &'a EffectRecipient,
+        filter: &SelectionFilter,
+        count: &TargetCount,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Recipients<'a>, String> {
+        // "Choose a player" is a value with its own kind (`ChoosePlayer`,
+        // `values-chosen-at-resolution`'s), and "another" reads the targets an
+        // announcement chose before it, which a choice has none of.
+        if matches!(filter, SelectionFilter::Player(_) | SelectionFilter::Any | SelectionFilter::Another(_)) {
+            return Err(format!("{recipient:?} on {:?} is not built: a choice here names objects", ctx.source));
+        }
+        let candidates = crate::oracle::legality::enumerate_legal_selections_excluding(
+            self,
+            filter,
+            Some(ctx.source),
+            ctx.controller,
+            self.filter_identity_for(ctx),
+        );
+        let amount = |amount: &AmountExpr| self.evaluate_amount(amount, ctx, None);
+        let ask = |fewest: usize, most: usize| {
+            let most = most.min(candidates.len());
+            crate::ui::ask::ask_select_recipients(dp, self, ctx.controller, recipient, ctx.source, &candidates, fewest.min(most), most)
+        };
+        let TargetCount::Divided(divided) = count else {
+            let bounds = count.bounds(&amount)?;
+            return Ok(Recipients::Each { clause: recipient, found: Cow::Owned(ask(bounds.fewest, bounds.most)) });
+        };
+        let total = amount(&divided.total)?;
+        let among = divided.among.bounds(&amount)?;
+        let chosen = ask(among.fewest.max(1), among.most.min(total as usize));
+        let shares = if chosen.is_empty() {
+            Vec::new()
+        } else {
+            crate::ui::ask::ask_divide_among(dp, self, ctx.controller, ctx.source, &chosen, total)
+        };
+        Ok(Recipients::Divided { clause: recipient, shares: chosen.into_iter().zip(shares).collect() })
+    }
+
+    /// A divided atom, acting in one instruction on each recipient by its
+    /// share (`shares`): a division announced with the targets (CR 601.2d),
+    /// or made as the effect applies (608.2d). A target CR 608.2b found
     /// illegal is not among them, and the rest keep the shares announced:
     /// Arc Lightning's ruling, "the original division of damage still applies".
     /// A verb no text divides is refused rather than given the whole amount.
@@ -696,13 +769,14 @@ impl GameState {
         Ok(())
     }
 
-    /// Resolve a single primitive action against its targets.
+    /// Resolve a single primitive action against what its atom acts on.
     ///
-    /// `targets` is **this atom's instance** of "target" (CR 115.3), already
-    /// filtered by CR 608.2b — not the spell's whole list. `recipient` is the
-    /// clause that instance was announced with, which for an
-    /// `EffectRecipient::SameInstanceAs` atom is the *declaring* atom's clause, so
-    /// the two atoms of Ensoul Artifact behave identically.
+    /// `targets` is what [`Self::recipients_for`] found for this atom: its own
+    /// instance of "target" (CR 115.3), already filtered by CR 608.2b and not
+    /// the spell's whole list, or the objects and players a sweep, a choice or
+    /// a bound fact names. `recipient` is the clause it was found with, which
+    /// for an `EffectRecipient::SameInstanceAs` atom is the *declaring* atom's
+    /// clause, so the two atoms of Ensoul Artifact behave identically.
     fn resolve_primitive(
         &mut self,
         primitive: &Primitive,
@@ -719,8 +793,6 @@ impl GameState {
         match primitive {
             // === One-shot primitives ===
 
-            // `FilteredPermanents` is "every permanent matching this **now**",
-            // resolved here and ordered for the CR 616.1 prompt and the log.
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx, None)?;
                 let targets: Vec<ObjectOrPlayerId> = match recipient {
@@ -732,12 +804,6 @@ impl GameState {
                             ctx.source
                         ));
                     }
-                    EffectRecipient::FilteredPermanents(filter) => self
-                        .battlefield_ids_ordered()
-                        .into_iter()
-                        .filter(|&id| self.matches_for_effect(id, filter, ctx))
-                        .map(ObjectOrPlayerId::Object)
-                        .collect(),
                     // "Deals 2 damage to you": Char, a painland.
                     EffectRecipient::Controller => vec![ObjectOrPlayerId::Player(ctx.controller)],
                     EffectRecipient::Implicit => {
@@ -766,6 +832,7 @@ impl GameState {
                     | EffectRecipient::DefendingPlayer(_)
                     | EffectRecipient::EachOf(_)
                     | EffectRecipient::Group(_)
+                    | EffectRecipient::FilteredPermanents(_)
                     | EffectRecipient::ChosenBy(_) => targets.to_vec(),
                 };
                 if targets.is_empty() {
@@ -1181,29 +1248,13 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // CR 701.26b. `FilteredPermanents` is resolved now, as `DealDamage`'s
-                // is, and ordered: stun counters (CR 122.1d) make two effects want one
-                // untap, so the members reach a CR 616.1 prompt.
-                let ids: Vec<ObjectId> = match recipient {
-                    EffectRecipient::FilteredPermanents(filter) => self
-                        .battlefield_ids_ordered()
-                        .into_iter()
-                        .filter(|&id| self.matches_for_effect(id, filter, ctx))
-                        .collect(),
-                    // CR 608.2b: a spell whose targets are not *all* illegal still resolves
-                    // and does as much as it can, so a target that has left is skipped. The
-                    // performer is loud, which makes checking here the caller's job — the
-                    // shape `Primitive::Destroy` above has.
-                    _ => targets
-                        .iter()
-                        .filter_map(|t| match t {
-                            ObjectOrPlayerId::Object(id) if self.battlefield.contains_key(id) => {
-                                Some(*id)
-                            }
-                            _ => None,
-                        })
-                        .collect(),
-                };
+                // CR 701.26b, in the order found (a sweep's by timestamp): stun
+                // counters (CR 122.1d) make two effects want one untap, so the members
+                // reach a CR 616.1 prompt. CR 608.2b: a spell whose targets are not *all*
+                // illegal still resolves and does as much as it can, so a target that
+                // has left is skipped. The performer is loud, which makes checking here
+                // the caller's job — the shape `Primitive::Destroy` above has.
+                let ids = self.permanents_among(targets);
                 if ids.is_empty() {
                     return Ok(());
                 }
@@ -1230,7 +1281,7 @@ impl GameState {
                     &actx,
                     Layer::Layer7cModifyPT,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     EffectModification::ModifyPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
                 )?;
                 Ok(())
@@ -1244,7 +1295,7 @@ impl GameState {
                     &actx,
                     Layer::Layer7bSetPT,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     EffectModification::SetPowerToughness { power: PtValue::Fixed(power), toughness: PtValue::Fixed(toughness) },
                 )?;
                 Ok(())
@@ -1261,7 +1312,7 @@ impl GameState {
                     &actx,
                     Layer::Layer7dSwitchPT,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     EffectModification::SwitchPowerToughness,
                 )?;
                 Ok(())
@@ -1281,7 +1332,7 @@ impl GameState {
                     &actx,
                     Layer::Layer5Color,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     modification,
                 )?;
                 Ok(())
@@ -1290,7 +1341,7 @@ impl GameState {
             // === Layer 4: type-changing effects ===
 
             Primitive::ChangeType(type_change, duration) => {
-                let affected = self.affected_permanents(recipient, targets, ctx);
+                let affected = self.permanents_among(targets);
                 if affected.is_empty() || self.never_starts(*duration, ctx) {
                     return Ok(());
                 }
@@ -1317,7 +1368,7 @@ impl GameState {
                     &actx,
                     Layer::Layer6Ability,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     EffectModification::GrantKeywordFlag(*keyword),
                 )?;
                 Ok(())
@@ -1329,7 +1380,7 @@ impl GameState {
                     &actx,
                     Layer::Layer6Ability,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     EffectModification::RemoveKeywordFlag(*keyword),
                 )?;
                 Ok(())
@@ -1341,7 +1392,7 @@ impl GameState {
                     &actx,
                     Layer::Layer6Ability,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     EffectModification::LoseAbility(*ability_id),
                 )?;
                 Ok(())
@@ -1353,14 +1404,14 @@ impl GameState {
                     &actx,
                     Layer::Layer6Ability,
                     *duration,
-                    self.affected_permanents(recipient, targets, ctx),
+                    self.permanents_among(targets),
                     EffectModification::LoseAllAbilities,
                 )?;
                 Ok(())
             }
 
             Primitive::GrantAbility(def, duration) => {
-                let grantees = self.affected_permanents(recipient, targets, ctx);
+                let grantees = self.permanents_among(targets);
                 let granted = self.add_resolution_effect(
                     ctx,
                     &actx,
@@ -1413,7 +1464,7 @@ impl GameState {
             // `Prevent` "instead", and the `then` rider its sentence.
             Primitive::Regenerate => {
                 let recorded = self.target_refs(targets);
-                for object in self.affected_permanents(recipient, targets, ctx) {
+                for object in self.permanents_among(targets) {
                     let controller = get_effective_controller(self, object)
                         .unwrap_or(ctx.controller);
                     let def = ReplacementDef::new(
@@ -1537,7 +1588,7 @@ impl GameState {
                             ctx.source
                         ));
                     }
-                    EffectRecipient::FilteredPermanents(filter) => {
+                    EffectRecipient::FilteredPermanents(_) => {
                         debug_assert!(
                             authored_empty,
                             "a `Primitive::CreateReplacement` on {:?} with a filter \
@@ -1545,11 +1596,7 @@ impl GameState {
                              is what names the permanents, one row each (CR 615.11).",
                             ctx.source
                         );
-                        self.battlefield_ids_ordered()
-                            .into_iter()
-                            .filter(|id| self.matches_for_effect(*id, filter, ctx))
-                            .map(fill_object)
-                            .collect()
+                        self.permanents_among(targets).into_iter().map(fill_object).collect()
                     }
                     // As authored — a `Filter` and/or a `PlayerSet`, asked at
                     // each event. "You" is `PlayerSet::You`, resolved against
@@ -1627,7 +1674,7 @@ impl GameState {
                             rows.push(fill(ObjectSet::battlefield_filter(filter.clone())));
                         }
                         _ => {
-                            for object in self.affected_permanents(recipient, targets, ctx) {
+                            for object in self.permanents_among(targets) {
                                 rows.push(fill(ObjectSet::Fixed(vec![object])));
                             }
                         }
@@ -1694,7 +1741,7 @@ impl GameState {
             // replaceable event here → `replacement-architecture.md` §8a. It is
             // announced, as every cause announces it.
             Primitive::RemoveFromCombat => {
-                let objects = self.affected_permanents(recipient, targets, ctx);
+                let objects = self.permanents_among(targets);
                 let removed = self.remove_from_combat(&objects);
                 self.announce_removal_from_combat(removed, ctx.cause())
             }
@@ -1705,7 +1752,7 @@ impl GameState {
             // rule's action a card can switch off (`Restriction::RuleDoesNotApply`),
             // where this is an effect's.
             Primitive::RemoveAllDamage => {
-                for object in self.affected_permanents(recipient, targets, ctx) {
+                for object in self.permanents_among(targets) {
                     if let Some(entry) = self.battlefield.get_mut(&object) {
                         entry.damage_marked = 0;
                         entry.damaged_by_deathtouch = false;
@@ -1727,7 +1774,7 @@ impl GameState {
             // as the effect resolves (CR 611.2c's set, fixed then).
             Primitive::AddCounters { .. } | Primitive::RemoveCounters(..) => {
                 let objects: Vec<ObjectOrPlayerId> = self
-                    .affected_permanents(recipient, targets, ctx)
+                    .permanents_among(targets)
                     .into_iter()
                     .map(ObjectOrPlayerId::Object)
                     .collect();
@@ -1771,10 +1818,7 @@ impl GameState {
             Primitive::GainControl { to, duration } => {
                 // A filter names permanents (Mob Rule); a target may also be a
                 // spell, which has a controller too (CR 108.4).
-                let affected = match recipient {
-                    EffectRecipient::FilteredPermanents(_) => self.affected_permanents(recipient, targets, ctx),
-                    _ => self.collect_permanent_or_spell_targets(targets),
-                };
+                let affected = self.collect_permanent_or_spell_targets(targets);
                 // Nothing to take is no choice of who takes it.
                 if affected.is_empty() {
                     return Ok(());
@@ -2138,7 +2182,7 @@ impl GameState {
                 // skipped, and with nothing left to affect there is no effect
                 // and so no choice to make. Asking first would prompt for a
                 // decision that changes nothing.
-                let recipients = self.collect_battlefield_targets(targets);
+                let recipients = self.permanents_among(targets);
                 if recipients.is_empty() {
                     return Ok(());
                 }
@@ -2163,7 +2207,7 @@ impl GameState {
                 // that left and came back is not the creature the ability is
                 // of, and the copy finds nothing to change.
                 let (Some(&donor), Some(this)) =
-                    (self.collect_battlefield_targets(targets).first(), self.this_object(ctx))
+                    (self.permanents_among(targets).first(), self.this_object(ctx))
                 else {
                     return Ok(());
                 };
@@ -2173,7 +2217,7 @@ impl GameState {
                 (donor, vec![this])
             }
             CopyRoles::FilteredCopyRecipient { filter, exclude_donor } => {
-                let Some(&donor) = self.collect_battlefield_targets(targets).first() else {
+                let Some(&donor) = self.permanents_among(targets).first() else {
                     return Ok(());
                 };
                 // Ordered, because the row's `Fixed` set is read back by
@@ -2403,7 +2447,7 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<Vec<ObjectOrPlayerId>, String> {
         let choosers: Vec<PlayerId> = match &choice.chooser {
-            chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
+            chooser @ (EffectRecipient::Target(..) | EffectRecipient::SameInstanceAs(_)) => {
                 match instance_of(chooser, declared, &mut walk.instance_cursor) {
                     Some((ix, _)) => ctx
                         .targets
@@ -2557,9 +2601,15 @@ impl GameState {
     /// object `ResolutionContext::effect_source` names (`codebase-state.md`
     /// item 229).
     fn matches_for_effect(&self, id: ObjectId, filter: &ObjectFilter, ctx: &ResolutionContext) -> bool {
-        let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
-        let identity = FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named);
+        let identity = self.filter_identity_for(ctx);
         self.object_matches_filter(ObjectInformation::Current(id), filter, &mut TextReferents { game: self, you: ctx.controller, identity })
+    }
+
+    /// The identities a filter in this resolution's text reads: "another" is
+    /// other than its source, and its trigger's event names "that creature".
+    fn filter_identity_for<'a>(&'a self, ctx: &'a ResolutionContext) -> FilterIdentity<'a> {
+        let named = self.condition_objects(ctx.ability_source, ctx.trigger.as_ref());
+        FilterIdentity::for_text_of(ctx.effect_source(), EarlierTargets::None).naming(named)
     }
 
     /// CR 701.6a — a spell countered goes to its owner's graveyard, through
@@ -2608,8 +2658,8 @@ impl GameState {
             EffectRecipient::Triggering(_) | EffectRecipient::TriggeringPlayer | EffectRecipient::Referred => {
                 self.bound_targets(member, ctx)?
             }
-            EffectRecipient::FilteredPermanents(_) => {
-                self.affected_permanents(member, &[], ctx).into_iter().map(ObjectOrPlayerId::Object).collect()
+            EffectRecipient::FilteredPermanents(filter) => {
+                self.permanents_matching(filter, ctx).into_iter().map(ObjectOrPlayerId::Object).collect()
             }
             other => {
                 return Err(format!(
@@ -2620,25 +2670,12 @@ impl GameState {
         })
     }
 
-    /// The permanents a one-shot continuous effect applies to: its resolved
-    /// targets, or for "each [permanent] you control" every permanent the
-    /// filter matches now. CR 611.2c fixes that set as the effect begins, so
-    /// a creature that becomes an Elf later is not in it (Elvish Warmaster's
-    /// third ruling).
-    fn affected_permanents(
-        &self,
-        recipient: &EffectRecipient,
-        targets: &[ObjectOrPlayerId],
-        ctx: &ResolutionContext,
-    ) -> Vec<ObjectId> {
-        match recipient {
-            EffectRecipient::FilteredPermanents(filter) => self
-                .battlefield_ids_ordered()
-                .into_iter()
-                .filter(|&id| self.matches_for_effect(id, filter, ctx))
-                .collect(),
-            _ => self.collect_battlefield_targets(targets),
-        }
+    /// "Each [permanent] you control": every permanent the filter matches
+    /// now, in timestamp order for the CR 616.1 prompt and the log. CR 611.2c
+    /// fixes that set as the effect begins, so a creature that becomes an Elf
+    /// later is not in it (Elvish Warmaster's third ruling).
+    fn permanents_matching(&self, filter: &ObjectFilter, ctx: &ResolutionContext) -> Vec<ObjectId> {
+        self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, filter, ctx)).collect()
     }
 
     /// `targets` as a row keeps them: each object by identity, at the epoch
@@ -2655,9 +2692,10 @@ impl GameState {
         crate::ui::choice_types::ability_as_read(self, identity.source.id, identity.ability).text()
     }
 
-    /// The resolved targets that are on the battlefield now.
-    fn collect_battlefield_targets(&self, targets: &[ObjectOrPlayerId]) -> Vec<ObjectId> {
-        targets.iter()
+    /// The permanents among what an atom acts on, those on the battlefield
+    /// now: a target that left is CR 608.2b's illegal one, and gets nothing.
+    fn permanents_among(&self, found: &[ObjectOrPlayerId]) -> Vec<ObjectId> {
+        found.iter()
             .filter_map(|t| {
                 if let ObjectOrPlayerId::Object(id) = t
                     && self.battlefield.contains_key(id) {
@@ -2672,7 +2710,7 @@ impl GameState {
     /// 108.4's "a card doesn't have a controller unless that card represents a
     /// permanent or spell".
     ///
-    /// The wider sibling of `collect_battlefield_targets`, and only Layer 2
+    /// The wider sibling of `permanents_among`, and only Layer 2
     /// wants it: every other continuous effect describes a characteristic a
     /// permanent has, while control is the one thing a spell also has.
     fn collect_permanent_or_spell_targets(&self, targets: &[ObjectOrPlayerId]) -> Vec<ObjectId> {

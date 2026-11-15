@@ -47,8 +47,8 @@ pub use modes::{
     choose_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to, spree,
 };
 pub use recipients::{
-    an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, color, creature,
-    creatures_you_control, divided_among, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
+    an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, chosen_permanent, color,
+    creature, creatures_you_control, divided_among_targeted, divided_among_untargeted, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
     nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_opponent, target_permanent, target_player,
     target_spell, targets, that_player, that_target, the_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
     you_control, your_opponents_control,

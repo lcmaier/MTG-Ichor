@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use mtgsim::cards::authoring::{
-    at_beginning_of, create_delayed_trigger, deal_damage, deal_damage_divided, destroy, distribute_counters, divided_among, draw_cards,
+    at_beginning_of, create_delayed_trigger, deal_damage, deal_damage_divided, destroy, distribute_counters, divided_among_targeted, draw_cards,
     prevent_the_next_damage_divided, referred, spell_ability, the_target, whenever, you, Whose,
 };
 use mtgsim::cards::fixtures::{
@@ -284,7 +284,10 @@ fn a_later_atom_naming_the_instance_reads_no_share() {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            Effect::Sequence(vec![deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 2), 3), deal_damage(the_target(), 1)]),
+            Effect::Sequence(vec![
+                deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 2), 3.into())),
+                deal_damage(the_target(), 1),
+            ]),
         ))
         .build();
     let spell = put_in_hand(&mut game, card, 0);
@@ -313,7 +316,7 @@ fn a_divided_shield_is_remembered_once_a_target() {
         turn: DelayedTurn::NoneNamed,
         rules_text: "Draw a card.".into(),
     };
-    let shield = prevent_the_next_damage_divided(SelectionFilter::Any, TargetCount::AnyNumber, 2);
+    let shield = prevent_the_next_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::AnyNumber, 2.into()));
     let card: Arc<CardData> = CardDataBuilder::new("Remembered Shields")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
         .card_type(CardType::Instant)
@@ -341,7 +344,7 @@ fn a_share_of_counters_on_a_player_is_refused() {
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, distribute_counters(SelectionFilter::Any, TargetCount::Between(1, 2), CounterType::PlusOnePlusOne, 2)))
+        .ability(spell_ability(text, distribute_counters(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 2), 2.into()), CounterType::PlusOnePlusOne)))
         .build();
     let spell = put_in_hand(&mut game, card, 0);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
@@ -361,7 +364,7 @@ fn a_share_of_counters_on_a_player_is_refused() {
 fn a_verb_that_cannot_divide_is_refused() {
     let mut game = setup_game(2);
     let text = "Destroy one or two target creatures, divided as you choose.";
-    let clause = divided_among(SelectionFilter::Creature, TargetCount::Between(1, 2), AmountExpr::Fixed(2));
+    let clause = divided_among_targeted(SelectionFilter::Creature, TargetCount::Between(1, 2), AmountExpr::Fixed(2));
     let card: Arc<CardData> = CardDataBuilder::new("Undividable")
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .card_type(CardType::Sorcery)

@@ -599,6 +599,14 @@
         {"n": 8, "published_at": "2020-11-10", "comment": "Each token must attack the appropriate player if able."}
       ]
     },
+    "Feast of the Victorious Dead": {
+      "first_seen": "2026-11-14",
+      "rulings": [
+        {"n": 1, "published_at": "2023-05-12", "comment": "If no creatures have died by the time your end step begins, the ability of Feast of the Victorious Dead won't trigger at all. Provided the ability does trigger, it will count the number of creatures that have died as the ability resolves. In other words, creatures that die in response to the ability will count as long as at least one died previously to have the ability trigger in the first place."},
+        {"n": 2, "published_at": "2023-05-12", "comment": "The ability will count any creature that died, including token creatures. For nontoken creatures that died, it doesn't matter if the cards are still in the graveyard."},
+        {"n": 3, "published_at": "2023-05-12", "comment": "The ability doesn't target any creatures. You choose how the counters are distributed as the ability resolves."}
+      ]
+    },
     "Felidar Sovereign": {
       "first_seen": "2026-09-19",
       "read": "2026-09-19",
@@ -612,6 +620,25 @@
       "rulings": [
         {"n": 1, "published_at": "2022-12-08", "comment": "If multiple \"extra turn\" effects resolve in the same turn, take them in the reverse of the order that the effects resolved. In other words, the most recently created extra turn is taken first."},
         {"n": 2, "published_at": "2004-10-04", "comment": "If you end up skipping the extra turn that is gained, you do not lose the game."}
+      ]
+    },
+    "Final Showdown": {
+      "first_seen": "2026-11-14",
+      "rulings": [
+        {"n": 1, "published_at": "2024-04-12", "comment": "The second mode of Final Showdown doesn’t target the creature. You don’t choose which creature will gain indestructible until the spell is resolving. At that point, it’s too late for anyone to respond to the spell."},
+        {"n": 2, "published_at": "2024-04-12", "comment": "If an effect grants a creature an ability after Final Showdown causes all creatures to lose all abilities, that creature won’t lose that ability."},
+        {"n": 3, "published_at": "2024-04-12", "comment": "Spells with spree have a + (plus sign) indicator in the upper right corner of the card frame. This has no rules meaning and serves only to remind players that at least one additional cost is required to cast the spell.", "disposition": {"kind": "no-board", "why": "the card frame's + indicator, which CR 702.172b gives no rules meaning. It names no game state and never will."}},
+        {"n": 4, "published_at": "2024-04-12", "comment": "Each additional cost and associated mode in the text box is also preceded with a + indicator. These symbols also have no rules meaning and serve only to remind players that the listed costs are additional costs.", "disposition": {"kind": "no-board", "why": "the + before each mode in the text box, which CR 702.172b gives no rules meaning. It names no game state and never will."}},
+        {"n": 5, "published_at": "2024-04-12", "comment": "You must choose at least one of the listed modes and pay its associated additional cost in order to cast a spell with spree."},
+        {"n": 6, "published_at": "2024-04-12", "comment": "You choose the modes as you cast the spell with spree. Once modes are chosen, they can’t be changed."},
+        {"n": 7, "published_at": "2024-04-12", "comment": "If a mode requires a target, you can select that mode only if there’s a legal target available. Ignore the targeting requirements for modes you don’t choose.", "disposition": {"kind": "no-board", "why": "Final Showdown's three modes target nothing (its second chooses), so no board of this card asks it. Explosive Derailment #5 is spree's tested answer."}},
+        {"n": 8, "published_at": "2024-04-12", "comment": "No matter which modes you choose, you always follow the instructions in the order they are written."},
+        {"n": 9, "published_at": "2024-04-12", "comment": "You can’t choose the same mode more than once."},
+        {"n": 10, "published_at": "2024-04-12", "comment": "The mana value of a spell with spree is determined only by its mana cost (in the upper right corner of the card). It doesn’t matter which modes you choose or which additional costs you pay, including any additional costs imposed by other effects."},
+        {"n": 11, "published_at": "2024-04-12", "comment": "No player can cast spells or activate abilities in between the modes of a resolving spell. Any abilities that trigger won’t be put onto the stack until the spell is done resolving."},
+        {"n": 12, "published_at": "2024-04-12", "comment": "If a spell with spree is copied, the effect that creates the copy may allow you to choose new targets. You cannot choose new modes.", "disposition": {"kind": "not-expressible", "facility": "a copy of a spell (CR 707.10), which keeps the modes chosen (700.2g) and may choose new targets (707.10c). Nothing copies a spell yet.", "owner": "copy-effects-architecture.md §8 (spell-copies)"}},
+        {"n": 13, "published_at": "2024-04-12", "comment": "If all targets for the chosen modes become illegal before a spell with spree resolves, the spell won’t resolve and none of its effects will happen. If at least one target is still legal, the spell will resolve but will have no effect on any illegal targets.", "disposition": {"kind": "no-board", "why": "Final Showdown's modes target nothing, so it always resolves (CR 608.2b asks only of a spell with targets). Explosive Derailment #11 is spree's tested answer."}},
+        {"n": 14, "published_at": "2024-04-12", "comment": "If an effect allows you to cast a spell with spree “without paying its mana cost,” you must still choose at least one mode and pay the associated additional costs.", "disposition": {"kind": "not-expressible", "facility": "casting a spell without paying its mana cost (CR 118.9's alternative cost an effect grants), which no effect offers yet. The additional costs would stay in the total, as a mode's own cost is a Mandatory additional cost.", "owner": "permission-architecture.md (casting-from-other-zones)"}}
       ]
     },
     "Flickerwisp": {

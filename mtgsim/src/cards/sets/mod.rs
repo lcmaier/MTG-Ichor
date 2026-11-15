@@ -191,6 +191,8 @@ pub mod snc;
 pub mod dmu;
 #[path = "2023/04_21_mom.rs"]
 pub mod mom;
+#[path = "2023/05_12_mat.rs"]
+pub mod mat;
 #[path = "2024/02_09_mkm.rs"]
 pub mod mkm;
 #[path = "2024/04_19_otj.rs"]

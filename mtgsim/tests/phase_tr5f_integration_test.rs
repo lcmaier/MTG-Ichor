@@ -499,7 +499,8 @@ fn a_card_from_hand_tapped_and_attacking(game: &mut GameState, player: PlayerId)
             tapped: true,
             attacking: Some(EntersAttacking::Chosen),
         },
-        EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
+        // The card from the hand, staged as the instance the resolution reads.
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     resolve_as(game, player, &puts, card);
     assert_eq!(game.objects[&card].zone, Zone::Battlefield);

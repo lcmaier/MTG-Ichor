@@ -2,11 +2,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{artifact, deal_damage, destroy, spell_ability, spree, target_creature, target_permanent};
+use crate::cards::authoring::{
+    artifact, chosen_permanent, creature, creatures_you_control, deal_damage, destroy, each, gains_keyword, loses_all_abilities, spell_ability, spree,
+    target_creature, target_permanent,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Explosive Derailment — {R}
@@ -51,5 +55,42 @@ pub fn explosive_derailment() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text(text)
         .ability(spell_ability(text, spree([(two(), deal_damage(target_creature(), 4)), (two(), destroy(target_permanent(artifact())))])))
+        .build()
+}
+
+/// Final Showdown — {W}
+/// Instant
+/// Spree (Choose one or more additional costs.)
+/// + {1} — All creatures lose all abilities until end of turn.
+/// + {1} — Choose a creature you control. It gains indestructible until end of turn.
+/// + {3}{W}{W} — Destroy all creatures.
+///
+/// (Oracle text verified on Scryfall, 2026-11-14.)
+///
+/// The second mode chooses without targeting (CR 115.10a), so its creature
+/// is chosen as the spell resolves (608.2d): after the first mode has taken
+/// every creature's abilities, and before the third destroys them. The
+/// indestructible it gains is later than the loss (CR 613.7), so the chosen
+/// creature survives the wipe. Spree's own rulings are Explosive
+/// Derailment's: one modal node writes both.
+pub fn final_showdown() -> Arc<CardData> {
+    let text = "Spree\n+ {1} — All creatures lose all abilities until end of turn.\n\
+                + {1} — Choose a creature you control. It gains indestructible until end of turn.\n\
+                + {3}{W}{W} — Destroy all creatures.";
+    let one_generic_mana = || vec![Cost::Mana(ManaCost::build(&[], 1))];
+    let board_wipe_mana = vec![Cost::Mana(ManaCost::build(&[ManaType::White, ManaType::White], 3))];
+    CardDataBuilder::new("Final Showdown")
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            spree([
+                (one_generic_mana(), loses_all_abilities(each(creature())).until_end_of_turn()),
+                (one_generic_mana(), gains_keyword(chosen_permanent(creatures_you_control()), KeywordFlag::Indestructible).until_end_of_turn()),
+                (board_wipe_mana, destroy(each(creature()))),
+            ]),
+        ))
         .build()
 }

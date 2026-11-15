@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    add_mana, all_damage_to_you, at_beginning_of, creature, creatures_you_control, deal_damage_divided, each, gains_ability, gets, land,
+    add_mana, all_damage_to_you, at_beginning_of, creature, creatures_you_control, deal_damage_divided, divided_among_targeted, each, gains_ability, gets, land,
     mana_ability, sacrifice, spell_ability, static_ability, static_replacement, tapped_for_mana, this_object, triggered_ability, whenever,
     Whose,
 };
@@ -39,7 +39,7 @@ pub fn arc_lightning() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, deal_damage_divided(SelectionFilter::Any, TargetCount::Between(1, 3), 3)))
+        .ability(spell_ability(text, deal_damage_divided(divided_among_targeted(SelectionFilter::Any, TargetCount::Between(1, 3), 3.into()))))
         .build()
 }
 

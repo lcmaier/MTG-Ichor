@@ -79,13 +79,6 @@ impl TargetInstance {
             AnnouncedTargets::Divided(shares) => Some(shares),
         }
     }
-
-    /// Whether this instance *targets* — CR 115.1's word, as opposed to a
-    /// non-targeting `Choose`. Only a targeting instance participates in
-    /// CR 608.2b.
-    pub fn is_targeted(&self) -> bool {
-        matches!(self.recipient, EffectRecipient::Target(_, _))
-    }
 }
 
 /// What each instance of "target" holds, indexed by the instance.
@@ -209,10 +202,7 @@ fn validate_target_count(count: &TargetCount, bounds: TargetBounds, actual: usiz
 /// on a board where no game played differently (A4i's A/B). So the loop asks
 /// this first and skips the enumeration when the answer is no.
 pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
-    matches!(
-        recipient,
-        EffectRecipient::Target(SelectionFilter::Another(_), _) | EffectRecipient::Choose(SelectionFilter::Another(_), _)
-    )
+    matches!(recipient, EffectRecipient::Target(SelectionFilter::Another(_), _))
 }
 
 /// CR 608.2b's two questions across every scope of one stack object: whether
@@ -337,7 +327,7 @@ pub(crate) fn instance_of<'a>(
     cursor: &mut usize,
 ) -> Option<(usize, &'a EffectRecipient)> {
     match recipient {
-        EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => {
+        EffectRecipient::Target(_, _) => {
             let ix = *cursor;
             *cursor += 1;
             Some((ix, recipient))
@@ -415,9 +405,9 @@ impl GameState {
             EffectRecipient::AttackedBy(_) | EffectRecipient::DefendingPlayer(_) | EffectRecipient::Group(_) => Err(format!(
                 "{recipient:?} is read as the effect applies, not an instance of \"target\" to validate"
             )),
-            // A choice is made as the effect applies (CR 608.2d); only its
-            // chooser can be an instance, and `Effect::instances` lists that.
-            EffectRecipient::ChosenBy(_) => Err(format!(
+            // A choice is made as the effect applies (CR 608.2d); only an
+            // edict's chooser can be an instance, and `Effect::instances` lists that.
+            EffectRecipient::ChosenBy(_) | EffectRecipient::Choose(..) => Err(format!(
                 "{recipient:?} is chosen as the effect applies, not an instance of \"target\" to validate"
             )),
 
@@ -427,11 +417,9 @@ impl GameState {
                  clause `Effect::instances` lists at that index."
             )),
 
-            // Target and Choose validate identically: hexproof, shroud and
-            // protection are not checked for `Target` — `codebase-state.md`,
-            // "Before card breadth" item 7, which is `cant-be-targeted`'s.
-            EffectRecipient::Target(filter, count)
-            | EffectRecipient::Choose(filter, count) => {
+            // Hexproof, shroud and protection are not checked yet: that is
+            // `cant-be-targeted`'s.
+            EffectRecipient::Target(filter, count) => {
                 validate_target_count(count, bounds, targets.len())?;
                 // CR 601.2c's first sentence: one instance never picks a target twice
                 // (Victimize's two cards; Decimate's four instances may share one).
@@ -763,12 +751,6 @@ impl GameState {
     /// does not make a later atom's target illegal — Plague Spores destroying
     /// the creature does not un-target the land.
     ///
-    /// A non-targeting `Choose` instance keeps every choice that still
-    /// exists: CR 115.1's targeting rules are what 608.2b is about, and a
-    /// choice does not fizzle. One that left and came back is a new object
-    /// with no relation to the chosen one (CR 400.7), so the effect cannot
-    /// find it, which is the same for a target and a choice.
-    ///
     /// A target that left and came back is illegal by 608.2b's own sentence:
     /// it is "no longer in the zone it was in when it was targeted", which
     /// its epoch says and its id cannot.
@@ -828,12 +810,6 @@ impl GameState {
             let announced_targets =
                 FilterIdentity::for_text_of(this_object, EarlierTargets::Announced(&instances[..ix])).naming(named_objects);
             let existing = inst.targets().filter(|chosen| chosen.still_exists(self)).map(|chosen| chosen.id());
-            if !inst.is_targeted() {
-                // A `Choose` does not fizzle and is not re-checked against its
-                // clause, so all of it that still exists is carried through.
-                survivors.push(existing);
-                continue;
-            }
             tally.announced |= inst.targets().next().is_some();
             let before = survivors.all().len();
             survivors.push(existing.filter(|t| self.is_single_target_legal(&inst.recipient, t, you, announced_targets)));
@@ -843,7 +819,6 @@ impl GameState {
     }
 
     /// Check if a single target is still legal for the given spec.
-    /// Only meaningful for `Target` — `Choose` doesn't participate in fizzle.
     fn is_single_target_legal(
         &self,
         recipient: &EffectRecipient,
@@ -855,7 +830,7 @@ impl GameState {
             EffectRecipient::Target(filter, _) => {
                 self.validate_selection(filter, target, you, identity).is_ok()
             }
-            // Choose, Implicit, Controller — always "legal" (no fizzle).
+            // Only an instance of "target" is announced (CR 601.2c).
             _ => true,
         }
     }

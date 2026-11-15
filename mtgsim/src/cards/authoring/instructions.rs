@@ -23,10 +23,10 @@ use crate::state::game_state::PhaseType;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AmountExpr, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
-    ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange,
+    ExtraPhasesAfter, ManaOutput, ObjectSet, PatternFill, PlayerRef, Primitive, ReturnUnder, TargetCount, TokenDef, TypeChange,
 };
 use crate::types::mana::ManaCost;
-use super::recipients::divided_among;
+
 use crate::types::colors::Color;
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
@@ -191,25 +191,38 @@ pub fn deal_damage_unpreventable(recipient: EffectRecipient, amount: impl Into<A
 /// share, read as the row is made, so no row ever holds this.
 const EACH_TARGETS_SHARE: u64 = 0;
 
-/// "[This] deals [total] damage divided as you choose among [among] [what]"
-/// (CR 601.2d): the atom prints the total, and the clause carries it to the
-/// announcement that divides it.
-pub fn deal_damage_divided(what: SelectionFilter, among: TargetCount, total: impl Into<AmountExpr>) -> Effect {
-    let total = total.into();
-    deal_damage(divided_among(what, among, total.clone()), total)
+/// The amount `division` divides, which the atom prints too. A recipient
+/// that divides nothing is a card written with the wrong word, refused where
+/// every card is built, in the registry's tests.
+fn total_divided(division: &EffectRecipient) -> AmountExpr {
+    let (EffectRecipient::Target(_, TargetCount::Divided(divided)) | EffectRecipient::Choose(_, TargetCount::Divided(divided))) = division
+    else {
+        debug_assert!(false, "{division:?} divides nothing: write it with `divided_among_targeted` or `divided_among_untargeted`");
+        return AmountExpr::Fixed(0);
+    };
+    divided.total.clone()
 }
 
-/// "Distribute [total] [counter]s among [among] [what]" (CR 601.2d), put by you.
-pub fn distribute_counters(what: SelectionFilter, among: TargetCount, counter: CounterType, total: impl Into<AmountExpr>) -> Effect {
-    let total = total.into();
-    put_counters(divided_among(what, among, total.clone()), counter, total)
+/// "[This] deals [total] damage divided as you choose among [division]": its
+/// targets announced and divided as it is cast (CR 601.2d), or objects chosen
+/// and divided as it resolves (608.2d). The atom prints the division's total.
+pub fn deal_damage_divided(division: EffectRecipient) -> Effect {
+    let total = total_divided(&division);
+    deal_damage(division, total)
 }
 
-/// "Prevent the next [total] damage that would be dealt this turn to [among]
-/// [what], divided as you choose" (CR 601.2d, 615.7): each target a shield of
-/// its own share, so the clause alone holds the total.
-pub fn prevent_the_next_damage_divided(what: SelectionFilter, among: TargetCount, total: impl Into<AmountExpr>) -> Effect {
-    prevent_the_next_n_damage_this_turn(divided_among(what, among, total.into()), EACH_TARGETS_SHARE)
+/// "Distribute [total] [counter]s among [division]", put by you: targets (CR
+/// 601.2d) or objects chosen as it resolves (608.2d), as the division says.
+pub fn distribute_counters(division: EffectRecipient, counter: CounterType) -> Effect {
+    let total = total_divided(&division);
+    put_counters(division, counter, total)
+}
+
+/// "Prevent the next [total] damage that would be dealt this turn to
+/// [division], divided as you choose" (CR 615.7): each one a shield of its
+/// own share, so the division alone holds the total.
+pub fn prevent_the_next_damage_divided(division: EffectRecipient) -> Effect {
+    prevent_the_next_n_damage_this_turn(division, EACH_TARGETS_SHARE)
 }
 
 /// "[Recipient] draws [amount] cards" (CR 121.1), one at a time (121.2):
@@ -362,8 +375,17 @@ impl ContinuousChange {
 
     /// The instructions, each lasting `duration`.
     pub(super) fn lasting(self, duration: Duration) -> Effect {
+        // "It" after "choose a creature" names what a choice made as the
+        // effect applies chose, a word `values-chosen-at-resolution` designs:
+        // until then a second change would choose again. Every card is built
+        // in the registry's tests, so this refuses one there.
+        debug_assert!(
+            !(matches!(self.recipient, EffectRecipient::Choose(..)) && self.steps.len() > 1),
+            "a second change chained to a choice would choose again: {:?}",
+            self.recipient
+        );
         let again = match &self.recipient {
-            EffectRecipient::Target(..) | EffectRecipient::Choose(..) => EffectRecipient::SameInstanceAs(0),
+            EffectRecipient::Target(..) => EffectRecipient::SameInstanceAs(0),
             recipient => recipient.clone(),
         };
         let mut steps = self.steps.into_iter();

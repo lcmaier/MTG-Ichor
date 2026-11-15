@@ -87,6 +87,7 @@ the engine; and a shape cut to one card is a v1 gap of its own kind, as #324's
 `any_amount_of` was cut to fit Leyline Tyrant's {R}, one card of the 46 whose
 amount is chosen as it is paid.
 
+
 ## Open, for the owner
 
 **Should the mana pool join the write gate's fields?** Raised at

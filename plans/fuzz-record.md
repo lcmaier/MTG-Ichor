@@ -202,6 +202,83 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-14 for `choose-as-an-effect-resolves`, an object chosen and a division made as an
+effect resolves** (`choices/choose-as-an-effect-resolves`, the second of
+`costs-and-choices-at-resolution`'s two: decision 8, item 28, decision 5's untargeted half). Feast of
+the Victorious Dead joins the performance pool (127 → 128), and it and Final Showdown the registry,
+so both §3 columns are new baselines. One `close_out.py` sitting against **main** `ef4d9291`
+(#325's merge): **engine** `49f054a0`, the last commit before the cards, and **shipped** `6abd393d`,
+now `fb7e8964` and `119fc851`, their trees but for the generated board each commit since carries;
+the rerun's **reviewed** `92ec7bfd` is `08b0ec10` the same way.
+
+**Predictions, before any arm ran**:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seats. No registered card
+  constructs a `Choose`, and the one route finds every other recipient's objects in the order it
+  found them;
+- engine's cost rows `IDENTICAL` or lower: an "each [permanent]" verb matched its filter twice,
+  in the walk and again in its arm, and now once, so a pooled sweep (a wipe's destroy, an
+  anthem-like grant) asks fewer characteristics. Layer walks and memo hits may read lower; no row
+  higher;
+- shipped: both pools move, Feast's trigger choosing and dividing as it resolves on both; 0 errors,
+  panics and turn limits;
+- instructions per decision, engine vs `main`, within 0.3 points, at or below `main`;
+- growth within ×4.35: a choice enumerates the battlefield once a resolution, as a target's
+  announcement does, so no shape's class changes and no ladder shape is added.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Memo hits`, `main` → engine, performance / stress | 52,581 → 52,575 / 54,402 → 54,381 | 232,743 → 232,699 / 271,471 → 271,371 |
+| audit, engine, dispatches agreed, performance / stress | 180,968 / 175,678 | 428,998 / 455,538 |
+| gameplay rows, shipped vs `main`, performance / stress | differ / differ | differ / differ |
+| audit, shipped, dispatches agreed, performance / stress | 177,540 / 181,174 | 445,134 / 452,925 |
+| `Memo hits`, `main` → shipped, performance / stress | 52,581 → 51,549 / 54,402 → 59,857 | 232,743 → 244,707 / 271,471 → 278,506 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.6604 M → 0.6610 M, **+0.09%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.03 |
+
+**Every prediction held but one direction**: the instructions are within the band and 0.09% above
+`main`, not at or below it. The functions past half a point are the battlefield listing's `Vec`
+collects and `get_effective_controller` and `random_deck` inlined in one arm and not the other;
+the work the route saves (a sweep's filter matched once) is the memo hits' 6 to 100 fewer, too
+small to show past the layout. Errors, panics and turn limits 0 on every arm.
+Reachability, shipped, 200 games at two seats: Feast of the Victorious Dead cast 143 and resolved
+142 in 53% of games, Final Showdown 148 (147) in 56%; at four seats 123 (120) in 51% and 104 (102)
+in 45%. With Feast in every deck, the agent was asked `SelectRecipients` 9.49 times a game and
+`DivideAmong` 0.07, Arc Lightning's division among them: most of Feast's divisions are forced,
+one creature or as many counters as creatures, and taken unasked. 234 s.
+
+**§3, shipped, 50 games at seed 12345**, the new baseline:
+
+| | performance | stress |
+|---|---:|---:|
+| Wins by seat | 23 / 27 | 24 / 26 |
+| Wins by effect | 0 | 0 |
+| Avg turns | 29.9 | 24.8 |
+| Spells cast | 23.1 | 20.0 |
+| Creatures died | 8.2 | 4.5 |
+| Total damage | 65.2 | 43.9 |
+| **Layer walks** | **368** | **376** |
+| **Memo hits** | **61,647** | **53,645** |
+| **Frames/walk** | **12.65** | **11.01** |
+| **Dependency checks** | **8** | **13** |
+| Decisions | 213 | 233 |
+
+**Rerun after the pre-review (2026-11-14)**, against **base** `6abd393d`, the shipped arm above:
+**reviewed** `92ec7bfd`, a choice of nothing handed to its verb as an empty set, a division's
+bounds read without an error past its total, one filter identity for a resolution, `GainControl`
+reading its slice alone, and words. Predicted, before any arm ran: every gameplay and counter row
+`IDENTICAL` on both pools at both seats, since Feast's division asks between the same bounds, an
+empty division still does nothing, and no other registered card's recipient changes its route;
+instructions a decision within 0.3 points of base.
+
+Every gameplay row **IDENTICAL** on both pools at both seats and every counter file base's but its
+timings; audit agreed (177,540 / 181,174 at two seats, 445,134 / 452,925 at four); instructions a
+decision 0.5757 M → 0.5757 M, **+0.00%**; growth ×3.94 to ×4.03. The copy check names two
+compositions, both kept: the division's bounds beside `TargetCount::bounds`, which errs past its
+total because an announcement rewinds, where a choice made as the effect applies takes what it can;
+and `condition_objects() + trigger`, the idiom a resolution's readers share, which the choice's
+copy of it is now one function of (`filter_identity_for`). 225 s.
+
 **Re-recorded 2026-11-14 for `ordered-sweeps-sort-their-matches`, an ordered sweep sorts what it keeps**
 (`state/ordered-sweeps-sort-their-matches`, PR #325, a detour off the route: `codebase-state.md` item 77's
 first part). No card moves and no pool changes, so neither §3 column is re-recorded. One

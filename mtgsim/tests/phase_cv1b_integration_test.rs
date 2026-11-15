@@ -437,28 +437,28 @@ fn two_references_to_one_creature_both_end_at_one_move() {
     assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield, "the 2/2 is not bolted");
 }
 
-/// "Choose a creature. It gets +2/+2 until end of turn", the choice made as
-/// the spell is cast. A choice does not fizzle (CR 115.1 is about targets),
-/// so the spell resolves, and the creature chosen is gone: the one that came
-/// back is another object, and the pump finds nothing.
+/// "Choose a creature. It gets +2/+2 until end of turn": the choice is made
+/// as the spell resolves (CR 608.2d), so casting it announces nothing, and
+/// the Bears that left and came back before then is a creature on the
+/// battlefield as it resolves, chosen and pumped. Chosen as it was cast, the
+/// pump would have found nothing (CR 400.7).
 #[test]
-fn a_choice_made_at_cast_finds_nothing_once_its_object_has_moved() {
+fn a_choice_made_as_the_spell_resolves_finds_an_object_that_moved_before() {
     let mut game = setup_two_player_game();
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let spell = cast_from_pool(&mut game, 0, chosen_pump(), &[(ManaType::Green, 1)], RecordingDecisionProvider::picking(0));
-    assert!(!game.stack_entries[&spell].announced.targets().next().unwrap().is_targeted());
+    assert!(game.stack_entries[&spell].announced.targets().next().is_none(), "a choice is no instance of \"target\"");
 
     leave_and_return(&mut game, bears, Zone::Hand, ZoneChangeAct::Put);
     game.resolve_top_of_stack(&test_dp()).unwrap();
 
-    assert!(!fizzled(&game, spell), "a choice does not fizzle");
-    assert_eq!(pt(&game, bears), (Some(2), Some(2)));
-    assert!(game.continuous_effects.is_empty(), "nothing left to pump");
+    assert!(!fizzled(&game, spell));
+    assert_eq!(pt(&game, bears), (Some(4), Some(4)));
 }
 
-/// **Fixture.** "Choose a creature. It gets +2/+2 until end of turn." No
-/// printed card chooses an object as it is cast without targeting it and
-/// then acts on it, so the shape is written here.
+/// **Fixture.** "Choose a creature. It gets +2/+2 until end of turn": Final
+/// Showdown's choice, over any creature rather than one you control, with a
+/// pump for its verb, so the change shows in power and toughness.
 fn chosen_pump() -> Arc<CardData> {
     CardDataBuilder::new("Chosen Pump")
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
