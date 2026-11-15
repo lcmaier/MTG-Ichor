@@ -39,8 +39,11 @@ gates do that. Stop at about 100 tool calls and report what you have.
 1. **Names read where they are used** (`plans/engineering-practices.md#names`).
    Flag a name whose use alone does not say what it is (a generic noun such as
    "entry", "bucket", "rider" or "info" without its subject), a variable named
-   for a different concept than it holds (`seq` holding an id), or a name
-   that needs its doc comment to be understood. **At a design stop**: every
+   for a different concept than it holds (`seq` holding an id), a name
+   that needs its doc comment to be understood, twins of which one is bare
+   (`divided_among` beside `divided_among_chosen`: name each case), and a
+   card function's local named for its shape (`one()` for a cost of {1}).
+   **At a design stop**: every
    type, field, arm and function the note's code blocks propose carries its
    subsystem's noun (`ManaSpendFilter`, not `SpendFilter`); grep `mtgsim/src`
    for the bare word and for a near name already taken.

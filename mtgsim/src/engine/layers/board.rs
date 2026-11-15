@@ -1255,7 +1255,7 @@ fn affected_members(
             } else {
                 &board.members
             };
-            let mut players = FilterPlayers::for_row(effect, game, board, layer_index);
+            let mut players = FilterPlayers::for_row_deriving_you(effect, game, board, layer_index);
             candidates
                 .iter()
                 .copied()
@@ -1416,7 +1416,7 @@ fn perform_telling_reached(
                     && (board.reaches_left_out(row) || (!fresh && board.start_noted(row.group())));
                 if noted {
                     let set = if fresh {
-                        EffectMembershipTest::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
+                        EffectMembershipTest::Fresh { you: FilterPlayers::for_row_deriving_you(row, game, board, layer_index).you() }
                     } else {
                         EffectMembershipTest::Locked
                     };

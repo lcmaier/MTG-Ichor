@@ -378,9 +378,7 @@ impl GameState {
         let mut announced = Vec::with_capacity(instances.len());
         let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
         for recipient in instances {
-            let (EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count)) =
-                recipient
-            else {
+            let EffectRecipient::Target(filter, count) = recipient else {
                 // `Effect::instances` yields only targeting clauses, so this is
                 // unreachable rather than a case with a sensible default.
                 return Err(format!(
@@ -414,13 +412,7 @@ impl GameState {
             earlier_targets.push(chosen);
         }
         for instance in &mut announced {
-            let divided = match &instance.recipient {
-                EffectRecipient::Target(_, TargetCount::Divided(divided)) => divided,
-                EffectRecipient::Choose(_, TargetCount::Divided(_)) => {
-                    return Err("CR 601.2d divides among targets; a choice divides as the effect applies (CR 608.2d)".to_string());
-                }
-                _ => continue,
-            };
+            let EffectRecipient::Target(_, TargetCount::Divided(divided)) = &instance.recipient else { continue };
             let targets: Vec<ObjectOrPlayerId> = instance.as_resolved_targets().collect();
             // CR 115.6: "any number" may be none, which divides nothing.
             if !targets.is_empty() {
@@ -564,7 +556,7 @@ impl GameState {
     pub(crate) fn announce_targeted_records(&mut self, by: ObjectId, cause: EventCause, dp: &dyn DecisionProvider) -> Result<(), String> {
         let Some(entry) = self.stack_entries.get(&by) else { return Ok(()) };
         let mut targeted: Vec<(ObjectOrPlayer, u32)> = Vec::new();
-        for target in entry.announced.targets().filter(|instance| instance.is_targeted()).flat_map(TargetInstance::targets) {
+        for target in entry.announced.targets().flat_map(TargetInstance::targets) {
             match targeted.iter_mut().find(|(seen, _)| *seen == target) {
                 Some((_, instances)) => *instances += 1,
                 None => targeted.push((target, 1)),
@@ -576,7 +568,7 @@ impl GameState {
             return Ok(());
         }
         let by = self.existence_for_record(by)?;
-        let previous = self.events.open_batch();
+        let previous = self.events.open_or_join_batch();
         let joined = previous.is_some();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         let mut emitted = Ok(());
@@ -614,7 +606,7 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let activated = GameEvent::AbilityActivated { identity, controller, mana_ability, from, source_lki };
-        self.emit_event_with_provider(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
+        self.emit_event_with_trigger_choices(activated, &ActionContext { dp, cause: EventCause::Activating(controller) })
     }
 
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).

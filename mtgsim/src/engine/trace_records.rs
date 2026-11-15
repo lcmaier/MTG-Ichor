@@ -158,12 +158,12 @@ pub(crate) fn decision(
     r
 }
 
-/// `trigger` — one matcher decision (`codebase-state.md` "Before Triggered
-/// abilities" item 9): the record asked about, the candidate's identity and
-/// zone, whether it matched, and which predicate refused it when it did not.
+/// `trigger` for a trigger event (CR 603.2) — one matcher decision: the record
+/// asked about, the candidate's identity and zone, whether it matched, and
+/// which predicate refused it when it did not.
 /// `mana` says the match resolved at dispatch and never reached the queue
 /// (CR 605.4a).
-pub(crate) fn trigger(
+pub(crate) fn event_trigger(
     game: &GameState,
     record: EventId,
     identity: &AbilityRef,

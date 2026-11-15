@@ -63,6 +63,12 @@ const YIELD_ONE_IN: u32 = 20;
 /// often as a yield, so a game still plays on.
 const WHY_ONE_IN: u32 = 20;
 
+/// How often a why click with the panel open is its close, the rest spread
+/// over the board's items and the panel's links. Drawn from them alone, the
+/// close was one input among a board's dozens, and whether a game ever
+/// closed the panel turned on the deal.
+const CLOSE_ONE_IN: u32 = 4;
+
 /// How often a click is "Stop yielding", where the prompt offers it: half
 /// the time. A yielding seat is asked only what is not priority, about a
 /// dozen times across the six dealt games, so a stop that is one click among
@@ -212,7 +218,11 @@ fn click_until_answered(state: &mut WindowState, engine: &EngineHandle, rng: &mu
         } else if let Some(stop) = stop.filter(|_| rng.random_ratio(1, STOP_ONE_IN)) {
             stop
         } else if !whys.is_empty() && rng.random_ratio(1, WHY_ONE_IN) {
-            whys[rng.random_range(0..whys.len())].clone()
+            if state.why_view().is_some() && rng.random_ratio(1, CLOSE_ONE_IN) {
+                Input::WhyClose
+            } else {
+                whys[rng.random_range(0..whys.len())].clone()
+            }
         } else {
             let offered = clickable(state, rng);
             assert!(!offered.is_empty(), "the window offers nothing to click at {:?}", state.prompt);

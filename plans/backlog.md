@@ -2343,7 +2343,15 @@ comment sweep found the `TODO` in `Game::setup` with no owner.
 | **Atoms** | `ATOM-103.5-001` |
 | **Owner** | `game-formats`, in `setup-architecture.md`, which owns CR 103: every game opens with CR 103.5, the five-seat table is the first a person sits down at, and `roadmap-v2.md` §D brings Commander's mulligans forward with the formats; CR 103.5c's free mulligan is keyed on the seat count |
 
-### 2.33 Choice versus target — when a non-targeting selection is made (CR 601.2b, 608.2c)
+### 2.33 Choice versus target — when a non-targeting selection is made (CR 601.2b, 608.2c) — **shipped 2026-11-14 (`choose-as-an-effect-resolves`)**
+
+- **What shipped.** The line is drawn in `choices-architecture.md`'s decision 8:
+  CR 601.2b announces nothing that is not a target but its list (modes, costs,
+  X), so a "choose" in an effect is made as it applies (CR 608.2d).
+  `EffectRecipient::Choose` left the instance list and is asked by
+  `recipients_for` at resolution; The Black Gate waits for decision 7's
+  `ChoosePlayer` and a word for "that player" (items 425 and 426). The rest of
+  this entry is the record it was filed as.
 
 **The surface that cannot express it.** `EffectRecipient::Choose` is the
 non-targeting selection — CR 303.4a's Aura put onto the battlefield without being

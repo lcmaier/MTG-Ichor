@@ -96,6 +96,9 @@ it is, rename it. Every name a PR adds or a design note proposes is read against
    code needs it** (`mem::take`, `.or_default()`). An empty value that means something is a named constant (`ObjectSet::NO_OBJECTS`).
 10. **A return names its parts**: a tuple only for a pair that is one thing;
     otherwise a struct with named fields, or two functions.
+11. **Twins name their case**: two names for two cases of one thing each say which,
+    `divided_among_targeted` and `divided_among_untargeted`, never one bare beside one qualified.
+12. **A local names what it holds**, a card function's above all: `one_generic_mana()`, not `one()`.
 
 - **One spelling per concept**: a second type naming the same object takes the
   first's name (`TriggerSubject::ThisObject`, `EffectRecipient::ThisObject`).

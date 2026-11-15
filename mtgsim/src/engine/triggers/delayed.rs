@@ -325,7 +325,7 @@ impl GameState {
     fn trace_delayed_verdict(&self, delayed: &DelayedTrigger, seq: EventId, refusal: Option<Refusal>) {
         let Some(zone) = self.objects.get(&delayed.source.id).map(|o| o.zone) else { return };
         self.trace(|| {
-            trace_records::trigger(self, seq, &delayed.identity(), zone, refusal.is_none(), refusal.map(Refusal::name), false)
+            trace_records::event_trigger(self, seq, &delayed.identity(), zone, refusal.is_none(), refusal.map(Refusal::name), false)
         });
     }
 

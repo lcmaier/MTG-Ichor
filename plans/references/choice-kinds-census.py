@@ -665,6 +665,82 @@ def _(c, t):
                for m in AS_CAST_COST.finditer(t))
 
 
+# --- CR 608.2d / 115.10: an object chosen as the effect applies, not targeted --
+# "Choose a creature you control", "each player chooses a creature they
+# control": a verb, then the noun phrase it picks. Never a target ("choose
+# target creature"), a value ("a creature type", "a card name"), a counter
+# ("choose a counter on a permanent"), a target chosen as it is cast ("as
+# this spell's target") or a mode; a "card" from a hand, a graveyard, a
+# library or exile is a card in a zone.
+OBJECT_NOUN = r"(?:creature|permanent|artifact|enchantment|land|planeswalker|battle|card|spell|token|vehicle|equipment|aura)s?"
+OBJECT_CHOSEN = re.compile(
+    r"(?P<who>\b[\w']+\s+)?(?:secretly )?(?P<verb>chooses?) "
+    r"(?P<np>(?:up to (?:one|two|three|four|five|x) |any number of |a |an |another |one |two |three |four |x |each )"
+    r"(?:other )?(?:[\w-]+,? (?:and/or |or )?){0,4}?" + OBJECT_NOUN + r")\b(?! types?\b| names?\b| card names?\b)",
+    re.I)
+
+
+def objects_chosen(t):
+    """Each object a resolving effect has a player choose, as (who chooses:
+    "controller" or "other", where: "permanent" or "card", the clause, the
+    match)."""
+    out = []
+    for when, text in value_clauses(t):
+        if when != "resolution":
+            continue
+        text = unquoted(text)
+        for m in OBJECT_CHOSEN.finditer(text):
+            np, after = m.group("np"), text[m.end():]
+            if re.search(r"\btarget\b|\bcounter\b", np, re.I) or re.match(r"[^.]*? as (?:this spell's|its|the|a) targets?\b|\s+as your", after, re.I):
+                continue
+            who = (m.group("who") or "").strip().lower()
+            chooser = "other" if m.group("verb").lower() == "chooses" or who in ("they", "players", "opponents") else "controller"
+            in_zone = re.search(r"\bcards?$", np, re.I) or re.match(
+                r"\s*cards?\b|\s*(?:in|from) (?:your|their|a|an|each|target|that|its|among) [\w' ]*(?:graveyard|hand|library|exile|them|it)\b", after, re.I)
+            out.append((chooser, "card" if in_zone else "permanent", text, m))
+    return out
+
+
+@family("an object chosen as the effect applies, not targeted: any (CR 608.2d)")
+def _(c, t):
+    return bool(objects_chosen(t))
+
+
+@family("an object chosen as the effect applies: by another player (an edict's `ChosenBy`)")
+def _(c, t):
+    return any(who == "other" for who, _, _, _ in objects_chosen(t))
+
+
+@family("an object chosen as the effect applies: by its controller, a card in a zone")
+def _(c, t):
+    return any(who == "controller" and where == "card" for who, where, _, _ in objects_chosen(t))
+
+
+@family("an object chosen as the effect applies: by its controller, a permanent (`EffectRecipient::Choose`)")
+def _(c, t):
+    return any(who == "controller" and where == "permanent" for who, where, _, _ in objects_chosen(t))
+
+
+@family("an object chosen as the effect applies: by its controller, a permanent, beside a target in its ability")
+def _(c, t):
+    return any(who == "controller" and where == "permanent" and any(
+        text.strip()[:40] in line and re.search(r"\btarget\b", unquoted(line), re.I) for line in t.split("\n"))
+        for who, where, text, _ in objects_chosen(t))
+
+
+@family("an object chosen as the effect applies: by its controller, a permanent, and the verb acts on the rest")
+def _(c, t):
+    return any(who == "controller" and where == "permanent" and re.search(
+        r"\bthe rest\b|\bnot chosen\b|\ball other\b|\beach other\b", text[m.end():], re.I)
+        for who, where, text, m in objects_chosen(t))
+
+
+@family("an object chosen as the effect applies: by its controller, a permanent, at random")
+def _(c, t):
+    return any(who == "controller" and where == "permanent" and re.match(r"\s*at random", text[m.end():], re.I)
+               for who, where, text, m in objects_chosen(t))
+
+
 NARROWED_NAME = re.compile(r"\bchooses? an? (?:nonland|creature|land|noncreature|artifact|instant or sorcery|nonbasic land)"
                            r"[\w -]*? card name\b|\bcard name other than\b", re.I)
 FAMILIES["a card name narrowed by what the card is, at resolution or as it enters"] = chosen_when(NARROWED_NAME, ("resolution", "enters"))

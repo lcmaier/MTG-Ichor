@@ -10681,3 +10681,72 @@ count checks are gone; no game moved.
      No game or test should move.
      **Slotted:** `mode-rules-and-costs`, which reshapes the same stack entry
      (the owner, 2026-11-07).
+
+### Item 28 — closed 2026-11-14 by `choose-as-an-effect-resolves`
+
+Closed by `recipients_for`, the one route from an atom's recipient to the
+objects and players its verb acts on (`choices-architecture.md`'s decision 8,
+as built). The count the entry asked for came out as one route, not per-arm
+treatment: the atom arms of `resolve_effect_step` already found every
+recipient's objects before the verb, and about sixteen arms re-derived a
+`FilteredPermanents` set beside them (`affected_permanents`, and damage,
+untap and a replacement row each matching the filter inline). Those read the
+slice they are handed now, and `EffectRecipient::Choose` is asked there as
+the effect applies (CR 608.2d), out of the instance list. "Each of them" for
+a rider needed no recipient: no printed rider acts on a set (the 2026-10-05
+corpus's nine replacements saying "each of those" each rewrite a counter
+amount on one permanent), and each replaced event has one subject, so a
+rider's "them" is its subject, which its `Target` instance names through the
+same route. `regeneration_rider`'s filter stays unread, rightly: its event
+announces the permanent, and no choice is made.
+
+*Original entry:*
+
+28. **A rider reaches exactly one object — its subject — because
+    `resolve_primitive` ignores the `EffectRecipient` for everything that
+    affects an object.** Of its 29 arms, **24 reach objects only through
+    `ctx.targets`** (directly, via `collect_battlefield_targets` /
+    `collect_permanent_or_spell_targets`, or via
+    `register_resolution_ability_effect`), **4 are player-directed** through
+    `resolve_player_for_self`, and one — `ProduceMana` — is neither. The
+    recipient's `SelectionFilter` and `TargetCount` are read at *cast* time and
+    nowhere else: `EffectRecipient::Choose` has no generic resolution-time
+    enumeration path (the only such call in the tree is the Aura-host special
+    case in `resolve.rs`), and `FilteredPermanents`'s own doc scopes it to ETB
+    registration.
+
+    For a rider that means an `Effect::Sequence` can do several *things*, but
+    only ever to the one object the event was about. A rider phrased over a set
+    — item 24's "put a +1/+1 counter on each of them" — cannot be written at
+    all. **The visible symptom is inert data:** `regeneration_rider`'s
+    `Target(Permanent(All), Exactly(1))` filter and count satisfy the type and
+    are read by nothing.
+
+    **Not replacement-shaped, and recorded here so it is not mistaken for one.**
+    This is owed by the `Effect` tree on behalf of the whole card pool, exactly
+    as item 24's "if you do" is, and nothing in `types/replacement.rs` changes
+    when it lands. **Deliberately unsized:** `ask_select_recipients` and
+    `enumerate_legal_selections` both exist already, so the number that decides
+    the phase is how many of the 24 arms want per-arm treatment rather than a
+    shared helper. Count that before committing to one.
+    → `replacement-architecture.md` §11 item 17.
+
+    **Reachability (2026-10-23):** unreachable — no registered rider is
+    phrased over a set, and `regeneration_rider`'s unread filter is inert
+    rather than wrong.
+
+    **Sized:** counted 2026-09-03: `resolve_primitive` has 41 arms
+    now (29 when this was written). The shared route — one `recipients_for(ctx,
+    recipient)` that resolves `EffectRecipient::Choose` and `FilteredPermanents`
+    at resolution time, with the object-reaching arms reading `ctx.targets`
+    through it — is ~150–250 lines; lands with the first set-phrased rider
+    (RD/RE) or the first mass-removal spell, whichever comes first.
+    **Slotted:** `modes-plus-choice-kinds` (`route-review`, 2026-10-29): what
+    is left is a design, `EffectRecipient::Choose` answered at resolution (CR
+    608.2d) across the object-reaching arms and a set the event names ("each of
+    them"), with the count above first, which decides between one
+    `recipients_for` and per-arm treatment.
+    **Partly built (2026-10-14, A6m's first PR, #249):** `affected_permanents`
+    resolves a `FilteredPermanents` recipient as the effect resolves, for every
+    arm that writes a row, regenerates or removes from combat or damage.
+    `Choose` and a set named by the event ("each of them") remain.

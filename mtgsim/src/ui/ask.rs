@@ -800,9 +800,10 @@ pub fn ask_select_recipients(
     indices.iter().map(|&i| legal_selections[i]).collect()
 }
 
-/// CR 601.2d — divide `total` among `targets`, each receiving at least one.
-/// One target, or as many targets as `total`, is one split and not asked.
-/// Returns each target's share, in `targets`' order.
+/// Divide `total` among `targets`, each receiving at least one: the targets
+/// as they are announced (CR 601.2d), or the objects chosen as an effect
+/// applies (608.2d). One of them, or as many of them as `total`, is one split
+/// and not asked. Returns each one's share, in `targets`' order.
 pub fn ask_divide_among(
     dp: &dyn DecisionProvider,
     game: &GameState,

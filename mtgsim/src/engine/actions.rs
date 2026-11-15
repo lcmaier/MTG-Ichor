@@ -1024,7 +1024,7 @@ impl GameState {
         if outermost && self.nesting.dispatch_depth == 0 {
             self.settle_layer_consequences(ctx)?;
         }
-        let previous = self.events.open_batch();
+        let previous = self.events.open_or_join_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
@@ -1132,7 +1132,7 @@ impl GameState {
             self.nesting.decomposition_depth,
             inherited.len()
         );
-        let previous = self.events.open_batch();
+        let previous = self.events.open_or_join_batch();
         let (mark, window) = (self.events.next_seq(), self.events.current_batch());
         self.nesting.batch_depth += 1;
         let proposals = batch.into_iter().map(|action| (action, ctx.cause)).collect();

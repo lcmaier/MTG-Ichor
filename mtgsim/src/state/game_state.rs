@@ -651,7 +651,7 @@ pub struct GameState {
     /// CR 614.13b's own example of the wrong answer. A fork at the prompt has
     /// to see both, so neither may live on the pipeline's stack.
     ///
-    /// Saved and restored by `execute_batch_inner` the way `open_batch` and
+    /// Saved and restored by `execute_batch_inner` the way `open_or_join_batch` and
     /// `close_batch` handle the event stamp — the exclusions belong to *these*
     /// simultaneous entries, and a nested batch (an auxiliary move's own, a
     /// rider's) is a different event with its own.

@@ -515,7 +515,7 @@ pub(crate) fn every_instance_has_a_choice(
         // one's feed is pushed; an instance that announces nothing pushes
         // nothing, and excludes nothing.
         let mut feed = Vec::new();
-        if let EffectRecipient::Target(f, count) | EffectRecipient::Choose(f, count) = recipient
+        if let EffectRecipient::Target(f, count) = recipient
             && count.fewest() > 0
         {
             let n = count.fewest();

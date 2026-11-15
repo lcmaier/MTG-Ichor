@@ -1143,8 +1143,8 @@ impl ModalNode {
 ///
 /// `Target` = the MTG rules concept of "targeting" (hexproof, shroud,
 /// protection all apply; fizzles if target becomes illegal).
-/// `Choose` = "choose" / non-targeting selection (rule 303.4a — Aura ETB
-/// without casting; hexproof/shroud do NOT apply, does NOT fizzle).
+/// `Choose` = "choose" / non-targeting selection, made as the effect applies
+/// (CR 115.10, 608.2d; hexproof/shroud do NOT apply, does NOT fizzle).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectRecipient {
     /// No object involved: a mana ability's production, an instruction to the
@@ -1168,13 +1168,18 @@ pub enum EffectRecipient {
     /// Select with targeting rules — hexproof/shroud/protection apply,
     /// fizzles if all targets become illegal (rule 608.2b).
     Target(SelectionFilter, TargetCount),
-    /// Select without targeting rules — "choose" (rule 303.4a, etc.).
-    /// Hexproof/shroud/protection do NOT apply.  Does not fizzle.
+    /// "Choose a creature you control" (CR 115.10): the controller picks as
+    /// the instruction applies (CR 608.2d), never as the spell or ability is
+    /// put on the stack, so it is no instance of "target". Hexproof and shroud
+    /// stop only targeting (CR 702.11b, 702.18a), nothing re-checks the choice
+    /// (608.2b), and with nothing to choose the instruction does nothing, so
+    /// the spell is castable on an empty board. A `Divided` count divides
+    /// among what is chosen, at least one each (608.2d).
     Choose(SelectionFilter, TargetCount),
-    /// CR 115.3 — an instance of "target" (or of a non-targeting "choose")
-    /// that an **earlier atom of this same effect** already announced.
+    /// CR 115.3 — an instance of "target" that an **earlier atom of this same
+    /// effect** already announced.
     ///
-    /// `Target` and `Choose` each *declare* an instance; this refers back to
+    /// A `Target` atom *declares* an instance; this refers back to
     /// one, by its position in [`Effect::instances`]' pre-order list. A spell
     /// counts across all its spell abilities (`card_data::spell_effect`), so
     /// a later paragraph names an earlier one's target by the spell's count.
@@ -1505,8 +1510,10 @@ pub enum TargetCount {
     Between(u32, u32),
     /// "Any number of targets".
     AnyNumber,
-    /// "Divided as you choose among one, two, or three targets" (CR 601.2d).
-    /// Boxed, since every recipient carries a count and few divide.
+    /// "Divided as you choose among one, two, or three targets" (CR 601.2d),
+    /// or on a `Choose`, "distribute … among any number of creatures you
+    /// control" (608.2d). Boxed, since every recipient carries a count and
+    /// few divide.
     Divided(Box<DividedCount>),
 }
 
@@ -1532,14 +1539,16 @@ impl EffectRecipient {
     }
 }
 
-/// CR 601.2d's count: how many targets a clause may divide among, and what it
-/// divides.
+/// A division's count: how many objects or players a clause may divide
+/// among, and what it divides. Among targets it is announced with them (CR
+/// 601.2d); among objects chosen, made as the effect applies (608.2d).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DividedCount {
     pub among: TargetCount,
-    /// The amount divided, read as the targets are announced, which fixes it
-    /// (CR 608.2d's last sentence). The announcement is its reader: the atom
-    /// that prints the amount acts by each target's share.
+    /// The amount divided. Among targets it is read as they are announced,
+    /// which fixes it (CR 608.2d's last sentence); among objects chosen, as
+    /// the effect applies. The announcement or the choice is its reader: the
+    /// atom that prints the amount acts by each share.
     pub total: AmountExpr,
 }
 
@@ -3039,7 +3048,7 @@ impl Effect {
     /// The instances of "target" this effect declares, in printed order
     /// (CR 601.2c) — what the announcement asks for and CR 608.2b re-checks.
     ///
-    /// Each `Target`/`Choose` atom **declares** an instance; an
+    /// Each `Target` atom **declares** an instance; an
     /// `EffectRecipient::SameInstanceAs` atom refers back to one and declares
     /// nothing. That is what separates Ensoul Artifact's two atoms — one
     /// instance, acted on twice — from Seeds of Strength's three clauses, which
@@ -3090,12 +3099,13 @@ impl Effect {
         match self {
             Effect::Atom(primitive, recipient) => {
                 let own = match recipient {
-                    EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _) => f(recipient),
+                    EffectRecipient::Target(_, _) => f(recipient),
                     // "Target player sacrifices a creature": the chooser is the instance.
                     EffectRecipient::ChosenBy(choice) => match &choice.chooser {
-                        chooser @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _)) => f(chooser),
+                        chooser @ EffectRecipient::Target(_, _) => f(chooser),
                         _ => true,
                     },
+                    // A choice is made as the instruction applies (CR 608.2d).
                     _ => true,
                 };
                 // "Until target enchantment leaves the battlefield": the verb's

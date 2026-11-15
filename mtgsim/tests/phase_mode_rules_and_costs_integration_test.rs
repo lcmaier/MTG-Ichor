@@ -16,7 +16,7 @@ use mtgsim::cards::authoring::{
     triggered_ability, whenever, you,
 };
 use mtgsim::cards::fixtures::{divided_envoy, echoing_reckoning, pawprint_parade, tribute_offering, twofold_tithe};
-use mtgsim::cards::printings::{arc_trail, demonic_pact, explosive_derailment, grizzly_bears, hill_giant, mind_stone, vindictive_lich};
+use mtgsim::cards::printings::{arc_trail, demonic_pact, explosive_derailment, final_showdown, grizzly_bears, hill_giant, mind_stone, vindictive_lich};
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::{AbilityRef, StepType};
@@ -651,6 +651,68 @@ fn explosive_derailment_resolves_against_whichever_target_is_left() {
         let resolved = game.recorded_events().records().iter().any(|record| matches!(record.event, GameEvent::DamageDealt { .. }));
         assert_eq!(resolved, !both_gone, "both gone: {both_gone}");
     }
+}
+
+/// Final Showdown, spree's other card: {W} alone pays for no mode, so it is
+/// not offered; with {W}{1} the modes are chosen as it is cast, and the one
+/// chosen is paid for and is the spell's from then on.
+// RULING: Final Showdown #5 - "You must choose at least one of the listed modes and pay its associated additional cost in order to cast a spell with spree."
+// RULING: Final Showdown #6 - "You choose the modes as you cast the spell with spree. Once modes are chosen, they can't be changed."
+#[test]
+fn final_showdown_needs_a_mode_and_pays_each_chosen_modes_cost() {
+    let mut game = setup_two_player_game();
+    let spell = put_in_hand(&mut game, final_showdown(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    assert!(can_cast(&game, 0, spell).is_err(), "{{W}} pays for no mode");
+
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[2]);
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("{W} and the second mode's {1}");
+    assert_eq!(chosen_modes(&game, spell), modes(&[2]));
+    assert_eq!(game.players[0].mana_pool.total(), 0);
+}
+
+/// Its three modes are offered as the seven sets of one or more, none
+/// holding a mode twice, and its mana value is its mana cost's whatever was
+/// chosen and paid.
+// RULING: Final Showdown #9 - "You can't choose the same mode more than once."
+// RULING: Final Showdown #10 - "The mana value of a spell with spree is determined only by its mana cost (in the upper right corner of the card). It doesn't matter which modes you choose or which additional costs you pay, including any additional costs imposed by other effects."
+#[test]
+fn final_showdown_offers_each_mode_once_and_keeps_mana_value_one() {
+    let mut game = setup_two_player_game();
+    let spell = put_in_hand(&mut game, final_showdown(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 8);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[1, 2, 3]);
+    let (showing, shown) = Showing::new(answers);
+    game.cast_spell(0, spell, &ManaWindowStop::new(showing)).expect("castable with every mode");
+
+    assert_eq!(
+        shown.mode_offers(&game),
+        [["mode 1", "mode 2", "mode 3", "modes 1, 2", "modes 1, 3", "modes 2, 3", "modes 1, 2, 3"]],
+        "every set of one or more, each mode once"
+    );
+    let chars = compute_characteristics(&game, spell).expect("on the stack");
+    assert_eq!(chars.mana_cost.as_ref().map(ManaCost::mana_value), Some(1));
+}
+
+/// Its wipe destroys the Mourning Engine, whose dies trigger waits until the
+/// spell has finished resolving.
+// RULING: Final Showdown #11 - "No player can cast spells or activate abilities in between the modes of a resolving spell. Any abilities that trigger won't be put onto the stack until the spell is done resolving."
+#[test]
+fn final_showdown_finishes_before_a_trigger_from_its_wipe_is_placed() {
+    let mut game = setup_two_player_game();
+    let engine = put_on_battlefield(&mut game, mourning_engine(), 1);
+    let spell = put_in_hand(&mut game, final_showdown(), 0);
+    game.players[0].mana_pool.add(ManaType::White, 6);
+    let answers = ScriptedDecisionProvider::new();
+    chooses_modes(&answers, &[3]);
+    game.cast_spell(0, spell, &ManaWindowStop::new(answers)).expect("castable");
+    game.resolve_top_of_stack(&test_dp()).expect("it resolves");
+
+    assert_eq!(game.objects[&engine].zone, Zone::Graveyard);
+    assert!(game.stack.is_empty() && game.pending_triggers.len() == 1, "the dies trigger waited for the spell to finish");
 }
 
 /// Walk `game` to `player`'s next upkeep, where its "beginning of your
