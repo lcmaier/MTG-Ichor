@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    at_beginning_of, choose_card_type, chosen_by, each_player, of_the_chosen_card_type, put_counters, sacrifice, shuffles_their_library,
+    at_beginning_of, card_type, choose_card_type, chosen_by, each_player, put_counters, sacrifice, shuffles_their_library, the_chosen_card_type,
     this_object, triggered_ability, whenever, win_the_game, you, you_have, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -148,7 +148,7 @@ pub fn world_queller() -> Arc<CardData> {
     let each_sacrifices_one_of_the_type = sacrifice(chosen_by(Choice {
         chooser: each_player(),
         among: ChoiceScope::ChoosersPermanents,
-        picks: vec![Pick::exactly(1, of_the_chosen_card_type())],
+        picks: vec![Pick::exactly(1, card_type(the_chosen_card_type()))],
         acts_on: ChoiceSide::Chosen,
     }));
     CardDataBuilder::new("World Queller")

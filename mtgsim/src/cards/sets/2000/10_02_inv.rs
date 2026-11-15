@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    cant_for, choose_color, color, creature, destroy, draw_cards, each, land, non, of_the_chosen_color, return_to_hand, scry, spell_ability,
+    cant_for, choose_color, color, creature, destroy, draw_cards, each, land, non, return_to_hand, scry, spell_ability, the_chosen_color,
     target_permanent, that_target, you,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -127,6 +127,6 @@ pub fn wash_out() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Sorcery)
         .rules_text(text)
-        .ability(spell_ability(text, Effect::Sequence(vec![choose_color(you()), return_to_hand(each(of_the_chosen_color()))])))
+        .ability(spell_ability(text, Effect::Sequence(vec![choose_color(you()), return_to_hand(each(color(the_chosen_color())))])))
         .build()
 }

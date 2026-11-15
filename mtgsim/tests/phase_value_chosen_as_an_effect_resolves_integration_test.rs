@@ -9,7 +9,8 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
     choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, creature, destroy, draw_cards,
-    exile, lose_life, of_the_chosen_card_type, of_the_chosen_color, of_the_chosen_creature_type, power_at_least, power_at_most,
+    card_type, color, creature_type, exile, lose_life, power_at_least, power_at_most, the_chosen_card_type, the_chosen_color,
+    the_chosen_creature_type,
     return_to_the_battlefield, spell_ability, tap, target_creature, target_opponent, the_chosen_number, the_chosen_objects, the_chosen_player,
     the_target, toughness_at_least, toughness_at_most, you, you_control,
 };
@@ -649,7 +650,7 @@ fn a_card_type_is_chosen_from_the_few_the_text_prints() {
 
 /// "Each permanent of the chosen card type".
 fn each_of_the_chosen_card_type() -> EffectRecipient {
-    EffectRecipient::FilteredPermanents(of_the_chosen_card_type())
+    EffectRecipient::FilteredPermanents(card_type(the_chosen_card_type()))
 }
 
 /// A choice reads a value chosen before it: "choose a color, then a
@@ -660,7 +661,7 @@ fn a_choice_of_objects_is_among_what_an_earlier_choice_describes() {
     let text = "Choose a color. Choose a creature of that color. Destroy it.";
     let effect = Effect::Sequence(vec![
         choose_color(you()),
-        choose_objects(you(), creature().and(of_the_chosen_color()), TargetCount::Exactly(1)),
+        choose_objects(you(), creature().and(color(the_chosen_color())), TargetCount::Exactly(1)),
         destroy(the_chosen_objects()),
     ]);
     let mut game = setup_two_player_game();
@@ -682,7 +683,7 @@ fn a_choice_of_objects_is_among_what_an_earlier_choice_describes() {
 #[test]
 fn a_count_reads_the_creature_type_chosen() {
     let text = "Choose a creature type. Draw a card for each permanent you control of that type.";
-    let of_that_type = ObjectSet::battlefield_filter(of_the_chosen_creature_type().and(you_control()));
+    let of_that_type = ObjectSet::battlefield_filter(creature_type(the_chosen_creature_type()).and(you_control()));
     let effect = Effect::Sequence(vec![choose_creature_type(you()), draw_cards(you(), AmountExpr::CountOf(of_that_type))]);
     let mut game = stocked(2);
     for seat in [0, 0, 1] {
@@ -750,7 +751,7 @@ fn a_filter_naming_a_choice_never_made_describes_nothing() {
     for leaves in [true, false] {
         let effect = Effect::Sequence(vec![
             choose_creature_type(target_opponent()),
-            destroy(EffectRecipient::FilteredPermanents(creature().other_than(of_the_chosen_creature_type()))),
+            destroy(EffectRecipient::FilteredPermanents(creature().other_than(creature_type(the_chosen_creature_type())))),
             tap(target_creature()),
         ]);
         let mut game = setup_game(3);

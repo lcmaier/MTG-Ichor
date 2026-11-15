@@ -49,7 +49,7 @@ pub use modes::{
 };
 pub use recipients::{
     an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, color,
-    of_the_chosen_card_type, of_the_chosen_color, of_the_chosen_creature_type, one_of_the_chosen,
+    card_type, creature_type, one_of_the_chosen, the_chosen_card_type, the_chosen_color, the_chosen_creature_type, PrintedOrChosen,
     creature, creatures_you_control, divided, divided_among_targeted, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
     nonlegendary_creature, other_than_this, planeswalker, power_at_least, power_at_most, referred, target, target_creature, target_opponent,
     target_permanent, target_player, target_spell, targets, that_player, that_target, the_chosen_number, the_chosen_objects, the_chosen_player,

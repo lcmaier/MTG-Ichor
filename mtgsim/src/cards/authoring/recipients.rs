@@ -4,7 +4,7 @@
 //! recipient word takes. A recipient pairs with every verb in
 //! [`super::instructions`], so a new one works with all of them at once.
 
-use crate::types::card_types::{CardType, Subtype, Supertype};
+use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, Antecedent, Choice, ChoiceName, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef,
@@ -181,11 +181,11 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
 // What a choose step before this one chose (CR 608.2d)
 // ---------------------------------------------------------------------------
 //
-// One word for each thing a later step can read, each written where its kind
-// of thing goes: a player or objects as what a verb acts on, a color or a type
-// inside a filter, a number as an amount. The step that chose it is
-// `super::instructions::choose_player`, `choose_objects`, `choose_color` and
-// their siblings.
+// One word for each thing a later step can read, each written where that kind
+// of thing goes: a player or objects as what a verb acts on, a number as an
+// amount, a color or a type wherever the card could print one. The step that
+// chose it is `super::instructions::choose_player`, `choose_objects`,
+// `choose_color` and their siblings.
 
 /// "That player", "the chosen player": the player chosen, while they are in
 /// the game.
@@ -200,20 +200,40 @@ pub fn the_chosen_objects() -> EffectRecipient {
     EffectRecipient::ChosenAs(ChoiceName::Objects)
 }
 
-/// "Of the chosen color", in a filter: Wash Out's "permanents of the color
-/// of your choice" is `each(of_the_chosen_color())`.
-pub fn of_the_chosen_color() -> ObjectFilter {
-    ObjectFilter::ChosenAs(ChoiceName::Color)
+/// "The chosen color", where a card could print a color: Wash Out's
+/// "permanents of the color of your choice" is
+/// `each(color(the_chosen_color()))`, as "red permanents" is
+/// `each(color(Color::Red))`.
+pub fn the_chosen_color() -> PrintedOrChosen<Color> {
+    PrintedOrChosen::Chosen
 }
 
-/// "Of the chosen type" after "choose a creature type", in a filter.
-pub fn of_the_chosen_creature_type() -> ObjectFilter {
-    ObjectFilter::ChosenAs(ChoiceName::CreatureType)
+/// "The chosen creature type", where a card could print one: Kindred
+/// Dominance's "creatures that aren't of the chosen type" is
+/// `creature().other_than(creature_type(the_chosen_creature_type()))`.
+pub fn the_chosen_creature_type() -> PrintedOrChosen<CreatureType> {
+    PrintedOrChosen::Chosen
 }
 
-/// "Of the chosen type" after "choose a card type", in a filter.
-pub fn of_the_chosen_card_type() -> ObjectFilter {
-    ObjectFilter::ChosenAs(ChoiceName::CardType)
+/// "The chosen card type", where a card could print one: World Queller's
+/// "a permanent of their choice of that type" picks among
+/// `card_type(the_chosen_card_type())`.
+pub fn the_chosen_card_type() -> PrintedOrChosen<CardType> {
+    PrintedOrChosen::Chosen
+}
+
+/// A color or a type as a card names it: the one it prints, or the one a
+/// choose step before this step chose. Each filter word for a quality takes
+/// either, as an amount takes a number or "the chosen number".
+pub enum PrintedOrChosen<T> {
+    Printed(T),
+    Chosen,
+}
+
+impl<T> From<T> for PrintedOrChosen<T> {
+    fn from(printed: T) -> Self {
+        PrintedOrChosen::Printed(printed)
+    }
 }
 
 /// "One of the chosen objects", in a filter: Duneblast's "destroy the rest"
@@ -266,9 +286,30 @@ pub fn non(filter: ObjectFilter) -> ObjectFilter {
 }
 
 /// "Black", "red source" (CR 105.2): an object that is `which`, among any
-/// others it is.
-pub fn color(which: Color) -> ObjectFilter {
-    ObjectFilter::ByColor(which)
+/// others it is; or of the color a choose step chose.
+pub fn color(which: impl Into<PrintedOrChosen<Color>>) -> ObjectFilter {
+    match which.into() {
+        PrintedOrChosen::Printed(color) => ObjectFilter::ByColor(color),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceName::Color),
+    }
+}
+
+/// "Elf", "Goblin" (CR 205.3m): an object of the creature type, or of the
+/// creature type a choose step chose.
+pub fn creature_type(which: impl Into<PrintedOrChosen<CreatureType>>) -> ObjectFilter {
+    match which.into() {
+        PrintedOrChosen::Printed(creature_type) => ObjectFilter::BySubtype(Subtype::Creature(creature_type)),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceName::CreatureType),
+    }
+}
+
+/// "Artifact", "enchantment" (CR 205.2a): an object of the card type, or of
+/// the card type a choose step chose.
+pub fn card_type(which: impl Into<PrintedOrChosen<CardType>>) -> ObjectFilter {
+    match which.into() {
+        PrintedOrChosen::Printed(card_type) => ObjectFilter::ByType(card_type),
+        PrintedOrChosen::Chosen => ObjectFilter::ChosenAs(ChoiceName::CardType),
+    }
 }
 
 /// "You control" (CR 110.2), read against the effect's controller (CR

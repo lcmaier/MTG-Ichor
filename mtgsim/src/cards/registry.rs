@@ -2046,8 +2046,8 @@ mod instance_references {
     #[test]
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
-            choose_color, choose_number, choose_objects, choose_one, creature, destroy, draw_cards, each, gains_ability, of_the_chosen_color,
-            spell_ability, the_chosen_number, the_chosen_objects, you,
+            choose_color, choose_number, choose_objects, choose_one, color, creature, destroy, draw_cards, each, gains_ability, spell_ability,
+            the_chosen_color, the_chosen_number, the_chosen_objects, you,
         };
         use crate::types::effects::{ChoiceName, ChosenHow, PlayerRef, Primitive, SelectionFilter, TargetCount, ValueChoice};
 
@@ -2070,7 +2070,7 @@ mod instance_references {
             "a color kept, and a number read"
         );
         assert_eq!(
-            problems(Effect::Sequence(vec![choose_number(you(), 0, 3), destroy(each(creature().and(of_the_chosen_color())))])).len(),
+            problems(Effect::Sequence(vec![choose_number(you(), 0, 3), destroy(each(creature().and(color(the_chosen_color()))))])).len(),
             1,
             "a read inside a filter is seen"
         );

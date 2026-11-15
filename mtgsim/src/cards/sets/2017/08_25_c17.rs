@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::cards::authoring::{
     choose_creature_type, choose_each_targeting_a_different_player, chosen_by, creature, destroy, dies, discard, draw_cards, each, lose_life,
-    of_the_chosen_creature_type, sacrifice, spell_ability, static_replacement, target_opponent, triggered_ability, whenever, you,
+    creature_type, sacrifice, spell_ability, static_replacement, target_opponent, the_chosen_creature_type, triggered_ability, whenever, you,
     you_and_that_player,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
@@ -121,7 +121,7 @@ pub fn kindred_dominance() -> Arc<CardData> {
         .rules_text(text)
         .ability(spell_ability(
             text,
-            Effect::Sequence(vec![choose_creature_type(you()), destroy(each(creature().other_than(of_the_chosen_creature_type())))]),
+            Effect::Sequence(vec![choose_creature_type(you()), destroy(each(creature().other_than(creature_type(the_chosen_creature_type()))))]),
         ))
         .build()
 }
