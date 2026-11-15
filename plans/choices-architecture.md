@@ -1396,7 +1396,8 @@ card can use as the effect resolves, items 425, 426 and 292, most of item 394. T
 - **How a step reads it**: `EffectRecipient::ChosenAs` (objects by existence, CR 400.7, with
   shares for a verb that reads one), `AmountExpr::ChosenAs`, and `ObjectFilter::ChosenAs`, written
   into the filter just before the resolution matches it (`filter_as_read_now`). The filter table
-  refuses a name nobody read.
+  refuses a name nobody read. A card writes one word per kind (`the_chosen_player()`,
+  `of_the_chosen_color()`, `the_chosen_number()` and the rest), so a wrong kind does not compile.
 - **A choice never made** leaves nothing under the name: a verb acts on nothing and a filter
   describes no object (CR 608.2b); an amount or a player word errs (item 435).
 - **One filter for a number compared**: `ObjectFilter::WithValue { of, is }`, `PowerLE` folded in.
@@ -1405,12 +1406,15 @@ card can use as the effect resolves, items 425, 426 and 292, most of item 394. T
 - **A player verb with no player does nothing** (`player_acted_on`; CR 608.2b, 800.4a).
 - **The kinds**: `ChoosePlayer` (widened from `ChooseOpponent`), `ChooseColor`,
   `ChooseCreatureType`, `ChooseCardType`, `ChooseNumber`.
-- **The registry's checks**: where a kept name is read, what it holds and who chooses, each with
-  a test that it refuses.
-- **The cards**: Expel the Interlopers (pooled, 128 → 129); ten castable fixtures.
+- **The registry's checks**: a read comes after the choose step it reads, and a chooser can name
+  a player, each with a test that it refuses.
+- **The cards**: Expel the Interlopers (pooled, 128 → 129); Wash Out, Kindred Dominance, World
+  Queller, Duneblast, The Nipton Lottery, By Invitation Only and Combat Tutorial registered; four
+  invented castable fixtures for what no printed card's whole text gives.
 
 Where it differs from the note's words: a choose word takes its chooser first
-(`choose_number(you(), 0, 10)`); three fixtures are invented cards; a divided choice is kept as
+(`choose_number(you(), 0, 10)`); the note's fixtures modeled on printed cards are those cards,
+registered (the owner, at #330's review); a divided choice is kept as
 pairs and its verb prints the total; "at random" is a player or objects only; `Effect::Remember`
 does not see a choose step (item 428). Filed: items 428 to 437, and a line on item 396.
 

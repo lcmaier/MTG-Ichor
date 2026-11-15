@@ -269,21 +269,35 @@ growth ×3.94 to ×4.03; the copy check names nothing new. The release tests pas
 checked fixture sitting at two seats, now ten new fixtures with By Invitation Only's, reads 0
 errors and 0 panics. 175 s.
 
-**§3, shipped, 50 games at seed 12345**, the new baseline:
+**Rerun at the owner's review (2026-11-15)**, against **base** `070e0470`, the reviewed tree above:
+**round7** `02d32f76`, one word per kind of kept choice, the registry's check on order alone, four
+renames, and seven printed cards registered from what had been fixtures (Wash Out, Kindred
+Dominance, World Queller, Duneblast, The Nipton Lottery, By Invitation Only, Combat Tutorial),
+none pooled. Predicted, before either arm ran: the performance pool `IDENTICAL` at both seats,
+since no pooled card changes and the words build the same effects; the stress pool moves with the
+seven cards.
+
+Performance **IDENTICAL** at both seats; stress differs, as predicted. Audit agreed (176,224 /
+182,557 at two seats, 449,073 / 491,435 at four); instructions a decision 0.5072 M → 0.5069 M,
+**-0.07%**; growth ×3.94 to ×4.03; the copy check names nothing new. The release tests pass, and
+the checked stress and fixture sittings at two seats read 0 errors and 0 panics. The §3 stress
+column below is this arm's. 189 s.
+
+**§3, 50 games at seed 12345**, the new baseline: performance the shipped arm's, stress round7's:
 
 | | performance | stress |
 |---|---:|---:|
-| Wins by seat | 21 / 28 | 25 / 25 |
-| Wins by effect | 1 | 0 |
-| Avg turns | 28.2 | 25.3 |
-| Spells cast | 22.4 | 19.8 |
-| Creatures died | 7.7 | 4.4 |
-| Total damage | 67.4 | 45.6 |
-| **Layer walks** | **355** | **356** |
-| **Memo hits** | **52,366** | **50,732** |
-| **Frames/walk** | **12.01** | **10.57** |
-| **Dependency checks** | **12** | **5** |
-| Decisions | 200 | 215 |
+| Wins by seat | 21 / 28 | 28 / 21 |
+| Wins by effect | 1 | 1 |
+| Avg turns | 28.2 | 26.7 |
+| Spells cast | 22.4 | 18.7 |
+| Creatures died | 7.7 | 4.3 |
+| Total damage | 67.4 | 41.8 |
+| **Layer walks** | **355** | **373** |
+| **Memo hits** | **52,366** | **65,302** |
+| **Frames/walk** | **12.01** | **12.18** |
+| **Dependency checks** | **12** | **6** |
+| Decisions | 200 | 245 |
 
 **Re-recorded 2026-11-14 for `sweep-order`, a battlefield sweep walks the table in id order**
 (`design/sweep-order`, PR #328, a detour at the owner's word from #326's review). No card moves and no

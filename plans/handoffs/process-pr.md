@@ -95,7 +95,38 @@ to change that client. #326's review turned down "a provider answers by index"
 for the battlefield's sort, and #328 turned down "a save reloads alike". A
 sentence on the practices page, beside the client guard.
 
+**A printed card's whole text is a card, never a fixture** (the owner, at
+#330's review, 2026-11-15). A fixture is a half-card or an invented card; a
+printed card written out whole is registered in its first printing's set,
+with its rulings, never filed as "<Card> Fixture". `cards/fixtures/mod.rs`'s
+module doc and `engineering-practices.md#cards-and-pools` say a fixture shaped
+like a printed card takes its name with "Fixture" after it, which allowed it:
+both say the rule instead. With it, the 26 fixtures that carry a printed
+card's name (Remedy Fixture, Elven Rite Fixture, Rolling Thunder Fixture and
+23 more, counted at #330) are each read against their card, and a whole-text
+one is registered in its set. #330 registered its own seven.
+
+**The board fails a Sizing row whose work has landed and whose State cell is
+empty** (raised at #330's review, 2026-11-15). Seven rows of steps 1 to 5
+stayed empty after they landed (`route-review`, readiness, and five more),
+and nothing noticed: the board reads an empty cell as "not landed". A row
+whose name has a ✅ heading in an architecture doc, or whose PR has merged,
+and whose cell is empty, fails `check_state_of_play.py --check`.
+
 ## Open, for the owner
+
+**Ruling tests beside their cards** (the owner's idea, at #330's review,
+2026-11-15): a ruling's test where its card is, so a card's text, its
+rulings and their boards are read in one place. 270 `// RULING:` annotations
+sit in about 60 test files today, filed by the phase that wrote them. Two
+shapes: a `mtgsim/tests/rulings/` file per set, mirroring
+`mtgsim/src/cards/sets/` (integration tests, the public API, as now); or a
+`#[cfg(test)] mod rulings` at the foot of each set file (unit tests, which
+reach `pub(crate)` items, and the set files grow). `check_rulings.py` reads
+annotations wherever they are, so either is a move with no gate change. A
+move of 270 tests is a PR of its own; a card registered after the decision
+puts its ruling tests there from the start.
+
 
 **Should the mana pool join the write gate's fields?** Raised at
 `mana-provenance`'s design (2026-11-13). `check_invariants.py`'s `EVENT_FIELDS`
