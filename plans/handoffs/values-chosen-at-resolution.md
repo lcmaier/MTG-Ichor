@@ -24,7 +24,10 @@ deletes it. Every count and line below was read against `7f0e97ef`.
   choice is a choose step. The owner asked why a name is text and not an
   enum, and decision 1 proposed an enum for the name's type.
 - **At the fourth round (2026-11-15), the name is an enum** (the owner).
-  Decision 3 is open.
+- **At the fifth round (2026-11-15), decision 3 is settled: A**, looked up
+  where the step runs. Every decision is taken but one spelling inside it:
+  the number comparison as one leaf or as an at-least and at-most pair,
+  which the owner is deciding on how each reads.
 
 ## The model: choose, keep, use
 
@@ -496,9 +499,10 @@ everything downstream gets a plain value:
   resolution's reads, and the other askers a refusal. *Upkeep*: every asker
   of the table learns about choices in order to refuse them.
 
-**Recommendation: A.** The first draft priced A as a rewrite of every
-instruction; that was wrong. Only a filter needs writing into, because only
-a filter is handed to code the resolution does not own.
+**Settled: A** (the owner, at #330's fifth review round, 2026-11-15). The
+first draft priced A as a rewrite of every instruction; that was wrong. Only
+a filter needs writing into, because only a filter is handed to code the
+resolution does not own.
 
 **Why `TextReferents` exists**, since the first draft leaned on it. A
 filter is stored as the card wrote it: "creatures you control", "another
