@@ -496,7 +496,7 @@ fn test_containment_priest_ignores_tokens() {
     let create = GameAction::CreateTokens { defs: vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&test_dp())).unwrap();
 
-    let tokens = game.battlefield_ids_ordered().into_iter().filter(|id| game.objects[id].is_token).count();
+    let tokens = game.battlefield_ids().into_iter().filter(|id| game.objects[id].is_token).count();
     assert_eq!(tokens, 1);
 }
 

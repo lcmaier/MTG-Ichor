@@ -252,8 +252,8 @@ pub fn controls(game: &GameState, id: ObjectId, player: PlayerId) -> bool {
 /// `None` only when `id` is not in the object store, which means it does not
 /// exist. **Callers keep their own policy for that**, and they differ on
 /// purpose: `chooser_for` propagates it so CR 616.1 can report having nobody to
-/// ask, while the two sweeps take `0` because they are walking
-/// `battlefield_ids_ordered` and CR 110.2 gives every permanent a controller —
+/// ask, while the two sweeps take `0` because they are walking the
+/// battlefield and CR 110.2 gives every permanent a controller —
 /// the value is unreachable there rather than a default.
 pub fn controller_or_owner(game: &GameState, id: ObjectId) -> Option<PlayerId> {
     get_effective_controller(game, id).or_else(|| game.objects.get(&id).map(|obj| obj.owner))

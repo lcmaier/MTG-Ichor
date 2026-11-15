@@ -608,7 +608,7 @@ fn test_a_tokens_entry_gathers_its_own_ability() {
     let create = GameAction::CreateTokens { defs: vec![definition], controller: 0, attacking: None };
     game.execute_action(create, &ActionContext::new(&test_dp())).expect("it performs");
 
-    let token = game.battlefield_ids_ordered()[0];
+    let token = game.battlefield_ids()[0];
     assert!(game.battlefield[&token].tapped, "its own ability was gathered and applied");
 }
 

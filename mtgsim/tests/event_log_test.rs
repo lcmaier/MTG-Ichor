@@ -466,7 +466,7 @@ fn hydra_with(counters: u32) -> (GameState, ObjectId) {
     let scenario = Scenario::parse(&text).unwrap_or_else(|refusal| panic!("{refusal}"));
     let mut game = scenario.build(&CardRegistry::default_registry()).unwrap_or_else(|refusal| panic!("{refusal}")).game.state;
     game.record_events();
-    let hydra = game.battlefield_ids_ordered()[0];
+    let hydra = game.battlefield_ids()[0];
     (game, hydra)
 }
 

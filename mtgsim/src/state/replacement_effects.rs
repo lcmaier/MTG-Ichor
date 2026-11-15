@@ -14,8 +14,7 @@
 //! - **No `Layer`, no timestamp ordering.** CR 616.1 orders by *player choice*,
 //!   not by timestamp, so there is no analogue of `effects_in_layer`. Insertion
 //!   order is preserved anyway, because it is the order the CR 616.1 prompt
-//!   offers candidates in and a `DecisionProvider` picks by index — the same
-//!   reason `battlefield_ids_ordered` exists.
+//!   offers candidates in.
 //! - **No per-layer existence re-check.** CR 604.2's re-check exists because a
 //!   layer walk asks the same question nine times. A replacement effect is asked
 //!   once, at the instant the event is proposed, which is exactly when CR 614.4

@@ -72,12 +72,13 @@ fn token_of_type(card_type: CardType) -> TokenDef {
     TokenDef { colors: Vec::new(), types: vec![card_type], subtypes: Vec::new(), power: None, toughness: None, ..goblin() }
 }
 
-/// The tokens `owner` owns, whoever controls them, oldest first.
+/// The tokens `owner` owns, whoever controls them, oldest first (CR 613.7d,
+/// 613.7m), which is not the sweep's id order.
 fn tokens_owned_by(game: &GameState, owner: PlayerId) -> Vec<ObjectId> {
-    game.battlefield_ids_ordered()
-        .into_iter()
-        .filter(|id| game.objects[id].is_token && game.objects[id].owner == owner)
-        .collect()
+    let mut tokens: Vec<ObjectId> =
+        game.battlefield.keys().filter(|id| game.objects[id].is_token && game.objects[id].owner == owner).collect();
+    tokens.sort_by_key(|&id| game.object_timestamp(id));
+    tokens
 }
 
 fn plus_one_counters(game: &GameState, tokens: &[ObjectId]) -> Vec<u32> {

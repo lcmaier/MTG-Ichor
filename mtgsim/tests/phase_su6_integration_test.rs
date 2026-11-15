@@ -36,7 +36,7 @@ fn built(text: &str) -> GameState {
 }
 
 fn on_battlefield(game: &GameState, name: &str) -> ObjectId {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .find(|id| game.objects[id].card_data.name == name)
         .unwrap_or_else(|| panic!("no {name} on the battlefield"))

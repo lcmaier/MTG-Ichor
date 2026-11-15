@@ -149,7 +149,7 @@ fn a_soldier_token_dies_and_ceases_to_exist_in_one_cycle() {
     game.record_events();
     resolve_spell(&mut game, raise_the_alarm(), 0);
     let token = game
-        .battlefield_ids_ordered()
+        .battlefield_ids()
         .into_iter()
         .find(|id| game.objects.get(id).is_some_and(|o| o.is_token))
         .expect("two Soldiers");

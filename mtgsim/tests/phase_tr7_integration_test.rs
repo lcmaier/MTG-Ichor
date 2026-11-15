@@ -412,7 +412,7 @@ fn two_players_scarecrows_return_the_nonactive_players_first() {
     game.execute_actions(vec![GameAction::Destroy { object: actives }, GameAction::Destroy { object: nonactives }], &effect_ctx(&game, by))
         .unwrap();
     resolve_all(&mut game, &test_dp());
-    let arrived = |id: ObjectId| game.battlefield.get(&id).map(|entry| entry.timestamp).expect("returned");
+    let arrived = |id: ObjectId| game.battlefield.get(&id).map(|_| game.object_timestamp(id)).expect("returned");
     assert!(arrived(nonactives) < arrived(actives), "one at a time, the nonactive player's first");
 }
 

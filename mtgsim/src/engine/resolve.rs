@@ -733,7 +733,7 @@ impl GameState {
                         ));
                     }
                     EffectRecipient::FilteredPermanents(filter) => self
-                        .battlefield_ids_ordered()
+                        .battlefield_ids()
                         .into_iter()
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .map(ObjectOrPlayerId::Object)
@@ -1186,7 +1186,7 @@ impl GameState {
                 // untap, so the members reach a CR 616.1 prompt.
                 let ids: Vec<ObjectId> = match recipient {
                     EffectRecipient::FilteredPermanents(filter) => self
-                        .battlefield_ids_ordered()
+                        .battlefield_ids()
                         .into_iter()
                         .filter(|&id| self.matches_for_effect(id, filter, ctx))
                         .collect(),
@@ -1545,7 +1545,7 @@ impl GameState {
                              is what names the permanents, one row each (CR 615.11).",
                             ctx.source
                         );
-                        self.battlefield_ids_ordered()
+                        self.battlefield_ids()
                             .into_iter()
                             .filter(|id| self.matches_for_effect(*id, filter, ctx))
                             .map(fill_object)
@@ -2176,11 +2176,11 @@ impl GameState {
                 let Some(&donor) = self.collect_battlefield_targets(targets).first() else {
                     return Ok(());
                 };
-                // Ordered, because the row's `Fixed` set is read back by
-                // `battlefield_ids_ordered`'s consumers and reaches a log and a
-                // count. CR 613.7's timestamp order is the key either way.
+                // In the battlefield's id order, because the row's `Fixed` set
+                // is read back by the sweeps' consumers and reaches a log and a
+                // count.
                 let affected: Vec<ObjectId> = self
-                    .battlefield_ids_ordered()
+                    .battlefield_ids()
                     .into_iter()
                     .filter(|&id| !(*exclude_donor && id == donor))
                     .filter(|&id| self.matches_for_effect(id, filter, ctx))
@@ -2633,7 +2633,7 @@ impl GameState {
     ) -> Vec<ObjectId> {
         match recipient {
             EffectRecipient::FilteredPermanents(filter) => self
-                .battlefield_ids_ordered()
+                .battlefield_ids()
                 .into_iter()
                 .filter(|&id| self.matches_for_effect(id, filter, ctx))
                 .collect(),
@@ -2738,7 +2738,7 @@ impl GameState {
                     ObjectSet::Filter { filter, zones } if *zones == ZoneSet::BATTLEFIELD => filter,
                     other => return Err(format!("CountOf({other:?}) resolution not yet implemented")),
                 };
-                let counted = self.battlefield_ids_ordered().into_iter().filter(|&id| self.matches_for_effect(id, filter, _ctx));
+                let counted = self.battlefield_ids().into_iter().filter(|&id| self.matches_for_effect(id, filter, _ctx));
                 Ok(counted.count() as u64)
             }
             AmountExpr::CardTypesAmong(_set) => {

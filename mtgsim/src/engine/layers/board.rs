@@ -250,7 +250,7 @@ impl<'l> Board<'l> {
             #[cfg(debug_assertions)]
             HiddenCards::InPass => ZoneSet::EMPTY,
         };
-        let mut members = game.battlefield_ids_ordered();
+        let mut members = game.battlefield_ids();
         let battlefield_entities = members.len();
         let mut seen: IdSet<ObjectId> = members.iter().copied().collect();
         if let Some(l) = lookahead
@@ -394,12 +394,12 @@ impl<'l> Board<'l> {
         self.frames.contains_key(&id)
     }
 
-    /// The battlefield, in timestamp order, for a count over it.
+    /// The battlefield, in id order, for a count over it.
     pub(super) fn battlefield_ids(&self, game: &GameState) -> Vec<ObjectId> {
         if self.live {
             self.members[..self.battlefield_entities].to_vec()
         } else {
-            game.battlefield_ids_ordered()
+            game.battlefield_ids()
         }
     }
 

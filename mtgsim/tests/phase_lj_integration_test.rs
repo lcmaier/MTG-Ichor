@@ -289,14 +289,14 @@ fn test_a_graveyard_member_is_invisible_to_a_battlefield_count() {
 
     put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     put_on_battlefield(&mut game, yixlid_jailer(), 1);
-    let before = game.battlefield_ids_ordered().len();
+    let before = game.battlefield_ids().len();
 
     for _ in 0..4 {
         put_in_graveyard(&mut game, scarwood_treefolk(), 0);
     }
 
     assert_eq!(
-        game.battlefield_ids_ordered().len(),
+        game.battlefield_ids().len(),
         before,
         "four new members of the working set, and none of them is on the battlefield"
     );

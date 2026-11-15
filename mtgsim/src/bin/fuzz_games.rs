@@ -1618,7 +1618,7 @@ fn ladder_goblins(permanents: usize) -> Vec<TokenDef> {
 }
 
 /// `permanents` on the board `shape` names, and the creatures a step acts on,
-/// oldest first. Each seat's first is the one carrying `seat_card`.
+/// in id order. Each seat's first is the one carrying `seat_card`.
 fn ladder_board(shape: LadderShape, permanents: usize, dp: &dyn DecisionProvider) -> Result<(GameState, Vec<ObjectId>), String> {
     let mut state = GameState::new(LADDER_SEATS, LADDER_LIFE);
     let by_the_harness = ActionContext { dp, cause: EventCause::Harness };
@@ -1634,7 +1634,7 @@ fn ladder_board(shape: LadderShape, permanents: usize, dp: &dyn DecisionProvider
         }
         state.execute_action(GameAction::CreateTokens { defs, controller, attacking: None }, &by_the_harness)?;
     }
-    let creatures = state.battlefield_ids_ordered();
+    let creatures = state.battlefield_ids();
     if shape == LadderShape::Counters {
         let counter = CounterType::PlusOnePlusOne;
         let put_on = |&id| GameAction::AddCounters { subject: ObjectOrPlayerId::Object(id), counter, n: 1, by: 0 };
@@ -2359,7 +2359,7 @@ mod ladder_tests {
         let carriers = creatures.clone();
         ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
         assert_eq!(state.battlefield.len(), 104);
-        let countered = state.battlefield_ids_ordered().into_iter().filter(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 1);
+        let countered = state.battlefield_ids().into_iter().filter(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 1);
         assert_eq!(countered.count(), 100);
         assert!(carriers.iter().all(|id| state.battlefield[id].counter_count(CounterType::PlusOnePlusOne) == 0));
 
@@ -2370,7 +2370,7 @@ mod ladder_tests {
         let (mut state, mut creatures) = ladder_board(shape, 100, &dp).unwrap();
         ladder_step(&mut state, shape, 100, 0, &mut creatures, &dp).unwrap();
         assert_eq!(state.battlefield.len(), 104);
-        let copies = state.battlefield_ids_ordered().into_iter().filter(|id| state.battlefield[id].entered_as.copy.is_some());
+        let copies = state.battlefield_ids().into_iter().filter(|id| state.battlefield[id].entered_as.copy.is_some());
         assert_eq!(copies.count(), 100);
     }
 

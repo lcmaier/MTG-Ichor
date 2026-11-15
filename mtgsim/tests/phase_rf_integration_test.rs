@@ -55,7 +55,7 @@ fn stock(game: &mut GameState, player: PlayerId) -> Vec<ObjectId> {
 /// The facility, on the board that needs it: a card in **hand** whose static
 /// replacement ability functions there (CR 113.6b, "from anywhere").
 ///
-/// Before RF the gather swept `battlefield_ids_ordered` alone, so a discarded
+/// Before RF the gather swept the battlefield alone, so a discarded
 /// Colossus went to the graveyard like any other card. The rider is the other
 /// half of the instruction: the library it was put into is shuffled.
 #[test]

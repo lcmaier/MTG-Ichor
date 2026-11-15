@@ -215,7 +215,7 @@ fn an_amount_reads_a_history_count_in_a_layer() {
 fn loaded(history: &str) -> (mtgsim::state::game::Game, ObjectId) {
     let text = format!("turn 3\n{history}\nbattlefield: Grizzly Bears | controller 0");
     let game = Scenario::parse(&text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}")).game;
-    let bears = game.state.battlefield_ids_ordered()[0];
+    let bears = game.state.battlefield_ids()[0];
     (game, bears)
 }
 

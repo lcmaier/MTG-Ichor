@@ -101,7 +101,7 @@ fn each_verb_builds_the_stack_its_lines_describe() {
     for paid in ["Forest", "Merfolk Thaumaturgist"] {
         assert!(state.battlefield[&permanent(state, paid)].tapped, "{paid}");
     }
-    let mountains = state.battlefield_ordered().into_iter().filter(|(id, _)| state.objects[id].card_data.name == "Mountain").map(|(_, entry)| entry.tapped);
+    let mountains = state.battlefield.iter().filter(|(id, _)| state.objects[id].card_data.name == "Mountain").map(|(_, entry)| entry.tapped);
     assert_eq!(mountains.collect::<Vec<_>>(), [true, false], "one Mountain pays the first Bolt");
     // The seats' own from here: each is asked, and passing resolves the top.
     seats.expect_choice(ChoiceKind::PriorityAction, vec![ChoiceOption::Action(PriorityAction::Pass)]);

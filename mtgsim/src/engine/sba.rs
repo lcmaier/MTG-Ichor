@@ -299,8 +299,8 @@ impl GameState {
         // --- CR 704.3: one check, one event -------------------------------
         //
         // Every condition below reads *this* state, before any move performs.
-        // Ordered sweeps: the batch order is a CR 616.1 prompt's, and the
-        // graveyard is an ordered zone.
+        // Each sweep walks the battlefield in id order: the batch order is a
+        // CR 616.1 prompt's, and the graveyard is an ordered zone.
 
         // 704.5q — a permanent with both +1/+1 and -1/-1 counters loses N of
         // each, N the smaller count: two removals, a result each, so the
@@ -311,7 +311,7 @@ impl GameState {
         let annihilating_pairs = |permanent: &PermanentState| {
             permanent.counter_count(CounterType::PlusOnePlusOne).min(permanent.counter_count(CounterType::MinusOneMinusOne))
         };
-        for (id, permanent) in self.battlefield_ordered_where(|_, permanent| annihilating_pairs(permanent) > 0) {
+        for (id, permanent) in self.battlefield.iter().filter(|(_, permanent)| annihilating_pairs(permanent) > 0) {
             let pairs = annihilating_pairs(permanent);
             for counter in [CounterType::PlusOnePlusOne, CounterType::MinusOneMinusOne] {
                 let removal = GameAction::RemoveCounters { subject: ObjectOrPlayerId::Object(id), counter, n: pairs, by: None };
@@ -343,7 +343,7 @@ impl GameState {
         }
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
-        for (id, _) in self.battlefield_ordered_where(|id, _| is_creature(self, id) && get_effective_toughness(self, id).unwrap_or(0) <= 0) {
+        for id in self.battlefield.keys().filter(|&id| is_creature(self, id) && get_effective_toughness(self, id).unwrap_or(0) <= 0) {
             batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroToughness));
         }
 
@@ -365,7 +365,7 @@ impl GameState {
             // replacement effect watching `GameAction::Destroy`, which this proposal is.
             permanent.damage_marked >= effective_t as u32 || (permanent.damage_marked > 0 && dealt_deathtouch_damage.contains(&id))
         };
-        for (id, _) in self.battlefield_ordered_where(lethally_damaged) {
+        for (id, _) in self.battlefield.iter().filter(|&(id, permanent)| lethally_damaged(id, permanent)) {
             batch.push((sba_destroy(id), StateBasedAction::LethalDamage));
         }
 
@@ -373,7 +373,7 @@ impl GameState {
         let out_of_loyalty = |id: ObjectId, permanent: &PermanentState| {
             self.objects.contains_key(&id) && has_type(self, id, CardType::Planeswalker) && permanent.counter_count(CounterType::Loyalty) == 0
         };
-        for (id, _) in self.battlefield_ordered_where(out_of_loyalty) {
+        for (id, _) in self.battlefield.iter().filter(|&(id, permanent)| out_of_loyalty(id, permanent)) {
             batch.push((sba_put_into_graveyard(id), StateBasedAction::ZeroLoyalty));
         }
 
@@ -382,11 +382,11 @@ impl GameState {
         // rest are put into their owners' graveyards.
         {
             // Group legendary permanents by (controller, effective_name). `BTreeMap`
-            // over an ordered sweep, both deliberate: the controller is prompted once
+            // over the table's walk, both deliberate: the controller is prompted once
             // per group, so group order is decision order, and `ids` is the option
             // list they pick from by index.
             let mut legend_groups: BTreeMap<(usize, String), Vec<ObjectId>> = BTreeMap::new();
-            for (id, _) in self.battlefield_ordered_where(|id, _| self.objects.contains_key(&id) && has_supertype(self, id, Supertype::Legendary)) {
+            for id in self.battlefield.keys().filter(|&id| self.objects.contains_key(&id) && has_supertype(self, id, Supertype::Legendary)) {
                 let name = get_effective_name(self, id);
                 // CR 704.5j groups by controller, so it has to be the
                 // effective one: taking an opponent's copy of a legend
@@ -464,7 +464,7 @@ impl GameState {
                 }
             }
         };
-        for (id, _) in self.battlefield_ordered_where(aura_attached_illegally_or_not_at_all) {
+        for (id, _) in self.battlefield.iter().filter(|&(id, permanent)| aura_attached_illegally_or_not_at_all(id, permanent)) {
             batch.push((sba_put_into_graveyard(id), StateBasedAction::AuraAttachedIllegally));
         }
 
@@ -480,8 +480,7 @@ impl GameState {
         let mut not_an_attachment: Vec<(GameAction, StateBasedAction)> = Vec::new();
         // Only an attached permanent is asked: each question below computes a
         // characteristics frame, and almost no permanent is attached.
-        let attached = self.battlefield_ordered_where(|_, permanent| permanent.attached_to.is_some());
-        for (id, host) in attached.into_iter().filter_map(|(id, permanent)| Some((id, permanent.attached_to?))) {
+        for (id, host) in self.battlefield.iter().filter_map(|(id, permanent)| Some((id, permanent.attached_to?))) {
             let member = GameAction::Unattach { attachment: id };
             // Effective types, never printed: the rule is about what a
             // continuous effect made the permanent.

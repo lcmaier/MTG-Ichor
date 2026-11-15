@@ -113,8 +113,8 @@ impl GameState {
             // not pick. One block per blocker (CR 509.1) is a property of the set,
             // so `validate_blockers` and the re-ask below enforce it.
             let blocker_ids = legal_blockers(self, defender);
-            let attackers_in_combat: Vec<ObjectId> = self.battlefield_ordered()
-                .into_iter()
+            let attackers_in_combat: Vec<ObjectId> = self.battlefield
+                .iter()
                 .filter_map(|(id, e)| e.attacking.as_ref().map(|_| id))
                 .collect();
             let legal_block_pairs: Vec<(ObjectId, ObjectId)> = blocker_ids
@@ -182,8 +182,8 @@ impl GameState {
         // CR 509.1h: an attacking creature no creature was declared blocking is
         // unblocked, whether it was declared or entered attacking (CR 509.3g).
         let unblocked: Vec<ObjectRef> = self
-            .battlefield_ordered()
-            .into_iter()
+            .battlefield
+            .iter()
             .filter(|(_, e)| e.attacking.as_ref().is_some_and(|info| !info.is_blocked))
             .map(|(id, _)| self.existence_for_record(id))
             .collect::<Result<_, String>>()?;
@@ -202,18 +202,9 @@ impl GameState {
     /// CR 510.4: whether an attacking or blocking creature has first strike or
     /// double strike, which is what gives combat a first-strike damage step.
     pub(crate) fn a_combatant_strikes_first(&self) -> bool {
-        // Ordered, not `battlefield.values()`: the *answer* is order-independent,
-        // but every `has_keyword` is a layer walk and `state/diagnostics.rs`
-        // records those as a fixture, so a short circuit over a `HashMap` that
-        // stops after a different number of walks in every process is a fixture
-        // that wobbles.
-        self.battlefield_ids_ordered().into_iter().any(|id| {
-            let in_combat = self
-                .battlefield
-                .get(&id)
-                .is_some_and(|e| e.attacking.is_some() || e.blocking.is_some());
-            in_combat && has_first_or_double_strike(self, id)
-        })
+        self.battlefield
+            .iter()
+            .any(|(id, e)| (e.attacking.is_some() || e.blocking.is_some()) && has_first_or_double_strike(self, id))
     }
 
     /// Combat damage turn-based action (rule 510).
@@ -245,10 +236,8 @@ impl GameState {
         self.apply_combat_damage(assignments, &actx)?;
 
         if first_strike_only {
-            // Ordered although they go into a set: `has_keyword` walks the
-            // layers, and a walk writes a trace record. Collected first to
-            // avoid a borrow conflict.
-            let fs_ids: Vec<ObjectId> = self.battlefield_ordered().into_iter()
+            // Collected first to avoid a borrow conflict.
+            let fs_ids: Vec<ObjectId> = self.battlefield.iter()
                 .filter(|(id, e)| {
                     (e.attacking.is_some() || e.blocking.is_some()) && has_first_or_double_strike(self, *id)
                 })
@@ -283,7 +272,7 @@ impl GameState {
     /// (CR 802.4).
     fn get_defending_players(&self) -> Vec<PlayerId> {
         let mut defenders = Vec::new();
-        for (_id, entry) in self.battlefield_ordered() {
+        for (_id, entry) in self.battlefield.iter() {
             if let Some(ref info) = entry.attacking
                 && let AttackTarget::Player(pid) = info.target
                 && !defenders.contains(&pid) {

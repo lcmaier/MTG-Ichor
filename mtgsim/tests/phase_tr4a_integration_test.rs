@@ -535,7 +535,7 @@ fn simultaneous_persist_or_undying_return_the_nonactive_players_creature_first()
         )
         .unwrap();
         resolve_all(&mut game, &test_dp());
-        let arrived = |id: ObjectId| game.battlefield.get(&id).map(|entry| entry.timestamp).expect("returned");
+        let arrived = |id: ObjectId| game.battlefield.get(&id).map(|_| game.object_timestamp(id)).expect("returned");
         assert!(arrived(nonactives) < arrived(actives), "{}: one at a time, the nonactive player's first", keyword.name);
     }
 }

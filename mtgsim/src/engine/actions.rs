@@ -979,8 +979,8 @@ impl GameState {
     ///
     /// **Routing a sweep through here makes its order observable.** CR 616.1
     /// prompts when two effects want one event, so the order the batch is built
-    /// in is part of a decision — build it from `battlefield_ids_ordered`, never
-    /// from a raw `HashMap` walk.
+    /// in is part of a decision — build it from the battlefield table's walk,
+    /// in id order, never from a hash map's.
     /// Returns the events that were actually performed, in batch order.
     ///
     /// Not the proposals: a CR 614 replacement can modify an event or drop it
@@ -1569,8 +1569,8 @@ impl GameState {
     /// decides them: each member placed active-player-first by its CR 616.1
     /// chooser (CR 101.4's APNAP), then grouped by subject in that order.
     ///
-    /// Stable within a player, so a sweep that built its batch from
-    /// `battlefield_ids_ordered` keeps that order among its own members.
+    /// Stable within a player, so a sweep that built its batch from the
+    /// battlefield's walk keeps its id order among its own members.
     fn subject_groups(&self, mut members: Vec<BatchMember>) -> Vec<SubjectGroup> {
         use crate::engine::replacement::{chooser_for, subject_of};
 

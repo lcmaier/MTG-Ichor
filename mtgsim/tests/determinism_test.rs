@@ -12,9 +12,8 @@
 //! game — an `ObjectId` is stamped from `GameState`'s own counter, so two runs
 //! of one game name every object alike and their logs compare verbatim (until
 //! A4g, 2026-09-16, ids were v4 UUIDs and the id column had to be stripped
-//! first). And the *options* have to arrive in a fixed order —
-//! `GameState::battlefield` is a `HashMap`, and iterating it hands the AI
-//! whatever order its hasher gives, which is not the game's.
+//! first). And the *options* have to arrive in a fixed order: a hash map
+//! hands its walker whatever order its hasher gives, which is not the game's.
 //!
 //! The first two are directly testable here. The third is not testable
 //! end-to-end in one process: the id hasher is seeded once per process
@@ -22,15 +21,16 @@
 //! same order whether or not the sweeps are ordered. CI's determinism step is
 //! the end-to-end check — three `fuzz_games` runs at one seed under three
 //! hasher seeds, byte-identical outside `=== Timing ===` — and here it is
-//! tested at the mechanism instead: the ordered sweeps must come out in
-//! timestamp order, which a `HashMap` sweep would satisfy only by a 1-in-`n!`
-//! accident.
+//! tested at the mechanism instead: a battlefield sweep walks the object
+//! table in id order, which neither the hasher nor the order of arrival
+//! moves.
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::test_support::{put_on_battlefield, vanilla_creature};
+use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, vanilla_creature};
 use mtgsim::types::ids::ObjectId;
+use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::random::RandomDecisionProvider;
 
 /// Play one short game and return its event log, rendered.
@@ -98,59 +98,43 @@ fn test_different_seeds_still_diverge() {
     assert_ne!(a, b, "two different seeds produced identical games");
 }
 
+/// Eight creatures made in one order and put onto the battlefield in the
+/// other come out of every sweep that feeds a decision in the order they were
+/// made: the table's, not CR 613.7's.
 #[test]
-fn test_battlefield_sweeps_come_out_in_timestamp_order() {
-    let mut game = mtgsim::test_support::setup_two_player_game();
+fn test_battlefield_sweeps_come_out_in_id_order() {
+    let mut game = setup_two_player_game();
+    let made: Vec<ObjectId> = (0..8).map(|_| put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0)).collect();
+    for &creature in made.iter().rev() {
+        game.change_zone(creature, Zone::Battlefield, ZoneChangeAct::Put, &test_ctx()).unwrap();
+    }
+    assert!(game.object_timestamp(made[0]) > game.object_timestamp(made[7]), "the newest object entered first");
 
-    // Enough permanents that a `HashMap` sweep landing in timestamp order by
-    // chance is a 1-in-8! event.
-    let placed: Vec<ObjectId> = (0..8)
-        .map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0))
-        .collect();
-
-    let ordered: Vec<ObjectId> = game.battlefield_ordered().iter().map(|(id, _)| *id).collect();
-    assert_eq!(ordered, placed, "battlefield_ordered is not ETB order");
-    assert_eq!(game.battlefield_ids_ordered(), placed);
-
-    // The sweeps that feed a decision inherit that order.
-    assert_eq!(
-        mtgsim::oracle::board::permanents_controlled_by(&game, 0),
-        placed,
-    );
-    assert_eq!(mtgsim::oracle::legality::legal_blockers(&game, 0), placed);
+    assert_eq!(game.battlefield_ids(), made);
+    assert_eq!(mtgsim::oracle::board::permanents_controlled_by(&game, 0), made);
+    assert_eq!(mtgsim::oracle::legality::legal_blockers(&game, 0), made);
 }
 
 /// CR 613.7e gives an Equipment a new timestamp each time it becomes attached,
-/// and the ordered sweeps key on that same timestamp — so a reattached
-/// permanent moves to the end of every decision list. That is deterministic:
-/// the value comes from the one monotonic counter every run advances the same
-/// way, and it is the CR's own order. What this pins is that the move is
-/// exactly that and nothing more — the rest of the order is untouched, both
-/// accessors agree, and an attach to the host it is already on (CR 701.3b)
-/// moves nothing.
+/// and an attach to the host it is already on (CR 701.3b) gives it none. The
+/// sweep order is the table's, so neither moves the Equipment in it.
 #[test]
-fn test_a_reattachment_moves_only_the_attachment_to_the_end() {
-    let mut game = mtgsim::test_support::setup_two_player_game();
+fn test_a_reattachment_moves_only_the_attachments_timestamp() {
+    let mut game = setup_two_player_game();
     let equipment = put_on_battlefield(&mut game, mtgsim::test_support::equipment("Harness"), 0);
-    let placed: Vec<ObjectId> = (0..8)
-        .map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0))
-        .collect();
-    assert_eq!(game.battlefield_ids_ordered()[0], equipment, "the Equipment entered first");
+    let placed: Vec<ObjectId> = (0..8).map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0)).collect();
+    let swept = game.battlefield_ids();
     let stamped = game.object_timestamp(equipment);
 
     assert!(game.attach(equipment, placed[3]));
-    let mut expected = placed.clone();
-    expected.push(equipment);
-    assert!(game.object_timestamp(equipment) > stamped, "CR 613.7e moved its timestamp");
-    assert_eq!(game.battlefield_ids_ordered(), expected, "and only it moved, to the end");
-    assert_eq!(
-        game.battlefield_ordered().iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-        expected,
-    );
+    let attached = game.object_timestamp(equipment);
+    assert!(placed.iter().all(|&creature| game.object_timestamp(creature) < attached), "CR 613.7e: newer than every creature");
+    assert!(attached > stamped);
 
     assert!(!game.attach(equipment, placed[3]), "CR 701.3b: the same host is not an attach");
-    assert_eq!(game.battlefield_ids_ordered(), expected);
+    assert_eq!(game.object_timestamp(equipment), attached);
 
     assert!(game.attach(equipment, placed[5]));
-    assert_eq!(game.battlefield_ids_ordered(), expected, "already last; a second move is a no-op on the order");
+    assert!(game.object_timestamp(equipment) > attached, "a new host, a new timestamp");
+    assert_eq!(game.battlefield_ids(), swept, "and the sweep order never moved");
 }

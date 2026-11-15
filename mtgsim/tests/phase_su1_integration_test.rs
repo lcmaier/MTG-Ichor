@@ -29,7 +29,7 @@ fn refused(text: &str) -> ScenarioError {
 /// The permanents named `name`, oldest first.
 fn named(game: &Game, name: &str) -> Vec<ObjectId> {
     let state = &game.state;
-    state.battlefield_ids_ordered().into_iter().filter(|id| state.objects[id].card_data.name == name).collect()
+    state.battlefield_ids().into_iter().filter(|id| state.objects[id].card_data.name == name).collect()
 }
 
 fn one(game: &Game, name: &str) -> ObjectId {
@@ -234,7 +234,7 @@ fn a_turn_in_the_billions_reads_as_a_small_one() {
             counts.push([count(turn..=turn), count(turn - 1..=turn - 1), count(1..=u32::MAX)]);
             counts.extend((0..4).map(|q| [history.count(q, fact, history.since_your_last_turn(p, turn)), 0, 0]));
         }
-        let sick: Vec<bool> = game.state.battlefield_ids_ordered().into_iter().map(|id| has_summoning_sickness(&game.state, id)).collect();
+        let sick: Vec<bool> = game.state.battlefield_ids().into_iter().map(|id| has_summoning_sickness(&game.state, id)).collect();
         (counts, sick)
     };
     assert_eq!(reads(&board(4_000_000_000), 4_000_000_000), reads(&board(4), 4));
@@ -265,7 +265,7 @@ fn battlefield_controller_owner_and_order() {
     );
     let bears = named(&game, "Grizzly Bears");
     let state = &game.state;
-    assert_eq!(state.battlefield_ids_ordered()[1], one(&game, "Glorious Anthem"), "timestamps in file order");
+    assert_eq!(state.battlefield_ids()[1], one(&game, "Glorious Anthem"), "timestamps in file order");
     assert_eq!((state.objects[&bears[0]].owner, state.battlefield[&bears[0]].controller), (1, 1));
     assert_eq!((state.objects[&bears[1]].owner, state.battlefield[&bears[1]].controller), (0, 1));
     assert_eq!(get_effective_power(state, bears[0]), Some(2), "the Anthem is player 0's");

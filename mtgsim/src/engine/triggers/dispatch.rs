@@ -26,7 +26,7 @@ use crate::types::effects::Antecedent;
 use crate::engine::actions::{ActionContext, GameAction, ZoneChangeAct};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::{settled_holds, ConditionReferents};
-use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::mana::triggered_mana_recipient;
 use crate::engine::object_filter::{player_ref_names, FilterReferents};
 use crate::engine::resolve::ResolutionContext;
@@ -295,7 +295,7 @@ impl<'a> TriggerGate<'a> {
         self.readers.is_empty() && self.named.is_empty() && self.newcomers.is_empty() && self.unattributed.is_empty() && no_off_battlefield_sources
     }
 
-    /// The candidates its legs reach, in timestamp order.
+    /// The candidates its legs reach, in id order.
     pub(super) fn candidates(self) -> Vec<ObjectId> {
         let TriggerGate { game, kinds, off_battlefield_legs, readers, named, newcomers, unattributed } = self;
         game.candidates_now(readers, named, newcomers, unattributed, off_battlefield_sources(game, kinds, off_battlefield_legs))
@@ -879,8 +879,8 @@ impl GameState {
         self.find_trigger_matches(window, gate, snapshots)
     }
 
-    /// The objects that may carry a triggered ability reading `kinds`, in CR
-    /// 613.7 order: the dispatch gate's own legs, for a reader that asks of an
+    /// The objects that may carry a triggered ability reading `kinds`, in id
+    /// order: the dispatch gate's own legs, for a reader that asks of an
     /// event yet to happen.
     pub(crate) fn objects_that_may_watch(&self, kinds: EventKindMask) -> Vec<ObjectId> {
         let gate = self.trigger_gate(kinds, Vec::new(), OffBattlefieldLegs::FilteredByKind);
@@ -1063,14 +1063,19 @@ impl GameState {
     }
 
     /// The permanents whose printed triggers, or the copy's they entered as,
-    /// read a kind `window_kinds` carries, selected before they are ordered,
-    /// in CR 613.7 order: sorted on
-    /// the key `battlefield_ids_ordered` sorts on, so the candidate order —
-    /// which the `OrderTriggers` prompt offers — is the whole-battlefield
-    /// walk's.
+    /// read a kind `window_kinds` carries, in id order, so the candidate
+    /// order, which the `OrderTriggers` prompt offers, is the
+    /// whole-battlefield walk's.
     pub(super) fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
-        // ORDER-FREE: put in timestamp order.
-        self.in_battlefield_order(self.trigger_sources.iter().filter(|(_, kinds)| kinds.intersects(window_kinds)).map(|(&id, _)| id))
+        // ORDER-FREE: sorted next.
+        let mut readers: Vec<ObjectId> = self
+            .trigger_sources
+            .iter()
+            .filter(|&(id, kinds)| kinds.intersects(window_kinds) && self.battlefield.contains_key(id))
+            .map(|(&id, _)| id)
+            .collect();
+        readers.sort_unstable();
+        readers
     }
 
     /// The objects that have a triggered ability only because a continuous
@@ -1089,7 +1094,7 @@ impl GameState {
     /// them reads a kind of event the window carries (item 222). A row over
     /// a filter names zones instead, and `candidates_now` walks them.
     ///
-    /// Unordered: `candidates_now` puts every candidate in CR 613.7 order.
+    /// Unordered: `candidates_now` puts every candidate in id order.
     pub(super) fn named_trigger_carriers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
         if !self.continuous_effects.summary().named_unattributed_trigger_kinds.intersects(window_kinds) {
             return Vec::new();
@@ -1188,7 +1193,7 @@ impl GameState {
                 GameAction::ZoneChange { object, from, to, .. } => (*object, *from, *to),
                 GameAction::EnterBattlefield { object, from: Some(from), .. } => (*object, *from, Zone::Battlefield),
                 GameAction::PlayerLoses { player } => {
-                    for id in self.battlefield_ids_ordered() {
+                    for id in self.battlefield_ids() {
                         if self.departs_with(id, *player) && self.zone_change_looks_back_at(id, Zone::Battlefield, None) {
                             self.capture_frame(id);
                         }
@@ -1390,7 +1395,8 @@ impl GameState {
 
     /// The objects a dispatch asks with their ability lists as they are now,
     /// as against the lists from before an event (the CR 603.10a frame of an
-    /// object that left, a survivor's `LookBackSnapshot`), in CR 613.7 order.
+    /// object that left, a survivor's `LookBackSnapshot`), in id order: the
+    /// battlefield's, then everything else's.
     ///
     /// Every zone, by three routes: on the battlefield, `readers` (printed
     /// triggers) and the `named` objects there, or every permanent while a
@@ -1410,36 +1416,38 @@ impl GameState {
         off_battlefield_sources: impl Iterator<Item = ObjectId>,
     ) -> Vec<ObjectId> {
         let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
-            self.battlefield_ids_ordered()
+            self.battlefield_ids()
         } else if named.is_empty() {
             readers
         } else {
             // A permanent both printed and named is one candidate.
-            let mut once: IdSet<ObjectId> = IdSet::new();
-            self.in_battlefield_order(readers.iter().chain(&named).copied().filter(|&id| once.insert(id)))
+            let mut both: Vec<ObjectId> = readers.into_iter().chain(named.iter().copied().filter(|id| self.battlefield.contains_key(id))).collect();
+            both.sort_unstable();
+            both.dedup();
+            both
         };
-        let mut elsewhere: Vec<(Timestamp, ObjectId)> = off_battlefield_sources.map(|id| (self.object_timestamp(id), id)).collect();
-        let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+        let mut elsewhere: Vec<ObjectId> = off_battlefield_sources.collect();
+        let mut seen: IdSet<ObjectId> = elsewhere.iter().copied().collect();
         for id in newcomers {
             if seen.insert(id) {
-                elsewhere.push((self.object_timestamp(id), id));
+                elsewhere.push(id);
             }
         }
         let named_elsewhere = named.iter().copied().filter(|id| !self.battlefield.contains_key(id) && self.objects.contains_key(id));
         for id in named_elsewhere {
             if seen.insert(id) {
-                elsewhere.push((self.object_timestamp(id), id));
+                elsewhere.push(id);
             }
         }
         for zone in unattributed.beyond_battlefield().iter() {
             for id in self.zone_ids_ordered(zone) {
                 if seen.insert(id) {
-                    elsewhere.push((self.object_timestamp(id), id));
+                    elsewhere.push(id);
                 }
             }
         }
-        elsewhere.sort_unstable_by_key(|&(timestamp, _)| timestamp);
-        live.extend(elsewhere.into_iter().map(|(_, id)| id));
+        elsewhere.sort_unstable();
+        live.extend(elsewhere);
         live
     }
 
@@ -1561,16 +1569,18 @@ impl GameState {
         candidates
     }
 
-    /// The permanents that may carry a trigger multiplier now, in timestamp
-    /// order: every one while a row grants or copies one (the summary's two
-    /// flags), else the printed sources.
+    /// The permanents that may carry a trigger multiplier now, in id order:
+    /// every one while a row grants or copies one (the summary's two flags),
+    /// else the printed sources.
     pub(crate) fn trigger_multiplier_sources_now(&self) -> Vec<ObjectId> {
         let summary = self.continuous_effects.summary();
         if summary.any_granted_trigger_multiplier || summary.any_copied_trigger_multiplier {
-            return self.battlefield_ids_ordered();
+            return self.battlefield_ids();
         }
-        // ORDER-FREE: put in timestamp order.
-        self.in_battlefield_order(self.trigger_multiplier_sources.iter().copied())
+        // ORDER-FREE: sorted next.
+        let mut sources: Vec<ObjectId> = self.trigger_multiplier_sources.iter().copied().filter(|id| self.battlefield.contains_key(id)).collect();
+        sources.sort_unstable();
+        sources
     }
 
     /// CR 603.2d: how many more times each match triggers, every multiplier

@@ -806,7 +806,7 @@ fn spark_double_copying_a_token_is_not_a_token() {
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let create = Effect::Atom(Primitive::CreateToken(soldier, AmountExpr::Fixed(1)), EffectRecipient::Controller);
     game.resolve_effect(&create, &ResolutionContext::untargeted(source, 0, mtgsim::events::cause::GeneratedBy::Spell), &Scripted::new()).expect("created");
-    let token = game.battlefield_ids_ordered().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
+    let token = game.battlefield_ids().into_iter().find(|id| game.get_object(*id).unwrap().is_token).unwrap();
 
     let spark = spark_of(&mut game, 0, token);
     assert_eq!(get_effective_name(&game, spark), "Soldier Token");

@@ -140,9 +140,9 @@ fn token(power: i32, abilities: Vec<AbilityDef>) -> TokenDef {
 
 /// Create one token for `controller`: an entry the dispatcher sees.
 fn create_token(game: &mut GameState, controller: PlayerId, def: TokenDef) -> ObjectId {
-    let before: Vec<ObjectId> = game.battlefield_ids_ordered();
+    let before: Vec<ObjectId> = game.battlefield_ids();
     game.execute_action(GameAction::CreateTokens { defs: vec![def], controller, attacking: None }, &test_ctx()).unwrap();
-    game.battlefield_ids_ordered().into_iter().find(|id| !before.contains(id)).expect("the token entered")
+    game.battlefield_ids().into_iter().find(|id| !before.contains(id)).expect("the token entered")
 }
 
 /// Resolve `card`'s spell effect for `controller`, the way the stack would,

@@ -987,7 +987,7 @@ fn grafted_wargear_does_not_sacrifice_an_opponents_creature() {
 // ---------------------------------------------------------------------------
 
 fn saprolings(game: &GameState) -> usize {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .filter(|id| game.objects.get(id).is_some_and(|o| o.is_token))
         .count()

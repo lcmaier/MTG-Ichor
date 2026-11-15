@@ -675,7 +675,7 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
     );
     assert!(game.check_state_based_actions(&dp).unwrap());
 
-    let kept = game.battlefield_ids_ordered()[0];
+    let kept = game.battlefield_ids()[0];
     let died = if kept == doomed { other } else { doomed };
 
     let recorded = game.recorded_events();

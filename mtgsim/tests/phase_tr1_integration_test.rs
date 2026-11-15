@@ -493,7 +493,7 @@ fn verdant_force_triggers_at_an_opponents_upkeep_too() {
     place(&mut game, &test_dp());
     resolve_top(&mut game, &test_dp());
     let saprolings = game
-        .battlefield_ids_ordered()
+        .battlefield_ids()
         .into_iter()
         .filter(|id| game.get_object(*id).unwrap().is_token)
         .count();

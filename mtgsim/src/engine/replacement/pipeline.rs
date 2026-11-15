@@ -3165,7 +3165,7 @@ fn entering_controller(
 ///
 /// A chosen donor is CR 707.6's "as [this] enters" choice, made by the entering
 /// object's controller, which CR 616.1b has already settled. Its candidates are
-/// on the battlefield in timestamp order, and the entering object is not among
+/// on the battlefield in id order, and the entering object is not among
 /// them, nor is anything entering beside it: each entry is decided against the
 /// board as it stood (Clone's fifth ruling). CR 616.1's two-candidate rule is
 /// about choosing *among* effects, so it has nothing to say here; one
@@ -3516,7 +3516,7 @@ fn auxiliary_candidates(
 /// The objects in the zone `aux` chooses from, in its order.
 pub(crate) fn auxiliary_zone(game: &GameState, aux: &AuxiliaryMove, you: PlayerId) -> Result<Vec<ObjectId>, String> {
     match aux.from {
-        Zone::Battlefield => Ok(game.battlefield_ids_ordered()),
+        Zone::Battlefield => Ok(game.battlefield_ids()),
         Zone::Graveyard => Ok(game.players[you].graveyard.clone()),
         other => Err(format!(
             "CR 614.13 auxiliary move reads {:?}, which has no candidate enumeration. \

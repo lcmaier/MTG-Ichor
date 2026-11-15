@@ -106,9 +106,14 @@ impl std::fmt::Display for RowId {
 /// clones the counter with the state, so two diverging branches mint the same
 /// next id for different objects; nothing merges branches, so nothing sees it.
 ///
-/// Never an order: `battlefield_ordered` keys on the CR 613.7 timestamp, and
-/// this type deliberately has no `Ord`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// **Ordered by minting, which is the engine's order wherever no rule names
+/// one**: a battlefield sweep, a gate's candidates, a simultaneous batch's
+/// members. It is the same in every process and in a fork, and it is not
+/// CR 613.7's: a rule that compares timestamps reads
+/// `GameState::object_timestamp`. A card's id survives its zone changes and
+/// a loaded scenario's ids are minted in its line order, so id order says
+/// nothing about when an object arrived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObjectId(u64);
 
 impl ObjectId {

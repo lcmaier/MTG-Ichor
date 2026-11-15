@@ -66,7 +66,7 @@ impl Lookahead {
         // object's own static-ability effects and CR 613.7c its counters.
         let entity_timestamp = game.next_timestamp;
         let entity = PermanentState::entering(
-            game, object, controller, mods, entity_timestamp, entity_timestamp + 1, game.turn_number,
+            game, object, controller, mods, entity_timestamp + 1, game.turn_number,
         );
 
         let rows = would_be_rows(game, object, controller, entity_timestamp, mods);
@@ -377,7 +377,6 @@ mod tests {
         game.move_object(card, Zone::Battlefield).expect("a hand card moves");
         let placed = place_on_battlefield(&mut game, card, 0, &mods).clone();
 
-        assert_eq!(predicted.timestamp, placed.timestamp);
         assert!(placed.tapped && predicted.tapped);
         for kind in [CounterType::PlusOnePlusOne, CounterType::Charge] {
             let stack = |p: &crate::state::battlefield::PermanentState| p.counters().get(&kind).map(|s| (s.count, s.timestamp));

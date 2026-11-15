@@ -41,7 +41,7 @@ static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
 /// Every creature on the battlefield destroyed in one batch.
 fn wipe(game: &mut GameState, dp: &ManaWindowStop<RandomDecisionProvider>) {
-    let creatures: Vec<_> = game.battlefield_ids_ordered().into_iter().filter(|&id| is_creature(game, id)).collect();
+    let creatures: Vec<_> = game.battlefield_ids().into_iter().filter(|&id| is_creature(game, id)).collect();
     game.execute_actions(creatures.into_iter().map(|object| GameAction::Destroy { object }).collect(), &ActionContext::new(dp)).unwrap();
 }
 

@@ -370,7 +370,7 @@ fn them_over_entries_is_each_creature_still_there() {
     resolve_as(&mut game, 0, &two_soldiers, Vec::new());
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     let soldiers: Vec<ObjectId> = game
-        .battlefield_ids_ordered()
+        .battlefield_ids()
         .into_iter()
         .filter(|&id| game.objects[&id].is_token)
         .collect();

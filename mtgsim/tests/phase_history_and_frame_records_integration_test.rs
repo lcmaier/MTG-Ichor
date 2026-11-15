@@ -322,7 +322,7 @@ fn was_cast_this_turn_is_a_permanent_its_spell_became() {
     let put = put_on_battlefield_this_turn(&mut game, vanilla_creature(2, 2, &[]), 0);
     cast_and_resolve(&mut game, one_drop("Fixture Creature", CardType::Creature));
     let cast = game
-        .battlefield_ids_ordered()
+        .battlefield_ids()
         .into_iter()
         .find(|id| game.objects[id].card_data.name == "Fixture Creature")
         .expect("it resolved");
@@ -370,7 +370,7 @@ fn a_creature_and_a_token_died() -> GameState {
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let create = GameAction::CreateTokens { defs: vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])], controller: 0, attacking: None };
     game.execute_action(create, &test_ctx()).unwrap();
-    let goblin = *game.battlefield_ids_ordered().iter().find(|&&id| game.objects[&id].is_token).expect("the Goblin");
+    let goblin = *game.battlefield_ids().iter().find(|&&id| game.objects[&id].is_token).expect("the Goblin");
     game.execute_actions(vec![GameAction::Destroy { object: bears }, GameAction::Destroy { object: goblin }], &test_ctx()).unwrap();
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert!(!game.objects.contains_key(&goblin), "the token ceased to exist (CR 704.5d)");

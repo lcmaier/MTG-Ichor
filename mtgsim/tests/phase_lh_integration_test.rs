@@ -495,8 +495,7 @@ fn test_equipping_the_host_it_is_already_on_does_nothing() {
 /// first (T1), Humility second (T2). By registration order Humility's "lose
 /// all abilities" is the later Layer 6 effect and the grant is gone; the
 /// timestamp the equip gives the Equipment (T3 > T2) is the only thing that
-/// puts its grant after Humility — and, since the ordered sweeps key on the
-/// same timestamp, Cobbled Wings now sorts last among the three.
+/// puts its grant after Humility.
 ///
 /// Partial: the atom moves an Equipment away and back against an Aura that
 /// grants flying; this is one reattachment against Humility, which the pool
@@ -509,7 +508,6 @@ fn test_a_reattached_equipment_gets_a_timestamp_later_than_humility() {
     let humility_id = put_on_battlefield(&mut game, humility(), 1);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     assert!(!has_keyword(&game, bears, KeywordFlag::Flying));
-    assert_eq!(game.battlefield_ids_ordered(), vec![wings, humility_id, bears]);
 
     equip(&mut game, 0, wings, None).unwrap();
 
@@ -520,11 +518,6 @@ fn test_a_reattached_equipment_gets_a_timestamp_later_than_humility() {
     assert!(
         has_keyword(&game, bears, KeywordFlag::Flying),
         "the grant now applies after Humility's Layer 6 strip"
-    );
-    assert_eq!(
-        game.battlefield_ids_ordered(),
-        vec![humility_id, bears, wings],
-        "the sweep order is CR 613.7's, so the equipped Wings sorts last"
     );
 }
 

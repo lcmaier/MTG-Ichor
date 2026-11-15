@@ -77,12 +77,8 @@ pub struct GameObject {
     /// third sentence). Read at registration, never by the walk: the rows
     /// carry the value.
     ///
-    /// Also the key of every ordered battlefield sweep
-    /// (`battlefield_ordered`), and so of every decision list, log and count —
-    /// CLAUDE.md, "Determinism at the decision boundary". A reassignment moves
-    /// the permanent to the end of those lists, and that is fine: the value
-    /// comes from the one monotonic counter every run advances the same way,
-    /// and no rule reads a sweep as *entry* order, only as *an* order.
+    /// Not a sweep's key: a battlefield sweep walks in id order, which no
+    /// timestamp moves (`ObjectId`).
     ///
     /// `0` until `add_object` stamps it, which is the only door into the
     /// store — so an object the game can see always carries a real one.

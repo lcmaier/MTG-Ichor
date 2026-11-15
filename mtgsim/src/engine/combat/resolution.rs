@@ -40,10 +40,10 @@ pub fn assign_combat_damage(
 ) -> Vec<CombatDamageAssignment> {
     let mut assignments = Vec::new();
 
-    // Iterate all creatures on the battlefield that are in combat.
-    // Ordered: damage assignment prompts the DP per attacker, and the
-    // assignments come back out in this order.
-    for (id, entry) in game.battlefield_ordered() {
+    // Iterate all creatures on the battlefield that are in combat: damage
+    // assignment prompts the DP per attacker, and the assignments come back
+    // out in this order.
+    for (id, entry) in game.battlefield.iter() {
         // --- Attackers ---
         if let Some(ref attacking_info) = entry.attacking {
             if !should_deal_damage_this_step(game, id, first_strike_only) {
@@ -183,8 +183,8 @@ impl GameState {
     /// once. The batch also gives every `DamageDealt` one `BatchId`, which is
     /// what "whenever one or more creatures deal combat damage" needs.
     ///
-    /// The order within the batch is `assign_combat_damage`'s, which walks
-    /// `battlefield_ordered` — so the CR 616.1 prompt order is deterministic.
+    /// The order within the batch is `assign_combat_damage`'s, which walks the
+    /// battlefield in id order — so the CR 616.1 prompt order is deterministic.
     pub fn apply_combat_damage(
         &mut self,
         assignments: Vec<CombatDamageAssignment>,

@@ -1490,7 +1490,7 @@ pub fn ask_choose_delayed_trigger_event(
 /// Choose which permanents pay a `Cost::Sacrifice` (CR 601.2h, 701.21a).
 ///
 /// `candidates` is every permanent the payer controls that matches the cost's
-/// filter, in `battlefield_ids_ordered`; `count` is how many the cost takes.
+/// filter, in id order; `count` is how many the cost takes.
 ///
 /// With exactly `count` candidates the payment is forced, and answered
 /// unasked: "never prompt with fewer than two candidates", counted against

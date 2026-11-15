@@ -90,7 +90,7 @@ impl GameState {
     /// The objects that may carry a state trigger, off the dispatcher's gate:
     /// the printed sources filed under `BoardState`, on the battlefield and
     /// off it, the objects a row naming them puts one on, and the zones a
-    /// `Filter` row does. In CR 613.7 order, as the dispatcher's candidates.
+    /// `Filter` row does. In id order, as the dispatcher's candidates.
     fn state_trigger_candidates(&self) -> Vec<ObjectId> {
         self.objects_that_may_watch(EventKindMask::of(EventKind::BoardState))
     }

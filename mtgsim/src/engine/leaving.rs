@@ -84,7 +84,7 @@ impl GameState {
         let owned = |game: &GameState, id: &ObjectId| {
             game.objects.get(id).is_some_and(|obj| obj.owner == player)
         };
-        for id in self.battlefield_ids_ordered() {
+        for id in self.battlefield_ids() {
             if owned(self, &id) {
                 leaving.push((id, Zone::Battlefield));
             }
@@ -240,7 +240,7 @@ impl GameState {
             return Ok(());
         }
         let orphaned: Vec<GameAction> = self
-            .battlefield_ids_ordered()
+            .battlefield_ids()
             .into_iter()
             .chain(self.stack.iter().copied())
             .filter(|&id| get_effective_controller(self, id).is_some_and(|p| self.left_a_multiplayer_game(p)))

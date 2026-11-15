@@ -322,7 +322,7 @@ impl ManaSupply {
     /// reserve `reserved`, tried two ways (§3.3).
     ///
     /// First with no pool multiplier. Then with the first one, then the first
-    /// two, in timestamp order: everything else is made before them, since
+    /// two, in id order: everything else is made before them, since
     /// mana made after a multiplier is not multiplied, except a sacrifice
     /// outlet's activations that must come after it (a multiplier is
     /// sacrificed only once it has added). The mana made after pays what it
@@ -491,7 +491,7 @@ pub struct ManaSource {
 }
 
 /// Every mana ability of `player_id`'s permanents whose costs can be paid
-/// now, a row for each type it makes on this board, in timestamp order: what
+/// now, a row for each type it makes on this board, in id order: what
 /// a Forest under Deep Water makes is blue, and a land Wild Growth enchants
 /// makes green besides its own, as the check counts them.
 pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<ManaSource> {
@@ -608,9 +608,8 @@ impl ManaAbilityWindowOffer {
         game.layer_epoch() == self.epoch
     }
 
-    /// The abilities offered now, in timestamp order and then the order of
-    /// each permanent's abilities: the order the agent's answer is a position
-    /// in (`CLAUDE.md`'s determinism rule).
+    /// The abilities offered now, in id order and then the order of each
+    /// permanent's abilities: the order the agent's answer is a position in.
     pub fn options(&self, game: &GameState) -> Vec<(ObjectId, AbilityId)> {
         self.abilities
             .iter()
@@ -757,7 +756,7 @@ fn mana_ability_cost_of(ability: &AbilityDef) -> ManaAbilityCost<'_> {
     }
 }
 
-/// Each permanent `player` controls, in timestamp order, with its effective
+/// Each permanent `player` controls, in id order, with its effective
 /// mana abilities (CR 605.1a), payable or not: the one walk the inventory,
 /// the agent's view and the window's offer make, each asking its own cost
 /// question of every ability. `available_mana_sources` is the payable ones.
@@ -857,7 +856,7 @@ fn mana_production_watchers(game: &GameState) -> Arc<ManaProductionWatchers> {
 
 fn scan_mana_production_watchers(game: &GameState) -> ManaProductionWatchers {
     let mut found = ManaProductionWatchers::default();
-    for permanent in game.battlefield_ids_ordered() {
+    for permanent in game.battlefield_ids() {
         let Some(chars) = compute_characteristics(game, permanent) else { continue };
         for (index, ability) in chars.abilities.iter().enumerate() {
             let at = AbilityAt { permanent, index };

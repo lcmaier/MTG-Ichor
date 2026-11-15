@@ -419,7 +419,7 @@ pub fn island() -> Arc<CardData> {
 /// enumeration row names and nothing in the layer walk had until RC-4:
 /// `AmountExpr::CountOf` now has a static-context evaluator, and this is its
 /// card. On the battlefield the Warlord counts itself. **In the CR 614.12
-/// frame it does not** — the count runs over `battlefield_ids_ordered`, which
+/// frame it does not** — the count runs over the battlefield's walk, which
 /// the entering object is not on. So a Warlord entering beside two other
 /// creatures is 2/2 to a *replacement* that reads its power ("creatures with
 /// power 2 or less enter tapped") and 3/3 to a *trigger* that does (Welcoming

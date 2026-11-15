@@ -710,7 +710,7 @@ fn target_creature() -> EffectRecipient {
 
 /// Player 0's Goblin tokens.
 fn goblins(game: &GameState) -> usize {
-    game.battlefield_ids_ordered()
+    game.battlefield_ids()
         .into_iter()
         .filter(|id| game.objects[id].card_data.name == "Goblin Token" && game.battlefield[id].controller == 0)
         .count()
