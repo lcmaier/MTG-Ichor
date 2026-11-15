@@ -19,7 +19,11 @@ deletes it. Every count and line below was read against `7f0e97ef`.
 - **The number comparison is one generic leaf**, where the first draft added
   `PowerAtLeast` alone.
 - **At the second round (2026-11-15), decision 1 is settled: A**, a name the
-  card gives. Decisions 2 and 3 are open.
+  card gives.
+- **At the third round (2026-11-15), decision 2 is settled: A**, every
+  choice is a choose step. The owner asked why a name is text and not an
+  enum; decision 1 now proposes an enum for the name's type, awaiting the
+  owner. Decision 3 is open.
 
 ## The model: choose, keep, use
 
@@ -249,9 +253,12 @@ What the decisions below recommend, in one place.
 ```rust
 // types/effects.rs
 
-/// The name a card gives one of its choices so a later step can read it:
-/// "number", "spared". Local to one spell or ability.
-pub struct ChoiceName(pub &'static str);
+/// The name a choice is kept under, so a later step can read it. Local to
+/// one spell or ability. Nearly every card keeps one thing of a kind, so
+/// the names are the kinds; a card that keeps two of a kind gets a second
+/// name here, with that card (Gluntch's second and third players).
+/// Proposed at the third round in place of a string; see decision 1.
+pub enum ChoiceName { Color, CreatureType, CardType, Number, Player, Objects }
 
 enum Primitive {
     // …
@@ -301,14 +308,27 @@ pub enum Comparison { AtLeast, AtMost, Exactly }
 pub choices: Vec<(ChoiceName, ChosenValue)>,
 ```
 
-Expel the Interlopers, written with them:
+Two cards written with them, in the helpers cards use today (`each(filter)`
+is "each permanent the filter describes"; `.and` joins two conditions on
+one object, as `creature().and(you_control())` is "creature you control"):
 
 ```rust
+// Expel the Interlopers
 sequence([
-    choose_number("number", 0, 10),
-    destroy(all(creature().and(power_at_least(chosen("number"))))),
+    choose_number(0, 10),                                                // kept as Number
+    destroy(each(creature().and(power_at_least(chosen(Number))))),      // each creature with power at least that
+])
+
+// Duneblast
+sequence([
+    choose_objects(creature(), up_to(1)),                                // kept as Objects
+    destroy(each(creature().other_than(chosen(Objects)))),              // each creature other than the one kept
 ])
 ```
+
+`other_than` is a new two-line helper for "not one of these", so the
+second step reads as the card does; it builds the same filter `.and(non(…))`
+would.
 
 ## Decisions
 
@@ -380,6 +400,26 @@ value, a short life. It reads at the call site (`chosen("spared")`), and it
 is the answer step 7's decision 3 took for "the sacrificed creature", named
 by its act and not by its cost's place, for the reason C fails here.
 
+**The name's type, asked at the third round (open).** The owner asked why
+the name is text and not an enum: a text key passed around feels brittle.
+
+- **Text**, `ChoiceName(&'static str)`, as A was first written. Each card
+  makes up its own word (`"spared"`), with no engine change per card. A
+  misspelled name is caught by the registry's test, not the compiler, and
+  no tool finds a name's uses.
+- **A closed enum** (recommended), as under "The shapes". The names are the
+  engine's list, starting with one per kind of thing chosen, which covers
+  every card that keeps one thing of a kind. A card that keeps two of a
+  kind at once gets a second named variant, added with that card; it is
+  still a name, never a position. The compiler checks the spelling, and a
+  name's uses can be found. The registry's test still checks that a name is
+  written before it is read, by a choice of the kind its reader takes. What
+  is given up: the name says the kind ("Objects"), not the card's reason
+  for it ("spared").
+
+*Retrofit cost*: none now; after the build, a sweep over each card that
+keeps a choice.
+
 ### Decision 2 — one shape for a choice of objects
 
 **Retrofit cost if chosen wrong.** The 75 object cards are written one way
@@ -417,9 +457,10 @@ has no step that acts on its creature at all.
   *Upkeep*: "the rest", copies and sources stay unwritable after the
   subsystem closes.
 
-**Recommendation: A.** A copy effect's donor keeps its own question
-(`ChooseCopySource`, Cytoshape as built), and an edict's "a creature of
-their choice" stays as built: its pick is the sacrifice (CR 701.21a).
+**Settled: A** (the owner, at #330's third review round, 2026-11-15). A
+copy effect's donor keeps its own question (`ChooseCopySource`, Cytoshape
+as built), and an edict's "a creature of their choice" stays as built: its
+pick is the sacrifice (CR 701.21a).
 
 ### Decision 3 — how a step reads a kept value
 
