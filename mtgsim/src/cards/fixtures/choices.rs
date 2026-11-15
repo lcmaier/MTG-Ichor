@@ -6,25 +6,21 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, at_beginning_of, at_random,
-    choose, choose_card_type, choose_color, choose_creature_type, choose_each_targeting_a_different_player, choose_number, choose_objects,
-    choose_one, choose_one_or_both_if, choose_pawprints_worth, choose_player, choose_repeatable, choose_up_to, chosen_by,
-    of_the_chosen_card_type, of_the_chosen_color, of_the_chosen_creature_type, one_of_the_chosen, the_chosen_number, the_chosen_objects,
-    the_chosen_player,
-    create_tokens, creature, creatures_you_control, deal_damage, deal_damage_divided, destroy, divided_among_targeted, dies, discard,
-    distribute_counters, draw_cards, each, each_player, enters, exile, gain_control_of, gain_life, gains_keyword, gets,
-    has_base_power_and_toughness, lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_hand, return_to_the_battlefield,
-    sacrifice, spell_ability, spree, static_ability, tap, target_creature, target_opponent, target_permanent, target_player, targets,
-    the_target, this_object, triggered_ability, untap, whenever, you, you_have, Whose,
+    activated_ability, an_opponent_chooses_one, an_opponent_controls, another, any_target, artifact, as_long_as, at_random, choose,
+    choose_each_targeting_a_different_player, choose_number, choose_objects, choose_one, choose_one_or_both_if, choose_pawprints_worth,
+    choose_player, choose_repeatable, choose_up_to, create_tokens, creature, creatures_you_control, deal_damage, deal_damage_divided, destroy,
+    divided_among_targeted, dies, discard, distribute_counters, draw_cards, each, enters, exile, gain_life, gets, has_base_power_and_toughness,
+    lose_life, mill, planeswalker, prevent_the_next_damage_divided, return_to_the_battlefield, spell_ability, spree, static_ability, tap,
+    target_creature, target_opponent, target_permanent, target_player, targets, the_chosen_number, the_chosen_objects, the_chosen_player,
+    the_target, this_object, triggered_ability, whenever, you, you_have,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
-use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Choice, ChoiceScope, ChoiceSide, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount,
-    ObjectFilter, Pick, PlayerFact, PlayerRef, PlayerSet, ReturnUnder, SelectionFilter, TargetCount, TokenDef,
+    AmountExpr, Condition, CounterType, DiscardChooser, Effect, EffectRecipient, ModalCount, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
+    ReturnUnder, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -580,9 +576,10 @@ pub fn kindled_option() -> Arc<CardData> {
 // CR 608.2d's value chosen as an effect resolves, kept, and used
 // ---------------------------------------------------------------------------
 //
-// One fixture a kind and a chooser: a step chooses, and the steps after it
-// read what it kept. Castable, and none registered: Expel the Interlopers is
-// the registered card, and these are the boards its number does not reach.
+// The invented ones: a chooser or a pairing no printed card's whole text
+// gives. The printed cards that choose (Expel the Interlopers, Wash Out,
+// Kindred Dominance, World Queller, Duneblast, The Nipton Lottery and By
+// Invitation Only) are registered in their sets.
 
 /// A sorcery of one color whose text is `text` and whose steps are `steps`.
 fn choosing_sorcery(name: &str, color: (ManaType, Color), generic: u8, text: &'static str, steps: Vec<Effect>) -> Arc<CardData> {
@@ -592,95 +589,6 @@ fn choosing_sorcery(name: &str, color: (ManaType, Color), generic: u8, text: &'s
         .card_type(CardType::Sorcery)
         .rules_text(text)
         .ability(spell_ability(text, Effect::Sequence(steps)))
-        .build()
-}
-
-/// Wash Out Fixture — {3}{U}, a sorcery: the card's text.
-///
-/// A color (CR 105.4), read by a filter: every permanent of it.
-pub fn wash_out_fixture() -> Arc<CardData> {
-    choosing_sorcery(
-        "Wash Out Fixture",
-        (ManaType::Blue, Color::Blue),
-        3,
-        "Return all permanents of the color of your choice to their owners' hands.",
-        vec![choose_color(you()), return_to_hand(each(of_the_chosen_color()))],
-    )
-}
-
-/// Kindred Dominance Fixture — {5}{B}{B}, a sorcery: the card's text.
-///
-/// A creature type (CR 205.3m), read by a filter's "aren't".
-pub fn kindred_dominance_fixture() -> Arc<CardData> {
-    let text = "Choose a creature type. Destroy all creatures that aren't of the chosen type.";
-    CardDataBuilder::new("Kindred Dominance Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Black], 5))
-        .color(Color::Black)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(
-            text,
-            Effect::Sequence(vec![
-                choose_creature_type(you()),
-                destroy(each(creature().other_than(of_the_chosen_creature_type()))),
-            ]),
-        ))
-        .build()
-}
-
-/// World Queller Fixture — {3}{W}{W}
-/// Creature — Avatar, 4/4: the card's text.
-///
-/// A card type (CR 205.2a), kept by a triggered ability as it resolves and
-/// read by each player's edict: the candidates are their permanents of that
-/// type. "You may choose" is the whole of it, since choosing is what "if you
-/// do" asks about.
-pub fn world_queller_fixture() -> Arc<CardData> {
-    let text = "At the beginning of your upkeep, you may choose a card type. If you do, each player sacrifices a permanent of their choice of that type.";
-    let each_sacrifices_one_of_the_type = sacrifice(chosen_by(Choice {
-        chooser: each_player(),
-        among: ChoiceScope::ChoosersPermanents,
-        picks: vec![Pick::exactly(1, of_the_chosen_card_type())],
-        acts_on: ChoiceSide::Chosen,
-    }));
-    CardDataBuilder::new("World Queller Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
-        .color(Color::White)
-        .card_type(CardType::Creature)
-        .subtype(Subtype::Creature(CreatureType::Avatar))
-        .power_toughness(4, 4)
-        .rules_text(text)
-        .ability(triggered_ability(
-            text,
-            whenever(
-                at_beginning_of(StepType::Upkeep, Whose::Yours),
-                Effect::Optional {
-                    chooser: PlayerRef::You,
-                    effect: Box::new(Effect::Sequence(vec![choose_card_type(you()), each_sacrifices_one_of_the_type])),
-                },
-            ),
-        ))
-        .build()
-}
-
-/// By Invitation Only Fixture — {3}{W}{W}, a sorcery: the card's text.
-///
-/// A number read as an amount, an edict's count: each player picks that
-/// many of their creatures, or as many as they have.
-pub fn by_invitation_only_fixture() -> Arc<CardData> {
-    let text = "Choose a number between 0 and 13. Each player sacrifices that many creatures of their choice.";
-    let each_sacrifices_that_many = sacrifice(chosen_by(Choice {
-        chooser: each_player(),
-        among: ChoiceScope::ChoosersPermanents,
-        picks: vec![Pick::exactly(the_chosen_number(), creature())],
-        acts_on: ChoiceSide::Chosen,
-    }));
-    CardDataBuilder::new("By Invitation Only Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
-        .color(Color::White)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(text, Effect::Sequence(vec![choose_number(you(), 0, 13), each_sacrifices_that_many])))
         .build()
 }
 
@@ -720,54 +628,6 @@ pub fn consequences_at_random() -> Arc<CardData> {
         "Choose an opponent at random. Consequences at Random deals 3 damage to that player.",
         vec![choose_player(at_random(), PlayerSet::Opponents), deal_damage(the_chosen_player(), 3)],
     )
-}
-
-/// The Nipton Lottery Fixture — {2}{B}{R}, a sorcery: the card's text.
-///
-/// An object drawn at random, then four steps that name it: three act on
-/// "that creature" and the last on every other.
-pub fn the_nipton_lottery_fixture() -> Arc<CardData> {
-    let text = "Choose a creature at random. You gain control of that creature until end of turn. Untap it. It gains haste until end of turn. Then destroy all other creatures.";
-    let that_creature = || the_chosen_objects();
-    CardDataBuilder::new("The Nipton Lottery Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Red], 2))
-        .color(Color::Black)
-        .color(Color::Red)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(
-            text,
-            Effect::Sequence(vec![
-                choose_objects(at_random(), creature(), TargetCount::Exactly(1)),
-                gain_control_of(that_creature()).until_end_of_turn(),
-                untap(that_creature()),
-                gains_keyword(that_creature(), KeywordFlag::Haste).until_end_of_turn(),
-                destroy(each(creature().other_than(one_of_the_chosen()))),
-            ]),
-        ))
-        .build()
-}
-
-/// Duneblast Fixture — {4}{W}{B}{G}, a sorcery: the card's text.
-///
-/// Objects you choose, up to one, and a filter's "the rest".
-pub fn duneblast_fixture() -> Arc<CardData> {
-    let text = "Choose up to one creature. Destroy the rest.";
-    CardDataBuilder::new("Duneblast Fixture")
-        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::Black, ManaType::Green], 4))
-        .color(Color::White)
-        .color(Color::Black)
-        .color(Color::Green)
-        .card_type(CardType::Sorcery)
-        .rules_text(text)
-        .ability(spell_ability(
-            text,
-            Effect::Sequence(vec![
-                choose_objects(you(), creature(), TargetCount::UpTo(1)),
-                destroy(each(creature().other_than(one_of_the_chosen()))),
-            ]),
-        ))
-        .build()
 }
 
 /// Chosen Champion — {G}, a sorcery.

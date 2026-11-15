@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{cant_for, color, creature, destroy, draw_cards, land, non, scry, spell_ability, target_permanent, that_target, you};
+use crate::cards::authoring::{
+    cant_for, choose_color, color, creature, destroy, draw_cards, each, land, non, of_the_chosen_color, return_to_hand, scry, spell_ability,
+    target_permanent, that_target, you,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
@@ -99,5 +102,31 @@ pub fn plague_spores() -> Arc<CardData> {
             destroy(that_target(0)),
             destroy(that_target(1)),
         ])))
+        .build()
+}
+
+/// Wash Out — {3}{U}
+/// Sorcery
+///
+/// > Return all permanents of the color of your choice to their owners'
+/// > hands.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// A color chosen as the spell resolves (CR 105.4, 608.2d), then every
+/// permanent of it, whoever controls it.
+///
+/// # The rulings, and where each is tested
+///
+/// Scryfall lists none for this card. Its board is
+/// `phase_value_chosen_as_an_effect_resolves_integration_test::wash_out_returns_the_permanents_of_the_color_chosen_as_it_resolves`.
+pub fn wash_out() -> Arc<CardData> {
+    let text = "Return all permanents of the color of your choice to their owners' hands.";
+    CardDataBuilder::new("Wash Out")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 3))
+        .color(Color::Blue)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(text, Effect::Sequence(vec![choose_color(you()), return_to_hand(each(of_the_chosen_color()))])))
         .build()
 }

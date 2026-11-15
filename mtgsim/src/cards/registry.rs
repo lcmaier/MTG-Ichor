@@ -6,10 +6,10 @@ use crate::objects::card_data::CardData;
 use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
-    fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
+    fic, fin, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
+    mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, pip, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
     uds, ulg, usg,
-    vis, war, woe, wth, wwk, zen, znr,
+    vis, vow, war, woe, wth, wwk, zen, znr,
 };
 
 /// The board an engine change is measured against — **representative, not
@@ -1247,6 +1247,19 @@ impl CardRegistry {
         // step: a number, and a filter comparing each creature's power with
         // it.
         registry.register("Expel the Interlopers", woe::expel_the_interlopers);
+        // The other kinds a choose step chooses, each on a printed card: a
+        // color, a creature type, a card type on a triggered ability,
+        // objects chosen and objects drawn at random, and a number read as
+        // an edict's count. Board wipes all but World Queller; none pooled.
+        registry.register("Wash Out", inv::wash_out);
+        registry.register("Kindred Dominance", c17::kindred_dominance);
+        registry.register("World Queller", zen::world_queller);
+        registry.register("Duneblast", ktk::duneblast);
+        registry.register("The Nipton Lottery", pip::the_nipton_lottery);
+        registry.register("By Invitation Only", vow::by_invitation_only);
+        // A player verb whose target player has left, beside a target that
+        // keeps the spell resolving.
+        registry.register("Combat Tutorial", fin::combat_tutorial);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);

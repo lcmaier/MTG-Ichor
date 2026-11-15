@@ -257,6 +257,14 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "By Invitation Only": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2021-11-19", "comment": "The numbers you may choose include 0 and 13."},
+        {"n": 2, "published_at": "2021-11-19", "comment": "If a player controls fewer than the chosen number of creatures, they will sacrifice all their creatures."},
+        {"n": 3, "published_at": "2021-11-19", "comment": "Starting with the player whose turn it is, each player in turn order chooses which creatures they will sacrifice, then all the creatures chosen by all players are sacrificed at the same time. Players get to know the choices made by players who chose before them."}
+      ]
+    },
     "Casualties of War": {
       "first_seen": "2026-11-07",
       "rulings": [
@@ -311,6 +319,10 @@
     },
     "Cobbled Wings": {
       "first_seen": "2026-09-17",
+      "rulings": []
+    },
+    "Combat Tutorial": {
+      "first_seen": "2026-11-15",
       "rulings": []
     },
     "Compost": {
@@ -1743,6 +1755,10 @@
     },
     "War Mammoth": {
       "first_seen": "2026-09-17",
+      "rulings": []
+    },
+    "Wash Out": {
+      "first_seen": "2026-11-15",
       "rulings": []
     },
     "Waterfall Aerialist": {

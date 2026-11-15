@@ -8,17 +8,16 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use mtgsim::cards::authoring::{
-    choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, creature,
-    creatures_you_control, destroy, draw_cards, exile, lose_life, power_at_least, power_at_most, put_counters, return_to_the_battlefield,
-    of_the_chosen_card_type, of_the_chosen_color, of_the_chosen_creature_type, spell_ability, tap, target_creature, target_opponent,
-    target_player, the_chosen_number, the_chosen_objects, the_chosen_player, the_target, toughness_at_least, toughness_at_most, you,
-    you_control,
+    choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, creature, destroy, draw_cards,
+    exile, lose_life, of_the_chosen_card_type, of_the_chosen_color, of_the_chosen_creature_type, power_at_least, power_at_most,
+    return_to_the_battlefield, spell_ability, tap, target_creature, target_opponent, the_chosen_number, the_chosen_objects, the_chosen_player,
+    the_target, toughness_at_least, toughness_at_most, you, you_control,
 };
-use mtgsim::cards::fixtures::{
-    bestowed_favors, by_invitation_only_fixture, chosen_champion, consequences_at_random, damnations_tally, duneblast_fixture,
-    kindred_dominance_fixture, the_nipton_lottery_fixture, wash_out_fixture, world_queller_fixture,
+use mtgsim::cards::fixtures::{bestowed_favors, chosen_champion, consequences_at_random, damnations_tally};
+use mtgsim::cards::printings::{
+    by_invitation_only, combat_tutorial, duneblast, expel_the_interlopers, glorious_anthem, grizzly_bears, kindred_dominance,
+    the_nipton_lottery, wash_out, world_queller,
 };
-use mtgsim::cards::printings::{expel_the_interlopers, glorious_anthem, grizzly_bears};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -33,7 +32,7 @@ use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, ObjectValue, PlayerRef, PlayerSet,
-    ReturnUnder, SelectionFilter, TargetCount, ValueIs,
+    ReturnUnder, TargetCount, ValueIs,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -237,23 +236,9 @@ fn an_amount_nothing_read_is_refused_loudly() {
 // A player verb whose player is gone (CR 608.2b, 800.4a)
 // ---------------------------------------------------------------------------
 
-/// **Fixture, modeled on Combat Tutorial**: "Target player draws two cards.
-/// Put a +1/+1 counter on up to one target creature you control." Two
-/// instances of "target" in one spell, the first a player a verb acts on.
-fn combat_tutorial_fixture() -> Arc<CardData> {
-    let text = "Target player draws two cards. Put a +1/+1 counter on up to one target creature you control.";
-    let up_to_one_creature = EffectRecipient::Target(SelectionFilter::Permanent(creatures_you_control()), TargetCount::UpTo(1));
-    sorcery(
-        "Fixture Combat Tutorial",
-        (ManaType::Blue, Color::Blue),
-        text,
-        Effect::Sequence(vec![draw_cards(target_player(), 2), put_counters(up_to_one_creature, CounterType::PlusOnePlusOne, 1)]),
-    )
-}
-
-/// CR 608.2b — the spell resolves for the target still legal and "won't
-/// affect" the one that is not: with its target player gone from the game,
-/// nobody draws.
+/// CR 608.2b — Combat Tutorial resolves for the target still legal and
+/// "won't affect" the one that is not: with its target player gone from the
+/// game, nobody draws.
 #[test]
 fn a_draw_whose_target_player_has_left_is_no_ones() {
     let mut game = setup_game(3);
@@ -264,7 +249,7 @@ fn a_draw_whose_target_player_has_left_is_no_ones() {
     let answers = ScriptedDecisionProvider::new();
     picks(&answers, vec![ChoiceOption::Player(1)]);
     picks(&answers, vec![ChoiceOption::Object(bears)]);
-    cast(&mut game, combat_tutorial_fixture(), ManaType::Blue, answers);
+    cast_paying(&mut game, combat_tutorial(), &[(ManaType::Blue, 3)], answers);
     game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
 
     game.resolve_top_of_stack(&test_dp()).expect("it resolves: one target is still legal");
@@ -319,7 +304,7 @@ fn a_draw_goes_to_its_target_player() {
     // No creature to target, so "up to one" is none and is not asked.
     let answers = ScriptedDecisionProvider::new();
     picks(&answers, vec![ChoiceOption::Player(1)]);
-    cast(&mut game, combat_tutorial_fixture(), ManaType::Blue, answers);
+    cast_paying(&mut game, combat_tutorial(), &[(ManaType::Blue, 3)], answers);
 
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
     assert_eq!(game.players[1].hand.len(), 2);
@@ -402,7 +387,7 @@ fn wash_out_returns_the_permanents_of_the_color_chosen_as_it_resolves() {
     let theirs = put_on_battlefield(&mut game, creature_of("Blue Two", Color::Blue, CreatureType::Merfolk), 1);
     let red = put_on_battlefield(&mut game, creature_of("Red One", Color::Red, CreatureType::Goblin), 1);
     let land = put_on_battlefield(&mut game, forest(), 0);
-    let (spell, _) = cast_paying(&mut game, wash_out_fixture(), &[(ManaType::Blue, 4)], ScriptedDecisionProvider::new());
+    let (spell, _) = cast_paying(&mut game, wash_out(), &[(ManaType::Blue, 4)], ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
     answers.expect_choice(ChoiceKind::ChooseColor { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::Color(Color::Blue)]);
@@ -421,8 +406,12 @@ fn wash_out_returns_the_permanents_of_the_color_chosen_as_it_resolves() {
 /// CR 205.3m — the type is chosen from the rule's list
 /// (`the_creature_types_are_the_ones_the_rule_lists` reads it off the rules
 /// file), and "aren't of the chosen type" is the filter's `Not` over the
-/// type kept. Forest is a `LandType` and cannot be offered.
+/// type kept. Forest is a `LandType` and cannot be offered. One type is
+/// chosen, and an Elf Warrior is an Elf; the one question asked is the type,
+/// so no player acts between the choice and the destruction.
+// RULING: Kindred Dominance #1 - "Once Kindred Dominance begins to resolve, no players may take other actions until it's done. Notably, players can't try to save their creatures after you've chosen a creature type."
 // RULING: Kindred Dominance #2 - "You must choose an existing creature type, such as Vampire or Cat. Card types such as "artifact" can't be chosen."
+// RULING: Kindred Dominance #3 - "You can't choose multiple creature types, such as "Cat Warrior." A Cat Warrior is both a Cat and a Warrior. It's affected by anything that affects either type and unaffected by things that affect non-Cat or non-Warrior creatures."
 // COVERS-PARTIAL: ATOM-205.3m-001
 #[test]
 fn kindred_dominance_spares_the_creature_type_chosen_as_it_resolves() {
@@ -430,7 +419,15 @@ fn kindred_dominance_spares_the_creature_type_chosen_as_it_resolves() {
     let elf = put_on_battlefield(&mut game, creature_of("An Elf", Color::Green, CreatureType::Elf), 0);
     let their_elf = put_on_battlefield(&mut game, creature_of("Another Elf", Color::Green, CreatureType::Elf), 1);
     let goblin = put_on_battlefield(&mut game, creature_of("A Goblin", Color::Red, CreatureType::Goblin), 1);
-    cast_paying(&mut game, kindred_dominance_fixture(), &[(ManaType::Black, 7)], ScriptedDecisionProvider::new());
+    let elf_warrior = CardDataBuilder::new("An Elf Warrior")
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Elf))
+        .subtype(Subtype::Creature(CreatureType::Warrior))
+        .power_toughness(2, 2)
+        .build();
+    let elf_warrior = put_on_battlefield(&mut game, elf_warrior, 1);
+    cast_paying(&mut game, kindred_dominance(), &[(ManaType::Black, 7)], ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
     answers.expect_choice(
@@ -444,6 +441,7 @@ fn kindred_dominance_spares_the_creature_type_chosen_as_it_resolves() {
     let [(_, _, offered)] = asked.as_slice() else { panic!("one question: {asked:?}") };
     assert_eq!(*offered, CreatureType::ALL.map(ChoiceOption::CreatureType).to_vec(), "every creature type the rule lists");
     assert!(game.battlefield.contains_key(&elf) && game.battlefield.contains_key(&their_elf), "the Elves are of the chosen type");
+    assert!(game.battlefield.contains_key(&elf_warrior), "an Elf Warrior is an Elf");
     assert!(!game.battlefield.contains_key(&goblin), "the Goblin is not");
 }
 
@@ -468,7 +466,7 @@ fn to_player_0s_upkeep(game: &mut GameState) {
 fn world_queller_keeps_a_card_type_for_each_players_edict() {
     for chooses in [true, false] {
         let mut game = stocked(3);
-        let queller = put_on_battlefield(&mut game, world_queller_fixture(), 0);
+        let queller = put_on_battlefield(&mut game, world_queller(), 0);
         let relics = [0, 1].map(|seat| put_on_battlefield(&mut game, card_of_type("Relic", CardType::Artifact), seat));
         let bears = [0, 1, 2].map(|seat| put_on_battlefield(&mut game, grizzly_bears(), seat));
         to_player_0s_upkeep(&mut game);
@@ -501,6 +499,57 @@ fn world_queller_keeps_a_card_type_for_each_players_edict() {
             assert_eq!(game.battlefield.contains_key(&relic), !chooses, "an artifact sacrificed: {chooses}");
         }
         assert!(bears.iter().all(|id| game.battlefield.contains_key(id)) && game.battlefield.contains_key(&queller), "no creature is an artifact");
+    }
+}
+
+/// World Queller's trigger on the stack at player 0's upkeep, in `game`.
+fn world_queller_trigger_waiting(game: &mut GameState) {
+    put_on_battlefield(game, world_queller(), 0);
+    to_player_0s_upkeep(game);
+    assert!(game.place_pending_triggers(&test_dp()).expect("the trigger is placed"));
+}
+
+/// The script's answers to World Queller's trigger: "you may", taken, then
+/// `card_type`.
+fn queller_chooses(card_type: CardType) -> ScriptedDecisionProvider {
+    let answers = ScriptedDecisionProvider::new();
+    answers.expect_take(ChoiceKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED });
+    answers.expect_choice(ChoiceKind::ChooseCardType { source: ObjectId::UNASSIGNED }, vec![ChoiceOption::CardType(card_type)]);
+    answers
+}
+
+/// Any card type may be chosen, and one no permanent has (instant) has each
+/// player sacrifice nothing.
+// RULING: World Queller #1 - "You may choose any card type. Choosing anything other than artifact, battle, creature, enchantment, kindred, land, or planeswalker will result in no permanents being sacrificed, though, since these are the only types permanents can have."
+#[test]
+fn world_queller_may_choose_a_type_no_permanent_has() {
+    let mut game = stocked(2);
+    let permanents = [0, 1].map(|seat| put_on_battlefield(&mut game, card_of_type("Relic", CardType::Artifact), seat));
+    world_queller_trigger_waiting(&mut game);
+    game.resolve_top_of_stack(&queller_chooses(CardType::Instant)).expect("the trigger resolves");
+    assert!(permanents.iter().all(|id| game.battlefield.contains_key(id)), "no permanent is an instant");
+}
+
+/// Each player picks which permanent they sacrifice in turn order, the
+/// player whose turn it is first, and the picks are sacrificed together as
+/// the edict's one instruction.
+// RULING: World Queller #3 - "First you choose which permanent you'll sacrifice (if you control any of the chosen type), then each other player in turn order does the same, then all chosen permanents are sacrificed at the same time."
+#[test]
+fn world_queller_asks_each_player_in_turn_order() {
+    let mut game = stocked(3);
+    let relics = [0, 1, 2].map(|seat| [(); 2].map(|_| put_on_battlefield(&mut game, card_of_type("Relic", CardType::Artifact), seat)));
+    world_queller_trigger_waiting(&mut game);
+    let answers = queller_chooses(CardType::Artifact);
+    for [_, picked] in relics {
+        picks(&answers, vec![ChoiceOption::Object(picked)]);
+    }
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("the trigger resolves");
+
+    let pickers: Vec<PlayerId> = asked.of_options.borrow().iter().skip(2).map(|(player, ..)| *player).collect();
+    assert_eq!(pickers, [0, 1, 2], "in turn order, from the player whose turn it is");
+    for [kept, picked] in relics {
+        assert!(game.battlefield.contains_key(&kept) && !game.battlefield.contains_key(&picked), "each player's pick, and only it");
     }
 }
 
@@ -547,26 +596,34 @@ fn an_opponent_chosen_at_random_is_drawn_from_the_seed() {
     assert_eq!(drawn, (0..16).map(damaged_under).collect::<Vec<_>>(), "a seed replays");
 }
 
-/// By Invitation Only: the number kept is an edict's count. Each player
-/// picks that many of their creatures, a player with exactly that many
-/// unasked, in APNAP order.
+/// By Invitation Only at three seats: the number kept is an edict's count.
+/// The number is offered from 0 through 13; each player picks that many of
+/// their creatures in turn order, the player whose turn it is first, and a
+/// player with fewer sacrifices all of theirs, unasked.
+// RULING: By Invitation Only #1 - "The numbers you may choose include 0 and 13."
+// RULING: By Invitation Only #2 - "If a player controls fewer than the chosen number of creatures, they will sacrifice all their creatures."
+// RULING: By Invitation Only #3 - "Starting with the player whose turn it is, each player in turn order chooses which creatures they will sacrifice, then all the creatures chosen by all players are sacrificed at the same time. Players get to know the choices made by players who chose before them."
 #[test]
 fn by_invitation_only_has_each_player_sacrifice_the_number_chosen() {
-    let mut game = setup_two_player_game();
-    let mine = [(); 2].map(|_| put_on_battlefield(&mut game, grizzly_bears(), 0));
-    let theirs = [(); 3].map(|_| put_on_battlefield(&mut game, grizzly_bears(), 1));
-    cast_paying(&mut game, by_invitation_only_fixture(), &[(ManaType::White, 5)], ScriptedDecisionProvider::new());
+    let mut game = setup_game(3);
+    let creatures = [0, 1].map(|seat| [(); 3].map(|_| put_on_battlefield(&mut game, grizzly_bears(), seat)));
+    let lone = put_on_battlefield(&mut game, grizzly_bears(), 2);
+    cast_paying(&mut game, by_invitation_only(), &[(ManaType::White, 5)], ScriptedDecisionProvider::new());
 
     let answers = ScriptedDecisionProvider::new();
     let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 13 }) };
     answers.expect_number(any_number, 2);
-    picks(&answers, vec![ChoiceOption::Object(theirs[0]), ChoiceOption::Object(theirs[2])]);
+    picks(&answers, vec![ChoiceOption::Object(creatures[0][0]), ChoiceOption::Object(creatures[0][1])]);
+    picks(&answers, vec![ChoiceOption::Object(creatures[1][1]), ChoiceOption::Object(creatures[1][2])]);
     let (seat, asked) = Watching::new(answers);
     game.resolve_top_of_stack(&seat).expect("it resolves");
 
     assert!(matches!(asked.of_numbers.borrow().as_slice(), [(0, _, 0, 13)]), "its controller, from 0 through 13");
-    assert!(mine.iter().all(|id| !game.battlefield.contains_key(id)), "two of two");
-    assert_eq!(theirs.map(|id| game.battlefield.contains_key(&id)), [false, true, false], "two of three, the two picked");
+    let pickers: Vec<PlayerId> = asked.of_options.borrow().iter().map(|(player, ..)| *player).collect();
+    assert_eq!(pickers, [0, 1], "in turn order; player 2 has fewer than two, and is not asked");
+    assert_eq!(creatures[0].map(|id| game.battlefield.contains_key(&id)), [false, false, true]);
+    assert_eq!(creatures[1].map(|id| game.battlefield.contains_key(&id)), [true, false, false]);
+    assert!(!game.battlefield.contains_key(&lone), "fewer than two: all of player 2's");
 }
 
 /// A card type chosen from the few the text prints: Turnabout's "choose
@@ -732,8 +789,10 @@ fn the_player_an_earlier_target_named_can_be_the_chooser() {
 /// The Nipton Lottery: one creature drawn at random, three steps on "that
 /// creature" (gained, untapped, hasty) and one on every other. Whichever
 /// the seed draws, it is the one left, and across seeds an opponent's
-/// hexproof creature is.
+/// hexproof creature is. Nobody is asked anything as it resolves, so no
+/// player acts between the draw and the destruction.
 // RULING: The Nipton Lottery #1 - "The creature chosen at random isn’t targeted, so a creature with shroud or an opponent’s creature with hexproof can be chosen this way."
+// RULING: The Nipton Lottery #2 - "Players can’t take actions between the time the creature is randomly chosen and the time at which the rest of the effects occur."
 #[test]
 fn the_nipton_lottery_acts_on_the_creature_drawn_and_destroys_the_rest() {
     let mut drew_an_opponents = false;
@@ -746,7 +805,7 @@ fn the_nipton_lottery_acts_on_the_creature_drawn_and_destroys_the_rest() {
         for id in creatures {
             game.battlefield.get_mut(&id).expect("on the battlefield").tapped = true;
         }
-        cast_paying(&mut game, the_nipton_lottery_fixture(), &[(ManaType::Black, 3), (ManaType::Red, 1)], ScriptedDecisionProvider::new());
+        cast_paying(&mut game, the_nipton_lottery(), &[(ManaType::Black, 3), (ManaType::Red, 1)], ScriptedDecisionProvider::new());
         game.resolve_top_of_stack(&test_dp()).expect("it resolves, and nobody is asked");
 
         let left: Vec<ObjectId> = creatures.into_iter().filter(|id| game.battlefield.contains_key(id)).collect();
@@ -772,7 +831,7 @@ fn duneblast_spares_the_creature_chosen_and_destroys_the_rest() {
         let hexproof = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Hexproof]), 1);
         let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
         let pool = [(ManaType::White, 5), (ManaType::Black, 1), (ManaType::Green, 1)];
-        cast_paying(&mut game, duneblast_fixture(), &pool, ScriptedDecisionProvider::new());
+        cast_paying(&mut game, duneblast(), &pool, ScriptedDecisionProvider::new());
 
         let answers = ScriptedDecisionProvider::new();
         picks(&answers, if spares_one { vec![ChoiceOption::Object(hexproof)] } else { Vec::new() });

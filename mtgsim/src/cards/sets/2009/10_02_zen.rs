@@ -3,13 +3,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    at_beginning_of, put_counters, shuffles_their_library, this_object, triggered_ability, whenever, win_the_game, you, you_have, Whose,
+    at_beginning_of, choose_card_type, chosen_by, each_player, of_the_chosen_card_type, put_counters, sacrifice, shuffles_their_library,
+    this_object, triggered_ability, whenever, win_the_game, you, you_have, Whose,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, CounterType, Effect, PlayerFact, PlayerRef};
+use crate::types::effects::{AmountExpr, Choice, ChoiceScope, ChoiceSide, CounterType, Effect, Pick, PlayerFact, PlayerRef};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{TriggerCondition, TriggerDef};
@@ -113,5 +114,59 @@ pub fn vampire_nighthawk() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::Lifelink)
         .keyword_flag(KeywordFlag::Deathtouch)
         .rules_text("Flying\nDeathtouch\nLifelink")
+        .build()
+}
+
+/// World Queller — {3}{W}{W}
+/// Creature — Avatar 4/4
+///
+/// > At the beginning of your upkeep, you may choose a card type. If you do,
+/// > each player sacrifices a permanent of their choice of that type.
+///
+/// (Oracle text verified on Scryfall, 2026-11-15.)
+///
+/// A card type chosen as the triggered ability resolves (CR 205.2a,
+/// 608.2d), and read by each player's edict: the candidates are their
+/// permanents of that type. "You may choose" is the whole of it, since
+/// choosing is what "if you do" asks about.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"You may choose any card type. Choosing anything other than artifact,
+///   battle, creature, enchantment, kindred, land, or planeswalker will
+///   result in no permanents being sacrificed, though, ..."* (#1) →
+///   `phase_value_chosen_as_an_effect_resolves_integration_test::world_queller_may_choose_a_type_no_permanent_has`.
+/// - *"You don't choose a card type until the ability resolves. Once you
+///   choose a type, it's too late for players to respond."* (#2) →
+///   `phase_value_chosen_as_an_effect_resolves_integration_test::world_queller_keeps_a_card_type_for_each_players_edict`.
+/// - *"First you choose which permanent you'll sacrifice ..., then each other
+///   player in turn order does the same, then all chosen permanents are
+///   sacrificed at the same time."* (#3) →
+///   `phase_value_chosen_as_an_effect_resolves_integration_test::world_queller_asks_each_player_in_turn_order`.
+pub fn world_queller() -> Arc<CardData> {
+    let text = "At the beginning of your upkeep, you may choose a card type. If you do, each player sacrifices a permanent of their choice of that type.";
+    let each_sacrifices_one_of_the_type = sacrifice(chosen_by(Choice {
+        chooser: each_player(),
+        among: ChoiceScope::ChoosersPermanents,
+        picks: vec![Pick::exactly(1, of_the_chosen_card_type())],
+        acts_on: ChoiceSide::Chosen,
+    }));
+    CardDataBuilder::new("World Queller")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Avatar))
+        .power_toughness(4, 4)
+        .rules_text(text)
+        .ability(triggered_ability(
+            text,
+            whenever(
+                at_beginning_of(StepType::Upkeep, Whose::Yours),
+                Effect::Optional {
+                    chooser: PlayerRef::You,
+                    effect: Box::new(Effect::Sequence(vec![choose_card_type(you()), each_sacrifices_one_of_the_type])),
+                },
+            ),
+        ))
         .build()
 }

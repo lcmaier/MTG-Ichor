@@ -185,6 +185,8 @@ pub mod khm;
 pub mod stx;
 #[path = "2021/06_18_mh2.rs"]
 pub mod mh2;
+#[path = "2021/11_19_vow.rs"]
+pub mod vow;
 #[path = "2022/04_29_snc.rs"]
 pub mod snc;
 #[path = "2022/09_09_dmu.rs"]
@@ -197,10 +199,14 @@ pub mod mat;
 pub mod woe;
 #[path = "2024/02_09_mkm.rs"]
 pub mod mkm;
+#[path = "2024/03_08_pip.rs"]
+pub mod pip;
 #[path = "2024/04_19_otj.rs"]
 pub mod otj;
 #[path = "2024/11_15_fdn.rs"]
 pub mod fdn;
+#[path = "2025/06_13_fin.rs"]
+pub mod fin;
 #[path = "2025/06_13_fic.rs"]
 pub mod fic;
 #[path = "2026/01_23_ecl.rs"]
