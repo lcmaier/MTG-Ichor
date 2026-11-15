@@ -68,10 +68,10 @@ says what the audits, the dev GUI and the detours beside them have cost.
 No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.
 
-**Deck cards registered: 9 of 385**, the five lists' distinct cards less
+**Deck cards registered: 10 of 385**, the five lists' distinct cards less
 basics. **Could be written today: 95 more**, with no need left on the route:
 91 the gap census proved writable and 4 whose needs have landed since, which a
-registration proves. 281 wait on a row or a gap, and the census left 0 unread
+registration proves. 280 wait on a row or a gap, and the census left 0 unread
 (`plans/references/card-census/README.md#the-gap-census`).
 
 ### When each subsystem closes
@@ -240,9 +240,9 @@ cell, and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 234 |
-| …of them in `PERFORMANCE_POOL` | 128 |
-| `#[test]` functions | 3144 |
+| Cards registered | 235 |
+| …of them in `PERFORMANCE_POOL` | 129 |
+| `#[test]` functions | 3146 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 

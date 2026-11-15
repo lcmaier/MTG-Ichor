@@ -96,6 +96,7 @@ pub use super::sets::snc::*;
 pub use super::sets::dmu::*;
 pub use super::sets::mom::*;
 pub use super::sets::mat::*;
+pub use super::sets::woe::*;
 pub use super::sets::mkm::*;
 pub use super::sets::otj::*;
 pub use super::sets::fdn::*;

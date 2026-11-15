@@ -16,7 +16,7 @@ use mtgsim::cards::fixtures::{
     bestowed_favors, chosen_champion, consequences_at_random, damnations_tally, duneblast_fixture, kindred_dominance_fixture,
     the_nipton_lottery_fixture, wash_out_fixture, world_queller_fixture,
 };
-use mtgsim::cards::printings::grizzly_bears;
+use mtgsim::cards::printings::{expel_the_interlopers, glorious_anthem, grizzly_bears};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectId, EffectModification, EffectOrigin, Layer};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -321,6 +321,65 @@ fn a_draw_goes_to_its_target_player() {
 // A value chosen as the effect resolves, kept, and read (CR 608.2d)
 // ---------------------------------------------------------------------------
 
+/// Expel the Interlopers over a 0/3, a 2/2, a 3/3 and a 5/5 and a land,
+/// with `number` chosen as it resolves: what was asked, and which of the
+/// four creatures are left. With `anthem`, player 0's two get +1/+1 from a
+/// Glorious Anthem.
+fn expel_choosing(number: u64, anthem: bool) -> (Rc<Asked>, ObjectId, [bool; 4], bool) {
+    let mut game = setup_two_player_game();
+    if anthem {
+        put_on_battlefield(&mut game, glorious_anthem(), 0);
+    }
+    let creatures = [
+        put_on_battlefield(&mut game, vanilla_creature(0, 3, &[]), 0),
+        put_on_battlefield(&mut game, grizzly_bears(), 0),
+        put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1),
+        put_on_battlefield(&mut game, vanilla_creature(5, 5, &[KeywordFlag::Hexproof]), 1),
+    ];
+    let land = put_on_battlefield(&mut game, forest(), 1);
+    let (spell, _) = cast_paying(&mut game, expel_the_interlopers(), &[(ManaType::White, 5)], ScriptedDecisionProvider::new());
+    assert!(game.stack.contains(&spell), "cast with nothing chosen: the number is no part of casting it");
+
+    let answers = ScriptedDecisionProvider::new();
+    let any_number = ChoiceKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(XOffer::Interval { at_least: 0, at_most: 10 }) };
+    answers.expect_number(any_number, number);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+    (asked, spell, creatures.map(|id| game.battlefield.contains_key(&id)), game.battlefield.contains_key(&land))
+}
+
+/// CR 608.2d — the number is chosen as the spell resolves, never as it is
+/// cast, from 0 through 10, both ends offered. Each creature whose power is
+/// the number or more is destroyed, whoever controls it and hexproof or
+/// not: nothing is targeted. This board asks the number of a spell; the
+/// atom's own board is a "you may sacrifice".
+// RULING: Expel the Interlopers #1 - "The numbers you may choose include 0 and 10."
+// COVERS-PARTIAL: ATOM-608.2d-001
+#[test]
+fn expel_the_interlopers_offers_0_through_10_and_destroys_from_the_number_up() {
+    let (asked, spell, left, land_left) = expel_choosing(3, false);
+    let asked = asked.of_numbers.borrow();
+    let [(chooser, kind, least, most)] = asked.as_slice() else { panic!("one question, asked as it resolves: {asked:?}") };
+    assert_eq!((*chooser, *least, *most), (0, 0, 10), "its controller, from 0 through 10");
+    assert!(matches!(kind, ChoiceKind::ChooseNumber { source, .. } if *source == spell), "the question names the spell: {kind:?}");
+    assert_eq!(left, [true, true, false, false], "power 3 and power 5 are 3 or more");
+    assert!(land_left, "a land has no power, and is no creature");
+
+    assert_eq!(expel_choosing(0, false).2, [false; 4], "0: every creature's power is 0 or more");
+    assert_eq!(expel_choosing(10, false).2, [true; 4], "10: no creature here has power 10");
+    assert_eq!(expel_choosing(5, false).2, [true, true, true, false], "the comparison is 'or equal'");
+}
+
+/// The power compared is the creature's as the step runs, every effect
+/// applied (CR 613): under a Glorious Anthem the 2/2 is a 3/3 and a 3
+/// destroys it, and the 0/3 is a 1/4 that a 1 destroys and a 2 spares.
+#[test]
+fn expel_the_interlopers_compares_each_creatures_power_as_it_is() {
+    assert_eq!(expel_choosing(3, true).2, [true, false, false, false]);
+    assert_eq!(expel_choosing(1, true).2, [false; 4]);
+    assert_eq!(expel_choosing(2, true).2, [true, false, false, false]);
+}
+
 /// CR 105.4 — the color is chosen as the spell resolves, from the five, and
 /// the step after it reads the color kept: every permanent of it, whoever
 /// controls it, and nothing else. `Color` has five arms and none for
@@ -354,6 +413,7 @@ fn wash_out_returns_the_permanents_of_the_color_chosen_as_it_resolves() {
 /// (`the_creature_types_are_the_ones_the_rule_lists` reads it off the rules
 /// file), and "aren't of the chosen type" is the filter's `Not` over the
 /// type kept. Forest is a `LandType` and cannot be offered.
+// RULING: Kindred Dominance #2 - "You must choose an existing creature type, such as Vampire or Cat. Card types such as "artifact" can't be chosen."
 // COVERS-PARTIAL: ATOM-205.3m-001
 #[test]
 fn kindred_dominance_spares_the_creature_type_chosen_as_it_resolves() {
@@ -394,6 +454,7 @@ fn to_player_0s_upkeep(game: &mut GameState) {
 /// list and read by each player's edict: a player picks from their
 /// permanents of that type, and one with none sacrifices nothing. Declined,
 /// nothing is chosen and nothing sacrificed.
+// RULING: World Queller #2 - "You don't choose a card type until the ability resolves. Once you choose a type, it's too late for players to respond."
 #[test]
 fn world_queller_keeps_a_card_type_for_each_players_edict() {
     for chooses in [true, false] {
@@ -494,14 +555,18 @@ fn a_number_chosen_at_random_is_within_its_bounds() {
 
 /// The Nipton Lottery: one creature drawn at random, three steps on "that
 /// creature" (gained, untapped, hasty) and one on every other. Whichever
-/// the seed draws, it is the one left, and across seeds an opponent's is.
+/// the seed draws, it is the one left, and across seeds an opponent's
+/// hexproof creature is.
+// RULING: The Nipton Lottery #1 - "The creature chosen at random isn’t targeted, so a creature with shroud or an opponent’s creature with hexproof can be chosen this way."
 #[test]
 fn the_nipton_lottery_acts_on_the_creature_drawn_and_destroys_the_rest() {
     let mut drew_an_opponents = false;
     for seed in 0..8 {
         let mut game = setup_two_player_game();
         game.reseed(seed);
-        let creatures = [0, 1, 1, 1].map(|seat| put_on_battlefield(&mut game, grizzly_bears(), seat));
+        let hexproof = || vanilla_creature(2, 2, &[KeywordFlag::Hexproof]);
+        let creatures = [(0, grizzly_bears()), (1, hexproof()), (1, hexproof()), (1, hexproof())]
+            .map(|(seat, creature)| put_on_battlefield(&mut game, creature, seat));
         for id in creatures {
             game.battlefield.get_mut(&id).expect("on the battlefield").tapped = true;
         }
@@ -522,6 +587,7 @@ fn the_nipton_lottery_acts_on_the_creature_drawn_and_destroys_the_rest() {
 /// creature can be the one spared (CR 115.10a), and "the rest" is every
 /// creature other than it. "Up to one" may be none, and then the rest is
 /// every creature.
+// RULING: Duneblast #1 - "You decide which creature to spare as Duneblast resolves. This choice doesn't target the creature. If you don't choose a creature, then all creatures will be destroyed."
 #[test]
 fn duneblast_spares_the_creature_chosen_and_destroys_the_rest() {
     for spares_one in [true, false] {

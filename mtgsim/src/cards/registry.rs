@@ -9,7 +9,7 @@ use super::sets::{
     fic, fut, gpt, grn, gtc, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
     mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
     uds, ulg, usg,
-    vis, war, wth, wwk, zen, znr,
+    vis, war, woe, wth, wwk, zen, znr,
 };
 
 /// The board an engine change is measured against — **representative, not
@@ -28,7 +28,7 @@ use super::sets::{
 /// seed-deterministic rows — turns, spells cast, creatures died — are what an
 /// addition invalidates and what still has to be re-measured. Registering a
 /// card is still not the same act as adding one here.
-const PERFORMANCE_POOL: [&str; 128] = [
+const PERFORMANCE_POOL: [&str; 129] = [
     "Plains",
     "Island",
     "Swamp",
@@ -573,6 +573,12 @@ const PERFORMANCE_POOL: [&str; 128] = [
     // registered and stays out: the same choice behind spree, and its third
     // mode wipes the board.
     "Feast of the Victorious Dead",
+    // CR 608.2d's value chosen as an effect resolves: a number its
+    // controller chooses as the spell resolves, kept, and read by the next
+    // step's filter. Five mana and a sorcery. A number at or below the
+    // least power on the board destroys every creature, which the random
+    // agent picks often: 0 alone is one answer in eleven.
+    "Expel the Interlopers",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1237,6 +1243,10 @@ impl CardRegistry {
         // a spree mode, and counters divided among creatures not targeted.
         registry.register("Final Showdown", otj::final_showdown);
         registry.register("Feast of the Victorious Dead", mat::feast_of_the_victorious_dead);
+        // A value chosen as an effect resolves, kept, and read by a later
+        // step: a number, and a filter comparing each creature's power with
+        // it.
+        registry.register("Expel the Interlopers", woe::expel_the_interlopers);
 
         for (name, factory) in IN_DEVELOPMENT {
             registry.register_in_development(name, factory);

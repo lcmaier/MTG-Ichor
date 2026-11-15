@@ -193,6 +193,8 @@ pub mod dmu;
 pub mod mom;
 #[path = "2023/05_12_mat.rs"]
 pub mod mat;
+#[path = "2023/09_08_woe.rs"]
+pub mod woe;
 #[path = "2024/02_09_mkm.rs"]
 pub mod mkm;
 #[path = "2024/04_19_otj.rs"]

@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-11-14",
+  "fetched": "2026-11-15",
   "fixtures": ["Five-Color Land Fixture", "Loyalty Probe", "Moonlace Fixture"],
   "cards": {
     "Abrade": {
@@ -505,6 +505,12 @@
         {"n": 7, "published_at": "2011-09-22", "comment": "If Dryad Arbor is changed into another basic land type (such as by Sea's Claim), it continues to be a creature and a Dryad."}
       ]
     },
+    "Duneblast": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2014-09-20", "comment": "You decide which creature to spare as Duneblast resolves. This choice doesn't target the creature. If you don't choose a creature, then all creatures will be destroyed."}
+      ]
+    },
     "Earth Elemental": {
       "first_seen": "2026-09-17",
       "rulings": []
@@ -554,6 +560,12 @@
         {"n": 1, "published_at": "2004-12-01", "comment": "The upkeep step is skipped entirely. The turn proceeds from untap step to draw step."},
         {"n": 2, "published_at": "2004-12-01", "comment": "Upkeep-triggered abilities don't trigger, and \"activate only during your upkeep\" abilities can't be activated."},
         {"n": 3, "published_at": "2004-12-01", "comment": "Any triggered abilities that triggered during the untap step will go onto the stack at the start of the draw step."}
+      ]
+    },
+    "Expel the Interlopers": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2023-09-01", "comment": "The numbers you may choose include 0 and 10."}
       ]
     },
     "Explosive Derailment": {
@@ -923,6 +935,14 @@
         {"n": 2, "published_at": "2022-10-07", "comment": "An opponent gaining control of it is part of the replacement effect and happens immediately, even if you are in the middle of resolving the spell or ability and it has more instructions to perform after taking damage."},
         {"n": 3, "published_at": "2022-10-07", "comment": "In contrast, the Sigil of Corruption ability is a triggered ability, and it won't go onto the stack until after the spell or ability that tried to deal damage finishes resolving."},
         {"n": 4, "published_at": "2022-10-07", "comment": "In some cases, a single spell or ability will deal damage to this creature multiple times during its resolution. In that case, a new player gains control of it each time, its ability triggers once each time, and the appropriate players control those triggers. After that spell or ability is done resolving, all of those triggers are put onto the stack in turn order, starting with the active player (or the next player in turn order if the active player isn't involved). Usually, this means that the cards are drawn in a different order than the control-changing effects took place."}
+      ]
+    },
+    "Kindred Dominance": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2017-08-25", "comment": "Once Kindred Dominance begins to resolve, no players may take other actions until it's done. Notably, players can't try to save their creatures after you've chosen a creature type."},
+        {"n": 2, "published_at": "2017-08-25", "comment": "You must choose an existing creature type, such as Vampire or Cat. Card types such as \"artifact\" can't be chosen."},
+        {"n": 3, "published_at": "2017-08-25", "comment": "You can't choose multiple creature types, such as \"Cat Warrior.\" A Cat Warrior is both a Cat and a Warrior. It's affected by anything that affects either type and unaffected by things that affect non-Cat or non-Warrior creatures."}
       ]
     },
     "Kird Ape": {
@@ -1569,6 +1589,13 @@
         {"n": 4, "published_at": "2018-03-16", "comment": "To determine the total cost of a spell, start with the mana cost or alternative cost you're paying, add any cost increases, then apply any cost reductions. The mana value of the spell remains unchanged, no matter what the total cost to cast it was."}
       ]
     },
+    "The Nipton Lottery": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2024-03-08", "comment": "The creature chosen at random isn’t targeted, so a creature with shroud or an opponent’s creature with hexproof can be chosen this way."},
+        {"n": 2, "published_at": "2024-03-08", "comment": "Players can’t take actions between the time the creature is randomly chosen and the time at which the rest of the effects occur."}
+      ]
+    },
     "Thornweald Archer": {
       "first_seen": "2026-09-17",
       "rulings": []
@@ -1769,6 +1796,14 @@
       "first_seen": "2026-09-17",
       "rulings": [
         {"n": 1, "published_at": "2004-10-04", "comment": "If multiple Words have been used prior to drawing a card, then you can choose which one to apply (and use up) each time you draw a card."}
+      ]
+    },
+    "World Queller": {
+      "first_seen": "2026-11-15",
+      "rulings": [
+        {"n": 1, "published_at": "2013-07-01", "comment": "You may choose any card type. Choosing anything other than artifact, battle, creature, enchantment, kindred, land, or planeswalker will result in no permanents being sacrificed, though, since these are the only types permanents can have."},
+        {"n": 2, "published_at": "2009-10-01", "comment": "You don't choose a card type until the ability resolves. Once you choose a type, it's too late for players to respond."},
+        {"n": 3, "published_at": "2009-10-01", "comment": "First you choose which permanent you'll sacrifice (if you control any of the chosen type), then each other player in turn order does the same, then all chosen permanents are sacrificed at the same time."}
       ]
     },
     "Yawgmoth's Bargain": {
