@@ -59,7 +59,7 @@ use crate::state::battlefield::{EnteredAs, PermanentState};
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, PlayerFact, PlayerRef,
+    ObjectSet, AmountExpr, CharacteristicEdit, Condition, CounterType, ObjectFilter, ObjectValue, PlayerFact, PlayerRef,
     };
 use crate::types::ids::{AbilityId, IdCollection, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -779,7 +779,13 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
                 out.source |= you_channel;
             }
         }
-        ObjectFilter::PowerLE(_) => out.members |= Channels::POWER,
+        // The number compared with is plain by the time the walk asks.
+        ObjectFilter::WithValue { of, .. } => {
+            out.members |= match of {
+                ObjectValue::Power => Channels::POWER,
+                ObjectValue::Toughness => Channels::TOUGHNESS,
+            }
+        }
         // A counter is no layer's output; a counter write bumps the layer
         // epoch instead.
         ObjectFilter::WithCounters { .. } => {}

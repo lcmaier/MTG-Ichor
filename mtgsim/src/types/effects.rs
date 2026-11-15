@@ -157,11 +157,56 @@ pub enum AmountExpr {
     ValueOf(Antecedent, ObjectValue),
 }
 
-/// Which number [`AmountExpr::ValueOf`] reads off its object.
+/// Which number [`AmountExpr::ValueOf`] and [`ObjectFilter::WithValue`] read
+/// off an object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObjectValue {
     Power,
     Toughness,
+}
+
+/// How [`ObjectFilter::WithValue`] compares its number, and with what.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ValueIs {
+    /// "3 or greater", "greater than or equal to".
+    AtLeast(AmountExpr),
+    /// "2 or less".
+    AtMost(AmountExpr),
+    /// "Equal to".
+    Exactly(AmountExpr),
+    /// "Less than", "lesser": mentor's (CR 702.134a).
+    LessThan(AmountExpr),
+}
+
+impl ValueIs {
+    /// What the number is compared with.
+    pub fn amount(&self) -> &AmountExpr {
+        match self {
+            ValueIs::AtLeast(amount) | ValueIs::AtMost(amount) | ValueIs::Exactly(amount) | ValueIs::LessThan(amount) => amount,
+        }
+    }
+
+    /// The same comparison with `amount` in place of what it named.
+    pub fn with_amount(&self, amount: AmountExpr) -> ValueIs {
+        match self {
+            ValueIs::AtLeast(_) => ValueIs::AtLeast(amount),
+            ValueIs::AtMost(_) => ValueIs::AtMost(amount),
+            ValueIs::Exactly(_) => ValueIs::Exactly(amount),
+            ValueIs::LessThan(_) => ValueIs::LessThan(amount),
+        }
+    }
+
+    /// Whether `value` stands to `amount`, once read, as the comparison says.
+    /// A power can be negative (CR 208.3), an amount cannot (CR 107.1b).
+    pub fn satisfied_by(&self, value: i64, amount: u64) -> bool {
+        let amount = i64::try_from(amount).unwrap_or(i64::MAX);
+        match self {
+            ValueIs::AtLeast(_) => value >= amount,
+            ValueIs::AtMost(_) => value <= amount,
+            ValueIs::Exactly(_) => value == amount,
+            ValueIs::LessThan(_) => value < amount,
+        }
+    }
 }
 
 /// Reference to a player in an effect context
@@ -237,8 +282,13 @@ pub enum ObjectFilter {
     BySupertype(crate::types::card_types::Supertype),
     ByColor(Color),
     ByController(PlayerRef),
-    /// Power less than or equal to N (for "creature with power N or less")
-    PowerLE(i32),
+    /// "With power 3 or greater", "with toughness 2 or less": a number read
+    /// off the object, compared with another number. An object with no such
+    /// number is neither side of it (CR 208.3). The table compares plain
+    /// numbers, so an asker that can read amounts reads `is`'s first: a
+    /// resolution does, as the instruction applies (CR 608.2h). Boxed, since
+    /// an amount can count what a filter matches.
+    WithValue { of: ObjectValue, is: Box<ValueIs> },
     /// "With a +1/+1 counter on it", "with three or more counters on it",
     /// "with no counters on it": how many counters of `kind` the object has,
     /// counting every kind when `kind` is `None` (CR 122.1). Read off the

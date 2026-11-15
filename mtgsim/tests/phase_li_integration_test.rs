@@ -145,7 +145,7 @@ fn test_a_counter_older_than_a_power_reading_row_applies_first() {
         timestamp,
         affected_objects: ObjectSet::battlefield_filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::PowerLE(2)),
+                Box::new(mtgsim::cards::authoring::power_at_most(2)),
             )),
         modification: EffectModification::ModifyPowerToughness {
             power: PtValue::Fixed(1),

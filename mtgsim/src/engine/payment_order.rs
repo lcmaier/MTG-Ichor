@@ -213,8 +213,8 @@ fn filter_reads(filter: &ObjectFilter) -> PaymentChannels {
     match filter {
         ObjectFilter::WithCounters { .. } => Q::COUNTERS,
         ObjectFilter::ThisTurn(_) | ObjectFilter::ThisCombat(_) => Q::HISTORY,
-        // A power, which reads whatever that creature's does.
-        ObjectFilter::PowerLE(_) => Q::EVERYTHING,
+        // A power or a toughness, which reads whatever that creature's does.
+        ObjectFilter::WithValue { .. } => Q::EVERYTHING,
         ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => filter_reads(a) | filter_reads(b),
         ObjectFilter::Not(inner) => filter_reads(inner),
         ObjectFilter::All

@@ -1235,7 +1235,7 @@ fn essence_of_might() -> Arc<CardData> {
             Box::new(ObjectFilter::ByType(CardType::Creature)),
             Box::new(ObjectFilter::ByController(PlayerRef::You)),
         )),
-        Box::new(ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(3)))),
+        Box::new(ObjectFilter::Not(Box::new(mtgsim::cards::authoring::power_at_most(3)))),
     );
     CardDataBuilder::new("Essence of Might")
         .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green], 3))

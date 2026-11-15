@@ -13,7 +13,7 @@ use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
 use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
+    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef, ValueIs,
 };
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ReplacedEvent;
@@ -1762,11 +1762,21 @@ impl EntryWrites {
             ObjectFilter::BySupertype(s) => negated && self.added_supertypes.contains(s),
             // No edit adds a color yet.
             ObjectFilter::ByColor(_) => false,
-            ObjectFilter::PowerLE(_) => {
-                if negated {
-                    self.lowers_power
+            // A +1/+1 counter raises power and toughness alike, and a -1/-1
+            // lowers both. A raise unmatches "at most" and "less than", a
+            // drop "at least", and either "exactly"; negated, the reverse.
+            // An amount still to be read can move either way.
+            ObjectFilter::WithValue { is, .. } => {
+                let (raised, lowered) = if negated {
+                    (self.lowers_power, self.raises_power)
                 } else {
-                    self.raises_power
+                    (self.raises_power, self.lowers_power)
+                };
+                match &**is {
+                    _ if !matches!(is.amount(), AmountExpr::Fixed(_)) => self.raises_power || self.lowers_power,
+                    ValueIs::AtMost(_) | ValueIs::LessThan(_) => raised,
+                    ValueIs::AtLeast(_) => lowered,
+                    ValueIs::Exactly(_) => self.raises_power || self.lowers_power,
                 }
             }
             // An entry only adds counters, which can turn "at least" on and

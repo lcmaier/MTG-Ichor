@@ -98,15 +98,15 @@ fn enter_tapped_when(name: &str, filter: ObjectFilter) -> Arc<CardData> {
 }
 
 /// "Creatures with power N or less enter tapped." No printed card says this;
-/// `ObjectFilter::PowerLE` is the one leaf that reads what the frame
+/// `ObjectFilter::WithValue` is the one leaf that reads what the frame
 /// changes — counters (CR 122.1a) and the entering object's own anthem — so it
 /// is the fixture that can see the frame at all.
-fn small_creatures_enter_tapped(n: i32) -> Arc<CardData> {
+fn small_creatures_enter_tapped(n: u64) -> Arc<CardData> {
     enter_tapped_when(
         "Small creatures enter tapped",
         ObjectFilter::And(
             Box::new(ObjectFilter::ByType(CardType::Creature)),
-            Box::new(ObjectFilter::PowerLE(n)),
+            Box::new(mtgsim::cards::authoring::power_at_most(n)),
         ),
     )
 }
@@ -564,7 +564,7 @@ fn test_an_exit_beside_an_enters_tapped_is_one_outcome_and_not_asked() {
 /// The prompt the frame makes real. Adaptive Shimmerer is a 0/0 that enters
 /// with three +1/+1 counters; "creatures with power 1 or less enter tapped"
 /// matches it at 0/0 and not at 3/3. Both apply at the first iteration, and
-/// the order decides whether it enters tapped — so `PowerLE` is not an
+/// the order decides whether it enters tapped — so "power N or less" is not an
 /// invariant leaf, and CR 616.1 asks. The branch this keeps alive is the one
 /// RB shipped dead with Kalitas.
 // COVERS-PARTIAL: ATOM-616.1-001

@@ -7,8 +7,8 @@
 use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, DividedCount, EffectRecipient, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet,
-    SelectionFilter, TargetCount,
+    AmountExpr, Antecedent, Choice, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef, PlayerSet,
+    SelectionFilter, TargetCount, ValueIs,
 };
 use crate::types::triggers::EventRole;
 use crate::types::zones::ZoneSet;
@@ -271,6 +271,27 @@ pub fn other_than_this() -> ObjectFilter {
 /// "Forest", "Aura", "Elf" (CR 205.3): an object with `subtype`.
 pub fn with_subtype(subtype: Subtype) -> ObjectFilter {
     ObjectFilter::BySubtype(subtype)
+}
+
+/// "With power 3 or greater", "with power greater than or equal to the
+/// chosen number" (CR 208).
+pub fn power_at_least(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Power, is: Box::new(ValueIs::AtLeast(amount.into())) }
+}
+
+/// "With power 2 or less" (CR 208).
+pub fn power_at_most(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Power, is: Box::new(ValueIs::AtMost(amount.into())) }
+}
+
+/// "With toughness 4 or greater" (CR 208).
+pub fn toughness_at_least(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Toughness, is: Box::new(ValueIs::AtLeast(amount.into())) }
+}
+
+/// "With toughness 2 or less" (CR 208).
+pub fn toughness_at_most(amount: impl Into<AmountExpr>) -> ObjectFilter {
+    ObjectFilter::WithValue { of: ObjectValue::Toughness, is: Box::new(ValueIs::AtMost(amount.into())) }
 }
 
 /// "Basic" (CR 205.4c); "nonbasic land" is `land().and(non(basic()))`.

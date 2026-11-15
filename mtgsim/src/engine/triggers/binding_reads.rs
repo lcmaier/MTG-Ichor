@@ -365,9 +365,9 @@ fn filter_reads(f: &ObjectFilter) -> TriggerBindingReads {
         | ObjectFilter::BySubtype(_)
         | ObjectFilter::BySupertype(_)
         | ObjectFilter::ByColor(_)
-        | ObjectFilter::PowerLE(_)
         | ObjectFilter::WithCounters { .. }
         | ObjectFilter::Token => TriggerBindingReads::NONE,
+        ObjectFilter::WithValue { is, .. } => amount_reads(is.amount()),
         ObjectFilter::ThisTurn(fact) | ObjectFilter::ThisCombat(fact) => object_fact_reads(fact),
         ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref_reads(whose),
         ObjectFilter::NotSource => TriggerBindingReads::SOURCE,

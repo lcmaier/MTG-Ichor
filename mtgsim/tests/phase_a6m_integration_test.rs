@@ -425,7 +425,7 @@ fn creature_and(filter: ObjectFilter) -> ObjectFilter {
 }
 
 /// CR 208.3: a land has no power, so it is not "power 4 or greater" either.
-/// The layer walk answered `PowerLE` of a land with `false`, and so its
+/// The layer walk answered "power N or less" of a land with `false`, and so its
 /// negation with `true`.
 // COVERS-PARTIAL: ATOM-208.3-001
 #[test]
@@ -444,7 +444,7 @@ fn test_power_four_or_greater_does_not_name_a_land_in_the_layer_walk() {
         controller: 0,
         created_on_turn: 1,
         timestamp,
-        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(3)))),
+        affected_objects: ObjectSet::battlefield_filter(ObjectFilter::Not(Box::new(mtgsim::cards::authoring::power_at_most(3)))),
         modification: EffectModification::AddColor(Color::Red),
     });
 
@@ -453,14 +453,14 @@ fn test_power_four_or_greater_does_not_name_a_land_in_the_layer_walk() {
     assert!(!get_effective_colors(&game, land).contains(&Color::Red), "a land has no power to compare");
 }
 
-/// The selection side refused `PowerLE` of a land as a malformed question, so
+/// The selection side refused "power N or less" of a land as a malformed question, so
 /// a `matched` asker panicked in a debug build: a filter meeting a board, not
 /// a card asking what its site cannot answer.
 // COVERS-PARTIAL: ATOM-208.3-001
 #[test]
 fn test_a_land_is_not_power_two_or_less_and_asking_is_not_malformed() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, exiler(ObjectFilter::PowerLE(2), None, None), 0);
+    put_on_battlefield(&mut game, exiler(mtgsim::cards::authoring::power_at_most(2), None, None), 0);
     let land = put_on_battlefield(&mut game, forest(), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
 
@@ -473,7 +473,7 @@ fn test_a_land_is_not_power_two_or_less_and_asking_is_not_malformed() {
 #[test]
 fn test_an_or_with_a_powerless_arm_beside_a_true_one_is_true() {
     let mut game = setup_two_player_game();
-    let either = ObjectFilter::Or(Box::new(ObjectFilter::PowerLE(2)), Box::new(ObjectFilter::Token));
+    let either = ObjectFilter::Or(Box::new(mtgsim::cards::authoring::power_at_most(2)), Box::new(ObjectFilter::Token));
     put_on_battlefield(&mut game, exiler(either, None, None), 0);
     let treasure = put_on_battlefield(&mut game, card_of_type("A6m Treasure", CardType::Artifact), 0);
     game.objects.get_mut(&treasure).unwrap().is_token = true;
@@ -554,7 +554,7 @@ fn small_artifact_copier() -> Arc<CardData> {
     let counter = CopyException::Additionally(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1));
     let copy = Rewrite::EnterAsCopy(EntryCopyTemplate {
         donor: CopyDonor::Chosen(SelectionFilter::Permanent(artifact_you_control)),
-        except: vec![CopyException::If(ObjectFilter::PowerLE(2), vec![counter])],
+        except: vec![CopyException::If(mtgsim::cards::authoring::power_at_most(2), vec![counter])],
     });
     let def = ReplacementDef {
         optional: true,

@@ -17,7 +17,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::targeting::{ChosenTargets, FilterIdentity, TargetInstance};
 use crate::state::game_state::GameState;
 use crate::state::history_log::CombatSpan;
-use crate::types::effects::{CounterType, ObjectFilter, PlayerRef};
+use crate::types::effects::{AmountExpr, CounterType, ObjectFilter, ObjectValue, PlayerRef};
 use crate::types::history::ObjectFact;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::objects::object::GameObject;
@@ -160,8 +160,12 @@ enum FilterRefusal {
     /// `NotSource`, or a `PlayerRef::Owner`, asked where nothing names a
     /// source.
     NoSource(ObjectId),
-    /// `PowerLE` asked of an object with no power (CR 208.3).
-    NoPower(ObjectId),
+    /// `WithValue` asked of an object with no such number: a noncreature's
+    /// power or toughness (CR 208.3).
+    NoSuchValue(ObjectId),
+    /// `WithValue` comparing with an amount its asker did not read first:
+    /// the table compares plain numbers.
+    AmountNotRead(ObjectId),
     /// A fact the characteristics do not carry (counters, combat, what it did
     /// this turn) asked of a frame from a moment that does not keep it, which
     /// the board now cannot answer for (`FrameContext`).
@@ -176,8 +180,8 @@ impl FilterRefusal {
     /// which CR 208.3 makes "power N or less" and its negation both false.
     fn is_malformed_question(self) -> bool {
         match self {
-            FilterRefusal::ObjectGone(_) | FilterRefusal::NoPower(_) => false,
-            FilterRefusal::NoSource(_) | FilterRefusal::NotInCharacteristics(_) => true,
+            FilterRefusal::ObjectGone(_) | FilterRefusal::NoSuchValue(_) => false,
+            FilterRefusal::NoSource(_) | FilterRefusal::NotInCharacteristics(_) | FilterRefusal::AmountNotRead(_) => true,
         }
     }
 }
@@ -189,7 +193,12 @@ impl std::fmt::Display for FilterRefusal {
             FilterRefusal::NoSource(id) => {
                 write!(f, "a filter asked of {id} names a source, \"another\" or \"its owner\", and nothing is being read")
             }
-            FilterRefusal::NoPower(id) => write!(f, "Object {id} has no power"),
+            FilterRefusal::NoSuchValue(id) => write!(f, "Object {id} has no power or toughness to compare"),
+            FilterRefusal::AmountNotRead(id) => write!(
+                f,
+                "a filter asked of {id} compares a number with an amount nothing read first: \
+                 the asker reads it, as a resolution does, and the table compares plain numbers"
+            ),
             FilterRefusal::NotInCharacteristics(id) => write!(
                 f,
                 "a filter asked {id}, read by a frame from another moment, for a fact the frame does not \
@@ -314,8 +323,17 @@ fn answer_or_refuse<'f>(
             };
             player_ref_names(game, who, owner, referents).ok_or(FilterRefusal::NoSource(id))
         }
-        ObjectFilter::PowerLE(max_power) => {
-            chars()?.power.map(|power| power <= *max_power).ok_or(FilterRefusal::NoPower(id))
+        ObjectFilter::WithValue { of, is } => {
+            let chars = chars()?;
+            let value = match of {
+                ObjectValue::Power => chars.power,
+                ObjectValue::Toughness => chars.toughness,
+            };
+            let value = value.ok_or(FilterRefusal::NoSuchValue(id))?;
+            let AmountExpr::Fixed(amount) = is.amount() else {
+                return Err(FilterRefusal::AmountNotRead(id));
+            };
+            Ok(is.satisfied_by(i64::from(value), *amount))
         }
         ObjectFilter::WithCounters { kind, count } => {
             let n = match object {

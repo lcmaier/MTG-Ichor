@@ -156,7 +156,7 @@ fn a_narrowed_count_reads_the_object_as_its_row_kept_it() {
     let watcher = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let pumped = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let plain = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let power_three = ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(2)));
+    let power_three = mtgsim::cards::authoring::power_at_least(3);
     let died = HistoryCount { players: PlayerSet::You, fact: TurnFact::ControlledCreaturesDied, of: Some(Box::new(power_three)) };
     let one_big_one_died = Condition::ThisTurn(died, CountIs::Exactly(1));
 

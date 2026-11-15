@@ -49,9 +49,9 @@ pub use modes::{
 pub use recipients::{
     an_opponent_controls, another_target, any_other_target, any_player, any_target, artifact, attacked_by, basic, chosen_by, chosen_permanent, color,
     creature, creatures_you_control, divided_among_targeted, divided_among_untargeted, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
-    nonlegendary_creature, other_than_this, planeswalker, referred, target, target_creature, target_opponent, target_permanent, target_player,
-    target_spell, targets, that_player, that_target, the_target, this_object, token, triggering_object, with_subtype, you, you_and_that_player, you_cast,
-    you_control, your_opponents_control,
+    nonlegendary_creature, other_than_this, planeswalker, power_at_least, power_at_most, referred, target, target_creature, target_opponent,
+    target_permanent, target_player, target_spell, targets, that_player, that_target, the_target, this_object, token, toughness_at_least,
+    toughness_at_most, triggering_object, with_subtype, you, you_and_that_player, you_cast, you_control, your_opponents_control,
 };
 pub use replacements::{
     all_damage_to_you, draw_two_instead, every_permanent_and_player, shuffles_into_library_from_anywhere, skip, tapped_for_mana,

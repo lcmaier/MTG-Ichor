@@ -38,8 +38,8 @@ fn enchantment_with(name: &str, ability: AbilityDef) -> Arc<CardData> {
 /// whose reach is the entering object's frame, so it reads CR 614.12. No card
 /// prints one by power (two searches, 2026-11-05: Slinza, the Spiked Stampede's
 /// reads a subtype); power is what an anthem writes.
-fn entry_at_power(at_least: i32, template: EnterModsTemplate) -> ReplacementDef {
-    let reaches = ObjectFilter::Not(Box::new(ObjectFilter::PowerLE(at_least - 1)));
+fn entry_at_power(at_least: u64, template: EnterModsTemplate) -> ReplacementDef {
+    let reaches = mtgsim::cards::authoring::power_at_least(at_least);
     ReplacementDef::new(
         EventPattern::EnterBattlefield { cast: None },
         ObjectSet::battlefield_filter(reaches),
