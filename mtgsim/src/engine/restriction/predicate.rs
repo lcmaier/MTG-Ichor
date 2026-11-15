@@ -204,10 +204,7 @@ fn permanents_to_sweep(game: &GameState, sweep: Sweep) -> Vec<ObjectId> {
     if sweep == Sweep::Everything || summary.any_granted_restriction || summary.any_copied_restriction {
         return game.battlefield_ids();
     }
-    // ORDER-FREE: sorted next.
-    let mut sources: Vec<ObjectId> = game.restriction_ability_sources.iter().copied().filter(|id| game.battlefield.contains_key(id)).collect();
-    sources.sort_unstable();
-    sources
+    game.restriction_ability_sources.keys().filter(|id| game.battlefield.contains_key(id)).collect()
 }
 
 /// Does this restriction forbid what the query asks about?

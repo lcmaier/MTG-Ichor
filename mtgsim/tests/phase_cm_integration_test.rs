@@ -434,7 +434,7 @@ fn test_the_phases_cards_are_registered() {
         let card = registry.create(name).unwrap_or_else(|e| panic!("{name}: {e}"));
         let mut game = setup_two_player_game();
         let id = put_on_battlefield(&mut game, card, 1);
-        assert!(game.cost_modification_ability_sources.contains(&id), "{name} is a source");
+        assert!(game.cost_modification_ability_sources.contains_key(&id), "{name} is a source");
     }
     // CM-2's two are not: a spell's own cost ability functions on the stack
     // (CR 113.6d), so an affinity creature standing on the battlefield is a
@@ -443,7 +443,7 @@ fn test_the_phases_cards_are_registered() {
         let card = registry.create(name).unwrap_or_else(|e| panic!("{name}: {e}"));
         let mut game = setup_two_player_game();
         let id = put_on_battlefield(&mut game, card, 1);
-        assert!(!game.cost_modification_ability_sources.contains(&id), "{name} is not a source");
+        assert!(!game.cost_modification_ability_sources.contains_key(&id), "{name} is not a source");
         assert!(game.cost_modification_ability_sources.is_empty(), "{name} left the set empty");
     }
 }

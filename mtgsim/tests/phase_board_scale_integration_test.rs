@@ -134,7 +134,7 @@ fn a_cant_is_found_with_the_sweep_narrowed_to_its_sources() {
     let mut game = audited_game();
     let sigarda = put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
     create(&mut game, vec![goblin(); 3], 0);
-    assert!(game.restriction_ability_sources.contains(&sigarda));
+    assert!(game.restriction_ability_sources.contains_key(&sigarda));
 
     create(&mut game, vec![goblin(); 3], 1);
 

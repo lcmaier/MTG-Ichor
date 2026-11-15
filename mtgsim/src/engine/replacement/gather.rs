@@ -344,22 +344,9 @@ fn gather_sweeping(
             }
         }
     } else {
-        if game.trace_is_on() {
-            // Asking walks the layers, and a walk writes a trace record, so a
-            // traced game asks in id order. Untraced, the sort would cost
-            // every gather for an order nothing reads.
-            // ORDER-FREE: sorted next.
-            let mut sources: Vec<(ObjectId, &[ReplacementDef])> =
-                game.off_battlefield_replacement_ability_sources.iter().map(|(&id, printed)| (id, &printed[..])).collect();
-            sources.sort_unstable_by_key(|&(id, _)| id);
-            elsewhere.extend(sources.into_iter().filter(|&(id, printed)| could_apply(id, printed)).map(|(id, _)| id));
-        } else {
-            // ORDER-FREE: the matches are sorted below, and untraced no walk
-            // records the order it was asked in.
-            for (&id, printed) in game.off_battlefield_replacement_ability_sources.iter() {
-                if could_apply(id, printed) {
-                    elsewhere.push(id);
-                }
+        for (id, printed) in game.off_battlefield_replacement_ability_sources.iter() {
+            if could_apply(id, printed) {
+                elsewhere.push(id);
             }
         }
         let zone_sweep = unattributed_zones.beyond_battlefield();
@@ -441,8 +428,7 @@ fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[O
             asked.push(BattlefieldCandidate { id, abilities_could_answer });
         }
     };
-    // ORDER-FREE: sorted below.
-    for (&id, kinds) in game.replacement_ability_sources.iter() {
+    for (id, kinds) in game.replacement_ability_sources.iter() {
         if kinds.contains(proposed) {
             ask(id, true);
         }
@@ -450,11 +436,10 @@ fn battlefield_candidates(game: &GameState, proposed: GameActionKind, named: &[O
     for &id in named {
         ask(id, true);
     }
-    // ORDER-FREE: sorted below.
-    for &id in game.replacement_counter_holders.iter() {
+    for id in game.replacement_counter_holders.keys() {
         ask(id, false);
     }
-    // A permanent asked twice sorts beside its twin.
+    // Three sources merged: a permanent asked twice sorts beside its twin.
     asked.sort_unstable_by_key(|candidate| candidate.id);
     asked.dedup_by(|later, kept| {
         let twin = later.id == kept.id;

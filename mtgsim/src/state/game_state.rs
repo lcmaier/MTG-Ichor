@@ -531,7 +531,7 @@ pub struct GameState {
     /// **Engine-maintained.** `perform_entry` files and
     /// `cleanup_zone_state` removes; a hand-written removal is a card that
     /// silently stops working.
-    pub replacement_ability_sources: IdMap<ObjectId, GameActionKindMask>,
+    pub replacement_ability_sources: ObjectTable<GameActionKindMask>,
 
     /// The permanents holding a counter that generates a replacement effect:
     /// a shield, stun or finality counter (CR 122.1c/d/h,
@@ -548,7 +548,7 @@ pub struct GameState {
     /// an answer; a missing one is a shield that stops nothing, which
     /// [`Self::replacement_counter_holders_cover_the_board`] asserts at every
     /// gather in a debug build.
-    pub replacement_counter_holders: IdSet<ObjectId>,
+    pub replacement_counter_holders: ObjectTable<()>,
 
     /// Objects **off the battlefield** that printed a static ability whose
     /// body is an `Effect::Replacement` and that **functions in the zone the
@@ -588,7 +588,7 @@ pub struct GameState {
     /// **Engine-maintained.** `register_static_effects` inserts from
     /// `arrive_in_zone` and `create_in_zone`; `cleanup_zone_state` removes on
     /// leaving any zone but the battlefield.
-    pub off_battlefield_replacement_ability_sources: IdMap<ObjectId, Arc<[ReplacementDef]>>,
+    pub off_battlefield_replacement_ability_sources: ObjectTable<Arc<[ReplacementDef]>>,
 
     /// Every CR 101.2 "can't" a resolution has created.
     ///
@@ -613,7 +613,7 @@ pub struct GameState {
     ///
     /// **Engine-maintained. Read it; do not write it.** `perform_entry`
     /// inserts and `cleanup_zone_state` removes.
-    pub restriction_ability_sources: IdSet<ObjectId>,
+    pub restriction_ability_sources: ObjectTable<()>,
 
     /// Objects that entered the battlefield with a static ability, printed or
     /// an entry copy's, whose body is an `Effect::CostModification`, through an "as long as"
@@ -628,7 +628,7 @@ pub struct GameState {
     ///
     /// **Engine-maintained. Read it; do not write it.** `perform_entry`
     /// inserts and `cleanup_zone_state` removes.
-    pub cost_modification_ability_sources: IdSet<ObjectId>,
+    pub cost_modification_ability_sources: ObjectTable<()>,
 
     /// Objects that entered the battlefield with a static ability, printed or
     /// an entry copy's, whose body is an `Effect::TriggerMultiplier`, through
@@ -639,7 +639,7 @@ pub struct GameState {
     ///
     /// **Engine-maintained. Read it; do not write it.** `perform_entry`
     /// inserts and `cleanup_zone_state` removes.
-    pub trigger_multiplier_sources: IdSet<ObjectId>,
+    pub trigger_multiplier_sources: ObjectTable<()>,
 
     /// CR 614.13a/b — the two sets an auxiliary zone change is chosen against,
     /// scoped to the batch whose entries are being decided.
@@ -779,14 +779,14 @@ pub struct GameState {
     /// keeps its whole-list walk. A window whose kinds no source's mask
     /// meets is a dispatch that returns before the battlefield list is
     /// built.
-    pub trigger_sources: IdMap<ObjectId, EventKindMask>,
+    pub trigger_sources: ObjectTable<EventKindMask>,
     /// Objects off the battlefield with a printed triggered ability that
     /// functions where they are (CR 113.6k, derived by
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
     /// graveyard. Kept by the same doors as `off_battlefield_replacement_ability_sources`,
     /// and filed by kind as `trigger_sources` is, so the state check asks only
     /// the objects with a state trigger.
-    pub off_battlefield_trigger_sources: IdMap<ObjectId, EventKindMask>,
+    pub off_battlefield_trigger_sources: ObjectTable<EventKindMask>,
     /// Objects off the battlefield whose printed triggered ability that
     /// functions where they are triggers only on the object itself moving
     /// (`TriggerDef::triggers_only_on_this_object_moving`): Guerrilla Tactics in
@@ -794,7 +794,7 @@ pub struct GameState {
     /// where it is can trigger it, so the dispatcher asks it only as one of
     /// that window's newcomers, and the off-battlefield map, which every window asks,
     /// stays empty of it. Kept by the off-battlefield map's doors.
-    pub newcomer_trigger_sources: IdSet<ObjectId>,
+    pub newcomer_trigger_sources: ObjectTable<()>,
     /// Surviving objects' ability lists from before a batch that removed the
     /// source of an effect that copies, grants or removes abilities: what CR
     /// 603.10 looks back to for them (`LookBackSnapshot`). Each open window's
@@ -1080,13 +1080,13 @@ impl GameState {
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
-            replacement_ability_sources: IdMap::new(),
-            replacement_counter_holders: IdSet::new(),
-            off_battlefield_replacement_ability_sources: IdMap::new(),
+            replacement_ability_sources: ObjectTable::new(),
+            replacement_counter_holders: ObjectTable::new(),
+            off_battlefield_replacement_ability_sources: ObjectTable::new(),
             restrictions: RestrictionRegistry::new(),
-            restriction_ability_sources: IdSet::new(),
-            cost_modification_ability_sources: IdSet::new(),
-            trigger_multiplier_sources: IdSet::new(),
+            restriction_ability_sources: ObjectTable::new(),
+            cost_modification_ability_sources: ObjectTable::new(),
+            trigger_multiplier_sources: ObjectTable::new(),
             entry_selection: EntrySelectionScope::default(),
             nesting: NestingGuards::default(),
             rider_lineage: None,
@@ -1105,9 +1105,9 @@ impl GameState {
             next_delayed_trigger_id: 1,
             next_until_return_id: 1,
             history,
-            trigger_sources: IdMap::new(),
-            off_battlefield_trigger_sources: IdMap::new(),
-            newcomer_trigger_sources: IdSet::new(),
+            trigger_sources: ObjectTable::new(),
+            off_battlefield_trigger_sources: ObjectTable::new(),
+            newcomer_trigger_sources: ObjectTable::new(),
             look_back_snapshots: Vec::new(),
             control_effects_at_last_sweep: false,
             settled_layer_epoch: u64::MAX,
@@ -1444,7 +1444,7 @@ impl GameState {
     /// board without ETB hooks.
     pub(crate) fn insert_battlefield_entity(&mut self, id: ObjectId, entry: PermanentState) {
         if entry.holds_a_replacement_counter() {
-            self.replacement_counter_holders.insert(id);
+            self.replacement_counter_holders.insert(id, ());
         }
         // Spelled through a local so the sweep that routed every other
         // `battlefield.insert` here did not route this one into itself.
@@ -1700,7 +1700,7 @@ impl GameState {
             entry.add_counters(counter_type, n, timestamp);
         }
         if counter_type.makes_a_replacement() {
-            self.replacement_counter_holders.insert(id);
+            self.replacement_counter_holders.insert(id, ());
         }
         self.bump_layer_epoch();
     }
@@ -1732,7 +1732,7 @@ impl GameState {
     /// at every gather.
     pub(crate) fn replacement_counter_holders_cover_the_board(&self) -> bool {
         // ORDER-FREE: whether all are.
-        self.battlefield.iter().all(|(id, entry)| !entry.holds_a_replacement_counter() || self.replacement_counter_holders.contains(&id))
+        self.battlefield.iter().all(|(id, entry)| !entry.holds_a_replacement_counter() || self.replacement_counter_holders.contains_key(&id))
     }
 
     /// How many counters of `counter_type` `subject` has: a permanent's, or a
@@ -2078,11 +2078,11 @@ impl GameState {
                         // Accumulated, not replaced: a permanent with two
                         // triggered abilities is one entry reading both
                         // kinds.
-                        *self.trigger_sources.entry(id).or_default() |= def.record_kinds();
+                        *self.trigger_sources.get_or_insert_with(id, EventKindMask::default) |= def.record_kinds();
                     } else if def.triggers_only_on_this_object_moving() {
-                        self.newcomer_trigger_sources.insert(id);
+                        self.newcomer_trigger_sources.insert(id, ());
                     } else {
-                        *self.off_battlefield_trigger_sources.entry(id).or_default() |= def.record_kinds();
+                        *self.off_battlefield_trigger_sources.get_or_insert_with(id, EventKindMask::default) |= def.record_kinds();
                     }
                 }
                 continue;
@@ -2113,7 +2113,7 @@ impl GameState {
                     // Its own entry only: source 1a reads it off the object as it
                     // enters (CR 614.12), and from where it sits it answers nothing.
                 } else if zone == Zone::Battlefield {
-                    *self.replacement_ability_sources.entry(id).or_insert(GameActionKindMask::EMPTY) |= kinds;
+                    *self.replacement_ability_sources.get_or_insert_with(id, || GameActionKindMask::EMPTY) |= kinds;
                 } else {
                     off_battlefield_replacement_defs.push(def.clone());
                 }
@@ -2124,7 +2124,7 @@ impl GameState {
             // needs is for `engine::restriction::is_prohibited` to know this
             // permanent is worth asking about.
             if zone == Zone::Battlefield && ability.effect.restrictions().next().is_some() {
-                self.restriction_ability_sources.insert(id);
+                self.restriction_ability_sources.insert(id, ());
             }
 
             // CR 601.2f / 613.11 — no rows: `cost_modifications_for` reads a cost
@@ -2132,12 +2132,12 @@ impl GameState {
             // only, by the gate above: a spell's own cost ability functions on the
             // stack (CR 113.6d).
             if zone == Zone::Battlefield && ability.effect.cost_modifications().next().is_some() {
-                self.cost_modification_ability_sources.insert(id);
+                self.cost_modification_ability_sources.insert(id, ());
             }
 
             // CR 603.2d — and the count's, for the same reasons.
             if zone == Zone::Battlefield && ability.effect.trigger_multipliers().next().is_some() {
-                self.trigger_multiplier_sources.insert(id);
+                self.trigger_multiplier_sources.insert(id, ());
             }
 
             // CR 604.3a(3) — a CDA affects only the object that has it, so it needs no

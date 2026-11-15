@@ -94,11 +94,7 @@ fn cost_modifications_sweeping(game: &GameState, spell: ObjectId, sweep: Sweep) 
         let candidates: Vec<ObjectId> = if widened {
             game.battlefield_ids()
         } else {
-            // ORDER-FREE: sorted next.
-            let mut sources: Vec<ObjectId> =
-                game.cost_modification_ability_sources.iter().copied().filter(|id| game.battlefield.contains_key(id)).collect();
-            sources.sort_unstable();
-            sources
+            game.cost_modification_ability_sources.keys().filter(|id| game.battlefield.contains_key(id)).collect()
         };
         for id in candidates {
             let controller = controller_or_owner(game, id).unwrap_or(0);

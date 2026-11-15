@@ -305,11 +305,10 @@ impl<'a> TriggerGate<'a> {
 /// The off-battlefield map's objects, only those filed under `kinds` where the legs off
 /// the battlefield ask them.
 fn off_battlefield_sources(game: &GameState, kinds: EventKindMask, off_battlefield_legs: OffBattlefieldLegs) -> impl Iterator<Item = ObjectId> + '_ {
-    // ORDER-FREE: `candidates_now` sorts the off-battlefield map's objects by timestamp.
     game.off_battlefield_trigger_sources
         .iter()
         .filter(move |(_, filed)| matches!(off_battlefield_legs, OffBattlefieldLegs::Unfiltered) || filed.intersects(kinds))
-        .map(|(&id, _)| id)
+        .map(|(id, _)| id)
 }
 
 /// One ability list of one object the matcher asks: a live object's list
@@ -1067,15 +1066,11 @@ impl GameState {
     /// order, which the `OrderTriggers` prompt offers, is the
     /// whole-battlefield walk's.
     pub(super) fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
-        // ORDER-FREE: sorted next.
-        let mut readers: Vec<ObjectId> = self
-            .trigger_sources
+        self.trigger_sources
             .iter()
-            .filter(|&(id, kinds)| kinds.intersects(window_kinds) && self.battlefield.contains_key(id))
-            .map(|(&id, _)| id)
-            .collect();
-        readers.sort_unstable();
-        readers
+            .filter(|&(id, kinds)| kinds.intersects(window_kinds) && self.battlefield.contains_key(&id))
+            .map(|(id, _)| id)
+            .collect()
     }
 
     /// The objects that have a triggered ability only because a continuous
@@ -1121,7 +1116,7 @@ impl GameState {
             .iter()
             .filter_map(|seq| self.events.record(*seq))
             .filter_map(|record| self.newcomer_from(&record.event))
-            .filter(|newcomer| self.find(*newcomer).is_some() && self.newcomer_trigger_sources.contains(&newcomer.id))
+            .filter(|newcomer| self.find(*newcomer).is_some() && self.newcomer_trigger_sources.contains_key(&newcomer.id))
             .map(|newcomer| newcomer.id)
             .collect()
     }
@@ -1577,10 +1572,7 @@ impl GameState {
         if summary.any_granted_trigger_multiplier || summary.any_copied_trigger_multiplier {
             return self.battlefield_ids();
         }
-        // ORDER-FREE: sorted next.
-        let mut sources: Vec<ObjectId> = self.trigger_multiplier_sources.iter().copied().filter(|id| self.battlefield.contains_key(id)).collect();
-        sources.sort_unstable();
-        sources
+        self.trigger_multiplier_sources.keys().filter(|id| self.battlefield.contains_key(id)).collect()
     }
 
     /// CR 603.2d: how many more times each match triggers, every multiplier
