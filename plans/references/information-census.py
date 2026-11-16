@@ -124,10 +124,20 @@ FAMILIES["...exiled face down from another player's hand or library"] = text(
     r"|\bexiles? [^.]*?\bface down\b[^.]*?(?:target (?:player|opponent)'s|that player's|an opponent's|each opponent's) (?:hand|library)"
     r"|\beach (?:player|opponent) exiles [^.]*?\bface down\b")
 FAMILIES["a face-down pile chosen from at random (CR 406.4)"] = text(r"\bface down\b[^|]*?\bat random\b")
+FAMILIES["face down anywhere: a card in any of the four families above, counted once"] = either(
+    FAMILIES["cast face down: morph, megamorph, disguise"],
+    FAMILIES["put onto the battlefield face down: manifest, manifest dread, cloak"],
+    FAMILIES["another way onto the battlefield or the stack face down, or turned face down"],
+    FAMILIES["exiled face down: any"])
 
 # --- secret -------------------------------------------------------------------
 FAMILIES["a choice made in secret, then revealed"] = text(r"\bsecretly\b")
-FAMILIES["a vote (CR 701.38): open, in turn order"] = text(r"\bvotes?\b")
+FAMILIES["...revealed in the same step, once every chooser has chosen"] = text(
+    r"\bsecretly\b[^.]*?(?:\. Then|, then)[^.]*?\b(?:revealed|reveal)\b")
+FAMILIES["...revealed after another player's guess"] = text(r"\bsecretly\b[^.]*?\. [^.]*?\bguesses\b")
+FAMILIES["...kept on a permanent and revealed as a later cost"] = text(r"\bsecretly choose\b[^|]*?\breveal the (?:player|creature type) you chose\b")
+FAMILIES["a vote (CR 701.38)"] = text(r"\bvotes?\b")
+FAMILIES["...a vote made in secret (secret council)"] = text(r"\bsecretly votes?\b")
 FAMILIES["a card name chosen (CR 201.4)"] = text(r"\b(?:choose|name)s? a (?:[\w-]+ )*card name\b|\bname a (?:[\w-]+ )*card\b")
 
 # --- random -------------------------------------------------------------------
