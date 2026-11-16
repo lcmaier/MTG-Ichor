@@ -318,6 +318,7 @@ hunt checks a subsystem at its close. → `engineering-practices.md#the-spec-dat
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
+- `plans/handoffs/information-model-design.md`
 - `plans/handoffs/modes-plus-choice-kinds.md`
 - `plans/handoffs/process-pr.md`
 - `plans/handoffs/resolution-recipients-and-amounts.md`
