@@ -212,6 +212,17 @@ the dev GUI's tester and the scenario writer.
 
 A seat's copy shows a face when either says yes, and says which.
 
+**Knowing a card is not knowing what has been done to it since.** A player
+was shown Hullbreaker Horror in its owner's hand. Then Fuel Tank Feaster
+gives "a random creature card with the greatest mana value among creature
+cards in your hand" a lasting "costs {1} less". The player still knows the
+Horror is there, and does not know whether it was the card picked. So a
+change that follows a card (Alchemy's "perpetually") carries its own set of
+players who know of it, written by the same rule as the card's: who could
+tell which card it was made to, and afterwards anyone the card is shown to.
+A seat's copy draws a card it knows with the changes it knows. Where the
+change is held is `card-and-object-model`'s (decision 8).
+
 **The rule that writes the record: a move a player can follow.** A player
 follows a move when they could see the card's face as it left, by sight or
 by the record, and can tell which card moved: it left a public zone, or a
@@ -226,7 +237,9 @@ from their own hand, or it was revealed as it moved.
 | is revealed, or looked at | the players shown, added to who was there |
 | goes from a hand to a library or face down, unrevealed (Brainstorm, a morph) | the mover alone; **and every other player is taken off every card left in that hand**, since each could have been the one that went |
 | is among library cards reordered where others cannot see the order | the player who ordered them (CR 401.4, 701.20d) |
-| is in a library that is shuffled, or goes to the bottom "in a random order" | nobody |
+| is taken from a library from a place no one can name, unrevealed (Alchemy's seek, with no shuffle after) | its owner, who sees it arrive; **and every other player is taken off every card of that library**, as with a hand |
+| is in a library that is shuffled, or goes to the bottom "in a random order", or is put at a random place among its top cards | nobody |
+| is brought in from outside the game into a hidden zone (conjure) | everyone when the text names the card; its owner alone when it is picked from a spellbook |
 | is put on the stack by a cast, before CR 601.2i | as it was: a cast in progress is announced to nobody, and a rewound one never was |
 | is shown by an effect that lasts | the players it shows, written at each state-based check (decision 1) |
 
@@ -281,6 +294,7 @@ a `SeenObject` for each card of it the seat's players know.
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
 | who knows a card's face and has followed it (`face_known_to`) | when it is revealed, looked at, or moves where some can follow | latched | the object's record (decision 2) | a seat's copy, the redeal, CR 406.3's continued look | its pile is shuffled or reordered; its own unseen move, or another card's from the same hand; it arrives face up in a public zone |
+| who knows of a change that follows a card (Alchemy's "perpetually") | as the change is made: those who can tell which card it was made to; then anyone the card is shown to | latched | on the change, with the card (`card-and-object-model`'s, decision 8) | a seat's copy of a card it knows | never: the change lasts the game |
 | a reveal or look in progress (CR 701.20a, e) | as the instruction runs, as a cost reveals, as a card's ability is activated from a hand (602.2a), or as a reveal causes a trigger | latched | the resolving record; the stack entry, for a cost's and an activation's; the waiting or stacked trigger the reveal caused | the sight query, the move rule, CR 603.2f, 603.10a, 701.9c | the resolution ends; the spell or ability leaves the stack; the trigger leaves the stack, or is not put on it by the next priority |
 | sight from an effect that lasts (Telepathy, Courser of Kruphix, Found Footage, "cards exiled with") | never: read off the effect each time | live | nowhere; what it shows is written to `face_known_to` at each state-based check | the sight query | with the effect, by CR 611's own rules; what was written stays |
 | a cast in progress (CR 601.2a to 601.2h) | — | — | nothing new: the card's record is untouched until 601.2i announces the move | — | a rewind (CR 732.1) leaves no mark |
@@ -336,10 +350,38 @@ floor 3 says it grows with the board, never with the turn count
   No redeal can then be built from a fork, which the floors' survey refused
   (2026-09-25).
 
-**Recommended: A.** It never shows more than a player knows, which is the
-property a seat's copy and a search both need, and what it forgets a client
-can keep for itself. B's exactness is a belief model, and where those stop is
-a research question the engine should not own.
+- **D. A snapshot kept with each player** (the owner's, design review
+  round 1, for the Hullbreaker Horror board): each player holds a copy of
+  each card as it was shown to them. A change made out of their sight never
+  reaches their copy, so that board is right by construction. *Code*: a list
+  on each player of (card, what was shown), written at each reveal and each
+  followed move, and dropped by the same clears as A. *Performance*: a list
+  a player, so up to one allocation a seat a clone; under Telepathy, a new
+  snapshot of every card of the hand each time one changes. *Upkeep*: a
+  snapshot goes stale against changes everyone can see. An effect that
+  makes every card in a hand cost less is public, a player who knows the
+  Horror is there knows its new cost, and the snapshot still shows the old
+  one, unless each change says whether it was seen. That is A's rule again,
+  kept beside a second copy of the card.
+
+**Recommended: A, with each lasting change carrying who knows of it.** A
+never shows more than a player knows, which is the property a seat's copy
+and a search both need, and what it forgets a client can keep for itself.
+B's exactness is a belief model, and where those stop is a research
+question the engine should not own.
+
+**The Hullbreaker Horror board, under A.** The card's record says who knows
+the Horror is in that hand. The Feaster's change has a record of its own:
+the hand's owner alone, since nobody else can tell which card was picked.
+An opponent's copy shows the Horror at its printed cost. When the Horror is
+cast, the spell is shown to all, every change on it with it, and everyone
+sees the discount then. A change everyone can attribute (Blooming
+Cactusfolk's "nonland cards in your hand", Lumbering Lightshield's revealed
+card) is known to everyone who knows the card. Arena draws the Feaster's
+change on the revealed card, which tells the opponent which card was picked;
+this does not. Three of the 244 cards' shapes need care in the build and
+are counted above: a pick at random (7), a pick its controller makes out of
+sight (34), and a change to a card in a library (40).
 
 **Two parts of A that change what a client sees**, each with its other way:
 
@@ -525,7 +567,7 @@ about a card the seat was not shown.
 ### Decision 5 — events and answers, as a seat sees them
 
 **Retrofit cost.** Medium: a stamp on each record and one function. The
-host's stream, the trace and every fixture table are unchanged under A.
+referee's stream, the trace and every fixture table are unchanged under A.
 
 **The problem.** `CardDrawn` names the card, and so does a `ZoneChange` from
 a library to a hand; the log line every seat reads is "P1 drew Counterspell".
@@ -618,31 +660,49 @@ on a vote too, and the reveal step. The Toymaker's Trap's reveal is the same
 step after its guess. A choice kept on a permanent in secret is
 `linked-abilities`' kept value carrying the same mark.
 
-### Decision 8 — a face-down card's real face: what this asks of `card-and-object-model`
+### Decision 8 — what a card hides in plain sight: what this asks of `card-and-object-model`
 
 **Retrofit cost.** High if left to chance: every reader of an object's
 printed card is a possible leak, and there are name helpers that read it
 today for any id.
 
-**The problem.** A face-down permanent has only its listed characteristics
-(CR 708.2), yet its controller may look at it (708.5), it is revealed as it
-leaves (708.9), and a reveal for information reads it ignoring continuous
-effects (708.12). 478 printed cards put a card face down somewhere, three of
-them in the decks' lists: Reality Shift, and Mosswort Bridge and Windbrisk
-Heights, whose hideaway exiles one.
+**The problem, from the table.** You cast a morph creature face down. Every
+player sees a 2/2 with no name. You may pick it up and look at it; nobody
+else may; when it dies everyone is shown what it was (CR 708.2, 708.5,
+708.9). The engine has to keep the real card somewhere while every rule
+treats the object as the 2/2. 478 printed cards put a card face down
+somewhere, three of them in the decks' lists: Reality Shift, and Mosswort
+Bridge and Windbrisk Heights, whose hideaway exiles one.
 
-- **A. The object keeps its card, and face down is a status the readers
-  honor.** `card_data` stays the real card, as `PermanentState.face_down`
-  implies today. Every printed read must then check the status, and
-  `check_invariants.py`'s printed-read rule gains a face-down leg.
-- **B. The real face is behind sight.** While an object is face down, its
-  record's card is what the rules say it is (a 2/2 with no name), and the
-  real card is held where only the sight query and CR 708.9's reveal read
-  it. A reader that forgets sees the face-down card, which is the right
-  answer by accident.
+- **A. The object still points at its real card, and a flag says it is face
+  down.** That is what `PermanentState.face_down` implies today. Then every
+  piece of code that reads the card, to print its name, list its abilities
+  or draw it, must remember to check the flag first. One that forgets shows
+  the real card. `check_invariants.py`'s printed-read rule would gain a
+  face-down leg to catch them.
+- **B. The object points at what the rules say it is, and the real card is
+  put away.** While it is face down, the object's card is the 2/2 with no
+  name. The real card is held in a second place that only the sight query
+  and CR 708.9's reveal open. Code that forgets to check shows the 2/2,
+  which is the right answer.
 
 **Recommended: B as a requirement**, with where the real card is held left
-to that design. This note fixes four things for it:
+to that design. This note fixes six things for it:
+
+- **face down is a status, apart from which face a double-faced card has
+  up.** A double-faced card manifested, cast or exiled face down shows
+  neither face: it has the face-down characteristics, cannot transform, and
+  turns up front face first (CR 712.15, 712.15a, 712.17). A double-faced
+  permanent cannot be turned face down at all (712.16). So "which face is
+  up" and "face down" are two facts on the object, and a seat that may look
+  is shown the card, which is both faces. The corpus has 388 transforming
+  and 98 modal double-faced cards, and any of them can be manifested;
+- **a change that follows the card carries who knows of it** (decision 1's
+  Hullbreaker Horror board). Perpetual changes are that design's to store;
+  this asks that each one holds a set of players beside it, and that a seat's
+  copy of a card is the card with the changes that seat knows. The same
+  goes for a card brought in by conjure, which is a card like any other
+  once it is in a zone;
 
 - the look is the sight query's: the controller by CR 708.5, a lasting grant
   such as Found Footage's, and the record;
@@ -786,7 +846,7 @@ and the stream is where a seat reads what happened.
 |---|---|---|
 | `several-choosers-at-one-step` | on a choose step, a vote included: that its choices are secret, and the step that reveals them (decision 7). An open vote records nothing | withholds a secret answer from every other seat's copy until the reveal |
 | `values-kept-past-the-resolution` | a reveal as its own step before a filter reads a hand or a library; names offered from the registry | puts the revealed cards on every player's record, and offers no list that shows a deck |
-| `card-and-object-model`, the design | where the real face is held, behind sight, and that an exiled card is face down, each in one place (decision 8) | answers CR 708.5, 708.9, 406.3 and 406.3b from one query |
+| `card-and-object-model`, the design | where the real face is held, behind sight; that an exiled card is face down, in one place; face down apart from which face is up; and on each change that follows a card, who knows of it (decision 8) | answers CR 708.5, 708.9, 406.3 and 406.3b from one query, and draws a known card with only the changes its viewer knows |
 | `linked-abilities` | the cards exiled with a permanent, as a list of cards and nothing more; a secret kept value's mark | reads a lasting look off the link |
 | `resolution-recipients-and-amounts` | nothing new: a target or "that card" by existence, as its note's decision 1 already has it | never follows a card into a hand or a library |
 
