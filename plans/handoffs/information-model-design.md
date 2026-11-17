@@ -179,7 +179,12 @@ of each larger one. `tdc` is the five decks' lists.
 | | …to a card in a library, `o:"library"` | 40 | Goblin Morale Sergeant, whose changed card goes "into the top five cards of your library at random" |
 | | …to a card in another player's hand | 4 | Lumbering Lightshield, which has it revealed first |
 | Move a card out of a library unseen, with no shuffle | seek, `kw:seek` | 122 | Discover the Formula |
-| Bring a card into a hidden zone from outside the game | conjure, `kw:conjure`; a spellbook, `o:"spellbook"` | 190; 65 | Sarkhan, Wanderer to Shiv; Charged Conjuration |
+| Bring a card into a hidden zone from outside the game | conjure, `kw:conjure`; a spellbook, `o:"spellbook"` | 190; 65 | Charged Conjuration |
+| | …a card the text names, `o:/conjure a card named/`: known to all | 83 | Sarkhan, Wanderer to Shiv |
+| | …a duplicate of a card, `o:/conjure a duplicate/`: known to all who see the card | 43 | Goblin Morale Sergeant |
+| | …one its owner picks from three of a spellbook, `o:"draft a card from"`: known to its owner | 42 | |
+| | …one picked at random, `o:/conjure[^.]*random/` | 32 | |
+| | …into a library, `o:/conjure[^.]*(into\|in\|of) your library/`; of those, a random card at a random place: known to nobody | 17; 4 | Sliver Weftwinder |
 
 **Rulings read.** Call to the Void (2022-06-10): each player keeps the choice
 "secret until all players simultaneously reveal". Selvala's Stampede
@@ -239,7 +244,7 @@ from their own hand, or it was revealed as it moved.
 | is among library cards reordered where others cannot see the order | the player who ordered them (CR 401.4, 701.20d) |
 | is taken from a library from a place no one can name, unrevealed (Alchemy's seek, with no shuffle after) | its owner, who sees it arrive; **and every other player is taken off every card of that library**, as with a hand |
 | is in a library that is shuffled, or goes to the bottom "in a random order", or is put at a random place among its top cards | nobody |
-| is brought in from outside the game into a hidden zone (conjure) | everyone when the text names the card; its owner alone when it is picked from a spellbook |
+| is brought in from outside the game into a hidden zone (conjure) | by what a player can tell of it. Named by the text or a duplicate of a card everyone sees, into a hand: everyone. Picked by its owner from a spellbook, or at random into their hand: its owner alone. At random into a library (Sliver Weftwinder: "a random card from the Slivers Spellbook into the top five cards of your library at random"): nobody, until its owner draws it or it is revealed. A known card put at a random place in a library (Goblin Morale Sergeant's duplicate): what it is, by everyone, and where, by nobody. A card put at a random place among the top cards also takes every player off the place of each of those cards |
 | is put on the stack by a cast, before CR 601.2i | as it was: a cast in progress is announced to nobody, and a rewound one never was |
 | is shown by an effect that lasts | the players it shows, written at each state-based check (decision 1) |
 
@@ -257,14 +262,14 @@ pub struct PlayerBits(u64);
 
 // objects/object.rs
 pub face_known_to: PlayerBits,   // know which card this is, and have followed it since
-pub sighting: Sighting,          // what a seat's copy calls this card; a new one each time
+pub sighting: SightingId,        // what a seat's copy calls this card; a new one each time
                                  // it moves or players lose track of it (decision 4)
-pub struct Sighting(u32);
+pub struct SightingId(u32);
 
 // oracle/sight.rs
-pub fn face_seen_by(game: &GameState, player: PlayerId, id: ObjectId) -> Option<SeenBecause>;
+pub fn face_seen_by(game: &GameState, player: PlayerId, id: ObjectId) -> Option<SeenReason>;
 pub fn shown_to_all(game: &GameState, id: ObjectId) -> bool;   // CR 603.2f, 701.9c
-pub enum SeenBecause { PublicZone, OwnHand, Controls, Revealed, LookingAt, WhileItLasts, Known }
+pub enum SeenReason { PublicZone, OwnHand, Controls, Revealed, LookingAt, WhileItLasts, Known }
 
 // the boundary: what a provider is handed (decision 3)
 pub struct SeatSight<'a> { game: &'a GameState, sees_for: PlayerBits }   // both private
@@ -272,10 +277,15 @@ impl SeatSight<'_> { pub fn whole_game(&self) -> &GameState }            // the 
 
 // what a client is handed (decisions 4 and 5)
 pub struct Observation { pub board: Vec<SeenObject>, pub happened: Vec<SeenRecord>, pub question: SeenQuestion }
-pub struct SeenObject { pub name: Sighting, pub zone: Zone, pub face: Option<SeenFace>, pub because: Option<SeenBecause> }
+pub struct SeenObject { pub name: SightingId, pub zone: Zone, pub face: Option<SeenFace>, pub reason: Option<SeenReason> }
 // SeenFace: the card, both faces of a double-faced one, and the lasting changes this seat knows of
 
-// the performers and their records
+// Each comes as a pair, as every action in the engine does. The action is what
+// is proposed, before a "can't" or a replacement has had its say. The event is
+// the record of what then happened, in the past tense: it is what the log
+// holds, what a seat's view of the log shows, and what a trigger reads
+// ("whenever you reveal a card this way", God-Eternal Kefnet). GameAction::Scry
+// and GameEvent::Scried are the pair that exists today.
 GameAction::Reveal { cards, by }        GameEvent::Revealed { cards, by }
 GameAction::LookAt { cards, player }    GameEvent::LookedAt { cards, player }
 
