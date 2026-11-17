@@ -108,7 +108,7 @@ These follow, and the decisions rest on them.
 | 701.23a, b, e | a search looks at every card of the zone; a found card is not revealed unless the text says so | |
 | 701.9c | a discard put into a hidden zone "without being revealed" has undefined characteristics | 732 |
 | 708.2, 708.5, 708.9, 708.12 | a face-down object has only its listed characteristics; its controller may look at it; it is revealed as it leaves, when its owner leaves, and at the game's end | 707.2, 613 |
-| 603.2f, 603.10a | a trigger needs its source "visible to all players"; a look-back needs "an object that all players can see" | |
+| 603.2f, 603.10a | a trigger needs its source "visible to all players"; a look-back needs "an object that all players can see" | the Library of Leng board, `atomic-tests/supplemental-docs/603-2f-complexity.md`, under "Settled by the rules" |
 | 400.7j | an effect finds an object it moved "to a public zone" | 608.2h |
 | 722.4, 808.5, 810.5 | what a controlled player sees, the controlling player sees too; teammates may look at each other's hands | |
 
@@ -295,7 +295,7 @@ a `SeenObject` for each card of it the seat's players know.
 |---|---|---|---|---|---|
 | who knows a card's face and has followed it (`face_known_to`) | when it is revealed, looked at, or moves where some can follow | latched | the object's record (decision 2) | a seat's copy, the redeal, CR 406.3's continued look | its pile is shuffled or reordered; its own unseen move, or another card's from the same hand; it arrives face up in a public zone |
 | who knows of a change that follows a card (Alchemy's "perpetually") | as the change is made: those who can tell which card it was made to; then anyone the card is shown to | latched | on the change, with the card (`card-and-object-model`'s, decision 8) | a seat's copy of a card it knows | never: the change lasts the game |
-| a reveal or look in progress (CR 701.20a, e) | as the instruction runs, as a cost reveals, as a card's ability is activated from a hand (602.2a), or as a reveal causes a trigger | latched | the resolving record; the stack entry, for a cost's and an activation's; the waiting or stacked trigger the reveal caused | the sight query, the move rule, CR 603.2f, 603.10a, 701.9c | the resolution ends; the spell or ability leaves the stack; the trigger leaves the stack, or is not put on it by the next priority |
+| a reveal or look in progress (CR 701.20a, e) | as the instruction runs, as a cost reveals, as a card's ability is activated from a hand (602.2a), or as a reveal causes a trigger | latched | the resolving record; the stack entry, for a cost's and an activation's; the waiting or stacked trigger the reveal caused | the sight query, the move rule, CR 603.2f, 603.10a, 701.9c | the card moves, since it is then a new object (CR 400.7); the resolution ends; the spell or ability leaves the stack; the trigger leaves the stack, or is not put on it by the next priority |
 | sight from an effect that lasts (Telepathy, Courser of Kruphix, Found Footage, "cards exiled with") | never: read off the effect each time | live | nowhere; what it shows is written to `face_known_to` at each state-based check | the sight query | with the effect, by CR 611's own rules; what was written stays |
 | a cast in progress (CR 601.2a to 601.2h) | — | — | nothing new: the card's record is untouched until 601.2i announces the move | — | a rewind (CR 732.1) leaves no mark |
 | that a choice is secret | at the choose step, off the card's word | latched | on the kept choice | a seat's copy of the question, the record and the kept list | the step, the guess or the cost that reveals it |
@@ -839,6 +839,26 @@ and the stream is where a seat reads what happened.
   `triggers-architecture.md` S1 left it. CR 701.9c reads the same question
   of the discard's move (item 130). CR 401.6's "becomes a new object" is
   `lasting-sight`'s.
+- **The Library of Leng board**
+  (`atomic-tests/supplemental-docs/603-2f-complexity.md`). Guerrilla Tactics
+  triggers when an opponent's spell makes you discard it, and Library of
+  Leng lets you put a discard on top of your library instead. CR 603.2f
+  asks sight, as the event completes, and never memory, which is why the
+  two are kept apart. Each of the board's cases, by the model:
+
+  | The discard is caused by | Sight of the card on top of the library, as the event completes | Triggers | Who knows the top card afterwards |
+  |---|---|---|---|
+  | Mind Peel ("target player discards a card") | none: hand to library, never revealed | no | its owner. CR 701.9c: its characteristics are undefined |
+  | Coercion, which reveals the hand first | none: the reveal was of the card in the hand, and the card on the library is a new object (CR 400.7) | no | everyone, who watched a revealed card go there |
+  | Mind Peel under Telepathy | none: Telepathy shows hands, not libraries | no | everyone, who watched it leave a revealed hand |
+  | any of them, under Future Sight | shown to all: the top card is under a lasting reveal | yes | everyone |
+  | two cards at once, under Future Sight | only the one its owner puts on top (CR 401.4) | only if Guerrilla Tactics is that one | everyone for the top card; the owner for the other |
+
+  The second and third rows are the ones a model with one question gets
+  wrong: everyone knows what the card is, and it still does not trigger.
+  `shown-and-followed` tests the first three and `lasting-sight` the last
+  two, on the printed cards where they are registered and fixtures where
+  not.
 
 ## What each row before step 8 records
 
