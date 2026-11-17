@@ -42,7 +42,7 @@ handed with the question.
 | Audience | Sees | Today | After |
 |---|---|---|---|
 | The rules | everything; a few rules ask who else can see a card (CR 603.2f, 701.9c, 406.3b) | `visible_to_all`, by zone | one query |
-| The host: saves, replays, the trace, the scenario writer, the dev GUI in its tester's mode | everything, on purpose | everything | everything, through a named door |
+| The referee: whoever runs the game. Saves, replays, the trace, the scenario writer, the dev GUI in its tester's mode, a training harness | everything, on purpose | everything | everything, through a named door |
 | A seat: a person's client, an AI's observation, an agent in process | what its players may see | everything | its sight |
 
 ## Counted
@@ -65,7 +65,7 @@ on a row.
 | Prompt kinds whose options are hidden cards | 4: `PriorityAction` (the hand), `Discard`, `Scry`, `OrderLibraryCards` | each asks the cards' owner; no search, look or reveal exists |
 | `GameEvent` variants that name a card in a hand or library | 5: `ZoneChange`, `CardDrawn`, `LeftTheGame`, `SameZoneMove`, `AbilityActivated` from a hand | `events/event.rs:87` |
 
-Five things follow that the decisions rest on.
+These follow, and the decisions rest on them.
 
 - **An `ObjectId` is a card's name for the whole game.** It survives every
   zone change; only `zone_change_epoch` moves (`ObjectRef`, `types/ids.rs:460`).
@@ -78,12 +78,22 @@ Five things follow that the decisions rest on.
   and a rewind's move back announce nothing (`engine/zones.rs:37`, the
   `// CAST-ROLLBACK:` tag: "nothing may observe it"). So what a player was
   shown is written where a move is announced, never where it is performed.
-- **The host's records are whole by design**: the decision log's start holds
+- **The referee's records are whole by design**: the decision log's start holds
   every deck and the seed, a `decision` trace record every offered option,
   the trace's names table every object. They stay whole, and no seat is
-  handed one.
-- **`GameObject` is 48 bytes with 4 of padding** (measured): the record fits
-  in it at no cost (decision 2).
+  handed one. "Referee" is this note's word for whoever runs the game and
+  sees all of it; "host" is taken, by an Aura's (`plans/glossary.md`).
+- **A model trained on everything and played on a seat's sight needs both
+  at one decision.** PerfectDou's training gives its value network every
+  hand and its policy only its own seat's. A training harness is a referee:
+  it holds the game, so it may build a seat's copy for the policy and a copy
+  with every face for the value network, the same type from the same
+  builder (decision 3). The whole log is its to read as well.
+- **`GameObject` is 48 bytes with 4 of padding** (measured), and no clone
+  copies it: the object store is shared between forks in chunks. So the
+  record costs a clone nothing at any width (decision 2).
+- **Nothing in the engine caps the number of seats today.** A set of players
+  held as bits would be its first cap (decision 2).
 
 ### The rules
 
@@ -169,7 +179,7 @@ players, including the card's owner, can't look at the card".
 seat, and are handed the same thing: the owned copy of decision 5. The
 engine's own agents in process (the random agent, the decorators) read
 `SeatSight` directly. The redeal (decision 6) serves an AI's search alone.
-The door to the whole game serves no client: it is the host's, for tests,
+The door to the whole game serves no client: it is the referee's, for tests,
 the dev GUI's tester and the scenario writer.
 
 ## The model
@@ -214,12 +224,14 @@ they knew of the whole hand.
 searched for in `mtgsim/src`:
 
 ```rust
-// types/ids.rs — a set of players, sixteen wide. Setup refuses a 17th seat.
-pub struct PlayerBits(u16);
+// types/ids.rs — a set of players. Its width is decision 2's.
+pub struct PlayerBits(u64);
 
-// objects/object.rs — in the record's four bytes of padding
-pub face_known_to: PlayerBits,   // know its face and have followed it since
-pub renamed: u16,                // times that set was cleared, this existence (decision 4)
+// objects/object.rs
+pub face_known_to: PlayerBits,   // know which card this is, and have followed it since
+pub sighting: Sighting,          // what a seat's copy calls this card; a new one each time
+                                 // it moves or players lose track of it (decision 4)
+pub struct Sighting(u32);
 
 // oracle/sight.rs
 pub fn face_seen_by(game: &GameState, player: PlayerId, id: ObjectId) -> Option<SeenBecause>;
@@ -228,11 +240,12 @@ pub enum SeenBecause { PublicZone, OwnHand, Controls, Revealed, LookingAt, While
 
 // the boundary: what a provider is handed (decision 3)
 pub struct SeatSight<'a> { game: &'a GameState, sees_for: PlayerBits }   // both private
-impl SeatSight<'_> { pub fn whole_game(&self) -> &GameState }            // the host's door
+impl SeatSight<'_> { pub fn whole_game(&self) -> &GameState }            // the referee's door
 
 // what a client is handed (decisions 4 and 5)
 pub struct Observation { pub board: Vec<SeenObject>, pub happened: Vec<SeenRecord>, pub question: SeenQuestion }
-pub struct SeenObject { pub name: SeenName, pub zone: Zone, pub face: Option<SeenFace>, pub because: Option<SeenBecause> }
+pub struct SeenObject { pub name: Sighting, pub zone: Zone, pub face: Option<SeenFace>, pub because: Option<SeenBecause> }
+// SeenFace: the card, both faces of a double-faced one, and the lasting changes this seat knows of
 
 // the performers and their records
 GameAction::Reveal { cards, by }        GameEvent::Revealed { cards, by }
@@ -258,7 +271,7 @@ a `SeenObject` for each card of it the seat's players know.
 | a cast in progress (CR 601.2a to 601.2h) | — | — | nothing new: the card's record is untouched until 601.2i announces the move | — | a rewind (CR 732.1) leaves no mark |
 | that a choice is secret | at the choose step, off the card's word | latched | on the kept choice | a seat's copy of the question, the record and the kept list | the step, the guess or the cost that reveals it |
 | that an exiled card is face down, and a face-down object's real face | `card-and-object-model`'s (decision 8) | | the object's, in one place | the sight query alone | CR 708.9, 406.3 |
-| who saw the card a record names | as the record is written | latched | the record's stamp, off `GameState` | a seat's copy of the stream | never; the stream is the host's |
+| who saw the card a record names | as the record is written | latched | the record's stamp, off `GameState` | a seat's copy of the stream | never; the stream is the referee's |
 | the players a seat sees for | when the seat is asked: its own, one it controls (CR 722.4), a teammate (808.5, 810.5) | live | nowhere | `SeatSight` | |
 
 ## Decisions
@@ -334,7 +347,7 @@ a research question the engine should not own.
 ### Decision 2 — where the record is stored
 
 **Retrofit cost.** Small: two fields and their handful of writers, behind
-the query. No game, log or save moves, since the host's records do not hold
+the query. No game, log or save moves, since the referee's records do not hold
 them.
 
 **The problem.** Floors 2 and 3 price every fork
@@ -346,8 +359,8 @@ whatever an object holds.
 
 | | A clone, 4 seats · 2 seats | A shuffle | A fork's write |
 |---|---|---|---|
-| **A. On `GameObject`**: `face_known_to` and `renamed`, 16 bits each, in the record's 4 bytes of padding | +0 allocations, +0 bytes · the same | reads each card of the library, writes the few with a bit set: about 0.1 µs for 99 cards, derived from the store's read cost | copies the card's chunk, 1.5 KB, as any move of it does |
-| **B. A's set with an epoch beside it**, each hidden zone counting its shuffles | +0 allocations; 8 bytes an object in the shared chunks, since the padding is spent | one write | the same, and a compare a query |
+| **A. On `GameObject`**: `face_known_to` and `sighting` | +0 allocations, +0 bytes · the same | reads each card of the library, writes the few with a bit set: about 0.1 µs for 99 cards, derived from the store's read cost | copies the card's chunk, as any move of it does: 1.5 KB today, 1.8 KB at 56 bytes an object |
+| **B. A's set with an epoch beside it**, each hidden zone counting its shuffles | +0 allocations, +0 bytes; 8 bytes more an object in the shared chunks | one write | the same, and a compare a query |
 | **C. A list on each hidden zone** of (card, players) | +1 allocation for each list that is not empty: up to 8 · 4 | clears a list | the list's own copy |
 | **D. A table of its own**, keyed by id, shared in chunks | +1 allocation once any card is marked | reads the library | a small chunk of its own |
 
@@ -357,10 +370,25 @@ shuffle is already reordering, and only a card with a bit set is written.
 
 **Recommended: A.** Zero allocations and zero bytes a clone, no second
 structure to keep in step with the card, and a shuffle that costs a tenth of
-a microsecond more. The set is one type at one width everywhere it is used
-(the card, a record's stamp, a seat's players), and setup refuses a game of
-more than sixteen seats. B if a library of thousands ever shuffles often,
-which is a change behind the same query.
+a microsecond more. B if a library of thousands ever shuffles often, which
+is a change behind the same query.
+
+**How wide the set of players is** (the owner, design review round 1: "don't
+we want arbitrary N?"). The first draft fitted sixteen seats into the
+record's padding, which would have been the engine's first seat cap. The set
+is one type everywhere it is used (the card, a record's stamp, a seat's
+players), so its width is one line:
+
+| | Seats | `GameObject` | A clone | Past the cap |
+|---|---|---|---|---|
+| (a) 16 bits | 16 | 48 bytes, as today | +0, +0 | setup refuses the game |
+| (b) 64 bits | 64 | 56 bytes: 3.2 KB more in the shared store at 400 objects, once a game | +0, +0 | setup refuses the game |
+| (c) 64 bits inline, a heap block past them | any | 64 bytes | +0, +0 up to 64 seats; past that, an allocation for each marked card of a chunk a fork copies | nothing is refused |
+
+Sizes are derived from the measured layout (44 bytes of fields today).
+*Recommended: (b).* No clone pays for it, sixty-four seats is past anything
+the floors or either GUI is sized for, and (c) is the same type's insides if
+a game ever needs it. (a) saved 8 bytes an object that no fork copies.
 
 ### Decision 3 — what a decision provider is handed
 
@@ -382,7 +410,7 @@ fails closed (`backlog.md` "2.9", inputs).
   players the seat sees for, both private to its module. Its methods are the
   only way through: the stack, the turn, a hand it may see, a permanent's
   effective characteristics, a card's face if sight or the record allows. A
-  provider that never looks pays nothing. The host's instruments (a fork's
+  provider that never looks pays nothing. The referee's instruments (a fork's
   clone, the scenario writer, the dev GUI's tester, the audit) take the
   whole game through one named method, `whole_game()`, which
   `check_invariants.py` allows only under `tests/`, `test_support.rs`, the
@@ -401,7 +429,7 @@ fails closed (`backlog.md` "2.9", inputs).
 | What it reads | Count | Change |
 |---|---:|---|
 | nothing, or passes it on | 22 | the parameter's type |
-| names of options | 7 | `as_logged` stays the host's (a script matches typed options without it); a seat's label goes through sight |
+| names of options | 7 | `as_logged` stays the referee's (a script matches typed options without it); a seat's label goes through sight |
 | the public board | 13 | accessors every seat has: `stack()`, `turn_number()`, `phase()`, `pending_triggers()`, a permanent's effective abilities |
 | its own hand | 1 | `fuzz_games`' `Observer`: the first consumer |
 | the whole game | 8 | `whole_game()` |
@@ -447,25 +475,27 @@ it could point at the card the whole time between.
 - **A. The engine's id everywhere**, as today. Leaks every face-down object
   whose card a seat has met, and makes a policy that tracks ids stronger
   than one that plays the game.
-- **B. By existence, and renamed when the record is cleared.** A seat's copy
-  names an object by the tick of the move that made it (`zone_change_epoch`,
-  minted one a move at `engine/zones.rs:259`) and the number of times its
-  record has been cleared since (`renamed`, written by the clear that is
-  already writing the card). Three rules make it hold:
+- **B. A derived id that is cleared at every information boundary** (the
+  owner's words for it, design review round 1). Each object carries a
+  `sighting`, a number from one counter of the game's. It gets a new one
+  whenever a seat could lose track of it: each time it changes zones, each
+  time its record is cleared (a shuffle, a reorder out of sight, an unseen
+  departure), and once for every card at the opening shuffle, so that no
+  name holds a deck slot. Both writes ride a write that is already
+  happening. A seat's copy names objects by sighting and nothing else. Two
+  rules make it hold:
   1. A copy names a card in a hidden zone only for a seat that is on its
      record or sees it now. Any other is a count.
-  2. A record of a move gives a seat the old name beside the new one only
-     when the move leaves that seat on the card's record. So a client still
-     animates one card from a hand to the battlefield, and a card bounced,
-     shuffled away and drawn again arrives under a name no seat can connect.
-  3. An object that has never moved (a token as it is made, an ability on
-     the stack, a card still in its opening library) is named by the id it
-     was made with. That id is a deck slot, so it is only ever handed out
-     beside the face it belongs to, never for a face-down object, which has
-     always moved.
+  2. A record of a boundary gives a seat the old sighting beside the new one
+     only when the boundary leaves that seat on the card's record. So a
+     client still animates one card from a hand to the battlefield, and a
+     card bounced, shuffled away and drawn again arrives under a name no
+     seat can connect.
 
   An answer names an option as the copy named it, and the engine finds its
-  place among the options it offered.
+  place among the options it offered. `zone_change_epoch` stays what it is,
+  the rules' CR 400.7 existence; a sighting is a client's name and no rule
+  reads it.
 - **C. The id for a face-up object, a made-up handle for a face-down one.**
   Closes the morph and leaves the library link; two naming rules in every
   client.
@@ -473,7 +503,9 @@ it could point at the card the whole time between.
 **Recommended: B.** One rule, which is CR 400.7's and 701.20d's own (a new
 object when it moves, and when it is reordered out of sight). `backlog.md`
 "2.36" (how an object is named in text) keeps its slot; this decides the
-machine name only.
+machine name only. It is what makes decision 3's B hold against a client
+that is trying to cheat: a seat's copy holds no number that says anything
+about a card the seat was not shown.
 
 ### Decision 5 — events and answers, as a seat sees them
 
@@ -488,7 +520,7 @@ with `codebase-state.md` item 42, so a per-viewer history costs no floor
 wherever it is kept.
 
 - **A. One stream, each record stamped with who saw the card it names**, as
-  it is written (`card_seen_by`, the same sixteen bits). A seat's copy of a
+  it is written (`card_seen_by`, the same set of players). A seat's copy of a
   record is built by one function: the record as it is when one of the
   seat's players is in the stamp, and with the card left out ("P1 drew a
   card") when not. An answer another seat gave goes through the same
@@ -501,13 +533,13 @@ wherever it is kept.
 - **C. A second event vocabulary for clients**, written out by hand beside
   `GameEvent`. Every variant is spelled twice and kept in step.
 
-**Recommended: A.** One writer, one projection, and the host's stream stays
+**Recommended: A.** One writer, one projection, and the referee's stream stays
 the trace's and the fixture tables'. The wire form of a record is Phase 10's
 (`backlog.md` "2.38"), built from A's projection.
 
-**What the host keeps whole**: the decision log (every deck, the seed,
+**What the referee keeps whole**: the decision log (every deck, the seed,
 every answer), the trace, the scenario writer. A seat is never handed one. A
-save a player keeps of their own game is the host's record, so it holds
+save a player keeps of their own game is the referee's record, so it holds
 every hand: where v1 keeps it is `backlog.md` "2.38"'s open question 5.
 
 ### Decision 6 — the redeal for a forked search
@@ -830,17 +862,18 @@ this PR.
 
 1. **`printed_name` names a face-down or hidden card for any caller.** Latent
    while nothing is face down and every seat sees everything; `seat-sight`
-   leaves it the host's and gives a seat a label through sight.
+   leaves it the referee's and gives a seat a label through sight.
 2. **Floor 1's room for k halved.** `backlog.md` "2.9" has k failing floor 1
    above 0.56, against 15,600; at the latest reading it is 0.246.
 3. **The dev GUI's `Snapshot::build` writes the whole board as scenario text
    at every prompt**, every library in order. It is the tester's, and
    `devgui-one-seat` keeps it behind the switch.
-4. **The tick alone does not name an object.** An object that has never
-   moved has none: a token as it is made, and an ability on the stack, whose
-   reference carries its source's (`engine/put_on_stack.rs:655`). So
-   decision 4's name is the tick for an object that has moved and the id it
-   was made with for one that has not.
+4. **The rules' existence tick cannot be a client's name.** An object that
+   has never moved has none: a token as it is made, and an ability on the
+   stack, whose reference carries its source's
+   (`engine/put_on_stack.rs:655`). And an id handed out as a deck loads is a
+   deck slot, the same in every game with that list. So decision 4 gives
+   each object a number of its own, first minted at the opening shuffle.
 5. **`check_invariants.py`'s printed-read rule does not see `ui/`'s name
    helpers** as a seat's leak, since each is tagged for a record no rule
    reads. The words taking a `SeatSight` is what closes it.
