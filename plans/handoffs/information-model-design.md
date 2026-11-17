@@ -802,10 +802,31 @@ name and a smaller folder, not a hazard.
 - **C. Separate crates now.** The engine's own output borrows `display`'s
   words today, so the words cannot leave until the trace's reader does.
 
-**Recommended: B.** A is consistency alone and costs a sweep the Phase 10
-decision repeats. Item 357 is then re-slotted to Phase 10 beside item 208,
-with this finding: the words and the policies each take a `SeatSight`, so
-the split's seam is already in their signatures.
+**How the three kinds are tangled today**, read off each file's imports:
+
+- the policies import the boundary and nothing else, so they lift out
+  cleanly;
+- the boundary imports the words in one place: `decision_types.rs` takes six
+  helpers from `display` (`printed_name` and the cost and color words) to
+  spell a logged option;
+- the words import the boundary, as they should;
+- nine engine files outside `ui/` import the words for their own output:
+  the trace's two writers, the trigger audit, `state/game.rs`'s event log,
+  and five more.
+
+Modules of one crate may import each other both ways, so A compiles as
+moves alone and leaves those crossings where they are, in plain sight. What
+is long stays long: `ask.rs` is 2,417 lines, a third of them its tests, and
+`display.rs` 2,131.
+
+**Leaning A** (the owner, design review round 1: "by far the messiest in the
+engine, might be worth splitting out sooner rather than later"). My first
+recommendation was B, on the cost of a sweep that Phase 10's crate decision
+repeats. The owner weighs the module's state above that, and the sweep is
+moves that a script proves byte for byte. As a PR of its own, `ui-in-three`,
+it is one detour PR, counted zero in the band. Where it goes is the open
+part: straight after this design, since every row before step 8 adds files
+that import `ui::`, or as the build's first PR at step 8.
 
 ### Decision 10 — what `backlog.md` "2.38" parked here
 
@@ -823,38 +844,95 @@ sixth that is a choice.
 **The choice: do an agent's answers name options instead of places?**
 `setup-architecture.md#7e-pausing-at-a-decision`'s decision 2b took identity
 for a client's answers and left a provider in process answering by place.
-"2.38" asked to take the place out of the trait too.
+"2.38" asked to take the place out of the trait too. The owner asked at
+review whether `pick_n` itself is ill-designed, so this is written out.
 
-**Retrofit cost.** Every implementation's return values, and every test
-that asserts a place. Counted: 51 implementations, and the three methods
-that return places are called at 168 sites, many of them a test asserting a
-place. "2.38"'s "about 100 providers" is not reproduced; a search for
-`fn pick_n` that also catches `fn pick_number` reads 104.
+**What `pick_n` is.** The engine hands a provider a list of options and two
+bounds, and the provider says which it picks. The method's shape is sound:
+every pick in Magic is "between this many and that many of these". What is
+by place is its answer, `Vec<usize>`: "the first one", `vec![0]`. The same
+goes for `choose_ordering` (places in order) and `allocate`, whose
+`Vec<u64>` is an amount for each bucket, matched to the buckets by place.
 
-- **A. With decision 3's sweep, by reference.** `pick_n` returns
-  `Vec<&DecisionOption>` out of the slice it was handed, `allocate` each
-  bucket with its amount, `choose_ordering` the items in order. A provider
-  can only return what it was offered; no clone, no index out of range, and
-  `allocate`'s parallel list is gone. It adds about 350–600 touched lines to
-  `seat-sight`, which already opens every one of those files.
-- **B. Leave places in the trait**, as 2b took. `seat-sight` stays at its
-  smaller size.
-- **C. A PR of its own, after `seat-sight`.** The same lines, and a second
-  pass through the same files.
+**Where a place is used today, and what can go wrong at each.**
 
-**Recommended: A.** The files are open once. "The build, sized" gives
-`seat-sight` both ways.
+| Where | Today | What can go wrong |
+|---|---|---|
+| The provider answers | `vec![0]` | A test provider that says "the first" means Pass only while Pass is listed first. Scripts were moved off this in #307; hand-written providers were not |
+| `ui::ask` checks it | in range, no repeats, inside the bounds (`validate_pick_n`) | nothing: the list and the answer are in one call, so a place cannot go stale |
+| each `ask_*` turns it back into a card | `picked.into_iter().map(\|i\| hand[i])`, at 25 sites | nothing while the function builds its options from the same list; it is two lists matched by place, inside one function |
+| a test asserts it | `assert_eq!(seat.pick_n(..), vec![0], "yielded")` | the test says a place, and the reader must know what was first |
+
+So a place is safe inside `ui::ask` and weak at the two ends a person
+writes: a provider's body and a test's assertion.
+
+```rust
+// today
+fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext,
+          options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize>;
+assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or(&cast), (1, 1)), vec![0], "yielded");
+
+// A: the answer is the options themselves, borrowed from the list handed in
+fn pick_n<'a>(&self, sight: &SeatSight<'_>, player: PlayerId, context: &DecisionContext,
+              options: &'a [DecisionOption], bounds: (usize, usize)) -> Vec<&'a DecisionOption>;
+assert_eq!(seat.pick_n(&sight, 0, &PRIORITY, &pass_or(&cast), (1, 1)), [&PASS], "yielded");
+```
+
+- **A. With decision 3's sweep, by reference.** `pick_n` and
+  `choose_ordering` return options out of the slice they were handed, and
+  `allocate` each bucket with its amount. *What it buys*: a provider cannot
+  return something it was not offered, a test says what was picked, and
+  `allocate`'s matched list is gone. *What it costs*: a lifetime on three
+  signatures; 168 call sites, most of them test assertions rewritten to name
+  an option; and `ui::ask` gains one helper that finds a returned option's
+  place, so its 25 `hand[i]` sites stay as they are. About 350–600 touched
+  lines on top of `seat-sight`, which already opens every one of those
+  files. No game, log or record moves.
+- **B. Leave places in the trait**, as 2b took. Nothing changes; the two
+  weak ends stay weak, and are held by review.
+- **C. A PR of its own, later.** The same lines, and a second pass through
+  the same files.
+
+A rename to `pick_from` is a separate question and I would not take it: the
+name is in every provider and the decision log's vocabulary, and under A the
+method still picks some number of a list.
+
+**Recommended: A, and the stakes are low either way.** Nothing built on B is
+unbuilt by taking A later; the cost of waiting is C's second pass, one
+mechanical PR. What would change the recommendation: if the lifetime makes
+the forwarding decorators awkward to read, which a first commit converting
+`choose_ordering` alone would show before the rest is swept. "The build,
+sized" gives `seat-sight` both ways.
 
 ### Decision 11 — a draw from the random stream, and who is told
 
 **Retrofit cost.** Low: the draw sites are few (the shuffle, a discard at
 random, a player at random since #330), and a record kind is an addition.
 
-**The problem.** Two things, both `backlog.md` "2.9"'s input ("name each
-random draw by its kind") and item 432's other half. A pick at random asks
-nobody, so nothing is logged: a client learns that Territorial Hellkite
-chose a player from what the next step does. And a replay or
-`loop-detection` reading the stream cannot say what a draw was for.
+**The problem**, in two parts.
+
+*Nobody is told what a random pick was.* Territorial Hellkite says "choose
+an opponent at random that this creature didn't attack during your last
+combat. This creature attacks that player this combat if able." At a table
+the die is rolled in the open and everyone sees who was picked. In the
+engine the pick is drawn from the game's random stream and nobody is asked,
+so there is no decision to log; and no event is written either. A client
+finds out who was picked only when the Hellkite attacks them. That is the
+second half of `codebase-state.md` item 432 ("a value drawn at random…
+nobody is asked, so no decision is logged… a client learns the pick from
+what the next step does"), which #330's pre-review left to the owner. 16
+cards choose a player at random, one of them in the decks; 169 take a card
+at random; 71 flip a coin and 92 roll a die, neither built yet.
+
+*Nothing says what a draw from the stream was for.* Every random thing in a
+game draws from one stream, `GameState.rng`: a shuffle, a discard at random,
+the Hellkite's pick. The stream is a sequence of numbers with no labels.
+Something reading a game back, a replay checking that it took the same
+draws or `loop-detection` asking whether a repeated stretch of play had
+chance in it, cannot tell a shuffle's draws from a coin's. `backlog.md`
+"2.9" listed this among its inputs for this design as "name each random
+draw by its kind, so a replay or a loop check can read what the draw was
+for".
 
 - **A. Every draw goes through one function that takes its kind** (a
   shuffle, a card at random, a player at random, an order, a coin, a die,
@@ -964,6 +1042,7 @@ are beside the band.
 
 | PR | Shape | Consumer | Code | Tests |
 |---|---|---|---:|---:|
+| **`ui-in-three`**, if decision 9 is A; a detour of one PR, placed by the owner | `ui/` moved into `decision/`, `policies/` and `words/`, and every import path with it, through `plans/replace_exact.py` | every file that imports them, about 176 | 0: moves alone | 0 |
 | **`seat-sight` — the query, and what a provider is handed** | `PlayerBits`; the sight query for the zone defaults and a face-down permanent; `SeatSight`, its accessors and the players it sees for; the 51 implementations onto it; `whole_game()` and its gate | `fuzz_games`' `Observer`, the random agent, every decorator; atoms 400.2, 401.2, 401.3, 402.3-001, 404.2, 406.3-001 | 600–950; with decision 10's answers 800–1,300 | 400–650; with them 550–900 |
 | **`shown-and-followed` — the record, reveal and look** | `face_known_to` and the move rule, written where a move is announced; reveal and look as actions with their records; a reveal in progress and its three holders; CR 603.2f and 701.9c reading the query (item 130) | Brainstorm, registered with its rulings, for the cleared hand; Nephalia Academy's reveal; God-Eternal Kefnet's fixture gains its reveal and its trigger's hold; atoms 401.4, 402.3-002, 402.3-003, 701.20a, and 701.9c's revealed half | 600–900 | 550–850 |
 | **`search-and-library-walks` — search, and the top of a library looked through** | CR 701.23's search with its prompt; "look at the top N, put one here and the rest there"; revealing until a card matches (`backlog.md` "2.46") | Cultivate and Ponder in this PR; the gap census has 39 deck cards needing the model and 20 of them needing nothing else, registered after it; atoms 701.23a, b, d | 550–850 | 450–700 |
