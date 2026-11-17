@@ -107,6 +107,16 @@ FAMILIES["the order of cards put into a library is the owner's secret (CR 401.4)
     r"(?:top|bottom) of (?:your|their|its owner's|that player's|his or her) library in any order\b|\bin any order\b[^.]*\blibrary\b")
 FAMILIES["cards put on the bottom of a library in a random order"] = text(r"\bbottom of (?:your|their|its owner's|that player's) library in a random order\b")
 
+FAMILIES["a card exiled from a hand face down (foretell, and 'exile a card from your hand face down')"] = either(
+    kw("Foretell"), text(r"\bexiles? [^.]*?\bfrom (?:your|their|his or her) hand face down\b|\bexiles? (?:all cards from )?(?:their|your) hand face down\b"))
+FAMILIES["leaves a hand unseen, any: into a library, cast face down, or exiled face down"] = either(
+    FAMILIES["a card put from a hand into a library, not revealed"],
+    kw("Morph", "Megamorph", "Disguise"),
+    FAMILIES["a card exiled from a hand face down (foretell, and 'exile a card from your hand face down')"])
+FAMILIES["is put where its looker knows the set and not the order, any: 'in any order' by another's choice, or a random order"] = either(
+    FAMILIES["the order of cards put into a library is the owner's secret (CR 401.4): 'in any order'"],
+    FAMILIES["cards put on the bottom of a library in a random order"])
+
 # --- face down ----------------------------------------------------------------
 FAMILIES["cast face down: morph, megamorph, disguise"] = kw("Morph", "Megamorph", "Disguise")
 FAMILIES["put onto the battlefield face down: manifest, manifest dread, cloak"] = either(

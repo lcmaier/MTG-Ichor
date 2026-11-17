@@ -261,7 +261,8 @@ searched for in `mtgsim/src`:
 pub struct PlayerBits(u64);
 
 // objects/object.rs
-pub face_known_to: PlayerBits,   // know which card this is, and have followed it since
+pub place_known_to: PlayerBits,  // can point at this card, and know its face
+pub face_known_to: PlayerBits,   // have seen it, and not seen it come out of hiding since (decision 1's E)
 pub sighting: SightingId,        // what a seat's copy calls this card; a new one each time
                                  // it moves or players lose track of it (decision 4)
 pub struct SightingId(u32);
@@ -303,7 +304,8 @@ a `SeenObject` for each card of it the seat's players know.
 
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
-| who knows a card's face and has followed it (`face_known_to`) | when it is revealed, looked at, or moves where some can follow | latched | the object's record (decision 2) | a seat's copy, decision 6's fork, CR 406.3's continued look | its pile is shuffled or reordered; its own unseen move, or another card's from the same hand; it arrives face up in a public zone |
+| who has seen a card that is still hidden (`face_known_to`, decision 1's E) | when the card is shown to a player, or goes into hiding where they watch | latched | the object's record (decision 2) | a seat's copy, as a list of faces; decision 6's guesser | the card comes out of hiding; or a card that player cannot tell from it does |
+| who can point at a card and knows its face (`place_known_to`) | when it is revealed, looked at, or moves where some can follow | latched | the object's record (decision 2) | a seat's copy, decision 6's fork, CR 406.3's continued look | its pile is shuffled or reordered; its own unseen move, or another card's from the same hand; it arrives face up in a public zone |
 | who knows of a change that follows a card (Alchemy's "perpetually") | as the change is made: those who can tell which card it was made to; then anyone the card is shown to | latched | on the change, with the card (`card-and-object-model`'s, decision 8) | a seat's copy of a card it knows | never: the change lasts the game |
 | a reveal or look in progress (CR 701.20a, e) | as the instruction runs, as a cost reveals, as a card's ability is activated from a hand (602.2a), or as a reveal causes a trigger | latched | the resolving record; the stack entry, for a cost's and an activation's; the waiting or stacked trigger the reveal caused | the sight query, the move rule, CR 603.2f, 603.10a, 701.9c | the card moves, since it is then a new object (CR 400.7); the resolution ends; the spell or ability leaves the stack; the trigger leaves the stack, or is not put on it by the next priority |
 | sight from an effect that lasts (Telepathy, Courser of Kruphix, Found Footage, "cards exiled with") | never: read off the effect each time | live | nowhere; what it shows is written to `face_known_to` at each state-based check | the sight query | with the effect, by CR 611's own rules; what was written stays |
@@ -317,6 +319,10 @@ a `SeenObject` for each card of it the seat's players know.
 
 Numbered from 1. Topics the brief listed that are not choices are under
 "Settled by the rules", after decision 11.
+
+**Where each stands after design review round 2** (2026-11-17). Taken: 2
+(on the object; its width is open), 3, 4, 5, 6, 7, 8, 9, 10 and 11. Open:
+1, which gained an option that round, and the width of a set of players.
 
 ### Decision 1 — what the engine remembers a player was shown
 
@@ -332,13 +338,34 @@ place"). The record must fork with the game, so it is on `GameState`, and
 floor 3 says it grows with the board, never with the turn count
 (`plans/references/ai-performance-floors.md`).
 
+**What the gap touches, recounted** (design review round 2; the owner: "the
+real printed cards that would exercise the gap"). The gap is every case
+where the game hides *where* a card is from a player who knows *what* it
+is. The first count named only the smallest family.
+
+| The game hides where, not what | Cards | In the decks |
+|---|---:|---|
+| A card leaves a hand unseen: into a library (41), cast face down (227), exiled face down (66) | 334 | 0 |
+| Cards go into a library where their looker knows the set and not the order: a random order (286), another player's order (136) | 422 | 4: Ureni of the Unwritten, Velomachus Lorehold, and by reminder text hideaway's Mosswort Bridge and Windbrisk Heights |
+| Alchemy: seek takes a card from a library unseen, with no shuffle | 122 | |
+| Alchemy: a known card conjured to a random place in a library | among 17 | |
+
+So about 880 printed cards reach it, and four deck cards.
+
+**What "the client" is today.** Nothing that reads a seat's copy exists.
+The dev GUI reads the whole game. The players' GUI is Phase 10's and an AI
+harness comes after v0.5; neither is designed. All this design fixes about
+any of them is what they are handed. So "a client can keep it for itself"
+is a claim about three programs not yet written, each of which would write
+the same memory again from the log.
+
 - **A. Cards a player can point at.** One set of players on each card: those
   who know its face and have followed it since, by the table above. *Code*:
   the move rule where a move is announced, and the clears. *Performance*: a
   few bit operations a move. *Upkeep*: one rule; a new verb that moves a
   card says only whether it reveals. *What it loses*, each a case where a
   player knows a set and not a place:
-  - a hand after an unseen departure (41 cards make one): a player who knew
+  - a hand after an unseen departure (334 cards make one): a player who knew
     three cards knows two of the three remain, and the engine forgets all
     three;
   - cards put on the bottom "in a random order" (286 cards, 2 in the decks):
@@ -374,11 +401,38 @@ floor 3 says it grows with the board, never with the turn count
   one, unless each change says whether it was seen. That is A's rule again,
   kept beside a second copy of the card.
 
-**Recommended: A, with each lasting change carrying who knows of it.** A
-never shows more than a player knows, which is the property a seat's copy
-and a search both need, and what it forgets a client can keep for itself.
-B's exactness is a belief model, and where those stop is a research
-question the engine should not own.
+- **E. A, and what a player has seen that is still hidden** (added at design
+  review round 2, for the owner's wariness of A). Two sets on each card
+  where A has one. `place_known_to` is A's: who can point at the card.
+  `face_known_to` is wider: who has seen this card and has not seen it come
+  out of hiding since. A boundary clears only the first. So the engine
+  never forgets a face a player was shown; it forgets only where the card
+  is, and only as far as the game hid that. A seat's copy gains, for each
+  player, a list of faces "seen, still hidden": Ureni's seven cards after
+  they go to the bottom, an opponent's three known cards after a
+  Brainstorm, Goblin Morale Sergeant's duplicate somewhere in the top five.
+  The list is faces alone, with no name a client could follow.
+  *One rule it needs*: when a card comes out of hiding and a player could
+  not tell which card it was, one matching face leaves that player's list,
+  whether or not it was that very card. Otherwise a list that still shows
+  "Forest" after a Forest was played would say the two were different
+  cards. *Code*: about 80–150 lines over A: the second set, that rule, the
+  list in the copy. *Performance*: 8 bytes more an object and nothing a
+  clone (decision 2); the rule scans a player's hidden cards only when
+  that player's cards hold such a mark, by a count. *Upkeep*: the move rule
+  says which set a boundary clears, where A's says only that it clears.
+  *What it still loses*: which places. It does not say "at the bottom", or
+  "two of these three are still in hand". Those are B's.
+
+**Recommended: E, with each lasting change carrying who knows of it.** A
+alone never shows more than a player knows, but it forgets what about 880
+printed cards make a player half-know, and hands the remembering to clients
+that do not exist. E keeps every face in the engine, once, at the price of
+a second set and one rule. Where a half-known card is, to the nearest
+place, stays out: that is arithmetic over what was seen, B's belief model,
+and it is what decision 6's guesser is for. Its inputs are then all in the
+copy: what is placed, what is seen and still hidden, and how many cards
+each pile holds.
 
 **The Hullbreaker Horror board, under A.** The card's record says who knows
 the Horror is in that hand. The Feaster's change has a record of its own:
@@ -397,7 +451,7 @@ sight (34), and a change to a card in a library (40).
 
 - **A lasting effect's sight is written at each state-based check.** While
   Telepathy stays, the query reads it live. At each check the engine writes
-  onto `face_known_to` what such effects show now, reading first and writing
+  onto the card's record what such effects show now, reading first and writing
   only what is missing. So when Telepathy leaves, its controller still knows
   the hand, as at a table, and CR 406.3's "may continue to look" holds for a
   look gained at any time. *The other way*: write nothing, and a seat's copy
@@ -426,7 +480,7 @@ whatever an object holds.
 
 | | A clone, 4 seats · 2 seats | A shuffle | A fork's write |
 |---|---|---|---|
-| **A. On `GameObject`**: `face_known_to` and `sighting` | +0 allocations, +0 bytes · the same | reads each card of the library, writes the few with a bit set: about 0.1 µs for 99 cards, derived from the store's read cost | copies the card's chunk, as any move of it does: 1.5 KB today, 1.8 KB at 56 bytes an object |
+| **A. On `GameObject`**: the sets of decision 1 and `sighting` | +0 allocations, +0 bytes · the same | reads each card of the library, writes the few with a bit set: about 0.1 µs for 99 cards, derived from the store's read cost | copies the card's chunk, as any move of it does: 1.5 KB today, 1.8 KB at 56 bytes an object, 2.0 KB at 64 |
 | **B. A's set with an epoch beside it**, each hidden zone counting its shuffles | +0 allocations, +0 bytes; 8 bytes more an object in the shared chunks | one write | the same, and a compare a query |
 | **C. A list on each hidden zone** of (card, players) | +1 allocation for each list that is not empty: up to 8 · 4 | clears a list | the list's own copy |
 | **D. A table of its own**, keyed by id, shared in chunks | +1 allocation once any card is marked | reads the library | a small chunk of its own |
@@ -446,16 +500,29 @@ record's padding, which would have been the engine's first seat cap. The set
 is one type everywhere it is used (the card, a record's stamp, a seat's
 players), so its width is one line:
 
-| | Seats | `GameObject` | A clone | Past the cap |
-|---|---|---|---|---|
-| (a) 16 bits | 16 | 48 bytes, as today | +0, +0 | setup refuses the game |
-| (b) 64 bits | 64 | 56 bytes: 3.2 KB more in the shared store at 400 objects, once a game | +0, +0 | setup refuses the game |
-| (c) 64 bits inline, a heap block past them | any | 64 bytes | +0, +0 up to 64 seats; past that, an allocation for each marked card of a chunk a fork copies | nothing is refused |
+| | Seats | `GameObject`, with decision 1's A (one set) | with its E (two sets) | A clone | Past the cap |
+|---|---|---|---|---|---|
+| (a) 16 bits | 16 | 56 bytes | 56 bytes | +0, +0 | setup refuses the game |
+| (b) 64 bits | 64 | 56 bytes | 64 bytes | +0, +0 | setup refuses the game |
+| (c) 64 bits inline, a heap block past them | any | 64 bytes | 80 bytes | +0, +0 up to 64 seats; past that, an allocation for each marked card of a chunk a fork copies | nothing is refused |
 
-Sizes are derived from the measured layout (44 bytes of fields today).
+Sizes are derived from the measured layout: 44 bytes of fields today in a
+48-byte record, plus the sets and a 4-byte `sighting`, rounded up to eight.
+The object store holds each object once however many forks share it, so 56
+bytes is 3.2 KB more a game at 400 objects, and 64 is 6.4 KB.
 *Recommended: (b).* No clone pays for it, sixty-four seats is past anything
 the floors or either GUI is sized for, and (c) is the same type's insides if
-a game ever needs it. (a) saved 8 bytes an object that no fork copies.
+a game ever needs it. (a) saves nothing under A and 8 bytes an object under
+E, which no fork copies.
+
+**Are the others even feasible under the floors?** (the owner, design
+review round 2). They are; A is the cheapest, and the only one with no
+second structure to keep in step. B costs a clone nothing as well. C adds
+up to 8 allocations a clone at four seats to today's 39, against the limit
+of 64. D adds one.
+
+**Taken: A** (the owner, 2026-11-17, design review round 2). The width is
+still open.
 
 ### Decision 3 — what a decision provider is handed
 
@@ -543,7 +610,7 @@ could act. That is `backlog.md` "2.38"'s open question 4.
   and pays k for it; `codebase-state.md` item 141's "in-process binding" is
   the copy written into the harness's buffer.
 
-**Recommended: B**, and the owner leans to it (design review round 1). It
+**Taken: B** (the owner, 2026-11-17, design review round 2). It
 is the only one that fails closed and costs nothing
 at a prompt. It leaves `setup-architecture.md#7e-pausing-at-a-decision`'s
 decision 2 as taken: a paused game hands a client the owned copy built from
@@ -592,7 +659,7 @@ it could point at the card the whole time between.
   Closes the morph and leaves the library link; two naming rules in every
   client.
 
-**Recommended: B.** One rule, which is CR 400.7's and 701.20d's own (a new
+**Taken: B** (the owner, 2026-11-17, design review round 2). One rule, which is CR 400.7's and 701.20d's own (a new
 object when it moves, and when it is reordered out of sight). `backlog.md`
 "2.36" (how an object is named in text) keeps its slot; this decides the
 machine name only. It is what makes decision 3's B hold against a client
@@ -629,8 +696,8 @@ wherever it is kept.
 - **C. A second event vocabulary for clients**, written out by hand beside
   `GameEvent`. Every variant is spelled twice and kept in step.
 
-**Recommended: A**, and the owner likes it for the single source of truth
-(design review round 1). One writer, one filter, and the referee's stream stays
+**Taken: A** (the owner, 2026-11-17, design review round 2), for the single
+source of truth. One writer, one filter, and the referee's stream stays
 the trace's and the fixture tables'. The wire form of a record is Phase 10's
 (`backlog.md` "2.38"), built from A's projection.
 
@@ -681,7 +748,9 @@ it cannot see as a card and nothing more. What is left is what the fork
   offers A's shuffle as one ready-made dealer, for games where lists are
   open.
 
-**Recommended: C.** B is what makes a fork honest whatever the format, and
+**Taken: C** (the owner, 2026-11-17, design review round 2: "let a policy
+make a 'best guess' as to what the card is and work off of that, or a
+weighted combination of a few guesses"). B is what makes a fork honest whatever the format, and
 it is the owner's reading: the engine says what is unknown, and what it
 might be is off the engine. C adds the one call a search needs to play past
 an unknown card, and A is then a dealer the engine ships, not the engine's
@@ -725,7 +794,7 @@ later voters know earlier votes.
   withholding it changes nothing a player can observe but how long they
   wait.
 
-**Recommended: A.** What `several-choosers-at-one-step` records is the mark,
+**Taken: A** (the owner, 2026-11-17, design review round 2). What `several-choosers-at-one-step` records is the mark,
 on a vote too, and the reveal step. The Toymaker's Trap's reveal is the same
 step after its guess. A choice kept on a permanent in secret is
 `linked-abilities`' kept value carrying the same mark.
@@ -756,7 +825,8 @@ Bridge and Windbrisk Heights, whose hideaway exiles one.
   and CR 708.9's reveal open. Code that forgets to check shows the 2/2,
   which is the right answer.
 
-**Recommended: B as a requirement**, with where the real card is held left
+**Taken: B, as a requirement** (the owner, 2026-11-17, design review round
+2), with where the real card is held left
 to that design. This note fixes six things for it:
 
 - **face down is a status, apart from which face a double-faced card has
@@ -829,14 +899,15 @@ moves alone and leaves those crossings where they are, in plain sight. What
 is long stays long: `ask.rs` is 2,417 lines, a third of them its tests, and
 `display.rs` 2,131.
 
-**Leaning A** (the owner, design review round 1: "by far the messiest in the
-engine, might be worth splitting out sooner rather than later"). My first
-recommendation was B, on the cost of a sweep that Phase 10's crate decision
-repeats. The owner weighs the module's state above that, and the sweep is
-moves that a script proves byte for byte. As a PR of its own, `ui-in-three`,
-it is one detour PR, counted zero in the band. Where it goes is the open
-part: straight after this design, since every row before step 8 adds files
-that import `ui::`, or as the build's first PR at step 8.
+**Taken: A** (the owner, 2026-11-17, design review round 2: "it's only going
+to get less coherent over time if we put it off"). My first recommendation
+was B, on the cost of a sweep that Phase 10's crate decision repeats. The
+owner weighs the module's state above that, and the sweep is moves that a
+script proves byte for byte. It is a PR of its own, `ui-in-three`: one
+detour PR, counted zero in the band, straight after this design, since
+every row before step 8 adds files that import `ui::`. It is made while no
+other branch is open, since it edits the imports of about 176 files. Item
+357 closes with it.
 
 ### Decision 10 — what `backlog.md` "2.38" parked here
 
@@ -888,7 +959,12 @@ fn pick_n<'a>(&self, sight: &SeatSight<'_>, player: PlayerId, context: &Decision
 assert_eq!(seat.pick_n(&sight, 0, &PRIORITY, &pass_or(&cast), (1, 1)), [&PASS], "yielded");
 ```
 
-- **A. With decision 3's sweep, by reference.** `pick_n` and
+- **A. In the PR that makes decision 3's change, by reference.** Decision 3
+  changes what the trait's four methods are handed, from the whole game to a
+  seat's sight. So that PR edits every one of the 51 implementations and
+  every call of them; that one pass over every provider is what this note
+  called decision 3's sweep. This option changes what three of the same
+  methods return, in the same files, in the same pass. `pick_n` and
   `choose_ordering` return options out of the slice they were handed, and
   `allocate` each bucket with its amount. *What it buys*: a provider cannot
   return something it was not offered, a test says what was picked, and
@@ -907,7 +983,8 @@ A rename to `pick_from` is a separate question and I would not take it: the
 name is in every provider and the decision log's vocabulary, and under A the
 method still picks some number of a list.
 
-**Recommended: A, and the stakes are low either way.** Nothing built on B is
+**Taken: A** (the owner, 2026-11-17, design review round 2). The stakes
+were low either way: nothing built on B is
 unbuilt by taking A later; the cost of waiting is C's second pass, one
 mechanical PR. What would change the recommendation: if the lifetime makes
 the forwarding decorators awkward to read, which a first commit converting
@@ -955,7 +1032,7 @@ for".
   client still infers a pick.
 - **C. Neither**, until dice and coins are built (`backlog.md` "2.31").
 
-**Recommended: A.** A pick the players watched is something that happened,
+**Taken: A** (the owner, 2026-11-17, design review round 2). A pick the players watched is something that happened,
 and the stream is where a seat reads what happened.
 
 ### Settled by the rules
@@ -1029,7 +1106,7 @@ medians of five means.
 |---|---|---|---|
 | **The observation's board, k** (`fuzz_games --observe`, 20 games, seed 12345) | 0.106 (7.7 µs against 66.3), then 0.100 at readiness | **0.125**: 6.7 µs an observation, 69 rows, against 53.4 µs of engine a decision | **`Observation`'s board costs at most 0.025 more than the naive observation in the same sitting, and floor 1 over (1 + k) stays above its limit.** Admits the query on each row (0.003, measured) and a name and a reason a row (about 0.014, derived at 10 ns). Refuses a second layer read a row (0.125). At the latest floor 1 reading, 12,465, the limit is k under 0.246 |
 | **The observation's other two parts** | none | none: the naive probe builds the board alone | **No ceiling yet.** What happened since and the question are read at `a-seats-copy`'s close-out, and a ceiling is set on that reading |
-| **The record, a clone** | "bits on each object stay under 1 KB with no allocation" | `GameObject` is 48 bytes, 4 of them padding; 56 with decision 2's fields at sixty-four seats | **Zero allocations and zero bytes a clone** at every decision, on `clone_bound_test`. A reveal in progress may add one allocation at a prompt inside it, and `lasting-sight`'s set of sources one on a board that holds such a permanent |
+| **The record, a clone** | "bits on each object stay under 1 KB with no allocation" | `GameObject` is 48 bytes, 4 of them padding; 56 with decision 2's fields at sixty-four seats under decision 1's A, 64 under its E | **Zero allocations and zero bytes a clone** at every decision, on `clone_bound_test`. A reveal in progress may add one allocation at a prompt inside it, and `lasting-sight`'s set of sources one on a board that holds such a permanent |
 | **A fork made honest (decision 6)** | the redeal, 1.7 to 6.1 µs, "about one clone again" | dealt: **0.8 to 7.9 µs** over a clone of 0.7 to 1.9, and the same within 0.5 with a lookup a card. Blinded: **1.6 to 6.4 µs** over the clone, 382 records written on turn 1 | **A clone and its blinding or its deal together stay inside floor 2's 10 µs** at every checkpoint. Today 1.7 to 8.8 dealt and 2.3 to 8.3 blinded, worst on turn 1, when the libraries are full and every chunk of the object store is copied |
 | **The memo after a deal** | cold costs "one board walk more, 10–40 µs from mid-game" | one walk of what a seat's copy lists, cold less warm: **11 to 62 µs** from turn 20, 1.5 on turn 1 | **A deal or a blinding leaves the memo warm unless a registry row reaches a zone it deals across**, one compare on `RegistryScopeSummary::reachable_zones`, held by a test that counts layer frames with and without one. Cold, it is one walk, which this design does not bound and `layers-architecture.md`'s LL does |
 | **The query, a decision** | "the visibility query's instructions per decision", unmeasured | 2.2 ns an object; 167 ns a decision over the 75 objects a copy lists | **At most 5 ns an object on a board with no lasting sight effect.** Admits the measured 2.2 and one count check. Refuses a layer read (97 ns a row) or a registry scan an object |
@@ -1052,17 +1129,17 @@ are beside the band.
 
 | PR | Shape | Consumer | Code | Tests |
 |---|---|---|---:|---:|
-| **`ui-in-three`**, if decision 9 is A; a detour of one PR, placed by the owner | `ui/` moved into `decision/`, `policies/` and `words/`, and every import path with it, through `plans/replace_exact.py` | every file that imports them, about 176 | 0: moves alone | 0 |
-| **`seat-sight` — the query, and what a provider is handed** | `PlayerBits`; the sight query for the zone defaults and a face-down permanent; `SeatSight`, its accessors and the players it sees for; the 51 implementations onto it; `whole_game()` and its gate | `fuzz_games`' `Observer`, the random agent, every decorator; atoms 400.2, 401.2, 401.3, 402.3-001, 404.2, 406.3-001 | 600–950; with decision 10's answers 800–1,300 | 400–650; with them 550–900 |
-| **`shown-and-followed` — the record, reveal and look** | `face_known_to` and the move rule, written where a move is announced; reveal and look as actions with their records; a reveal in progress and its three holders; CR 603.2f and 701.9c reading the query (item 130) | Brainstorm, registered with its rulings, for the cleared hand; Nephalia Academy's reveal; God-Eternal Kefnet's fixture gains its reveal and its trigger's hold; atoms 401.4, 402.3-002, 402.3-003, 701.20a, and 701.9c's revealed half | 600–900 | 550–850 |
+| **`ui-in-three`** (decision 9), a detour of one PR straight after this design | `ui/` moved into `decision/`, `policies/` and `words/`, and every import path with it, through `plans/replace_exact.py` | every file that imports them, about 176 | 0: moves alone | 0 |
+| **`seat-sight` — the query, and what a provider is handed** | `PlayerBits`; the sight query for the zone defaults and a face-down permanent; `SeatSight`, its accessors and the players it sees for; the 51 implementations onto it, their answers by reference with it (decision 10); `whole_game()` and its gate | `fuzz_games`' `Observer`, the random agent, every decorator; atoms 400.2, 401.2, 401.3, 402.3-001, 404.2, 406.3-001 | 800–1,300, 200–350 of it decision 10's | 550–900, 150–250 of it decision 10's |
+| **`shown-and-followed` — the record, reveal and look** | decision 1's sets and the move rule, written where a move is announced; reveal and look as actions with their records; a reveal in progress and its three holders; CR 603.2f and 701.9c reading the query (item 130) | Brainstorm, registered with its rulings, for the cleared hand; Nephalia Academy's reveal; God-Eternal Kefnet's fixture gains its reveal and its trigger's hold; atoms 401.4, 402.3-002, 402.3-003, 701.20a, and 701.9c's revealed half | 600–900 | 550–850 |
 | **`search-and-library-walks` — search, and the top of a library looked through** | CR 701.23's search with its prompt; "look at the top N, put one here and the rest there"; revealing until a card matches (`backlog.md` "2.46") | Cultivate and Ponder in this PR; the gap census has 39 deck cards needing the model and 20 of them needing nothing else, registered after it; atoms 701.23a, b, d | 550–850 | 450–700 |
 | **`a-seats-copy` — what a client is handed** | `Observation`: the board through sight, what happened since with each record as the seat sees it, the question; decision 4's names; a secret answer withheld; a random pick's record and the draw's kinds (decision 11); the words taking a sight; the kinds table | `fuzz_games --observe` builds it, which is k's reading; a test that no seat's copy of a seeded game holds a card its players were not shown | 600–950 | 450–700 |
 | **`devgui-one-seat`** | the window drawn from one seat's `Observation`, with the tester's whole game as a switch | a person at the dev GUI; its own review path | 300–600 | |
 | **`lasting-sight` — a hand or a top card shown while an effect lasts** | sight read off an effect, and written at each state-based check; CR 401.5's wait while casting and 401.6's new object | Courser of Kruphix, Telepathy; Thundermane Dragon's look, the one deck card; atoms 402.3-004, 401.5-001 to 003 | 350–550 | 300–450 |
 | **`blinded-fork`**, after v0.5 with the AI harness | decision 6: `blind_for`, the call that says what an unknown card is, the engine's own dealer, and the memo's test | the harness's search; "no better than chance" | 300–450 | 250–400 |
 
-**Five route PRs at step 8, the dev GUI's beside them, and one after v0.5.**
-The first four read 1,000–1,600 (1,350–2,200 with decision 10's answers),
+**Five route PRs at step 8, the dev GUI's beside them, one after v0.5, and
+`ui-in-three` ahead of them all.** The first four read 1,350–2,200,
 1,150–1,750, 1,000–1,550 and 1,050–1,650, each under the band's top;
 `lasting-sight` is under its floor and may ride `search-and-library-walks`
 if that lands small. `roadmap-v2.md` carried 3–6 before any design.
