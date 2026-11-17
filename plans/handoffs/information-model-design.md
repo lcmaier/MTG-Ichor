@@ -127,9 +127,9 @@ of each larger one. `tdc` is the five decks' lists.
 
 | What the model must do | Family | Cards | `tdc` | Example | Holds today |
 |---|---|---:|---:|---|---|
-| Show a card to all, once | reveal, any | 1,249 | 10 | Thoughtseize | nothing: a no-op |
+| Show a card to all, once | reveal, any | 1,249 | 10 | Chaos Warp | nothing: a no-op |
 | | …a hand | 152 | 0 | Cabal Therapy | |
-| | …the top of a library | 319 | 6 | | |
+| | …the top of a library | 319 | 6 | Satyr Wayfinder | |
 | | …until a card matches | 110 | 2 | Selvala's Stampede | `backlog.md` "2.46" |
 | | …a card as it is drawn | 28 | 0 | God-Eternal Kefnet | |
 | Show a card to all, while an effect lasts | a hand | 8 | 0 | Telepathy | nothing |
@@ -137,7 +137,7 @@ of each larger one. `tdc` is the five decks' lists.
 | Show a card to one player, once | look at, any | 1,384 | 22 | Ponder | scry's prompt only |
 | | …scry or surveil | 685 | 14 | Opt | asked; nothing recorded |
 | | …the top of your own library, otherwise | 492 | 6 | Ponder | |
-| | …another player's hand / the top of their library | 37 / 41 | 0 | Gitaxian Probe / Cruel Fate | |
+| | …another player's hand / the top of their library | 37 / 41 | 0 | Sorcerous Sight / Cruel Fate | |
 | | search | 987 | 18 | Cultivate | nothing |
 | | …another player's library or hand | 115 | 0 | Praetor's Grasp | |
 | Show a card to one player, while an effect lasts | the top card of your library | 51 | 1 | Thundermane Dragon | nothing |
@@ -145,26 +145,41 @@ of each larger one. `tdc` is the five decks' lists.
 | | cards exiled with this permanent | 4 | 0 | Grimoire Thief | |
 | Move a card between two hidden places, unseen | a hand into a library | 41 | 0 | Brainstorm | moved; every seat watches |
 | | a library into a hand, unrevealed | 161 | 3 | Diabolic Tutor | |
-| | into a library "in any order" (CR 401.4) | 136 | 0 | | |
-| | onto the bottom "in a random order" | 286 | 2 | | |
-| Hide a face in a public zone | cast face down: morph, megamorph, disguise | 227 | 0 | Exalted Angel | `face_down`, never set |
+| | into a library "in any order" (CR 401.4) | 136 | 0 | Teferi's Puzzle Box | |
+| | onto the bottom "in a random order" | 286 | 2 | Ureni of the Unwritten | |
+| Hide a face in a public zone | cast face down: morph, megamorph, disguise | 227 | 0 | Zoetic Cavern | `face_down`, never set |
 | | put there face down: manifest, cloak | 73 | 1 | Reality Shift | |
 | | another way onto the battlefield or the stack face down | 52 | 0 | Ixidron | |
-| | exiled face down, any | 136 | 2 | | nothing |
+| | exiled face down, any | 136 | 2 | Bane Alley Broker | nothing |
 | | …foretell / hideaway | 51 / 15 | 0 / 2 | Mosswort Bridge | |
 | | …from another player's hand or library | 16 | 0 | Jester's Scepter | |
-| | face down anywhere, a card counted once | 478 | 3 | | |
-| Keep a choice from the other players | "secretly", any | 17 | 0 | | nothing: announced |
+| | face down anywhere, a card counted once | 478 | 3 | the four families above | |
+| Keep a choice from the other players | "secretly", any | 17 | 0 | the three rows below | nothing: announced |
 | | …revealed in the same step, once all have chosen | 12, six of them votes | 0 | Call to the Void, Truth or Consequences | |
 | | …revealed after another player's guess | 1 | 0 | The Toymaker's Trap | |
 | | …kept on a permanent, revealed as a later cost | 4 | 0 | Emissary of Grudges | |
 | | a vote (CR 701.38), 33 of them open | 39 | 1 | Selvala's Stampede | not built |
-| Draw from the random stream | shuffle | 1,193 | 21 | | `GameState.rng` |
-| | a card taken at random / a player at random | 169 / 16 | 0 / 1 | Territorial Hellkite | |
-| | a random order | 293 | 2 | | |
-| | a coin / a die | 71 / 92 | 0 | | `backlog.md` "2.31" |
-| Read sight in a rule | an ability working from a hand, seen as it does | 91 | 1 | cycling triggers | 603.2f by zone |
+| Draw from the random stream | shuffle | 1,193 | 21 | Cultivate | `GameState.rng` |
+| | a card taken at random / a player at random | 169 / 16 | 0 / 1 | Stupor / Territorial Hellkite | |
+| | a random order | 293 | 2 | Velomachus Lorehold | |
+| | a coin / a die | 71 / 92 | 0 | Karplusan Minotaur / Sword of Hours | `backlog.md` "2.31" |
+| Read sight in a rule | an ability working from a hand, seen as it does | 91 | 1 | Dismantling Wave's cycling trigger | 603.2f by zone |
 | | a discard put into a library (701.9c) | 2 | 0 | Library of Leng | item 130 |
+
+**Alchemy, which that corpus leaves out** (it is paper cards). Scryfall's
+`total_cards` for each query, 2026-11-17; the rules are
+`MTG-Rules/Alchemy-Derived-Rules/`.
+
+| What the model must do | Family, and its query | Cards | Example |
+|---|---|---:|---|
+| Know that a hidden card was changed, and by whom it is known | a change that follows the card ("perpetually"), `o:perpetually` | 244 | Davriel's Withering |
+| | …made to a card in a hand, `o:"in your hand"` | 65 | Blooming Cactusfolk |
+| | …to a card its controller picks from their hand, `o:/choose an? [a-z ]*card in your hand/` | 34 | Bloodsprout Talisman |
+| | …to a card picked at random from a hand or library | 7 | Fuel Tank Feaster |
+| | …to a card in a library, `o:"library"` | 40 | Goblin Morale Sergeant, whose changed card goes "into the top five cards of your library at random" |
+| | …to a card in another player's hand | 4 | Lumbering Lightshield, which has it revealed first |
+| Move a card out of a library unseen, with no shuffle | seek, `kw:seek` | 122 | Discover the Formula |
+| Bring a card into a hidden zone from outside the game | conjure, `kw:conjure`; a spellbook, `o:"spellbook"` | 190; 65 | Sarkhan, Wanderer to Shiv; Charged Conjuration |
 
 **Rulings read.** Call to the Void (2022-06-10): each player keeps the choice
 "secret until all players simultaneously reveal". Selvala's Stampede
