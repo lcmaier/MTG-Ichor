@@ -19,7 +19,7 @@ use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, Pri
 use mtgsim::words::display::format_event_log;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;
-use mtgsim::policies::replay::Replay;
+use mtgsim::state::decision_log::Replay;
 
 /// A Lightning Bolt castable at the first priority prompt, so that prompt is
 /// asked rather than passed for the seat.

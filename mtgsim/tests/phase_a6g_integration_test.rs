@@ -16,7 +16,7 @@ use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, Sea
 use mtgsim::words::display::format_event_log;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;
-use mtgsim::policies::replay::Replay;
+use mtgsim::state::decision_log::Replay;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -113,7 +113,7 @@ fn a_seat_that_stops_at_every_priority_point_writes_the_log_the_engine_does() {
 }
 
 /// The record is complete: random seats play a game, and its text, read back
-/// and replayed by `policies::replay`, plays the same game again, at two seats and
+/// and replayed by `state::decision_log::Replay`, plays the same game again, at two seats and
 /// four.
 #[test]
 fn a_game_replayed_from_its_log_is_the_same_game() {

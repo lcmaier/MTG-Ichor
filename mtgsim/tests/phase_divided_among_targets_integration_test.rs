@@ -31,7 +31,7 @@ use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, 
 use mtgsim::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use mtgsim::words::display::{format_event_log, option_label};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::replay::Replay;
+use mtgsim::state::decision_log::Replay;
 
 /// The script's next answer: `chosen` for the announcement of an instance of
 /// "target". The queue matches a kind by its variant alone.

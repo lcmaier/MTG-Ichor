@@ -30,7 +30,7 @@ use mtgsim::decision::question::{AbilityAsRead, DecisionContext, DecisionKind, D
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::words::display::{format_event_log, option_label};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::replay::Replay;
+use mtgsim::state::decision_log::Replay;
 
 const BRIDGE_AND_PYROCLASM: &str = "\
 hand 0: Pyroclasm

@@ -218,7 +218,7 @@ fn check_pick_n(
 
 /// Whether `indices` answers a `pick_n` of `options_len` options within
 /// `bounds`: a count in bounds, each in range, none twice. What the validator
-/// asserts and a replay checks before it answers (`policies::replay`), so neither
+/// asserts and a replay checks before it answers (`state::decision_log::Replay`), so neither
 /// keeps a copy.
 pub(crate) fn pick_fits(indices: &[usize], options_len: usize, bounds: (usize, usize)) -> Result<(), String> {
     if indices.len() < bounds.0 || indices.len() > bounds.1 {
@@ -2090,7 +2090,7 @@ mod tests {
             forced: false,
             chosen: Chosen::Picks(vec![DecisionOption::Number(6).as_logged(&game)]),
         };
-        let replay = crate::policies::replay::Replay::new(vec![line]);
+        let replay = crate::state::decision_log::Replay::new(vec![line]);
         assert_eq!(ask_choose_x_value(&replay, &game, 0, spell_id, tamiyo()), 6);
         assert_eq!(replay.remaining(), 0);
     }

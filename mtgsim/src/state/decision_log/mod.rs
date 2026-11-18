@@ -32,11 +32,16 @@
 //! there is one. The text is a function of the game, with no clock in it, so
 //! two records of one game differ only in their engine line and in the path
 //! a scenario was read from.
+//!
+//! **The replay is the format's reader** ([`Replay`]): a provider that answers
+//! a game's questions from a log, kept beside the format it reads.
 
 mod hook;
+mod replay;
 mod start;
 mod text;
 
 pub use hook::{DecisionLogHandle, LoggedAnswer, LoggedDecision};
+pub use replay::{Replay, ReplayControl};
 pub use start::{BuiltStart, GameStart};
 pub use text::{AnswerLine, Chosen, FORMAT, Log, LogError, Outcome, opening, read};
