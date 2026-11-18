@@ -10020,7 +10020,9 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      moves, mechanical: the rendering group alone is imported by 13 other
      files in `src`, 19 in `tests` and 6 in the dev GUI (2026-10-30), a
      path sweep through `plans/replace_exact.py`.
-     **Slotted:** `information-model-design`, at its design stop.
+     **Slotted:** `ui-in-three`, by moves alone: decision 9 of
+     `plans/handoffs/information-model-design.md`, taken at #332's design
+     review (2026-11-17), split the module three ways.
 
 ### Found by `card-layer-cleanup`'s first PR (2026-10-31)
 
