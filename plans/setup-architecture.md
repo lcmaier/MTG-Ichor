@@ -840,12 +840,12 @@ a start ── build ──▶ Game ── run ── each prompt ──▶ the 
   own: the setup driver finds a line's action and targets among the options
   by id (`scenario/setup.rs:234`, `:287`), and `phase_cv2a_integration_test.rs`'s
   `ById` picks objects by id.
-- **An answer that does not fit is an engine panic.** `ui::ask`'s four
-  `check_*` functions assert it (`ui/ask.rs:149`, `:224`, `:286`, `:385`), so a
+- **An answer that does not fit is an engine panic.** `decision::ask`'s four
+  `check_*` functions assert it (`decision/ask.rs:149`, `:224`, `:286`, `:385`), so a
   replay that hands a prompt the wrong answer ends as a validator's panic, not
   as a line that disagrees.
 - `ScriptedDecisionProvider` matches a kind by its discriminant
-  (`ui/decision.rs:404`) and ignores the player. Its `Drop` (`:435`), which
+  (`decision/provider.rs:404`) and ignores the player. Its `Drop` (`:435`), which
   skips while unwinding, is still the engine's only one. No `Cargo.toml` sets
   `panic = "abort"`.
 - **A run ends early under `catch_unwind` in three places**: `fuzz_games`, once
@@ -1225,11 +1225,11 @@ second display client compute the same thing from the same facts?
 
 | Surface | Home | Why |
 |---|---|---|
-| `DecisionKind::as_str` | the engine, `ui::decision_types` | the log, the prompt and the setup driver's refusal spell a kind one way |
-| An option's identity, and the one matcher that finds it in a list | the engine, `ui::decision_types` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
+| `DecisionKind::as_str` | the engine, `decision::decision_types` | the log, the prompt and the setup driver's refusal spell a kind one way |
+| An option's identity, and the one matcher that finds it in a list | the engine, `decision::decision_types` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
 | A record's header, a start's text and a line's, written and read | the engine, `state::decision_log` | every client's log and save say the same words and what wrote them, and one parser reads them (decision 6) |
 | The replay | the engine, a provider in `ui` | a second client's undo replays the same way |
-| The stop | the engine, `ui::decision` and `Game` | it crosses the boundary |
+| The stop | the engine, `decision::provider` and `Game` | it crosses the boundary |
 | The save's journal and tree; where the window was asked | the dev GUI | which prompts reach a person is one client's seat stack; it moves to the engine when a second client reads saves (`backlog.md` §2.38) |
 | The replaying status, the buttons, the menu | the dev GUI's drawing | how it looks |
 
@@ -1923,7 +1923,7 @@ then:  a replay of the window's line, sink on: batch · CR 616.1 · perform · d
   - `pipeline`: one CR 616.1 iteration, with the candidates, the chooser, the
     choice, the rewrite and each member's result;
   - `batch_end`: what each proposal became, or `null` if it was dropped;
-  - `event`: the performed event, in `ui::display::format_event`'s words;
+  - `event`: the performed event, in `words::display::format_event`'s words;
   - `trigger`: one matcher decision. It names the record asked about and the
     ability, and says whether it matched or which predicate refused it;
   - `pending`: placement, or its refusal (CR 800.4d's departed controller, CR
@@ -1960,7 +1960,7 @@ then:  a replay of the window's line, sink on: batch · CR 616.1 · perform · d
   - Combat already has the shape this design wants. `can_block`
     (`engine/combat/validation.rs:280`) returns a `CombatError`: the
     pre-filter keeps the `Ok`s and the validator reports the `Err`. Then
-    `ui::display::combat_error` (`ui/display.rs:501`) words each error with
+    `words::display::combat_error` (`words/display.rs:501`) words each error with
     its rule.
   - The attack side has its checks twice. `legal_attackers`
     (`oracle/legality.rs:82`) filters silently, and `validate_attackers`
@@ -2028,7 +2028,7 @@ panel reports.
     attackers and blockers.
   - **Offered, then reversed** (CR 732.1). A cost not paid in CR 601.2g's
     window is the usual case. The sink records it as `priority_rejected`, and
-    the re-asked question already says it in `ui::display::rejection`'s words.
+    the re-asked question already says it in `words::display::rejection`'s words.
 
   The enumeration over-approximates on purpose (`oracle/legality.rs`'s
   header). An option it offers may still be reversed, but one it drops must
@@ -2175,7 +2175,7 @@ What the engine adds, each under an A/B predicted `IDENTICAL` on every counter:
    - `check_cast_legality`'s `String`s become the same typed reasons, so
      enumeration and enforcement share one check. That is `codebase-state.md`
      item 188's class: two roads to one answer.
-   - `ui::display` words each reason with its rule, beside `combat_error`.
+   - `words::display` words each reason with its rule, beside `combat_error`.
 
    As SU-7 built it: `play_land` and `activate_ability` ask the same checks
    too, the pairs item 188 names beside `check_cast_legality`, and a cost's
@@ -2196,7 +2196,7 @@ What the engine adds, each under an A/B predicted `IDENTICAL` on every counter:
    static ability's text or an effect a resolution registered, and the record's
    `prohibited` list carries the member's batch index, the source and both.
 
-**Every why comes back as one value, `ui::why::Why`**: a title, and sections
+**Every why comes back as one value, `words::why::Why`**: a title, and sections
 of lines, each line with its words, its rule, and the objects it names. The
 engine words it, from the explanation, the reasons or the records. So the
 window draws a list and never a case per mechanic, as A6g's row requires:
@@ -2333,7 +2333,7 @@ pub fn explain(game: &GameState, id: ObjectId) -> Option<LayerExplanation>;
 pub fn can_cast(game: &GameState, player: PlayerId, card: ObjectId) -> Result<(), CannotCast>;
 let castable = hand.iter().filter(|&&card| can_cast(game, player, card).is_ok());
 
-// ui::why: what every client draws.
+// words::why: what every client draws.
 pub fn why(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>) -> Why;
 pub struct WhyLine { pub text: String, pub rule: Option<&'static str>, pub names: Vec<ObjectId> }
 ```
@@ -2461,7 +2461,7 @@ declarations.
 
 ```
 the rules code: priority, casting, combat, the batch's DECIDE, PLACE, RESOLVE
-  └─ ui::ask — 29 functions, called at 38 places in 15 files: each validates the answer, logs it, traces it
+  └─ decision::ask — 29 functions, called at 38 places in 15 files: each validates the answer, logs it, traces it
        └─ &dyn DecisionProvider — pick_n, pick_number, allocate, choose_ordering, and seat_mode
             └─ 47 implementations: 19 in the engine, 25 in tests, 3 in the dev GUI
 ```
@@ -2485,10 +2485,10 @@ replays the original.
 
 | | Count | Where |
 |---|---:|---|
-| `ask_*` functions | 29 | `mtgsim/src/ui/ask.rs` |
+| `ask_*` functions | 29 | `mtgsim/src/decision/ask.rs` |
 | their call sites | 38, in 15 files | 14 under `engine/`, and `state/game.rs` |
-| `DecisionKind` variants | 31 | `ui/decision_types.rs:39` |
-| `DecisionOption` variants | 13 | `ui/decision_types.rs:495` |
+| `DecisionKind` variants | 31 | `decision/decision_types.rs:39` |
+| `DecisionOption` variants | 13 | `decision/decision_types.rs:495` |
 | `DecisionProvider` implementations | 47: 19 engine, 25 tests, 3 dev GUI | 10 of the engine's 19 are decorators that forward to an inner provider; the 3 in the dev GUI are `GuiSeat`, `HandOver` and `AtTheQuestion` |
 | scenario files | 14, every one with a `step` line | `mtgsim/scenarios/` (6), `devgui/tests/scenarios/` (8) |
 | files that parse a scenario | 11 integration-test files, `fuzz_games`, and the dev GUI's editor, bridge, session and two test harnesses | |
@@ -2973,7 +2973,7 @@ engine which one.
 
 **Taken: by identity** (the owner, the same round): answers are named by what they chose
 everywhere a client or a file writes one, and the place stays inside the
-engine, between `ui::ask` and the provider. A provider in process holds the
+engine, between `decision::ask` and the provider. A provider in process holds the
 question and still answers by place. The paused game's lookup is its own, plain
 equality and a refusal, since a client's answer arrives at run time:
 `position_named` is a script's, which panics on a name that fits two options
@@ -3084,7 +3084,7 @@ which re-derives the question as a fork does.
 (b) or (c). It is what keeps "copy at the anchor, replay the answers" exact
 for every question the route adds (modes, a choice at resolution, an order
 the CR hands a player):
-1. Every question goes through `ui::ask`, so the paused game hands every
+1. Every question goes through `decision::ask`, so the paused game hands every
    question out at one place. (Kinds share functions there: 29 for 31 kinds.)
 2. Its options are named by what they are (decision 4), and its `DecisionKind`
    names its subject (`DecisionKind::subject`, exhaustive).
@@ -3184,9 +3184,9 @@ says which ability is which.
     every word, the same source, ability and triggering objects, as far as
     the log's convention goes for two cards of one name.
   - **What a person sees.** A client draws each option from its typed value
-    through `ui::display`, with the source's name and the ability's text,
+    through `words::display`, with the source's name and the ability's text,
     read off the object's abilities as the layers give them (`ability_text`,
-    `ui/display.rs:729`), the way the dev GUI already draws an activation
+    `words/display.rs:729`), the way the dev GUI already draws an activation
     ("Forest · {T}: Add {G}."): "Bridge from Below · Whenever a nontoken
     creature is put into your graveyard from the battlefield, if this card is
     in your graveyard, create a 2/2 black Zombie creature token. (for Grizzly
@@ -3246,7 +3246,7 @@ offered (Kicker, Buyback, Entwine, Casualty, Bargain, Strive, `Custom`; a
   Strive nothing more; `Custom` its text. The log writes the whole cost even
   where today's label shows the keyword alone. ~60–100 lines beyond the
   matcher: the variant's word, a mana parser for `{1}{R}`, and a reader for
-  each `Cost` part's words, which `ui::display::entry_offer_words` already
+  each `Cost` part's words, which `words::display::entry_offer_words` already
   writes.
 - **(iii) Compare the cost shapes by words**, the one textual corner left.
 
@@ -3299,7 +3299,7 @@ graveyard` and `alternative Escape {G}{G}{U}{U}, exile 5 from your
 graveyard`, and a client draws each with its whole cost, the exile counts
 included. Today's label prints a cost with a non-mana part as its
 keyword alone ("Escape"); the build prints that part through the words
-`ui::display::entry_offer_words` already has for each `Cost` ("exile 5 from
+`words::display::entry_offer_words` already has for each `Cost` ("exile 5 from
 your graveyard"), ~20–40 lines in decision 4's PR.
 And "escaped" is a fact about the variant chosen, never its source: a cast
 records its alternative cost (`StackEntry.cost_choices`), so whoever writes
@@ -3387,7 +3387,7 @@ paused game is a path no fuzz game takes: `fuzz_games` keeps calling
    game, so the process model holds it. Not a reason to take the card in; a
    note for whoever reopens the tail.
 5. **The log writes an activated ability as its internal id.**
-   `DecisionOption::as_logged` (`ui/decision_types.rs:544`) writes an
+   `DecisionOption::as_logged` (`decision/decision_types.rs:544`) writes an
    activation as `activate Forest (#13) ability 0x…`, `AbilityId`'s
    hexadecimal derivation, though `AbilityId`'s own `Display` says it is
    "diagnostics only — a log names an ability by index"
@@ -3472,7 +3472,7 @@ build changed in the design).
 (`state::trace`): `RecordKind` names every record the writer writes and the
 reader reads, and `TraceRecord::read` is the writer's inverse over all twelve.
 `prohibition` names the "can't" `is_prohibited` finds, and the `pipeline`
-record lists each member one stopped. `ui::why::why_from_trace` answers what an
+record lists each member one stopped. `words::why::why_from_trace` answers what an
 event did: its batch as the engine decided it, each CR 616.1 iteration that
 met an effect or a "can't", a batch after it that performed nothing, and every
 triggered ability asked about it, matched or refused and by what. Every
@@ -3505,7 +3505,7 @@ it refuses: `can_begin_to_cast` and `can_cast` (`CannotCast`), `can_play_land`
 (`CannotPlayLand`), `can_activate_its_abilities`, `can_begin_to_activate` and
 `can_activate` (`CannotActivate`), `can_attack` (`CombatError`, as `can_block`
 already did), with `SorceryTiming` for CR 307.1's three questions and
-`CannotPay` for a cost (CR 118.3). `ui::display` words each reason with its
+`CannotPay` for a cost (CR 118.3). `words::display` words each reason with its
 rule. The why's first section, **At this question**, says whether the open
 question offers the object or the player, and as what; if not, why, on two
 tiers: never offered, from the checks, or offered and then reversed
@@ -3542,7 +3542,7 @@ it applies: what it affected, and what it did to the object, applied with the
 frame before and after or missed, by its set, by CR 604.2 or by CR 613.6.
 Each says what it waited for (CR 613.8), and CR 306.5b's loyalty ability is
 a step of its own. A debug assertion holds the answer to the walk's.
-`ui::why::why(game, id)` words it: the printed card, each layer's changes in
+`words::why::why(game, id)` words it: the printed card, each layer's changes in
 the order applied, what reached the object's zone and missed it, and the
 result, each line with its rule and a link for each object it names. In the
 dev GUI a right-click on an object asks why at the open question, the seat
@@ -3614,14 +3614,14 @@ sized against built, and what the build changed in the design).
 kind, replacing eight readers of `Debug` text. `DecisionOption::as_logged`, an
 option as what it is, and `position_of`, the one matcher the setup driver, the
 cv2 test providers and the scripted provider's new `expect_choice` find an
-option by. `ui::ask`'s checks as predicates the validators assert and the
+option by. `decision::ask`'s checks as predicates the validators assert and the
 replay shares. The stop: `Stop`, raised from inside a prompt;
 `Game::until_stopped`, which catches it and nothing else; a stopped game
 refused at every run entry; the setup driver's refusal raised as one, which
 `fuzz_games` and the dev GUI report as the scenario's. The log's text in the
 engine (`state::decision_log`): `decision log 1` and the engine's commit, a
 `GameStart` written, read and built, an answer a line naming what it chose,
-the outcome; `BuiltStart::play` and `replay`. `ui::replay`: each line checked
+the outcome; `BuiltStart::play` and `replay`. `policies::replay`: each line checked
 and its choice found by what it is, a forced line skipped or supplied where
 two builds differ, then the seats or a stop, and a `ReplayControl` for another
 thread. The memo's audits paused for a replay within a session and resumed at

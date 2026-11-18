@@ -581,9 +581,9 @@ fit for v1's AI use case at all (derived in `plans/references/ai-performance-flo
 ### What the engine says and what a client draws
 
 - **A fact only the rules compute is the engine's**; **wording every reader sees
-  alike is `ui::display`'s**; **how it looks is the client's.**
+  alike is `words::display`'s**; **how it looks is the client's.**
 - **The review's question**: would a second display client compute the same
-  thing from the same facts? Then it is the engine's (`ui::display::type_line_now`
+  thing from the same facts? Then it is the engine's (`words::display::type_line_now`
   is the worked case).
 
 ### What one prompt costs the window

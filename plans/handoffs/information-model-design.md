@@ -54,7 +54,7 @@ on a row.
 
 | | Count | Where |
 |---|---:|---|
-| `DecisionProvider` implementations | 51: 18 in `mtgsim/src`, 29 in `mtgsim/tests`, 4 in the dev GUI | `ui/decision.rs:162` is the trait |
+| `DecisionProvider` implementations | 51: 18 in `mtgsim/src`, 29 in `mtgsim/tests`, 4 in the dev GUI | `decision/provider.rs:162` is the trait |
 | …that never read the game, or only pass it on | 22 (8 and 14) | |
 | …that read it only to name an option | 7 | `as_logged`, `position_named` |
 | …that read what every player may see | 13 | the stack, the turn, the phase, a trigger's timestamp, the asked player's own mana sources |
@@ -72,7 +72,7 @@ These follow, and the decisions rest on them.
   So an id a seat has seen once is a handle on that card wherever it goes
   (decision 4).
 - **Every name helper reads the printed card.** `printed_name`
-  (`ui/display.rs:58`), `object_label` and `DecisionOption::as_logged` return
+  (`words/display.rs:58`), `object_label` and `DecisionOption::as_logged` return
   `card_data.name` for any id in any zone, face down or not.
 - **A cast is silent until CR 601.2i.** The move onto the stack at 601.2a
   and a rewind's move back announce nothing (`engine/zones.rs:37`, the
@@ -642,7 +642,7 @@ four methods. 51 today; each row before step 8 adds test providers. Changing
 the answer after the build is the same sweep again.
 
 **The problem.** Four of the trait's five methods take `&GameState`
-(`ui/decision.rs:162`). `codebase-state.md` item 141, the serialized
+(`decision/provider.rs:162`). `codebase-state.md` item 141, the serialized
 boundary, kept the parameter "until that query exists". Subtracting from the
 whole game leaks each new field until someone remembers it; adding to nothing
 fails closed (`backlog.md` "2.9", inputs).
@@ -694,7 +694,7 @@ the whole game and must leave things out. Under B it holds a `SeatSight`
 and can only put in what the sight gives. Three things beside this decision
 are what a cheating client is held by: the names (decision 4), the stream
 (decision 5), and an answer checked against what was offered, which
-`ui::ask` does today. One tell is not closed here: the engine passes for a
+`decision::ask` does today. One tell is not closed here: the engine passes for a
 seat that can only pass, so how long a seat waits says whether its opponent
 could act. That is `backlog.md` "2.38"'s open question 4.
 
@@ -711,8 +711,8 @@ could act. That is `backlog.md` "2.38"'s open question 4.
   that allow it (CR 808.5, 810.5), built in `multiplayer-rules`. The set is
   in the type from the first PR, so neither is a signature change.
 - **No accessor is added for one agent.** The random agent's mana preference
-  is the one public read that is its own (`ui/random.rs:70`, over
-  `oracle::mana_supply`). It is rebuilt in `ui/random` over a permanent's
+  is the one public read that is its own (`policies/random.rs:70`, over
+  `oracle::mana_supply`). It is rebuilt in `policies/random` over a permanent's
   effective abilities, which every seat has.
 - **A learner reads the copy, not the sight.** An accessor takes and returns
   engine ids, so an agent in process that keeps ids across prompts can
@@ -1055,11 +1055,11 @@ goes for `choose_ordering` (places in order) and `allocate`, whose
 | Where | Today | What can go wrong |
 |---|---|---|
 | The provider answers | `vec![0]` | A test provider that says "the first" means Pass only while Pass is listed first. Scripts were moved off this in #307; hand-written providers were not |
-| `ui::ask` checks it | in range, no repeats, inside the bounds (`validate_pick_n`) | nothing: the list and the answer are in one call, so a place cannot go stale |
+| `decision::ask` checks it | in range, no repeats, inside the bounds (`validate_pick_n`) | nothing: the list and the answer are in one call, so a place cannot go stale |
 | each `ask_*` turns it back into a card | `picked.into_iter().map(\|i\| hand[i])`, at 25 sites | nothing while the function builds its options from the same list; it is two lists matched by place, inside one function |
 | a test asserts it | `assert_eq!(seat.pick_n(..), vec![0], "yielded")` | the test says a place, and the reader must know what was first |
 
-So a place is safe inside `ui::ask` and weak at the two ends a person
+So a place is safe inside `decision::ask` and weak at the two ends a person
 writes: a provider's body and a test's assertion.
 
 ```rust
@@ -1085,7 +1085,7 @@ assert_eq!(seat.pick_n(&sight, 0, &PRIORITY, &pass_or(&cast), (1, 1)), [&PASS], 
   return something it was not offered, a test says what was picked, and
   `allocate`'s matched list is gone. *What it costs*: a lifetime on three
   signatures; 168 call sites, most of them test assertions rewritten to name
-  an option; and `ui::ask` gains one helper that finds a returned option's
+  an option; and `decision::ask` gains one helper that finds a returned option's
   place, so its 25 `hand[i]` sites stay as they are. About 350–600 touched
   lines on top of `seat-sight`, which already opens every one of those
   files. No game, log or record moves.
@@ -1312,7 +1312,7 @@ this PR.
    (`engine/put_on_stack.rs:655`). And an id handed out as a deck loads is a
    deck slot, the same in every game with that list. So decision 4 gives
    each object a number of its own, first minted at the opening shuffle.
-5. **`check_invariants.py`'s printed-read rule does not see `ui/`'s name
+5. **`check_invariants.py`'s printed-read rule does not see `words/`'s name
    helpers** as a seat's leak, since each is tagged for a record no rule
    reads. The words taking a `SeatSight` is what closes it.
 6. **ATOM-402.3-004 folds sight and memory together**: it expects a hand

@@ -127,7 +127,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 |---|---|---|---|
 | 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
 | 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `DecisionKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
-| 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
+| 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `decision/ask.rs` |
 | 601.2d | Distribution (damage/counters among targets) | ✅ `divided-among-targets`: announced after every instance's targets, on a cast, an activation and a trigger alike; damage, counters and a damage shield read each target's share. The untargeted half (CR 608.2d) ✅ `choose-as-an-effect-resolves`: chosen and divided as the effect applies, at least one each | `engine/put_on_stack.rs` (`announce_targets`), `engine/resolve.rs` (`resolve_divided`, `recipients_for`) |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
@@ -603,7 +603,7 @@ for nothing, and `double-faced-cards` adds it in the commit that populates it.
 - **The SBA sweep is one event.** It used to gather 704.5f's victims, move them, and only then ask 704.5g's question. Now every condition is read against one game state and the moves are performed as a single batch, deduped per object — CR 704.7's same-result collapse, with the first condition in CR order naming the cause. `StateBasedActionPerformed` collapsed with it: one emission per check, where it had been one per action and none at all for the two creature-death sweeps.
 - **`perform_action`'s `ZoneChange` arm is the only production emitter of `GameEvent::ZoneChange`.** `move_object` performs and says nothing. That is not tidiness: the arm is the only place that knows the `cause`, and the only place that can capture the CR 603.10a LKI frame *before* the object stops being a permanent. The frame is a `compute_characteristics` call taken ahead of the mutation — no overlay and no `GameState` clone; the entering-object hypothetical that needs one is RC-4's problem.
 - **The three `// REPLACEMENT-BYPASS:` sites are closed** (item 2 below). `GameState::resolving` names the popped-but-not-yet-anywhere state instead of routing around it, which lets `remove_from_zone_collection(Stack)` treat a missing entry as expected for exactly that object and lets `init_zone_state` read CR 110.2b's controller. `init_zone_state_with_controller` is gone.
-- **The type-specific death events are deleted, not demoted** (revised 2026-08-26 in review — a doc-comment policy was weak enforcement for something the type system can enforce). `CreatureDied`, `PlaneswalkerDied`, `LegendRuleSacrificed`, `AuraDied`, `SpellResolved` and `PermanentLeftBattlefield` are all gone. `ui/display.rs` builds its line from the `ZoneChange`'s `cause` and `lki`; `fuzz_games` counts deaths the same way. Three reasons, and the third is measured: they partition one event by type and permanent types are not a partition (a Gideon is both); they name a subset without naming its boundary, which ATOM-603.6c-001 needs; and **the redundancy was hiding a bug** — `CreatureDied` was emitted only by the SBA sweep, so a creature killed by a spell never counted, and `fuzz_games` undercounted at 5.3 where the zone changes say **6.2**. That is the one fuzz number RA-3 moves, and it moves because it was wrong.
+- **The type-specific death events are deleted, not demoted** (revised 2026-08-26 in review — a doc-comment policy was weak enforcement for something the type system can enforce). `CreatureDied`, `PlaneswalkerDied`, `LegendRuleSacrificed`, `AuraDied`, `SpellResolved` and `PermanentLeftBattlefield` are all gone. `words/display.rs` builds its line from the `ZoneChange`'s `cause` and `lki`; `fuzz_games` counts deaths the same way. Three reasons, and the third is measured: they partition one event by type and permanent types are not a partition (a Gideon is both); they name a subset without naming its boundary, which ATOM-603.6c-001 needs; and **the redundancy was hiding a bug** — `CreatureDied` was emitted only by the SBA sweep, so a creature killed by a spell never counted, and `fuzz_games` undercounted at 5.3 where the zone changes say **6.2**. That is the one fuzz number RA-3 moves, and it moves because it was wrong.
 - **RA-2's exit criterion holds and is grep-provable:** the only production writes to `life_total` or `entry.tapped` are `perform_action`'s own arms. RA-3 adds the same for `GameEvent::ZoneChange` emission.
 
 **Three findings from RA-3, where the plan and the tree disagreed:**
@@ -934,7 +934,7 @@ built, and none of it blocks RC-1 through RC-3.
 
 15. **Four `KeywordFlag` variants are constructible and enforced nowhere.**
     `Hexproof`, `Shroud`, `Menace` and `Intimidate`. The only `KeywordFlag::`
-    references to them in `src/` outside the enum definition are `ui/display.rs`
+    references to them in `src/` outside the enum definition are `words/display.rs`
     (two of the four) and `layers/land_types.rs`'s hexproof insertion. A card
     carrying one can be registered today and will quietly do nothing.
     `engine/targeting.rs:39` still carries the `T22` TODO that would fix two of
@@ -2781,7 +2781,7 @@ one, so nothing was wrong in practice and nothing moved.
 ### Found by CM-4 — the mana window and the payer (2026-09-08)
 
 **Shipped:** CR 601.2g's opening condition and CR 605.3a's closing condition,
-both explicit; `ui::ManaWindowStop` and `ui::AutoPayer`, two `DecisionProvider`
+both explicit; `policies::ManaWindowStop` and `ui::AutoPayer`, two `DecisionProvider`
 decorators that clients compose; `--no-auto-pay` on both binaries. Items 70 and
 71 close here and item 72 is placed. No new card — §3.11's step 3 builds out of
 CM-3's registered five — so `PERFORMANCE_POOL` does not move and
@@ -2861,7 +2861,7 @@ the derived order.
     covered and the `Cost::TapSelf` was not, the window kept enumerating and asking
     — and `RandomDecisionProvider`'s `AnyWillDo` arm tapped land after land
     until it ran out of sources or hit `WINDOW_ACTIVATION_CAP`, all of it spent
-    on a payment that could never complete. `ui::ManaWindowStop` declines as
+    on a payment that could never complete. `policies::ManaWindowStop` declines as
     soon as the mana component is covered, so the rewind happens having burned
     nothing extra. **That is the whole of CM-4's counter movement**, and it is
     strictly the better answer: no number of mana abilities can make a
@@ -2889,7 +2889,7 @@ the derived order.
     tapped for mana before its own `{T}` rewinds; an agent-side fix wants its
     own A/B.
 
-84. **Five free helpers in `ui/decision.rs` had no callers; three are deleted
+84. **Five free helpers in `decision/provider.rs` had no callers; three are deleted
     and two are recorded.** `auto_allocate_generic` (which also iterated a
     `HashMap` to allocate, so its first caller would have been a determinism
     leak, and which re-subtracted the pips `ask_choose_generic_mana_allocation`
@@ -2936,7 +2936,7 @@ the derived order.
     none: a real Krark-Clan Ironworks loop activates as many mana abilities as
     the player likes, so any engine-side cap would be a rule Magic does not
     have. Termination is now entirely the client's, and every shipped client
-    answers it — `ui::ManaWindowStop` declines once the component is covered,
+    answers it — `policies::ManaWindowStop` declines once the component is covered,
     `RandomDecisionProvider::WINDOW_ACTIVATION_CAP` bounds the fuzz agent even
     without a stop, a human self-polices. A buggy or hostile provider has
     nothing: a filter ability (`{1}`: add one mana of any color) cycles forever
@@ -4819,7 +4819,7 @@ The comparison now runs against `GameState.last_turn_began[controller]` — a pe
 
 The stale doc comment was the audit's fourth overclaim of the sprint: it justified the old comparison as "the same answer as the CR's wording whenever turns alternate", and the divergent window *is* the alternating case.
 
-**Follow-up, 2026-08-24: `has_summoning_sickness` answered the wrong question for noncreatures.** It reported `true` for any permanent whose controller gained it this turn, creature or not, and every caller happened to gate on `is_creature` first — so nothing was wrong, but the predicate's name asked a question CR 302.6 only poses about creatures, and the next caller to forget the gate would have been told a fresh Sol Ring cannot tap for mana. The type check now lives inside, read off the frame the function already computes so the two halves cannot disagree; the four `engine/costs.rs` sites and `ui/display.rs` dropped their own `is_creature` call, which was a second full layer walk each. `oracle::legality::can_attack` gained the check instead of losing it — it had been relying on sickness to keep noncreatures out of the attacker list (CR 508.1a), and would otherwise have started reporting that an untapped mana rock can attack.
+**Follow-up, 2026-08-24: `has_summoning_sickness` answered the wrong question for noncreatures.** It reported `true` for any permanent whose controller gained it this turn, creature or not, and every caller happened to gate on `is_creature` first — so nothing was wrong, but the predicate's name asked a question CR 302.6 only poses about creatures, and the next caller to forget the gate would have been told a fresh Sol Ring cannot tap for mana. The type check now lives inside, read off the frame the function already computes so the two halves cannot disagree; the four `engine/costs.rs` sites and `words/display.rs` dropped their own `is_creature` call, which was a second full layer walk each. `oracle::legality::can_attack` gained the check instead of losing it — it had been relying on sickness to keep noncreatures out of the attacker list (CR 508.1a), and would otherwise have started reporting that an untapped mana rock can attack.
 
 Surfaced by writing the March-of-the-Machines animation tests, whose interaction is the interesting one: a Sol Ring taps for mana the turn it lands, and stops the moment March animates it, because CR 302.6 asks how long its *controller* has had it and not how long it has been a creature. Both Scryfall rulings say so verbatim and are quoted in `tests/phase_ld_integration_test.rs`. Haste (CR 702.10c) buys the ability back.
 
@@ -4881,12 +4881,12 @@ Sol Ring is the interesting row: it makes each turn 4.3% more expensive and each
 
 **~~`fuzz_games --seed N` does not reproduce a run, and the perf protocol assumed it did.~~ — ✅ fixed 2026-08-23 (`fuzz/deterministic-seeding`).** `--seed N` now replays a run exactly: three consecutive 200-game runs at seed 12345 produce byte-identical output, and game *k* of a batch reproduces standalone from the per-game seed the harness prints, which is what makes "reproduce the panic from the seed" work.
 
-The original entry named `HashMap` iteration order as the cause. That was real but second: **the seed never reached the AI or the shuffle at all.** `ui/random.rs` called `rand::rng()` — an OS-seeded `ThreadRng` — fresh in each of the four `DecisionProvider` methods, and `state/game.rs::shuffle_library` did the same, so `--seed N` controlled deck *composition* and nothing else. `cards/registry.rs::card_names()` was a third: it returned `HashMap` keys, so the seeded deck builder drew from a differently-ordered list each process and built a different deck from the same seed. Three separate leaks, each sufficient on its own; the recorded measurement (25.9 / 27.6 / 28.0 avg turns) was the sum.
+The original entry named `HashMap` iteration order as the cause. That was real but second: **the seed never reached the AI or the shuffle at all.** `policies/random.rs` called `rand::rng()` — an OS-seeded `ThreadRng` — fresh in each of the four `DecisionProvider` methods, and `state/game.rs::shuffle_library` did the same, so `--seed N` controlled deck *composition* and nothing else. `cards/registry.rs::card_names()` was a third: it returned `HashMap` keys, so the seeded deck builder drew from a differently-ordered list each process and built a different deck from the same seed. Three separate leaks, each sufficient on its own; the recorded measurement (25.9 / 27.6 / 28.0 avg turns) was the sum.
 
 What landed:
 
 - **Randomness is owned, not ambient.** `GameState.rng: StdRng` (seeded to `DEFAULT_RNG_SEED` — a fixed value, so an unseeded game is still reproducible) with `reseed`, and `GameState::shuffle_library` as the one shuffle entry point. `RandomDecisionProvider` holds its own `StdRng`; `::new()` is entropy-seeded, `::seeded(u64)` is not. `fuzz_games` derives three independent streams per game from `master_seed + game_num`.
-- **`GameState::battlefield_ordered` / `battlefield_ids_ordered`** — every sweep whose order is observable now goes through them: `oracle/{legality,mana_helpers,board}.rs`, all of `engine/sba.rs` (including the legend-rule grouping, now a `BTreeMap`), `engine/combat/{steps,resolution}.rs`, `ui/display.rs`. Sorting by `ObjectId` would *not* have worked — ids are v4 UUIDs, so the key is itself random per run. The deterministic key is `PermanentState::timestamp`, which `place_on_battlefield` allocates once from a monotonic counter and never reassigns, and which is CR 613.7's order anyway. Order-irrelevant sweeps (untap-all, clear-all-damage) still iterate the map directly.
+- **`GameState::battlefield_ordered` / `battlefield_ids_ordered`** — every sweep whose order is observable now goes through them: `oracle/{legality,mana_helpers,board}.rs`, all of `engine/sba.rs` (including the legend-rule grouping, now a `BTreeMap`), `engine/combat/{steps,resolution}.rs`, `words/display.rs`. Sorting by `ObjectId` would *not* have worked — ids are v4 UUIDs, so the key is itself random per run. The deterministic key is `PermanentState::timestamp`, which `place_on_battlefield` allocates once from a monotonic counter and never reassigns, and which is CR 613.7's order anyway. Order-irrelevant sweeps (untap-all, clear-all-damage) still iterate the map directly.
 - `tests/determinism_test.rs` holds the regression. Both halves were shown failing against the pre-fix tree.
 
 **Cost: none measurable.** 200 games / seed 12345, median of five, ms/turn: 1.124 → 1.131 (+0.7%), inside run-to-run noise — the per-sweep `Vec` + sort is nothing next to the `compute_characteristics` walk it wraps. A `BTreeMap` swap was considered and not needed. Wall-clock spread over those five runs collapsed from 5.64–6.43 s to 6.20–6.29 s, because the runs now do identical work.
@@ -5642,7 +5642,7 @@ Commander-scale board closes item 69.
 
      **The instrument, built 2026-09-16 (A4e, PR #155).** Two cells on
      `Diagnostics`, `decisions` and `priority_decisions`, recorded in
-     `ui::ask`'s four `validate_*` helpers rather than in the 24 bodies: each
+     `decision::ask`'s four `validate_*` helpers rather than in the 24 bodies: each
      helper runs exactly once per prompt with the candidate list *and* the
      bounds in scope, so what counts is decided once per primitive instead of
      once per caller, at four sites instead of twenty-four. Two
@@ -5865,7 +5865,7 @@ Commander-scale board closes item 69.
      the last.
 
      **Sized:** ~~the instrument, ~80 lines across `state/diagnostics.rs`,
-     `ui/ask.rs`, `bin/fuzz_games.rs` and `plans/fuzz_ab.py`~~ — **built
+     `decision/ask.rs`, `bin/fuzz_games.rs` and `plans/fuzz_ab.py`~~ — **built
      2026-09-16** (A4e), and wider than the size by the two harness flags the
      Commander board turned out to need; the next reading is the next spine
      close's.
@@ -5903,7 +5903,7 @@ Commander-scale board closes item 69.
      #225's ran 83. Callgrind over the 200 games reads 0.6734 M → 0.6906 M
      instructions a decision (+2.6%), the regrowth +62,000 and trigger
      dispatch +41,000 among the rows that moved, and the CPU rose about 8%
-     more than the instructions did. `ui::ask`'s count stays the ratchet's;
+     more than the instructions did. `decision::ask`'s count stays the ratchet's;
      the agent is handed 9% fewer at Commander scale, the windows
      `ManaWindowStop` answers, and that count is floor 1's
      (`engineering-practices.md#the-floors`).
@@ -5911,7 +5911,7 @@ Commander-scale board closes item 69.
      **The census**, this item's counters read where they reach the agent:
      `fuzz_games --census` counts every prompt inside `ManaWindowStop` and
      changes no game. Every prompt that reaches the random agent is a
-     decision, since `ui::ask` answers a one-answer prompt itself and only a
+     decision, since `decision::ask` answers a one-answer prompt itself and only a
      seat that stops at every priority point is shown a `Pass`-only one. At Commander scale on `performance`, 437 of 480 a game:
      priority 167, mana windows 162, attacks 43, targets 23, blocks 21, the
      rest under 4 each. The mana window is still 37% of what an agent is
@@ -6219,7 +6219,7 @@ Commander-scale board closes item 69.
      | `debug_assert*` (off in release) | 51 | 0 | 0 | 0 |
 
      **The engine's release-active surface is 60 sites, of four kinds.** 27
-     are the provider contract — `ui/ask.rs`'s four `validate_*` helpers
+     are the provider contract — `decision/ask.rs`'s four `validate_*` helpers
      (13 asserts) and its eight "two or more candidates" caller assertions,
      plus `ScriptedDecisionProvider`'s expectation checks (5 `panic!`, 2
      asserts) — which a misbehaving provider trips and the engine cannot; 2
@@ -6228,7 +6228,7 @@ Commander-scale board closes item 69.
      `expect` each sit one line after the check that makes them so
      (`self.battlefield.get(&id).unwrap()` under a membership test,
      `stack.last()` under a non-empty check, the plan cursor under
-     `phase_began`), and one `unwrap` is `ui/random.rs`'s own. None is a
+     `phase_began`), and one `unwrap` is `policies/random.rs`'s own. None is a
      card-reachable panic by inspection, and 800 fuzz games on both pools at
      two and four seats reached none; `fuzz_games` already catches a panic
      per game (`catch_unwind`), so a training batch loses a game and not a
@@ -6393,7 +6393,7 @@ owner decided it the same day.
      "reachable, not wrong" was the wrong classification, and the fix rode in
      the PR that built the instrument rather than waiting behind it.
 
-     **What shipped.** `ui::ask::forced_allocation` answers a split with one
+     **What shipped.** `decision::ask::forced_allocation` answers a split with one
      legal allocation — nothing left over the minimums, nothing spare under the
      maxima, or one bucket free — and the four `allocate` sites take its answer
      instead of prompting; `ask_select_recipients` returns a fixed count that
@@ -6885,7 +6885,7 @@ each decorator (item 161); the solver's preference is the client's in the
 client's own shape, and the solver owns both payment prompts (item 162); the
 reversal is two options, keep or reverse all, by a clone (items 72, 163). One
 thing the census read on the way and did not fix, because the ticket touched
-no engine file but the payer: `ui/ask.rs`'s module doc, `forced_allocation`'s
+no engine file but the payer: `decision/ask.rs`'s module doc, `forced_allocation`'s
 doc and item 145 cite "CR 102.2" for "a forced choice is not made", and in
 `tmnt.txt` 102.2 is the two-player-opponent rule — the CR states the general
 form nowhere, and the anchors the tree actually rests on are CR 616.1's "two
@@ -6893,8 +6893,8 @@ or more" and 601.2f's "if multiple". A comment fix, next time a hand is in
 the file.
 
 161. **~~Full control and auto-yield — sized, sequenced, not built.~~ — ✅
-     CLOSED 2026-09-30 (A6j).** — archived. `ui::full_control` and
-     `ui::auto_yield`, stacked on a person's seat; under full control
+     CLOSED 2026-09-30 (A6j).** — archived. `policies::full_control` and
+     `policies::auto_yield`, stacked on a person's seat; under full control
      the seat also stops at every priority point.
      **Reachability (2026-09-30):** closed — A6j.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 161".
@@ -7055,7 +7055,7 @@ the file.
      reversal's shape settled beside it.~~ — ✅ CLOSED 2026-10-22 (PR #269,
      TR-7).** — archived.
      Both halves of the ordering are built: the engine declines to ask when
-     every order leaves the same game (TR-1, TR-2b), and `ui::AutoOrderTriggers`
+     every order leaves the same game (TR-1, TR-2b), and `policies::AutoOrderTriggers`
      answers the rest in the order offered on a person's seat, under full
      control's toggle (TR-7). CR 732.1's reversal is item 72's, slotted to `ironworks-loop`.
      **Reachability (2026-10-22):** closed — PR #269.
@@ -7395,7 +7395,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      inventories them or checks them together.~~ — ✅ CLOSED 2026-10-22 (PR #278).** — archived.
      `plans/elisions.md` is the inventory: forced prompts, elisions and
      skipped work, each with its claim, its premise and what checks it. Every
-     forced prompt is decided in `ui/ask.rs`, and each forced prompt and
+     forced prompt is decided in `decision/ask.rs`, and each forced prompt and
      elision taken is recorded in the game's log (`events::unasked`); each
      gate, the control sweep and the castability fold has an audit under
      `--audit`, and the trigger elisions' premise a debug check.
@@ -7535,7 +7535,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the A6g spike, the dev GUI (2026-09-30)
 
-191. **~~`ui/display.rs` names an object by its printed card, keeps its own
+191. **~~`words/display.rs` names an object by its printed card, keeps its own
      keyword list, and orders the mana pool by hash.~~ — ✅ CLOSED 2026-09-30
      (A6g's display PR).** — archived. The dev GUI's hover text names a copy
      through the layers and prints every keyword flag, and the board printer,
@@ -7715,7 +7715,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 202. **~~The dev GUI owns two surfaces the engine should: keyword names and
      the question each prompt asks.~~ — ✅ CLOSED 2026-10-01 (A6g's
-     ability-names PR).** — archived. `ui::display` words a prompt's
+     ability-names PR).** — archived. `words::display` words a prompt's
      question, each option's label and each keyword's name, and both
      clients read them; the dev GUI derives no name from `Debug`.
      **Reachability (2026-10-01):** closed — A6g's ability-names PR.
@@ -7730,7 +7730,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      Yixlid Jailer's "cards in graveyards lose all abilities" must turn off
      flashback (the owner, 2026-10-01), and a card in a hand that loses its
      abilities keeps its kicker. Nor does a cost carry its text:
-     `ui::display::option_label` prints a cost keyword with its mana
+     `words::display::option_label` prints a cost keyword with its mana
      ("Kicker {2}", CR 702.33a's form) and the keyword alone once a part of
      the cost is not mana, such as escape's exile.
 
@@ -7774,7 +7774,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Reachability (2026-10-23):** unreachable — no registered card is every
      creature type; the mark's one engine reader with a test is
      `ManaRestriction::OnlyForCreatureType` (`types/mana.rs`, the changeling
-     fixture), and the log's type line reads it too (`ui/display.rs`).
+     fixture), and the log's type line reads it too (`words/display.rs`).
 
      **Sized:** ~30–60 lines with the first such card: the CDA in
      `engine/layers/cda.rs`, or an `EffectModification` arm, each calling
@@ -8014,13 +8014,13 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        clone.
      - **Helpers built more than once.** The permanents a player controls
        are still built inline in `legality.rs` (`legal_blockers`),
-       `engine/costs.rs`, `engine/turns.rs` and `ui/why.rs`, beside
+       `engine/costs.rs`, `engine/turns.rs` and `words/why.rs`, beside
        `oracle::board::permanents_controlled_by`. The first run of
        `plans/similar_functions.py` lists about eight engine candidates:
        `static_replacement` in three card files, `intrinsic_mana_ability`
        beside `mana_ability_single`, `ManaPool::can_pay` beside
        `can_pay_with_context`, and two pairs of prompt wrappers in
-       `ui/ask.rs`.
+       `decision/ask.rs`.
      **Reachability (2026-10-22):** reachable — not wrong: each is the shape
      of code that answers correctly.
      **Sized:** about 150–250 lines in all. Slot: the hygiene pass of item
@@ -8044,7 +8044,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
      **Moved by A6l (2026-10-10).** The third cleanup is the duplicate
      inventory's now: the permanents, `legal_blockers` and the opponents are
-     item 242's, the `can_pay` pair item 243's, the two `ui/ask.rs` wrappers
+     item 242's, the `can_pay` pair item 243's, the two `decision/ask.rs` wrappers
      item 246's, and `static_replacement` and `intrinsic_mana_ability` `card-layer-cleanup`'s
      ("Before card breadth" item 10). The first two stay here.
      **The card half landed in `card-layer-cleanup`'s first PR (2026-10-31):**
@@ -8738,7 +8738,7 @@ with no batch between them; written at the item 6 audit's pass 5.
      replayed log line answer it by value, and the scenario word `x N` refuses
      a value it leaves out (`mana-architecture.md` §3.7; decision 1 in the
      archive's "MA-2"). The first cut with a gap is the producer, and gives
-     each gap its typed reason in the why (`ui/why.rs`' `x_refusals`). CR
+     each gap its typed reason in the why (`words/why.rs`' `x_refusals`). CR
      606.6's cut on a loyalty −X is an interval, from 0 to the loyalty, which
      the `(min, max)` form holds; the set form comes with a target or choice
      "with mana value X".
@@ -10692,7 +10692,7 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      The picker labeled each row by its place alone ("Mode 3"). Each `Mode`
      now holds its line of the ability's text, cut in `AbilityDef::new`;
      `ChooseModes` carries the words of the node being announced, so a
-     grant's or a copy's are its own, and `ui::display::mode_label` words a
+     grant's or a copy's are its own, and `words::display::mode_label` words a
      row "3. Tap all creatures your opponents control."
      **Reachability (2026-11-12):** closed — PR #320, at the owner's word in
      review.

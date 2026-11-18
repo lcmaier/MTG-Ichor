@@ -50,28 +50,28 @@ nothing.
 **The premise every row shares**: the candidates and the count are every
 legal answer, exactly the list the prompt would have shown. So a forced
 prompt assumes nothing the prompt itself does not: if the list were wrong,
-the prompt would have been wrong too. **Every one is decided in `ui/ask.rs`**,
+the prompt would have been wrong too. **Every one is decided in `decision/ask.rs`**,
 by the function the decision counter uses: a pick through `pick_unless_forced`
-`ui/ask.rs:118`, which asks `only_pick` `ui/ask.rs:242`; a split through
-`allocate_unless_forced` `ui/ask.rs:141`, which asks `forced_allocation`
-`ui/ask.rs:73`; X through `has_one_value`, which `only_number`
-`ui/ask.rs:306` restates. The guard and the count cannot drift apart, and a
+`decision/ask.rs:118`, which asks `only_pick` `decision/ask.rs:242`; a split through
+`allocate_unless_forced` `decision/ask.rs:141`, which asks `forced_allocation`
+`decision/ask.rs:73`; X through `has_one_value`, which `only_number`
+`decision/ask.rs:306` restates. The guard and the count cannot drift apart, and a
 new ask that calls the helper inherits both, and the record.
 
 | Question | Where it is answered | One answer when |
 |---|---|---|
-| a target or a "choose", CR 601.2c, 608.2d | `ask_select_recipients` `ui/ask.rs:736` | the count is fixed and takes every legal candidate |
-| which cards to discard, CR 701.9b | `ask_discard` `ui/ask.rs:970` | the count takes the whole hand |
-| the value of X, CR 601.2b, 107.3a | `ask_choose_x_value` `ui/ask.rs:649` | one value is legal (`legal_x_values`) |
-| a split: trample (CR 702.19b), generic mana (601.2h), "the next N damage" (615.7) | `allocate_unless_forced` `ui/ask.rs:141`, called by the four asks that split | nothing is left once each part has its minimum; or nothing is spare once each has its maximum; or only one part can take the rest, and it can hold it. `forced_allocation`'s doc argues the three shapes and `ui/ask.rs`'s unit tests pin them. A split it answers never reaches `validate_allocation` `ui/ask.rs:312`, so it answers `None` to anything malformed. Combat damage among blockers (CR 510.1c) has no per-blocker maximum, so it is forced only at power 0, which divides nothing |
-| which permanents to sacrifice for a cost, CR 601.2h, 701.21a | `ask_choose_sacrifice_for_cost` `ui/ask.rs:1332` | there are exactly as many candidates as the cost takes |
-| what a copy effect copies, CR 608.2d, 614.12a | `ask_choose_copy_source` `ui/ask.rs:1228` | one candidate, and the copy is not a "may" |
-| a source of damage, CR 609.7a | `ask_choose_damage_source` `ui/ask.rs:1278` | one candidate |
-| "an opponent of your choice" as a permanent enters, CR 614.12a: to control it (CR 616.1b), or to put its counters (CR 702.104a) | `ask_choose_player_as_object_enters` `ui/ask.rs:1140` | one opponent |
-| what a creature put onto the battlefield attacking attacks, CR 508.4 | `ask_choose_entering_defender` `ui/ask.rs:1160` | one candidate |
+| a target or a "choose", CR 601.2c, 608.2d | `ask_select_recipients` `decision/ask.rs:736` | the count is fixed and takes every legal candidate |
+| which cards to discard, CR 701.9b | `ask_discard` `decision/ask.rs:970` | the count takes the whole hand |
+| the value of X, CR 601.2b, 107.3a | `ask_choose_x_value` `decision/ask.rs:649` | one value is legal (`legal_x_values`) |
+| a split: trample (CR 702.19b), generic mana (601.2h), "the next N damage" (615.7) | `allocate_unless_forced` `decision/ask.rs:141`, called by the four asks that split | nothing is left once each part has its minimum; or nothing is spare once each has its maximum; or only one part can take the rest, and it can hold it. `forced_allocation`'s doc argues the three shapes and `decision/ask.rs`'s unit tests pin them. A split it answers never reaches `validate_allocation` `decision/ask.rs:312`, so it answers `None` to anything malformed. Combat damage among blockers (CR 510.1c) has no per-blocker maximum, so it is forced only at power 0, which divides nothing |
+| which permanents to sacrifice for a cost, CR 601.2h, 701.21a | `ask_choose_sacrifice_for_cost` `decision/ask.rs:1332` | there are exactly as many candidates as the cost takes |
+| what a copy effect copies, CR 608.2d, 614.12a | `ask_choose_copy_source` `decision/ask.rs:1228` | one candidate, and the copy is not a "may" |
+| a source of damage, CR 609.7a | `ask_choose_damage_source` `decision/ask.rs:1278` | one candidate |
+| "an opponent of your choice" as a permanent enters, CR 614.12a: to control it (CR 616.1b), or to put its counters (CR 702.104a) | `ask_choose_player_as_object_enters` `decision/ask.rs:1140` | one opponent |
+| what a creature put onto the battlefield attacking attacks, CR 508.4 | `ask_choose_entering_defender` `decision/ask.rs:1160` | one candidate |
 | whether to pass priority, CR 117.3d | `run_priority_round` `engine/priority.rs:38` | passing is the only legal action, and the seat does not stop at every priority point |
 
-The priority pass is the one row decided outside `ui/ask.rs`, and the one not
+The priority pass is the one row decided outside `decision/ask.rs`, and the one not
 recorded in the game's log: the decision log writes it as a forced line, and
 in the game's log it would add half the lines at two seats and four-fifths at
 four (§6).
@@ -165,7 +165,7 @@ log**: who would have been asked, the question, the answer and why
 (`events::unasked`, `UnaskedChoice` `events/unasked.rs:19`). It is written
 through `note_unasked` `events/recorder.rs:236` beside the event recorder's
 records, placed before the record it preceded, and drawn by `format_event_log`
-(`format_unasked` `ui/display.rs:1215`), so `--dump-events` and a test's log
+(`format_unasked` `words/display.rs:1215`), so `--dump-events` and a test's log
 carry it. Three lines from `fuzz_games --games 10 --seed
 185 --dump-events` at #278:
 
@@ -175,7 +175,7 @@ NotAsked: P0 GenericManaAllocation for Wall of Stone (#7): 1 to mana {W}, 0 to m
 NotAsked: P0 ChooseReplacementEffect: Mana Reflection (#7), every order leaves one game (CR 616.1)
 ```
 
-The dev GUI's log does not draw it (`log_lines` `ui/display.rs:1164` reads
+The dev GUI's log does not draw it (`log_lines` `words/display.rs:1164` reads
 records only), as it does not draw a mana ability's activation. An action
 reversed under CR 732.1 takes back the questions it answered unasked, since the
 log shows nothing of it (`take_back_unasked` `events/recorder.rs:228`); the
@@ -185,7 +185,7 @@ no counter and draws no randomness, so a game performs the same events
 whether anything records. Skipped work is not recorded each time, since it
 happens per dispatch or per walk; its audits hold it instead.
 
-**Adding a site.** A new forced prompt is decided in `ui/ask.rs` through
+**Adding a site.** A new forced prompt is decided in `decision/ask.rs` through
 `pick_unless_forced` or `allocate_unless_forced`, and inherits its record. A
 new elision writes `note_unasked` with an `Elision` and gets a row in §3. A
 new gate or sweep gets an audit through `engine::audit` and a row in §4.

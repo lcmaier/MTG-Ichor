@@ -152,7 +152,7 @@ pattern does not read as a mana ability, a note for the census's owner.
   pool. `resolve_mana_effect` (`engine/mana.rs:94`) resolves `ProduceMana`
   atoms and sequences of them, and refuses anything else (`:127`).
 - `ask_choose_x_value` offers `(0, u64::MAX)` and leaves the bound to each
-  provider (`ui/ask.rs:604`). The random agent counts untapped lands.
+  provider (`decision/ask.rs:604`). The random agent counts untapped lands.
 
 ### 2.2 What it costs on `close_out.py`'s board
 
@@ -748,17 +748,17 @@ reasons "with item 162's build":
   source's mana abilities the window does not offer, the `CannotPay` its
   costs return when they cannot be paid, saying why. A permanent whose
   abilities can't be activated at all gets that one refusal instead
-  (`ui/why.rs`' `window_refusals`).
+  (`words/why.rs`' `window_refusals`).
 - **`ChooseXValue`:** the bound and each cut (§3.7). "X above N leaves the
   cost unpayable: N plus the cost's other pips is all the mana this board
   makes." "X = 2 is not offered: no artifact has mana value 2."
 - **`GenericManaAllocation`:** the clamp. A bucket's maximum is the pool's
   mana of that type less the pips that need it.
 
-The first landed with MA-1, the second and third with MA-2 (`ui/why.rs`' `x_refusals` and `generic_split_refusals`).
+The first landed with MA-1, the second and third with MA-2 (`words/why.rs`' `x_refusals` and `generic_split_refusals`).
 MA-2's dev GUI notes PR added the window's sources it does not offer *yet*:
 a mana ability whose other costs can be paid while the pool lacks its mana
-(`ui/why.rs`' `not_offered_yet`), which a client draws beside the options so
+(`words/why.rs`' `not_offered_yet`), which a client draws beside the options so
 that a Doubling Cube waiting for its {3} does not look unusable.
 
 ---
