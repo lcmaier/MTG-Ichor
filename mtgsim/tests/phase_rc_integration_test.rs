@@ -28,7 +28,7 @@ use mtgsim::types::replacement::{
     EnterModsTemplate, EventPattern, ReplacementDef, Rewrite,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers

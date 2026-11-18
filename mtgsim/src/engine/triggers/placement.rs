@@ -23,9 +23,9 @@ use crate::types::ids::{ObjectRef, PlayerId};
 use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerId, TriggerTier};
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
-use crate::ui::ask::ask_order_triggers;
-use crate::ui::decision_types::{DecisionKind, DecisionOption};
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::ask_order_triggers;
+use crate::decision::decision_types::{DecisionKind, DecisionOption};
+use crate::decision::provider::DecisionProvider;
 
 impl GameState {
     /// CR 603.3b: two tiers, each player in APNAP order, each player's own

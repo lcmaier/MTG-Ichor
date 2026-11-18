@@ -21,7 +21,7 @@ use crate::types::effects::PlayerRef;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::engine::layers::types::{EffectModification, EffectOrigin};
-use crate::ui::decision::DecisionProvider;
+use crate::decision::provider::DecisionProvider;
 
 impl GameState {
     /// CR 800.4a — whether `object` goes when `player` leaves the game: what

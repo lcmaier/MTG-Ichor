@@ -6,7 +6,7 @@ use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
 use crate::state::game_state::{GameResult, GameState, PhaseType, StepType};
-use crate::ui::decision::{DecisionProvider, Stop};
+use crate::decision::provider::{DecisionProvider, Stop};
 
 /// A player's deck, the cards CR 103.3 makes their library, in order. A
 /// [`crate::scenario::Decklist`] is the names it is built from.
@@ -394,7 +394,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::card_types::{CardType, Supertype, Subtype, LandType};
     use crate::types::mana::ManaType;
-    use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
+    use crate::decision::provider::{ScriptedDecisionProvider, SeatMode};
 
     fn make_test_decklist(count: usize) -> Deck {
         (0..count)

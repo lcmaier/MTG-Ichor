@@ -29,14 +29,14 @@ use crate::types::replacement::{
 use crate::types::zones::{DrawFilter, Zone};
 use crate::types::history::{CountIs, ObjectFact};
 use crate::oracle::characteristics::{get_effective_power, get_effective_types, ObjectInformation};
-use crate::ui::ask::ask_allocate_next_damage;
-use crate::ui::ask::ask_take_or_leave;
-use crate::ui::ask::ask_accept_as_object_enters;
-use crate::ui::decision_types::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
-use crate::ui::ask::ask_choose_auxiliary_zone_change;
-use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
-use crate::ui::ask::ask_choose_player_as_object_enters;
-use crate::ui::ask::ask_choose_replacement;
+use crate::decision::ask::ask_allocate_next_damage;
+use crate::decision::ask::ask_take_or_leave;
+use crate::decision::ask::ask_accept_as_object_enters;
+use crate::decision::decision_types::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
+use crate::decision::ask::ask_choose_auxiliary_zone_change;
+use crate::decision::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
+use crate::decision::ask::ask_choose_player_as_object_enters;
+use crate::decision::ask::ask_choose_replacement;
 
 use super::entry_copy::enter_as_copy;
 use super::gather::{applies_to, must_choose_among};

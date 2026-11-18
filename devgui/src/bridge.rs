@@ -27,8 +27,8 @@ use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
 use mtgsim::ui::auto_yield::{AutoYield, Yield, Yields, pass_index};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};
 use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::replay::{Replay, ReplayControl};
@@ -731,7 +731,7 @@ pub(crate) fn panic_message(payload: &(dyn Any + Send)) -> String {
 mod tests {
     use mtgsim::state::decision_log::LoggedAnswer;
     use mtgsim::test_support::setup_two_player_game;
-    use mtgsim::ui::decision::PriorityAction;
+    use mtgsim::decision::provider::PriorityAction;
 
     use super::*;
 

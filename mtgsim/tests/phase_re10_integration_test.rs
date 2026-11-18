@@ -34,7 +34,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------

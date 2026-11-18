@@ -47,8 +47,8 @@ use mtgsim::types::triggers::{
 };
 use mtgsim::types::zones::Zone;
 use mtgsim::state::battlefield::AttackTarget;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers

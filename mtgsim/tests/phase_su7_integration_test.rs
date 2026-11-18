@@ -21,9 +21,9 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, put_spell_on_stack};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use mtgsim::types::mana::ManaType;
-use mtgsim::ui::decision::{DecisionProvider, PriorityAction};
+use mtgsim::decision::provider::{DecisionProvider, PriorityAction};
 use mtgsim::ui::display::named;
 use mtgsim::ui::why::{not_offered_yet, why, NotOfferedYet, OpenQuestion, Why, WhyAbout, WhyLine};
 
@@ -198,7 +198,7 @@ fn a_creature_spell_waits_for_sorcery_timing_and_a_flash_spell_does_not() {
     let not_in_hand = "To cast it: it is not in Player 0's hand, and a spell is cast from its caster's hand.";
     assert!(has(&answer, not_in_hand, Some("601.3")), "{answer:#?}");
 
-    let refused = game.cast_spell(0, bears, &mtgsim::ui::decision::ScriptedDecisionProvider::new());
+    let refused = game.cast_spell(0, bears, &mtgsim::decision::provider::ScriptedDecisionProvider::new());
     assert_eq!(refused, Err(not_yours.to_string()), "the cast asks the same check");
 
     let mut on_its_turn = built(&text.replace("active 1", "active 0"));
@@ -207,7 +207,7 @@ fn a_creature_spell_waits_for_sorcery_timing_and_a_flash_spell_does_not() {
     put_spell_on_stack(&mut on_its_turn, mtgsim::test_support::lightning_bolt(), 1);
     let stack = CannotCast::Timing(SorceryTiming::StackNotEmpty);
     assert_eq!(can_begin_to_cast(&on_its_turn, 0, bears), Err(stack));
-    let refused = on_its_turn.cast_spell(0, bears, &mtgsim::ui::decision::ScriptedDecisionProvider::new());
+    let refused = on_its_turn.cast_spell(0, bears, &mtgsim::decision::provider::ScriptedDecisionProvider::new());
     assert_eq!(refused, Err(stack.to_string()), "a creature spell with a spell on the stack");
     let upkeep = built(&text.replace("active 1", "active 0").replace("precombat main", "upkeep"));
     let bears = find(&upkeep, "Grizzly Bears");
@@ -266,7 +266,7 @@ fn a_land_is_played_once_a_turn_from_its_owners_hand() {
 fn a_land_cannot_be_cast_as_a_spell() {
     let mut game = built(&format!("{MAIN}hand 0: Forest\n"));
     let forest = find(&game, "Forest");
-    let refused = game.cast_spell(0, forest, &mtgsim::ui::decision::ScriptedDecisionProvider::new());
+    let refused = game.cast_spell(0, forest, &mtgsim::decision::provider::ScriptedDecisionProvider::new());
     assert_eq!(refused, Err(CannotCast::Land.to_string()));
     assert!(game.stack.is_empty() && game.players[0].hand.contains(&forest));
 }
@@ -313,7 +313,7 @@ fn each_ability_says_why_it_is_not_offered() {
     let words = "To activate its abilities: Player 1 controls it, and only its controller activates its abilities.";
     assert!(has(&theirs, words, Some("602.2")), "{theirs:#?}");
     let worship = find(&game, "Words of Worship");
-    let refused = game.activate_ability(0, worship, 0, &mtgsim::ui::decision::ScriptedDecisionProvider::new());
+    let refused = game.activate_ability(0, worship, 0, &mtgsim::decision::provider::ScriptedDecisionProvider::new());
     assert_eq!(refused, Err(CannotActivate::NotYours.to_string()), "the activation asks the same check");
 }
 
@@ -334,7 +334,7 @@ fn a_sorcery_speed_ability_waits_for_its_controllers_main_phase() {
     let words = "To activate “Equip {1}”: it is activated only as a sorcery, in its controller's main phase with the stack \
                  empty, and it is not Player 0's turn.";
     assert!(has(&answer, words, Some("602.5d")), "{answer:#?}");
-    let refused = game.activate_ability(0, bonesplitter, equip, &mtgsim::ui::decision::ScriptedDecisionProvider::new());
+    let refused = game.activate_ability(0, bonesplitter, equip, &mtgsim::decision::provider::ScriptedDecisionProvider::new());
     assert_eq!(refused, Err(SorceryTiming::NotYourTurn.to_string()), "the activation asks the same check");
 
     let alone = built(&text.replace("active 1", "active 0").replace("battlefield: Grizzly Bears | controller 0\n", ""));

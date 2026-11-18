@@ -50,8 +50,8 @@ use mtgsim::types::triggers::{
     TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_record;
 
 // ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ use mtgsim::objects::card_data::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::state::restrictions::RegisteredRestriction;
-use mtgsim::ui::decision_types::DecisionOption;
+use mtgsim::decision::decision_types::DecisionOption;
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
@@ -45,7 +45,7 @@ use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
@@ -111,7 +111,7 @@ fn resolve_spell_with(
     card: Arc<CardData>,
     controller: PlayerId,
     targets: Vec<mtgsim::types::ids::ObjectOrPlayerId>,
-    dp: &dyn mtgsim::ui::decision::DecisionProvider,
+    dp: &dyn mtgsim::decision::provider::DecisionProvider,
 ) -> ObjectId {
     let id = put_in_hand(game, card.clone(), controller);
     let ctx = ResolutionContext {

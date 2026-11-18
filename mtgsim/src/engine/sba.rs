@@ -20,9 +20,9 @@ use crate::engine::replacement::subject_of;
 use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::zones::Zone;
-use crate::ui::ask::{ask_choose_legend_to_keep, ask_take_or_leave};
-use crate::ui::decision_types::DecisionKind;
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::{ask_choose_legend_to_keep, ask_take_or_leave};
+use crate::decision::decision_types::DecisionKind;
+use crate::decision::provider::DecisionProvider;
 
 /// CR 704.5f/i/j/m's "put into its owner's graveyard": a move named by where
 /// it goes, the subrule beside it its cause.
@@ -603,8 +603,8 @@ mod tests {
     use crate::types::colors::Color;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
-    use crate::ui::decision_types::{DecisionKind, DecisionOption};
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::decision_types::{DecisionKind, DecisionOption};
+    use crate::decision::provider::ScriptedDecisionProvider;
 
     #[test]
     fn test_sba_lethal_damage_destroys_creature() {

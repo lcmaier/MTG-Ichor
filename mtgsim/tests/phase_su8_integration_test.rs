@@ -24,9 +24,9 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::ui::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
+use mtgsim::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
 use mtgsim::ui::why::{why, why_from_trace, OpenQuestion, Why, WhyAbout, WhyLine};
 
@@ -104,7 +104,7 @@ fn the_bolts_damage_reads_back_its_batch() {
     let text = include_str!("../scenarios/bolt-into-giant-growth.scenario");
     let BuiltScenario { mut game, setup } =
         Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}"));
-    let seats = RecordingDecisionProvider::choosing([DecisionOption::Action(mtgsim::ui::decision::PriorityAction::Pass)])
+    let seats = RecordingDecisionProvider::choosing([DecisionOption::Action(mtgsim::decision::provider::PriorityAction::Pass)])
         .stopping_at_every_priority_point();
     let driver = SetupDriver::new(setup, &seats);
     for _ in 0..3 {

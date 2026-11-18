@@ -38,8 +38,8 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, CostPart, Rejection};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, CostPart, Rejection};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::ui::display::{option_label, rejection};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 

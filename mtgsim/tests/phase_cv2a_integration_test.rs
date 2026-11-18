@@ -59,8 +59,8 @@ use mtgsim::types::replacement::{
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption, position_named};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::decision::decision_types::{DecisionContext, DecisionOption, position_named};
+use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------

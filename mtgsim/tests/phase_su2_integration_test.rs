@@ -9,8 +9,8 @@ use mtgsim::state::game::{Halt, RandomStreams};
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider, SeatMode, Stop};
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider, SeatMode, Stop};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 

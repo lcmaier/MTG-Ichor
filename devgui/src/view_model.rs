@@ -17,7 +17,7 @@ use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::decision_types::modes_as_logged;
+use mtgsim::decision::decision_types::modes_as_logged;
 use mtgsim::ui::display::{delayed_trigger_in_log, target_with_share};
 use mtgsim::ui::waiting::{TriggersIn, Waiting};
 use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
@@ -175,7 +175,7 @@ impl Selection {
         probe.apply(prompt, input).is_some() || probe != *self
     }
 
-    /// The answer, once `input` completes a legal one. Legal by `ui/ask.rs`'s
+    /// The answer, once `input` completes a legal one. Legal by `decision/ask.rs`'s
     /// validators, so the engine never asserts on a window's answer.
     pub fn apply(&mut self, prompt: &Prompt, input: Input) -> Option<Answer> {
         if input == Input::Reset {

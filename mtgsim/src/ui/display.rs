@@ -32,10 +32,10 @@ use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPl
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::ui::decision_types::{
+use crate::decision::decision_types::{
     AbilityAsRead, AmountOf, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
-use crate::ui::decision::PriorityAction;
+use crate::decision::provider::PriorityAction;
 
 /// The name the object has now, through the layers (`get_effective_name`): a
 /// Clone copying Grizzly Bears is Grizzly Bears (CR 707.2). One the store no

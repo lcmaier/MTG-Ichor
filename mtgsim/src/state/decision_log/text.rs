@@ -82,7 +82,7 @@ pub struct AnswerLine {
     /// The step as a scenario spells it ([`position_word`]).
     pub step: String,
     pub player: PlayerId,
-    /// The kind as [`crate::ui::decision_types::DecisionKind::as_str`] spells it.
+    /// The kind as [`crate::decision::decision_types::DecisionKind::as_str`] spells it.
     pub kind: String,
     /// The question had one legal answer.
     pub forced: bool,
@@ -189,7 +189,7 @@ pub enum Outcome {
     Draw,
     /// The run's own error.
     Error(String),
-    /// A provider stopped the run (`ui::decision::Stop`).
+    /// A provider stopped the run (`decision::provider::Stop`).
     Stopped(String),
 }
 

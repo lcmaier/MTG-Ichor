@@ -21,8 +21,8 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::CounterType;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,7 +51,7 @@ fn bolt_player(game: &mut GameState, source: ObjectId, victim: PlayerId, amount:
 
 fn bolt_player_with(
     game: &mut GameState,
-    dp: &dyn mtgsim::ui::decision::DecisionProvider,
+    dp: &dyn mtgsim::decision::provider::DecisionProvider,
     source: ObjectId,
     victim: PlayerId,
     amount: u64,
@@ -1138,8 +1138,8 @@ mod the_damage_cards {
     // prompt is the target.
     #[test]
     fn samite_healer_taps_for_a_count_of_one_and_the_row_names_the_healer() {
-        use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-        use mtgsim::ui::decision::ScriptedDecisionProvider;
+        use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+        use mtgsim::decision::provider::ScriptedDecisionProvider;
 
         let mut game = setup_two_player_game();
         let healer = put_on_battlefield(&mut game, samite_healer(), 0);
@@ -1192,7 +1192,7 @@ mod the_damage_cards {
         game: &mut GameState,
         card: Arc<CardData>,
         controller: mtgsim::types::ids::PlayerId,
-        dp: &dyn mtgsim::ui::decision::DecisionProvider,
+        dp: &dyn mtgsim::decision::provider::DecisionProvider,
     ) -> mtgsim::types::ids::ObjectId {
         let permanent = put_on_battlefield(game, card.clone(), controller);
         let ctx = ResolutionContext {
@@ -1215,7 +1215,7 @@ mod the_damage_cards {
     /// source, wherever the candidates list it.
     fn naming(options: impl IntoIterator<Item = mtgsim::types::ids::ObjectId>) -> mtgsim::test_support::RecordingDecisionProvider {
         mtgsim::test_support::RecordingDecisionProvider::choosing(
-            options.into_iter().map(mtgsim::ui::decision_types::DecisionOption::Object),
+            options.into_iter().map(mtgsim::decision::decision_types::DecisionOption::Object),
         )
     }
 

@@ -40,8 +40,8 @@ use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -795,8 +795,8 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::decision_types::DecisionContext,
-        options: &[mtgsim::ui::decision_types::DecisionOption],
+        context: &mtgsim::decision::decision_types::DecisionContext,
+        options: &[mtgsim::decision::decision_types::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.asked.borrow_mut().push(player);
@@ -806,7 +806,7 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::decision_types::DecisionContext,
+        context: &mtgsim::decision::decision_types::DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -817,9 +817,9 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::decision_types::DecisionContext,
+        context: &mtgsim::decision::decision_types::DecisionContext,
         total: u64,
-        buckets: &[mtgsim::ui::decision_types::DecisionOption],
+        buckets: &[mtgsim::decision::decision_types::DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -830,8 +830,8 @@ impl DecisionProvider for RecordingProvider<'_> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &mtgsim::ui::decision_types::DecisionContext,
-        items: &[mtgsim::ui::decision_types::DecisionOption],
+        context: &mtgsim::decision::decision_types::DecisionContext,
+        items: &[mtgsim::decision::decision_types::DecisionOption],
     ) -> Vec<usize> {
         self.asked.borrow_mut().push(player);
         self.inner.choose_ordering(game, player, context, items)

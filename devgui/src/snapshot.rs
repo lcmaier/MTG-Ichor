@@ -326,8 +326,8 @@ mod tests {
     use mtgsim::cards::printings::{forest, grizzly_bears};
     use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game};
     use mtgsim::types::effects::EffectRecipient;
-    use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-    use mtgsim::ui::decision::ScriptedDecisionProvider;
+    use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+    use mtgsim::decision::provider::ScriptedDecisionProvider;
     use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
     use super::*;

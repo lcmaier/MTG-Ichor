@@ -101,9 +101,9 @@ fn x_cant_be_zero_asks_the_gate_for_one_x() {
 
 /// The why's lines at `kind`'s question to player 0, about `about`, each as
 /// its text and its rule.
-fn why_lines(game: &GameState, kind: mtgsim::ui::decision_types::DecisionKind, about: mtgsim::types::ids::ObjectId) -> Vec<(String, Option<&'static str>)> {
+fn why_lines(game: &GameState, kind: mtgsim::decision::decision_types::DecisionKind, about: mtgsim::types::ids::ObjectId) -> Vec<(String, Option<&'static str>)> {
     use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
-    let context = mtgsim::ui::decision_types::DecisionContext::new(kind);
+    let context = mtgsim::decision::decision_types::DecisionContext::new(kind);
     let answer = why(game, WhyAbout::Object(about), Some(&OpenQuestion { player: 0, context: &context, options: &[] }));
     assert_eq!(answer.sections[0].heading, "At this question");
     answer.sections[0].lines.iter().map(|line| (line.text.clone(), line.rule)).collect()
@@ -119,8 +119,8 @@ fn legal_values(game: &GameState, card: mtgsim::types::ids::ObjectId) -> mtgsim:
     legal_x_values(game, 0, &total, data.x_cant_be_zero).unwrap()
 }
 
-fn choose_x(card: mtgsim::types::ids::ObjectId, values: mtgsim::oracle::x_values::LegalXValues) -> mtgsim::ui::decision_types::DecisionKind {
-    mtgsim::ui::decision_types::DecisionKind::ChooseXValue { spell_id: card, values: Box::new(values) }
+fn choose_x(card: mtgsim::types::ids::ObjectId, values: mtgsim::oracle::x_values::LegalXValues) -> mtgsim::decision::decision_types::DecisionKind {
+    mtgsim::decision::decision_types::DecisionKind::ChooseXValue { spell_id: card, values: Box::new(values) }
 }
 
 /// The why of X's bound says what the closed form read (setup-architecture
@@ -162,7 +162,7 @@ fn the_why_of_x_names_the_printed_least() {
 
 /// The generic split's why names the clamp: two red in the pool, one of them
 /// the `{R}` pip's, so at most one red pays the generic part
-/// (`ui::ask::generic_split_caps`, the ask's own caps).
+/// (`decision::ask::generic_split_caps`, the ask's own caps).
 #[test]
 fn the_why_of_the_generic_split_names_the_clamp() {
     use mtgsim::types::mana::{ManaCost, ManaType};
@@ -170,7 +170,7 @@ fn the_why_of_the_generic_split_names_the_clamp() {
     let card = put_in_hand(&mut game, ember_lesson(false), 0);
     game.players[0].mana_pool.add(ManaType::Red, 2);
     game.players[0].mana_pool.add(ManaType::Green, 1);
-    let kind = mtgsim::ui::decision_types::DecisionKind::GenericManaAllocation {
+    let kind = mtgsim::decision::decision_types::DecisionKind::GenericManaAllocation {
         spell_or_ability_id: card,
         mana_cost: ManaCost::build(&[ManaType::Red], 1),
     };
@@ -188,8 +188,8 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupDriver};
 use mtgsim::state::game::Halt;
 use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode, Stop};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode, Stop};
 
 /// Protean Hydra in player 0's hand, `forests` Forests to pay with, and
 /// `then`, the setup action.
@@ -347,7 +347,7 @@ use mtgsim::oracle::x_values::{LegalXValues, XOffer};
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
-use mtgsim::ui::decision::PriorityAction;
+use mtgsim::decision::provider::PriorityAction;
 
 /// What the X prompt offered, read off the provider that answered it.
 fn offered_x(seat: &ScriptedDecisionProvider) -> XOffer {

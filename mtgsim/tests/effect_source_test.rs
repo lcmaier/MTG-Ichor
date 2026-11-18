@@ -27,7 +27,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
-use mtgsim::ui::decision_types::DecisionOption;
+use mtgsim::decision::decision_types::DecisionOption;
 use mtgsim::test_support::{
     creature_with_ability, fill_library, put_on_battlefield, put_on_battlefield_under, registered, setup_two_player_game,
     test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,

@@ -39,8 +39,8 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, PriorityAction};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, PriorityAction};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -130,7 +130,7 @@ fn enter(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, dp: &dyn De
 }
 
 /// A provider asked once, which copy source to choose, and choosing `donor`.
-fn choosing_copy_source(donor: ObjectId) -> mtgsim::ui::decision::ScriptedDecisionProvider {
+fn choosing_copy_source(donor: ObjectId) -> mtgsim::decision::provider::ScriptedDecisionProvider {
     let dp = test_dp();
     dp.expect_choice(DecisionKind::ChooseCopySource { source: donor }, vec![DecisionOption::Object(donor)]);
     dp

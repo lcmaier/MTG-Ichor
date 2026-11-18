@@ -25,7 +25,7 @@ use crate::types::card_types::CardType;
 use crate::types::history::{HistorySpan, TurnFact};
 use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::zones::Zone;
-use crate::ui::decision::PriorityAction;
+use crate::decision::provider::PriorityAction;
 
 /// The most seats a scenario builds. No rule caps players (CR 102.1), but
 /// each seat is built with its state, so a typed number in the millions would

@@ -36,9 +36,9 @@ use crate::types::effects::{AmountExpr, Condition, ObjectFilter, ObjectSet, Play
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{EventKind, EventKindMask};
 use crate::types::zones::{Zone, ZoneSet};
-use crate::ui::ask::ask_order_cost_payments;
-use crate::ui::decision_types::{DecisionKind, DecisionOption, CostPart, Rejection};
-use crate::ui::decision::FirstLegalAnswer;
+use crate::decision::ask::ask_order_cost_payments;
+use crate::decision::decision_types::{DecisionKind, DecisionOption, CostPart, Rejection};
+use crate::decision::provider::FirstLegalAnswer;
 
 /// The channels a payment's parts can change, and so all a reader is asked
 /// about here, as `engine::layers::board`'s `Channels` are what a layer can
@@ -700,7 +700,7 @@ mod tests {
     use crate::cards::fixtures::omnath_locus_of_mana_fixture;
     use crate::test_support::{put_on_battlefield, setup_two_player_game};
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::provider::ScriptedDecisionProvider;
 
     /// The audit bites: handed parts the property would call a question, as
     /// though it had said they commute, it pays both orders and finds Omnath

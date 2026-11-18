@@ -206,7 +206,7 @@ impl Diagnostics {
     /// **Not the prompt count, and the gap is the point.** The engine asks at
     /// every priority point, and most of those offer only `Pass`; a prompt
     /// count measures the pass loop, where this measures what an agent is
-    /// handed. Counted in `ui::ask`'s four `validate_*` helpers, which are the
+    /// handed. Counted in `decision::ask`'s four `validate_*` helpers, which are the
     /// one place every prompt's candidate list and its bounds are both in
     /// scope — so "two or more answers" is decided per primitive there, and
     /// forced choices do not count however the caller spelled them.

@@ -23,8 +23,8 @@ use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, PlayerRef, Pri
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent};
 use mtgsim::types::zones::DrawFilter;
-use mtgsim::ui::decision_types::DecisionKind;
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::decision_types::DecisionKind;
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------
 // The boards

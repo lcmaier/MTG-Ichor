@@ -72,9 +72,9 @@ use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::state::game_state::StepType;
 use mtgsim::types::triggers::TriggerSubject;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
@@ -912,7 +912,7 @@ fn another_pumper() -> Arc<CardData> {
 #[test]
 fn another_target_is_other_than_the_abilitys_own_source() {
     use mtgsim::oracle::legality::candidate_priority_actions;
-    use mtgsim::ui::decision::PriorityAction;
+    use mtgsim::decision::provider::PriorityAction;
     let mut game = setup_two_player_game();
     let pumper = put_on_battlefield(&mut game, another_pumper(), 0);
     let offered = |game: &GameState| {

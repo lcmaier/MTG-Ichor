@@ -14,8 +14,8 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{RejectionRecorder, place_forest, put_in_hand, setup_two_player_game};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
-use mtgsim::ui::decision::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
+use mtgsim::decision::provider::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 /// Grizzly Bears in hand and two Forests to pay for it exactly, in player

@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::decision_types::{DecisionKind, DecisionOption};
+use crate::decision::decision_types::{DecisionKind, DecisionOption};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Copy, Debug)]
@@ -94,7 +94,7 @@ mod tests {
         let written = Arc::new(Mutex::new(0));
         let count = Arc::clone(&written);
         game.log_decisions(move |_, _| *count.lock().unwrap() += 1);
-        let options = [DecisionOption::Action(crate::ui::decision::PriorityAction::Pass)];
+        let options = [DecisionOption::Action(crate::decision::provider::PriorityAction::Pass)];
         let pass = LoggedDecision { player: 0, kind: &DecisionKind::PriorityAction, options: &options, answer: LoggedAnswer::Picks(&[0]), forced: true };
 
         game.clone().log_decision(pass);

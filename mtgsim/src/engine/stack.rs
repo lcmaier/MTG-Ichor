@@ -9,7 +9,7 @@ use crate::types::replacement::EnterMods;
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::ids::{ObjectId, ObjectOrPlayerId};
 use crate::types::zones::Zone;
-use crate::ui::decision::DecisionProvider;
+use crate::decision::provider::DecisionProvider;
 
 impl GameState {
     /// Resolve the top entry on the stack (rule 608).
@@ -354,7 +354,7 @@ mod tests {
     use crate::cards::authoring::spell_ability;
     use crate::cards::printings::{forest, mind_rot};
     use crate::test_support::{AtEachPrompt, place_on_battlefield, put_in_hand};
-    use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+    use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::types::ids::ObjectOrPlayerId;

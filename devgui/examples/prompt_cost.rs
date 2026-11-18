@@ -50,7 +50,7 @@ use mtgsim::scenario::Scenario;
 use mtgsim::state::game_state::GameState;
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::types::effects::ModeIndex;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, modes_as_logged};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, modes_as_logged};
 use mtgsim::ui::why::{OpenQuestion, WhyAbout, why};
 
 const RUNS: usize = 200;

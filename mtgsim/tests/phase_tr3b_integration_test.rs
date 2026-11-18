@@ -29,7 +29,7 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer}
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power};
 use mtgsim::state::game_state::{GameState, StepType};
-use mtgsim::ui::decision_types::DecisionOption;
+use mtgsim::decision::decision_types::DecisionOption;
 use mtgsim::test_support::{
     card_of_type, put_in_hand, put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,
@@ -48,7 +48,7 @@ use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, DelayedTurn, EventRole, Multiplicity, TriggerEvent, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------

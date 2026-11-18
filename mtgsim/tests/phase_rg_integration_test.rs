@@ -61,8 +61,8 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite, TapStatus};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_named};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_named};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 fn mutant() -> Subtype {

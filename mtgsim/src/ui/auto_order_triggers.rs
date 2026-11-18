@@ -19,8 +19,8 @@
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use crate::ui::decision::{DecisionProvider, SeatMode};
+use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::provider::{DecisionProvider, SeatMode};
 
 /// Answers `D`'s seat's trigger order in the order it is offered, and passes
 /// every other decision to `D`.
@@ -107,10 +107,10 @@ mod tests {
     use crate::engine::actions::ZoneChangeAct;
     use crate::test_support::{put_in_hand, setup_two_player_game, test_ctx};
     use crate::types::zones::Zone;
-    use crate::ui::decision_types::{TriggerOption, TriggeredAbility};
+    use crate::decision::decision_types::{TriggerOption, TriggeredAbility};
     use crate::types::ids::{new_object_id, ObjectId};
     use crate::types::triggers::TriggerTier;
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::provider::ScriptedDecisionProvider;
     use crate::ui::full_control::{FullControl, FullControlSwitch};
 
     fn three_triggers() -> Vec<DecisionOption> {

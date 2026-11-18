@@ -39,8 +39,8 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
-use crate::ui::decision_types::{AmountOf, DecisionKind};
-use crate::ui::decision::DecisionProvider;
+use crate::decision::decision_types::{AmountOf, DecisionKind};
+use crate::decision::provider::DecisionProvider;
 
 /// Context passed through effect resolution.
 ///
@@ -456,7 +456,7 @@ impl GameState {
                 }
                 let chooser = self.player_the_instruction_names(chooser, &[], ctx, dp)?;
                 let kind = DecisionKind::ApplyOptionalEffect { source: ctx.source };
-                if !crate::ui::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
+                if !crate::decision::ask::ask_take_or_leave(dp, self, chooser, ctx.source, kind, "apply_optional_effect") {
                     // Its targets were announced all the same, so the instances
                     // after it are read past them.
                     walk.instance_cursor += inner.instances().len();
@@ -685,7 +685,7 @@ impl GameState {
             let most = bounds.most.min(candidates.len());
             let chosen = match chooser {
                 Some(player) => {
-                    crate::ui::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, bounds.fewest.min(most), most)
+                    crate::decision::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, bounds.fewest.min(most), most)
                 }
                 // "Choose a creature at random": as many as the text says.
                 None if bounds.fewest == bounds.most => self.random_indices(candidates.len(), most).into_iter().map(|index| candidates[index]).collect(),
@@ -699,11 +699,11 @@ impl GameState {
         let total = amount(&divided.total)?;
         let among = divided.among.bounds(&amount)?;
         let most = among.most.min(total as usize).min(candidates.len());
-        let chosen = crate::ui::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, among.fewest.max(1).min(most), most);
+        let chosen = crate::decision::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, among.fewest.max(1).min(most), most);
         let shares = if chosen.is_empty() {
             Vec::new()
         } else {
-            crate::ui::ask::ask_divide_among(dp, self, player, ctx.source, &chosen, total)
+            crate::decision::ask::ask_divide_among(dp, self, player, ctx.source, &chosen, total)
         };
         Ok((chosen, shares))
     }
@@ -731,27 +731,27 @@ impl GameState {
         // a color, a type or a number, so none is built.
         let asked = move |what: &str| chooser.ok_or_else(|| format!("{source:?} chooses {what} at random, which no card prints"));
         Ok(match what {
-            ValueChoice::Color => Some(ChosenValue::Color(crate::ui::ask::ask_choose_color(dp, self, asked("a color")?, source))),
+            ValueChoice::Color => Some(ChosenValue::Color(crate::decision::ask::ask_choose_color(dp, self, asked("a color")?, source))),
             ValueChoice::CreatureType => {
-                Some(ChosenValue::CreatureType(crate::ui::ask::ask_choose_creature_type(dp, self, asked("a creature type")?, source)))
+                Some(ChosenValue::CreatureType(crate::decision::ask::ask_choose_creature_type(dp, self, asked("a creature type")?, source)))
             }
             ValueChoice::CardType(printed) => {
                 let candidates: &[CardType] = printed.as_deref().unwrap_or(&CardType::ALL);
                 let chooser = asked("a card type")?;
-                (!candidates.is_empty()).then(|| ChosenValue::CardType(crate::ui::ask::ask_choose_card_type(dp, self, chooser, source, candidates)))
+                (!candidates.is_empty()).then(|| ChosenValue::CardType(crate::decision::ask::ask_choose_card_type(dp, self, chooser, source, candidates)))
             }
             ValueChoice::Number { least, most } => {
                 if least > most {
                     return Err(format!("{source:?} chooses a number between {least} and {most}, which is none"));
                 }
                 let values = XOffer::Interval { at_least: *least, at_most: *most };
-                Some(ChosenValue::Number(crate::ui::ask::ask_choose_number(dp, self, asked("a number")?, source, values)))
+                Some(ChosenValue::Number(crate::decision::ask::ask_choose_number(dp, self, asked("a number")?, source, values)))
             }
             ValueChoice::Player(among) => {
                 let candidates: Vec<PlayerId> = self.players_in_game().filter(|player| among.contains(ctx.controller, *player)).collect();
                 match chooser {
                     _ if candidates.is_empty() => None,
-                    Some(player) => Some(crate::ui::ask::ask_choose_player(dp, self, player, source, &candidates)),
+                    Some(player) => Some(crate::decision::ask::ask_choose_player(dp, self, player, source, &candidates)),
                     None => self.random_one_of(&candidates),
                 }
                 .map(ChosenValue::Player)
@@ -1147,7 +1147,7 @@ impl GameState {
                 let hand = self.get_player(player_id)?.hand.clone();
                 let chosen = match chooser {
                     DiscardChooser::Affected => {
-                        crate::ui::ask::ask_discard(
+                        crate::decision::ask::ask_discard(
                             actx.dp, self, player_id, &hand, count, Some(ctx.source),
                         )
                     }
@@ -2458,7 +2458,7 @@ impl GameState {
                 if candidates.is_empty() {
                     return Ok(());
                 }
-                let donor = crate::ui::ask::ask_choose_copy_source(dp, self, ctx.controller, ctx.source, &candidates);
+                let donor = crate::decision::ask::ask_choose_copy_source(dp, self, ctx.controller, ctx.source, &candidates);
                 (donor, recipients)
             }
             CopyRoles::ThisObjectCopiesRecipient => {
@@ -2682,7 +2682,7 @@ impl GameState {
         if candidates.is_empty() {
             return Ok(None);
         }
-        let chosen = crate::ui::ask::ask_choose_damage_source(dp, self, ctx.controller, ctx.source, &candidates);
+        let chosen = crate::decision::ask::ask_choose_damage_source(dp, self, ctx.controller, ctx.source, &candidates);
 
         let mut filled = def.clone();
         if let EventPattern::DealDamage { source: Some(pattern), .. } = &mut filled.pattern {
@@ -2751,7 +2751,7 @@ impl GameState {
                     SelectionFilter::Permanent(pick.filter.clone()),
                     TargetCount::Exactly(n as u32),
                 );
-                chosen.extend(crate::ui::ask::ask_select_recipients(
+                chosen.extend(crate::decision::ask::ask_select_recipients(
                     dp, self, player, &asked, ctx.source, &candidates, n, n,
                 ));
             }
@@ -2953,7 +2953,7 @@ impl GameState {
     /// what a row it makes keeps. `None` for a spell.
     fn text_of_the_ability_resolving(&self, ctx: &ResolutionContext) -> Option<&'static str> {
         let identity = self.resolving.as_ref().filter(|resolving| resolving.id == ctx.source)?.identity?;
-        crate::ui::decision_types::ability_as_read(self, identity.source.id, identity.ability).text()
+        crate::decision::decision_types::ability_as_read(self, identity.source.id, identity.ability).text()
     }
 
     /// The permanents among what an atom acts on, those on the battlefield
@@ -3245,7 +3245,7 @@ impl GameState {
         if matches!(who, PlayerRef::Opponent) && Self::opponent_among(recipients, ctx).is_none() {
             let opponents = self.opponents_of(ctx.controller);
             if opponents.len() > 1 {
-                return Ok(crate::ui::ask::ask_choose_player(dp, self, ctx.controller, ctx.effect_source(), &opponents));
+                return Ok(crate::decision::ask::ask_choose_player(dp, self, ctx.controller, ctx.effect_source(), &opponents));
             }
         }
         self.resolve_player_ref(who, recipients, ctx)
@@ -3407,20 +3407,20 @@ impl GameState {
         // Each retry offers less than the amount that failed, so the asking ends.
         let mut failed_at: Option<u64> = None;
         let (costs, amount) = loop {
-            if !crate::ui::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, offer.clone(), any_amount_of.cloned()) {
+            if !crate::decision::ask::ask_pay_as_it_resolves(dp, self, payer, ctx.source, offer.clone(), any_amount_of.cloned()) {
                 return Ok(false);
             }
             let (costs, amount) = match (x_to_choose, any_amount_of) {
                 (Some(with_x), _) => {
                     let values = crate::oracle::x_values::payable_values_of_x(self, payer, with_x, others, on_the_battlefield);
                     let of = AmountOf::XIn(with_x.clone());
-                    let x = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, of, values.less_than(failed_at));
+                    let x = crate::decision::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, of, values.less_than(failed_at));
                     (mana_then(Some(with_x.with_x_as(x)), others), Some(x))
                 }
                 (None, Some(unit)) => {
                     let values = crate::oracle::x_values::payable_amounts_of_any_amount(self, payer, &offer, unit, on_the_battlefield);
                     let of = AmountOf::AnyAmountOf(unit.clone());
-                    let amount = crate::ui::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, of, values.less_than(failed_at));
+                    let amount = crate::decision::ask::ask_choose_amount_to_pay(dp, self, payer, ctx.source, of, values.less_than(failed_at));
                     let mana = as_offered.clone().unwrap_or_else(ManaCost::zero).plus_amount_of(unit, amount);
                     (mana_then(Some(mana), others), Some(amount))
                 }

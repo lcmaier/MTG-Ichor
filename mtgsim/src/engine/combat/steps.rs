@@ -19,9 +19,9 @@ use crate::state::game_state::GameState;
 use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use super::keywords::has_first_or_double_strike;
-use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
-use crate::ui::decision_types::Rejection;
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::{ask_choose_attackers, ask_choose_blockers};
+use crate::decision::decision_types::Rejection;
+use crate::decision::provider::DecisionProvider;
 use crate::state::layer_memo::GatedWalkInput;
 
 impl GameState {

@@ -44,7 +44,7 @@ use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
 use super::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection};
-use super::decision::{DecisionProvider, PriorityAction};
+use super::provider::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
 /// something to decide.
@@ -945,7 +945,7 @@ pub fn ask_order_triggers(
     game: &GameState,
     player: PlayerId,
     tier: crate::types::triggers::TriggerTier,
-    triggers: Vec<crate::ui::decision_types::TriggerOption>,
+    triggers: Vec<crate::decision::decision_types::TriggerOption>,
 ) -> Vec<usize> {
     debug_assert!(triggers.len() >= 2, "CR 603.3b: one trigger has no order to choose");
     let options: Vec<DecisionOption> = triggers.into_iter().map(DecisionOption::Trigger).collect();
@@ -1181,7 +1181,7 @@ pub fn ask_choose_replacement(
     game: &GameState,
     chooser: PlayerId,
     affected_object: Option<ObjectId>,
-    effects: Vec<crate::ui::decision_types::ReplacementOption>,
+    effects: Vec<crate::decision::decision_types::ReplacementOption>,
 ) -> usize {
     game.diagnostics.record_replacement_prompt();
     assert!(
@@ -1608,7 +1608,7 @@ pub fn ask_choose_legend_to_keep(
 mod tests {
     use super::*;
     use crate::state::game_state::GameState;
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::provider::ScriptedDecisionProvider;
 
     fn test_game_state() -> GameState {
         GameState::new(2, 20)
@@ -1948,7 +1948,7 @@ mod tests {
 
     #[test]
     fn test_dispatch_routes_by_player() {
-        use crate::ui::decision::DispatchDecisionProvider;
+        use crate::decision::provider::DispatchDecisionProvider;
 
         let dp0 = ScriptedDecisionProvider::new();
         let dp1 = ScriptedDecisionProvider::new();

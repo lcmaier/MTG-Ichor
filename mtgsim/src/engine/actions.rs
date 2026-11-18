@@ -17,8 +17,8 @@ use crate::types::replacement::{EnterMods, EntersAttackingCandidates};
 use crate::types::counted_enum;
 use crate::types::triggers::Lki;
 use crate::types::zones::Zone;
-use crate::ui::ask::{ask_choose_entering_defender, ask_scry};
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::{ask_choose_entering_defender, ask_scry};
+use crate::decision::provider::DecisionProvider;
 use crate::state::layer_memo::GatedWalkInput;
 
 /// Re-exported for every existing reader of `engine::actions::ZoneChangeAct`.

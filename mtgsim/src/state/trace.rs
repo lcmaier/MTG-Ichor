@@ -1022,8 +1022,8 @@ mod tests {
         use crate::engine::trace_records;
         use crate::test_support::{install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
         use crate::types::zones::{Zone, ZoneChangeAct};
-        use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-        use crate::ui::decision::PriorityAction;
+        use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+        use crate::decision::provider::PriorityAction;
 
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, crate::cards::printings::soul_warden(), 0);

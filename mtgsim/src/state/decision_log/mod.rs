@@ -6,7 +6,7 @@
 //! how the seat is set up: auto-yield and auto-pay answer some prompts above
 //! it, and full control makes the engine ask at a priority point where passing
 //! is all the player can do, where it otherwise passes itself. So the log is
-//! written at the two places every answer passes: the four `ui::ask`
+//! written at the two places every answer passes: the four `decision::ask`
 //! validators, whoever answered, and the priority loop's own pass. A pass is
 //! one line whoever made it, and the same game writes the same log whatever
 //! its seats were set to. A replay that has every seat stop at every priority

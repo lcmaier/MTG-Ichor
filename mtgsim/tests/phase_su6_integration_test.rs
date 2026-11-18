@@ -14,8 +14,8 @@ use mtgsim::test_support::{put_in_graveyard, put_in_library, put_on_battlefield,
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, SeatMode};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, SeatMode};
 use mtgsim::ui::display::format_event_log;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;

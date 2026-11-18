@@ -12,9 +12,9 @@ use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::oracle::legality::candidate_priority_actions;
-use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
+use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::test_support::{setup_two_player_game, put_in_hand, put_on_battlefield, fill_library};
 
@@ -50,7 +50,7 @@ fn test_nights_whisper_draw_and_life_loss() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(whisper_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
-    // forced and nothing is asked (`ui::ask::forced_allocation`).
+    // forced and nothing is asked (`decision::ask::forced_allocation`).
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &dp);
@@ -98,7 +98,7 @@ fn test_angels_mercy_gains_life() {
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(mercy_id))]);
     // The colorless is the only mana the pips do not claim, so the split is
-    // forced and nothing is asked (`ui::ask::forced_allocation`).
+    // forced and nothing is asked (`decision::ask::forced_allocation`).
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &dp);
@@ -171,7 +171,7 @@ fn test_doom_blade_destroys_nonblack_creature() {
     dp.expect_choice(DecisionKind::PriorityAction, vec![DecisionOption::Action(PriorityAction::CastSpell(blade_id))]);
     // The only nonblack creature, so the target is forced and not asked.
     // The colorless is the only mana the pips do not claim, so the split is
-    // forced and nothing is asked (`ui::ask::forced_allocation`).
+    // forced and nothing is asked (`decision::ask::forced_allocation`).
     // Both pass → resolve
 
     cast_and_resolve(&mut game, &dp);

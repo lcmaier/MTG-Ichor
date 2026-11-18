@@ -24,9 +24,9 @@ use crate::state::game_state::GameState;
 use crate::state::trace::COMMIT;
 use crate::types::ids::PlayerId;
 
-use super::ask::{allocation_fits, forced_allocation, number_fits, only_number, only_order, only_pick, order_fits, pick_fits};
-use super::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_of};
-use super::decision::{DecisionProvider, SeatMode, Stop};
+use crate::decision::ask::{allocation_fits, forced_allocation, number_fits, only_number, only_order, only_pick, order_fits, pick_fits};
+use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_of};
+use crate::decision::provider::{DecisionProvider, SeatMode, Stop};
 
 /// A replay of a log's answers.
 pub struct Replay<'a> {
@@ -281,8 +281,8 @@ mod tests {
     use crate::types::costs::Cost;
     use crate::types::effects::ObjectFilter;
     use crate::types::ids::ObjectId;
-    use crate::ui::decision_types::CostPart;
-    use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
+    use crate::decision::decision_types::CostPart;
+    use crate::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
     /// A replay of one line, player 0's answer to `kind` where `game` stands.
     fn answering<'a>(game: &GameState, kind: &DecisionKind, chosen: Chosen) -> Replay<'a> {

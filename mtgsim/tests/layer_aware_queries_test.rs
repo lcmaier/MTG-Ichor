@@ -21,8 +21,8 @@ use mtgsim::types::effects::{
     CounterType, Duration, EffectRecipient, ObjectFilter, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 use mtgsim::test_support::{put_on_battlefield, setup_two_player_game};
 use mtgsim::state::game_state::GameState;

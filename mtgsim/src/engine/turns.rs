@@ -7,8 +7,8 @@ use crate::state::layer_memo::GatedWalkInput;
 use crate::types::ids::{ExtraTurnId, ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
 use crate::types::zones::Zone;
-use crate::ui::ask::ask_discard;
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::ask_discard;
+use crate::decision::provider::DecisionProvider;
 
 /// Turn structure engine — CR 500, and CR 614.10's three replaceable units.
 ///

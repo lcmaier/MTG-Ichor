@@ -12,8 +12,8 @@ use crate::state::game_state::GameState;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
-use super::decision::PriorityAction;
-use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_words, printed_name};
+use super::provider::PriorityAction;
+use crate::ui::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_words, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -89,7 +89,7 @@ pub enum DecisionKind {
     /// CR 601.2h — how the generic part of `mana_cost` is split across the
     /// types in the payer's pool, each pip's own type reserved first. The
     /// buckets are the pool's types; asked only when the split is not forced
-    /// (`ui::ask::forced_allocation`). `spell_or_ability_id` is what is being
+    /// (`decision::ask::forced_allocation`). `spell_or_ability_id` is what is being
     /// paid for.
     GenericManaAllocation { spell_or_ability_id: ObjectId, mana_cost: ManaCost },
     /// CR 601.2f — "if multiple cost reductions apply, the player may apply
@@ -1008,7 +1008,7 @@ mod tests {
     use crate::engine::priority::PriorityResult;
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
     use crate::types::costs::Cost;
-    use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+    use crate::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
     fn card(name: &str) -> std::sync::Arc<crate::objects::card_data::CardData> {
         CardRegistry::default_registry().create(name).unwrap()

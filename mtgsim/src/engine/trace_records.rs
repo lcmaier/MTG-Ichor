@@ -22,8 +22,8 @@ use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerTier};
 use crate::types::zones::Zone;
-use crate::ui::decision_types::{DecisionContext, DecisionOption};
-use crate::ui::decision::PriorityAction;
+use crate::decision::decision_types::{DecisionContext, DecisionOption};
+use crate::decision::provider::PriorityAction;
 
 /// A record of `kind`, its `batch` field naming the batch open now.
 pub(crate) fn in_the_open_batch(kind: RecordKind, game: &GameState) -> Record {

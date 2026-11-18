@@ -34,11 +34,11 @@ use crate::types::ids::{AbilityId, ObjectId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::oracle::x_values::{LegalXValues, XStop};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::ui::ask::generic_split_caps;
+use crate::decision::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
-use crate::ui::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryRole, Rejection};
-use crate::ui::decision::PriorityAction;
+use crate::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryRole, Rejection};
+use crate::decision::provider::PriorityAction;
 use crate::ui::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
     mana_type_name, named, option_label, player_name, rejection_words, type_line, Declaring,

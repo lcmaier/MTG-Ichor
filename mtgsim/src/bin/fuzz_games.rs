@@ -130,8 +130,8 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, TokenDef};
 use mtgsim::types::ids::{IdCollection, IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneSet};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, SeatMode};
+use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -1109,7 +1109,7 @@ fn player_row(player: &mtgsim::state::player::PlayerState) -> ObservationRow {
 
 /// The census's count and the observation's build, where a prompt reaches
 /// the agent; then asks `inner`. Innermost, under `ManaWindowStop`, so each
-/// prompt it is asked is a decision: `ui::ask` answers a prompt with one
+/// prompt it is asked is a decision: `decision::ask` answers a prompt with one
 /// legal answer itself, and the random agent's seat is never shown a
 /// `Pass`-only priority prompt.
 struct AtTheAgent<D> {
