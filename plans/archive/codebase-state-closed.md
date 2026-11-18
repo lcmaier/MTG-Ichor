@@ -10778,7 +10778,10 @@ close:
 - **Two engine modules read the policies**, which decision 9 did not name:
   the scenario loader's setup driver stacks `ManaWindowStop` and asks
   `random::mana_window_preference` (`scenario/setup.rs`), and
-  `GameStart::replay` takes a `Replay` (`state/decision_log/start.rs`). The
+  `BuiltStart::replay` takes a `Replay` (`state/decision_log/start.rs`). The
+  policies reach past the boundary too: the replay checks each answer with
+  eight of `decision::ask`'s crate-private validators and reads the decision
+  log's format, and the random agent reads `oracle::mana_supply`. The
   boundary's own tests run the random agent and a replay.
 
 Modules of one crate import each other both ways, so each compiles as it

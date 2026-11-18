@@ -524,7 +524,7 @@ Three things follow, and all three are used:
   decorator per `DecisionKind`**, so composition commutes and stack order carries
   no meaning. A person's seat and a bot's stack differently (the person takes
   both, the bot the stop alone), and that asymmetry lives in each client rather
-  than in `ui::`.
+  than in `policies::`.
 
 `ATOM-601.2f-004`'s expected result says "final cost depends on order if
 reductions interact (e.g., reducing generic first vs. colored first)". The

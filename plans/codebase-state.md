@@ -9986,7 +9986,7 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      chooses and `words/` the words a client shows, by moves alone. Left
      where they were, in plain sight: the boundary reads six of `display`'s
      helpers, six engine files read the words for their own output, and the
-     scenario loader and `GameStart::replay` read two policies.
+     scenario loader and `BuiltStart::replay` read two policies.
      **Reachability (2026-11-17):** closed — `ui-in-three`.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 357".
 

@@ -1532,7 +1532,7 @@ mechanic rather than a migration, which is why it is here and not in
   2. **Every decorator is a policy, and a policy's seat decides where it
      lives.** The answers differ and a rule picks one — declining the window
      once the cost is covered, passing priority, dividing combat damage, which
-     sources to tap. It lives in `ui::` only when both use cases want the same
+     sources to tap. It lives in `policies::` only when both use cases want the same
      rule; a **human's seat takes it under a toggle**, because the automation
      is a choice made for the player, and a **bot's seat takes it at
      construction**, because for an agent it is the harness's policy and
@@ -2729,9 +2729,9 @@ decision 6 lists the options with their costs and settles the dev GUI's, and
 v1's design chooses its own from them.
 
 **Open question 6: where the words live** (the owner, 2026-10-05, at #221's
-review; noted, not designed). `words::why` (360 lines at #221) and, by the same
-argument, `words::display` (1,215) sit in the engine crate's `words` module, so
-every client says the same words: the CLI, the dev GUI, v1's GUI and an AI
+review; noted, not designed). `why` (360 lines at #221) and, by the same
+argument, `display` (1,215) sit in the engine crate, in `words/` since
+`ui-in-three`, so every client says the same words: the CLI, the dev GUI, v1's GUI and an AI
 harness's logs. That is `engineering-practices.md#the-dev-gui`'s "engine computes, ui
 words, window draws" and `setup-architecture.md` §7c's decision 2. The owner
 kept `why.rs` there at #221 and asked to revisit it at or near v1's release,
@@ -2741,8 +2741,8 @@ covers them too. The options, with what each costs:
 
 - **The words stay in the engine crate.** One copy, and the engine's own
   output says the same words a client shows: `state::trace` writes each
-  `event` record in `words::display::format_event`'s words, and the scenario text
-  names phases and steps with `phase_name` and `step_name`. The cost is that
+  `event` record in `words::display::format_event`'s words; the scenario text
+  keeps its own table of phase and step words since #299. The cost is that
   the engine crate carries English presentation. A client that wants other
   words or another language cannot change them, and a change of wording is an
   engine PR.
@@ -2755,14 +2755,22 @@ covers them too. The options, with what each costs:
   fields that a reader words.
 - **A words crate that clients depend on.** `words::display` and `words::why` move
   to a crate over the engine, and every client depends on it. One copy stays,
-  and the engine crate drops its English. The cost is that the five engine
-  files that word things today (the trace's two writers, the trigger audit,
-  the scenario text and `Game`'s event log) would depend on a crate that
+  and the engine crate drops its English. The cost is that the six engine
+  files that word things today (the trace's two writers, the trigger audit's
+  two files, a restriction's recorded keyword and `Game`'s event log) and the
+  question boundary, which spells a logged option with six of `display`'s
+  helpers (`decision/decision_types.rs`), would depend on a crate that
   depends on them, so their words move out with the trace's reader, or the
   records change to typed fields. It also needs a Cargo workspace.
 
 Decided at Phase 10's design, beside `codebase-state.md` item 208 (the
-crate's name and a workspace), since both redraw the crate boundary.
+crate's name and a workspace), since both redraw the crate boundary. The
+same redraw meets the policies, if they leave the engine crate too: the
+scenario loader's setup driver stacks `ManaWindowStop` and reads the random
+agent's crate-private `mana_window_preference`, `BuiltStart::replay` takes a
+`Replay`, and the replay checks each answer with `decision::ask`'s
+crate-private validators. Item 357's archive entry lists each crossing as
+`ui-in-three` left it.
 
 **How an object's text shows** (the owner, 2026-10-01, at A6g's ability
 names), as Arena shows it: an object's abilities in printed order, a granted
