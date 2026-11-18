@@ -817,6 +817,34 @@ Each with its home:
 cited below was read against `6f1f13f1`, and every Scryfall count on
 2026-11-17 under `game:paper -is:funny`, `total_cards`, unique cards.
 
+**Revised after the design stop's fresh read** (the `owner-review` agent,
+2026-11-17). Fixed in place:
+
+- a walk opens its kept choice empty, so Fortunate Few's first chooser is
+  offered every candidate, and an amount reads exactly one answer
+  (decision 1);
+- `ChosenHow` is a walk plus who answers, the vote a mark on the walk, so
+  no case is spelled twice, and each order is built in the PR of its first
+  card (decision 2);
+- "they" is the player an answer is for, which also covers Gluntch's and
+  Choice of Damnations' single chooser (decision 3);
+- the players who gave an answer are a narrowing of `PlayerGroup`, which
+  only a resolution reads, not a `PlayerSet` arm (decision 4);
+- every vote asks `Vote`, as `choices-architecture.md`'s decision 7
+  settled, and a voter's count of votes waits for `player-scoped-values`
+  (decision 5);
+- a choose step's words are written on the step and checked against its
+  rules text, since Gluntch's cannot be cut by line (decision 7);
+- item 435's exhaustive list replaces the registry's scan of a step's
+  printed form, which could not see the new readers;
+- CR 800.4g, the rule that watches a chooser who has left the game, is
+  decision 11;
+- names, the census lines and the filings the fresh read corrected.
+
+Put to the owner: decision 10's option D (the piles off the route, since
+no deck card is a pile), and whether each one-card arm is the right general
+shape (decisions 2 and 4, and Gluntch's exclusion).
+
 ## Where this row sits
 
 Still inside one stack object's resolution, the RESOLVE step of
@@ -891,7 +919,7 @@ with step 7.
 | `ATOM-101.4c-001` | Smallpox's four steps, each asked APNAP, never batched across steps | `COVERS-PARTIAL` on Harsh Mercy beside an edict fixture: the type walk finishes before any creature is destroyed; Smallpox's discard and its land sacrifice are the discard chooser's |
 | `ATOM-700.3a-001` | each object in exactly one pile | the third PR's (decision 9): Do or Die's separation, its answer refused when an object is in both piles or neither. `COVERS-PARTIAL`: its board is Fact or Fiction, whose cards sit in a library (filed below) |
 | `ATOM-700.3c-001` | objects in piles do not change zones while the piles are made | the third PR's: Do or Die's board asserts no zone change between the separation and the destroy. `COVERS-PARTIAL`, as above |
-| CR 701.38 | nothing uncovered | the second PR's boards name CR 701.38a–d directly: Plea for Power's walk from a player who is not active, its tie (the ruling's "more than one choice received the most votes"), Brago's Representative's two votes cast at once |
+| CR 701.38 | nothing uncovered | the second PR's boards name CR 701.38a–c directly: Plea for Power's walk from a player who is not active, its tie (the ruling's "more than one choice received the most votes"), Council's Judgment asked as a vote and not a pick. 701.38d's two votes at once are step 10's, with Brago's Representative (decision 5) |
 
 ## Counted
 
@@ -906,7 +934,7 @@ Grouped by what the shapes must do. Queries under the table.
 | …read back as "the rest" | 18 | Divine Reckoning, Cataclysm | `other_than(the_chosen_objects())` over one chooser's |
 | starting with a named player, in turn order | 41: 25 votes, 16 others | Council's Judgment; Whims of the Fates, Thieves' Auction | nothing |
 | a named player first, then each other player in APNAP order | 1 | Fortunate Few | nothing |
-| one player answers for each player ("for each player, choose") | 13: friend or foe 5, an object of that player's 8 | Pir's Whim; Tragic Arrogance | nothing |
+| one player answers for each player ("for each player, choose", "for each player, you choose") | 16: friend or foe 5, an object of that player's 10, piles 1 | Pir's Whim; The Eternal Wanderer; Make an Example | nothing |
 | a vote (CR 701.38) | 33: open 27, secret 6 | Plea for Power; Mob Verdict | nothing |
 | …what is voted for: a word, objects, a player, a color | 26, 4, 2, 1 | Tyrant's Choice; Council's Judgment; Círdan the Shipwright; Council Guardian | — |
 | a card that changes voting: an additional vote, "whenever players finish voting", choosing how each player votes | 3, 3, 1 | Brago's Representative; Grudge Keeper; Illusion of Choice | — |
@@ -916,7 +944,7 @@ Grouped by what the shapes must do. Queries under the table.
 | …one pile face down | 9 | Curator of Destinies | — |
 | a choice made secretly | 18: 12 revealed in the same step | Menacing Ogre, Prisoner's Dilemma | nothing |
 | "choose a number" with no top printed | 10 | Void, Choice of Damnations, Wheel of Misfortune's "0 or greater" | `XOffer::Interval` has a top |
-| a choice excluding what this resolution chose before | 3 | Gluntch, the Bestower; Fortunate Few | nothing |
+| a choice excluding what this resolution chose before | 3 | Gluntch, the Bestower; Dack Fayden, Helping Hand; Fortunate Few | nothing |
 
 **What reads several answers afterwards.** By hand over the cards above; a
 card can sit in two rows.
@@ -937,7 +965,8 @@ Queries: `o:/each (player|opponent) (secretly )?chooses/` (59);
 `o:/each (player|opponent) (secretly )?(chooses|votes for) [^.]*\bthey (control|don.t control)\b/`
 (32); `o:/(destroy|exile|sacrifices?|return)[^.]* the rest\b/ o:/each (player|opponent) chooses/`
 (18); `o:"starting with you, each player"` (41) and `o:/starting with you/ -o:vote`
-(16); `o:"for each player, choose"` (13); `o:"each friend"` (5);
+(16); `o:"for each player, choose"` (13) and
+`o:/for each (player|opponent), you choose/` (3); `o:"each friend"` (5);
 `o:"votes for"` (33), `o:"secretly votes"` (6), `o:"gets more votes"` (14),
 `o:/for each [a-z ]+ vote\b/` (11), `o:"most votes"` (4),
 `o:/votes? (they|you) received/` (2), `o:"the voter"` (2),
@@ -1028,62 +1057,66 @@ pub choices: Vec<KeptChoice>,
 // types/effects.rs
 
 /// What one choose step kept: an answer for each player it asked, in the
-/// order they answered (CR 101.4). One chooser keeps one answer.
+/// order they answered (CR 101.4). Opened empty as the step starts, so its
+/// own later questions read the answers so far; one chooser keeps one
+/// answer.
 pub struct KeptChoice { pub kind: ChoiceKind, pub answers: Vec<KeptAnswer> }
 
-/// One answer and the player it is for: who gave it, or, under "for each
-/// player, choose", who it was given for. `None` for a draw at random that
-/// is for nobody.
-pub struct KeptAnswer { pub player: Option<PlayerId>, pub value: ChosenValue }
+/// One answer and the player it is for: the walk's player, or the one
+/// chooser. `None` for a draw at random that is for nobody.
+pub struct KeptAnswer { pub for_player: Option<PlayerId>, pub value: ChosenValue }
 
-pub enum ChosenHow {
-    By(EffectRecipient),
-    AtRandom,
-    /// Decision 2. "Each player chooses", "starting with you, each player",
-    /// "for each opponent, you choose": an answer for each player of the
-    /// group, in `order`, given by `answered_by`.
-    ForEachPlayer { players: PlayerGroup, order: ChoosersOrder, answered_by: WhoAnswers },
-    /// Decision 5. CR 701.38: every player votes, from `first` in turn
-    /// order; APNAP where no player is named (a secret council).
-    Vote { first: Option<EffectRecipient> },
-}
+/// Decision 2. Who answers, and over which players. `walk: None` is one
+/// answer, as every first-row step is.
+pub struct ChosenHow { pub walk: Option<ChoiceWalk>, pub answered_by: AnsweredBy }
 
-pub enum ChoosersOrder {
+/// "Each player", "each opponent", "starting with you, each player": an
+/// answer for each player of the group, in `order`. `is_a_vote` marks CR
+/// 701.38's vote, which only a vote's readers and changers see (701.38c).
+pub struct ChoiceWalk { pub players: PlayerGroup, pub order: WalkOrder, pub is_a_vote: bool }
+
+pub enum WalkOrder {
     Apnap,                            // CR 101.4, 608.2e
     TurnOrderFrom(EffectRecipient),   // "starting with you" (CR 701.38a)
     FirstThenApnap(EffectRecipient),  // "choose …, then each other player chooses"
 }
 
-pub enum WhoAnswers {
-    ThatPlayer,               // each for themselves
-    Player(EffectRecipient),  // "for each player, [you] choose"
-    AtRandom,                 // "each player chooses one of their piles at random"
+pub enum AnsweredBy {
+    Player(EffectRecipient),  // "choose", "target opponent chooses", "for each player, choose"
+    EachForThemselves,        // "each player chooses"; a walk only
+    AtRandom,                 // "at random"; nobody is asked
 }
 
-// Decision 3: "they" in "a creature they control", the player the walk is
-// on. Step 7's settled antecedent, built here with its first arm.
-PlayerRef::Named(PlayerAntecedent::ForEachPlayer)
+// Decision 3: "they" in "a creature they control", the player the answer
+// is for: the walk's player, or the one chooser. A first arm on step 7's
+// settled antecedent type.
+PlayerRef::Named(PlayerAntecedent::ChoosingFor)
 
 // Decision 4: a later step reads any answer through today's `ChosenAs`,
 // or a selection of them:
+pub struct AnswerSelection { pub kind: ChoiceKind, pub which: AnswerIs }
 pub enum AnswerIs {
     Word(ChoiceWord),  // "each friend", "for each strength vote"
     Highest,           // "the highest number"
     MostChosen,        // "the most votes or tied for most votes"
 }
-PlayerSet::WhoAnswered(ChoiceKind, AnswerIs)     // a group, filled to `Fixed` as it is read
-AmountExpr::CountOfAnswers(ChoiceKind, AnswerIs) // "for each strength vote"
-AmountExpr::AnswerNumber(ChoiceKind, AnswerIs)   // "the highest number", "that much"
-ObjectFilter::ChosenAnswer(ChoiceKind, AnswerIs) // "each permanent with the most votes"
-Condition::IsAmong(PlayerRef, PlayerSet)         // "if you are one of those players"
-Condition::EveryAnswer(ChoiceKind, AnswerIs)     // "if each opponent chose silence"
-Condition::WinsTheVote(ChoiceKind, ChoiceWord)   // "if time gets more votes"
+PlayerGroup { relation, named, answered: Option<AnswerSelection> }  // "each foe", "each player with the highest number"
+AmountExpr::CountOfAnswers(AnswerSelection)       // "for each strength vote"
+AmountExpr::NumberAnswered(AnswerSelection)       // "the highest number", "that much"
+ObjectFilter::AnsweredObject(AnswerSelection)     // "each permanent with the most votes"
+Condition::IsAmong(PlayerRef, PlayerGroup)        // "if you are one of those players"
+Condition::EveryAnswer(AnswerSelection)           // "if each opponent chose silence"
+Condition::WinsTheVote(ChoiceKind, ChoiceWord)    // "if time gets more votes"
 
 // Decision 6: a word with no rules meaning, a variant per printed word,
-// added with its card.
+// added with its card, kept as `ChoiceKind::Word`.
 pub enum ChoiceWord { Friend, Foe, Silence, Snitch, Time, Knowledge, Strength, Numbers /* … */ }
 ValueChoice::Word(&'static [ChoiceWord])
 ChosenValue::Word(ChoiceWord)
+DecisionKind::ChooseWord { label }, DecisionOption::Word(ChoiceWord)
+
+// Decision 5: every vote is one question kind, whatever is voted for.
+DecisionKind::Vote { label: ChoiceLabel, vote_count: u32 }
 
 // Decision 7: the mark, the reveal, and the question's label.
 Primitive::ChooseValue { kind, what, how, secret: bool }
@@ -1093,13 +1126,16 @@ pub struct ChoiceLabel { pub source: ObjectId, pub words: &'static str, pub secr
 DecisionKind::ChooseColor { label: ChoiceLabel }  // and each choose kind, in place of `source`
 
 // Decision 8: an open "choose a number".
-XOffer::AtLeast(u64)
+ValueChoice::Number { least: u64, most: Option<u64> }
+XOffer::NoTop { at_least: u64 }
 
 // Decision 9: piles.
 ValueChoice::Piles { of: ObjectFilter, count: u32 }   // "separate … into two piles"
 ValueChoice::OneOfThePiles                            // "the pile of that player's choice"
-ChosenValue::Piles(Vec<Vec<ObjectRef>>)
-ChoiceKind::Piles, ChoiceKind::Pile
+ChosenValue::Piles(Vec<Vec<ObjectRef>>)               // kept as `ChoiceKind::Separation`
+// the pile chosen is kept as `ChosenValue::Objects` under `ChoiceKind::ChosenPile`
+DecisionKind::SeparateIntoPiles { label, pile: u32 }, DecisionKind::ChoosePile { label },
+DecisionOption::Pile(Vec<ObjectId>)
 ```
 
 Four cards written with them:
@@ -1123,8 +1159,8 @@ sequence([
 sequence([
     choose_number_at_least(each_player_chooses(), 0).secretly(),
     reveal_the_choices(ChoiceKind::Number),
-    lose_life(each_of(players_who_answered(Number, Highest)), the_highest_number_chosen()),
-    Effect::Conditional(you_are_among(players_who_answered(Number, Highest)), Box::new(put_counters(this_object(), PlusOnePlusOne, 2))),
+    lose_life(each_player_who_answered(Number, Highest), the_highest_number_chosen()),
+    Effect::Conditional(you_are_among(each_player_who_answered(Number, Highest)), Box::new(put_counters(this_object(), PlusOnePlusOne, 2))),
 ])
 
 // Plea for Power: "if knowledge gets more votes or the vote is tied" is
@@ -1139,7 +1175,8 @@ sequence([
 `creature_type(the_chosen_creature_type())` reads every answer, so over
 four answers it is "a type chosen this way"; with one, it is the first
 row's "the chosen type". `one_of_the_chosen()` is the same: every answer's
-objects.
+objects. `the_chosen_number()` is not: an amount reads exactly one answer
+(decision 1), and "the highest number" says which.
 
 ## Decisions
 
@@ -1164,12 +1201,27 @@ don't control", CR 101.4c); an answer for each player made by one player
 "seen by its chooser alone").
 
 - **A. Every kept choice is a list of answers, each with its player.**
-  `KeptChoice { kind, answers }`, `KeptAnswer { player, value }`, as under
-  "The shapes". One chooser keeps a list of one, so the first row's choices
-  are a special case and not a second shape. A reader of "the chosen
-  color" reads every answer: one answer is today's behavior, several is "a
-  color chosen this way". A voter's two votes are two answers with one
-  player. *Code*: 80–130, the four readers moved to the list. *Performance*:
+  `KeptChoice { kind, answers }`, `KeptAnswer { for_player, value }`, as
+  under "The shapes". One chooser keeps a list of one, so the first row's
+  choices are a special case and not a second shape. A reader of "the
+  chosen color" reads every answer: one answer is today's behavior, several
+  is "a color chosen this way". A voter's two votes are two answers with one
+  player. Two edges are fixed here, from the fresh read:
+  - **A walk opens its kept choice, empty, before its first question**, and
+    adds each answer as it is given. So its own filter and options read the
+    answers so far (CR 101.4b): Fortunate Few's "that hasn't been chosen
+    this way" offers you every candidate, then leaves your pick out for the
+    next player. "Kept, no answers yet" is the empty set, so "the rest" over
+    a walk nobody answered is everything; "never made" (CR 608.2b: that part
+    won't happen) stays what a one-chooser step leaves when it has no one to
+    ask (decision 11). The registry's walk records a step's name before it
+    reads that step's own filter.
+  - **An amount reads exactly one answer.** "The chosen number", "that
+    many" read the one answer a one-chooser step keeps; after a walk or a
+    vote the registry's test refuses it, and the card says which number
+    (`NumberAnswered`, decision 4).
+
+  *Code*: 80–130, the four readers moved to the list. *Performance*:
   one more `Vec` per kept choice, empty unless a step ran; a clone copies
   the same entries plus their players. *Upkeep*: one shape for every choose
   step.
@@ -1199,65 +1251,104 @@ opponent for themselves in APNAP order (CR 101.4, 608.2e, Divine
 Reckoning's ruling); from a named player in turn order (CR 701.38a, and 16
 cards that are not votes: Whims of the Fates, join forces, Thieves'
 Auction); a named player and then the others in APNAP order (Fortunate
-Few's ruling, one card); one player answering for each player (13); and a
-chosen direction (Order of Succession, one card, filed below).
+Few's ruling, one card); one player answering for each player (16: 13
+"for each player, choose" and 3 "for each player, you choose", Make an
+Example among them); and a chosen direction (Order of Succession, one card,
+filed below).
 
-- **A. One walk arm on `ChosenHow`**, `ForEachPlayer { players, order,
-  answered_by }`, and the vote's own arm (decision 5). `players` is the
-  group the cards already use (`PlayerGroup`, "each player", "each
-  opponent", "you and target opponent"); `order` is one of three
-  (`Apnap`, `TurnOrderFrom`, `FirstThenApnap`); `answered_by` says whose
-  answer it is: the walk's player's own, one player's for each (friend or
-  foe, Make an Example's "for each opponent, you choose"), or at random
-  for each (Whims of the Fates). Each answer is kept as it is given, so a
-  later chooser's options and filter can read the earlier ones (CR
-  101.4b, Fortunate Few's "that hasn't been chosen this way"). The
-  registry's test refuses a walk over a group no player can be in.
-  *Code*: 130–210. *Upkeep*: a new order is an arm with its card.
-- **B. The order on the group.** `ChosenHow::By(EffectRecipient::EachOf(group))`,
-  as the edict's chooser is written today, with a starting player on
+- **A. Two parts: which players are walked, and who answers.**
+  `ChosenHow` becomes a struct, `{ walk, answered_by }`, as under "The
+  shapes". `walk` is `None` for one answer (every first-row step, written
+  as today through `From<EffectRecipient>`), or a `ChoiceWalk`: the group
+  the cards already use (`PlayerGroup`, "each player", "each opponent",
+  "you and target opponent"), its `WalkOrder` (`Apnap`, `TurnOrderFrom`,
+  `FirstThenApnap`) and whether it is a vote (decision 5). `answered_by` is
+  a player (you; a target opponent; under a walk, one player for each, as
+  friend or foe and Make an Example's "for each opponent, you choose"),
+  each player for themselves (a walk only, the registry refusing it
+  without one), or at random. A vote is a walk, so a later card that
+  changes who answers a vote (Illusion of Choice's "you choose how each
+  player votes") changes `answered_by` and nothing else. The registry's
+  test refuses a walk over a group no player can be in. *Code*: 130–210,
+  the first row's `ChosenHow::By` matches moved. *Upkeep*: a new order is an
+  arm with its card.
+- **B. Arms on the enum, as the note first drew it.** `ForEachPlayer {
+  players, order, answered_by }` and `Vote { first }` beside `By` and
+  `AtRandom`. *Upkeep*: the fresh read found each case spelled twice:
+  `answered_by`'s player beside `By`, its random beside `AtRandom`, and the
+  vote's `first: Option` beside the walk's order, its `None` silently
+  APNAP.
+- **C. The order on the group.** `By(EffectRecipient::EachOf(group))`, as
+  the edict's chooser is written today, with a starting player on
   `PlayerGroup`. *Upkeep*: `PlayerGroup` is also what a draw, damage and a
   life loss read, unordered (CR 608.2f's APNAP is theirs); an order on it is
   a field every other reader ignores.
-- **C. Two arms**, one for "each player chooses" and one for "for each
-  player, you choose". *Upkeep*: the same walk written twice, the order
-  question asked on both.
 
-**Recommended: A.** The `FirstThenApnap` order has one printed card,
-Fortunate Few, so the owner is asked whether the general shape is right:
-the other way to write it is two choose steps (you, then each other
-player) whose answers a later reader joins, which needs a second name for
-"objects" and a reader that unions two names. The arm is cheaper and
-reads as the card's ruling does.
+**Recommended: A.** Each order and each way of answering is built in the
+PR of its first card, so no arm lands without one (the fresh read's
+point): the first PR builds `Apnap`, `FirstThenApnap`, one player and
+each for themselves; the second `TurnOrderFrom` (the votes) and one
+player answering for each (the friend-or-foe fixture); the third at random
+for each (Whims of the Fates). Two of these have one printed card each, so
+the owner is asked whether the general shape is right:
+
+- `FirstThenApnap`: Fortunate Few. The other way is two choose steps (you,
+  then each other player) whose answers a later reader joins, which needs
+  a second name for "objects" and a reader that unions two names.
+- At random for each player: Whims of the Fates (`o:"piles at random"`, 1).
+  The other way is a choose step per player, which needs the per-player
+  step that is step 7's `ForEach`.
+
+The 16 cards where one player answers for each, read by hand: friend or
+foe (5); an object of each player's, targeted (Kitesail Larcenist,
+Afterlife from the Loam, Guff Rewrites History, Vaevictis Asmadi), which
+are step 7's per-player targets; an object of each player's, not targeted
+(6): The Eternal Wanderer and Unstable Glyphbridge behind a static or a
+room this row does not build, Ghouls' Night Out and Breach the Multiverse
+in a graveyard, Tragic Arrogance with four picks a player, and Winnowing
+with a reader per player; and Make an Example's piles.
 
 ### Decision 3 — what "they" names in "a creature they control"
 
 **Retrofit cost if chosen wrong.** The 32 cards choosing relative to the
-chooser, and the 8 "for each player, choose … that player controls" ones
-when step 7 builds their targets, are written against it.
+chooser, the one-chooser cards that print "they" (Gluntch's "they put two
++1/+1 counters on a creature they control", Choice of Damnations' "that
+player sacrifices all but that many permanents of their choice"), and the
+untargeted "for each player, choose … that player controls" cards are
+written against it.
 
 **The problem.** A filter's "you" is the controller (CR 109.5). In "each
 player chooses a creature they control", "they" is the player the walk is
-on; in Council's Judgment's "each player votes for a nonland permanent you
-don't control" it stays "you". Both appear in one card's walk, so the
-filter needs a second referent.
+on; in Gluntch, with no walk, it is the one chooser; in "for each player,
+choose a creature that player controls" it is the walk's player while you
+choose; and in Council's Judgment's "each player votes for a nonland
+permanent you don't control" it stays "you". The same filter needs a
+second referent, and in every case it is one player: the player the
+answer is for, which is what `KeptAnswer::for_player` holds.
 
-- **A. Step 7's settled antecedent, its first arm built here.**
-  `PlayerRef::Named(PlayerAntecedent::ForEachPlayer)`, "the player a 'for
-  each' is on", which is the walk's player; `filter_as_read_now` is handed
-  the walk's player and writes it in as `PlayerRef::Player`. Step 7 adds
-  the other arms (`TheEventsPlayer`, `ControllerOf`, `OwnerOf`) and folds
-  `TriggeringPlayer` in, as its note's decision 4 settled. Beside it
-  `PlayerRef::NamedBy(Box<EffectRecipient>)` exists already, for Mana Leak's
-  "its controller"; step 7 folds it in as `ControllerOf`, and until then
-  the two near names sit side by side. *Code*: 40–70.
-- **B. `PlayerRef::Chooser`**, read only in a choose step's filter, folded
-  into `ForEachPlayer` by step 7. *Code*: 30–50. *Upkeep*: an arm made to be
-  removed, and "chooser" is wrong for "for each player, you choose a
-  creature that player controls", where the walk's player is not the one
-  choosing.
+- **A. One antecedent, "the player the answer is for", on step 7's
+  settled type.** `PlayerRef::Named(PlayerAntecedent::ChoosingFor)`:
+  `filter_as_read_now` is handed the player each question is for and
+  writes it in as `PlayerRef::Player`. `PlayerAntecedent` is step 7's
+  settled type (its note's decision 4, (a)); this row builds it with this
+  one arm, and step 7 adds `TheEventsPlayer`, `ControllerOf`, `OwnerOf` and
+  `ForEachPlayer`, a body's player, beside it. *Code*: 40–70.
+- **B. Step 7's `ForEachPlayer`**, with a one-chooser step read as a walk
+  of one. *Upkeep*: Gluntch's chooser is not a "for each", and a body of
+  step 7's `ForEach` that holds a choose step would have two players named
+  by one word.
+- **C. Spell it from what names the chooser**:
+  `PlayerRef::NamedBy(ChosenAs(Player))` for Gluntch, a walk word for the
+  rest. *Upkeep*: with the edict's `ChoiceScope::ChoosersPermanents`, three
+  spellings of "the chooser's permanents".
 
-**Recommended: A.**
+**Recommended: A.** The edict keeps `ChoosersPermanents` as built; the
+three plans its doc comments carry for it ("Cataclysm's four", "another
+player's objects", "the rest") are reworded in the first PR to name the
+choose step as their home (filed below). Beside the new arm,
+`PlayerRef::NamedBy(Box<EffectRecipient>)` already exists, for Mana Leak's
+"its controller" and ward's "that player"; step 7's fold of it is filed
+there with both uses, and until then the two near names sit side by side.
 
 ### Decision 4 — how a later step reads several answers
 
@@ -1271,17 +1362,24 @@ inside a later choice or by a step acting on that player.
 
 - **A. Any answer through today's `ChosenAs`, and one selection type for
   the rest.** `ChosenAs` on the three enums reads every answer, as the
-  shapes' Harsh Mercy shows. Everything else names a selection, `AnswerIs`
-  (a printed word, the highest, the most chosen), and the place that reads
-  it says what it wants of it: the players who gave it (`PlayerSet`, filled
-  to `Fixed` as a filter is, so every reader of a group takes it
-  unchanged, the edict's chooser and the life loss's recipient included),
-  how many there are (`AmountExpr`), the number it is (`AmountExpr`), the
-  objects (`ObjectFilter`), or a condition. A player's own answer is read
-  inside a later choose step of the same walk ("one of their piles", the
-  third PR's) and nowhere else; read by a step acting on that player it is
-  a `ForEach` body, filed with step 7. *Code*: 90–150. *Upkeep*: a new
-  selection is an arm of `AnswerIs`, read by every place at once.
+  shapes' Harsh Mercy shows (an amount excepted, decision 1). Everything
+  else names a selection, `AnswerSelection { kind, which: AnswerIs }` (a
+  printed word, the highest, the most chosen), and the place that reads it
+  says what it wants of it: the players who gave it, how many there are,
+  the number it is, the objects, or a condition. The players go on
+  `PlayerGroup`, as a field `answered` that narrows the group to the
+  players whose answer is the one selected, and not on `PlayerSet`: the
+  fresh read found `PlayerSet::contains` answers from two ids with no board
+  and no error path, and the replacement pipeline reads it, so an arm only a
+  resolution can fill would be a silent `false` anywhere else. A group is
+  read only by a resolution (`players_in`, `engine/resolve.rs:3467`), so the
+  edict's chooser and the life loss's recipient take the narrowed group
+  unchanged. A player's own answer is read inside a later choose step over
+  the same group (Make an Example's pick of "one of their piles", a second
+  step with its own walk, the third PR's) and nowhere else; read by a step
+  acting on that player it is a `ForEach` body, filed with step 7. *Code*:
+  90–150. *Upkeep*: a new selection is an arm of `AnswerIs`, read by every
+  place at once.
 - **B. An arm per printed phrase.** `Friends`, `Foes`, `VotesFor(word)`,
   `GetsMoreVotes(word)`, `HighestNumber`, each where it is read. *Code*:
   about the same. *Upkeep*: about a dozen arms over four enums, each with
@@ -1292,6 +1390,18 @@ inside a later choice or by a step acting on that player.
 kept apart, since "gets more votes" is a comparison between the options
 and not a selection of answers: one option alone with the most votes (the
 ruling's tie), never a count.
+
+Two of A's arms have one printed card each, so the owner is asked whether
+the general shape is right:
+
+- `Condition::EveryAnswer`: Prisoner's Dilemma's "if each opponent chose
+  silence" (`o:/if each (opponent|player) (chose|voted)/`, 1).
+- `Condition::IsAmong`: Menacing Ogre's "if you are one of those players"
+  (`o:"one of those players"`, 2; the other, Power Play, is about who
+  starts the game). `Condition::Player { players, fact }`
+  (`types/effects.rs:870`) already asks a fact over a player set; it takes
+  a `PlayerSet`, which decision 4 keeps the selection off, so the arm is
+  new.
 
 ### Decision 5 — the vote (CR 701.38)
 
@@ -1305,29 +1415,54 @@ only a vote (c) and Brago's Representative, Grudge Keeper and Illusion of
 Choice read only a vote; and a voter with several votes casts them at once
 (d), repeats allowed, the later voters seeing all of them.
 
-- **A. A choose step whose `how` is a vote.** `ChosenHow::Vote { first }`
-  walks every player in the game from `first` in turn order (APNAP when no
-  player is named, the six secret councils). What is voted for is the
-  step's `ValueChoice`, unchanged: a word, objects, a player, a color. A
-  voter's count of votes is one plus each "you get an additional vote" on
-  their permanents (CR 701.38d, Brago's Representative as a static that
-  the walk asks, read off the effective ability list like any static).
-  One vote is asked as the kind it is for; several are one
-  `DecisionKind::Vote { label, votes }`, answered by the provider's
-  existing `allocate` over the options (the votes are the total, each
-  option a bucket), which is "repeats allowed, all at once". The answers
-  are kept as any choose step's, one per vote. *Code*: 230–370 with the
-  winner and the most chosen. *Upkeep*: a card that changes voting reads
-  one arm.
+**Settled already**: every vote is asked as one kind, `Vote`, and a
+voter's several votes are "one pick of that many, repeats allowed"
+(`choices-architecture.md`'s decision 7, "Decided in review: A" and "What
+both settle"). The note's first draft asked a single vote as the kind of
+what it is for, which the fresh read caught: Council's Judgment's vote
+would have been a plain `SelectRecipients` pick, and the same vote a `Vote`
+once its voter had two. It is `Vote` for every vote now.
+
+- **A. A choose step whose walk is a vote.** `ChoiceWalk { is_a_vote:
+  true, .. }` over every player in the game, from the named player in turn
+  order (`TurnOrderFrom`), or APNAP where no player is named (the six secret
+  councils), each for themselves. What is voted for is the step's
+  `ValueChoice`, unchanged: a word, objects, a player, a color. Every vote
+  asks `DecisionKind::Vote { label, vote_count }`, its options typed by what
+  is voted for (`DecisionOption::Word`, `Object`, `Player`, `Color`). One
+  vote is a pick of one; several are the provider's existing `allocate`
+  over the options (the votes are the total, each option a bucket), which
+  is "repeats allowed, all at once" (CR 701.38d). The answers are kept as
+  any choose step's, one per vote. *Code*: 170–270 with the winner and the
+  most chosen, under (a) below. *Upkeep*: a card that changes voting reads
+  one field.
 - **B. A primitive of its own**, `Primitive::Vote { options, first }`, its
   own kept value and readers. *Upkeep*: the walk, the keep, the reveal and
   every reader written twice.
 
-**Recommended: A.** Ballot Broker's and The Valeyard's "you may vote an
-additional time" is the same count with an optional part, asked first as a
-number of extra votes; "whenever players finish voting" (three cards) is a
+**Recommended: A.**
+
+**Where a voter's count of votes comes from** is the one open part. Brago's
+Representative's "while voting, you get an additional vote" is a value a
+permanent gives its controller, which is `player-scoped-values`' effective
+value query (step 10, `backlog.md`'s "2.15"): the land count, maximum hand
+size and player hexproof are its first readers.
+
+- **(a) The count waits for step 10.** Every voter has one vote here; the
+  question carries `vote_count` from the start, so no client changes when
+  it grows. Step 10 answers the count from its query, builds the several
+  votes' `allocate` ask with it, and registers Brago's Representative,
+  Ballot Broker and The Valeyard, CR 701.38d's boards with them. A
+  Deferred Migrations line records it. *Code*: as decision 10's table.
+- **(b) Build the count now**, Brago's Representative's static read off the
+  effective ability list by the walk alone: a reader of a player-scoped
+  value written ahead of the query that owns them, which step 10 then
+  moves. About 70–110 more in the second PR, with the `allocate` ask and
+  Brago's Representative registered.
+
+**Recommended: (a).** "Whenever players finish voting" (three cards) is a
 trigger event, and Illusion of Choice's "you choose how each player votes"
-is a change to who answers. Those three are filed below.
+is a change to `answered_by`; both are filed below.
 
 ### Decision 6 — a word with no rules meaning
 
@@ -1371,16 +1506,24 @@ for step 8. What is open is the shape, and where item 437's words go.
 - **A. A label on every choose question, the mark on the step, the reveal
   a step that writes an event.** `ChooseValue` gains `secret`; the question
   it asks carries `ChoiceLabel { source, words, secret }` in place of
-  `source`: the step's own sentence, cut from the ability's text at build
-  as a mode's words are (`ModalNode::take_words_from`,
-  `types/effects.rs:1298`), and the mark. `Primitive::RevealChoices(kind)`
-  writes `GameEvent::ChoicesRevealed` with the answers and their players.
-  The registry's test refuses a read of a secret answer that no reveal
-  step comes before (Menacing Ogre's "each player with the highest number"
-  after its reveal; The Toymaker's Trap's guess, which reads nothing,
-  before it). Item 434's label for `SelectRecipients`' "choose", slotted to
-  `card-and-object-model`, can take the same type. *Code*: 120–190, the
-  mechanical sites counted apart.
+  `source`: the step's own words, and the mark. The words are written on
+  the step by the card (`.worded("Choose a second player to draw a
+  card")`), and the registry's test checks that every choose step has
+  words and that they are found in its ability's rules text. A cut by
+  line, as a mode's words are (`ModalNode::take_words_from`,
+  `types/effects.rs:1298`), finds nothing for Gluntch, whose three choices
+  share one line and one of which ("they put two +1/+1 counters on a
+  creature they control") never says "choose", which is item 437's own
+  case. `Primitive::RevealChoices(kind)` writes `GameEvent::ChoicesRevealed`
+  with the answers and their players. The registry's test refuses a read
+  of a secret answer that no reveal step comes before (Menacing Ogre's
+  "each player with the highest number" after its reveal; The Toymaker's
+  Trap's guess, which reads nothing, before it). A choose step over objects
+  asks `SelectRecipients`, whose label is item 434's, slotted to
+  `card-and-object-model`; until it lands the registry refuses a secret
+  choose step over objects (Call to the Void, Malik, none registered here),
+  and that item can take this type. *Code*: 120–190, the mechanical sites
+  counted apart.
 - **B. The mark on the step only; the words a field on each kind.** The
   questions are unchanged until step 8 threads the mark through. *Upkeep*:
   step 8 then reshapes every choose question the way A does now, and a
@@ -1402,8 +1545,10 @@ GUI's number field has a top (`NumberField`, `devgui/src/view_model.rs:1285`).
 The clients are a person at the four-seat GUI and an AI client; the random
 agent serves the fuzz runs.
 
-- **A. The offer says it has no top.** `XOffer::AtLeast(u64)`, offered as
-  `pick_number(min, u64::MAX)`. The random agent's policy, which lives in
+- **A. The offer says it has no top.** `ValueChoice::Number`'s `most`
+  becomes an `Option`, and the offer `XOffer::NoTop { at_least }` (named
+  apart from the `at_least()` method and `Interval`'s field beside it),
+  asked as `pick_number(min, u64::MAX)`. The random agent's policy, which lives in
   `autopilot/random` and not in the engine, draws from `min` through
   `min + 20` for any open offer; the dev GUI's field takes any number typed
   and its "+" never stops. *Code*: 40–70.
@@ -1428,11 +1573,13 @@ What is open is what is kept and how "that pile" and "the other" read.
 - **A. Two steps: separate, then choose a pile.** `ValueChoice::Piles { of,
   count }` keeps `ChosenValue::Piles`, the objects of each pile, each pile
   allowed to be empty (CR 700.3d) and every object in exactly one (CR
-  700.3a); `ValueChoice::OneOfThePiles` asks among them, each pile offered
-  by its objects (never by its place), and keeps the pile chosen as
-  `Pile`. "That pile" is `ChosenAs(Pile)`, "the other" is the piles' objects
-  not in it. Under a walk the piles are each player's own (decision 2), so
-  Make an Example's "for each opponent, you choose one of their piles"
+  700.3a), kept as `ChoiceKind::Separation`; `ValueChoice::OneOfThePiles`
+  asks among them, each pile offered by its objects (never by its place),
+  and keeps the pile chosen as `ChoiceKind::ChosenPile`, the two names told
+  apart by more than a letter. "That pile" is `ChosenAs(ChosenPile)`, "the
+  other" is the separation's objects not in it. Under a walk the piles are
+  each player's own (decision 2), so Make an Example's "for each opponent,
+  you choose one of their piles", a second step walking the same group,
   offers that opponent's. Separating moves nothing (CR 700.3c). *Code*:
   180–280, and 40–70 more for its two questions through every client.
 - **B. One step that separates and picks**, keeping `{ chosen, rest }`.
@@ -1455,30 +1602,34 @@ and the first row came to 2,876 against 1,290–2,130.
 
 | Piece | Code | Tests | PR |
 |---|---:|---:|---|
-| Decision 1: the keep, the first row's readers moved to read every answer | 80–130 | 30–60 | 1 |
-| Decision 2: the walk, its orders, each answer kept as given, the registry's check | 130–210 | 100–160 | 1 |
-| Decision 3: the walk's player in a filter | 40–70 | 30–50 | 1 |
+| Decision 1: the keep, the first row's readers moved to read every answer, an amount reading one | 80–130 | 30–60 | 1 |
+| Decision 2: `ChosenHow`'s two parts, `Apnap` and `FirstThenApnap`, one player and each for themselves, each answer kept as given | 120–190 | 90–140 | 1 |
+| Decision 3: the player an answer is for, in a filter | 40–70 | 30–50 | 1 |
 | Decision 8: the open number, the agent, the GUI field | 40–70 | 30–50 | 1 |
-| Item 435: each step's list of what it reads, its board failing first | 80–130 | 40–70 | 1 |
+| Decision 11: a chooser who has left the game (CR 800.4g), failing first | 30–60 | 30–50 | 1 |
+| Item 435: each step's list of what it reads, which replaces the registry's scan of a step's printed form; its board failing first | 100–160 | 50–80 | 1 |
 | Gluntch's three different players, Fortunate Few's exclusion | 30–50 | 30–50 | 1 |
 | Harsh Mercy, Divine Reckoning, Fortunate Few, Gluntch, Choice of Damnations registered | 150–250 | 200–300 | 1 |
 | The dev GUI's tests | 20–40 | 10–30 | 1 |
-| **The first PR** | **570–950** | **470–770** | **1,040–1,720** |
+| **The first PR** | **610–1,020** | **500–810** | **1,110–1,830** |
 | Decision 7: the mark, the reveal, the label with item 437's words | 120–190 | 60–100 | 2 |
 | Decision 6: the word, `ChooseWord` through every client | 110–170 | 60–100 | 2 |
-| Decision 4: `AnswerIs`, the group, the count, the number, the conditions | 90–150 | 70–120 | 2 |
-| Decision 5: the vote, several votes, the additional vote, the winner and the most chosen | 230–370 | 170–280 | 2 |
-| Menacing Ogre, Prisoner's Dilemma, Plea for Power, Council's Judgment, Lieutenants of the Guard, Brago's Representative registered; the friend-or-foe fixture | 200–330 | 270–400 | 2 |
+| Decision 4: `AnswerSelection`, the group, the count, the number, the conditions | 90–150 | 70–120 | 2 |
+| Decision 5: the vote, one each, the winner and the most chosen | 170–270 | 130–210 | 2 |
+| Decision 2's `TurnOrderFrom` and one player answering for each | 20–40 | 20–40 | 2 |
+| Menacing Ogre, Prisoner's Dilemma, Plea for Power, Council's Judgment, Lieutenants of the Guard registered; the friend-or-foe fixture | 170–280 | 230–340 | 2 |
 | `Vote` through every client; the dev GUI | 60–100 | 30–60 | 2 |
-| **The second PR** | **810–1,310** | **660–1,060** | **1,470–2,370** |
+| **The second PR** | **740–1,200** | **600–970** | **1,340–2,170** |
 | Decision 9: the piles, both questions through every client | 220–350 | 140–240 | 3 |
+| Decision 2's at random for each player | 20–30 | 20–30 | 3 |
 | Do or Die, Make an Example, Whims of the Fates registered | 90–150 | 120–180 | 3 |
-| **The third PR** | **310–500** | **260–420** | **570–920** |
+| **The third PR** | **330–530** | **280–450** | **610–980** |
 
-**3,080–5,010 for the row**, so about 5,000 read by its top, against the
-brief's 1,160–1,880 with the secret mark not counted there. The guess
-counted the 16 "each player chooses" values; the census finds 59 such
-cards and 41 walks from a named player, and the readers' table is new.
+**3,060–4,980 for the row**, so about 5,000 read by its top, against the
+brief's 1,160–1,880 (the Sizing row's 1,000–1,600 with items 435 and 437),
+with the secret mark not counted there. The guess counted the 16 "each
+player chooses" values; the census finds 59 such cards and 41 walks from a
+named player, and the readers' table is new.
 
 Where the line between the first two PRs falls is set by their consumers.
 The word and every selection of answers (decisions 4 and 6) have no
@@ -1493,29 +1644,87 @@ Ceremonies). So they ride with the mark and the vote.
   (`separate-into-piles`). The third is under the band (1,500–2,500,
   `engineering-practices.md#sizing-a-phase`); it is whole, and nothing
   else of the subsystem is ready to ride with it.
-- **B. Two PRs, the piles with the walk**: 1,610–2,640 and 1,470–2,370.
+- **B. Two PRs, the piles with the walk**: 1,720–2,810 and 1,340–2,170.
   Each pile card needs only the walk, so the first can carry them; it is
-  140 past the band's top as read.
+  310 past the band's top as read.
 - **C. Fold the parity predicate in.** "Odd or even" (5 cards) is a
   comparison of a number read off an object; four of the five read mana
-  value, which `ObjectValue` gains at step 7. Filed there under A and B;
+  value, which `ObjectValue` gains at step 7. Filed there under A, B and D;
   folded into the second PR here it adds about 120, with Zimone's
   Hypothesis, which reads power.
+- **D. The first two now, the piles off the route** (the fresh read's
+  question). v0.5's five decks hold one card in this row's families,
+  Selvala's Stampede, a vote that also waits for `information-model`'s
+  reveal; no pile card is in them. The piles become a backlog entry with
+  this note's decision 9 as its design, built with the wider card work
+  after v0.5. The choices subsystem then closes with
+  `values-kept-past-the-resolution` short of CR 700.3, which the plans
+  record.
 
-**Recommended: A, with parity filed at step 7.** The route's Sizing table
-and `choices-architecture.md#5-the-build-sized` gain the two new rows at
-the build's first commit.
+**Recommended: A, with parity filed at step 7.** The piles are small and
+whole, and CR 700.3 is the subsystem's (the CR is the customer, not a deck
+list); D is the owner's call if the route is to reach v0.5 sooner. The
+route's Sizing table and `choices-architecture.md#5-the-build-sized` gain
+the new rows at the build's first commit.
+
+### Decision 11 — a chooser who has left the game (CR 800.4g)
+
+**Retrofit cost if chosen wrong.** One function, `chooser_named_by`
+(`engine/resolve.rs:780`), and the boards that pin it; at four seats a
+player leaving is ordinary, so a wrong answer reaches games.
+
+**The rules.** CR 800.4g: "If an object requires a player who has left the
+game to make a choice other than whether to pay a cost, the controller of
+the object chooses another player to make that choice. If the original
+choice was to be made by an opponent of the controller of the object, that
+player chooses another opponent if possible." CR 800.4f does the same for a
+cost: it isn't paid. CR 608.2b: a target that is no longer legal "won't be
+affected by parts of a resolving spell's effect for which they're illegal",
+and "any part of the effect that requires that information won't happen".
+And CR 104.3a: a player may concede at any time, so a walk can lose a
+player partway.
+
+**Today** `chooser_named_by` answers `None` both for a target that went
+illegal and for a named player gone from the game (`:775`–`:779`), and the
+step chooses nothing. The first row read 608.2b for both; it did not read
+800.4g, which is the rule that watches it (found by the fresh read).
+
+| The chooser who has left | Example | Today | The rules |
+|---|---|---|---|
+| a target player | "target opponent chooses a number", with a second target keeping the spell resolving | nothing chosen | 608.2b: that part won't happen; 800.4g read alone would hand it on |
+| a player named otherwise | Gluntch's chosen player; a trigger's "that player chooses" whose player left before it resolved | nothing chosen | 800.4g: the controller picks another player (another opponent where the first was one), who chooses |
+| a player of a walk | "each player chooses", one conceding partway | the walk reads the players in the game | they are no longer "each player"; the walk reads its group as it reaches each player, and an answer given before they left stays kept but is read only for players in the game |
+
+- **A. 608.2b for a target, 800.4g for every other named chooser.** A
+  target who left is an illegal target, and 608.2b runs first: the part
+  that needs the target's choice won't happen, so the object no longer
+  requires that player to choose and 800.4g does not reach it. Item 435's
+  board stands as the item states it. A named chooser who is not a target
+  and has left: the controller is asked `ChoosePlayer` among the other
+  players (the other opponents, if any, when the first was an opponent),
+  and that player answers. *Code*: 30–60, the first row's answer for a
+  player gone changed and shown failing first.
+- **B. 800.4g for every chooser who has left, targets included.** The
+  illegal target's choice passes to another player. Item 435's board then
+  shows a substitute choosing.
+- **C. Today's: nobody chooses**, in every case.
+
+**Recommended: A**, as a reading the owner rules on: neither rule's text
+settles a target who has left, and no ruling was found. The fails-first
+board for the second row of the table is a fixture whose trigger names
+"that player" as its chooser.
 
 ## The binding table
 
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
-| a step's answers, each with its player | as each player answers, in the walk's order (CR 608.2d, 101.4) | latched (CR 608.2h); objects by existence (`ObjectRef`, CR 400.7) | `ResolvingObject::choices`, one `KeptChoice` per name | later steps, by any answer or a selection; a later chooser of the same walk (CR 101.4b) | with the resolving record (CR 608.2n) |
-| the walk's player | as the walk reaches each player | live for that player's question only | the walk, a local of `choose_value` | the step's own filter ("they control") and options ("one of their piles") | at the next player |
-| a voter's number of votes | as the walk reaches the voter | read then, never kept (CR 701.38d) | not stored: one plus each "additional vote" on the voter's permanents' effective abilities | the vote's question | at the next voter |
+| a step's answers, each with its player | the kept choice opened empty as the step starts; each answer as it is given, in the walk's order (CR 608.2d, 101.4) | latched (CR 608.2h); objects by existence (`ObjectRef`, CR 400.7) | `ResolvingObject::choices`, one `KeptChoice` per name | later steps, by any answer or a selection; the same step's later questions (CR 101.4b) | with the resolving record (CR 608.2n) |
+| the walk's group | as the walk reaches each player: the group read against the players still in the game then | live | not stored: `players_in` asked each time | the walk | at the step's end |
+| the player an answer is for | as the walk reaches each player, or as a one-chooser step asks | live for that question only | the walk, a local of `choose_value` | the step's own filter ("they control") and options ("one of their piles") | at the next question |
+| a voter's number of votes | as the walk reaches the voter | read then, never kept (CR 701.38d) | not stored: one, until step 10's effective-value query answers it (decision 5) | the vote's question | at the next voter |
 | the secret mark | written on the card | fixed | the step, and each question it asks | step 8's stamp; the registry's test | — |
 | a reveal | as the reveal step runs | latched: a record | the event stream, `ChoicesRevealed` | every seat (step 8), the log | never: history |
-| the piles | as the separator answers | latched | `choices`, as `Piles` | the pick of a pile; "that pile" and "the other" | with the resolving record |
+| the piles | as the separator answers | latched | `choices`, as `Separation` | the pick of a pile; "that pile" and "the other" | with the resolving record |
 
 ## What builds without a decision
 
@@ -1527,13 +1736,22 @@ the build's first commit.
   effect won't happen (CR 608.2b), so the atom does nothing. The amount
   reader and the player word then never meet a missing name except on a
   card the registry refuses. The two-target board the item names: a spell
-  whose second target keeps it resolving after the player who chose left
-  the game, written as a fixture.
+  whose second target keeps it resolving after the target player who was to
+  choose left the game, written as a fixture (decision 11's A). **It
+  replaces the registry's scan** (`chosen_name_problems`,
+  `cards/registry.rs:1916`), which finds a read by matching `ChosenAs(` in a
+  step's printed form and so could not see the second PR's readers; it
+  lands in the first PR, before they arrive.
 - **Gluntch's three different players.** `ValueChoice::Player` gains the
   names whose answers it leaves out ("a second player", the ruling's "must
   be different players"), and `ChoiceKind` gains `SecondPlayer` and
   `ThirdPlayer` with the card, as the first row's decision 1 said a card
-  keeping two of a kind would.
+  keeping two of a kind would. One printed card wants the exclusion
+  (`o:"choose a second player"`, 1; the census row's third, Dack Fayden,
+  Helping Hand, is found by `o:/choose (a|an) (second|third|different)
+  (player|opponent)/` and not read here), so the owner is asked whether a
+  list of names to leave out is the right general shape, beside the other
+  way: a `PlayerSet` arm, which decision 4's reason keeps off that type.
 - **Fortunate Few's "that hasn't been chosen this way"** is
   `non(one_of_the_chosen())` in the step's own filter, read each time the
   walk reaches a player: each answer is kept as it is given.
@@ -1560,7 +1778,6 @@ piece each needs.
 | 2 | Plea for Power | Conspiracy, a new `2014/06_06_cns.rs` | a word vote from you, the winner, a tie |
 | 2 | Council's Judgment | Conspiracy | an object vote, the most chosen |
 | 2 | Lieutenants of the Guard | Conspiracy: Take the Crown, a new `2016/08_26_cn2.rs` | counted votes on an entering trigger |
-| 2 | Brago's Representative | Conspiracy | two votes at once (CR 701.38d) |
 | 3 | Do or Die | Invasion, `2000/10_02_inv.rs` | two piles, the other player's pick |
 | 3 | Make an Example | New Capenna Commander, a new `2022/04_29_ncc.rs` (its promo printing, PNCC, is the same day) | each opponent's piles, you choosing for each |
 | 3 | Whims of the Fates | Born of the Gods, a new `2014/02_07_bng.rs` | three piles, a pile each at random, from you in turn order |
@@ -1570,9 +1787,8 @@ invented: "For each player, choose friend or foe. Each friend draws a
 card. Each foe loses 2 life", the one-chooser-for-each walk on the verbs a
 group already takes (a draw, a life loss). Every printed friend-or-foe
 card gives a friend an action read per player, which is step 7's
-`ForEach`. The first PR's one-chooser-for-each walk is proved by a rule
-test on that fixture's shape without its word: a color chosen for each
-player.
+`ForEach`. Brago's Representative registers at step 10 under decision 5's
+(a), or in the second PR under its (b).
 
 **What a new question moves.** No registered card asks a new question
 or loses one, so the 50-game fixture rows move only with a card pooled
@@ -1595,7 +1811,9 @@ with its cards unregistered; the branch. The middle arm asks no new
 question and moves no answer, so it is predicted `IDENTICAL` to `main`:
 the keep's reshape and the walk change nothing for one chooser, item 435
 changes only a step whose name was never kept, which no registered card
-reaches, and the label adds no prompt. The branch moves with its cards.
+reaches, and the label adds no prompt. Decision 11's A changes a game only
+where a non-target chooser has left before its step, which the dumps will
+name game by game. The branch moves with its cards.
 
 ## Filed at the close-out, if the decisions stand
 
@@ -1606,19 +1824,32 @@ reaches, and the label adds no prompt. The branch moves with its cards.
   the Spotlight, Mob Verdict, Círdan); a friend's or foe's own action
   (Pir's Whim, Regna's Sanction, Virtus's Maneuver, Khorvath's Fury,
   Zndrsplt's Judgment); "odd or even" with mana value (Extinction Event,
-  Mutinous Massacre, Thanos, Zimone's Hypothesis); its decision 5's note
-  that friend or foe's word and walk landed here.
+  Mutinous Massacre, Thanos, Zimone's Hypothesis); Wheel of Misfortune's
+  "each player who didn't choose the lowest number", a group's complement
+  and `AnswerIs`'s lowest; `PlayerRef::NamedBy`'s fold, for both its uses
+  (Mana Leak's "its controller", which is `ControllerOf`, and ward's "that
+  player", the triggering player); and its decision 5's note that friend or
+  foe's word and walk landed here.
+- `player-scoped-values` (step 10): a voter's count of votes from its
+  effective-value query, the several votes' `allocate` ask, and Brago's
+  Representative, Ballot Broker and The Valeyard (decision 5's (a)).
 - `information-model`: a pile one player has not seen (the face-down
   piles); Fact or Fiction and the 18 other pile cards whose objects sit in
   a library or exile, which wait for "the top N cards" as a set beside
-  Selvala's Stampede's reveal; Wheel of Misfortune's "didn't choose the
-  lowest", once a group can be its complement.
+  Selvala's Stampede's reveal; a secret choose step over objects, with
+  item 434's label (Call to the Void, Malik).
+- **Several picks by one answerer** ("an artifact, a creature, an
+  enchantment, and a land"; "a creature they control and a creature they
+  don't control", CR 101.4c): a choose step's arm with its first card
+  (Cataclysm, Balance's lands, Tragic Arrogance, Call to the Void), filed
+  as an item. The first PR rewords the three plans on the edict's `Choice`
+  (`types/effects.rs:1504`, `:1511`, `:1519`: "Cataclysm's four", "another
+  player's objects", "the rest") to name the choose step as their home.
 - The backlog's voting entry (`backlog.md#24-voting-and-the-decisionprovider-choice-shapes`)
   rewritten to what is left: "whenever players finish voting" as a trigger
-  event (Grudge Keeper, Erestor of the Council, Model of Unity), Illusion
-  of Choice's "you choose how each player votes", the optional additional
-  vote's cards (Ballot Broker, The Valeyard) if the second PR does not
-  register one.
+  event (Grudge Keeper, Erestor of the Council, Model of Unity), and
+  Illusion of Choice's "you choose how each player votes", a change to a
+  vote's `answered_by`.
 - `combat-restrictions`: Fight or Flight, Stand or Fall and Raging River's
   piles, read by an attack or block restriction; Camouflage's blocking.
 - The third row, `values-kept-past-the-resolution`: Council Guardian's
