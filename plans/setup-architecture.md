@@ -1228,7 +1228,7 @@ second display client compute the same thing from the same facts?
 | `DecisionKind::as_str` | the engine, `decision::decision_types` | the log, the prompt and the setup driver's refusal spell a kind one way |
 | An option's identity, and the one matcher that finds it in a list | the engine, `decision::decision_types` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
 | A record's header, a start's text and a line's, written and read | the engine, `state::decision_log` | every client's log and save say the same words and what wrote them, and one parser reads them (decision 6) |
-| The replay | the engine, a provider in `ui` | a second client's undo replays the same way |
+| The replay | the engine, a provider in `policies` | a second client's undo replays the same way |
 | The stop | the engine, `decision::provider` and `Game` | it crosses the boundary |
 | The save's journal and tree; where the window was asked | the dev GUI | which prompts reach a person is one client's seat stack; it moves to the engine when a second client reads saves (`backlog.md` §2.38) |
 | The replaying status, the buttons, the menu | the dev GUI's drawing | how it looks |

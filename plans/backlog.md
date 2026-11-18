@@ -2730,7 +2730,7 @@ v1's design chooses its own from them.
 
 **Open question 6: where the words live** (the owner, 2026-10-05, at #221's
 review; noted, not designed). `words::why` (360 lines at #221) and, by the same
-argument, `words::display` (1,215) sit in the engine crate's `ui` module, so
+argument, `words::display` (1,215) sit in the engine crate's `words` module, so
 every client says the same words: the CLI, the dev GUI, v1's GUI and an AI
 harness's logs. That is `engineering-practices.md#the-dev-gui`'s "engine computes, ui
 words, window draws" and `setup-architecture.md` §7c's decision 2. The owner

@@ -9980,49 +9980,15 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
      **Reachability (2026-10-30):** closed — PR #300.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 356".
 
-357. **`ui/` holds three kinds of code under one name.** About 7,100 lines
-     of code and 2,200 of tests (2026-10-30), more than `oracle` and `events`
-     together:
-     - **the engine's question boundary**: `ask`, `decision_types` and
-       `decision`, about 2,500 lines, the `DecisionProvider` surface every
-       client and agent answers through;
-     - **agent-side policies**: `random`, `mana_window_stop`, `auto_payer`,
-       `auto_yield`, `full_control`, `auto_order_triggers` and `replay`,
-       decorators a seat chooses, read by the harness, the dev GUI and the
-       tests;
-     - **client rendering and explanation**: `display`, `why`,
-       `what_happened`, `waiting` and `cli`, about 3,200 lines of text a
-       client shows a person.
-     The third is what a viewer sees, and `information-model-design`
-     decides what each viewer may see, so that design is where its home is
-     settled. **What the engine takes from `display`, read import by import
-     (2026-10-30, at #299's review): no rule reads it**, since nothing
-     branches on its text. The engine's own output borrows its words: the
-     trace sink's `name` and `text` fields (`state/trace.rs`,
-     `engine/trace_records.rs`, the restriction's `as_recorded`), the
-     audits' disagreement messages (`engine/triggers/audit.rs`,
-     `engine/triggers/state.rs`) and `Game::event_log`. Two saved formats
-     go further and *parse* through it: `.scenario` files and the decision
-     log both spell a step with `scenario::position_word`, which was
-     `display::step_name` lower-cased, and read it back by matching that
-     spelling, so a wording change in a client's table stopped saved files
-     loading: "Declare Blockers Step" made the shipped template refuse its
-     own `step declare blockers`. **Fixed in #299**: the formats keep their
-     own table, pinned by `a_saved_position_is_spelled_as_the_format_was_written`,
-     and the same wording change leaves every saved file loading. What is
-     left is the output's borrowing above. Found at #299's review (the owner: "the UI
-     module of this project has already gotten a little overgrown compared
-     to the rest of the engine"), when this PR's census hook nearly added a
-     sixteenth file to it.
-     **Reachability (2026-10-30):** nothing owed — a structure question;
-     every reader works.
-     **Sized:** the decision at `information-model-design`'s stop; then the
-     moves, mechanical: the rendering group alone is imported by 13 other
-     files in `src`, 19 in `tests` and 6 in the dev GUI (2026-10-30), a
-     path sweep through `plans/replace_exact.py`.
-     **Slotted:** `ui-in-three`, by moves alone: decision 9 of
-     `plans/handoffs/information-model-design.md`, taken at #332's design
-     review (2026-11-17), split the module three ways.
+357. **~~`ui/` holds three kinds of code under one name.~~ — ✅ CLOSED
+     2026-11-17 (`ui-in-three`).** — archived.
+     `decision/` holds the question boundary, `policies/` the policies a seat
+     chooses and `words/` the words a client shows, by moves alone. Left
+     where they were, in plain sight: the boundary reads six of `display`'s
+     helpers, six engine files read the words for their own output, and the
+     scenario loader and `GameStart::replay` read two policies.
+     **Reachability (2026-11-17):** closed — `ui-in-three`.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 357".
 
 ### Found by `card-layer-cleanup`'s first PR (2026-10-31)
 
