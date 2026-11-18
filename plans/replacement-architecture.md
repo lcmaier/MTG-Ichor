@@ -2683,7 +2683,7 @@ take a `&dyn DecisionProvider`. The 44 test `advance_turn` calls funnel through
 One new `DecisionKind`, plus one reused shape:
 
 ```rust
-// decision/decision_types.rs
+// decision/question.rs
 /// CR 616.1 — two or more replacement/prevention effects want the same event.
 /// Only asked when there is a genuine choice (2+ candidates in the forced
 /// bucket); a single candidate applies without a prompt.

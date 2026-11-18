@@ -2759,7 +2759,7 @@ covers them too. The options, with what each costs:
   files that word things today (the trace's two writers, the trigger audit's
   two files, a restriction's recorded keyword and `Game`'s event log) and the
   question boundary, which spells a logged option with six of `display`'s
-  helpers (`decision/decision_types.rs`), would depend on a crate that
+  helpers (`decision/question.rs`), would depend on a crate that
   depends on them, so their words move out with the trace's reader, or the
   records change to typed fields. It also needs a Cargo workspace.
 
@@ -2767,10 +2767,11 @@ Decided at Phase 10's design, beside `codebase-state.md` item 208 (the
 crate's name and a workspace), since both redraw the crate boundary. The
 same redraw meets the policies, if they leave the engine crate too: the
 scenario loader's setup driver stacks `ManaWindowStop` and reads the random
-agent's crate-private `mana_window_preference`, `BuiltStart::replay` takes a
-`Replay`, and the replay checks each answer with `decision::ask`'s
-crate-private validators. Item 357's archive entry lists each crossing as
-`ui-in-three` left it.
+agent's crate-private `mana_window_preference`. The replay is the decision
+log's (`state::decision_log::Replay`), and checks each answer with
+`decision::ask`'s crate-private validators, a read inside the engine crate
+for as long as the boundary is. Item 357's archive entry lists each crossing
+as `ui-in-three` left it.
 
 **How an object's text shows** (the owner, 2026-10-01, at A6g's ability
 names), as Arena shows it: an object's abilities in printed order, a granted

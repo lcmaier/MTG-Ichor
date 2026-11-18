@@ -1225,10 +1225,10 @@ second display client compute the same thing from the same facts?
 
 | Surface | Home | Why |
 |---|---|---|
-| `DecisionKind::as_str` | the engine, `decision::decision_types` | the log, the prompt and the setup driver's refusal spell a kind one way |
-| An option's identity, and the one matcher that finds it in a list | the engine, `decision::decision_types` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
+| `DecisionKind::as_str` | the engine, `decision::question` | the log, the prompt and the setup driver's refusal spell a kind one way |
+| An option's identity, and the one matcher that finds it in a list | the engine, `decision::question` | a recorded answer, a setup line and a test's script name what was chosen alike (decision 6) |
 | A record's header, a start's text and a line's, written and read | the engine, `state::decision_log` | every client's log and save say the same words and what wrote them, and one parser reads them (decision 6) |
-| The replay | the engine, a provider in `policies` | a second client's undo replays the same way |
+| The replay | the engine, a provider in `state::decision_log` | a second client's undo replays the same way |
 | The stop | the engine, `decision::provider` and `Game` | it crosses the boundary |
 | The save's journal and tree; where the window was asked | the dev GUI | which prompts reach a person is one client's seat stack; it moves to the engine when a second client reads saves (`backlog.md` §2.38) |
 | The replaying status, the buttons, the menu | the dev GUI's drawing | how it looks |
@@ -2487,8 +2487,8 @@ replays the original.
 |---|---:|---|
 | `ask_*` functions | 29 | `mtgsim/src/decision/ask.rs` |
 | their call sites | 38, in 15 files | 14 under `engine/`, and `state/game.rs` |
-| `DecisionKind` variants | 31 | `decision/decision_types.rs:39` |
-| `DecisionOption` variants | 13 | `decision/decision_types.rs:495` |
+| `DecisionKind` variants | 31 | `decision/question.rs:39` |
+| `DecisionOption` variants | 13 | `decision/question.rs:495` |
 | `DecisionProvider` implementations | 47: 19 engine, 25 tests, 3 dev GUI | 10 of the engine's 19 are decorators that forward to an inner provider; the 3 in the dev GUI are `GuiSeat`, `HandOver` and `AtTheQuestion` |
 | scenario files | 14, every one with a `step` line | `mtgsim/scenarios/` (6), `devgui/tests/scenarios/` (8) |
 | files that parse a scenario | 11 integration-test files, `fuzz_games`, and the dev GUI's editor, bridge, session and two test harnesses | |
@@ -3387,7 +3387,7 @@ paused game is a path no fuzz game takes: `fuzz_games` keeps calling
    game, so the process model holds it. Not a reason to take the card in; a
    note for whoever reopens the tail.
 5. **The log writes an activated ability as its internal id.**
-   `DecisionOption::as_logged` (`decision/decision_types.rs:544`) writes an
+   `DecisionOption::as_logged` (`decision/question.rs:544`) writes an
    activation as `activate Forest (#13) ability 0x…`, `AbilityId`'s
    hexadecimal derivation, though `AbilityId`'s own `Display` says it is
    "diagnostics only — a log names an ability by index"
@@ -3621,7 +3621,7 @@ refused at every run entry; the setup driver's refusal raised as one, which
 `fuzz_games` and the dev GUI report as the scenario's. The log's text in the
 engine (`state::decision_log`): `decision log 1` and the engine's commit, a
 `GameStart` written, read and built, an answer a line naming what it chose,
-the outcome; `BuiltStart::play` and `replay`. `policies::replay`: each line checked
+the outcome; `BuiltStart::play` and `replay`. `state::decision_log::Replay`: each line checked
 and its choice found by what it is, a forced line skipped or supplied where
 two builds differ, then the seats or a stop, and a `ReplayControl` for another
 thread. The memo's audits paused for a replay within a session and resumed at

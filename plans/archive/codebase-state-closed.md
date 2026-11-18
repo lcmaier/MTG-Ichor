@@ -10754,17 +10754,20 @@ announces the permanent, and no choice is made.
 ### Item 357 — closed 2026-11-17 by `ui-in-three`
 
 Closed by moves alone, decision 9 of `plans/handoffs/information-model-design.md`:
-`ask`, `decision_types` and the trait's file went to `decision/`; `random`,
-`replay` and the four decorators to `policies/`; `display`, `why`,
-`what_happened` and `waiting` to `words/`. The trait's file is
-`decision/provider.rs`, since `decision/decision.rs` is clippy's
-`module_inception`. No item in any file changed, and the PR body's script
-shows each byte for byte.
+`ask`, `decision_types` and the trait's file went to `decision/`; `random`
+and the four decorators to `policies/`; `display`, `why`, `what_happened`
+and `waiting` to `words/`. The trait's file is `decision/provider.rs`, since
+`decision/decision.rs` is clippy's `module_inception`. At the PR's first
+review round (the owner, 2026-11-17) `decision_types` became
+`decision/question.rs`, for the parts of a question it holds, and `replay`
+went to `state/decision_log/replay.rs`, beside the format it reads, in place
+of `policies/`. No item in any file changed, and the PR body's script shows
+each byte for byte.
 
 What a move does not fix stays where it was, read off the imports at the
 close:
 
-- **The boundary reads the words** at `decision/decision_types.rs:16`: six of
+- **The boundary reads the words** at `decision/question.rs:16`: six of
   `display`'s helpers (`printed_name` and the cost and color words) spell a
   logged option.
 - **Six engine files read the words for their own output**: the trace's two
@@ -10775,14 +10778,15 @@ close:
   `test_support.rs` and `oracle/mana_supply.rs`'s tests, and two more files
   name them only in doc comments (`engine/layers/explain.rs`,
   `events/unasked.rs`).
-- **Two engine modules read the policies**, which decision 9 did not name:
-  the scenario loader's setup driver stacks `ManaWindowStop` and asks
-  `random::mana_window_preference` (`scenario/setup.rs`), and
-  `BuiltStart::replay` takes a `Replay` (`state/decision_log/start.rs`). The
-  policies reach past the boundary too: the replay checks each answer with
-  eight of `decision::ask`'s crate-private validators and reads the decision
-  log's format, and the random agent reads `oracle::mana_supply`. The
-  boundary's own tests run the random agent and a replay.
+- **The scenario loader reads the policies**, which decision 9 did not
+  name: its setup driver stacks `ManaWindowStop` and asks
+  `random::mana_window_preference` (`scenario/setup.rs`). The random agent
+  reaches past the boundary too, to `oracle::mana_supply`.
+- **The replay reads the boundary's crate-private validators**: it checks
+  each answer with eight of `decision::ask`'s. In the decision log, beside
+  the format it reads and the start (`BuiltStart::replay`) that takes it,
+  this is a read inside the engine crate for as long as the boundary is.
+  The boundary's own tests run the random agent and a replay.
 
 Modules of one crate import each other both ways, so each compiles as it
 stands. They matter only when the modules become crates, which `backlog.md`

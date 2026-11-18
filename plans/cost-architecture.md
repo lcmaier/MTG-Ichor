@@ -1045,7 +1045,7 @@ the same player.
 | `engine/resolve.rs` | the refusal arm |
 | `engine/layers/condition.rs`, `board.rs` | `SourceUntapped`; `settled_holds` public |
 | `types/effects.rs` | `Effect::CostModification(Box<_>)`, `Effect::as_cost_modification`, `Condition::SourceUntapped` |
-| `decision/decision_types.rs`, `decision/ask.rs`, `ui/cli.rs` | `OrderCostReductions`, `ask_order_cost_reductions`, the label |
+| `decision/question.rs`, `decision/ask.rs`, `ui/cli.rs` | `OrderCostReductions`, `ask_order_cost_reductions`, the label |
 
 **CM-2 adds five, and changes one of CM-1's** (2026-09-07):
 

@@ -499,7 +499,7 @@ owns:
 | Axis | What a "can't" attaches to | The enumeration that bounds it | Open? |
 |---|---|---|---|
 | 1 | an event the engine proposes | `GameAction` variants, via `EventPattern` | grows with the engine |
-| 2 | a choice a player makes | `DecisionKind` (`decision/decision_types.rs`) | grows with the engine |
+| 2 | a choice a player makes | `DecisionKind` (`decision/question.rs`) | grows with the engine |
 | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
 | 4 | a rule's own action | `RuleAction`: the check's `StateBasedAction`, and each turn-based action a card can switch off | grows with its first card |
 
@@ -507,7 +507,7 @@ owns:
   variants and reach this arm through `EventPattern` for free. A change that
   adds an event-shaped arm here is the smell.
 - **Every axis-2 arm names one `DecisionKind`.** Adding one is a claim that the
-  engine offers a player a decision that `decision/decision_types.rs` does not
+  engine offers a player a decision that `decision/question.rs` does not
   enumerate. That is a real thing to check, and usually the answer is that the
   missing item is a `DecisionKind`.
 - **Axis 3 is closed** for the reason its own doc comment gives: one application

@@ -40,7 +40,7 @@ the unit's total:
     (`codebase-state.md` item 162) has to read;
   * a CLAUSE -- one sentence naming a casting or playing permission.
 Keyword families and mana symbols are counted by card. The question kinds are
-read from `decision/decision_types.rs` and `words/why.rs` and asserted against the enum,
+read from `decision/question.rs` and `words/why.rs` and asserted against the enum,
 so a new `DecisionKind` fails this script until its row is written.
 
 WHAT THE NUMBERS ARE NOT
@@ -83,7 +83,7 @@ REGISTERED_CACHE = os.path.join(HERE, ".census-cast-registered.json")
 CR = os.path.join(ROOT, "MTG-Rules", "versions", "tmnt.txt")
 SRC = os.path.join(ROOT, "mtgsim", "src")
 REGISTRY = os.path.join(SRC, "cards", "registry.rs")
-CHOICE_TYPES = os.path.join(SRC, "decision", "decision_types.rs")
+CHOICE_TYPES = os.path.join(SRC, "decision", "question.rs")
 WHY = os.path.join(SRC, "words", "why.rs")
 
 # A contact address is optional for Scryfall and none is held in the tree.
@@ -1280,7 +1280,7 @@ def render_questions():
         L.append("| `%s` | %s | %s | %s | %s | %s |" % (k, esc(opts), filt, esc(reads) or "--",
                                                      QUESTION_OWNERS[key], slot or "--"))
     rest = Counter(QUESTIONS[k][1] for k in kinds if k not in explained)
-    head = ("%d kinds, parsed from `pub enum DecisionKind` in `mtgsim/src/decision/decision_types.rs`; `words::why::refusals` "
+    head = ("%d kinds, parsed from `pub enum DecisionKind` in `mtgsim/src/decision/question.rs`; `words::why::refusals` "
             "answers %d with a check (%s), read off its arms in `mtgsim/src/words/why.rs`, and every kind says what it "
             "ranges over (`ranges_over`). Of the %d it does not check, "
             "%d are **filtered**: a check drops a candidate the question could have named. %d are **bounds**: the "

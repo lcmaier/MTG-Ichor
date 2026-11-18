@@ -636,7 +636,7 @@ both what it rejected (`DecisionContext::rejected`). An *agent* is a program
 a rejected action again is its own policy. A *person* plays through a client,
 may take a canceled action again (CR 732.2), and is the seat full control
 and auto-yield are for. Not *player*, the CR's word for whoever plays.
-→ `decision::decision_types::Rejection`, `policies::random`.
+→ `decision::question::Rejection`, `policies::random`.
 
 **yield** — a person's standing pass, Arena's word and not the CR's: until
 the turn ends, until the stack changes, or until their own next turn. Set at a
