@@ -118,9 +118,10 @@ ROUTE_PREFIXES = {"triggers", "replacement", "mana", "copy", "layers", "choices"
 GUI_PREFIXES = {"devgui", "ui", "setup"}
 PROCESS_PREFIXES = {"process", "docs", "tooling", "dependabot"}
 #: On the route under another branch prefix: steps 1, 2 and 4 of the Sizing
-#: table, and the cleanup builds of the plan whose last rows are on that table,
-#: so the work is counted the way the rows left are.
-ROUTE_PRS = {284, 285, 288, 289, 290, 291, 293, 294, 298, 299, 300, 306}
+#: table, the cleanup builds of the plan whose last rows are on that table,
+#: and step 5's `ui-in-three` (a `ui/` branch, which was no dev GUI work), so
+#: the work is counted the way the rows left are.
+ROUTE_PRS = {284, 285, 288, 289, 290, 291, 293, 294, 298, 299, 300, 306, 333}
 
 
 def git(*args):
