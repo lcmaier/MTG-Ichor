@@ -9,7 +9,7 @@ use crate::state::game::{Game, Halt, RandomStreams};
 use crate::state::game_config::{GameConfig, MulliganRule};
 use crate::state::game_state::GameResult;
 use crate::decision::provider::DecisionProvider;
-use crate::ui::replay::Replay;
+use crate::policies::replay::Replay;
 
 use super::text::{LogError, Reader};
 

@@ -47,7 +47,7 @@ use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::decision::decision_types::{AmountOf, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Boards

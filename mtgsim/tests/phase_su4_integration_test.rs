@@ -17,9 +17,9 @@ use mtgsim::types::zones::Zone;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, Stop};
 use mtgsim::ui::display::format_event_log;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
-use mtgsim::ui::replay::Replay;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::policies::replay::Replay;
 
 /// A Lightning Bolt castable at the first priority prompt, so that prompt is
 /// asked rather than passed for the seat.

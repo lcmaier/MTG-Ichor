@@ -29,8 +29,8 @@ use mtgsim::types::zones::Zone;
 use mtgsim::decision::decision_types::{AbilityAsRead, DecisionContext, DecisionKind, DecisionOption, ReplacementOption, TriggerOption, TriggeredAbility};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::display::{format_event_log, option_label};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::replay::Replay;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::replay::Replay;
 
 const BRIDGE_AND_PYROCLASM: &str = "\
 hand 0: Pyroclasm

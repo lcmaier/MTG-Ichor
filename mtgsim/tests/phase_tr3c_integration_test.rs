@@ -53,7 +53,7 @@ use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::display::format_record;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Fixtures and helpers

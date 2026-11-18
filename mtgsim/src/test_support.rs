@@ -433,7 +433,7 @@ fn ability_at(game: &GameState, id: ObjectId, place: usize) -> crate::types::ids
 /// source will be offered again after the cost is covered and this provider
 /// will take it — including the activation's *own* source, whose `Cost::TapSelf`
 /// the payment is about to owe (`codebase-state.md` item 83). Wrap it in
-/// [`crate::ui::mana_window_stop::ManaWindowStop`] for any test that
+/// [`crate::policies::mana_window_stop::ManaWindowStop`] for any test that
 /// activates an ability or casts a spell with mana sources to spare, as every
 /// shipped client does; `prompts()` still counts what reached the recorder.
 pub struct RecordingDecisionProvider {

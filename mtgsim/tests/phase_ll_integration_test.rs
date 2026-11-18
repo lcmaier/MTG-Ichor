@@ -32,7 +32,7 @@ use mtgsim::types::effects::PlayerRef;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Helpers

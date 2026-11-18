@@ -16,7 +16,7 @@ use mtgsim::events::event::EventId;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
-use mtgsim::ui::auto_yield::Yield;
+use mtgsim::policies::auto_yield::Yield;
 use mtgsim::decision::decision_types::modes_as_logged;
 use mtgsim::ui::display::{delayed_trigger_in_log, target_with_share};
 use mtgsim::ui::waiting::{TriggersIn, Waiting};

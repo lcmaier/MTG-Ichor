@@ -60,7 +60,7 @@ use mtgsim::types::triggers::{
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 /// A 1/1 green Saproling creature token.
 fn saproling_token() -> TokenDef {
@@ -1563,7 +1563,7 @@ fn an_effect_that_counters_abilities_counters_a_triggered_ability() {
 fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
     use mtgsim::state::game::Game;
     use mtgsim::state::game_config::GameConfig;
-    use mtgsim::ui::random::RandomDecisionProvider;
+    use mtgsim::policies::random::RandomDecisionProvider;
 
     let deck: Vec<Arc<CardData>> = (0..20).map(|_| forest()).collect();
     let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();

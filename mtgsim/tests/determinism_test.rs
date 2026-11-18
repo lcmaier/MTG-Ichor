@@ -31,7 +31,7 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::test_support::{put_in_hand, setup_two_player_game, test_ctx, vanilla_creature};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 /// Play one short game and return its event log, rendered.
 fn play_seeded_game(seed: u64) -> Vec<String> {

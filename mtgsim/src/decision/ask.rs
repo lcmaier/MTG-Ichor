@@ -218,7 +218,7 @@ fn check_pick_n(
 
 /// Whether `indices` answers a `pick_n` of `options_len` options within
 /// `bounds`: a count in bounds, each in range, none twice. What the validator
-/// asserts and a replay checks before it answers (`ui::replay`), so neither
+/// asserts and a replay checks before it answers (`policies::replay`), so neither
 /// keeps a copy.
 pub(crate) fn pick_fits(indices: &[usize], options_len: usize, bounds: (usize, usize)) -> Result<(), String> {
     if indices.len() < bounds.0 || indices.len() > bounds.1 {
@@ -1808,7 +1808,7 @@ mod tests {
     /// lands on.
     #[test]
     fn test_random_dp_generic_split_spends_only_the_surplus() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
 
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
@@ -1976,7 +1976,7 @@ mod tests {
 
     #[test]
     fn test_random_pick_n_respects_bounds() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
 
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
@@ -2009,7 +2009,7 @@ mod tests {
 
     #[test]
     fn test_random_pick_n_exact_bounds() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
 
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
@@ -2038,7 +2038,7 @@ mod tests {
     /// with each of its values.
     #[test]
     fn the_random_agent_answers_a_set_of_x_only_from_the_set() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
         let game = test_game_state();
         let spell_id = crate::types::ids::new_object_id();
         let mut seen = std::collections::BTreeSet::new();
@@ -2090,14 +2090,14 @@ mod tests {
             forced: false,
             chosen: Chosen::Picks(vec![DecisionOption::Number(6).as_logged(&game)]),
         };
-        let replay = crate::ui::replay::Replay::new(vec![line]);
+        let replay = crate::policies::replay::Replay::new(vec![line]);
         assert_eq!(ask_choose_x_value(&replay, &game, 0, spell_id, tamiyo()), 6);
         assert_eq!(replay.remaining(), 0);
     }
 
     #[test]
     fn test_random_allocate_sums_correctly() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
 
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
@@ -2120,7 +2120,7 @@ mod tests {
 
     #[test]
     fn test_random_allocate_respects_minimums() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
 
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();
@@ -2260,7 +2260,7 @@ mod tests {
 
     #[test]
     fn test_random_dp_pick_n_contract_property() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
         use rand::SeedableRng;
         use rand::rngs::StdRng;
         use rand::Rng;
@@ -2293,7 +2293,7 @@ mod tests {
 
     #[test]
     fn test_random_dp_pick_number_contract_property() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
         use rand::SeedableRng;
         use rand::rngs::StdRng;
         use rand::Rng;
@@ -2317,7 +2317,7 @@ mod tests {
 
     #[test]
     fn test_random_dp_allocate_contract_property() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
         use rand::SeedableRng;
         use rand::rngs::StdRng;
         use rand::Rng;
@@ -2364,7 +2364,7 @@ mod tests {
 
     #[test]
     fn test_random_dp_ordering_contract_property() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
         use rand::SeedableRng;
         use rand::rngs::StdRng;
         use rand::Rng;
@@ -2393,7 +2393,7 @@ mod tests {
 
     #[test]
     fn test_random_choose_ordering_is_permutation() {
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
 
         let dp = RandomDecisionProvider::new();
         let game = test_game_state();

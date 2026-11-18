@@ -63,7 +63,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 /// Turns played before the harness stops, original and branch alike.
 ///

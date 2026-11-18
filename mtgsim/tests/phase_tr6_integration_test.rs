@@ -26,7 +26,7 @@ use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, Trigge
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::DecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
 
 fn gain_one() -> Effect {

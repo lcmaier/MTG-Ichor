@@ -23,8 +23,8 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::random::RandomDecisionProvider;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 

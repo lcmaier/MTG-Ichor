@@ -28,7 +28,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::decision::provider::DecisionProvider;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 /// The variants that may answer `subject()` with `None`, and the rule that
 /// makes each one so. Beside the assertion rather than in the engine so that

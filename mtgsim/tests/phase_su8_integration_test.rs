@@ -27,7 +27,7 @@ use mtgsim::types::costs::Cost;
 use mtgsim::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::decision::provider::ScriptedDecisionProvider;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::random::RandomDecisionProvider;
 use mtgsim::ui::why::{why, why_from_trace, OpenQuestion, Why, WhyAbout, WhyLine};
 
 /// Every line of `answer`'s section headed `heading`, as its text and rule.

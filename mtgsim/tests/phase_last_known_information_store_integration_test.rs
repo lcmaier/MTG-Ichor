@@ -22,7 +22,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{DelayedDuration, DelayedProvenance, DelayedTriggerTemplate, DelayedTurn, Referred, TriggerTurn};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 /// `player`'s Counterspell countering `spell` (CR 701.6a), resolved as an
 /// effect.

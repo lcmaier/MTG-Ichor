@@ -53,8 +53,8 @@ use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{create_goblins_for_each_seat, deal_commander_game, put_on_battlefield, AtEachPrompt};
 use mtgsim::decision::decision_types::DecisionContext;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 #[path = "support/counting_allocator.rs"]
 mod counting_allocator;

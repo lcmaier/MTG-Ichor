@@ -1,10 +1,4 @@
 pub mod display;
-pub mod random;
-pub mod mana_window_stop;
-pub mod full_control;
-pub mod auto_yield;
-pub mod auto_order_triggers;
-pub mod replay;
 pub mod what_happened;
 pub mod waiting;
 pub mod why;

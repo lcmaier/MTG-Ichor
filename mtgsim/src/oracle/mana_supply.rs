@@ -482,7 +482,7 @@ impl ManaSupply {
 
 /// A permanent's mana ability that can be activated now, and one type it
 /// makes: the random agent's view of the window's options, to tap first
-/// what makes a pip still owed (`ui::random`).
+/// what makes a pip still owed (`policies::random`).
 #[derive(Debug, Clone)]
 pub struct ManaSource {
     pub permanent_id: ObjectId,
@@ -1857,7 +1857,7 @@ mod tests {
     #[test]
     fn what_the_inventory_predicts_a_tap_makes_is_what_the_engine_makes() {
         use crate::cards::printings::nyxbloom_ancient;
-        use crate::ui::random::RandomDecisionProvider;
+        use crate::policies::random::RandomDecisionProvider;
 
         let pool = |game: &GameState| {
             let mut made = NO_MANA;

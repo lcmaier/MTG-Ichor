@@ -40,8 +40,8 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::{EventRole, TriggerCondition, TriggerDef};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Item 42 — the window flushes, and nothing that outlives it reads it

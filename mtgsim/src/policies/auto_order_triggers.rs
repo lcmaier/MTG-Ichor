@@ -111,7 +111,7 @@ mod tests {
     use crate::types::ids::{new_object_id, ObjectId};
     use crate::types::triggers::TriggerTier;
     use crate::decision::provider::ScriptedDecisionProvider;
-    use crate::ui::full_control::{FullControl, FullControlSwitch};
+    use crate::policies::full_control::{FullControl, FullControlSwitch};
 
     fn three_triggers() -> Vec<DecisionOption> {
         (0..3).map(|_| DecisionOption::Object(new_object_id())).collect()

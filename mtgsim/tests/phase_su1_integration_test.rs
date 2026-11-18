@@ -15,8 +15,8 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::history::TurnFact;
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 fn load(text: &str) -> Game {
     Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).map(|built| built.game).unwrap_or_else(|r| panic!("{r}"))

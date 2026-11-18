@@ -25,7 +25,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::auto_yield::Yields;
+use crate::policies::auto_yield::Yields;
 use crate::decision::decision_types::{DecisionContext, DecisionOption};
 use crate::decision::provider::{DecisionProvider, SeatMode};
 
@@ -150,7 +150,7 @@ mod tests {
     use crate::types::mana::ManaCost;
     use crate::decision::decision_types::DecisionKind;
     use crate::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
-    use crate::ui::mana_window_stop::ManaWindowStop;
+    use crate::policies::mana_window_stop::ManaWindowStop;
 
     fn covered_window() -> DecisionContext {
         DecisionContext::new(DecisionKind::ManaAbilityWindow {
@@ -202,7 +202,7 @@ mod tests {
     /// asks the person rather than passing for them.
     #[test]
     fn full_control_cancels_the_yields_it_supersedes() {
-        use crate::ui::auto_yield::{AutoYield, Yield};
+        use crate::policies::auto_yield::{AutoYield, Yield};
         let game = setup_two_player_game();
         let priority = DecisionContext::new(DecisionKind::PriorityAction);
         let cast = DecisionOption::Action(PriorityAction::CastSpell(new_object_id()));

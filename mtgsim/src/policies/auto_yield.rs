@@ -176,7 +176,7 @@ mod tests {
     use crate::test_support::setup_two_player_game;
     use crate::types::ids::new_object_id;
     use crate::decision::provider::ScriptedDecisionProvider;
-    use crate::ui::full_control::{FullControl, FullControlSwitch};
+    use crate::policies::full_control::{FullControl, FullControlSwitch};
 
     const PRIORITY: DecisionContext = DecisionContext::new(DecisionKind::PriorityAction);
 

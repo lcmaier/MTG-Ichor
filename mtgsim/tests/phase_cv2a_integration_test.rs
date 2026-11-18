@@ -61,7 +61,7 @@ use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionOption, position_named};
 use mtgsim::decision::provider::DecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // The provider: every prompt scripted, by object id, with who is asked

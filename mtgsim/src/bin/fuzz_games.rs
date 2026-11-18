@@ -132,8 +132,8 @@ use mtgsim::types::ids::{IdCollection, IdMap, ObjectId, ObjectOrPlayerId, Player
 use mtgsim::types::zones::{Zone, ZoneSet};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 /// CLI arguments (simple manual parsing, no external deps).
 struct Args {
@@ -155,7 +155,7 @@ struct Args {
     /// Copies of each required **nonland** card per deck (`--copies`). 1 by
     /// default, which is the shape every recorded `--require` row was taken at.
     copies: usize,
-    /// Stack `ui::ManaWindowStop` under the random agent (the default).
+    /// Stack `policies::ManaWindowStop` under the random agent (the default).
     ///
     /// With it, the agent declines CR 601.2g's window once the locked mana
     /// component is covered, so the counters are comparable with every recorded
@@ -949,7 +949,7 @@ enum GameOutcome {
 /// `bool` each would be a parameter on two signatures and three call sites.
 #[derive(Clone, Copy)]
 struct MiddlewareConfig {
-    /// Stack `ui::ManaWindowStop`: decline CR 601.2g's window once the locked
+    /// Stack `policies::ManaWindowStop`: decline CR 601.2g's window once the locked
     /// mana component is covered. On by default; `--no-auto-pay` drops it.
     auto_pay: bool,
     /// `--census`: count innermost, under every decorator that answers.
@@ -2319,7 +2319,7 @@ mod ladder_tests {
     use super::{ladder_board, ladder_step, observation_rows, LadderShape, Observer};
     use mtgsim::oracle::characteristics::get_effective_power;
     use mtgsim::types::effects::CounterType;
-    use mtgsim::ui::random::RandomDecisionProvider;
+    use mtgsim::policies::random::RandomDecisionProvider;
 
     /// A rung is the board it says, and a step leaves it so: the reading is of
     /// one board size, however many steps it took.

@@ -131,7 +131,7 @@ fn activate_words(game: &mut GameState, words: ObjectId, player: PlayerId, dp: &
 /// the row its resolution makes.
 fn activate_words_on_the_stack(game: &mut GameState, words: ObjectId, player: PlayerId) -> ObjectId {
     game.players[player].mana_pool.add(mtgsim::types::mana::ManaType::Colorless, 1);
-    game.activate_ability(player, words, 0, &mtgsim::ui::mana_window_stop::ManaWindowStop::new(test_dp())).unwrap();
+    game.activate_ability(player, words, 0, &mtgsim::policies::mana_window_stop::ManaWindowStop::new(test_dp())).unwrap();
     let ability = game.stack.iter().last().copied().expect("the ability is on the stack");
     game.resolve_top_of_stack(&test_dp()).unwrap();
     ability

@@ -22,7 +22,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use modes_asked::{cast, cast_with_x, keeping};
 
 fn modes(places: &[u8]) -> Vec<ModeIndex> {

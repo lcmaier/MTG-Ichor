@@ -23,7 +23,7 @@ use mtgsim::types::effects::ManaOutput;
 use mtgsim::types::card_types::{EnchantmentType, Subtype};
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::display::{format_record, log_lines};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};

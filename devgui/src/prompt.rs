@@ -7,7 +7,7 @@ use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::ui::auto_yield::Yield;
+use mtgsim::policies::auto_yield::Yield;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::PriorityAction;
 use mtgsim::ui::display::{mode_label, option_label, question, rejection, what_the_option_does};
@@ -28,7 +28,7 @@ pub enum Reply {
     /// The answer to the open prompt.
     Answer(Answer),
     /// Pass at the open priority prompt, and keep passing until the yield
-    /// ends (`mtgsim::ui::auto_yield`). The seat sets it; the log has the pass.
+    /// ends (`mtgsim::policies::auto_yield`). The seat sets it; the log has the pass.
     Yield(Yield),
     /// End the seat's yield. The open prompt stays open.
     StopYielding,

@@ -7,8 +7,8 @@ use mtgsim::oracle::mana_helpers::can_cast;
 use mtgsim::state::game_state::{GameState, Phase, PhaseType};
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::random::RandomDecisionProvider;
 
 /// Player 0's precombat main phase, where a sorcery-speed spell can be cast.
 fn main_phase() -> GameState {

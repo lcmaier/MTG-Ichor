@@ -36,7 +36,7 @@ use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::decision::decision_types::{position_named, DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::display::option_label;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 /// A provider that keeps each `ChooseModes` offer it is shown and answers
 /// through `inner`. An offer of one set is answered unasked and never

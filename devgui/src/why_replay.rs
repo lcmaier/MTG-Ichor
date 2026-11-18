@@ -21,7 +21,7 @@ use mtgsim::state::trace::{TraceHandle, TraceMemory, TraceRecord, TraceSink};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode, Stop};
-use mtgsim::ui::replay::{Replay, ReplayControl};
+use mtgsim::policies::replay::{Replay, ReplayControl};
 use mtgsim::ui::why::{OpenQuestion, Why, WhyAbout, WhyLine, WhySection, why_from_trace};
 
 use crate::bridge::panic_message;
