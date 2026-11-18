@@ -52,7 +52,7 @@ use mtgsim::types::mana::{
 use mtgsim::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 /// CR 616.1's choice between two applicable effects.

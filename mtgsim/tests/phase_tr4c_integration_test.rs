@@ -49,7 +49,7 @@ use mtgsim::types::effects::{AmountExpr, ColorChange, Duration, Effect, EffectRe
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------

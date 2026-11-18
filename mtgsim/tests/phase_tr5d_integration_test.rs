@@ -50,7 +50,7 @@ use mtgsim::types::triggers::{
     TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::words::display::format_record;
 

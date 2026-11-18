@@ -49,7 +49,7 @@ use mtgsim::types::triggers::{
     EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 

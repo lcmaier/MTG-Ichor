@@ -27,7 +27,7 @@ use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, PlayerId};
 use crate::types::mana::{ManaSpent, ManaType};
 use crate::decision::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
-use crate::decision::decision_types::CostPart;
+use crate::decision::question::CostPart;
 use crate::types::zones::Zone;
 
 /// The decisions CR 601.2h's payment needs, taken against one board.
@@ -653,9 +653,9 @@ mod tests {
         let cost = ManaCost::build(&[ManaType::Green], 1);
         let dp = crate::decision::provider::ScriptedDecisionProvider::new();
         let source = crate::types::ids::new_object_id();
-        let mana = crate::decision::decision_types::DecisionOption::ManaType;
+        let mana = crate::decision::question::DecisionOption::ManaType;
         dp.expect_allocation(
-            crate::decision::decision_types::DecisionKind::GenericManaAllocation {
+            crate::decision::question::DecisionKind::GenericManaAllocation {
                 spell_or_ability_id: source,
                 mana_cost: cost.clone(),
             },
@@ -888,11 +888,11 @@ mod tests {
 
         let dp = crate::decision::provider::ScriptedDecisionProvider::new();
         dp.expect_choice(
-            crate::decision::decision_types::DecisionKind::ChooseSacrificeForCost {
+            crate::decision::question::DecisionKind::ChooseSacrificeForCost {
                 spell_or_ability_id: first,
                 count: 1,
             },
-            vec![crate::decision::decision_types::DecisionOption::Object(second)],
+            vec![crate::decision::question::DecisionOption::Object(second)],
         );
         let ctx = crate::engine::actions::ActionContext::new(&dp);
         let costs = [Cost::Sacrifice(creature_filter(), 1)];

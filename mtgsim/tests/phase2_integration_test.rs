@@ -10,7 +10,7 @@ use mtgsim::engine::priority::PriorityResult;
 use mtgsim::types::effects::{EffectRecipient, ObjectFilter, PlayerSet, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::test_support::{setup_two_player_game, put_in_hand, put_land_on_battlefield, fill_library};

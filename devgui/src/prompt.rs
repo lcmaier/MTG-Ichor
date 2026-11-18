@@ -8,7 +8,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::policies::auto_yield::Yield;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::PriorityAction;
 use mtgsim::words::display::{mode_label, option_label, question, rejection, what_the_option_does};
 use mtgsim::words::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};

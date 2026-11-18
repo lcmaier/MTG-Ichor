@@ -39,7 +39,7 @@ use mtgsim::types::replacement::{
     Rounding,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 

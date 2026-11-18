@@ -32,7 +32,7 @@ use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPl
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::decision::decision_types::{
+use crate::decision::question::{
     AbilityAsRead, AmountOf, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
 };
 use crate::decision::provider::PriorityAction;

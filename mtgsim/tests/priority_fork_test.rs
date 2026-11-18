@@ -61,7 +61,7 @@ use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::test_support::replay_outcome;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::PlayerId;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
 use mtgsim::policies::random::RandomDecisionProvider;
 

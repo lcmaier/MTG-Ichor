@@ -23,7 +23,7 @@ use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, Playe
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 fn goblin() -> TokenDef {

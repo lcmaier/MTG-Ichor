@@ -27,7 +27,7 @@ use mtgsim::types::replacement::Uses;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, ReplacementOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, ReplacementOption};
 use mtgsim::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use mtgsim::words::display::{format_event_log, option_label};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

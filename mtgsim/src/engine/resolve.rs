@@ -39,7 +39,7 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
-use crate::decision::decision_types::{AmountOf, DecisionKind};
+use crate::decision::question::{AmountOf, DecisionKind};
 use crate::decision::provider::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -2953,7 +2953,7 @@ impl GameState {
     /// what a row it makes keeps. `None` for a spell.
     fn text_of_the_ability_resolving(&self, ctx: &ResolutionContext) -> Option<&'static str> {
         let identity = self.resolving.as_ref().filter(|resolving| resolving.id == ctx.source)?.identity?;
-        crate::decision::decision_types::ability_as_read(self, identity.source.id, identity.ability).text()
+        crate::decision::question::ability_as_read(self, identity.source.id, identity.ability).text()
     }
 
     /// The permanents among what an atom acts on, those on the battlefield

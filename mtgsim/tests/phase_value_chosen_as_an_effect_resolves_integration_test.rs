@@ -38,7 +38,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 

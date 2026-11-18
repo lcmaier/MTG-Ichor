@@ -25,7 +25,7 @@ use crate::state::trace::COMMIT;
 use crate::types::ids::PlayerId;
 
 use crate::decision::ask::{allocation_fits, forced_allocation, number_fits, only_number, only_order, only_pick, order_fits, pick_fits};
-use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_of};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption, position_of};
 use crate::decision::provider::{DecisionProvider, SeatMode, Stop};
 
 /// A replay of a log's answers.
@@ -281,7 +281,7 @@ mod tests {
     use crate::types::costs::Cost;
     use crate::types::effects::ObjectFilter;
     use crate::types::ids::ObjectId;
-    use crate::decision::decision_types::CostPart;
+    use crate::decision::question::CostPart;
     use crate::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
     /// A replay of one line, player 0's answer to `kind` where `game` stands.

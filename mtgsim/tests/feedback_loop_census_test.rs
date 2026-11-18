@@ -21,7 +21,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{CounterType, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 fn on_battlefield(game: &GameState, id: ObjectId) -> bool {

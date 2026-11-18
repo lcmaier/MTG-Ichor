@@ -45,7 +45,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption, EntryRole};
+use mtgsim::decision::question::{DecisionKind, DecisionOption, EntryRole};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------

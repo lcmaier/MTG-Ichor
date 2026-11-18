@@ -39,7 +39,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::triggers::{DefenderFilter, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::words::display::{format_event_log, format_record, log_lines};
 

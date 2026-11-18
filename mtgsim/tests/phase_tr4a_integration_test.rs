@@ -47,7 +47,7 @@ use mtgsim::types::triggers::{
     TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::policies::random::RandomDecisionProvider;
 

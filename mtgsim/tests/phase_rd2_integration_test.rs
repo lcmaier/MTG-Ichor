@@ -44,7 +44,7 @@ use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, Uses,
 };
 use mtgsim::types::zones::ZoneChangeAct;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::targeting::{ChosenTargets};

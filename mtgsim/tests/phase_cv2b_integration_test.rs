@@ -62,7 +62,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::decision::decision_types::{AbilityAsRead, DecisionContext, DecisionOption, ReplacementOption, position_named};
+use mtgsim::decision::question::{AbilityAsRead, DecisionContext, DecisionOption, ReplacementOption, position_named};
 use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 

@@ -5,7 +5,7 @@ use std::mem::discriminant;
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
-use super::decision_types::{DecisionContext, DecisionKind, DecisionOption, position_named};
+use super::question::{DecisionContext, DecisionKind, DecisionOption, position_named};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never

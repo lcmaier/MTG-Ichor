@@ -21,7 +21,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::CounterType;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -1138,7 +1138,7 @@ mod the_damage_cards {
     // prompt is the target.
     #[test]
     fn samite_healer_taps_for_a_count_of_one_and_the_row_names_the_healer() {
-        use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+        use mtgsim::decision::question::{DecisionKind, DecisionOption};
         use mtgsim::decision::provider::ScriptedDecisionProvider;
 
         let mut game = setup_two_player_game();
@@ -1215,7 +1215,7 @@ mod the_damage_cards {
     /// source, wherever the candidates list it.
     fn naming(options: impl IntoIterator<Item = mtgsim::types::ids::ObjectId>) -> mtgsim::test_support::RecordingDecisionProvider {
         mtgsim::test_support::RecordingDecisionProvider::choosing(
-            options.into_iter().map(mtgsim::decision::decision_types::DecisionOption::Object),
+            options.into_iter().map(mtgsim::decision::question::DecisionOption::Object),
         )
     }
 

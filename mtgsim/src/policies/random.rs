@@ -43,7 +43,7 @@ use crate::oracle::mana_supply::{available_mana_sources, controls_a_pool_multipl
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, PlayerId};
 use crate::types::mana::{ManaBag, ManaCost, ManaSymbol, ManaType};
-use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use crate::decision::provider::{DecisionProvider, PriorityAction};
 
 /// What a mana window's options can do for the pips a cost still owes.

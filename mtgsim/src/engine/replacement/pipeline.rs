@@ -32,7 +32,7 @@ use crate::oracle::characteristics::{get_effective_power, get_effective_types, O
 use crate::decision::ask::ask_allocate_next_damage;
 use crate::decision::ask::ask_take_or_leave;
 use crate::decision::ask::ask_accept_as_object_enters;
-use crate::decision::decision_types::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
+use crate::decision::question::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use crate::decision::ask::ask_choose_auxiliary_zone_change;
 use crate::decision::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
 use crate::decision::ask::ask_choose_player_as_object_enters;

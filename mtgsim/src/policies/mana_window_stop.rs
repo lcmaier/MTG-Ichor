@@ -24,7 +24,7 @@
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use crate::decision::provider::{DecisionProvider, SeatMode};
 
 /// Declines CR 601.2g's mana-ability window once the locked mana component is

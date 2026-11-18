@@ -38,7 +38,7 @@ use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::{EventRole, TriggerCondition, TriggerDef};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;

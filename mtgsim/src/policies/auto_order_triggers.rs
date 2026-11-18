@@ -19,7 +19,7 @@
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use crate::decision::provider::{DecisionProvider, SeatMode};
 
 /// Answers `D`'s seat's trigger order in the order it is offered, and passes
@@ -107,7 +107,7 @@ mod tests {
     use crate::engine::actions::ZoneChangeAct;
     use crate::test_support::{put_in_hand, setup_two_player_game, test_ctx};
     use crate::types::zones::Zone;
-    use crate::decision::decision_types::{TriggerOption, TriggeredAbility};
+    use crate::decision::question::{TriggerOption, TriggeredAbility};
     use crate::types::ids::{new_object_id, ObjectId};
     use crate::types::triggers::TriggerTier;
     use crate::decision::provider::ScriptedDecisionProvider;

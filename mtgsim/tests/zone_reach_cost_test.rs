@@ -50,7 +50,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::zones::{Zone, ZoneSet};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;

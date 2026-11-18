@@ -25,7 +25,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::costs::Cost;
-use mtgsim::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
+use mtgsim::decision::question::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryOffer, EntryRole};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::policies::random::RandomDecisionProvider;

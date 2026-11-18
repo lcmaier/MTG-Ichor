@@ -14,7 +14,7 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, Stop};
 use mtgsim::words::display::format_event_log;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

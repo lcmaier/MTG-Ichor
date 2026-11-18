@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::decision::decision_types::{DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionKind, DecisionOption};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Copy, Debug)]

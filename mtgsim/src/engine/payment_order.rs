@@ -37,7 +37,7 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{EventKind, EventKindMask};
 use crate::types::zones::{Zone, ZoneSet};
 use crate::decision::ask::ask_order_cost_payments;
-use crate::decision::decision_types::{DecisionKind, DecisionOption, CostPart, Rejection};
+use crate::decision::question::{DecisionKind, DecisionOption, CostPart, Rejection};
 use crate::decision::provider::FirstLegalAnswer;
 
 /// The channels a payment's parts can change, and so all a reader is asked

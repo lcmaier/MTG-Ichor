@@ -24,7 +24,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
-use mtgsim::decision::decision_types::DecisionOption;
+use mtgsim::decision::question::DecisionOption;
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield,
     put_on_battlefield_under, set_attacking, set_blocked_by, set_blocking, setup_game, test_dp, vanilla_creature, RecordingDecisionProvider,

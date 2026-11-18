@@ -39,7 +39,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::policies::auto_order_triggers::AutoOrderTriggers;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, PriorityAction};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;

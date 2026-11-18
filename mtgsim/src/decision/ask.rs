@@ -43,7 +43,7 @@ use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef,
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
-use super::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection};
+use super::question::{AmountOf, DecisionContext, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection};
 use super::provider::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
@@ -945,7 +945,7 @@ pub fn ask_order_triggers(
     game: &GameState,
     player: PlayerId,
     tier: crate::types::triggers::TriggerTier,
-    triggers: Vec<crate::decision::decision_types::TriggerOption>,
+    triggers: Vec<crate::decision::question::TriggerOption>,
 ) -> Vec<usize> {
     debug_assert!(triggers.len() >= 2, "CR 603.3b: one trigger has no order to choose");
     let options: Vec<DecisionOption> = triggers.into_iter().map(DecisionOption::Trigger).collect();
@@ -1181,7 +1181,7 @@ pub fn ask_choose_replacement(
     game: &GameState,
     chooser: PlayerId,
     affected_object: Option<ObjectId>,
-    effects: Vec<crate::decision::decision_types::ReplacementOption>,
+    effects: Vec<crate::decision::question::ReplacementOption>,
 ) -> usize {
     game.diagnostics.record_replacement_prompt();
     assert!(

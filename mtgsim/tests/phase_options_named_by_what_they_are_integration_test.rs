@@ -26,7 +26,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{AbilityAsRead, DecisionContext, DecisionKind, DecisionOption, ReplacementOption, TriggerOption, TriggeredAbility};
+use mtgsim::decision::question::{AbilityAsRead, DecisionContext, DecisionKind, DecisionOption, ReplacementOption, TriggerOption, TriggeredAbility};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::words::display::{format_event_log, option_label};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

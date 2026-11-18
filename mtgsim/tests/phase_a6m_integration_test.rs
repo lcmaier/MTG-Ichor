@@ -33,7 +33,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------

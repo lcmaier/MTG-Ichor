@@ -24,7 +24,7 @@ use crate::types::triggers::{EventRole, PendingTrigger, TriggerBinding, TriggerI
 use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::decision::ask::ask_order_triggers;
-use crate::decision::decision_types::{DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionKind, DecisionOption};
 use crate::decision::provider::DecisionProvider;
 
 impl GameState {

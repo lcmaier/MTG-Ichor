@@ -50,7 +50,7 @@ use mtgsim::types::triggers::{
     DelayedDuration, DelayedTriggerTemplate, EventRole, Multiplicity, TriggerEvent, TriggerLimit, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::words::display::format_record;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

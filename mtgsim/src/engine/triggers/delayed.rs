@@ -41,7 +41,7 @@ use crate::types::triggers::{
 };
 use crate::types::zones::UntilReturn;
 use crate::decision::ask::ask_choose_delayed_trigger_event;
-use crate::decision::decision_types::{DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionKind, DecisionOption};
 
 impl GameState {
     /// CR 603.7a — a delayed triggered ability is created, through the one

@@ -36,7 +36,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------

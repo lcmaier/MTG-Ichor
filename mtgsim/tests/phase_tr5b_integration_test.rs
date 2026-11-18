@@ -33,7 +33,7 @@ use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{Multiplicity, ObjectOrPlayerSubject, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 

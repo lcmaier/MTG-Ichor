@@ -926,7 +926,7 @@ mod tests {
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::decision::decision_types::{DecisionKind, DecisionOption};
+    use crate::decision::question::{DecisionKind, DecisionOption};
     use crate::decision::provider::ScriptedDecisionProvider;
     use crate::test_support::lightning_bolt as make_bolt;
 

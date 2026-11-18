@@ -42,7 +42,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::DecisionProvider;
 
 /// CR 616.1's choice between two applicable effects.

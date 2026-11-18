@@ -39,7 +39,7 @@ use mtgsim::types::effects::{Effect, ObjectFilter};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::decision::provider::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use std::sync::Arc;

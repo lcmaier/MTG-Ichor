@@ -24,7 +24,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::words::why::{why_from_trace, OpenQuestion, Why, WhyAbout};

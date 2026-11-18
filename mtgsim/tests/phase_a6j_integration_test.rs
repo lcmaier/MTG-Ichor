@@ -14,7 +14,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{RejectionRecorder, place_forest, put_in_hand, setup_two_player_game};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use mtgsim::decision::provider::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 

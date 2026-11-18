@@ -38,7 +38,7 @@ use mtgsim::test_support::{
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------

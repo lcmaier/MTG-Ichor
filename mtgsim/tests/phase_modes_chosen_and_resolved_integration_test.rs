@@ -33,7 +33,7 @@ use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::decision::decision_types::{position_named, DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{position_named, DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::words::display::option_label;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

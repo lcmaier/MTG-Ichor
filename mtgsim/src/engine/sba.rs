@@ -21,7 +21,7 @@ use crate::types::effects::CounterType;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::zones::Zone;
 use crate::decision::ask::{ask_choose_legend_to_keep, ask_take_or_leave};
-use crate::decision::decision_types::DecisionKind;
+use crate::decision::question::DecisionKind;
 use crate::decision::provider::DecisionProvider;
 
 /// CR 704.5f/i/j/m's "put into its owner's graveyard": a move named by where
@@ -603,7 +603,7 @@ mod tests {
     use crate::types::colors::Color;
     use crate::types::mana::ManaType;
     use crate::types::zones::Zone;
-    use crate::decision::decision_types::{DecisionKind, DecisionOption};
+    use crate::decision::question::{DecisionKind, DecisionOption};
     use crate::decision::provider::ScriptedDecisionProvider;
 
     #[test]

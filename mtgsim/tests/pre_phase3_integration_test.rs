@@ -13,7 +13,7 @@ use mtgsim::state::game_state::{GameResult, GameState, PhaseType};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider, SeatMode};
 
 use mtgsim::test_support::{put_in_hand, put_land_on_battlefield};

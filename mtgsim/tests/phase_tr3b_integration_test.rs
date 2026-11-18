@@ -29,7 +29,7 @@ use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer}
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power};
 use mtgsim::state::game_state::{GameState, StepType};
-use mtgsim::decision::decision_types::DecisionOption;
+use mtgsim::decision::question::DecisionOption;
 use mtgsim::test_support::{
     card_of_type, put_in_hand, put_on_battlefield, registered, setup_two_player_game, test_ctx, test_dp,
     vanilla_creature, RecordingDecisionProvider,

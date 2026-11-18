@@ -25,7 +25,7 @@ use super::event::{EventRecord, GameEvent};
 use super::unasked::{Unasked, UnaskedAnswer, UnaskedChoice};
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::decision::decision_types::DecisionKind;
+use crate::decision::question::DecisionKind;
 
 /// Every branch's records, shared by every handle of one game.
 ///

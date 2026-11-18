@@ -38,7 +38,7 @@ use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, SourcePattern, Uses,
 };
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------

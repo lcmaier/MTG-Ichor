@@ -30,7 +30,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
+use mtgsim::decision::question::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
 
 /// A 1/1 white Soldier creature token.
 fn soldier_token() -> TokenDef {

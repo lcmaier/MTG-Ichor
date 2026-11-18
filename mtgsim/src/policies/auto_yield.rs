@@ -20,7 +20,7 @@ use std::rc::Rc;
 
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use crate::decision::provider::{DecisionProvider, PriorityAction, SeatMode};
 
 /// How long a yield passes priority for.

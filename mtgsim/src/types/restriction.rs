@@ -18,7 +18,7 @@
 //! | Axis | What a "can't" attaches to | Bounded by | Open? |
 //! |---|---|---|---|
 //! | 1 | an event the engine proposes | `GameAction`, via [`EventPattern`] | grows with the engine |
-//! | 2 | a choice a player makes | `DecisionKind` (`decision/decision_types.rs`) | grows with the engine |
+//! | 2 | a choice a player makes | `DecisionKind` (`decision/question.rs`) | grows with the engine |
 //! | 3 | the application of an effect | `gather`'s one application site | **closed at one arm** |
 //! | 4 | a rule's own action | [`RuleAction`]: the check's `StateBasedAction`, and each turn-based action a card switches off | grows with its first card |
 //!

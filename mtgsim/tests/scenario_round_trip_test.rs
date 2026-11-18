@@ -21,7 +21,7 @@ use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;

@@ -27,7 +27,7 @@ use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCou
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaSpent, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------

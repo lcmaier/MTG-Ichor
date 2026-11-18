@@ -130,7 +130,7 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, TokenDef};
 use mtgsim::types::ids::{IdCollection, IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneSet};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;

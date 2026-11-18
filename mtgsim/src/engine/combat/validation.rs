@@ -894,8 +894,8 @@ mod tests {
 
         let scripted = crate::decision::provider::ScriptedDecisionProvider::new();
         scripted.expect_choice(
-            crate::decision::decision_types::DecisionKind::DeclareAttackers,
-            vec![crate::decision::decision_types::DecisionOption::AttackerTarget(angel, AttackTarget::Player(1))],
+            crate::decision::question::DecisionKind::DeclareAttackers,
+            vec![crate::decision::question::DecisionOption::AttackerTarget(angel, AttackTarget::Player(1))],
         );
         game.process_declare_attackers(&scripted).unwrap();
 
@@ -912,8 +912,8 @@ mod tests {
 
         let scripted = crate::decision::provider::ScriptedDecisionProvider::new();
         scripted.expect_choice(
-            crate::decision::decision_types::DecisionKind::DeclareAttackers,
-            vec![crate::decision::decision_types::DecisionOption::AttackerTarget(bears, AttackTarget::Player(1))],
+            crate::decision::question::DecisionKind::DeclareAttackers,
+            vec![crate::decision::question::DecisionOption::AttackerTarget(bears, AttackTarget::Player(1))],
         );
         game.process_declare_attackers(&scripted).unwrap();
 
@@ -1037,12 +1037,12 @@ mod tests {
         set_attacking(&mut game, att1, 1);
         set_attacking(&mut game, att2, 1);
 
-        let block = |attacker| crate::decision::decision_types::DecisionOption::BlockerAttacker(blocker, attacker);
+        let block = |attacker| crate::decision::question::DecisionOption::BlockerAttacker(blocker, attacker);
         let scripted = crate::decision::provider::ScriptedDecisionProvider::new();
         // Invalid: the blocker blocks both attackers.
-        scripted.expect_choice(crate::decision::decision_types::DecisionKind::DeclareBlockers, vec![block(att1), block(att2)]);
+        scripted.expect_choice(crate::decision::question::DecisionKind::DeclareBlockers, vec![block(att1), block(att2)]);
         // Re-ask: it blocks att1 alone.
-        scripted.expect_choice(crate::decision::decision_types::DecisionKind::DeclareBlockers, vec![block(att1)]);
+        scripted.expect_choice(crate::decision::question::DecisionKind::DeclareBlockers, vec![block(att1)]);
         let seat = crate::test_support::RejectionRecorder::new(scripted);
 
         game.process_declare_blockers(&seat).unwrap();
@@ -1053,7 +1053,7 @@ mod tests {
         // att2 should not have been blocked.
         let att2_info = game.battlefield.get(&att2).unwrap().attacking.as_ref().unwrap();
         assert!(!att2_info.is_blocked);
-        let rejected = crate::decision::decision_types::Rejection::IllegalBlocks {
+        let rejected = crate::decision::question::Rejection::IllegalBlocks {
             blocks: vec![(blocker, att1), (blocker, att2)],
             why: CombatError::TooManyBlocks(blocker, 1),
         };

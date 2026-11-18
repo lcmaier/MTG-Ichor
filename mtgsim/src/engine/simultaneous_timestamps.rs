@@ -30,7 +30,7 @@ use crate::state::game_state::GameState;
 use crate::types::effects::ObjectSet;
 use crate::types::ids::{IdSet, ObjectId, PlayerId, Timestamp};
 use crate::decision::ask::ask_order_simultaneous_entries;
-use crate::decision::decision_types::{DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionKind, DecisionOption};
 
 impl GameState {
     /// CR 613.7m for `stamped`, the objects a batch just moved or created, in

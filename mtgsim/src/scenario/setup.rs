@@ -8,7 +8,7 @@ use super::board::{SetupAction, SetupVerb};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::ManaCost;
-use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use crate::decision::provider::{DecisionProvider, PriorityAction, SeatMode, Stop};
 use crate::policies::mana_window_stop::ManaWindowStop;
 use crate::policies::random::{mana_window_preference, WindowPreference};

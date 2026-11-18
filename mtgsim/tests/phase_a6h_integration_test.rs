@@ -34,7 +34,7 @@ use mtgsim::decision::ask::{
     ask_choose_entering_defender, ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost,
     ask_choose_trample_damage_assignment, ask_choose_x_value, ask_discard, ask_select_recipients,
 };
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption, EntryRole};
+use mtgsim::decision::question::{DecisionKind, DecisionOption, EntryRole};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 use mtgsim::words::display::{format_event_log, format_record, log_lines};
 

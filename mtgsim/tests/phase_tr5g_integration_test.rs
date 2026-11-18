@@ -44,7 +44,7 @@ use mtgsim::types::triggers::{
     TargetedBy, TriggerMultiplierDef, TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------

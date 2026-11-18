@@ -354,7 +354,7 @@ mod tests {
     use crate::cards::authoring::spell_ability;
     use crate::cards::printings::{forest, mind_rot};
     use crate::test_support::{AtEachPrompt, place_on_battlefield, put_in_hand};
-    use crate::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+    use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
     use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::types::ids::ObjectOrPlayerId;

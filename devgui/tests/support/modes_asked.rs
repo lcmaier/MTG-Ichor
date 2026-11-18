@@ -16,7 +16,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, setup_game};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::mana::ManaType;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 

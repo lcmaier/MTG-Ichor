@@ -12,7 +12,7 @@
 
 use crate::events::event::EventId;
 use crate::types::ids::PlayerId;
-use crate::decision::decision_types::{DecisionKind, DecisionOption};
+use crate::decision::question::{DecisionKind, DecisionOption};
 
 /// One question the engine did not ask.
 #[derive(Debug, Clone)]

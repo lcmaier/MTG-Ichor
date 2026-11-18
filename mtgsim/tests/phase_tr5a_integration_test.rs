@@ -40,7 +40,7 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{
     DamageRecipient, EventRole, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 

@@ -215,7 +215,7 @@ mod tests {
     use crate::test_support::test_ctx;
     use crate::state::battlefield::{AttackTarget, AttackingInfo};
     use crate::types::keywords::KeywordFlag;
-    use crate::decision::decision_types::{DecisionKind, DecisionOption};
+    use crate::decision::question::{DecisionKind, DecisionOption};
     use crate::decision::provider::ScriptedDecisionProvider;
     use crate::test_support::{
         place_vanilla_creature as place_creature_with_keywords, set_attacking, set_blocked_by,

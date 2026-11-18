@@ -27,7 +27,7 @@ use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::policies::auto_order_triggers::AutoOrderTriggers;
 use mtgsim::policies::auto_yield::{AutoYield, Yield, Yields, pass_index};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};
 use mtgsim::policies::full_control::{FullControl, FullControlSwitch};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

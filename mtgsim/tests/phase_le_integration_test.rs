@@ -22,7 +22,7 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
 // ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@ use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 

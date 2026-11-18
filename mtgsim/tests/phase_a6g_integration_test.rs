@@ -11,7 +11,7 @@ use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, GameStart};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::PlayerId;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, SeatMode};
 use mtgsim::words::display::format_event_log;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

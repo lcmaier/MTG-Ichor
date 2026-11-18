@@ -21,7 +21,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, put_spell_on_stack};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use mtgsim::types::mana::ManaType;
 use mtgsim::decision::provider::{DecisionProvider, PriorityAction};
 use mtgsim::words::display::named;

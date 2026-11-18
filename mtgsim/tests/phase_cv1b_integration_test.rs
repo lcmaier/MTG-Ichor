@@ -72,7 +72,7 @@ use mtgsim::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::state::game_state::StepType;
 use mtgsim::types::triggers::TriggerSubject;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;

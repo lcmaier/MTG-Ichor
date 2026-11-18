@@ -32,7 +32,7 @@ use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDe
 use mtgsim::types::restriction::{Restriction, SourceFilter};
 use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------

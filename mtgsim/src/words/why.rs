@@ -37,7 +37,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::decision::ask::generic_split_caps;
 use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
-use crate::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryRole, Rejection};
+use crate::decision::question::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryRole, Rejection};
 use crate::decision::provider::PriorityAction;
 use crate::words::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,

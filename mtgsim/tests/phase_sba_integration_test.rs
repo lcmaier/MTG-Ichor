@@ -29,7 +29,7 @@ use mtgsim::types::effects::{CounterType, EffectRecipient};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayer, ObjectOrPlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use std::sync::Arc;
 

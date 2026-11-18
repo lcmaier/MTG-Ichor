@@ -19,7 +19,7 @@ use mtgsim::state::game::Halt;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceMemory, TraceRecord, TraceSink};
 use mtgsim::types::ids::PlayerId;
-use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode, Stop};
 use mtgsim::policies::replay::{Replay, ReplayControl};
 use mtgsim::words::why::{OpenQuestion, Why, WhyAbout, WhyLine, WhySection, why_from_trace};

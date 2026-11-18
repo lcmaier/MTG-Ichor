@@ -26,7 +26,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
 use crate::policies::auto_yield::Yields;
-use crate::decision::decision_types::{DecisionContext, DecisionOption};
+use crate::decision::question::{DecisionContext, DecisionOption};
 use crate::decision::provider::{DecisionProvider, SeatMode};
 
 /// Full control's switch, shared by the client that flips it and the
@@ -148,7 +148,7 @@ mod tests {
     use crate::test_support::setup_two_player_game;
     use crate::types::ids::new_object_id;
     use crate::types::mana::ManaCost;
-    use crate::decision::decision_types::DecisionKind;
+    use crate::decision::question::DecisionKind;
     use crate::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
     use crate::policies::mana_window_stop::ManaWindowStop;
 

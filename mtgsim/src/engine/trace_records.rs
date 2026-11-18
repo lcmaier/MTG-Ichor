@@ -22,7 +22,7 @@ use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerTier};
 use crate::types::zones::Zone;
-use crate::decision::decision_types::{DecisionContext, DecisionOption};
+use crate::decision::question::{DecisionContext, DecisionOption};
 use crate::decision::provider::PriorityAction;
 
 /// A record of `kind`, its `batch` field naming the batch open now.

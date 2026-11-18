@@ -25,7 +25,7 @@ use mtgsim::objects::card_data::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::state::restrictions::RegisteredRestriction;
-use mtgsim::decision::decision_types::DecisionOption;
+use mtgsim::decision::question::DecisionOption;
 use mtgsim::test_support::{
     fill_library, place_vanilla_creature, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,

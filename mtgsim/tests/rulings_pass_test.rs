@@ -48,7 +48,7 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
 use std::sync::Arc;
