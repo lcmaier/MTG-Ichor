@@ -248,6 +248,11 @@ from their own hand, or it was revealed as it moved.
 | is put on the stack by a cast, before CR 601.2i | as it was: a cast in progress is announced to nobody, and a rewound one never was |
 | is shown by an effect that lasts | the players it shows, written at each state-based check (decision 1) |
 
+Under decision 1's F the same table says which pile a card is in: where it
+reads "nobody", the card is in that library's pile, and where it takes
+players off a hand's cards, the hand and the place the card went become one
+pile.
+
 The fifth row is the model's one subtle rule. An opponent knows your hand is
 A, B and C; you put one back unseen. Dropping only that card from their copy
 of your hand tells them which it was. So an unseen departure clears what
@@ -263,6 +268,8 @@ pub struct PlayerBits(u64);
 // objects/object.rs
 pub place_known_to: PlayerBits,  // can point at this card, and know its face
 pub face_known_to: PlayerBits,   // have seen it, and not seen it come out of hiding since (decision 1's E)
+pub pile: PileId,                // the hidden cards it cannot be told from by place (decision 1's F)
+pub struct PileId(u32);
 pub sighting: SightingId,        // what a seat's copy calls this card; a new one each time
                                  // it moves or players lose track of it (decision 4)
 pub struct SightingId(u32);
@@ -277,7 +284,9 @@ pub struct SeatSight<'a> { game: &'a GameState, sees_for: PlayerBits }   // both
 impl SeatSight<'_> { pub fn whole_game(&self) -> &GameState }            // the referee's door
 
 // what a client is handed (decisions 4 and 5)
-pub struct Observation { pub board: Vec<SeenObject>, pub happened: Vec<SeenRecord>, pub question: SeenQuestion }
+pub struct Observation { pub board: Vec<SeenObject>, pub piles: Vec<SeenPile>, pub happened: Vec<SeenRecord>, pub question: SeenQuestion }
+// SeenPile: the places a pile's cards hold (library places, a count for a hand, face-down objects),
+// and the faces this seat knows are among them, in no order
 pub struct SeenObject { pub name: SightingId, pub zone: Zone, pub face: Option<SeenFace>, pub reason: Option<SeenReason> }
 // SeenFace: the card, both faces of a double-faced one, and the lasting changes this seat knows of
 
@@ -304,6 +313,7 @@ a `SeenObject` for each card of it the seat's players know.
 
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
+| which hidden cards a card cannot be told from by place (`pile`, decision 1's F) | when places are scrambled out of sight, or a card moves from a pile nobody can point into | latched | the object's record; a library's own pile number, bumped by a shuffle | a seat's copy, as a list of piles; decision 6's dealer | the card comes out of hiding, or is shown to every player |
 | who has seen a card that is still hidden (`face_known_to`, decision 1's E) | when the card is shown to a player, or goes into hiding where they watch | latched | the object's record (decision 2) | a seat's copy, as a list of faces; decision 6's guesser | the card comes out of hiding; or a card that player cannot tell from it does |
 | who can point at a card and knows its face (`place_known_to`) | when it is revealed, looked at, or moves where some can follow | latched | the object's record (decision 2) | a seat's copy, decision 6's fork, CR 406.3's continued look | its pile is shuffled or reordered; its own unseen move, or another card's from the same hand; it arrives face up in a public zone |
 | who knows of a change that follows a card (Alchemy's "perpetually") | as the change is made: those who can tell which card it was made to; then anyone the card is shown to | latched | on the change, with the card (`card-and-object-model`'s, decision 8) | a seat's copy of a card it knows | never: the change lasts the game |
@@ -320,9 +330,10 @@ a `SeenObject` for each card of it the seat's players know.
 Numbered from 1. Topics the brief listed that are not choices are under
 "Settled by the rules", after decision 11.
 
-**Where each stands after design review round 2** (2026-11-17). Taken: 2
-(on the object; its width is open), 3, 4, 5, 6, 7, 8, 9, 10 and 11. Open:
-1, which gained an option that round, and the width of a set of players.
+**Where each stands after design review round 3** (2026-11-17). Taken: 2
+(on the object, at sixty-four seats), 3, 4, 5, 6, 7, 8, 9, 10 and 11, and
+of decision 1 that a cast taken back shows nothing. Open: the rest of 1,
+which gained option F that round.
 
 ### Decision 1 — what the engine remembers a player was shown
 
@@ -424,15 +435,89 @@ the same memory again from the log.
   *What it still loses*: which places. It does not say "at the bottom", or
   "two of these three are still in hand". Those are B's.
 
-**Recommended: E, with each lasting change carrying who knows of it.** A
-alone never shows more than a player knows, but it forgets what about 880
-printed cards make a player half-know, and hands the remembering to clients
-that do not exist. E keeps every face in the engine, once, at the price of
-a second set and one rule. Where a half-known card is, to the nearest
-place, stays out: that is arithmetic over what was seen, B's belief model,
-and it is what decision 6's guesser is for. Its inputs are then all in the
-copy: what is placed, what is seen and still hidden, and how many cards
-each pile holds.
+- **F. Piles: one structure, as fine as the game allows** (added at design
+  review round 3; the owner: E is "something of a half measure… structurally
+  tacking something on to A. Is there a clear plan for how to close the loop
+  on this?"). A *pile* is a group of hidden cards a player cannot tell apart
+  by place: they know which faces are in it, and not which card is where.
+  Every option above is a pile at some size. A's card a player can point at
+  is a pile of one. E's "seen, still hidden" is one pile a player. F keeps
+  each pile as small as the rules justify, by five rules:
+  1. a card shown to a player is a pile of one;
+  2. places scrambled out of a player's sight join one pile: a shuffle, a
+     random order, an order another player chose;
+  3. a card moved from a pile nobody can point into takes its pile with it,
+     as a draw off a shuffled library does;
+  4. a hand has no order, so to everyone but its owner it is one pile, and
+     a card that leaves it unseen joins the hand to wherever it went;
+  5. a card that comes out of hiding leaves its pile.
+
+  *What it holds that E does not.* Ureni's seven are "the bottom seven of
+  your library", where E says "somewhere among your hidden cards". After a
+  Brainstorm an opponent's three known cards are "in that hand or the top
+  two". A creature shuffled away is "in that library, or one of the cards
+  drawn since".
+  *What it holds that nothing above does.* A player knows their own deck: at
+  the start a library is one pile whose every face its owner has seen, so
+  what is left in it is always known, and its order never is. A search shows
+  the searcher every face in a library (CR 701.23a), so after the shuffle it
+  is one pile they know whole. And decision 6's ready-made dealer becomes
+  honest in every format: it deals each pile's seen faces among that pile's
+  places and leaves the rest unknown, which needs no decklist the searcher
+  was never shown.
+  *Is it ever wrong, and is it exact?* `plans/references/pile-soundness-probe.py`
+  plays small games watched by an opponent, and after each event compares
+  the piles with every arrangement of the cards still consistent with what
+  the watcher was shown, found by brute force. Over 300 six-card games and
+  4,200 events of a mix chosen to be hard (shuffles, hidden orders, unseen
+  put-backs, face-down casts): the piles never ruled out an arrangement the
+  truth allowed, were exactly the truth in 84.8% of states, and allowed 1.16
+  arrangements for each true one on average. E's one pile a player, on the
+  same games: never wrong, exact in 78.3%, 1.60 for each true one. The gap
+  widens with the size of a library, which the probe keeps at six cards so
+  that brute force can finish.
+  *Code*: about 300–450 lines over A: a pile number on each card beside E's
+  two sets, the five rules where a move is announced, the start of the game,
+  and the copy's list of piles. *Performance*: 24 bytes more an object than
+  today at sixty-four seats and nothing a clone (decision 2). A shuffle is
+  one write, to the library's own pile number, which is the epoch
+  `backlog.md` "2.9" asked for. *Upkeep*: one module owns the five rules,
+  and a new verb that hides a card says which rule it is.
+  *What it leaves out, for good*, each stated so no one waits for it:
+  - **the exact truth where scrambles overlap in part.** Scrambling places
+    1 and 2, then 2 and 3, cannot bring the third card to the first place,
+    and one pile of three says it might. That is the 15% above. The exact
+    answer is the set of all arrangements, which is what the probe
+    enumerates and grows as a factorial;
+  - **what a player learns from a property and not a face.** Fuel Tank
+    Feaster's pick was "a creature card with the greatest mana value" in
+    that hand; a seek for a nonland card found a nonland card;
+  - **how likely anything is.**
+
+**Recommended: F, in two steps, with each lasting change carrying who knows
+of it.** A alone forgets what about 880 printed cards make a player
+half-know, and hands the remembering to clients that do not exist. E keeps
+the faces and loses where they are. F is the structure both were pieces of.
+
+**How the loop closes**, in four parts:
+
+1. **One structure from the first PR.** `shown-and-followed` builds piles,
+   with rules 1 and 5 and E's grain: whatever a player cannot point at is
+   one pile a player. A seat's copy lists piles, each with its places and
+   the faces known to be in it. That shape does not change again.
+2. **The grain in the next PR, `piles`.** Rules 2, 3 and 4, a player's own
+   deck, and a search. Piles get smaller; nothing a client reads changes
+   shape. Nothing that reads a seat's copy is built between the two.
+3. **An audit that it is never wrong.** The probe's check moves into the
+   engine's tests with `piles`: seeded small games, each seat's piles
+   compared with brute force over what that seat was shown. A pile that
+   rules out a possible arrangement fails it. The engine has the same kind
+   of check for trigger dispatch.
+4. **What is left out is named, and its inputs are guaranteed.** The three
+   things above are decision 6's guesser's. The engine's promise is that a
+   seat's view of the log (decision 5) holds every reveal and every scramble
+   with its places, which is everything brute force needs. The probe is
+   that computation in small, run from exactly those inputs.
 
 **The Hullbreaker Horror board, under A.** The card's record says who knows
 the Horror is in that hand. The Feaster's change has a record of its own:
@@ -458,12 +543,12 @@ sight (34), and a change to a card in a library (40).
   drops the hand the moment the enchantment leaves. *Cost*: one more set of
   sources for the check to walk (`lasting-sight`), nothing on a board with
   no such permanent.
-- **A cast taken back shows nothing.** The record is written where a move is
-  announced, so a spell is seen at CR 601.2i, and one rewound before it
-  (CR 732.1) never was: `fuzz_games` counts those as "Actions reversed".
-  *The other way*: an announced spell is seen at 601.2a, which is what a
-  table sees, and makes every agent's failed attempt show a card; it would
-  change the `// CAST-ROLLBACK:` tag's rule that a rewind is unobservable.
+- **A cast taken back shows nothing. Taken** (the owner, 2026-11-17, design
+  review round 3: "failed and rewound cast is not observable; this matches
+  behavior in Arena"). The record is written where a move is announced, so
+  a spell is seen at CR 601.2i, and one rewound before it (CR 732.1) never
+  was: `fuzz_games` counts those as "Actions reversed". The `// CAST-ROLLBACK:`
+  tag's rule that a rewind is unobservable stands.
 
 ### Decision 2 — where the record is stored
 
@@ -510,7 +595,7 @@ Sizes are derived from the measured layout: 44 bytes of fields today in a
 48-byte record, plus the sets and a 4-byte `sighting`, rounded up to eight.
 The object store holds each object once however many forks share it, so 56
 bytes is 3.2 KB more a game at 400 objects, and 64 is 6.4 KB.
-*Recommended: (b).* No clone pays for it, sixty-four seats is past anything
+*Taken: (b).* No clone pays for it, sixty-four seats is past anything
 the floors or either GUI is sized for, and (c) is the same type's insides if
 a game ever needs it. (a) saves nothing under A and 8 bytes an object under
 E, which no fork copies.
@@ -521,8 +606,20 @@ second structure to keep in step. B costs a clone nothing as well. C adds
 up to 8 allocations a clone at four seats to today's 39, against the limit
 of 64. D adds one.
 
-**Taken: A** (the owner, 2026-11-17, design review round 2). The width is
-still open.
+**Taken: A** (the owner, 2026-11-17, design review round 2), **at
+sixty-four seats** (round 3: "64 is a reasonable cap on player seats").
+
+**What decision 1's F adds here.** A pile number on each card, 4 bytes,
+beside the two sets: 72 bytes an object at sixty-four seats, 9.6 KB more a
+game at 400 objects, nothing a clone, and a fork's chunk copy of 2.3 KB.
+The number is one for all players, and a player's own pile is that pile
+less the cards they can point at. That is as fine as a pile kept for each
+player except where two players are blind to different scrambles that
+overlap, where it is coarser for one of them and still never wrong. The
+other way to hold piles is with each player, behind a pointer a clone
+shares. It is exact for each player and costs a clone nothing either, but
+it is a second structure holding card ids, to be kept in step with every
+move, which is what taking A here avoided.
 
 ### Decision 3 — what a decision provider is handed
 
@@ -745,8 +842,12 @@ it cannot see as a card and nothing more. What is left is what the fork
   unknown card's place. What it puts there is the harness's belief and no
   part of the engine: the cards it knows are in its own deck, a guess from
   metagame data at an opponent's hand or morph, or nothing. The engine
-  offers A's shuffle as one ready-made dealer, for games where lists are
-  open.
+  offers one ready-made dealer. Under decision 1's F it deals each pile's
+  seen faces among that pile's places and leaves every card the searcher
+  never saw unknown, so it is honest whether lists are open or not: a
+  player's own library is dealt whole, since they have seen its every face,
+  and an opponent's is left blind. Without F it is A's shuffle, right only
+  where lists are open.
 
 **Taken: C** (the owner, 2026-11-17, design review round 2: "let a policy
 make a 'best guess' as to what the card is and work off of that, or a
@@ -1106,7 +1207,7 @@ medians of five means.
 |---|---|---|---|
 | **The observation's board, k** (`fuzz_games --observe`, 20 games, seed 12345) | 0.106 (7.7 µs against 66.3), then 0.100 at readiness | **0.125**: 6.7 µs an observation, 69 rows, against 53.4 µs of engine a decision | **`Observation`'s board costs at most 0.025 more than the naive observation in the same sitting, and floor 1 over (1 + k) stays above its limit.** Admits the query on each row (0.003, measured) and a name and a reason a row (about 0.014, derived at 10 ns). Refuses a second layer read a row (0.125). At the latest floor 1 reading, 12,465, the limit is k under 0.246 |
 | **The observation's other two parts** | none | none: the naive probe builds the board alone | **No ceiling yet.** What happened since and the question are read at `a-seats-copy`'s close-out, and a ceiling is set on that reading |
-| **The record, a clone** | "bits on each object stay under 1 KB with no allocation" | `GameObject` is 48 bytes, 4 of them padding; 56 with decision 2's fields at sixty-four seats under decision 1's A, 64 under its E | **Zero allocations and zero bytes a clone** at every decision, on `clone_bound_test`. A reveal in progress may add one allocation at a prompt inside it, and `lasting-sight`'s set of sources one on a board that holds such a permanent |
+| **The record, a clone** | "bits on each object stay under 1 KB with no allocation" | `GameObject` is 48 bytes, 4 of them padding; 56 with decision 2's fields at sixty-four seats under decision 1's A, 64 under its E, 72 under its F | **Zero allocations and zero bytes a clone** at every decision, on `clone_bound_test`. A reveal in progress may add one allocation at a prompt inside it, and `lasting-sight`'s set of sources one on a board that holds such a permanent |
 | **A fork made honest (decision 6)** | the redeal, 1.7 to 6.1 µs, "about one clone again" | dealt: **0.8 to 7.9 µs** over a clone of 0.7 to 1.9, and the same within 0.5 with a lookup a card. Blinded: **1.6 to 6.4 µs** over the clone, 382 records written on turn 1 | **A clone and its blinding or its deal together stay inside floor 2's 10 µs** at every checkpoint. Today 1.7 to 8.8 dealt and 2.3 to 8.3 blinded, worst on turn 1, when the libraries are full and every chunk of the object store is copied |
 | **The memo after a deal** | cold costs "one board walk more, 10–40 µs from mid-game" | one walk of what a seat's copy lists, cold less warm: **11 to 62 µs** from turn 20, 1.5 on turn 1 | **A deal or a blinding leaves the memo warm unless a registry row reaches a zone it deals across**, one compare on `RegistryScopeSummary::reachable_zones`, held by a test that counts layer frames with and without one. Cold, it is one walk, which this design does not bound and `layers-architecture.md`'s LL does |
 | **The query, a decision** | "the visibility query's instructions per decision", unmeasured | 2.2 ns an object; 167 ns a decision over the 75 objects a copy lists | **At most 5 ns an object on a board with no lasting sight effect.** Admits the measured 2.2 and one count check. Refuses a layer read (97 ns a row) or a registry scan an object |
@@ -1131,18 +1232,22 @@ are beside the band.
 |---|---|---|---:|---:|
 | **`ui-in-three`** (decision 9), a detour of one PR straight after this design | `ui/` moved into `decision/`, `policies/` and `words/`, and every import path with it, through `plans/replace_exact.py` | every file that imports them, about 176 | 0: moves alone | 0 |
 | **`seat-sight` — the query, and what a provider is handed** | `PlayerBits`; the sight query for the zone defaults and a face-down permanent; `SeatSight`, its accessors and the players it sees for; the 51 implementations onto it, their answers by reference with it (decision 10); `whole_game()` and its gate | `fuzz_games`' `Observer`, the random agent, every decorator; atoms 400.2, 401.2, 401.3, 402.3-001, 404.2, 406.3-001 | 800–1,300, 200–350 of it decision 10's | 550–900, 150–250 of it decision 10's |
-| **`shown-and-followed` — the record, reveal and look** | decision 1's sets and the move rule, written where a move is announced; reveal and look as actions with their records; a reveal in progress and its three holders; CR 603.2f and 701.9c reading the query (item 130) | Brainstorm, registered with its rulings, for the cleared hand; Nephalia Academy's reveal; God-Eternal Kefnet's fixture gains its reveal and its trigger's hold; atoms 401.4, 402.3-002, 402.3-003, 701.20a, and 701.9c's revealed half | 600–900 | 550–850 |
+| **`shown-and-followed` — the record, reveal and look** | decision 1's sets and the move rule, written where a move is announced, with a pile of one for a card shown and one pile a player for the rest; reveal and look as actions with their records; a reveal in progress and its three holders; CR 603.2f and 701.9c reading the query (item 130) | Brainstorm, registered with its rulings, for the cleared hand; Nephalia Academy's reveal; God-Eternal Kefnet's fixture gains its reveal and its trigger's hold; atoms 401.4, 402.3-002, 402.3-003, 701.20a, and 701.9c's revealed half | 600–900 | 550–850 |
+| **`piles` — as fine as the game allows** (decision 1's F) | the pile number and a library's own; places scrambled out of sight, a card moved from a pile nobody can point into, a hand as one pile; a player's own deck at the start, and a search; the audit against brute force | Ureni of the Unwritten's bottom seven; the same Brainstorm seen from across the table; a face-down cast; the audit over seeded small games | 300–450 | 350–500 |
 | **`search-and-library-walks` — search, and the top of a library looked through** | CR 701.23's search with its prompt; "look at the top N, put one here and the rest there"; revealing until a card matches (`backlog.md` "2.46") | Cultivate and Ponder in this PR; the gap census has 39 deck cards needing the model and 20 of them needing nothing else, registered after it; atoms 701.23a, b, d | 550–850 | 450–700 |
 | **`a-seats-copy` — what a client is handed** | `Observation`: the board through sight, what happened since with each record as the seat sees it, the question; decision 4's names; a secret answer withheld; a random pick's record and the draw's kinds (decision 11); the words taking a sight; the kinds table | `fuzz_games --observe` builds it, which is k's reading; a test that no seat's copy of a seeded game holds a card its players were not shown | 600–950 | 450–700 |
 | **`devgui-one-seat`** | the window drawn from one seat's `Observation`, with the tester's whole game as a switch | a person at the dev GUI; its own review path | 300–600 | |
 | **`lasting-sight` — a hand or a top card shown while an effect lasts** | sight read off an effect, and written at each state-based check; CR 401.5's wait while casting and 401.6's new object | Courser of Kruphix, Telepathy; Thundermane Dragon's look, the one deck card; atoms 402.3-004, 401.5-001 to 003 | 350–550 | 300–450 |
 | **`blinded-fork`**, after v0.5 with the AI harness | decision 6: `blind_for`, the call that says what an unknown card is, the engine's own dealer, and the memo's test | the harness's search; "no better than chance" | 300–450 | 250–400 |
 
-**Five route PRs at step 8, the dev GUI's beside them, one after v0.5, and
-`ui-in-three` ahead of them all.** The first four read 1,350–2,200,
-1,150–1,750, 1,000–1,550 and 1,050–1,650, each under the band's top;
-`lasting-sight` is under its floor and may ride `search-and-library-walks`
-if that lands small. `roadmap-v2.md` carried 3–6 before any design.
+**Six route PRs at step 8 if decision 1 is F and five if not, the dev GUI's
+beside them, one after v0.5, and `ui-in-three` ahead of them all.**
+`roadmap-v2.md`'s row stays at 4–5 until decision 1 is taken. The four
+largest read 1,350–2,200,
+1,150–1,750, 1,000–1,550 and 1,050–1,650, each under the band's top.
+`piles` reads 650–950 and `lasting-sight` 650–1,000, both under the band's
+floor; either may ride a neighbor that lands small. `roadmap-v2.md` carried
+3–6 before any design.
 
 **Face-down and secret choices are built in their own rows** on this
 design's query: `face-down-and-morph` at step 16, the secret mark in
