@@ -13,7 +13,7 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
 use super::provider::PriorityAction;
-use crate::ui::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_words, printed_name};
+use crate::words::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_words, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -24,7 +24,7 @@ use crate::ui::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, altern
 /// every match site when a variant is added. **One of those sites is the
 /// variant's own contract**: [`Self::subject`] matches without a wildcard, so
 /// a new variant decides at birth which object it is about (`backlog.md`
-/// §2.21). What it *shows* is `ui::display::question`'s, which both clients
+/// §2.21). What it *shows* is `words::display::question`'s, which both clients
 /// read and which is exhaustive for the same reason; no text crosses the
 /// boundary itself.
 ///
@@ -59,7 +59,7 @@ pub enum DecisionKind {
     /// enabled while some offered set still holds the picks so far
     /// (`choices-architecture.md`, decision 2). `words` is each mode's line
     /// of the announcing ability's text, by printed place, for a client to
-    /// show the modes by (`ui::display::mode_label`).
+    /// show the modes by (`words::display::mode_label`).
     ChooseModes { source: ObjectId, words: Vec<(ModeIndex, &'static str)> },
     /// CR 601.2b — the value of X for `spell_id`. `values` is what the
     /// engine offers and why (`oracle::x_values`), how many times the cost
@@ -561,8 +561,8 @@ impl DecisionKind {
 
 /// The question, and the seat's last answer to it when the engine rejected
 /// that answer and is asking again. No display text: a client words the
-/// question with `ui::display::question`, each option with
-/// `ui::display::option_label` and a rejection with `ui::display::rejection`,
+/// question with `words::display::question`, each option with
+/// `words::display::option_label` and a rejection with `words::display::rejection`,
 /// which keeps presentation off the boundary.
 #[derive(Debug, Clone)]
 pub struct DecisionContext {

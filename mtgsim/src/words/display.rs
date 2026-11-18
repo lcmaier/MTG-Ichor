@@ -1,7 +1,7 @@
 // Text formatting helpers for clients and logging.
 //
 // All functions are pure formatters over &GameState — no mutations.
-// Lives in ui/ because these are presentation helpers, not game-state queries.
+// Lives in words/ because these are presentation helpers, not game-state queries.
 
 use std::collections::HashSet;
 

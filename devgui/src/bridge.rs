@@ -32,7 +32,7 @@ use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, Sea
 use mtgsim::policies::full_control::{FullControl, FullControlSwitch};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::replay::{Replay, ReplayControl};
-use mtgsim::ui::why::{OpenQuestion, Why, read_from_the_trace, why};
+use mtgsim::words::why::{OpenQuestion, Why, read_from_the_trace, why};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 

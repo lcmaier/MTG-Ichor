@@ -29,7 +29,7 @@ use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTu
 use mtgsim::types::zones::Zone;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, ReplacementOption};
 use mtgsim::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::display::{format_event_log, option_label};
+use mtgsim::words::display::{format_event_log, option_label};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::replay::Replay;
 

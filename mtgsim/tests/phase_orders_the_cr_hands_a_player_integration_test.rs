@@ -40,7 +40,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, CostPart, Rejection};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
-use mtgsim::ui::display::{option_label, rejection};
+use mtgsim::words::display::{option_label, rejection};
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 /// `n` Forests tapped for {G} each, through the mana ability's own path.

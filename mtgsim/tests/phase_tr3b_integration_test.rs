@@ -981,7 +981,7 @@ fn the_waiting_view_shows_an_until_return() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, grizzly_bears(), 1);
     banish(&mut game, 0, &test_dp());
-    let waiting = mtgsim::ui::waiting::what_is_waiting(&game);
+    let waiting = mtgsim::words::waiting::what_is_waiting(&game);
     assert_eq!(waiting.until_returns.len(), 1);
     assert!(waiting.until_returns[0].watched.as_deref().is_some_and(|w| w.contains("Banishing Light")));
     assert!(waiting.until_returns[0].returns[0].contains("Grizzly Bears"));
@@ -999,7 +999,7 @@ fn a_waiting_return_keeps_its_number_as_the_list_changes() {
     let dp = RecordingDecisionProvider::picking(0);
     let lights = [banish(&mut game, 0, &dp), banish(&mut game, 0, &dp)];
     let rows = |game: &GameState| -> Vec<(UntilReturnId, Vec<String>)> {
-        mtgsim::ui::waiting::what_is_waiting(game).until_returns.into_iter().map(|row| (row.id, row.returns)).collect()
+        mtgsim::words::waiting::what_is_waiting(game).until_returns.into_iter().map(|row| (row.id, row.returns)).collect()
     };
     let waiting = rows(&game);
     assert_eq!(waiting.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [UntilReturnId(1), UntilReturnId(2)]);

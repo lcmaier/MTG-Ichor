@@ -160,7 +160,7 @@ impl GameState {
         events.sort_unstable();
         format!(
             "{} {}@{} ability {} arm {} triggering events {events:?} controller {} additional {}",
-            crate::ui::display::printed_name(self, source.id),
+            crate::words::display::printed_name(self, source.id),
             source.id,
             source.zone_change_epoch,
             matched.identity.ability,
@@ -174,7 +174,7 @@ impl GameState {
         let records: Vec<String> = window
             .iter()
             .filter_map(|seq| {
-                self.events.record(*seq).map(|r| format!("#{} {}", seq.0, crate::ui::display::format_record(self, r)))
+                self.events.record(*seq).map(|r| format!("#{} {}", seq.0, crate::words::display::format_record(self, r)))
             })
             .collect();
         records.join("; ")

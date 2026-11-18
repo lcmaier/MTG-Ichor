@@ -28,7 +28,7 @@ use mtgsim::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, 
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::policies::random::RandomDecisionProvider;
-use mtgsim::ui::why::{why, why_from_trace, OpenQuestion, Why, WhyAbout, WhyLine};
+use mtgsim::words::why::{why, why_from_trace, OpenQuestion, Why, WhyAbout, WhyLine};
 
 /// Every line of `answer`'s section headed `heading`, as its text and rule.
 fn lines(answer: &Why, heading: &str) -> Vec<(String, Option<&'static str>)> {
@@ -48,7 +48,7 @@ fn event(records: &[TraceRecord], words: &str) -> EventId {
 }
 
 fn named(game: &GameState, id: ObjectId) -> String {
-    mtgsim::ui::display::named(game, id)
+    mtgsim::words::display::named(game, id)
 }
 
 /// Item 210: a debug build's trace is a release build's. Two Biomancers'

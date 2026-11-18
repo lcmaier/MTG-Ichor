@@ -41,7 +41,7 @@ use mtgsim::types::triggers::{DefenderFilter, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::Zone;
 use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::ui::display::{format_event_log, format_record, log_lines};
+use mtgsim::words::display::{format_event_log, format_record, log_lines};
 
 // ---------------------------------------------------------------------------
 // Helpers

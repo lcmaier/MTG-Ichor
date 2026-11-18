@@ -1914,7 +1914,7 @@ mod tests {
                     }
                     predicted.sort();
                     made.sort();
-                    assert_eq!(predicted, made, "{}: {}", ability.rules_text.words, crate::ui::display::named(game, id));
+                    assert_eq!(predicted, made, "{}: {}", ability.rules_text.words, crate::words::display::named(game, id));
                     checked += 1;
                 }
             }

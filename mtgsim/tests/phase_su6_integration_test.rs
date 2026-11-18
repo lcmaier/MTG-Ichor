@@ -1,6 +1,6 @@
 //! SU-6, the why panel's engine half (`setup-architecture.md` §7c):
 //! `engine::layers::explain`, the layer pass recorded for one object, and
-//! `ui::why`, its words.
+//! `words::why`, its words.
 
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
@@ -16,10 +16,10 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode};
-use mtgsim::ui::display::format_event_log;
+use mtgsim::words::display::format_event_log;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;
-use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
+use mtgsim::words::why::{why, OpenQuestion, WhyAbout};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 

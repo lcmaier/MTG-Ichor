@@ -5,7 +5,7 @@
 //! `engine::layers::explain`, the pass itself recorded, and why an option is
 //! not offered comes from the checks the enumeration builds the options by.
 //! What happened, and why two questions offer what they do, are read from a
-//! replay's trace (`ui::what_happened`). This module words them, a line at a
+//! replay's trace (`words::what_happened`). This module words them, a line at a
 //! time, each line with the rule it rests on and the objects it names. A
 //! client lays the lines out and links each name to that object's own why,
 //! and draws no case per mechanic.
@@ -39,11 +39,11 @@ use crate::types::replacement::{ReplacementClass, Rewrite};
 use crate::types::zones::Zone;
 use crate::decision::decision_types::{AmountOf, DecisionContext, DecisionKind, DecisionOption, EntryRole, Rejection};
 use crate::decision::provider::PriorityAction;
-use crate::ui::display::{
+use crate::words::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
     mana_type_name, named, option_label, player_name, rejection_words, type_line, Declaring,
 };
-use crate::ui::what_happened::{cant_words, event_text, trigger_lines, what_happened, WHAT_HAPPENED};
+use crate::words::what_happened::{cant_words, event_text, trigger_lines, what_happened, WHAT_HAPPENED};
 
 /// What a why is about: an object, a player, or a performed event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -171,9 +171,9 @@ fn answer(game: &GameState, about: WhyAbout, at: Option<&OpenQuestion>, trace: O
 
 const AT_THIS_QUESTION: &str = "At this question";
 
-/// The question, as `ui::display` asks it.
+/// The question, as `words::display` asks it.
 fn question_words(game: &GameState, open: &OpenQuestion) -> String {
-    crate::ui::display::question(game, &open.context.kind)
+    crate::words::display::question(game, &open.context.kind)
 }
 
 /// Whether the question offers `about`, and as what; if it offers it nothing,
@@ -516,7 +516,7 @@ fn ranges_over(game: &GameState, kind: &DecisionKind, asked: PlayerId) -> (Strin
             format!(
                 "whether {who} pays {}'s cost as it resolves: {}",
                 n(source),
-                crate::ui::display::payment_words(offer, any_amount_of.as_ref())
+                crate::words::display::payment_words(offer, any_amount_of.as_ref())
             ),
             Some("118.12"),
         ),
@@ -557,7 +557,7 @@ fn ranges_over(game: &GameState, kind: &DecisionKind, asked: PlayerId) -> (Strin
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }
         DecisionKind::AcceptAsObjectEnters { object, offer, .. } => (
-            format!("whether to {} as {} enters", crate::ui::display::entry_offer_words(offer), n(object)),
+            format!("whether to {} as {} enters", crate::words::display::entry_offer_words(offer), n(object)),
             Some("614.12a"),
         ),
         DecisionKind::ChooseAuxiliaryZoneChange { entering, source, .. } => {
@@ -1169,7 +1169,7 @@ fn changes(before: &EffectiveCharacteristics, after: &EffectiveCharacteristics) 
 }
 
 /// Each ability's words, a paragraph several abilities share once, as
-/// `ui::display` prints a permanent's: CR 603.11's linked abilities share a
+/// `words::display` prints a permanent's: CR 603.11's linked abilities share a
 /// paragraph and, when granted, the grant.
 fn ability_words(abilities: &[AbilityDef]) -> Vec<&'static str> {
     let mut shown: Vec<(&'static str, Option<u16>, Option<RowId>)> = Vec::new();

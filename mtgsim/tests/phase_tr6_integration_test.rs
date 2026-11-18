@@ -27,7 +27,7 @@ use mtgsim::types::zones::{Zone, ZoneChangePattern};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::DecisionProvider;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
+use mtgsim::words::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
 
 fn gain_one() -> Effect {
     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
@@ -408,7 +408,7 @@ fn the_why_panel_says_when_the_board_was_asked() {
 }
 
 fn named(game: &GameState, id: ObjectId) -> String {
-    mtgsim::ui::display::named(game, id)
+    mtgsim::words::display::named(game, id)
 }
 
 // ---------------------------------------------------------------------------

@@ -102,7 +102,7 @@ fn x_cant_be_zero_asks_the_gate_for_one_x() {
 /// The why's lines at `kind`'s question to player 0, about `about`, each as
 /// its text and its rule.
 fn why_lines(game: &GameState, kind: mtgsim::decision::decision_types::DecisionKind, about: mtgsim::types::ids::ObjectId) -> Vec<(String, Option<&'static str>)> {
-    use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
+    use mtgsim::words::why::{why, OpenQuestion, WhyAbout};
     let context = mtgsim::decision::decision_types::DecisionContext::new(kind);
     let answer = why(game, WhyAbout::Object(about), Some(&OpenQuestion { player: 0, context: &context, options: &[] }));
     assert_eq!(answer.sections[0].heading, "At this question");

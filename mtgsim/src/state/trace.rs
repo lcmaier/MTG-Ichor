@@ -243,7 +243,7 @@ pub enum RecordKind {
     Object,
     /// A traced state cloned: a new branch.
     Fork,
-    /// A performed event, in `ui::display::format_event`'s words.
+    /// A performed event, in `words::display::format_event`'s words.
     Event,
     /// The proposals entering a batch, and their CR 616.1 subject groups.
     Batch,
@@ -858,7 +858,7 @@ impl GameState {
                 let object = &self.objects[&id];
                 let mut r = Record::new(RecordKind::Object);
                 r.field_u64("id", id.raw());
-                r.field_str("name", &crate::ui::display::printed_name(self, id));
+                r.field_str("name", &crate::words::display::printed_name(self, id));
                 r.field_u64("owner", object.owner as u64);
                 r.field_bool("token", object.is_token);
                 r
@@ -870,7 +870,7 @@ impl GameState {
     /// batch if there is one — the door every emitter uses. A record outside
     /// every batch is its own window, dispatched before this returns.
     ///
-    /// The text is `ui::display::format_event`'s, the same line
+    /// The text is `words::display::format_event`'s, the same line
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
     ///
@@ -920,7 +920,7 @@ impl GameState {
             r.field_u64("index", self.events.next_seq().0 as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
             r.field_opt_u64("resolution", stamp.cause.resolution().map(|s| s.source.raw()));
-            r.field_str("text", &crate::ui::display::format_event(self, &event, &names, &stamp.cause));
+            r.field_str("text", &crate::words::display::format_event(self, &event, &names, &stamp.cause));
             r
         });
         let seq = self.events.next_seq();

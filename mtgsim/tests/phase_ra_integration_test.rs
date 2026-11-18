@@ -758,7 +758,7 @@ fn test_the_log_line_still_says_what_died() {
     let dp = ScriptedDecisionProvider::new();
     assert!(game.check_state_based_actions(&dp).unwrap());
 
-    let line = mtgsim::ui::display::format_event_log(&game)
+    let line = mtgsim::words::display::format_event_log(&game)
         .into_iter()
         .find(|l| l.starts_with("ZoneChange:"))
         .expect("the death is in the log");

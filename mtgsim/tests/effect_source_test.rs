@@ -45,7 +45,7 @@ use mtgsim::types::triggers::{
     DamageRecipient, DelayedDuration, DelayedTriggerTemplate, DelayedTurn, Multiplicity, TriggerEvent, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::display::format_event_log;
+use mtgsim::words::display::format_event_log;
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1340,7 +1340,7 @@ impl TraceBuffer {
 /// The game log's lines for the questions the engine answered without asking
 /// (`events::unasked`), oldest first. The game must be recording.
 pub fn not_asked(game: &GameState) -> Vec<String> {
-    crate::ui::display::format_event_log(game).into_iter().filter(|line| line.starts_with("NotAsked: ")).collect()
+    crate::words::display::format_event_log(game).into_iter().filter(|line| line.starts_with("NotAsked: ")).collect()
 }
 
 /// Panic unless the log says the engine answered `player`'s `kind` question

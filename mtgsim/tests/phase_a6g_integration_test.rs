@@ -13,7 +13,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, SeatMode};
-use mtgsim::ui::display::format_event_log;
+use mtgsim::words::display::format_event_log;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 use mtgsim::policies::random::RandomDecisionProvider;
 use mtgsim::policies::replay::Replay;

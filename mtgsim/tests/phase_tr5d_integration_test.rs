@@ -52,7 +52,7 @@ use mtgsim::types::triggers::{
 use mtgsim::types::zones::Zone;
 use mtgsim::decision::decision_types::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::ui::display::format_record;
+use mtgsim::words::display::format_record;
 
 // ---------------------------------------------------------------------------
 // Helpers

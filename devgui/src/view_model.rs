@@ -18,9 +18,9 @@ use mtgsim::types::ids::PlayerId;
 use mtgsim::types::triggers::DelayedDuration;
 use mtgsim::policies::auto_yield::Yield;
 use mtgsim::decision::decision_types::modes_as_logged;
-use mtgsim::ui::display::{delayed_trigger_in_log, target_with_share};
-use mtgsim::ui::waiting::{TriggersIn, Waiting};
-use mtgsim::ui::why::{Why, WhyAbout, WhyLine};
+use mtgsim::words::display::{delayed_trigger_in_log, target_with_share};
+use mtgsim::words::waiting::{TriggersIn, Waiting};
+use mtgsim::words::why::{Why, WhyAbout, WhyLine};
 
 use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
@@ -1211,7 +1211,7 @@ fn owned(marks: &Marks, card: &CardView) -> Item {
     item
 }
 
-/// A seat's zones, the battlefield grouped the way `ui/display.rs` groups it:
+/// A seat's zones, the battlefield grouped the way `words/display.rs` groups it:
 /// creatures, then lands, then the rest, so a land creature is a creature.
 fn seat(player: &PlayerView, marks: &Marks) -> SeatView {
     let group = |keep: &dyn Fn(&PermanentView) -> bool| -> Vec<Item> {
@@ -1300,7 +1300,7 @@ pub struct SeatButton {
 }
 
 /// A source the window does not offer yet, drawn greyed beside why
-/// (`mtgsim::ui::why::not_offered_yet`).
+/// (`mtgsim::words::why::not_offered_yet`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NotOfferedYetView {
     /// As the option would be labeled.
@@ -1521,7 +1521,7 @@ mod tests {
     };
     use mtgsim::types::card_types::CardType;
     use mtgsim::types::ids::ObjectId;
-    use mtgsim::ui::why::NotOfferedYet;
+    use mtgsim::words::why::NotOfferedYet;
 
     use super::*;
     use crate::prompt::OptionView;
@@ -1630,7 +1630,7 @@ mod tests {
         assert_eq!(item(&view, priest).type_line, None, "a hand card's line is its detail");
     }
 
-    /// The Waiting panel's rows (`ui::waiting`): Blessed Wine's draw and
+    /// The Waiting panel's rows (`words::waiting`): Blessed Wine's draw and
     /// Final Fortune's loss in the order they were made, each with its words
     /// and when it can trigger, then Banishing Light's return, by the number
     /// its log line gives it, then the extra turn; closed until opened.
@@ -2166,7 +2166,7 @@ mod tests {
     /// none open the panel keeps its last answer, its links off, and says so.
     #[test]
     fn the_panels_links_are_live_only_at_an_open_question() {
-        use mtgsim::ui::why::WhySection;
+        use mtgsim::words::why::WhySection;
         let b = board();
         let named = WhyLine { text: "Layer 6".to_string(), rule: Some("613.1f"), names: vec![(b.relic, "Relic (#4)".to_string())], depth: 0 };
         let why = Why { title: "Bear (#1)".to_string(), sections: vec![WhySection { heading: "What the layers did".to_string(), lines: vec![named] }] };

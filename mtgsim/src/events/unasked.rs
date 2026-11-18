@@ -3,7 +3,7 @@
 //! whose answers all leave one game (`plans/elisions.md`). Each is recorded
 //! where it is taken, so a game's log says what was not asked and why; the
 //! full event log draws it and the dev GUI's log does not
-//! (`ui::display::log_lines`), as with a mana ability's activation.
+//! (`words::display::log_lines`), as with a mana ability's activation.
 //!
 //! **An observer, never a participant**, as the decision log and the trace
 //! sink are: kept by the event recorder beside its records and written

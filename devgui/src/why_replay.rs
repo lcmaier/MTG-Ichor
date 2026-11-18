@@ -22,7 +22,7 @@ use mtgsim::types::ids::PlayerId;
 use mtgsim::decision::decision_types::{DecisionContext, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, SeatMode, Stop};
 use mtgsim::policies::replay::{Replay, ReplayControl};
-use mtgsim::ui::why::{OpenQuestion, Why, WhyAbout, WhyLine, WhySection, why_from_trace};
+use mtgsim::words::why::{OpenQuestion, Why, WhyAbout, WhyLine, WhySection, why_from_trace};
 
 use crate::bridge::panic_message;
 use crate::view_model::TraceRequest;

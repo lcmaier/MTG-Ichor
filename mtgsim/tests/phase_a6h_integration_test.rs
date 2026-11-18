@@ -36,7 +36,7 @@ use mtgsim::decision::ask::{
 };
 use mtgsim::decision::decision_types::{DecisionKind, DecisionOption, EntryRole};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::display::{format_event_log, format_record, log_lines};
+use mtgsim::words::display::{format_event_log, format_record, log_lines};
 
 const ONE_LEGAL_ANSWER: &str = "its one legal answer";
 

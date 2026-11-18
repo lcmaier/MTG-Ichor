@@ -25,7 +25,7 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::cards::printings::{abrade, casualties_of_war, cryptic_command, forest, grizzly_bears, hill_giant, paladin_of_atonement};
 use mtgsim::oracle::mana_helpers::{can_cast, CannotCast};
 use mtgsim::oracle::x_values::{LegalXValues, XStop};
-use mtgsim::ui::why::{why, OpenQuestion, WhyAbout};
+use mtgsim::words::why::{why, OpenQuestion, WhyAbout};
 use mtgsim::engine::announcement::Announcement;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp};
@@ -35,7 +35,7 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::decision::decision_types::{position_named, DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
-use mtgsim::ui::display::option_label;
+use mtgsim::words::display::option_label;
 use mtgsim::policies::mana_window_stop::ManaWindowStop;
 
 /// A provider that keeps each `ChooseModes` offer it is shown and answers
@@ -690,7 +690,7 @@ fn casualties_of_war_destroys_in_printed_order_and_its_triggers_wait() {
     game.record_events();
     game.resolve_top_of_stack(&test_dp()).expect("it resolves");
 
-    let destroyed: Vec<String> = mtgsim::ui::display::format_event_log(&game)
+    let destroyed: Vec<String> = mtgsim::words::display::format_event_log(&game)
         .into_iter()
         .filter(|line| line.contains("[Destroyed]"))
         .map(|line| line.split(" (").next().unwrap_or_default().trim_start_matches("ZoneChange: ").to_string())

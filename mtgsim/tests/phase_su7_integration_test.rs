@@ -24,8 +24,8 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::decision::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
 use mtgsim::types::mana::ManaType;
 use mtgsim::decision::provider::{DecisionProvider, PriorityAction};
-use mtgsim::ui::display::named;
-use mtgsim::ui::why::{not_offered_yet, why, NotOfferedYet, OpenQuestion, Why, WhyAbout, WhyLine};
+use mtgsim::words::display::named;
+use mtgsim::words::why::{not_offered_yet, why, NotOfferedYet, OpenQuestion, Why, WhyAbout, WhyLine};
 
 fn built(text: &str) -> GameState {
     let scenario = Scenario::parse(text).unwrap_or_else(|refusal| panic!("{refusal}"));
