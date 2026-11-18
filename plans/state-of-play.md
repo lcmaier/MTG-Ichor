@@ -53,7 +53,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 5 | `information-model-design` and 4 more | 11 of 16 landed | 11 | 5–7 | 14–16 |
 | 6 | `card-and-object-model`, the design and 1 more | to come | 0 | 4–5 | 4–5 |
 | 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 7–9 |
-| 8 | `information-model` | to come | 0 | 4–5 | 4–7 |
+| 8 | `information-model` | to come | 0 | 5–6 | 4–7 |
 | 9 | `permission-design` and 5 more | to come | 0 | 7–14 | 7–14 |
 | 10 | `player-scoped-values` and 2 more | to come | 0 | 3–6 | 3–6 |
 | 11 | `combat-restrictions` and 4 more | to come | 0 | 9–14 | 9–14 |
@@ -63,7 +63,7 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
-| | **To v0.5** | **44 rows to come** | **20** | **74–134** | **92–154** |
+| | **To v0.5** | **44 rows to come** | **20** | **75–135** | **92–154** |
 
 No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.

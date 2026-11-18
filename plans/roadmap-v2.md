@@ -768,7 +768,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 7 | `restricted-mana-plus-spend-riders`, the second | | 1 | no, #323 | may | Design: the same table, 1,600–2,400, with where it splits named |
 | 7 | `mana-kept-and-lost`, the third | | 1 | no, #323 | no | Design: the same table, 1,050–1,600. Its close-out reads three boards that store mana |
 | 7 | `any-color-plus-painlands-plus-signets` | | 1–2 | no | may | Design: 1,500–2,000 at 1.4× is up to 2,800 |
-| 8 | `information-model` | | 4–5 | no, its note | yes, in five | Design: `plans/handoffs/information-model-design.md`'s table, each PR's top under the band's: the query and what a provider is handed, the record with reveal and look, search and library walks, a seat's copy, and sight that lasts, which may ride the third. The dev GUI's one-seat view is beside them, and the blinded fork a search needs waits for the AI harness, after v0.5. 39 deck cards need it, by the gap census |
+| 8 | `information-model` | | 5–6 | no, its note | yes, in six | Design: `plans/handoffs/information-model-design.md`'s table, each PR's top under the band's: the query and what a provider is handed, the record with reveal and look, hidden piles, search and library walks, a seat's copy, and sight that lasts, which may ride a neighbor. The dev GUI's one-seat view is beside them, and the blinded fork a search needs waits for the AI harness, after v0.5. 39 deck cards need it, by the gap census |
 | 9 | `permission-design` | | 1 | it is one | no | Nearest: #306. `cant-cast-play-or-activate`'s reasons and CR 610.5's grant are designed in it |
 | 9 | `text-changing-effects`, the design | | 0–1 | it is one | no | Guess: rides `permission-design`'s PR unless its review splits it; it was to ride `card-and-object-model`'s before that moved to step 6 |
 | 9 | `command-zone-casting` | | 1–3 | rides `permission-design` | may | Guess until `permission-design` sizes it. Nearest: CM-1, the first sweep on the cast, one PR at 1,783, and six items wait on the cast path's shape |
@@ -801,7 +801,7 @@ name for, and a phase of the critical path that no Row cell names.
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-17:** 74–134 route PRs left, 15–40 of them
+**What the rows sum to, read 2026-11-17:** 75–135 route PRs left, 15–40 of them
 the decks' cards and gaps. (Read 2026-11-06 it was 73–138: seven route PRs landed
 since, and three rows split.)
 
@@ -851,8 +851,8 @@ at each multiple of 20 and a dev GUI PR when notes are PR-sized, it is 110–203
 
 **A date, and what it assumes.** The route ran 10.9 PRs a week over those eight
 weeks and 5 in its slowest fortnight, the dev GUI's. From 2026-11-15, 73 PRs at
-the first pace is about 7 weeks and 134 at the second 27, so **between about New
-Year and late May 2027**. Each range's midpoint, 104 PRs at 8 a week, gives
+the first pace is about 7 weeks and 135 at the second 27, so **between about New
+Year and late May 2027**. Each range's midpoint, 105 PRs at 8 a week, gives
 mid-February, a week later than the reading of 2026-11-06. It
 assumes the owner's review keeps pace and no row's design doubles it as TR-5's did.
 The gap census held the date: its gaps are 5–9 PRs where the five-decks row guessed
