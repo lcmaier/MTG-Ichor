@@ -4790,6 +4790,18 @@ The dispatcher landed with TR-1 (2026-09-19): detection in `engine::triggers::di
    not the object's controller makes, so a departed seat is never asked for
    one.
 
+   **That reason no longer holds (noted 2026-11-18, at
+   `several-choosers-at-one-step`'s design review; not re-run).** A player
+   who is not the controller now pays as an effect resolves (ward's "that
+   player", Mana Leak's "its controller") and chooses ("target opponent
+   chooses a number"), and nothing checks that such a player is still in the
+   game: `resolve_player_ref` hands an `Effect::Optional` its player
+   unchecked, and a choose step whose chooser is gone chooses nothing, where
+   CR 800.4g has the object's controller name another player.
+   `handoffs/values-chosen-at-resolution.md`'s second row, decision 11,
+   walks the three rules. The verdict is re-read on a board at this item's
+   intake.
+
    **Sized:** CR 802's defending-player choice ~60 lines at
    `candidate_priority_actions`' attack-target list plus a `DecisionKind`;
    800.4f–h ~120 with the delegation rule and a fixture each; 800.4i waits on
