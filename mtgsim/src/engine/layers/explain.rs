@@ -12,7 +12,7 @@
 //! hypothetical (`board::depends_on`'s journaled application) records
 //! nothing.
 //!
-//! The words are `ui::why`'s: this module says what happened, as facts.
+//! The words are `words::why`'s: this module says what happened, as facts.
 
 use crate::engine::layers::board::{compute_board, compute_board_recorded, pass_membership, Board, PassMembership};
 use crate::engine::layers::compute::{compute_non_member_recorded, LAYER_ORDER};

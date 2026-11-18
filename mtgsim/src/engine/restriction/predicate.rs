@@ -80,7 +80,7 @@ impl ProhibitedBy {
     /// and its words, which a registered effect leaves to its source.
     pub(crate) fn as_recorded(self) -> (&'static str, Option<&'static str>) {
         match self {
-            ProhibitedBy::Keyword(keyword) => ("keyword", Some(crate::ui::display::keyword_name(keyword))),
+            ProhibitedBy::Keyword(keyword) => ("keyword", Some(crate::words::display::keyword_name(keyword))),
             ProhibitedBy::StaticAbility(words) => ("static_ability", Some(words)),
             ProhibitedBy::RegisteredEffect => ("registered_effect", None),
         }

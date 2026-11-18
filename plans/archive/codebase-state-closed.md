@@ -10750,3 +10750,92 @@ announces the permanent, and no choice is made.
     resolves a `FilteredPermanents` recipient as the effect resolves, for every
     arm that writes a row, regenerates or removes from combat or damage.
     `Choose` and a set named by the event ("each of them") remain.
+
+### Item 357 — closed 2026-11-17 by `ui-in-three`
+
+Closed by moves alone, decision 9 of `plans/handoffs/information-model-design.md`:
+`ask`, `decision_types` and the trait's file went to `decision/`; `random`
+and the four decorators to `autopilot/`; `display`, `why`, `what_happened`
+and `waiting` to `words/`. The trait's file is `decision/provider.rs`, since
+`decision/decision.rs` is clippy's `module_inception`. At the PR's first
+review round (the owner, 2026-11-17) `decision_types` became
+`decision/question.rs`, for the parts of a question it holds; `replay` went
+to `state/decision_log/replay.rs`, beside the format it reads; and decision
+9's `policies/` became `autopilot/`, since an AI harness's own `Policy`
+picks every action and four of the five files are wrappers that answer
+some. No item in any file changed, and the PR body's script shows each byte
+for byte.
+
+What a move does not fix stays where it was, read off the imports at the
+close:
+
+- **The boundary reads the words** at `decision/question.rs:16`: six of
+  `display`'s helpers (`printed_name` and the cost and color words) spell a
+  logged option.
+- **Six engine files read the words for their own output**: the trace's two
+  writers (`state/trace.rs`, `engine/trace_records.rs`), the trigger audit's
+  two files (`engine/triggers/audit.rs`, `engine/triggers/state.rs`), a
+  restriction's recorded keyword (`engine/restriction/predicate.rs`) and
+  `Game::event_log` (`state/game.rs`). Two test helpers read them too,
+  `test_support.rs` and `oracle/mana_supply.rs`'s tests, and two more files
+  name them only in doc comments (`engine/layers/explain.rs`,
+  `events/unasked.rs`).
+- **The scenario loader reads `autopilot`**, which decision 9 did not
+  name: its setup driver stacks `ManaWindowStop` and asks
+  `random::mana_window_preference` (`scenario/setup.rs`). The random agent
+  reaches past the boundary too, to `oracle::mana_supply`.
+- **The replay reads the boundary's crate-private validators**: it checks
+  each answer with eight of `decision::ask`'s. In the decision log, beside
+  the format it reads and the start (`BuiltStart::replay`) that takes it,
+  this is a read inside the engine crate for as long as the boundary is.
+  The boundary's own tests run the random agent and a replay.
+
+Modules of one crate import each other both ways, so each compiles as it
+stands. They matter only when the modules become crates, which `backlog.md`
+"2.38"'s open question 6 and item 208 decide at Phase 10's design.
+
+*Original entry:*
+
+357. **`ui/` holds three kinds of code under one name.** About 7,100 lines
+     of code and 2,200 of tests (2026-10-30), more than `oracle` and `events`
+     together:
+     - **the engine's question boundary**: `ask`, `decision_types` and
+       `decision`, about 2,500 lines, the `DecisionProvider` surface every
+       client and agent answers through;
+     - **agent-side policies**: `random`, `mana_window_stop`, `auto_payer`,
+       `auto_yield`, `full_control`, `auto_order_triggers` and `replay`,
+       decorators a seat chooses, read by the harness, the dev GUI and the
+       tests;
+     - **client rendering and explanation**: `display`, `why`,
+       `what_happened`, `waiting` and `cli`, about 3,200 lines of text a
+       client shows a person.
+     The third is what a viewer sees, and `information-model-design`
+     decides what each viewer may see, so that design is where its home is
+     settled. **What the engine takes from `display`, read import by import
+     (2026-10-30, at #299's review): no rule reads it**, since nothing
+     branches on its text. The engine's own output borrows its words: the
+     trace sink's `name` and `text` fields (`state/trace.rs`,
+     `engine/trace_records.rs`, the restriction's `as_recorded`), the
+     audits' disagreement messages (`engine/triggers/audit.rs`,
+     `engine/triggers/state.rs`) and `Game::event_log`. Two saved formats
+     go further and *parse* through it: `.scenario` files and the decision
+     log both spell a step with `scenario::position_word`, which was
+     `display::step_name` lower-cased, and read it back by matching that
+     spelling, so a wording change in a client's table stopped saved files
+     loading: "Declare Blockers Step" made the shipped template refuse its
+     own `step declare blockers`. **Fixed in #299**: the formats keep their
+     own table, pinned by `a_saved_position_is_spelled_as_the_format_was_written`,
+     and the same wording change leaves every saved file loading. What is
+     left is the output's borrowing above. Found at #299's review (the owner: "the UI
+     module of this project has already gotten a little overgrown compared
+     to the rest of the engine"), when this PR's census hook nearly added a
+     sixteenth file to it.
+     **Reachability (2026-10-30):** nothing owed — a structure question;
+     every reader works.
+     **Sized:** the decision at `information-model-design`'s stop; then the
+     moves, mechanical: the rendering group alone is imported by 13 other
+     files in `src`, 19 in `tests` and 6 in the dev GUI (2026-10-30), a
+     path sweep through `plans/replace_exact.py`.
+     **Slotted:** `ui-in-three`, by moves alone: decision 9 of
+     `plans/handoffs/information-model-design.md`, taken at #332's design
+     review (2026-11-17), split the module three ways.

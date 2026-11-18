@@ -6,7 +6,7 @@
 //! (CR 732.1). Nothing in CR 601.2 or 732 forbids another attempt (CR 732.2
 //! lets the player redo it), so every seat is offered the action again and
 //! charged nothing, and the re-ask names the action it reversed. Not choosing
-//! it again is an agent's policy (`ui::random`), not the engine's.
+//! it again is an agent's policy (`autopilot::random`), not the engine's.
 
 use mtgsim::cards::printings;
 use mtgsim::engine::priority::PriorityResult;
@@ -14,9 +14,9 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{RejectionRecorder, place_forest, put_in_hand, setup_two_player_game};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, Rejection};
-use mtgsim::ui::decision::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection};
+use mtgsim::decision::provider::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 /// Grizzly Bears in hand and two Forests to pay for it exactly, in player
 /// 0's main phase, so player 0's list is `[Pass, Cast]` and player 1's is

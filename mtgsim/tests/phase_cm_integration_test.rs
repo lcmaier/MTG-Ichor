@@ -39,9 +39,9 @@ use mtgsim::types::effects::{Effect, ObjectFilter};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
-use mtgsim::ui::decision::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
+use mtgsim::decision::provider::{DecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
@@ -1388,7 +1388,7 @@ fn test_activating_an_ability_opens_the_same_window_a_cast_does() {
     let draw = 1;
 
     let forest_mana = game.objects[&forest].card_data.abilities[0].id;
-    let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(RecordingDecisionProvider::choosing([
+    let dp = mtgsim::autopilot::mana_window_stop::ManaWindowStop::new(RecordingDecisionProvider::choosing([
         DecisionOption::Action(PriorityAction::ActivateAbility(forest, forest_mana)),
     ]));
     game.activate_ability(0, stone, draw, &dp).expect("{1} paid from inside the window");
@@ -1480,7 +1480,7 @@ fn test_the_window_keeps_offering_after_the_cost_is_covered() {
 
 /// The pair: the same board under the stop a shipped client stacks.
 ///
-/// `ui::ManaWindowStop` declines the moment the locked component is covered,
+/// `autopilot::ManaWindowStop` declines the moment the locked component is covered,
 /// so the second Ironworks activation is never offered and the board ends
 /// where `main` left it — one artifact eaten, one colorless floating. This is
 /// what keeps every fuzz counter where it was: the decorator declines at
@@ -1512,7 +1512,7 @@ fn test_the_payers_stop_ends_the_window_where_the_engine_used_to() {
     );
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced and no prompt is made.
-    let dp = mtgsim::ui::mana_window_stop::ManaWindowStop::new(inner);
+    let dp = mtgsim::autopilot::mana_window_stop::ManaWindowStop::new(inner);
 
     game.activate_ability(0, stone, draw, &dp).expect("{1} out of two colorless");
 

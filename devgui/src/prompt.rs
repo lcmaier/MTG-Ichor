@@ -1,5 +1,5 @@
 //! The question as owned data: which primitive asked, what it asks, and each
-//! option as `ui::display`'s label plus the board things it names. The names
+//! option as `words::display`'s label plus the board things it names. The names
 //! are what let the window make exactly those things clickable with no case per
 //! `DecisionKind`.
 
@@ -7,11 +7,11 @@ use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::ui::auto_yield::Yield;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::PriorityAction;
-use mtgsim::ui::display::{mode_label, option_label, question, rejection, what_the_option_does};
-use mtgsim::ui::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
+use mtgsim::autopilot::auto_yield::Yield;
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::PriorityAction;
+use mtgsim::words::display::{mode_label, option_label, question, rejection, what_the_option_does};
+use mtgsim::words::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,7 +28,7 @@ pub enum Reply {
     /// The answer to the open prompt.
     Answer(Answer),
     /// Pass at the open priority prompt, and keep passing until the yield
-    /// ends (`mtgsim::ui::auto_yield`). The seat sets it; the log has the pass.
+    /// ends (`mtgsim::autopilot::auto_yield`). The seat sets it; the log has the pass.
     Yield(Yield),
     /// End the seat's yield. The open prompt stays open.
     StopYielding,
@@ -76,7 +76,7 @@ impl BoardRef {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OptionView {
     pub label: String,
-    /// `ui::display::what_the_option_does`, for a label that doesn't say it.
+    /// `words::display::what_the_option_does`, for a label that doesn't say it.
     pub what_it_does: Option<&'static str>,
     /// In order: none, one, or a pair's two — attacker then what it attacks,
     /// blocker then what it blocks.
@@ -100,17 +100,17 @@ pub struct Prompt {
     /// Where a priority prompt offers `Pass`, which it always does: a
     /// priority prompt is the one a yield answers and Space passes at.
     pub pass: Option<usize>,
-    /// Why the seat is asked again, in `ui::display::rejection`'s words: the
+    /// Why the seat is asked again, in `words::display::rejection`'s words: the
     /// answer the engine rejected and the rule.
     pub rejected: Option<String>,
     /// A why at this question reads the trace, so a replay answers it, not
-    /// the seat (`mtgsim::ui::why::read_from_the_trace`).
+    /// the seat (`mtgsim::words::why::read_from_the_trace`).
     pub why_reads_the_trace: bool,
     pub primitive: Primitive,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
     /// Each mode some option is a choice of, in printed order, labeled by
-    /// `ui::display::mode_label` with its place and words: the mode picker's rows.
+    /// `words::display::mode_label` with its place and words: the mode picker's rows.
     pub mode_labels: Vec<(ModeIndex, String)>,
     /// At CR 601.2g's window, each mana ability it does not offer until the
     /// pool holds its mana, with why.

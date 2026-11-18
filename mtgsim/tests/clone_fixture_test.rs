@@ -20,8 +20,8 @@ use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{create_goblins_for_each_seat, put_on_battlefield, setup_game};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 #[path = "support/counting_allocator.rs"]
 mod counting_allocator;

@@ -18,7 +18,7 @@ use crate::types::history::TurnFact;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::EventPattern;
 use crate::types::zones::{DrawOrdinals, Zone};
-use crate::ui::decision::DecisionProvider;
+use crate::decision::provider::DecisionProvider;
 
 impl GameState {
     /// Move a game object from one zone to another.

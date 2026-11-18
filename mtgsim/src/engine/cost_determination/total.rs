@@ -26,9 +26,9 @@ use crate::types::cost_modification::CostChange;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
-use crate::ui::ask::ask_order_cost_reductions;
-use crate::ui::decision_types::{DecisionKind, DecisionOption};
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::ask_order_cost_reductions;
+use crate::decision::question::{DecisionKind, DecisionOption};
+use crate::decision::provider::DecisionProvider;
 
 /// CR 601.2f, whole: from the choices CR 601.2b recorded to the locked total.
 ///

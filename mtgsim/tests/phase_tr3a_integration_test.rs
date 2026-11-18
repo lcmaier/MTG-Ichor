@@ -48,10 +48,10 @@ use mtgsim::types::triggers::{
     TriggerEvent, TriggerOrigin, TriggerSubject, TriggerTurn,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::decision::provider::ScriptedDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -513,7 +513,7 @@ fn next_death() -> Arc<CardData> {
     )
 }
 
-fn destroy_together(game: &mut GameState, objects: &[ObjectId], dp: &dyn mtgsim::ui::decision::DecisionProvider) {
+fn destroy_together(game: &mut GameState, objects: &[ObjectId], dp: &dyn mtgsim::decision::provider::DecisionProvider) {
     let batch = objects.iter().map(|&object| GameAction::Destroy { object }).collect();
     game.execute_actions(batch, &ActionContext::new(dp)).unwrap();
 }
@@ -946,7 +946,7 @@ mod final_fortune_and_blessed_wine {
     use mtgsim::types::mana::ManaType;
     use mtgsim::types::triggers::{TriggerOrigin, TriggerTurn};
     use mtgsim::types::zones::Zone;
-    use mtgsim::ui::mana_window_stop::ManaWindowStop;
+    use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
     /// Resolve `card`'s spell effect for `controller` by hand, the card its
     /// own source.

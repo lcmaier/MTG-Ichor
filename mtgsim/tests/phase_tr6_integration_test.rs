@@ -24,10 +24,10 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject, TriggerTier};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::DecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::DecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::words::why::{why_from_trace, OpenQuestion, Why, WhyAbout};
 
 fn gain_one() -> Effect {
     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
@@ -408,7 +408,7 @@ fn the_why_panel_says_when_the_board_was_asked() {
 }
 
 fn named(game: &GameState, id: ObjectId) -> String {
-    mtgsim::ui::display::named(game, id)
+    mtgsim::words::display::named(game, id)
 }
 
 // ---------------------------------------------------------------------------

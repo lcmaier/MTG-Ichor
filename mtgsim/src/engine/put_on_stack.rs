@@ -35,12 +35,12 @@ use crate::oracle::mana_helpers::{
 use crate::oracle::mana_supply::ManaAbilityWindowOffer;
 use crate::engine::cost_determination::total_cost_in_x;
 use crate::oracle::x_values::legal_x_values;
-use crate::ui::ask::{
+use crate::decision::ask::{
     ask_activate_mana_ability,
     ask_choose_alternative_cost, ask_choose_additional_costs, ask_choose_modes,
     ask_choose_x_value, ask_divide_among, ask_select_recipients,
 };
-use crate::ui::decision::DecisionProvider;
+use crate::decision::provider::DecisionProvider;
 
 /// Which of CR 307.1's three conditions a sorcery-speed action missed, in the
 /// order `GameState::check_sorcery_timing` asks them.
@@ -488,7 +488,7 @@ impl GameState {
             ModeChooser::AnOpponent => match self.opponents_of(player_id).as_slice() {
                 [] => return Err(format!("an opponent chooses {source_id}'s modes, and player {player_id} has none in the game")),
                 [only] => *only,
-                several => crate::ui::ask::ask_choose_player(dp, self, player_id, source_id, several),
+                several => crate::decision::ask::ask_choose_player(dp, self, player_id, source_id, several),
             },
         };
         Ok(ask_choose_modes(dp, self, chooser, source_id, node.words(), groups))
@@ -767,7 +767,7 @@ impl GameState {
     /// or activating an ability that requires a mana payment", with no "until
     /// it is paid" — so the engine offers until the player declines. Stopping
     /// once the cost is covered is a *payer's* policy and lives in
-    /// `ui::ManaWindowStop`; do not reintroduce it here
+    /// `autopilot::ManaWindowStop`; do not reintroduce it here
     /// (`cost-architecture.md` §3.11).
     ///
     /// # Mana-cost extraction
@@ -793,7 +793,7 @@ impl GameState {
     /// so the DP can't pick it again; it is bounded by `|initial_legal|`. A DP
     /// that keeps successfully activating forever (cycling mana-filter abilities)
     /// is the DP's problem, and every shipped client answers it:
-    /// `ui::ManaWindowStop` declines once the locked component is covered,
+    /// `autopilot::ManaWindowStop` declines once the locked component is covered,
     /// `RandomDecisionProvider` caps itself per window — the only terminator left
     /// when a client drops the stop (`--no-auto-pay`) — and a person stops
     /// when they choose.
@@ -926,8 +926,8 @@ mod tests {
     use crate::types::card_types::*;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::ui::decision_types::{DecisionKind, DecisionOption};
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::question::{DecisionKind, DecisionOption};
+    use crate::decision::provider::ScriptedDecisionProvider;
     use crate::test_support::lightning_bolt as make_bolt;
 
     fn setup_for_casting() -> (GameState, ObjectId, ScriptedDecisionProvider) {
@@ -1161,7 +1161,7 @@ mod tests {
         }, vec![DecisionOption::Player(1)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
-        // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
+        // allocation` gives it without a prompt (`decision::ask::forced_allocation`).
 
         game.cast_spell(0, card_id, &dp).unwrap();
 
@@ -1325,7 +1325,7 @@ mod tests {
         dp.expect_choice(DecisionKind::ChooseAdditionalCosts { spell_id: card_id }, vec![DecisionOption::AdditionalCost(kicker)]);
         // No split to script: one type in the pool can take the generic mana,
         // so the answer is forced and `ask_choose_generic_mana_
-        // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
+        // allocation` gives it without a prompt (`decision::ask::forced_allocation`).
 
         game.cast_spell(0, card_id, &dp).unwrap();
 

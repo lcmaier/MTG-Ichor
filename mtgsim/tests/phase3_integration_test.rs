@@ -25,8 +25,8 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::state::battlefield::AttackTarget;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider, SeatMode};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider, SeatMode};
 use mtgsim::types::replacement::EnterMods;
 
 // ---------------------------------------------------------------------------

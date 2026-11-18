@@ -8,8 +8,8 @@ use crate::scenario::{BuiltScenario, Scenario, SetupDriver};
 use crate::state::game::{Game, Halt, RandomStreams};
 use crate::state::game_config::{GameConfig, MulliganRule};
 use crate::state::game_state::GameResult;
-use crate::ui::decision::DecisionProvider;
-use crate::ui::replay::Replay;
+use crate::decision::provider::DecisionProvider;
+use crate::state::decision_log::Replay;
 
 use super::text::{LogError, Reader};
 
@@ -206,7 +206,7 @@ impl BuiltStart {
 mod tests {
     use super::*;
     use crate::cards::random_deck::random_deck;
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::provider::ScriptedDecisionProvider;
     use rand::SeedableRng;
     use rand::rngs::StdRng;
 

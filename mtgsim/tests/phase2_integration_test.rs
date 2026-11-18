@@ -10,8 +10,8 @@ use mtgsim::engine::priority::PriorityResult;
 use mtgsim::types::effects::{EffectRecipient, ObjectFilter, PlayerSet, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::test_support::{setup_two_player_game, put_in_hand, put_land_on_battlefield, fill_library};
 
@@ -140,7 +140,7 @@ fn test_volcanic_upheaval_destroys_land() {
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
-    // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
+    // the split is forced and nothing is asked (`decision::ask::forced_allocation`).
     // Cast (returns ActionTaken immediately)
     let result = game.run_priority_round(&dp).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
@@ -214,7 +214,7 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
-    // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
+    // the split is forced and nothing is asked (`decision::ask::forced_allocation`).
     game.run_priority_round(&dp).unwrap();
 
     // Cast second upheaval targeting the same land
@@ -271,7 +271,7 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     // The only legal target, so the choice is forced and
     // `ask_select_recipients` does not prompt.
     // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
-    // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
+    // the split is forced and nothing is asked (`decision::ask::forced_allocation`).
     game.run_priority_round(&dp).unwrap();
 
     // Stack: [Burst of Energy, Volcanic Upheaval] — Upheaval on top (LIFO)

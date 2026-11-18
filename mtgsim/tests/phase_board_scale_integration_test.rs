@@ -23,8 +23,8 @@ use mtgsim::types::effects::{CounterType, Effect, ObjectFilter, ObjectSet, Playe
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 fn goblin() -> TokenDef {
     TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])

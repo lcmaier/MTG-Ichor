@@ -24,9 +24,9 @@ use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 /// "Choose a creature you control. It gains indestructible until end of
 /// turn.": the choice, and the change on what was chosen.

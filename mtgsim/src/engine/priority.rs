@@ -3,9 +3,9 @@ use crate::events::cause::GameRule;
 use crate::oracle::legality::candidate_priority_actions;
 use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::game_state::GameState;
-use crate::ui::ask::ask_choose_priority_action;
-use crate::ui::decision_types::{DecisionKind, DecisionOption, Rejection};
-use crate::ui::decision::{DecisionProvider, PriorityAction};
+use crate::decision::ask::ask_choose_priority_action;
+use crate::decision::question::{DecisionKind, DecisionOption, Rejection};
+use crate::decision::provider::{DecisionProvider, PriorityAction};
 
 /// How many answers to one question the engine rejects before it ends the
 /// game with an error. The CR sets no limit (CR 732.2 lets a player redo a
@@ -304,8 +304,8 @@ mod tests {
     use crate::types::card_types::CardType;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, PlayerSet, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::ui::decision_types::DecisionKind;
-    use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
+    use crate::decision::question::DecisionKind;
+    use crate::decision::provider::{ScriptedDecisionProvider, SeatMode};
 
     /// Each player has `Pass` alone, which the engine takes: an empty script
     /// panics on any prompt, so the round ending is the assertion that

@@ -31,8 +31,8 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::replacement::{AmountRewrite, Rewrite};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 fn bears_deck() -> Vec<Arc<CardData>> {
     (0..30).map(|_| grizzly_bears()).collect()

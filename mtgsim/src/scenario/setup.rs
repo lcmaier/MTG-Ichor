@@ -8,10 +8,10 @@ use super::board::{SetupAction, SetupVerb};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::mana::ManaCost;
-use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode, Stop};
-use crate::ui::mana_window_stop::ManaWindowStop;
-use crate::ui::random::{mana_window_preference, WindowPreference};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::provider::{DecisionProvider, PriorityAction, SeatMode, Stop};
+use crate::autopilot::mana_window_stop::ManaWindowStop;
+use crate::autopilot::random::{mana_window_preference, WindowPreference};
 
 /// A scenario's setup actions, in file order, each name resolved through the
 /// objects the loader created (`Scenario::build`), so nothing later matches a

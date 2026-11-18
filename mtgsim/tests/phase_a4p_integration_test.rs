@@ -20,7 +20,7 @@
 
 use mtgsim::cards::printings::{ancestral_recall, lightning_bolt};
 use mtgsim::state::game_state::GameState;
-use mtgsim::ui::decision_types::DecisionOption;
+use mtgsim::decision::question::DecisionOption;
 use mtgsim::test_support::{
     put_in_hand, setup_game, stock_libraries, test_dp, RecordingDecisionProvider,
 };

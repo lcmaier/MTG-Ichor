@@ -22,8 +22,8 @@ use crate::state::trace::{render_debug, render_subject, Record, RecordKind};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerTier};
 use crate::types::zones::Zone;
-use crate::ui::decision_types::{DecisionContext, DecisionOption};
-use crate::ui::decision::PriorityAction;
+use crate::decision::question::{DecisionContext, DecisionOption};
+use crate::decision::provider::PriorityAction;
 
 /// A record of `kind`, its `batch` field naming the batch open now.
 pub(crate) fn in_the_open_batch(kind: RecordKind, game: &GameState) -> Record {
@@ -175,7 +175,7 @@ pub(crate) fn event_trigger(
     let mut r = Record::new(RecordKind::Trigger);
     r.field_u64("record", record.0 as u64);
     r.field_u64("source", identity.source.id.raw());
-    r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
+    r.field_str("name", &crate::words::display::printed_name(game, identity.source.id));
     r.field_str("ability", &identity.ability.to_string());
     r.field_str("zone", &format!("{:?}", zone));
     r.field_bool("matched", matched);
@@ -193,7 +193,7 @@ pub(crate) fn state_trigger(game: &GameState, identity: &AbilityRef, zone: Zone,
     r.field_bool("state", true);
     r.field_opt_u64("after", game.events.next_seq().0.checked_sub(1).map(|newest| newest as u64));
     r.field_u64("source", identity.source.id.raw());
-    r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
+    r.field_str("name", &crate::words::display::printed_name(game, identity.source.id));
     r.field_str("ability", &identity.ability.to_string());
     r.field_str("zone", &format!("{:?}", zone));
     r.field_bool("matched", refused_by.is_none());
@@ -218,7 +218,7 @@ pub(crate) fn pending(
     r.field_u64("tier", match entry.tier() { TriggerTier::First => 1, TriggerTier::Second => 2 });
     r.field_u64("controller", entry.controller as u64);
     r.field_u64("source", identity.source.id.raw());
-    r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
+    r.field_str("name", &crate::words::display::printed_name(game, identity.source.id));
     r.field_str("ability", &identity.ability.to_string());
     let records: Vec<u64> = entry.binding.records().map(|r| r.seq.0 as u64).collect();
     r.field_u64s("records", &records);

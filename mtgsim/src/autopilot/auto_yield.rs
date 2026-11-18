@@ -20,8 +20,8 @@ use std::rc::Rc;
 
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use crate::ui::decision::{DecisionProvider, PriorityAction, SeatMode};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::provider::{DecisionProvider, PriorityAction, SeatMode};
 
 /// How long a yield passes priority for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -175,8 +175,8 @@ mod tests {
     use super::*;
     use crate::test_support::setup_two_player_game;
     use crate::types::ids::new_object_id;
-    use crate::ui::decision::ScriptedDecisionProvider;
-    use crate::ui::full_control::{FullControl, FullControlSwitch};
+    use crate::decision::provider::ScriptedDecisionProvider;
+    use crate::autopilot::full_control::{FullControl, FullControlSwitch};
 
     const PRIORITY: DecisionContext = DecisionContext::new(DecisionKind::PriorityAction);
 

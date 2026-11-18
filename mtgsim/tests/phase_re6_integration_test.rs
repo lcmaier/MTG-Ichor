@@ -41,8 +41,8 @@ use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::announcement::Announcement;
 use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 

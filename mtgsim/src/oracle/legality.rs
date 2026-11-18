@@ -17,7 +17,7 @@ use crate::types::triggers::TriggerBinding;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::ui::decision::PriorityAction;
+use crate::decision::provider::PriorityAction;
 
 /// Can `player_id` declare `id` as an attacker (CR 508.1a)? One check for the
 /// enumeration and the declaration: the declare-attackers question offers what

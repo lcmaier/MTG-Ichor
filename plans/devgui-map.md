@@ -68,7 +68,7 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
    is complete, here "cast Lightning Bolt", and the session sends that to the
    engine's thread.
 6. **The engine goes on.** The seat returns the answer, the engine checks it
-   (`ui::ask`) and writes a decision-log line through the writer the bridge
+   (`decision::ask`) and writes a decision-log line through the writer the bridge
    attached, such as `answer 12 [turn 3, precombat main] player 0
    PriorityAction picks cast Lightning Bolt (#12)`, and it casts the spell.
    Bolt's targets are the next question, which travels the same way.
@@ -100,14 +100,14 @@ Player 0 has priority in their main phase, with Lightning Bolt in hand.
 
 From `engineering-practices.md#the-dev-gui`, and A6g's rule (the owner): **the window
 draws only the engine's generic surfaces**, the layer output,
-`DecisionKind::subject()`, the options' ids, `ui::display`'s formatters and the
+`DecisionKind::subject()`, the options' ids, `words::display`'s formatters and the
 trace sink, never a case per mechanic. What it cannot draw from them is an
 engine surface to add, not client logic.
 - **A fact only the rules compute**, such as characteristics, the legal
   options or a prompt's subject, is the engine's. The snapshot reads it, and
   the window never computes a rule.
 - **Wording every reader sees alike**, such as names, questions and option
-  labels, is `ui::display`'s, in the engine crate. A label stays short, and
+  labels, is `words::display`'s, in the engine crate. A label stays short, and
   what a thing does rides beside it as data: a counter's words on its row, a
   target's share on the stack (`backlog.md`'s "What a client is handed").
 - **How it looks**, such as layout, color and what is hidden, is the
@@ -288,7 +288,7 @@ everything a drawing function calls runs that often.
 ## 9. Where the tools sit
 
 SU-4 (#217) put the record's text and the replay in the engine
-(`state::decision_log`, `ui::replay`); SU-5 (#219) built the window's side
+(`state::decision_log` and its `Replay`); SU-5 (#219) built the window's side
 (`setup-architecture.md` §7.1–§7.3). Every game the window plays is a start
 and a line of answers, so any question it was asked can be asked again by
 building the game afresh and replaying the answers before it.
@@ -326,7 +326,7 @@ player's line can be right-clicked too, and its why is that section alone.
   `Reply::Why`, which the session sends as it sends an answer. The seat
   waiting at the open question (`GuiSeat::ask`) carries it out without
   closing the question, as it carries out "Stop yielding": it asks the engine
-  (`ui::why::why`, which reads `engine::layers::explain` and, for the
+  (`words::why::why`, which reads `engine::layers::explain` and, for the
   question's section, the checks the options were built by) and sends the
   answer back as `ToWindow::Why`. The seat hands it the open question too: who
   is asked, the `DecisionContext` and the options, as the engine gave them. A why answers nothing, so it keeps the answer in
@@ -353,7 +353,7 @@ player's line can be right-clicked too, and its why is that section alone.
 - **Not offered yet.** At CR 601.2g's window, a mana ability the window does
   not offer only because the pool lacks its mana, Doubling Cube's {3} say,
   is drawn greyed under the options with the why's reason
-  (`ui::why::not_offered_yet`, carried in the prompt). A source spent another
+  (`words::why::not_offered_yet`, carried in the prompt). A source spent another
   way, tapped or summoning sick, is not drawn: its right-click says why.
 - **What happened (SU-8).** A right-click on a log line asks what its event
   did. Each line carries its event's number (`snapshot::LogLine`). The panel
@@ -365,7 +365,7 @@ player's line can be right-clicked too, and its why is that section alone.
   was proposed in. Then every triggered ability asked about the event,
   matched or refused and by what. Every question kind's line says what the question ranges over.
 - **A question about the past is a replay's.** The engine reads a past event
-  from its trace (`ui::why::why_from_trace`), and the window keeps no trace,
+  from its trace (`words::why::why_from_trace`), and the window keeps no trace,
   so the session replays the window's line on a thread of its own with the
   sink on: `why_replay`, Undo answer's rebuild with three differences. The
   sink is on, nothing is recorded, and the seat behind the line reads the why
@@ -411,7 +411,7 @@ whose it is, whether it fires once or each time this turn and the turn it can
 trigger in; each "until" return (CR 610.3), named by its source and the number
 its log line gave it, with what it returns, whose it is and the object its
 event is about; then each extra turn in the order it will be taken. The engine
-answers it (`ui::waiting::what_is_waiting`, under `mtgsim/tests/waiting_test.rs`),
+answers it (`words::waiting::what_is_waiting`, under `mtgsim/tests/waiting_test.rs`),
 the snapshot carries it, `view_model.rs` makes it a zone of rows, and `app.rs`
 draws that zone as it draws Exile: a collapsing header, closed until opened,
 shown only while something waits. A row goes when its trigger fires or

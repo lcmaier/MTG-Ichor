@@ -33,7 +33,7 @@ use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::{condition_functions_in, functions_as_static, functions_in};
 use crate::events::cause::{EventCause, GameRule, GeneratedBy};
-use crate::ui::decision::AsksNobody;
+use crate::decision::provider::AsksNobody;
 use crate::events::event::{BatchId, DepartedObject, EventRecord, EventId, GameEvent, LifeChange};
 use crate::objects::card_data::CardData;
 use crate::objects::object::GameObject;

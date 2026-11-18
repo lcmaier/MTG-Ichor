@@ -744,7 +744,7 @@ are. `create_delayed_trigger` announces `GameEvent::DelayedTriggerCreated`
 ahead of the entry, so its creation is no record it reads; nothing triggers on
 it. `AbilityId::delayed_trigger` reads back the role above, so a log names the
 trigger by its registry number on its triggered and resolved lines.
-`ui::waiting` reads the registry for a client.
+`words::waiting` reads the registry for a client.
 
 **As built (TR-3b, 2026-10-08).** `refs` is `Effect::Remember`, decided at
 #234's review. A card marks the instruction whose objects a later delayed
@@ -2781,7 +2781,7 @@ design keeps a paused game's call stack, so a clone at a prompt is never
 resumed by itself: a fork copies the game at the last anchor (a priority
 prompt asked for the first time in its window) and replays the answers since. The rule every prompt now follows is that design's
 decision 3 (`setup-architecture.md#7e-pausing-at-a-decision`): it asks through
-`ui::ask`, names its options by what they are, and holds nothing off
+`decision::ask`, names its options by what they are, and holds nothing off
 `GameState` past the next anchor. The drain stays as built, and item
 233 closes as superseded at that design's build.
 
@@ -4050,7 +4050,7 @@ schedules.
 loop: Grumgully, the Generous, Wingrattle Scarecrow and Viscera Seer, all
 registered and the first two pooled (212 → 215, 122 → 124). Nothing in the
 engine changed for them: the re-count found every facility the loop reads
-already built by TR-4 to TR-6. `ui::AutoOrderTriggers`, item 163's decorator
+already built by TR-4 to TR-6. `autopilot::AutoOrderTriggers`, item 163's decorator
 half, takes a person's trigger order as offered under full control's toggle,
 in the dev GUI; a bot's agent orders for itself. The loop is
 tested cast from hand under the dispatch audit, run three times by choice and

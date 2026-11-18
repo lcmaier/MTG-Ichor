@@ -38,11 +38,11 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::auto_order_triggers::AutoOrderTriggers;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, PriorityAction};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::autopilot::auto_order_triggers::AutoOrderTriggers;
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, PriorityAction};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 const PLUS: CounterType = CounterType::PlusOnePlusOne;
 const MINUS: CounterType = CounterType::MinusOneMinusOne;
@@ -130,7 +130,7 @@ fn enter(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, dp: &dyn De
 }
 
 /// A provider asked once, which copy source to choose, and choosing `donor`.
-fn choosing_copy_source(donor: ObjectId) -> mtgsim::ui::decision::ScriptedDecisionProvider {
+fn choosing_copy_source(donor: ObjectId) -> mtgsim::decision::provider::ScriptedDecisionProvider {
     let dp = test_dp();
     dp.expect_choice(DecisionKind::ChooseCopySource { source: donor }, vec![DecisionOption::Object(donor)]);
     dp

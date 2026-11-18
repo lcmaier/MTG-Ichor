@@ -11,12 +11,12 @@ use mtgsim::state::decision_log::{self, AnswerLine, BuiltStart, GameStart};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode};
-use mtgsim::ui::display::format_event_log;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
-use mtgsim::ui::replay::Replay;
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, SeatMode};
+use mtgsim::words::display::format_event_log;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
+use mtgsim::state::decision_log::Replay;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -113,7 +113,7 @@ fn a_seat_that_stops_at_every_priority_point_writes_the_log_the_engine_does() {
 }
 
 /// The record is complete: random seats play a game, and its text, read back
-/// and replayed by `ui::replay`, plays the same game again, at two seats and
+/// and replayed by `state::decision_log::Replay`, plays the same game again, at two seats and
 /// four.
 #[test]
 fn a_game_replayed_from_its_log_is_the_same_game() {

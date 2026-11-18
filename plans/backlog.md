@@ -1196,7 +1196,7 @@ mechanic rather than a migration, which is why it is here and not in
   validation and fails at `ManaPool::pay`. About five casts per game did that,
   and until `codebase-state.md` 16c closed they *resolved unpaid*; now they
   rewind, on top of the 7.5 above. **Closed 2026-09-03, in two halves.** The
-  DP-side one (`ui/random.rs`): the random agent taps for the pip it still
+  DP-side one (`autopilot/random.rs`): the random agent taps for the pip it still
   owes, which took its land taps per cast from 7.66 to 3.18 on an any-color
   mana base. Then the engine-side clamp (`mana/generic-split-clamp`):
   `ask_choose_generic_mana_allocation` caps each bucket at `available − pips
@@ -1207,7 +1207,7 @@ mechanic rather than a migration, which is why it is here and not in
   is what proves the prompt now computes what the agent was computing. **What
   is left of this entry is the reversal prompt and the oracle.** **The
   oracle is built (2026-09-08, CM-4), and it is two decorators rather than
-  one.** `ui::ManaWindowStop<D>` declines `ManaAbilityWindow` once the locked
+  one.** `autopilot::ManaWindowStop<D>` declines `ManaAbilityWindow` once the locked
   mana component is covered — the stop that used to sit in the engine's loop
   (`codebase-state.md` main item 70) — and `ui::AutoPayer<D>` answers
   `GenericManaAllocation` (CR 601.2h) and `OrderCostReductions` (CR 601.2f).
@@ -1505,7 +1505,7 @@ mechanic rather than a migration, which is why it is here and not in
   reversal are each *the player's* choice, so a decorator that answers one is
   a client choosing on the player's behalf — fine on a bot's seat, a toggle on
   a human's, never the engine's.
-- **Verdict** — CM-4 built two decorators (`ui::ManaWindowStop`,
+- **Verdict** — CM-4 built two decorators (`autopilot::ManaWindowStop`,
   `ui::AutoPayer`) one at a time against one phase's need, and settled the
   composition rule; what was missing was the census — every row v1's two use
   cases want, sized against the tree and sequenced against each other. **Three
@@ -1514,7 +1514,7 @@ mechanic rather than a migration, which is why it is here and not in
   are marked.
   1. **A prompt whose answer cannot change the game belongs to the engine, not
      to a middleware.** Two cases, and the engine already holds one of each. A
-     prompt with one legal answer, which `ui::ask` declines before any provider
+     prompt with one legal answer, which `decision::ask` declines before any provider
      is asked (`ask_discard`, `order_scry_group`, `ask_select_recipients`,
      `forced_allocation`, and five asks that assert two or more candidates —
      A4e, `codebase-state.md` item 145). And a prompt whose every legal answer
@@ -1524,7 +1524,7 @@ mechanic rather than a migration, which is why it is here and not in
      already decided to spend, which is the ceiling on what any row here saves
      — and the reason the payer's forced branch retires in this PR and the
      rest of the payer follows it (row 2). A note on the number the tree cites
-     for the first case, since the census read it: `ui/ask.rs` and item 145
+     for the first case, since the census read it: `decision/ask.rs` and item 145
      say "CR 102.2", and in `tmnt.txt` 102.2 is the two-player-opponent rule;
      the CR states the general form nowhere, and the anchors are CR 616.1's
      "two or more" and 601.2f's "if multiple". Corrected throughout at #278
@@ -1532,7 +1532,7 @@ mechanic rather than a migration, which is why it is here and not in
   2. **Every decorator is a policy, and a policy's seat decides where it
      lives.** The answers differ and a rule picks one — declining the window
      once the cost is covered, passing priority, dividing combat damage, which
-     sources to tap. It lives in `ui::` only when both use cases want the same
+     sources to tap. It lives in `autopilot::` only when both use cases want the same
      rule; a **human's seat takes it under a toggle**, because the automation
      is a choice made for the player, and a **bot's seat takes it at
      construction**, because for an agent it is the harness's policy and
@@ -1547,7 +1547,7 @@ mechanic rather than a migration, which is why it is here and not in
      ask, and the supplemental doc's `AutoYieldDP` and auto-tapper are what
      decorators are for.
   3. **At most one decorator answers any one prompt**, so composition
-     commutes and stack order carries no meaning (`ui/mana_window_stop.rs`,
+     commutes and stack order carries no meaning (`autopilot/mana_window_stop.rs`,
      CM-4's review). Two predicates on one `DecisionKind` coexist when they are
      disjoint — the stop answers the window once covered, a solver while it
      is not. **Full control is therefore a switch above the stack, never a
@@ -1555,7 +1555,7 @@ mechanic rather than a migration, which is why it is here and not in
      review; row 3): on, the seat's prompts go to the raw provider; off, to
      the decorated stack. The supplemental doc's ordering question (§6) is
      closed by construction rather than by convention.
-- **The tree, counted 2026-09-18.** `ui/ask.rs` has **24 `ask_*` functions**,
+- **The tree, counted 2026-09-18.** `decision/ask.rs` has **24 `ask_*` functions**,
   the whole decision surface, at **26 engine call sites in 12 files** — every
   ask once, `ask_select_recipients` and `ask_discard` twice. The
   classification below recorded 27 on 2026-09-15 and was right for its tree:
@@ -1627,12 +1627,12 @@ mechanic rather than a migration, which is why it is here and not in
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
   | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224): the existence check landed in MA-1 (#225), and the covering set, the solver, is `mana-payment-solver` (`mana-architecture.md` §3.12) |
   | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6; `mana-payment-solver` |
-  | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | **built**: the elision in TR-1 and TR-2b, the decorator `ui::AutoOrderTriggers` in TR-7 (2026-10-22, PR #269); classified at birth below |
+  | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | **built**: the elision in TR-1 and TR-2b, the decorator `autopilot::AutoOrderTriggers` in TR-7 (2026-10-22, PR #269); classified at birth below |
   | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | `ironworks-loop` (item 72) |
 
   **Row 2, decided: the payer keeps no answer the engine stopped asking for.**
   `AutoPayer::allocate`'s forced branch and `auto_payer::split_is_forced`
-  duplicated `ui::ask::forced_allocation` one layer up and were unreachable
+  duplicated `decision::ask::forced_allocation` one layer up and were unreachable
   from a game since A4e; keeping them would have covered a client that drives
   the provider by another route — the raw-action-space harness is such a
   client — and rule 1 says that client should get the engine's answer too.
@@ -1935,7 +1935,7 @@ mechanic rather than a migration, which is why it is here and not in
   341ebf9:plans/handoffs/post-re-audit.md`, its record `codebase-state.md`'s
   "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15"). The owner's rule: an inner ask is either a *parameter of
   the action chosen at priority* or *answered by a policy the harness
-  supplies*, never a separate observation. Read against `ui/ask.rs`'s 24
+  supplies*, never a separate observation. Read against `decision/ask.rs`'s 24
   functions — the whole decision surface, 27 engine call sites and none in
   `tests/` on 2026-09-15, 26 on 2026-09-18 once A4i asked recipients from one
   site (the count above) — three classes come out, **B** (a boundary of its own: the seat
@@ -2498,7 +2498,7 @@ builder asks between them.
 
 **The surface that cannot express it.** `ObjectId`'s `Display` is `#17`
 (A4g, 2026-09-16, chosen so an id "reads as one wherever it lands in a log
-line"), and everything that renders text follows it: `ui::display`'s event
+line"), and everything that renders text follows it: `words::display`'s event
 lines (`Everywhere (#39)`), the trace sink's `render_debug`, which rewrites
 `{:?}`'s `ObjectId(17)` to `#17` inside a rendered action, `render_option`'s
 `#17` for an object and `P0` for a player, and `plans/traces/viewer.html`,
@@ -2729,20 +2729,20 @@ decision 6 lists the options with their costs and settles the dev GUI's, and
 v1's design chooses its own from them.
 
 **Open question 6: where the words live** (the owner, 2026-10-05, at #221's
-review; noted, not designed). `ui::why` (360 lines at #221) and, by the same
-argument, `ui::display` (1,215) sit in the engine crate's `ui` module, so
-every client says the same words: the CLI, the dev GUI, v1's GUI and an AI
+review; noted, not designed). `why` (360 lines at #221) and, by the same
+argument, `display` (1,215) sit in the engine crate, in `words/` since
+`ui-in-three`, so every client says the same words: the CLI, the dev GUI, v1's GUI and an AI
 harness's logs. That is `engineering-practices.md#the-dev-gui`'s "engine computes, ui
 words, window draws" and `setup-architecture.md` §7c's decision 2. The owner
 kept `why.rs` there at #221 and asked to revisit it at or near v1's release,
 once the engine's relation to the v1 GUI is clear. SU-7 adds the reasons an
-option is not offered to `ui::display` as the tree stands, and this question
+option is not offered to `words::display` as the tree stands, and this question
 covers them too. The options, with what each costs:
 
 - **The words stay in the engine crate.** One copy, and the engine's own
   output says the same words a client shows: `state::trace` writes each
-  `event` record in `ui::display::format_event`'s words, and the scenario text
-  names phases and steps with `phase_name` and `step_name`. The cost is that
+  `event` record in `words::display::format_event`'s words; the scenario text
+  keeps its own table of phase and step words since #299. The cost is that
   the engine crate carries English presentation. A client that wants other
   words or another language cannot change them, and a change of wording is an
   engine PR.
@@ -2753,16 +2753,25 @@ covers them too. The options, with what each costs:
   for words. The engine's own trace and the scenario text still need words,
   so one wording stays in the engine anyway, or the trace changes to typed
   fields that a reader words.
-- **A words crate that clients depend on.** `ui::display` and `ui::why` move
+- **A words crate that clients depend on.** `words::display` and `words::why` move
   to a crate over the engine, and every client depends on it. One copy stays,
-  and the engine crate drops its English. The cost is that the five engine
-  files that word things today (the trace's two writers, the trigger audit,
-  the scenario text and `Game`'s event log) would depend on a crate that
+  and the engine crate drops its English. The cost is that the six engine
+  files that word things today (the trace's two writers, the trigger audit's
+  two files, a restriction's recorded keyword and `Game`'s event log) and the
+  question boundary, which spells a logged option with six of `display`'s
+  helpers (`decision/question.rs`), would depend on a crate that
   depends on them, so their words move out with the trace's reader, or the
   records change to typed fields. It also needs a Cargo workspace.
 
 Decided at Phase 10's design, beside `codebase-state.md` item 208 (the
-crate's name and a workspace), since both redraw the crate boundary.
+crate's name and a workspace), since both redraw the crate boundary. The
+same redraw meets `autopilot`, if it leaves the engine crate too: the
+scenario loader's setup driver stacks `ManaWindowStop` and reads the random
+agent's crate-private `mana_window_preference`. The replay is the decision
+log's (`state::decision_log::Replay`), and checks each answer with
+`decision::ask`'s crate-private validators, a read inside the engine crate
+for as long as the boundary is. Item 357's archive entry lists each crossing
+as `ui-in-three` left it.
 
 **How an object's text shows** (the owner, 2026-10-01, at A6g's ability
 names), as Arena shows it: an object's abilities in printed order, a granted
@@ -2776,7 +2785,7 @@ The type line the same way (the owner, 2026-10-02, at the playable PR's
 review): the copiable values' words in printed order and one the object lost
 faded in place; a card type or supertype an effect gave it in its place in
 Oracle's order, and a subtype after the printed ones, in the order given.
-`ui::display::type_line_now` marks each word, and the dev GUI's hover fades
+`words::display::type_line_now` marks each word, and the dev GUI's hover fades
 the lost ones.
 
 **One client, not the interface.** Nothing in the engine is shaped for this

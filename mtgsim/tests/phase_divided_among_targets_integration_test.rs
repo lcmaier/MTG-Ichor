@@ -27,11 +27,11 @@ use mtgsim::types::replacement::Uses;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption, ReplacementOption};
-use mtgsim::ui::decision::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::display::{format_event_log, option_label};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::replay::Replay;
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, ReplacementOption};
+use mtgsim::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
+use mtgsim::words::display::{format_event_log, option_label};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::state::decision_log::Replay;
 
 /// The script's next answer: `chosen` for the announcement of an instance of
 /// "target". The queue matches a kind by its variant alone.

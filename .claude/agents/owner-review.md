@@ -96,7 +96,7 @@ gates do that. Stop at about 100 tool calls and report what you have.
     field or prompt kind whose v1 client the note does not name: a person at
     the four-seat GUI, an AI client, or neither. Flag one that serves only a
     test, the random agent or an existing function and sits in the engine,
-    not outside it (`ui/random`, the harness, the tests): the shape of
+    not outside it (`autopilot/random`, the harness, the tests): the shape of
     `available_mana_sources`, which only the random agent calls, in `oracle/`.
     **At a design stop.**
 14. **A shape cut to one card.** Flag a new field, enum variant or arm only one

@@ -23,8 +23,8 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::test_support::test_ctx;

@@ -42,8 +42,8 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::DecisionProvider;
 
 /// CR 616.1's choice between two applicable effects.
 const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };

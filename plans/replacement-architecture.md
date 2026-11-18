@@ -772,8 +772,8 @@ already rewrites what the batch hands it, and L1–L6 in RH-3.
 
 | | The fact | Copies today | Its home |
 |---|---|---|---|
-| L1 | the damage source as it deals damage: CR 608.2h's current information, else its last known information | five: `damage_source_existence` and `damage_source_characteristics` (`oracle/characteristics.rs`), `pattern_watches`' filter (`replacement/gather.rs`), `retarget_destination`'s `ToDamageSourceController` (`replacement/pipeline.rs`), and `as_it_left` with `format_event` (`ui/display.rs`) | one CR 608.2h reader: the object while it is where the effect expected it, else its `Lki`, with four projections (existence, characteristics, controller, a filter's answer). `bound_characteristics` (`triggers/binding.rs`) asks the same question of a bound object and reads it too |
-| L2 | this reference is still the object (CR 400.7) | eleven: four epoch comparisons and seven `object_ref(id) == Some(r)`, the seventh `ui/waiting.rs`'s `!=` (recounted at RH-3's start; the inventory listed ten) | one query on `GameState`, from an `ObjectRef` to the object while it is still that existence; the record's `new_object()` is that identity |
+| L1 | the damage source as it deals damage: CR 608.2h's current information, else its last known information | five: `damage_source_existence` and `damage_source_characteristics` (`oracle/characteristics.rs`), `pattern_watches`' filter (`replacement/gather.rs`), `retarget_destination`'s `ToDamageSourceController` (`replacement/pipeline.rs`), and `as_it_left` with `format_event` (`words/display.rs`) | one CR 608.2h reader: the object while it is where the effect expected it, else its `Lki`, with four projections (existence, characteristics, controller, a filter's answer). `bound_characteristics` (`triggers/binding.rs`) asks the same question of a bound object and reads it too |
+| L2 | this reference is still the object (CR 400.7) | eleven: four epoch comparisons and seven `object_ref(id) == Some(r)`, the seventh `words/waiting.rs`'s `!=` (recounted at RH-3's start; the inventory listed ten) | one query on `GameState`, from an `ObjectRef` to the object while it is still that existence; the record's `new_object()` is that identity |
 | L3 | the CR 603.10a frame a record carries | `frame_of` and `find_trigger_matches`' second leg (`triggers/dispatch.rs`), `subject_lki` (`triggers/binding.rs`) | a method on `GameEvent` |
 | L4 | taking a mover's frame | `take_captured_lki` opens with `take_named_frame`'s body, and `capture_frame` repeats the lookup | one take; the battlefield caller asserts it found a frame |
 | L5 | the handoff before an object leaves | `perform_zone_change` and `owned_objects_leave` (`engine/leaving.rs`) each call `depart` (`engine/last_known.rs`), which files the batch's frame in the LKI store and notes a delayed trigger's source moving | one function both performers call |
@@ -2683,7 +2683,7 @@ take a `&dyn DecisionProvider`. The 44 test `advance_turn` calls funnel through
 One new `DecisionKind`, plus one reused shape:
 
 ```rust
-// ui/decision_types.rs
+// decision/question.rs
 /// CR 616.1 — two or more replacement/prevention effects want the same event.
 /// Only asked when there is a genuine choice (2+ candidates in the forced
 /// bucket); a single candidate applies without a prompt.

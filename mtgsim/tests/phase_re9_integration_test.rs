@@ -52,8 +52,8 @@ use mtgsim::types::mana::{
 use mtgsim::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
 /// CR 616.1's choice between two applicable effects.
 const PICK_REPLACEMENT: DecisionKind = DecisionKind::ChooseReplacementEffect { affected_object: None };

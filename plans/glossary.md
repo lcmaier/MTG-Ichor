@@ -270,7 +270,7 @@ trigger additional times (Panharmonicon), found by
 `trigger_multiplier_sources_now` and counted on the board the window was
 performed on. **(2)** A *pool multiplier*: an ability that multiplies the mana a
 pool holds (Doubling Cube), which the random agent activates once nothing else
-is offered (`ui/random.rs`). **(3)** A commutation class of CR 616.1's ordering
+is offered (`autopilot/random.rs`). **(3)** A commutation class of CR 616.1's ordering
 table, `Commuting::Multiplier`: an amount rewrite by n ≥ 1, which commutes with
 another on any kind. → `triggers-architecture.md` §4.4; `replacement-architecture.md`
 §4.1.
@@ -636,13 +636,13 @@ both what it rejected (`DecisionContext::rejected`). An *agent* is a program
 a rejected action again is its own policy. A *person* plays through a client,
 may take a canceled action again (CR 732.2), and is the seat full control
 and auto-yield are for. Not *player*, the CR's word for whoever plays.
-→ `ui::decision_types::Rejection`, `ui::random`.
+→ `decision::question::Rejection`, `autopilot::random`.
 
 **yield** — a person's standing pass, Arena's word and not the CR's: until
 the turn ends, until the stack changes, or until their own next turn. Set at a
 priority prompt, with that prompt's pass, and answered by `AutoYield` at the
 seat's priority prompts while it holds; under full control the seat's prompts
-never reach it. → `ui::auto_yield`.
+never reach it. → `autopilot::auto_yield`.
 
 **dispatch** — CR 603.2's first instant, run once over a window of records:
 when the outermost batch closes, or at an emission outside any batch. It finds
@@ -738,7 +738,7 @@ written beside it. The project's word, from `cost-architecture.md` §3.4 and
 `codebase-state.md` item 47 — `pipeline::ordering_cannot_change_outcome`
 skips CR 616.1's prompt when no order can change the outcome — and not
 Rust's, where it names the compiler filling in omitted lifetimes. Two things
-it is not: a *forced* prompt, which has one legal answer and which `ui::ask`
+it is not: a *forced* prompt, which has one legal answer and which `decision::ask`
 declines under the same rule (A4e); and a decorator *answering* such a
 prompt, which is a second home for one fact (`backlog.md` §2.22, rule 1).
 An elision always carries its expiry conditions, because the theorem that

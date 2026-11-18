@@ -26,8 +26,8 @@ use crate::types::effects::ObjectFilter;
 use crate::oracle::characteristics::ObjectInformation;
 use crate::types::ids::{ObjectId, ObjectOrPlayer, PlayerId};
 use crate::types::mana::{ManaSpent, ManaType};
-use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
-use crate::ui::decision_types::CostPart;
+use crate::decision::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
+use crate::decision::question::CostPart;
 use crate::types::zones::Zone;
 
 /// The decisions CR 601.2h's payment needs, taken against one board.
@@ -651,11 +651,11 @@ mod tests {
         // Cost: {1}{G} — the player chooses to spend Red for the generic, and
         // the choice is the plan's, not the payment's.
         let cost = ManaCost::build(&[ManaType::Green], 1);
-        let dp = crate::ui::decision::ScriptedDecisionProvider::new();
+        let dp = crate::decision::provider::ScriptedDecisionProvider::new();
         let source = crate::types::ids::new_object_id();
-        let mana = crate::ui::decision_types::DecisionOption::ManaType;
+        let mana = crate::decision::question::DecisionOption::ManaType;
         dp.expect_allocation(
-            crate::ui::decision_types::DecisionKind::GenericManaAllocation {
+            crate::decision::question::DecisionKind::GenericManaAllocation {
                 spell_or_ability_id: source,
                 mana_cost: cost.clone(),
             },
@@ -886,13 +886,13 @@ mod tests {
         let first = add_creature(&mut game, 0, "First");
         let second = add_creature(&mut game, 0, "Second");
 
-        let dp = crate::ui::decision::ScriptedDecisionProvider::new();
+        let dp = crate::decision::provider::ScriptedDecisionProvider::new();
         dp.expect_choice(
-            crate::ui::decision_types::DecisionKind::ChooseSacrificeForCost {
+            crate::decision::question::DecisionKind::ChooseSacrificeForCost {
                 spell_or_ability_id: first,
                 count: 1,
             },
-            vec![crate::ui::decision_types::DecisionOption::Object(second)],
+            vec![crate::decision::question::DecisionOption::Object(second)],
         );
         let ctx = crate::engine::actions::ActionContext::new(&dp);
         let costs = [Cost::Sacrifice(creature_filter(), 1)];

@@ -9,8 +9,8 @@ use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::ui::ask::ask_choose_trample_damage_assignment;
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::ask_choose_trample_damage_assignment;
+use crate::decision::provider::DecisionProvider;
 
 /// Convert an `AttackTarget` to an `ObjectOrPlayerId`.
 ///
@@ -163,8 +163,8 @@ pub fn assign_trample_damage(
 mod tests {
     use super::*;
     use crate::types::ids::ObjectOrPlayerId;
-    use crate::ui::decision_types::{DecisionKind, DecisionOption};
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::question::{DecisionKind, DecisionOption};
+    use crate::decision::provider::ScriptedDecisionProvider;
     use crate::test_support::{
         place_vanilla_creature as place_creature_with_keywords, set_attacking, set_blocked_by,
         set_blocking,

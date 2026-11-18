@@ -130,10 +130,10 @@ use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, TokenDef};
 use mtgsim::types::ids::{IdCollection, IdMap, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneSet};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, SeatMode};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, SeatMode};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 /// CLI arguments (simple manual parsing, no external deps).
 struct Args {
@@ -155,7 +155,7 @@ struct Args {
     /// Copies of each required **nonland** card per deck (`--copies`). 1 by
     /// default, which is the shape every recorded `--require` row was taken at.
     copies: usize,
-    /// Stack `ui::ManaWindowStop` under the random agent (the default).
+    /// Stack `autopilot::ManaWindowStop` under the random agent (the default).
     ///
     /// With it, the agent declines CR 601.2g's window once the locked mana
     /// component is covered, so the counters are comparable with every recorded
@@ -949,7 +949,7 @@ enum GameOutcome {
 /// `bool` each would be a parameter on two signatures and three call sites.
 #[derive(Clone, Copy)]
 struct MiddlewareConfig {
-    /// Stack `ui::ManaWindowStop`: decline CR 601.2g's window once the locked
+    /// Stack `autopilot::ManaWindowStop`: decline CR 601.2g's window once the locked
     /// mana component is covered. On by default; `--no-auto-pay` drops it.
     auto_pay: bool,
     /// `--census`: count innermost, under every decorator that answers.
@@ -1109,7 +1109,7 @@ fn player_row(player: &mtgsim::state::player::PlayerState) -> ObservationRow {
 
 /// The census's count and the observation's build, where a prompt reaches
 /// the agent; then asks `inner`. Innermost, under `ManaWindowStop`, so each
-/// prompt it is asked is a decision: `ui::ask` answers a prompt with one
+/// prompt it is asked is a decision: `decision::ask` answers a prompt with one
 /// legal answer itself, and the random agent's seat is never shown a
 /// `Pass`-only priority prompt.
 struct AtTheAgent<D> {
@@ -2319,7 +2319,7 @@ mod ladder_tests {
     use super::{ladder_board, ladder_step, observation_rows, LadderShape, Observer};
     use mtgsim::oracle::characteristics::get_effective_power;
     use mtgsim::types::effects::CounterType;
-    use mtgsim::ui::random::RandomDecisionProvider;
+    use mtgsim::autopilot::random::RandomDecisionProvider;
 
     /// A rung is the board it says, and a step leaves it so: the reading is of
     /// one board size, however many steps it took.

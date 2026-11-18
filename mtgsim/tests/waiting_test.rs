@@ -1,4 +1,4 @@
-//! The Waiting view (`mtgsim::ui::waiting`): what the game is holding for
+//! The Waiting view (`mtgsim::words::waiting`): what the game is holding for
 //! later, as a client reads it. Each board checks a row appears when the
 //! thing it describes is made, says what the CR says it is, and is gone the
 //! moment it fires, expires, or its turn is skipped or will never come.
@@ -15,7 +15,7 @@ use mtgsim::test_support::{put_in_hand, setup_game, setup_two_player_game, stock
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::triggers::{DelayedDuration, DelayedTriggerTemplate, DelayedTurn};
-use mtgsim::ui::waiting::{what_is_waiting, TriggersIn, WaitingTurn};
+use mtgsim::words::waiting::{what_is_waiting, TriggersIn, WaitingTurn};
 
 // ---------------------------------------------------------------------------
 // Helpers

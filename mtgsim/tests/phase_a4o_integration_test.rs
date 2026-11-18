@@ -31,7 +31,7 @@ use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_gam
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers

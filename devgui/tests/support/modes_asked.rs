@@ -16,9 +16,9 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{put_in_hand, setup_game};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::mana::ManaType;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::DecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::DecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 /// What the bridge's seat would send at a choice of modes.
 pub struct Asked {

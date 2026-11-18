@@ -14,7 +14,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive, PlayerSet, SelectionFilter, TargetCount};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 #[path = "support/counting_allocator.rs"]
 mod counting_allocator;

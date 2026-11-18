@@ -14,7 +14,7 @@
 use crate::state::game_state::GameState;
 use crate::types::ids::{DelayedTriggerId, ExtraTurnId, PlayerId, UntilReturnId};
 use crate::types::triggers::{DelayedDuration, DelayedTrigger, TriggerSubject, TriggerTurn};
-use crate::ui::display::{named, object_label};
+use crate::words::display::{named, object_label};
 
 /// The delayed triggers, the extra turns and the returns waiting, each kind
 /// in its own order.

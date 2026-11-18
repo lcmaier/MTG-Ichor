@@ -44,9 +44,9 @@ use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, Rounding, Uses,
 };
 use mtgsim::types::zones::ZoneChangeAct;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ fn source_for(game: &mut GameState, owner: PlayerId) -> ObjectId {
 
 fn bolt_with(
     game: &mut GameState,
-    dp: &dyn mtgsim::ui::decision::DecisionProvider,
+    dp: &dyn mtgsim::decision::provider::DecisionProvider,
     source: ObjectId,
     target: ObjectOrPlayerId,
     amount: u64,

@@ -22,8 +22,8 @@ use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::ManaOutput;
 use mtgsim::types::card_types::{EnchantmentType, Subtype};
 use mtgsim::types::mana::ManaType;
-use mtgsim::ui::display::{format_record, log_lines};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::words::display::{format_record, log_lines};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::actions::ZoneChangeAct;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -47,8 +47,8 @@ use mtgsim::types::triggers::{
 };
 use mtgsim::types::zones::Zone;
 use mtgsim::state::battlefield::AttackTarget;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -171,7 +171,7 @@ fn a_creature_attacking_without_a_declaration_is_unblocked() {
     declare_blocks(&mut game, &[vec![(blocker, bears)]]);
     assert_eq!(declarations(&game), vec![(vec![(blocker, bears)], vec![entered])]);
     let line = format!("BlockersDeclared: [Grizzly Bears ({blocker}) blocks Grizzly Bears ({bears}), Grizzly Bears ({entered}) unblocked]");
-    assert!(mtgsim::ui::display::format_event_log(&game).contains(&line), "no {line:?}");
+    assert!(mtgsim::words::display::format_event_log(&game).contains(&line), "no {line:?}");
 }
 
 /// And the converse: attacking without a declaration is not being unblocked.
@@ -1208,5 +1208,5 @@ fn a_mana_abilitys_activation_is_left_implicit_in_the_log() {
     let lines: Vec<String> = log_lines(&game, recorded.records()).into_iter().map(|record| format_record(&game, record)).collect();
     assert!(lines.iter().any(|line| line.starts_with("ManaAdded")), "{lines:#?}");
     assert!(!lines.iter().any(|line| line.starts_with("AbilityActivated")), "{lines:#?}");
-    assert!(mtgsim::ui::display::format_event_log(&game).iter().any(|line| line.starts_with("AbilityActivated")));
+    assert!(mtgsim::words::display::format_event_log(&game).iter().any(|line| line.starts_with("AbilityActivated")));
 }

@@ -32,10 +32,10 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // The board: rd-2's Trace A
@@ -214,7 +214,7 @@ fn the_sink_changes_nothing_the_game_does() {
     game.process_combat_damage(&dp, false).unwrap();
     assert!(!game.trace_is_on());
 
-    let rendered = |g: &GameState| mtgsim::ui::display::format_event_log(g);
+    let rendered = |g: &GameState| mtgsim::words::display::format_event_log(g);
     assert_eq!(rendered(&traced), rendered(&game));
     assert_eq!(traced.diagnostics.layer_walks(), game.diagnostics.layer_walks());
     assert_eq!(traced.diagnostics.decisions(), game.diagnostics.decisions());

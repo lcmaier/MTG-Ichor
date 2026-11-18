@@ -25,9 +25,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::auto_yield::Yields;
-use crate::ui::decision_types::{DecisionContext, DecisionOption};
-use crate::ui::decision::{DecisionProvider, SeatMode};
+use crate::autopilot::auto_yield::Yields;
+use crate::decision::question::{DecisionContext, DecisionOption};
+use crate::decision::provider::{DecisionProvider, SeatMode};
 
 /// Full control's switch, shared by the client that flips it and the
 /// [`FullControl`] above its seat that reads it.
@@ -148,9 +148,9 @@ mod tests {
     use crate::test_support::setup_two_player_game;
     use crate::types::ids::new_object_id;
     use crate::types::mana::ManaCost;
-    use crate::ui::decision_types::DecisionKind;
-    use crate::ui::decision::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
-    use crate::ui::mana_window_stop::ManaWindowStop;
+    use crate::decision::question::DecisionKind;
+    use crate::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
+    use crate::autopilot::mana_window_stop::ManaWindowStop;
 
     fn covered_window() -> DecisionContext {
         DecisionContext::new(DecisionKind::ManaAbilityWindow {
@@ -202,7 +202,7 @@ mod tests {
     /// asks the person rather than passing for them.
     #[test]
     fn full_control_cancels_the_yields_it_supersedes() {
-        use crate::ui::auto_yield::{AutoYield, Yield};
+        use crate::autopilot::auto_yield::{AutoYield, Yield};
         let game = setup_two_player_game();
         let priority = DecisionContext::new(DecisionKind::PriorityAction);
         let cast = DecisionOption::Action(PriorityAction::CastSpell(new_object_id()));

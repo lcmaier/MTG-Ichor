@@ -45,9 +45,9 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{AmountOf, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::decision::question::{AmountOf, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Boards

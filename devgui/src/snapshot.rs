@@ -19,8 +19,8 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
-use mtgsim::ui::waiting::{Waiting, what_is_waiting};
-use mtgsim::ui::display::{
+use mtgsim::words::waiting::{Waiting, what_is_waiting};
+use mtgsim::words::display::{
     TypeLine, TypeLines, TypeWord, TypeWordStatus, attack_target_name, format_record, format_permanent, format_phase,
     keyword_words, log_lines, named, player_name, printed_faces,
 };
@@ -81,12 +81,12 @@ pub struct CardView {
     pub name: String,
     pub mana_cost: Option<String>,
     pub type_line: Arc<TypeLineView>,
-    /// `ui::display::printed_faces`: the card before any effect, a face an
+    /// `words::display::printed_faces`: the card before any effect, a face an
     /// entry. Shared, since the views are built again at every repaint.
     pub printed: Arc<[String]>,
 }
 
-/// `ui::display::type_line_now` as the window draws it: the words in order,
+/// `words::display::type_line_now` as the window draws it: the words in order,
 /// a dash before the subtypes, and a word an effect took away faded where
 /// it stood. `text` is the line the object has now.
 #[derive(Debug, PartialEq, Eq)]
@@ -137,7 +137,7 @@ pub struct PermanentView {
     pub attached_to: Option<String>,
     pub phased_out: bool,
     pub face_down: bool,
-    /// `ui::display::format_permanent`'s lines: the status, then each
+    /// `words::display::format_permanent`'s lines: the status, then each
     /// ability's own text in the effective list's order.
     pub engine_text: String,
 }
@@ -326,9 +326,9 @@ mod tests {
     use mtgsim::cards::printings::{forest, grizzly_bears};
     use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_game};
     use mtgsim::types::effects::EffectRecipient;
-    use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-    use mtgsim::ui::decision::ScriptedDecisionProvider;
-    use mtgsim::ui::mana_window_stop::ManaWindowStop;
+    use mtgsim::decision::question::{DecisionKind, DecisionOption};
+    use mtgsim::decision::provider::ScriptedDecisionProvider;
+    use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
     use super::*;
 

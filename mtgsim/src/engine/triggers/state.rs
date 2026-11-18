@@ -163,7 +163,7 @@ impl GameState {
         let describe = |matches: &[StateTriggerMatch]| -> Vec<String> {
             matches
                 .iter()
-                .map(|m| format!("{} {}", crate::ui::display::printed_name(self, m.identity.source.id), m.identity.ability))
+                .map(|m| format!("{} {}", crate::words::display::printed_name(self, m.identity.source.id), m.identity.ability))
                 .collect()
         };
         assert_agree("the state check", describe(gated), describe(&reference));

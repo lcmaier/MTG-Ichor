@@ -41,9 +41,9 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::decision_types::{AbilityAsRead, DecisionKind, DecisionOption, ReplacementOption};
+use mtgsim::decision::question::{AbilityAsRead, DecisionKind, DecisionOption, ReplacementOption};
 
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Readers

@@ -18,9 +18,9 @@ use mtgsim::state::game_state::{GameState, Phase, PhaseType};
 use mtgsim::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
-use mtgsim::ui::decision::DecisionProvider;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
+use mtgsim::decision::provider::DecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 /// Player 0's precombat main phase, where a creature can be cast.
 fn main_phase() -> GameState {

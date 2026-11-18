@@ -54,8 +54,8 @@ use crate::engine::layers::types::{
 };
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
-use crate::ui::decision_types::{DecisionContext, DecisionOption};
-use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
+use crate::decision::question::{DecisionContext, DecisionOption};
+use crate::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use crate::state::trace::{TraceHandle, TraceSink};
 
 // ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ pub fn create_goblins_for_each_seat(game: &mut GameState, n: usize, dp: &dyn Dec
 /// what reaches the agent.
 ///
 /// **Every prompt it sees is a decision** under a seat that does not stop at
-/// every priority point (the random agent's): `ui::ask` answers a prompt
+/// every priority point (the random agent's): `decision::ask` answers a prompt
 /// with one legal answer itself, and only such a seat is shown a `Pass`-only
 /// priority prompt (`engine::priority`).
 pub struct AtEachPrompt<D, F> {
@@ -343,8 +343,8 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 fn pending_trigger(
     game: &GameState,
     source: ObjectId,
-    pick: impl Fn(&crate::ui::decision_types::TriggerOption) -> bool,
-) -> crate::ui::decision_types::DecisionOption {
+    pick: impl Fn(&crate::decision::question::TriggerOption) -> bool,
+) -> crate::decision::question::DecisionOption {
     let picked: Vec<_> = game
         .pending_triggers
         .iter()
@@ -352,43 +352,43 @@ fn pending_trigger(
         .filter(|trigger| trigger.source.id == source && pick(trigger))
         .collect();
     let [trigger] = &picked[..] else { panic!("{} pending triggers of {source} picked: {picked:?}", picked.len()) };
-    crate::ui::decision_types::DecisionOption::Trigger(trigger.clone())
+    crate::decision::question::DecisionOption::Trigger(trigger.clone())
 }
 
 /// `source`'s pending triggers, each by what it is, in the order they
 /// triggered.
-pub fn pending_triggers_of(game: &GameState, source: ObjectId) -> Vec<crate::ui::decision_types::DecisionOption> {
+pub fn pending_triggers_of(game: &GameState, source: ObjectId) -> Vec<crate::decision::question::DecisionOption> {
     game.pending_triggers
         .iter()
         .filter(|trigger| trigger.origin.source() == source)
-        .map(|trigger| crate::ui::decision_types::DecisionOption::Trigger(game.trigger_option(trigger)))
+        .map(|trigger| crate::decision::question::DecisionOption::Trigger(game.trigger_option(trigger)))
         .collect()
 }
 
 /// `source`'s pending trigger that `object` triggered (CR 603.2c).
-pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId) -> crate::ui::decision_types::DecisionOption {
+pub fn pending_trigger_for(game: &GameState, source: ObjectId, object: ObjectId) -> crate::decision::question::DecisionOption {
     pending_trigger(game, source, |trigger| trigger.triggered_by.contains(&object))
 }
 
 /// `source`'s pending trigger of its ability at `place`, 1 for the first, as
 /// the layers give its abilities.
-pub fn pending_trigger_at_place(game: &GameState, source: ObjectId, place: usize) -> crate::ui::decision_types::DecisionOption {
+pub fn pending_trigger_at_place(game: &GameState, source: ObjectId, place: usize) -> crate::decision::question::DecisionOption {
     let ability = ability_at(game, source, place);
     pending_trigger(game, source, |trigger| {
-        matches!(trigger.ability, crate::ui::decision_types::TriggeredAbility::OfItsSource { ability: of, .. } if of == ability.definition())
+        matches!(trigger.ability, crate::decision::question::TriggeredAbility::OfItsSource { ability: of, .. } if of == ability.definition())
     })
 }
 
 /// `object`'s replacement ability at `place`, its first effect, as CR 616.1
 /// offers it.
-pub fn replacement_ability_of(game: &GameState, object: ObjectId, place: usize) -> crate::ui::decision_types::DecisionOption {
+pub fn replacement_ability_of(game: &GameState, object: ObjectId, place: usize) -> crate::decision::question::DecisionOption {
     let ability = ability_at(game, object, place);
-    crate::ui::decision_types::DecisionOption::Replacement(crate::ui::decision_types::ReplacementOption::Ability {
+    crate::decision::question::DecisionOption::Replacement(crate::decision::question::ReplacementOption::Ability {
         object: game.object_ref(object).expect("an object in the store"),
         ability: ability.definition(),
         granted_by: game.granted_by(ability),
         member: 0,
-        read_as: crate::ui::decision_types::AbilityAsRead(None),
+        read_as: crate::decision::question::AbilityAsRead(None),
     })
 }
 
@@ -397,8 +397,8 @@ pub fn counter_effect_of(
     game: &GameState,
     object: ObjectId,
     counter: crate::types::effects::CounterType,
-) -> crate::ui::decision_types::DecisionOption {
-    crate::ui::decision_types::DecisionOption::Replacement(crate::ui::decision_types::ReplacementOption::Counter {
+) -> crate::decision::question::DecisionOption {
+    crate::decision::question::DecisionOption::Replacement(crate::decision::question::ReplacementOption::Counter {
         object: game.object_ref(object).expect("an object in the store"),
         counter,
         effect: crate::engine::replacement::CounterEffectKind::Replacement,
@@ -433,20 +433,20 @@ fn ability_at(game: &GameState, id: ObjectId, place: usize) -> crate::types::ids
 /// source will be offered again after the cost is covered and this provider
 /// will take it — including the activation's *own* source, whose `Cost::TapSelf`
 /// the payment is about to owe (`codebase-state.md` item 83). Wrap it in
-/// [`crate::ui::mana_window_stop::ManaWindowStop`] for any test that
+/// [`crate::autopilot::mana_window_stop::ManaWindowStop`] for any test that
 /// activates an ability or casts a spell with mana sources to spare, as every
 /// shipped client does; `prompts()` still counts what reached the recorder.
 pub struct RecordingDecisionProvider {
     pick: usize,
     all: bool,
     /// The options a test named: what a prompt of two or more options picks.
-    named: Vec<crate::ui::decision_types::DecisionOption>,
+    named: Vec<crate::decision::question::DecisionOption>,
     /// Each bucket a test named with its amount: what an allocation of two or
     /// more buckets gives.
-    amounts: Vec<(crate::ui::decision_types::DecisionOption, u64)>,
+    amounts: Vec<(crate::decision::question::DecisionOption, u64)>,
     /// The items a test named, first first: what an order of two or more
     /// gives.
-    order: Vec<crate::ui::decision_types::DecisionOption>,
+    order: Vec<crate::decision::question::DecisionOption>,
     seen: std::cell::RefCell<Vec<String>>,
     mode: SeatMode,
 }
@@ -471,19 +471,19 @@ impl RecordingDecisionProvider {
     /// [`Self::picking`] takes it. For a test whose outcome turns on which
     /// option it took, so that a change to the list's order cannot change
     /// what it chose.
-    pub fn choosing(named: impl IntoIterator<Item = crate::ui::decision_types::DecisionOption>) -> Self {
+    pub fn choosing(named: impl IntoIterator<Item = crate::decision::question::DecisionOption>) -> Self {
         RecordingDecisionProvider { named: named.into_iter().collect(), ..Self::picking(0) }
     }
 
     /// Answer an allocation of two or more buckets with each named bucket's
     /// amount, and every other bucket none.
-    pub fn allocating(amounts: impl IntoIterator<Item = (crate::ui::decision_types::DecisionOption, u64)>) -> Self {
+    pub fn allocating(amounts: impl IntoIterator<Item = (crate::decision::question::DecisionOption, u64)>) -> Self {
         RecordingDecisionProvider { amounts: amounts.into_iter().collect(), ..Self::picking(0) }
     }
 
     /// Answer an order of two or more items with `order`, first first,
     /// wherever the engine lists them; every item offered must be named.
-    pub fn ordering(mut self, order: impl IntoIterator<Item = crate::ui::decision_types::DecisionOption>) -> Self {
+    pub fn ordering(mut self, order: impl IntoIterator<Item = crate::decision::question::DecisionOption>) -> Self {
         self.order = order.into_iter().collect();
         self
     }
@@ -523,8 +523,8 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         game: &GameState,
         _player: PlayerId,
-        ctx: &crate::ui::decision_types::DecisionContext,
-        options: &[crate::ui::decision_types::DecisionOption],
+        ctx: &crate::decision::question::DecisionContext,
+        options: &[crate::decision::question::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.seen.borrow_mut().push(ctx.kind.as_str().to_string());
@@ -537,7 +537,7 @@ impl DecisionProvider for RecordingDecisionProvider {
                 if picks.len() == bounds.1 {
                     break;
                 }
-                if let Some(at) = crate::ui::decision_types::position_named(options, game, wanted, &picks) {
+                if let Some(at) = crate::decision::question::position_named(options, game, wanted, &picks) {
                     picks.push(at);
                 }
             }
@@ -556,7 +556,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         _game: &GameState,
         _player: PlayerId,
-        _ctx: &crate::ui::decision_types::DecisionContext,
+        _ctx: &crate::decision::question::DecisionContext,
         min: u64,
         _max: u64,
     ) -> u64 {
@@ -568,9 +568,9 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         game: &GameState,
         _player: PlayerId,
-        _ctx: &crate::ui::decision_types::DecisionContext,
+        _ctx: &crate::decision::question::DecisionContext,
         total: u64,
-        buckets: &[crate::ui::decision_types::DecisionOption],
+        buckets: &[crate::decision::question::DecisionOption],
         _per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -579,7 +579,7 @@ impl DecisionProvider for RecordingDecisionProvider {
             let mut given = vec![0; buckets.len()];
             let mut taken: Vec<usize> = Vec::new();
             for (wanted, amount) in &self.amounts {
-                if let Some(at) = crate::ui::decision_types::position_named(buckets, game, wanted, &taken) {
+                if let Some(at) = crate::decision::question::position_named(buckets, game, wanted, &taken) {
                     given[at] = *amount;
                     taken.push(at);
                 }
@@ -605,8 +605,8 @@ impl DecisionProvider for RecordingDecisionProvider {
         &self,
         game: &GameState,
         _player: PlayerId,
-        ctx: &crate::ui::decision_types::DecisionContext,
-        items: &[crate::ui::decision_types::DecisionOption],
+        ctx: &crate::decision::question::DecisionContext,
+        items: &[crate::decision::question::DecisionOption],
     ) -> Vec<usize> {
         // The kind, as `pick_n` records it: an ordering prompt is a decision
         // site too, and "one prompt, of the right kind" is the assertion.
@@ -614,7 +614,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         if !self.order.is_empty() && items.len() > 1 {
             let mut placed: Vec<usize> = Vec::new();
             for wanted in &self.order {
-                if let Some(at) = crate::ui::decision_types::position_named(items, game, wanted, &placed) {
+                if let Some(at) = crate::decision::question::position_named(items, game, wanted, &placed) {
                     placed.push(at);
                 }
             }
@@ -667,11 +667,11 @@ impl DecisionProvider for StackWatcher {
         &self,
         game: &GameState,
         _player: PlayerId,
-        context: &crate::ui::decision_types::DecisionContext,
-        options: &[crate::ui::decision_types::DecisionOption],
+        context: &crate::decision::question::DecisionContext,
+        options: &[crate::decision::question::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        if matches!(context.kind, crate::ui::decision_types::DecisionKind::PriorityAction)
+        if matches!(context.kind, crate::decision::question::DecisionKind::PriorityAction)
             && self.first.borrow().is_none()
         {
             *self.first.borrow_mut() = Some((game.stack.len(), game.pending_triggers.len()));
@@ -683,7 +683,7 @@ impl DecisionProvider for StackWatcher {
         &self,
         _: &GameState,
         _: PlayerId,
-        _: &crate::ui::decision_types::DecisionContext,
+        _: &crate::decision::question::DecisionContext,
         min: u64,
         _: u64,
     ) -> u64 {
@@ -694,9 +694,9 @@ impl DecisionProvider for StackWatcher {
         &self,
         _: &GameState,
         _: PlayerId,
-        _: &crate::ui::decision_types::DecisionContext,
+        _: &crate::decision::question::DecisionContext,
         total: u64,
-        buckets: &[crate::ui::decision_types::DecisionOption],
+        buckets: &[crate::decision::question::DecisionOption],
         mins: &[u64],
         _: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -712,8 +712,8 @@ impl DecisionProvider for StackWatcher {
         &self,
         _: &GameState,
         _: PlayerId,
-        _: &crate::ui::decision_types::DecisionContext,
-        items: &[crate::ui::decision_types::DecisionOption],
+        _: &crate::decision::question::DecisionContext,
+        items: &[crate::decision::question::DecisionOption],
     ) -> Vec<usize> {
         (0..items.len()).collect()
     }
@@ -729,7 +729,7 @@ impl DecisionProvider for StackWatcher {
 /// All four primitives record, since a re-ask may come through any of them.
 pub struct RejectionRecorder<D> {
     inner: D,
-    seen: std::cell::RefCell<Vec<(String, Option<crate::ui::decision_types::Rejection>)>>,
+    seen: std::cell::RefCell<Vec<(String, Option<crate::decision::question::Rejection>)>>,
 }
 
 impl<D: DecisionProvider> RejectionRecorder<D> {
@@ -740,11 +740,11 @@ impl<D: DecisionProvider> RejectionRecorder<D> {
     /// What each prompt of kind `kind`, as `DecisionKind::as_str` spells it,
     /// rejected, in the order they were asked: `None` where it rejected
     /// nothing.
-    pub fn rejected_at(&self, kind: &str) -> Vec<Option<crate::ui::decision_types::Rejection>> {
+    pub fn rejected_at(&self, kind: &str) -> Vec<Option<crate::decision::question::Rejection>> {
         self.seen.borrow().iter().filter(|(seen, _)| seen == kind).map(|(_, rejected)| rejected.clone()).collect()
     }
 
-    fn record(&self, context: &crate::ui::decision_types::DecisionContext) {
+    fn record(&self, context: &crate::decision::question::DecisionContext) {
         self.seen.borrow_mut().push((context.kind.as_str().to_string(), context.rejected.clone()));
     }
 }
@@ -754,8 +754,8 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::decision_types::DecisionContext,
-        options: &[crate::ui::decision_types::DecisionOption],
+        context: &crate::decision::question::DecisionContext,
+        options: &[crate::decision::question::DecisionOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
         self.record(context);
@@ -766,7 +766,7 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::decision_types::DecisionContext,
+        context: &crate::decision::question::DecisionContext,
         min: u64,
         max: u64,
     ) -> u64 {
@@ -778,9 +778,9 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::decision_types::DecisionContext,
+        context: &crate::decision::question::DecisionContext,
         total: u64,
-        buckets: &[crate::ui::decision_types::DecisionOption],
+        buckets: &[crate::decision::question::DecisionOption],
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
@@ -792,8 +792,8 @@ impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
         &self,
         game: &GameState,
         player: PlayerId,
-        context: &crate::ui::decision_types::DecisionContext,
-        items: &[crate::ui::decision_types::DecisionOption],
+        context: &crate::decision::question::DecisionContext,
+        items: &[crate::decision::question::DecisionOption],
     ) -> Vec<usize> {
         self.record(context);
         self.inner.choose_ordering(game, player, context, items)
@@ -1219,7 +1219,7 @@ pub fn copy_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
             _bounds: (usize, usize),
         ) -> Vec<usize> {
             assert!(
-                matches!(ctx.kind, crate::ui::decision_types::DecisionKind::ChooseCopySource { .. }),
+                matches!(ctx.kind, crate::decision::question::DecisionKind::ChooseCopySource { .. }),
                 "unexpected prompt: {:?}",
                 ctx.kind
             );
@@ -1340,7 +1340,7 @@ impl TraceBuffer {
 /// The game log's lines for the questions the engine answered without asking
 /// (`events::unasked`), oldest first. The game must be recording.
 pub fn not_asked(game: &GameState) -> Vec<String> {
-    crate::ui::display::format_event_log(game).into_iter().filter(|line| line.starts_with("NotAsked: ")).collect()
+    crate::words::display::format_event_log(game).into_iter().filter(|line| line.starts_with("NotAsked: ")).collect()
 }
 
 /// Panic unless the log says the engine answered `player`'s `kind` question

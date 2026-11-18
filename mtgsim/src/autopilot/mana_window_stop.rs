@@ -24,8 +24,8 @@
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use crate::ui::decision::{DecisionProvider, SeatMode};
+use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use crate::decision::provider::{DecisionProvider, SeatMode};
 
 /// Declines CR 601.2g's mana-ability window once the locked mana component is
 /// covered, and passes every other decision to `D`.
@@ -118,7 +118,7 @@ mod tests {
     use crate::test_support::setup_two_player_game;
     use crate::types::ids::new_object_id;
     use crate::types::mana::{ManaCost, ManaType};
-    use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
+    use crate::decision::provider::{PriorityAction, ScriptedDecisionProvider};
 
     fn window(remaining: ManaCost) -> DecisionContext {
         DecisionContext::new(DecisionKind::ManaAbilityWindow {

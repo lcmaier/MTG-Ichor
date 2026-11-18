@@ -41,7 +41,7 @@ use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangePattern};
-use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers

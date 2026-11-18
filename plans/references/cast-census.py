@@ -40,7 +40,7 @@ the unit's total:
     (`codebase-state.md` item 162) has to read;
   * a CLAUSE -- one sentence naming a casting or playing permission.
 Keyword families and mana symbols are counted by card. The question kinds are
-read from `ui/decision_types.rs` and `ui/why.rs` and asserted against the enum,
+read from `decision/question.rs` and `words/why.rs` and asserted against the enum,
 so a new `DecisionKind` fails this script until its row is written.
 
 WHAT THE NUMBERS ARE NOT
@@ -83,8 +83,8 @@ REGISTERED_CACHE = os.path.join(HERE, ".census-cast-registered.json")
 CR = os.path.join(ROOT, "MTG-Rules", "versions", "tmnt.txt")
 SRC = os.path.join(ROOT, "mtgsim", "src")
 REGISTRY = os.path.join(SRC, "cards", "registry.rs")
-CHOICE_TYPES = os.path.join(SRC, "ui", "decision_types.rs")
-WHY = os.path.join(SRC, "ui", "why.rs")
+CHOICE_TYPES = os.path.join(SRC, "decision", "question.rs")
+WHY = os.path.join(SRC, "words", "why.rs")
 
 # A contact address is optional for Scryfall and none is held in the tree.
 UA = "mtgsim-research/1.0" + (f" (contact: {os.environ['SCRYFALL_CONTACT']})" if os.environ.get("SCRYFALL_CONTACT") else "")
@@ -815,7 +815,7 @@ QUESTIONS = {
     "SelectRecipients": ("the objects or players a target or choice may name", "yes",
                          "`validate_selection`'s reasons, typed", "`cant-be-targeted`", "`cant-be-targeted`"),
     "GenericManaAllocation": ("a split of the generic part across the pool", "bounds",
-                              "the clamp that keeps each pip's mana, `ui::ask::generic_split_caps` (MA-2)", "MA-2", ""),
+                              "the clamp that keeps each pip's mana, `decision::ask::generic_split_caps` (MA-2)", "MA-2", ""),
     "OrderCostReductions": ("an order of every reduction that applies", "no", "", "range", ""),
     "OrderCostPayments": ("an order of the payment's parts that can change the game", "no", "", "range", ""),
     "OrderSimultaneousEntries": ("an order of one player's objects a timestamp is read for", "no", "", "range", ""),
@@ -858,7 +858,7 @@ QUESTION_OWNERS = {
     "costs": "the cost phase that pays the cost",
 }
 
-#: The owners whose kinds `ui::why::refusals` answers with a check of their own.
+#: The owners whose kinds `words::why::refusals` answers with a check of their own.
 CHECKED = ("SU-7", "MA-1", "SU-8", "MA-2")
 
 # ==========================================================================
@@ -970,7 +970,7 @@ def parse_variants(path, enum):
 
 
 def explained_kinds():
-    """The kinds `ui::why::refusals` answers with a check, read off its arms."""
+    """The kinds `words::why::refusals` answers with a check, read off its arms."""
     src = open(WHY, encoding="utf-8").read()
     body = src[src.index("fn refusals("):]
     body = body[:body.index("\n}\n")]
@@ -1273,15 +1273,15 @@ def render_questions():
     explained = explained_kinds()
     claimed = sorted(k for k, v in QUESTIONS.items() if v[3] in CHECKED)
     if explained != claimed:
-        raise SystemExit("ui::why::refusals explains %s; the census says %s" % (explained, claimed))
+        raise SystemExit("words::why::refusals explains %s; the census says %s" % (explained, claimed))
     L = ["| `DecisionKind` | its options | filtered | what a why reads | owner | slot |", "|---|---|---|---|---|---|"]
     for k in kinds:
         opts, filt, reads, key, slot = QUESTIONS[k]
         L.append("| `%s` | %s | %s | %s | %s | %s |" % (k, esc(opts), filt, esc(reads) or "--",
                                                      QUESTION_OWNERS[key], slot or "--"))
     rest = Counter(QUESTIONS[k][1] for k in kinds if k not in explained)
-    head = ("%d kinds, parsed from `pub enum DecisionKind` in `mtgsim/src/ui/decision_types.rs`; `ui::why::refusals` "
-            "answers %d with a check (%s), read off its arms in `mtgsim/src/ui/why.rs`, and every kind says what it "
+    head = ("%d kinds, parsed from `pub enum DecisionKind` in `mtgsim/src/decision/question.rs`; `words::why::refusals` "
+            "answers %d with a check (%s), read off its arms in `mtgsim/src/words/why.rs`, and every kind says what it "
             "ranges over (`ranges_over`). Of the %d it does not check, "
             "%d are **filtered**: a check drops a candidate the question could have named. %d are **bounds**: the "
             "options are amounts, and the why explains a limit. %d are **no**: every candidate is offered."

@@ -34,8 +34,8 @@ use mtgsim::types::restriction::{
     ReplacementKindFilter, Restriction, RestrictionDef, SourceFilter,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------

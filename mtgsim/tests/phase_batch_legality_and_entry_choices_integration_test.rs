@@ -22,7 +22,7 @@ use mtgsim::types::effects::{
     AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive, TokenDef,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::types::replacement::{
     AmountRewrite, AuxiliaryMove, EnterModsTemplate, EntryCountersTemplate, EventPattern, GameActionTemplate, PerChosen,
     ReplacementDef,
@@ -30,7 +30,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::types::triggers::TriggerSubject;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
+use mtgsim::decision::question::{DecisionKind, DecisionOption, EntryOffer, EntryRole};
 
 /// A 1/1 white Soldier creature token.
 fn soldier_token() -> TokenDef {

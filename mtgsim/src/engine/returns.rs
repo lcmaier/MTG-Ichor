@@ -13,7 +13,7 @@ use crate::types::replacement::{EnterMods, EntersAttackingCandidates, EntryCount
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId, UntilReturnId};
 use crate::types::triggers::{RememberedObject, TriggerEvent, TriggerSubject};
 use crate::types::zones::{UntilReturn, Zone, ZoneChangeAct, ZoneChangePattern};
-use crate::ui::decision::DecisionProvider;
+use crate::decision::provider::DecisionProvider;
 
 /// One object an effect is putting back: where to, under whose control and
 /// with what counters if that is the battlefield (CR 122.6), and what caused
@@ -118,7 +118,7 @@ impl GameState {
             .map(ObjectOrPlayerId::Object)
             .collect();
         let question = EffectRecipient::Choose(filter, TargetCount::Exactly(1));
-        let chosen = crate::ui::ask::ask_select_recipients(dp, self, chooser, &question, aura, &candidates, 1, 1);
+        let chosen = crate::decision::ask::ask_select_recipients(dp, self, chooser, &question, aura, &candidates, 1, 1);
         Ok(chosen.into_iter().find_map(|t| match t {
             ObjectOrPlayerId::Object(host) => Some(host),
             ObjectOrPlayerId::Player(_) => None,

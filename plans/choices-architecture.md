@@ -73,7 +73,7 @@ and across the decision boundary at every one:
 - **PERFORM**: CR 613.7m's order among objects entering at once, inside the
   entry's performer.
 - **The boundary** (`setup-architecture.md#7e-pausing-at-a-decision`,
-  decision 3): every kind this phase adds asks through `ui::ask`, names its
+  decision 3): every kind this phase adds asks through `decision::ask`, names its
   options by what they are, and holds nothing off `GameState` past the next
   anchor (a priority prompt asked for the first time in its window). That
   rule is why this step comes before the decks: a choice kind is what a
@@ -1128,7 +1128,7 @@ resolved; a spell's text stays on its card, whose name shows the id.
 
 PR #308. 1,578 lines of code and tests against ~1,200–1,650, added and removed.
 - **The labels** (#307's review): a row's label lists its resolution's targets,
-  and `ui::display::what_the_option_does` holds a counter's CR 122.1 words
+  and `words::display::what_the_option_does` holds a counter's CR 122.1 words
   beside a label that stays short.
 - **The shape** (decision 5's A): `TargetInstance.chosen` is private and an
   enum, read through `targets()`. `TargetCount::Divided` is any count plus a
@@ -1286,7 +1286,7 @@ at two seats and four, instructions per decision +0.36%.
 - **Each mode's words** (item 417, taken into this PR at the owner's word in review): a `Mode`
   holds its line of the ability's text, cut in `AbilityDef::new`, which every card, grant and
   copy goes through; `ChooseModes` carries the words of the node being announced, and
-  `ui::display::mode_label` words a row "1. Counter target spell." The engine's one change: no
+  `words::display::mode_label` words a row "1. Counter target spell." The engine's one change: no
   decision reads the words, so no game or log line moves.
 - **Tested over the engine's own offers** for each of `ModalCount`'s seven arms and the
   node's rules (Cryptic Command, Casualties of War, Explosive Derailment, Vindictive Lich at

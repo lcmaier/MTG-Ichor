@@ -26,11 +26,11 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::TriggerTier;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{AbilityAsRead, DecisionContext, DecisionKind, DecisionOption, ReplacementOption, TriggerOption, TriggeredAbility};
-use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
-use mtgsim::ui::display::{format_event_log, option_label};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::replay::Replay;
+use mtgsim::decision::question::{AbilityAsRead, DecisionContext, DecisionKind, DecisionOption, ReplacementOption, TriggerOption, TriggeredAbility};
+use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, SeatMode};
+use mtgsim::words::display::{format_event_log, option_label};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::state::decision_log::Replay;
 
 const BRIDGE_AND_PYROCLASM: &str = "\
 hand 0: Pyroclasm

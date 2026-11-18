@@ -14,8 +14,8 @@ use crate::oracle::characteristics::get_effective_abilities;
 use crate::state::game_state::GameState;
 use crate::state::trace::{FieldValue, RecordKind, TraceRecord};
 use crate::types::ids::ObjectId;
-use crate::ui::display::{named, player_name};
-use crate::ui::why::{Why, WhyLine, WhySection};
+use crate::words::display::{named, player_name};
+use crate::words::why::{Why, WhyLine, WhySection};
 
 /// The heading of an event's first section.
 pub(crate) const WHAT_HAPPENED: &str = "What happened";

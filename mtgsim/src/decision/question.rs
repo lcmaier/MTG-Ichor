@@ -12,8 +12,8 @@ use crate::state::game_state::GameState;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::types::zones::Zone;
 
-use super::decision::PriorityAction;
-use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_words, printed_name};
+use super::provider::PriorityAction;
+use crate::words::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternative_cost_label, color_name, cost_words, printed_name};
 
 /// What kind of decision is being made. UIs use this to render appropriate
 /// screens. AI agents can match on this for specialized heuristics.
@@ -24,7 +24,7 @@ use super::display::{ABILITY_IT_NO_LONGER_HAS, additional_cost_label, alternativ
 /// every match site when a variant is added. **One of those sites is the
 /// variant's own contract**: [`Self::subject`] matches without a wildcard, so
 /// a new variant decides at birth which object it is about (`backlog.md`
-/// §2.21). What it *shows* is `ui::display::question`'s, which both clients
+/// §2.21). What it *shows* is `words::display::question`'s, which both clients
 /// read and which is exhaustive for the same reason; no text crosses the
 /// boundary itself.
 ///
@@ -59,7 +59,7 @@ pub enum DecisionKind {
     /// enabled while some offered set still holds the picks so far
     /// (`choices-architecture.md`, decision 2). `words` is each mode's line
     /// of the announcing ability's text, by printed place, for a client to
-    /// show the modes by (`ui::display::mode_label`).
+    /// show the modes by (`words::display::mode_label`).
     ChooseModes { source: ObjectId, words: Vec<(ModeIndex, &'static str)> },
     /// CR 601.2b — the value of X for `spell_id`. `values` is what the
     /// engine offers and why (`oracle::x_values`), how many times the cost
@@ -89,7 +89,7 @@ pub enum DecisionKind {
     /// CR 601.2h — how the generic part of `mana_cost` is split across the
     /// types in the payer's pool, each pip's own type reserved first. The
     /// buckets are the pool's types; asked only when the split is not forced
-    /// (`ui::ask::forced_allocation`). `spell_or_ability_id` is what is being
+    /// (`decision::ask::forced_allocation`). `spell_or_ability_id` is what is being
     /// paid for.
     GenericManaAllocation { spell_or_ability_id: ObjectId, mana_cost: ManaCost },
     /// CR 601.2f — "if multiple cost reductions apply, the player may apply
@@ -561,8 +561,8 @@ impl DecisionKind {
 
 /// The question, and the seat's last answer to it when the engine rejected
 /// that answer and is asking again. No display text: a client words the
-/// question with `ui::display::question`, each option with
-/// `ui::display::option_label` and a rejection with `ui::display::rejection`,
+/// question with `words::display::question`, each option with
+/// `words::display::option_label` and a rejection with `words::display::rejection`,
 /// which keeps presentation off the boundary.
 #[derive(Debug, Clone)]
 pub struct DecisionContext {
@@ -1008,7 +1008,7 @@ mod tests {
     use crate::engine::priority::PriorityResult;
     use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
     use crate::types::costs::Cost;
-    use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+    use crate::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
 
     fn card(name: &str) -> std::sync::Arc<crate::objects::card_data::CardData> {
         CardRegistry::default_registry().create(name).unwrap()

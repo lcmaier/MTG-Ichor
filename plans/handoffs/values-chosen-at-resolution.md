@@ -620,7 +620,7 @@ of 1.06 times the top, 0.53–1.70), so no ratio goes on these.
 
 | Piece | Code | Tests |
 |---|---:|---:|
-| The kinds: `ChooseColor`, `ChooseCreatureType`, `ChooseCardType`, `ChooseNumber`, and `ChooseOpponent` widened to `ChoosePlayer`; `DecisionOption::CreatureType` and `CardType`; each with its subject, `as_str`, question, option label, why, setup line, decision-log text and replay; `ui::ask`; the random agent | 140–220 | 50–90 |
+| The kinds: `ChooseColor`, `ChooseCreatureType`, `ChooseCardType`, `ChooseNumber`, and `ChooseOpponent` widened to `ChoosePlayer`; `DecisionOption::CreatureType` and `CardType`; each with its subject, `as_str`, question, option label, why, setup line, decision-log text and replay; `decision::ask`; the random agent | 140–220 | 50–90 |
 | The choose step: `ChooseValue`, `ValueChoice`, `ChosenHow`; each kind's options (the five colors, CR 205.3m's list with its missing fifteen, the card types or a printed few, a number's range, a player set, an object filter) and at random | 170–260 | 100–170 |
 | Decision 1: the list on the resolving record, names, the lookups, `Remember`'s note, the chain, the registry's checks | 70–120 | 60–100 |
 | Decision 2: the object choice behind the step; Final Showdown, Feast and #326's fixtures rewritten | 60–110 | 40–80 |
@@ -689,7 +689,7 @@ of the same card; that is step 6's decision, and nothing here forecloses it.
 
 ## The kinds, as decision 7 settled them
 
-Each is asked through `ui::ask`, names its subject (`source`, the resolving
+Each is asked through `decision::ask`, names its subject (`source`, the resolving
 object), and is answered unasked when one option is legal. Clients: a
 person at the four-seat GUI and an AI client, both reading the typed
 options; the dev GUI words each now.

@@ -47,8 +47,8 @@ the engine shows its work.
 ┌─────────────────────────────────────────────────────────────┐
 │  Game — lifecycle, setup, config, DecisionProvider dispatch │
 ├─────────────────────────────────────────────────────────────┤
-│  ui/ — DecisionProvider trait (4 primitives) + ask_* bridge │
-│  (CLI, Random, Scripted, Dispatch implementations)          │
+│  decision/ — DecisionProvider trait + ask_* bridge          │
+│  autopilot/ — Random, decorators; words/ — the text         │
 ├─────────────────────────────────────────────────────────────┤
 │  engine/ — Rules engine (reads + mutates GameState)         │
 │  ┌──────────┬──────────┬────────────┬─────────────────────┐ │
@@ -247,7 +247,7 @@ implementation of it stay unchanged, and exhaustive matching makes the compiler 
 every UI site that needs a new screen.
 
 Engine code never calls the trait directly. It goes through the typed `ask_*` free functions
-in `ui/ask.rs`, which build the context, pack the options, call the right primitive, and
+in `decision/ask.rs`, which build the context, pack the options, call the right primitive, and
 validate the response (bounds, counts, sums, permutations) before unpacking it into typed
 results.
 
@@ -292,8 +292,11 @@ phase in hindsight; what item 6 inherits from it is listed there.
 
 ```
 mtgsim/src/
+├── autopilot/      random, auto_yield, auto_order_triggers, full_control,
+│                   mana_window_stop
 ├── bin/            fuzz_games.rs
 ├── cards/          Card definitions (data only), one file per phase + registry.rs
+├── decision/       provider (the trait), ask (typed bridge), question
 ├── engine/         actions (the chokepoint), put_on_stack, costs, mana, priority,
 │                   resolve, sba, stack, targeting, turns, zones, keywords,
 │                   leaving, returns, layer_settlement, object_filter,
@@ -315,14 +318,11 @@ mtgsim/src/
 │                   duration_registry  ← shared by the three registries:
 │                   continuous_effects, replacement_effects, restrictions;
 │                   history_log, shared_stores, layer_memo, diagnostics,
-│                   decision_log, trace
+│                   decision_log (and its replay), trace
 ├── types/          ids, mana, effects, costs, cost_modification, replacement,
 │                   restriction, triggers, history, card_types, colors, keywords,
 │                   keyword_actions, zones
-└── ui/             decision (trait), ask (typed bridge), decision_types, display,
-                    random, auto_payer, auto_yield, auto_order_triggers,
-                    full_control, mana_window_stop, replay, waiting, why,
-                    what_happened
+└── words/          display, why, what_happened, waiting
 
 devgui/             the dev GUI, a crate of its own beside the engine
 ├── src/            bridge (the engine's thread and the seats), snapshot, prompt,

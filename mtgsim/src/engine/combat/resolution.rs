@@ -9,8 +9,8 @@ use crate::oracle::characteristics::{has_keyword, get_effective_power};
 use crate::state::game_state::GameState;
 use crate::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::ui::ask::ask_choose_attacker_damage_assignment;
-use crate::ui::decision::DecisionProvider;
+use crate::decision::ask::ask_choose_attacker_damage_assignment;
+use crate::decision::provider::DecisionProvider;
 
 /// A single combat damage assignment: source deals amount to target.
 #[derive(Debug, Clone, PartialEq)]
@@ -215,8 +215,8 @@ mod tests {
     use crate::test_support::test_ctx;
     use crate::state::battlefield::{AttackTarget, AttackingInfo};
     use crate::types::keywords::KeywordFlag;
-    use crate::ui::decision_types::{DecisionKind, DecisionOption};
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::decision::question::{DecisionKind, DecisionOption};
+    use crate::decision::provider::ScriptedDecisionProvider;
     use crate::test_support::{
         place_vanilla_creature as place_creature_with_keywords, set_attacking, set_blocked_by,
         set_blocking,

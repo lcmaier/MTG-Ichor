@@ -27,7 +27,7 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // An unattach, each end as it left (CR 603.10c)

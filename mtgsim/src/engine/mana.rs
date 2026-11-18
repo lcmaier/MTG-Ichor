@@ -18,7 +18,7 @@ use crate::types::effects::{Effect, EffectRecipient, ManaOutput, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::triggers::Lki;
-use crate::ui::decision::DecisionProvider;
+use crate::decision::provider::DecisionProvider;
 
 impl GameState {
     /// Activate a mana ability on a permanent.

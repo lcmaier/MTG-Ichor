@@ -14,12 +14,12 @@ use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, Stop};
-use mtgsim::ui::display::format_event_log;
-use mtgsim::ui::mana_window_stop::ManaWindowStop;
-use mtgsim::ui::random::RandomDecisionProvider;
-use mtgsim::ui::replay::Replay;
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, Stop};
+use mtgsim::words::display::format_event_log;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
+use mtgsim::state::decision_log::Replay;
 
 /// A Lightning Bolt castable at the first priority prompt, so that prompt is
 /// asked rather than passed for the seat.

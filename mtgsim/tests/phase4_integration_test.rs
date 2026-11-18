@@ -22,8 +22,8 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption};
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::types::replacement::EnterMods;
 
 // ---------------------------------------------------------------------------
@@ -144,7 +144,7 @@ fn test_vigilance_doesnt_tap() {
 
     let scripted = ScriptedDecisionProvider::new();
     scripted.expect_choice(
-        mtgsim::ui::decision_types::DecisionKind::DeclareAttackers,
+        mtgsim::decision::question::DecisionKind::DeclareAttackers,
         vec![DecisionOption::AttackerTarget(angel, AttackTarget::Player(1))],
     );
     game.process_declare_attackers(&scripted).unwrap();

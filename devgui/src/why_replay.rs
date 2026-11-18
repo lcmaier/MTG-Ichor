@@ -19,10 +19,10 @@ use mtgsim::state::game::Halt;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::trace::{TraceHandle, TraceMemory, TraceRecord, TraceSink};
 use mtgsim::types::ids::PlayerId;
-use mtgsim::ui::decision_types::{DecisionContext, DecisionOption};
-use mtgsim::ui::decision::{DecisionProvider, SeatMode, Stop};
-use mtgsim::ui::replay::{Replay, ReplayControl};
-use mtgsim::ui::why::{OpenQuestion, Why, WhyAbout, WhyLine, WhySection, why_from_trace};
+use mtgsim::decision::question::{DecisionContext, DecisionOption};
+use mtgsim::decision::provider::{DecisionProvider, SeatMode, Stop};
+use mtgsim::state::decision_log::{Replay, ReplayControl};
+use mtgsim::words::why::{OpenQuestion, Why, WhyAbout, WhyLine, WhySection, why_from_trace};
 
 use crate::bridge::panic_message;
 use crate::view_model::TraceRequest;

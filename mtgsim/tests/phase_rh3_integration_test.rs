@@ -34,7 +34,7 @@ use mtgsim::types::restriction::SourceFilter;
 use mtgsim::types::replacement::{EnterModsTemplate, EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
 use mtgsim::types::triggers::{EventRole, Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangePattern, ZoneSet};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::decision::provider::DecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers

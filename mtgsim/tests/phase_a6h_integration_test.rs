@@ -2,7 +2,7 @@
 //! engine answers without asking, and an audit at each shortcut that had only
 //! its argument.
 //!
-//! **The record.** Every forced prompt is decided in `ui::ask`, so each ask
+//! **The record.** Every forced prompt is decided in `decision::ask`, so each ask
 //! is called here as an engine site calls it, with a provider that panics on
 //! any prompt: the answer comes back unasked, and the game's log says so. The
 //! three elisions are shown where their boards already are: CR 616.1's in
@@ -29,14 +29,14 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::ui::ask::{
+use mtgsim::decision::ask::{
     ask_allocate_next_damage, ask_choose_copy_source, ask_choose_damage_source, ask_choose_player_as_object_enters,
     ask_choose_entering_defender, ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost,
     ask_choose_trample_damage_assignment, ask_choose_x_value, ask_discard, ask_select_recipients,
 };
-use mtgsim::ui::decision_types::{DecisionKind, DecisionOption, EntryRole};
-use mtgsim::ui::decision::{PriorityAction, ScriptedDecisionProvider};
-use mtgsim::ui::display::{format_event_log, format_record, log_lines};
+use mtgsim::decision::question::{DecisionKind, DecisionOption, EntryRole};
+use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider};
+use mtgsim::words::display::{format_event_log, format_record, log_lines};
 
 const ONE_LEGAL_ANSWER: &str = "its one legal answer";
 
