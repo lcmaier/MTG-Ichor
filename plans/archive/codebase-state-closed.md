@@ -10755,14 +10755,16 @@ announces the permanent, and no choice is made.
 
 Closed by moves alone, decision 9 of `plans/handoffs/information-model-design.md`:
 `ask`, `decision_types` and the trait's file went to `decision/`; `random`
-and the four decorators to `policies/`; `display`, `why`, `what_happened`
+and the four decorators to `autopilot/`; `display`, `why`, `what_happened`
 and `waiting` to `words/`. The trait's file is `decision/provider.rs`, since
 `decision/decision.rs` is clippy's `module_inception`. At the PR's first
 review round (the owner, 2026-11-17) `decision_types` became
-`decision/question.rs`, for the parts of a question it holds, and `replay`
-went to `state/decision_log/replay.rs`, beside the format it reads, in place
-of `policies/`. No item in any file changed, and the PR body's script shows
-each byte for byte.
+`decision/question.rs`, for the parts of a question it holds; `replay` went
+to `state/decision_log/replay.rs`, beside the format it reads; and decision
+9's `policies/` became `autopilot/`, since an AI harness's own `Policy`
+picks every action and four of the five files are wrappers that answer
+some. No item in any file changed, and the PR body's script shows each byte
+for byte.
 
 What a move does not fix stays where it was, read off the imports at the
 close:
@@ -10778,7 +10780,7 @@ close:
   `test_support.rs` and `oracle/mana_supply.rs`'s tests, and two more files
   name them only in doc comments (`engine/layers/explain.rs`,
   `events/unasked.rs`).
-- **The scenario loader reads the policies**, which decision 9 did not
+- **The scenario loader reads `autopilot`**, which decision 9 did not
   name: its setup driver stacks `ManaWindowStop` and asks
   `random::mana_window_preference` (`scenario/setup.rs`). The random agent
   reaches past the boundary too, to `oracle::mana_supply`.

@@ -1196,7 +1196,7 @@ mechanic rather than a migration, which is why it is here and not in
   validation and fails at `ManaPool::pay`. About five casts per game did that,
   and until `codebase-state.md` 16c closed they *resolved unpaid*; now they
   rewind, on top of the 7.5 above. **Closed 2026-09-03, in two halves.** The
-  DP-side one (`policies/random.rs`): the random agent taps for the pip it still
+  DP-side one (`autopilot/random.rs`): the random agent taps for the pip it still
   owes, which took its land taps per cast from 7.66 to 3.18 on an any-color
   mana base. Then the engine-side clamp (`mana/generic-split-clamp`):
   `ask_choose_generic_mana_allocation` caps each bucket at `available − pips
@@ -1207,7 +1207,7 @@ mechanic rather than a migration, which is why it is here and not in
   is what proves the prompt now computes what the agent was computing. **What
   is left of this entry is the reversal prompt and the oracle.** **The
   oracle is built (2026-09-08, CM-4), and it is two decorators rather than
-  one.** `policies::ManaWindowStop<D>` declines `ManaAbilityWindow` once the locked
+  one.** `autopilot::ManaWindowStop<D>` declines `ManaAbilityWindow` once the locked
   mana component is covered — the stop that used to sit in the engine's loop
   (`codebase-state.md` main item 70) — and `ui::AutoPayer<D>` answers
   `GenericManaAllocation` (CR 601.2h) and `OrderCostReductions` (CR 601.2f).
@@ -1505,7 +1505,7 @@ mechanic rather than a migration, which is why it is here and not in
   reversal are each *the player's* choice, so a decorator that answers one is
   a client choosing on the player's behalf — fine on a bot's seat, a toggle on
   a human's, never the engine's.
-- **Verdict** — CM-4 built two decorators (`policies::ManaWindowStop`,
+- **Verdict** — CM-4 built two decorators (`autopilot::ManaWindowStop`,
   `ui::AutoPayer`) one at a time against one phase's need, and settled the
   composition rule; what was missing was the census — every row v1's two use
   cases want, sized against the tree and sequenced against each other. **Three
@@ -1532,7 +1532,7 @@ mechanic rather than a migration, which is why it is here and not in
   2. **Every decorator is a policy, and a policy's seat decides where it
      lives.** The answers differ and a rule picks one — declining the window
      once the cost is covered, passing priority, dividing combat damage, which
-     sources to tap. It lives in `policies::` only when both use cases want the same
+     sources to tap. It lives in `autopilot::` only when both use cases want the same
      rule; a **human's seat takes it under a toggle**, because the automation
      is a choice made for the player, and a **bot's seat takes it at
      construction**, because for an agent it is the harness's policy and
@@ -1547,7 +1547,7 @@ mechanic rather than a migration, which is why it is here and not in
      ask, and the supplemental doc's `AutoYieldDP` and auto-tapper are what
      decorators are for.
   3. **At most one decorator answers any one prompt**, so composition
-     commutes and stack order carries no meaning (`policies/mana_window_stop.rs`,
+     commutes and stack order carries no meaning (`autopilot/mana_window_stop.rs`,
      CM-4's review). Two predicates on one `DecisionKind` coexist when they are
      disjoint — the stop answers the window once covered, a solver while it
      is not. **Full control is therefore a switch above the stack, never a
@@ -1627,7 +1627,7 @@ mechanic rather than a migration, which is why it is here and not in
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
   | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below; designed in `mana-architecture.md` (#224): the existence check landed in MA-1 (#225), and the covering set, the solver, is `mana-payment-solver` (`mana-architecture.md` §3.12) |
   | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6; `mana-payment-solver` |
-  | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | **built**: the elision in TR-1 and TR-2b, the decorator `policies::AutoOrderTriggers` in TR-7 (2026-10-22, PR #269); classified at birth below |
+  | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | **built**: the elision in TR-1 and TR-2b, the decorator `autopilot::AutoOrderTriggers` in TR-7 (2026-10-22, PR #269); classified at birth below |
   | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | `ironworks-loop` (item 72) |
 
   **Row 2, decided: the payer keeps no answer the engine stopped asking for.**
@@ -2765,7 +2765,7 @@ covers them too. The options, with what each costs:
 
 Decided at Phase 10's design, beside `codebase-state.md` item 208 (the
 crate's name and a workspace), since both redraw the crate boundary. The
-same redraw meets the policies, if they leave the engine crate too: the
+same redraw meets `autopilot`, if it leaves the engine crate too: the
 scenario loader's setup driver stacks `ManaWindowStop` and reads the random
 agent's crate-private `mana_window_preference`. The replay is the decision
 log's (`state::decision_log::Replay`), and checks each answer with

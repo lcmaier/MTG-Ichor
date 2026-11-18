@@ -165,7 +165,7 @@ not (§3); `mod.rs` files declare and re-export only
 | `oracle/mana_supply.rs`, `oracle/x_values.rs` | the mana check: a player's `ManaSupply` and whether it pays a cost (CR 601.2g–h's existence half); the values of X a caster may announce (CR 107.3a, 601.2b) |
 | `types/` | the type surface: `effects.rs`, `replacement.rs`, `restriction.rs`, `triggers.rs`, `cost_modification.rs`, `costs.rs`, `zones.rs`, `ids.rs`, `card_types.rs`, `colors.rs`, `mana.rs`, `keywords.rs`, `keyword_actions.rs`, `history.rs`; `mod.rs` holds `counted_enum!` |
 | `decision/provider.rs`, `decision/ask.rs`, `decision/question.rs` | the five-method `DecisionProvider` (`pick_n`, `pick_number`, `allocate`, `choose_ordering`, and the defaulted `seat_mode`); the typed `ask_*` bridge, where every prompt is validated and traced, and every forced one answered unasked and recorded; `DecisionKind` |
-| `policies/random.rs`, `policies/mana_window_stop.rs`, `policies/auto_yield.rs`, `policies/auto_order_triggers.rs`, `policies/full_control.rs` | the random agent, three decorators, the full-control switch above a person's stack |
+| `autopilot/random.rs`, `autopilot/mana_window_stop.rs`, `autopilot/auto_yield.rs`, `autopilot/auto_order_triggers.rs`, `autopilot/full_control.rs` | the random agent, three decorators, the full-control switch above a person's stack |
 | `words/display.rs`, `words/why.rs`, `words/what_happened.rs`, `words/waiting.rs` | the text formatters; the engine's answers a client draws: why an object is the way it is or an option is not offered; an event's why, read from a replay's trace; what the game holds for a later event or turn |
 | `cards/registry.rs`, `cards/random_deck.rs`, `cards/authoring/` | the registry and the two pools; the fuzz harness's decks; the card-authoring words, `triggers.rs` today |
 | `cards/*.rs` | card definitions, filed by the phase that first needed them |
@@ -346,7 +346,7 @@ The prompts the engine answers itself, and why: `elisions.md` §2, §3.
 | Deciding is separated from performing | phase 1 `engine/actions.rs:1105`, phase 2 `engine/actions.rs:1180` | `replacement-architecture.md` §4.2 |
 | Riders run after the performed event, carrying its applied set | `execute_riders` `engine/actions.rs:1272` (a batch that dispatches its own window: its riders as a batch of their own, after that dispatch) and `resolve_riders` `engine/actions.rs:1379` (a nested or decomposed batch's, inside the window it joined); `Rider::lineage` `engine/replacement/pipeline.rs:81` | `replacement-architecture.md` §4.1a |
 | `EventPattern` grows one arm per variant; `Rewrite` is closed; variety goes in `then` | `EventPattern` `types/replacement.rs:204`, `Rewrite` `types/replacement.rs:855`, `ReplacementDef::then` `types/replacement.rs:137` | `replacement-architecture.md` §3.2a, §3.2b |
-| Randomness is owned | `GameState::rng` `state/game_state.rs:812`; the provider's own `rng` `policies/random.rs:207`; `IdHash` `types/ids.rs:310`; `tests/determinism_test.rs`; refused elsewhere by `clippy.toml` | `plans/id-hasher.md` §6 |
+| Randomness is owned | `GameState::rng` `state/game_state.rs:812`; the provider's own `rng` `autopilot/random.rs:207`; `IdHash` `types/ids.rs:310`; `tests/determinism_test.rs`; refused elsewhere by `clippy.toml` | `plans/id-hasher.md` §6 |
 
 
 ---

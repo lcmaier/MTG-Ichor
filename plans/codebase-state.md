@@ -2781,7 +2781,7 @@ one, so nothing was wrong in practice and nothing moved.
 ### Found by CM-4 — the mana window and the payer (2026-09-08)
 
 **Shipped:** CR 601.2g's opening condition and CR 605.3a's closing condition,
-both explicit; `policies::ManaWindowStop` and `ui::AutoPayer`, two `DecisionProvider`
+both explicit; `autopilot::ManaWindowStop` and `ui::AutoPayer`, two `DecisionProvider`
 decorators that clients compose; `--no-auto-pay` on both binaries. Items 70 and
 71 close here and item 72 is placed. No new card — §3.11's step 3 builds out of
 CM-3's registered five — so `PERFORMANCE_POOL` does not move and
@@ -2861,7 +2861,7 @@ the derived order.
     covered and the `Cost::TapSelf` was not, the window kept enumerating and asking
     — and `RandomDecisionProvider`'s `AnyWillDo` arm tapped land after land
     until it ran out of sources or hit `WINDOW_ACTIVATION_CAP`, all of it spent
-    on a payment that could never complete. `policies::ManaWindowStop` declines as
+    on a payment that could never complete. `autopilot::ManaWindowStop` declines as
     soon as the mana component is covered, so the rewind happens having burned
     nothing extra. **That is the whole of CM-4's counter movement**, and it is
     strictly the better answer: no number of mana abilities can make a
@@ -2936,7 +2936,7 @@ the derived order.
     none: a real Krark-Clan Ironworks loop activates as many mana abilities as
     the player likes, so any engine-side cap would be a rule Magic does not
     have. Termination is now entirely the client's, and every shipped client
-    answers it — `policies::ManaWindowStop` declines once the component is covered,
+    answers it — `autopilot::ManaWindowStop` declines once the component is covered,
     `RandomDecisionProvider::WINDOW_ACTIVATION_CAP` bounds the fuzz agent even
     without a stop, a human self-polices. A buggy or hostile provider has
     nothing: a filter ability (`{1}`: add one mana of any color) cycles forever
@@ -4881,7 +4881,7 @@ Sol Ring is the interesting row: it makes each turn 4.3% more expensive and each
 
 **~~`fuzz_games --seed N` does not reproduce a run, and the perf protocol assumed it did.~~ — ✅ fixed 2026-08-23 (`fuzz/deterministic-seeding`).** `--seed N` now replays a run exactly: three consecutive 200-game runs at seed 12345 produce byte-identical output, and game *k* of a batch reproduces standalone from the per-game seed the harness prints, which is what makes "reproduce the panic from the seed" work.
 
-The original entry named `HashMap` iteration order as the cause. That was real but second: **the seed never reached the AI or the shuffle at all.** `policies/random.rs` called `rand::rng()` — an OS-seeded `ThreadRng` — fresh in each of the four `DecisionProvider` methods, and `state/game.rs::shuffle_library` did the same, so `--seed N` controlled deck *composition* and nothing else. `cards/registry.rs::card_names()` was a third: it returned `HashMap` keys, so the seeded deck builder drew from a differently-ordered list each process and built a different deck from the same seed. Three separate leaks, each sufficient on its own; the recorded measurement (25.9 / 27.6 / 28.0 avg turns) was the sum.
+The original entry named `HashMap` iteration order as the cause. That was real but second: **the seed never reached the AI or the shuffle at all.** `autopilot/random.rs` called `rand::rng()` — an OS-seeded `ThreadRng` — fresh in each of the four `DecisionProvider` methods, and `state/game.rs::shuffle_library` did the same, so `--seed N` controlled deck *composition* and nothing else. `cards/registry.rs::card_names()` was a third: it returned `HashMap` keys, so the seeded deck builder drew from a differently-ordered list each process and built a different deck from the same seed. Three separate leaks, each sufficient on its own; the recorded measurement (25.9 / 27.6 / 28.0 avg turns) was the sum.
 
 What landed:
 
@@ -6228,7 +6228,7 @@ Commander-scale board closes item 69.
      `expect` each sit one line after the check that makes them so
      (`self.battlefield.get(&id).unwrap()` under a membership test,
      `stack.last()` under a non-empty check, the plan cursor under
-     `phase_began`), and one `unwrap` is `policies/random.rs`'s own. None is a
+     `phase_began`), and one `unwrap` is `autopilot/random.rs`'s own. None is a
      card-reachable panic by inspection, and 800 fuzz games on both pools at
      two and four seats reached none; `fuzz_games` already catches a panic
      per game (`catch_unwind`), so a training batch loses a game and not a
@@ -6893,8 +6893,8 @@ or more" and 601.2f's "if multiple". A comment fix, next time a hand is in
 the file.
 
 161. **~~Full control and auto-yield — sized, sequenced, not built.~~ — ✅
-     CLOSED 2026-09-30 (A6j).** — archived. `policies::full_control` and
-     `policies::auto_yield`, stacked on a person's seat; under full control
+     CLOSED 2026-09-30 (A6j).** — archived. `autopilot::full_control` and
+     `autopilot::auto_yield`, stacked on a person's seat; under full control
      the seat also stops at every priority point.
      **Reachability (2026-09-30):** closed — A6j.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 161".
@@ -7055,7 +7055,7 @@ the file.
      reversal's shape settled beside it.~~ — ✅ CLOSED 2026-10-22 (PR #269,
      TR-7).** — archived.
      Both halves of the ordering are built: the engine declines to ask when
-     every order leaves the same game (TR-1, TR-2b), and `policies::AutoOrderTriggers`
+     every order leaves the same game (TR-1, TR-2b), and `autopilot::AutoOrderTriggers`
      answers the rest in the order offered on a person's seat, under full
      control's toggle (TR-7). CR 732.1's reversal is item 72's, slotted to `ironworks-loop`.
      **Reachability (2026-10-22):** closed — PR #269.
@@ -9982,12 +9982,12 @@ board (`fuzz-record.md`, the block of this date; items 138 and 143).
 
 357. **~~`ui/` holds three kinds of code under one name.~~ — ✅ CLOSED
      2026-11-17 (`ui-in-three`).** — archived.
-     `decision/` holds the question boundary, `policies/` the policies a seat
-     chooses and `words/` the words a client shows, by moves alone. Left
+     `decision/` holds the question boundary, `autopilot/` what answers for
+     a seat and `words/` the words a client shows, by moves alone. Left
      where they were, in plain sight: the boundary reads six of `display`'s
      helpers, six engine files read the words for their own output, and the
-     scenario loader reads two policies. The replay moved to the decision
-     log, beside the format it reads.
+     scenario loader reads two of `autopilot`'s files. The replay moved to
+     the decision log, beside the format it reads.
      **Reachability (2026-11-17):** closed — `ui-in-three`.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 357".
 

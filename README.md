@@ -48,7 +48,7 @@ the engine shows its work.
 │  Game — lifecycle, setup, config, DecisionProvider dispatch │
 ├─────────────────────────────────────────────────────────────┤
 │  decision/ — DecisionProvider trait + ask_* bridge          │
-│  policies/ — Random, decorators; words/ — the text          │
+│  autopilot/ — Random, decorators; words/ — the text         │
 ├─────────────────────────────────────────────────────────────┤
 │  engine/ — Rules engine (reads + mutates GameState)         │
 │  ┌──────────┬──────────┬────────────┬─────────────────────┐ │
@@ -292,6 +292,8 @@ phase in hindsight; what item 6 inherits from it is listed there.
 
 ```
 mtgsim/src/
+├── autopilot/      random, auto_yield, auto_order_triggers, full_control,
+│                   mana_window_stop
 ├── bin/            fuzz_games.rs
 ├── cards/          Card definitions (data only), one file per phase + registry.rs
 ├── decision/       provider (the trait), ask (typed bridge), question
@@ -311,8 +313,6 @@ mtgsim/src/
 ├── objects/        CardData, AbilityDef, GameObject
 ├── oracle/         characteristics, legality, board, mana_helpers, mana_supply,
 │                   x_values
-├── policies/       random, auto_yield, auto_order_triggers, full_control,
-│                   mana_window_stop
 ├── scenario/       a board as text: parse, build, write, setup actions  ← CR 103
 ├── state/          game, game_state, game_config, player, battlefield, history,
 │                   duration_registry  ← shared by the three registries:

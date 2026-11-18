@@ -711,8 +711,8 @@ could act. That is `backlog.md` "2.38"'s open question 4.
   that allow it (CR 808.5, 810.5), built in `multiplayer-rules`. The set is
   in the type from the first PR, so neither is a signature change.
 - **No accessor is added for one agent.** The random agent's mana preference
-  is the one public read that is its own (`policies/random.rs:70`, over
-  `oracle::mana_supply`). It is rebuilt in `policies/random` over a permanent's
+  is the one public read that is its own (`autopilot/random.rs:70`, over
+  `oracle::mana_supply`). It is rebuilt in `autopilot/random` over a permanent's
   effective abilities, which every seat has.
 - **A learner reads the copy, not the sight.** An accessor takes and returns
   engine ids, so an agent in process that keeps ids across prompts can
@@ -1022,7 +1022,10 @@ script proves byte for byte. It is a PR of its own, `ui-in-three`: one
 detour PR, counted zero in the band, straight after this design, since
 every row before step 8 adds files that import `ui::`. It is made while no
 other branch is open, since it edits the imports of about 176 files. Item
-357 closes with it.
+357 closes with it. At that PR's review (the owner, 2026-11-17) `policies/`
+became `autopilot/`, since an AI harness's own `Policy` picks every action
+and four of the five files are wrappers that answer some, and the replay
+went to the decision log beside the format it reads.
 
 ### Decision 10 — what `backlog.md` "2.38" parked here
 

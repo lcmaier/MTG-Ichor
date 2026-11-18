@@ -43,7 +43,7 @@ or `EventPattern` arm), or a field of either.
 - **The client**: each new surface names its v1 client, a person at the
   four-seat GUI, an AI client, or neither. One serving only a test, the random
   agent or an existing function says so, and lives outside the engine
-  (`policies/random`, the harness, the tests).
+  (`autopilot/random`, the harness, the tests).
 
 A shape drawn from the cards the brief happens to name is the miss this step
 exists for. A decision with no printed family, such as a rename or a type no
