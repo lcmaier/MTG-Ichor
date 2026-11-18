@@ -46,7 +46,7 @@ use mtgsim::types::replacement::{
 use mtgsim::types::zones::ZoneChangeAct;
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------

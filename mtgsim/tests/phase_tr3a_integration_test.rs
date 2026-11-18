@@ -51,7 +51,7 @@ use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::oracle::x_values::LegalXValues;
 use mtgsim::decision::provider::ScriptedDecisionProvider;
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -946,7 +946,7 @@ mod final_fortune_and_blessed_wine {
     use mtgsim::types::mana::ManaType;
     use mtgsim::types::triggers::{TriggerOrigin, TriggerTurn};
     use mtgsim::types::zones::Zone;
-    use mtgsim::policies::mana_window_stop::ManaWindowStop;
+    use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
     /// Resolve `card`'s spell effect for `controller` by hand, the card its
     /// own source.

@@ -38,7 +38,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use std::sync::Arc;
 
 // ---------------------------------------------------------------------------

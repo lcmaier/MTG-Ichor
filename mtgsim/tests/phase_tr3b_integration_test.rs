@@ -49,7 +49,7 @@ use mtgsim::types::triggers::{
 };
 use mtgsim::types::zones::{Zone, ZoneChangeAct, ZoneChangePattern};
 use mtgsim::decision::provider::DecisionProvider;
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Helpers

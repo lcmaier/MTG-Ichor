@@ -11,8 +11,8 @@ use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{PriorityAction, ScriptedDecisionProvider, SeatMode, Stop};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 fn build_with(registry: &CardRegistry, text: &str) -> BuiltScenario {
     Scenario::parse(text).and_then(|s| s.build(registry)).unwrap_or_else(|r| panic!("{r}"))

@@ -52,8 +52,8 @@ use mtgsim::types::mana::ManaCost;
 use mtgsim::types::zones::{Zone, ZoneSet};
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::DecisionProvider;
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 #[path = "support/counting_allocator.rs"]
 mod counting_allocator;

@@ -328,7 +328,7 @@ mod tests {
     use mtgsim::types::effects::EffectRecipient;
     use mtgsim::decision::question::{DecisionKind, DecisionOption};
     use mtgsim::decision::provider::ScriptedDecisionProvider;
-    use mtgsim::policies::mana_window_stop::ManaWindowStop;
+    use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
     use super::*;
 

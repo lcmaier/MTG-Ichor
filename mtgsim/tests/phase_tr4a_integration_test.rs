@@ -49,7 +49,7 @@ use mtgsim::types::triggers::{
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Fixtures and helpers

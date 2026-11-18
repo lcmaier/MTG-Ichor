@@ -35,8 +35,8 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::history_log::RowFrame;
 use mtgsim::types::ids::ObjectRef;
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 #[path = "support/counting_allocator.rs"]
 mod counting_allocator;

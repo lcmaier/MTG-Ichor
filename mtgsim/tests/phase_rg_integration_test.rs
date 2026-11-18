@@ -63,7 +63,7 @@ use mtgsim::types::replacement::{EnterMods, EnterModsTemplate, EventPattern, Rep
 use mtgsim::types::zones::Zone;
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, position_named};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 fn mutant() -> Subtype {
     Subtype::Creature(CreatureType::Mutant)

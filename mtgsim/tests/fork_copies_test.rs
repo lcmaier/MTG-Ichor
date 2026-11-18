@@ -17,8 +17,8 @@ use std::cell::{Cell, RefCell};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{deal_commander_game, AtEachPrompt};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 /// The mean chunks a fork may copy between two decisions, over every store.
 /// The pooled board read 2.2 at the design (`clone-architecture.md` §2.6),

@@ -25,12 +25,12 @@ use mtgsim::state::game::Halt;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
-use mtgsim::policies::auto_order_triggers::AutoOrderTriggers;
-use mtgsim::policies::auto_yield::{AutoYield, Yield, Yields, pass_index};
+use mtgsim::autopilot::auto_order_triggers::AutoOrderTriggers;
+use mtgsim::autopilot::auto_yield::{AutoYield, Yield, Yields, pass_index};
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, SeatMode, Stop};
-use mtgsim::policies::full_control::{FullControl, FullControlSwitch};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::full_control::{FullControl, FullControlSwitch};
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::state::decision_log::{Replay, ReplayControl};
 use mtgsim::words::why::{OpenQuestion, Why, read_from_the_trace, why};
 use rand::SeedableRng;
@@ -163,7 +163,7 @@ pub enum Outcome {
 
 /// The window's ends of the two channels, the engine thread, and full
 /// control's switch above every seat, which the window flips from its own
-/// thread and a seat reads at its next prompt (`mtgsim::policies::full_control`).
+/// thread and a seat reads at its next prompt (`mtgsim::autopilot::full_control`).
 pub struct EngineHandle {
     pub from_engine: Receiver<ToWindow>,
     pub answers: Sender<Reply>,

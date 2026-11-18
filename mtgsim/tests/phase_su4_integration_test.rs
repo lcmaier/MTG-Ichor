@@ -17,8 +17,8 @@ use mtgsim::types::zones::Zone;
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider, Stop};
 use mtgsim::words::display::format_event_log;
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 use mtgsim::state::decision_log::Replay;
 
 /// A Lightning Bolt castable at the first priority prompt, so that prompt is

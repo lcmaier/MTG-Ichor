@@ -767,7 +767,7 @@ impl GameState {
     /// or activating an ability that requires a mana payment", with no "until
     /// it is paid" — so the engine offers until the player declines. Stopping
     /// once the cost is covered is a *payer's* policy and lives in
-    /// `policies::ManaWindowStop`; do not reintroduce it here
+    /// `autopilot::ManaWindowStop`; do not reintroduce it here
     /// (`cost-architecture.md` §3.11).
     ///
     /// # Mana-cost extraction
@@ -793,7 +793,7 @@ impl GameState {
     /// so the DP can't pick it again; it is bounded by `|initial_legal|`. A DP
     /// that keeps successfully activating forever (cycling mana-filter abilities)
     /// is the DP's problem, and every shipped client answers it:
-    /// `policies::ManaWindowStop` declines once the locked component is covered,
+    /// `autopilot::ManaWindowStop` declines once the locked component is covered,
     /// `RandomDecisionProvider` caps itself per window — the only terminator left
     /// when a client drops the stop (`--no-auto-pay`) — and a person stops
     /// when they choose.

@@ -38,11 +38,11 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{CopyDonor, EnterMods, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
-use mtgsim::policies::auto_order_triggers::AutoOrderTriggers;
+use mtgsim::autopilot::auto_order_triggers::AutoOrderTriggers;
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, PriorityAction};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
-use mtgsim::policies::random::RandomDecisionProvider;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::random::RandomDecisionProvider;
 
 const PLUS: CounterType = CounterType::PlusOnePlusOne;
 const MINUS: CounterType = CounterType::MinusOneMinusOne;

@@ -51,7 +51,7 @@ use mtgsim::types::triggers::{
 use mtgsim::types::zones::{Zone, ZoneChangeAct};
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 /// A 1/1 green Elf Warrior creature token.
 fn elf_warrior_token() -> TokenDef {

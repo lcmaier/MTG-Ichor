@@ -30,7 +30,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, ReplacementOption};
 use mtgsim::decision::provider::{DispatchDecisionProvider, PriorityAction, ScriptedDecisionProvider};
 use mtgsim::words::display::{format_event_log, option_label};
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::state::decision_log::Replay;
 
 /// The script's next answer: `chosen` for the announcement of an instance of

@@ -36,7 +36,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::triggers::Lki;
 use mtgsim::types::mana::ManaCost;
-use mtgsim::policies::mana_window_stop::ManaWindowStop;
+use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 /// A {0} fixture of `card_type`; an instant or sorcery does `effect`.
 fn free_spell(name: &str, card_type: CardType, effect: Effect) -> Arc<CardData> {
