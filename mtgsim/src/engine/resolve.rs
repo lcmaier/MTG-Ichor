@@ -322,6 +322,33 @@ impl GameState {
         result
     }
 
+    /// Whether `effect`'s own words read a choice no choose step of this
+    /// resolution has made: an instruction's verb and what it acts on, an
+    /// "if"'s condition, a "may"'s player. A choose step is never one: it
+    /// finds a missing chooser or name itself, and what it then leaves is
+    /// the absence the steps after it read.
+    fn reads_a_choice_never_made(&self, effect: &Effect, ctx: &ResolutionContext) -> bool {
+        use crate::engine::choices_read::{atom_reads, condition_reads, player_ref_reads};
+        let reads = match effect {
+            Effect::Atom(Primitive::ChooseValue { .. }, _) => return false,
+            Effect::Atom(primitive, recipient) => atom_reads(primitive, recipient),
+            Effect::Conditional(condition, _) => condition_reads(condition),
+            Effect::Optional { chooser, .. } => player_ref_reads(chooser),
+            Effect::Sequence(_)
+            | Effect::Replacement(_)
+            | Effect::Restriction(_)
+            | Effect::CostModification(_)
+            | Effect::TriggerMultiplier(_)
+            | Effect::FunctionsIn(..)
+            | Effect::Triggered(_)
+            | Effect::Remember(_)
+            | Effect::Modal(_)
+            | Effect::ForEach(..)
+            | Effect::Repeat(..) => return false,
+        };
+        reads.kinds().iter().any(|kind| self.answers_kept_as(*kind, ctx).is_none())
+    }
+
     /// One instruction of [`Self::resolve_effect_at`]'s walk. An atom's verb
     /// acts on what [`Self::recipients_for`] finds.
     fn resolve_effect_step(
@@ -332,6 +359,19 @@ impl GameState {
         declared: DeclaredInstances<'_>,
         walk: &mut ResolutionWalk,
     ) -> Result<(), String> {
+        // CR 608.2b — "any part of the effect that requires that information
+        // won't happen": a step whose own words read a choice that was never
+        // made does nothing, asked here so an amount or a player word never
+        // meets the missing name midway. Its targets were announced all the
+        // same (CR 601.2c), so the instances after it are read past them.
+        if self.reads_a_choice_never_made(effect, ctx) {
+            walk.instance_cursor += effect.instances().len();
+            walk.last_cost_answer = Some(match effect {
+                Effect::Optional { .. } => CostAnswer::Doesnt,
+                _ => CostAnswer::Cant,
+            });
+            return Ok(());
+        }
         // Every atom takes its action, which is CR 118.12's "started to pay"
         // for the clause after it.
         if let Effect::Atom(..) = effect {

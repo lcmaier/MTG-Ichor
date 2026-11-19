@@ -11,9 +11,9 @@ use watching::Watching;
 
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::cards::authoring::{
-    choose_color, choose_number, choose_number_at_least, choose_objects, color, creature, destroy, draw_cards, each, each_opponent,
-    each_player, gain_life, non, one_of_the_chosen, spell_ability, target_opponent, the_chosen_color, the_chosen_number,
-    the_chosen_objects, they_control, you,
+    choose_color, choose_number, choose_number_at_least, choose_objects, choose_player, color, creature, destroy, draw_cards, each,
+    each_opponent, each_player, gain_life, non, one_of_the_chosen, spell_ability, target_creature, target_opponent, the_chosen_color,
+    the_chosen_number, the_chosen_objects, the_chosen_player, they_control, you,
 };
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
@@ -24,7 +24,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_game, test_ctx};
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{Effect, EffectRecipient, TargetCount};
+use mtgsim::types::effects::{Effect, EffectRecipient, PlayerRef, PlayerSet, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 
@@ -319,6 +319,67 @@ fn a_number_with_no_most_is_asked_from_its_least_with_no_top() {
     let [(0, DecisionKind::ChooseNumber { values, .. }, 1, u64::MAX)] = asked.as_slice() else { panic!("one number, from 1 up: {asked:?}") };
     assert_eq!(**values, no_top, "the question says there is no most");
     assert_eq!(game.players[0].life_total, life + 37);
+}
+
+// ---------------------------------------------------------------------------
+// A step that reads a choice never made (CR 608.2b)
+// ---------------------------------------------------------------------------
+
+/// `card`, an instant whose first target is an opponent who chooses and
+/// whose second is a creature, cast at player 1 and the board's one
+/// creature; player 1 then leaves the game, so the choice is never made
+/// while the second target keeps the spell resolving. Whether it resolved.
+fn resolve_after_its_chooser_left(game: &mut GameState, card: Arc<CardData>) -> Result<(), String> {
+    let id = put_in_hand(game, card, 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    let targeting = ScriptedDecisionProvider::new();
+    picks(&targeting, vec![DecisionOption::Player(1)]);
+    game.cast_spell(0, id, &ManaWindowStop::new(targeting)).expect("castable");
+    game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).map(|_| ())
+}
+
+/// CR 608.2b — "if part of the effect requires information about an illegal
+/// target, it fails to determine any such information. Any part of the
+/// effect that requires that information won't happen." The number's
+/// chooser is a target who has left, so no number is chosen; "you gain that
+/// much life" reads it and does not happen; and the creature, a target
+/// still legal, is destroyed all the same.
+#[test]
+fn an_amount_that_reads_a_choice_never_made_does_not_happen() {
+    let mut game = at_the_turn_of(0, 3);
+    let bear = put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 2);
+    let life = game.players[0].life_total;
+    let card = instant(
+        "Their Number",
+        "Target opponent chooses a number between 1 and 3. You gain that much life. Destroy target creature.",
+        Effect::Sequence(vec![choose_number(target_opponent(), 1, 3), gain_life(you(), the_chosen_number()), destroy(target_creature())]),
+    );
+    resolve_after_its_chooser_left(&mut game, card).expect("the part that reads the number does not happen, and the rest does");
+    assert_eq!(game.players[0].life_total, life, "no number, so no life");
+    assert!(!game.battlefield.contains_key(&bear), "the other target is still affected");
+}
+
+/// The same for a player word: "that player may draw a card", where no
+/// player was chosen, is a "may" nobody is asked.
+#[test]
+fn a_may_whose_player_was_never_chosen_does_not_happen() {
+    let mut game = at_the_turn_of(0, 3);
+    let bear = put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 2);
+    let card = instant(
+        "Their Friend",
+        "Target opponent chooses a player. That player may draw a card. Destroy target creature.",
+        Effect::Sequence(vec![
+            choose_player(target_opponent(), PlayerSet::Everyone),
+            Effect::Optional {
+                chooser: PlayerRef::NamedBy(Box::new(the_chosen_player())),
+                effect: Box::new(draw_cards(the_chosen_player(), 1)),
+            },
+            destroy(target_creature()),
+        ]),
+    );
+    resolve_after_its_chooser_left(&mut game, card).expect("nobody is asked, and the rest happens");
+    assert!(!game.battlefield.contains_key(&bear));
 }
 
 /// An amount reads exactly one answer. "That many" after several players

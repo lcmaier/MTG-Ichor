@@ -1913,9 +1913,13 @@ mod instance_references {
     /// with it. A choose step itself acts on nothing and has a chooser that
     /// can name a player, and no verb is written on the question's label.
     ///
-    /// A read is found in a step's `Debug` print (`ChosenAs(..)`), so a read
-    /// however deep in a filter or an amount is one this sees.
+    /// A read in a step's own words is `engine::choices_read`'s, whose
+    /// matches are exhaustive, so a new place a name can sit is seen here
+    /// the day it compiles. A definition a step creates outlasts it, and a
+    /// name inside one is found in the definition's printed form
+    /// (`ChosenAs(..)`), however deep.
     fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
+        use crate::engine::choices_read::{amount_reads, atom_reads, condition_reads, object_set_reads, player_ref_reads, recipient_reads, ChoicesRead};
         use crate::types::effects::{AnsweredBy, ChoiceKind, NamedPlayers, PlayerSet, Primitive};
 
         fn names_read_in(printed: &str) -> Vec<&str> {
@@ -1930,12 +1934,23 @@ mod instance_references {
         }
 
         impl<'a> Walk<'a> {
-            fn read(&mut self, printed: &str, kept: &[ChoiceKind]) {
-                for name in names_read_in(printed) {
+            /// What a step's own words read, each a name kept before it.
+            fn read(&mut self, read: ChoicesRead, kept: &[ChoiceKind], step: &dyn std::fmt::Debug) {
+                for name in read.kinds() {
                     self.reads += 1;
-                    if !kept.iter().any(|kept_as| format!("{kept_as:?}") == name) {
-                        self.problems.push(format!("reads {name}, which no step before it keeps: {printed}"));
+                    if !kept.contains(name) {
+                        self.problems.push(format!("reads {name:?}, which no step before it keeps: {step:?}"));
                     }
+                }
+            }
+
+            /// A definition that outlasts the resolution, or stands apart
+            /// from one: it reads no choice at all.
+            fn reads_none(&mut self, definition: &dyn std::fmt::Debug) {
+                let printed = format!("{definition:?}");
+                for name in names_read_in(&printed) {
+                    self.reads += 1;
+                    self.problems.push(format!("reads {name}, and outlasts the resolution that chose it: {printed}"));
                 }
             }
 
@@ -1952,10 +1967,12 @@ mod instance_references {
                                 | Primitive::ExileUntil { .. }
                         );
                         match outlasts_the_resolution {
-                            true => self.read(&format!("{primitive:?}"), &[]),
-                            false => self.read(&format!("{primitive:?}"), kept),
+                            true => {
+                                self.reads_none(primitive);
+                                self.read(recipient_reads(recipient), kept, recipient);
+                            }
+                            false => self.read(atom_reads(primitive, recipient), kept, effect),
                         }
-                        self.read(&format!("{recipient:?}"), kept);
                         if matches!(recipient, EffectRecipient::Choose(..)) {
                             self.problems.push(format!("{recipient:?} is a question's label: a card chooses with a choose step"));
                         }
@@ -1997,29 +2014,29 @@ mod instance_references {
                     // What is kept behind an "if" or a "may" may not have
                     // been kept at all, so nothing after it reads the name.
                     Effect::Conditional(condition, inner) => {
-                        self.read(&format!("{condition:?}"), kept);
+                        self.read(condition_reads(condition), kept, condition);
                         self.step(inner, &mut kept.clone());
                     }
                     Effect::Optional { chooser, effect: inner } => {
-                        self.read(&format!("{chooser:?}"), kept);
+                        self.read(player_ref_reads(chooser), kept, chooser);
                         self.step(inner, &mut kept.clone());
                     }
                     Effect::ForEach(over, inner) => {
-                        self.read(&format!("{over:?}"), kept);
+                        self.read(object_set_reads(over), kept, over);
                         self.step(inner, kept);
                     }
                     Effect::Repeat(times, inner) => {
-                        self.read(&format!("{times:?}"), kept);
+                        self.read(amount_reads(times), kept, times);
                         self.step(inner, kept);
                     }
                     Effect::FunctionsIn(_, inner) | Effect::Remember(inner) => self.step(inner, kept),
                     // Another ability, resolving on its own: it reads what
                     // its own steps keep.
                     Effect::Triggered(def) => self.step(&def.effect, &mut Vec::new()),
-                    Effect::Replacement(def) => self.read(&format!("{def:?}"), &[]),
-                    Effect::Restriction(def) => self.read(&format!("{def:?}"), &[]),
-                    Effect::CostModification(def) => self.read(&format!("{def:?}"), &[]),
-                    Effect::TriggerMultiplier(def) => self.read(&format!("{def:?}"), &[]),
+                    Effect::Replacement(def) => self.reads_none(def),
+                    Effect::Restriction(def) => self.reads_none(def),
+                    Effect::CostModification(def) => self.reads_none(def),
+                    Effect::TriggerMultiplier(def) => self.reads_none(def),
                 }
             }
         }
@@ -2069,7 +2086,7 @@ mod instance_references {
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
             choose_color, choose_number, choose_objects, choose_one, color, creature, destroy, draw_cards, each, each_player, gains_ability,
-            spell_ability, the_chosen_color, the_chosen_number, the_chosen_objects, you,
+            non, one_of_the_chosen, spell_ability, the_chosen_color, the_chosen_number, the_chosen_objects, you,
         };
         use crate::types::effects::{
             AnsweredBy, ChoiceKind, ChoiceWalk, ChosenHow, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
@@ -2122,6 +2139,12 @@ mod instance_references {
         assert_eq!(problems(chooses_a_color(one_for_each)).len(), 1, "one player answering for each is not built");
         let nobody = ChosenHow { walk: walk_of(PlayerSet::Nobody), answered_by: AnsweredBy::EachPlayerForThemselves };
         assert_eq!(problems(chooses_a_color(nobody)).len(), 1, "a walk over nobody");
+
+        // "That hasn't been chosen this way": a walk's own question reads
+        // the answers it has been given so far. One chooser has none.
+        let not_yet_chosen = || creature().and(non(one_of_the_chosen()));
+        assert!(problems(choose_objects(each_player(), not_yet_chosen(), TargetCount::Exactly(1))).is_empty(), "a walk reads its own answers");
+        assert_eq!(problems(choose_objects(you(), not_yet_chosen(), TargetCount::Exactly(1))).len(), 1, "one chooser reads its own name");
     }
 
 
