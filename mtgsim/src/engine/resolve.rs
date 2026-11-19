@@ -737,7 +737,7 @@ impl GameState {
         chooser: Option<PlayerId>,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
-    ) -> Result<(Vec<ObjectOrPlayerId>, Vec<u64>), String> {
+    ) -> Result<Option<(Vec<ObjectOrPlayerId>, Vec<u64>)>, String> {
         // "Choose a player" is a choose step's own kind (`ChoosePlayer`), and
         // "another" reads the targets an announcement chose before it, which
         // a choice has none of.
@@ -763,10 +763,14 @@ impl GameState {
                     let limit = self.total_limit_as_read(total, ctx)?;
                     let numbers = self.each_ones_number(&candidates, total.of);
                     let bounds = (bounds.fewest.min(most), most);
-                    crate::decision::ask::ask_select_within_a_total(dp, self, player, ctx.source, total.of, limit, &numbers, bounds)
-                        .into_iter()
-                        .map(ObjectOrPlayerId::Object)
-                        .collect()
+                    // CR 608.2d: with no pick inside the limit the choice
+                    // cannot be made, which is a choice never made.
+                    let Some(picked) =
+                        crate::decision::ask::ask_select_within_a_total(dp, self, player, ctx.source, total.of, limit, &numbers, bounds)
+                    else {
+                        return Ok(None);
+                    };
+                    picked.into_iter().map(ObjectOrPlayerId::Object).collect()
                 }
                 (None, Some(_)) => return Err(format!("{asked_as:?} on {:?} draws objects at random under a total, which no card prints", ctx.source)),
                 // "Choose a creature at random": as many as the text says.
@@ -777,7 +781,7 @@ impl GameState {
                     return Err(format!("{asked_as:?} on {:?} draws a number of objects at random that its text leaves open", ctx.source));
                 }
             };
-            return Ok((chosen, Vec::new()));
+            return Ok(Some((chosen, Vec::new())));
         };
         if total.is_some() {
             return Err(format!("{asked_as:?} on {:?} divides among objects chosen under a total, which no card prints", ctx.source));
@@ -794,7 +798,7 @@ impl GameState {
         } else {
             crate::decision::ask::ask_divide_among(dp, self, player, ctx.source, &chosen, total)
         };
-        Ok((chosen, shares))
+        Ok(Some((chosen, shares)))
     }
 
     /// What `total` says a pick must add up to, with its amount read as the
@@ -942,7 +946,9 @@ impl GameState {
                 // the one chooser.
                 let Some(filter) = self.selection_as_read_for(among, ctx, chooser)? else { return Ok(None) };
                 let asked_as = EffectRecipient::Choose(filter.clone().into_owned(), count.clone());
-                let (chosen, shares) = self.pick_objects(&asked_as, &filter, count, total.as_ref(), chooser, ctx, dp)?;
+                let Some((chosen, shares)) = self.pick_objects(&asked_as, &filter, count, total.as_ref(), chooser, ctx, dp)? else {
+                    return Ok(None);
+                };
                 let chosen = chosen.into_iter().filter_map(|picked| match picked {
                     ObjectOrPlayerId::Object(id) => self.object_ref(id),
                     ObjectOrPlayerId::Player(_) => None,

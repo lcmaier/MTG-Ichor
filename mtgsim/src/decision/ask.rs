@@ -813,9 +813,10 @@ pub fn ask_select_recipients(
 
 /// A choose step's objects under a total (CR 608.2d): `bounds` of `numbers`'
 /// objects, whose numbers add up to what `limit` admits. Asked until the
-/// answer does, the refusal naming the total it came to. With no such pick
-/// there is nothing to choose, and with none but the empty one it is not
-/// asked.
+/// answer does, the refusal naming the total it came to. `None` where no
+/// pick at all is inside the limit ("total power 10 or greater" of
+/// creatures that do not reach it), which is a choice that cannot be made;
+/// and where none but the empty pick is, that is the answer, not asked.
 pub fn ask_select_within_a_total(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -825,20 +826,21 @@ pub fn ask_select_within_a_total(
     limit: TotalLimit,
     numbers: &[(ObjectId, i64)],
     bounds: (usize, usize),
-) -> Vec<ObjectId> {
-    if numbers.is_empty() || bounds.1 == 0 {
-        return Vec::new();
-    }
+) -> Option<Vec<ObjectId>> {
     let options: Vec<DecisionOption> = numbers.iter().map(|(id, _)| DecisionOption::Object(*id)).collect();
     let each = each_options_number(numbers, &options);
     let some_pick_of = |bounds: (usize, usize)| limit.admits_the_pick(&each, &limit.pick_furthest_inside(&each, bounds));
     if !some_pick_of(bounds) {
-        return Vec::new();
+        return None;
+    }
+    // Nothing to choose from, as for any pick, is no question.
+    if numbers.is_empty() || bounds.1 == 0 {
+        return Some(Vec::new());
     }
     let kind = DecisionKind::SelectWithinATotal { source, of, limit, numbers: numbers.to_vec() };
     if bounds.0 == 0 && !some_pick_of((1, bounds.1)) {
         game.note_unasked(player, Unasked::OneLegalAnswer, || (kind, UnaskedAnswer::Picks(Vec::new())));
-        return Vec::new();
+        return Some(Vec::new());
     }
     let mut rejected = None;
     loop {
@@ -846,7 +848,7 @@ pub fn ask_select_within_a_total(
         let picked = dp.pick_n(game, player, &ctx, &options, bounds);
         validate_pick_n(&picked, &options, bounds, "select_within_a_total", game, player, &ctx);
         if limit.admits_the_pick(&each, &picked) {
-            return picked.iter().map(|&at| numbers[at].0).collect();
+            return Some(picked.iter().map(|&at| numbers[at].0).collect());
         }
         let total = picked.iter().map(|&at| each[at]).fold(0, i64::saturating_add);
         rejected = Some(Rejection::TotalOutsideTheLimit { of, total, limit });

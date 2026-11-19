@@ -30,8 +30,8 @@ use mtgsim::test_support::{fill_library, forest, pass_turn, put_in_hand, put_on_
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Choice, ChoiceScope, ChoiceSide, Condition, CostAnswer, CounterType, Effect, EffectRecipient, ManaOutput, ObjectValue, Pick, PlayerFact,
-    PlayerRef, PlayerSet, Primitive, TargetCount,
+    Choice, ChoiceKind, ChoiceScope, ChoiceSide, Condition, CostAnswer, CounterType, Effect, EffectRecipient, ManaOutput, ObjectValue, Pick,
+    PickTotal, PlayerFact, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice, ValueIs,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -638,6 +638,12 @@ type TotalsAsked = Vec<(TotalLimit, Vec<(ObjectId, i64)>, Option<Rejection>)>;
 fn resolve_slaughter_the_strong(game: &mut GameState, answers: ScriptedDecisionProvider) -> TotalsAsked {
     game.record_events();
     cast_paying(game, slaughter_the_strong(), &[(ManaType::White, 3)]);
+    resolve_noting_each_total(game, answers)
+}
+
+/// The spell on the stack resolved with `answers`, and what each pick under
+/// a total showed.
+fn resolve_noting_each_total(game: &mut GameState, answers: ScriptedDecisionProvider) -> TotalsAsked {
     let asked = RefCell::new(Vec::new());
     let seat = AtEachPrompt::new(answers, |_: &GameState, context: &DecisionContext| {
         if let DecisionKind::SelectWithinATotal { limit, numbers, .. } = &context.kind {
@@ -739,6 +745,73 @@ fn a_creature_of_negative_power_makes_room_under_the_total() {
     assert_eq!(asked, [(TotalLimit::AtMost(4), shown.clone(), None), (TotalLimit::AtMost(4), shown, Some(alone))]);
     assert!(game.battlefield.contains_key(&six) && game.battlefield.contains_key(&minus_two), "6 and -2 are 4");
     assert!(sacrificed(&game).is_empty());
+}
+
+/// An invented instant: "Choose any number of creatures you control with
+/// total power [`is`]. Destroy the rest."
+fn keep_some_whose_total_power(is: ValueIs, text: &'static str) -> Arc<CardData> {
+    let mine = || creature().and(you_control());
+    let what = ValueChoice::Objects {
+        among: SelectionFilter::Permanent(mine()),
+        count: TargetCount::AnyNumber,
+        total: Some(PickTotal { of: ObjectValue::Power, is }),
+    };
+    let keep = Effect::Atom(Primitive::ChooseValue { kind: ChoiceKind::Objects, what, how: you().into() }, EffectRecipient::Implicit);
+    instant("Keep Some", text, Effect::Sequence(vec![keep, destroy(each(mine().other_than(one_of_the_chosen())))]))
+}
+
+/// "Total power 5 or greater" is a limit from below: one 3/5 is refused
+/// with the 3 it comes to, and both are taken. Where no pick reaches the
+/// limit the choice cannot be made (CR 608.2d): nobody is asked, nothing is
+/// kept, and "destroy the rest", which reads it, does not happen.
+#[test]
+fn a_total_or_greater_is_asked_until_reached_and_never_made_out_of_reach() {
+    let or_greater = || {
+        let text = "Choose any number of creatures you control with total power 5 or greater. Destroy the rest.";
+        keep_some_whose_total_power(ValueIs::AtLeast(5.into()), text)
+    };
+    let mut game = at_the_turn_of(0, 2);
+    let [three, other_three, one] = [3, 3, 1].map(|power| put_on_battlefield(&mut game, creature_of_power("Mine", power), 0));
+    cast_paying(&mut game, or_greater(), &[(ManaType::Blue, 1)]);
+    let answers = ScriptedDecisionProvider::new();
+    picks_within_the_total(&answers, &[three]);
+    picks_within_the_total(&answers, &[three, other_three]);
+    let asked = resolve_noting_each_total(&mut game, answers);
+
+    let at_least_five = TotalLimit::AtLeast(5);
+    let shown = vec![(three, 3), (other_three, 3), (one, 1)];
+    let short = Rejection::TotalOutsideTheLimit { of: ObjectValue::Power, total: 3, limit: at_least_five };
+    assert_eq!(asked, [(at_least_five, shown.clone(), None), (at_least_five, shown, Some(short.clone()))]);
+    assert_eq!(rejection(&game, &short), "Those add up to 3, and the choice is of total power 5 or greater (CR 608.2d)");
+    assert_eq!([three, other_three, one].map(|id| game.battlefield.contains_key(&id)), [true, true, false]);
+
+    let mut game = at_the_turn_of(0, 2);
+    let twos = [2, 2].map(|power| put_on_battlefield(&mut game, creature_of_power("Mine", power), 0));
+    cast_paying(&mut game, or_greater(), &[(ManaType::Blue, 1)]);
+    let asked = resolve_noting_each_total(&mut game, ScriptedDecisionProvider::new());
+    assert!(asked.is_empty(), "4 is the most there is, so there is no choice to make");
+    assert!(twos.iter().all(|id| game.battlefield.contains_key(id)), "nothing chosen is not everything unchosen");
+}
+
+/// "Total power less than 3" is 2 or less, a total being a whole number:
+/// the 2/5 beside the 1/5 comes to 3 and is refused, and the 2/5 alone is
+/// taken.
+#[test]
+fn a_total_less_than_a_number_is_at_most_one_fewer() {
+    let mut game = at_the_turn_of(0, 2);
+    let [two, one, three] = [2, 1, 3].map(|power| put_on_battlefield(&mut game, creature_of_power("Mine", power), 0));
+    let text = "Choose any number of creatures you control with total power less than 3. Destroy the rest.";
+    cast_paying(&mut game, keep_some_whose_total_power(ValueIs::LessThan(3.into()), text), &[(ManaType::Blue, 1)]);
+    let answers = ScriptedDecisionProvider::new();
+    picks_within_the_total(&answers, &[two, one]);
+    picks_within_the_total(&answers, &[two]);
+    let asked = resolve_noting_each_total(&mut game, answers);
+
+    let at_most_two = TotalLimit::AtMost(2);
+    let over = Rejection::TotalOutsideTheLimit { of: ObjectValue::Power, total: 3, limit: at_most_two };
+    let limits_and_refusals: Vec<(TotalLimit, Option<Rejection>)> = asked.into_iter().map(|(limit, _, rejected)| (limit, rejected)).collect();
+    assert_eq!(limits_and_refusals, [(at_most_two, None), (at_most_two, Some(over))]);
+    assert_eq!([two, one, three].map(|id| game.battlefield.contains_key(&id)), [true, false, false]);
 }
 
 // ---------------------------------------------------------------------------
