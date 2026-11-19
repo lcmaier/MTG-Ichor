@@ -7,7 +7,7 @@ use super::fixtures;
 use super::sets::{
     aer, ala, all, arn, avr, bbd, bfz, bok, c13, c14, c16, c17, chk, cmr, ddj, dgm, dis, dka, dmu, dom, drk, dst, ecl, eld, emn, eve, exo, fdn, fem,
     fic, fin, fut, gpt, grn, gtc, mh3, hob, hou, ice, iko, inv, isd, jou, jud, khm, kld, ktk, lea, leb, lgn, lrw, m10, m11, m12, m13, m19, m20, m21, mbs, mh2, mir,
-    mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, pip, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, som, sth, stx, thb, tmp, tor, tsp,
+    mat, mkm, mmq, mom, mrd, nem, ogw, ons, ori, otj, p02, pcy, pip, plc, pls, por, rav, rix, rna, roe, rtr, s99, set_5dn, shm, snc, sok, som, sth, stx, thb, tmp, tor, tsp,
     uds, ulg, usg,
     vis, vow, war, woe, wth, wwk, zen, znr,
 };
@@ -1262,10 +1262,12 @@ impl CardRegistry {
         // first: a pick limited by its total, with the rest sacrificed by
         // whoever controls it.
         registry.register("Slaughter the Strong", rix::slaughter_the_strong);
-        // A value from each player read as any answer; and you and then
-        // each other player, the second kept under its own name.
+        // A value from each player read as any answer; you and then each
+        // other player, the second kept under its own name; and a number
+        // with no most, chosen by a target opponent.
         registry.register("Harsh Mercy", ons::harsh_mercy);
         registry.register("Fortunate Few", c17::fortunate_few);
+        registry.register("Choice of Damnations", sok::choice_of_damnations);
         // A player verb whose target player has left, beside a target that
         // keeps the spell resolving.
         registry.register("Combat Tutorial", fin::combat_tutorial);

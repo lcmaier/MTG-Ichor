@@ -17,7 +17,7 @@ use mtgsim::cards::authoring::{
     target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
     the_third_chosen_player, they_control, you,
 };
-use mtgsim::cards::printings::{fortunate_few, harsh_mercy, plague_spores, slaughter_the_strong};
+use mtgsim::cards::printings::{choice_of_damnations, fortunate_few, harsh_mercy, plague_spores, slaughter_the_strong};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection, TotalLimit};
 use mtgsim::engine::actions::GameAction;
@@ -699,6 +699,78 @@ fn fortunate_few_asks_you_then_each_other_player_among_what_is_not_chosen() {
     let on_the_battlefield =
         [indestructible, my_creature, their_creature, artifact_land, my_artifact, last_creature, last_enchantment].map(|id| game.battlefield.contains_key(&id));
     assert_eq!(on_the_battlefield, [true, true, true, true, false, false, false], "the three chosen and the land stay; the rest is destroyed");
+}
+
+/// Choice of Damnations at two seats, where player 1 is its one legal
+/// target: player 1 chooses `number`, player 0 answers the "may", and player
+/// 1 keeps `kept` where a keep is asked. Who was asked what, in order.
+fn resolve_choice_of_damnations(game: &mut GameState, number: u64, lose_the_life: bool, kept: Option<ObjectId>) -> Vec<(PlayerId, &'static str)> {
+    game.record_events();
+    let spell = cast_paying(game, choice_of_damnations(), &[(ManaType::Black, 6)]);
+    let answers = ScriptedDecisionProvider::new();
+    let any_number = XOffer::NoTop { at_least: 0 };
+    answers.expect_number(DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(any_number) }, number);
+    let taken = if lose_the_life { vec![DecisionOption::Object(spell)] } else { vec![] };
+    answers.expect_choice(DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, taken);
+    if let Some(kept) = kept {
+        picks(&answers, vec![DecisionOption::Object(kept)]);
+    }
+    game.resolve_top_of_stack(&answers).expect("it resolves");
+    answers.asked_of().into_iter().map(|(player, kind)| (player, kind.as_str())).collect()
+}
+
+// RULING: Choice of Damnations #1 - "After the opponent chooses a number,
+//   Choice of Damnations' controller may choose to make that opponent
+//   either lose that much life or make that opponent sacrifice permanents."
+//
+/// The opponent's number comes first and is any number at all (CR 107.1b:
+/// no most printed). Its controller then takes the life: 13 of it, and no
+/// permanent is touched.
+#[test]
+fn choice_of_damnations_has_the_opponent_lose_the_number_they_chose() {
+    let mut game = at_the_turn_of(0, 2);
+    let theirs = [(); 3].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    let life = game.players[1].life_total;
+
+    let asked = resolve_choice_of_damnations(&mut game, 13, true, None);
+
+    assert_eq!(asked, [(1, "ChooseNumber"), (0, "ApplyOptionalEffect")], "the opponent's number, then its controller's may");
+    assert_eq!(game.players[1].life_total, life - 13);
+    assert!(theirs.iter().all(|id| game.battlefield.contains_key(id)));
+}
+
+// RULING: Choice of Damnations #2 - "If the opponent must sacrifice all but
+//   a number of permanents, that opponent chooses that many permanents and
+//   then sacrifices the rest. If the number chosen is greater than the
+//   number of permanents the opponent controls, the player sacrifices
+//   nothing."
+//
+/// "If you don't": the opponent keeps one permanent of their choice and
+/// sacrifices their other two, and player 0's own permanent is no part of
+/// it. With a number above what they control, every permanent is kept
+/// without a question and nothing is sacrificed.
+#[test]
+fn choice_of_damnations_has_the_opponent_keep_that_many_and_sacrifice_the_rest() {
+    let mut game = at_the_turn_of(0, 2);
+    let mine = put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0);
+    let theirs = [(); 3].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    let life = game.players[1].life_total;
+
+    let asked = resolve_choice_of_damnations(&mut game, 1, false, Some(theirs[1]));
+
+    assert_eq!(asked, [(1, "ChooseNumber"), (0, "ApplyOptionalEffect"), (1, "SelectRecipients")]);
+    assert_eq!(game.players[1].life_total, life, "the life was not taken");
+    assert_eq!(theirs.map(|id| game.battlefield.contains_key(&id)), [false, true, false], "one kept, by its controller's choice");
+    assert!(game.battlefield.contains_key(&mine), "the caster's permanents are not that player's");
+    let mut gone: Vec<ObjectId> = sacrificed(&game).into_iter().map(|(id, _)| id).collect();
+    gone.sort();
+    assert_eq!(gone, [theirs[0], theirs[2]], "sacrificed, and by the player who controls them");
+
+    let mut game = at_the_turn_of(0, 2);
+    let theirs = [(); 3].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    let asked = resolve_choice_of_damnations(&mut game, 7, false, None);
+    assert_eq!(asked, [(1, "ChooseNumber"), (0, "ApplyOptionalEffect")], "seven of three keeps all three, with nothing to ask");
+    assert!(theirs.iter().all(|id| game.battlefield.contains_key(id)) && sacrificed(&game).is_empty());
 }
 
 // ---------------------------------------------------------------------------
