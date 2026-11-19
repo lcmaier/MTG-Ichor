@@ -12,9 +12,9 @@ use watching::Watching;
 
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::cards::authoring::{
-    add_mana, choose_a_second_player, choose_a_third_player, choose_color, choose_creature_type, choose_number, choose_number_at_least,
+    a_color_chosen_this_way, add_mana, choose_a_second_player, choose_a_third_player, choose_color, choose_creature_type, choose_number, choose_number_at_least,
     choose_objects, choose_player, chosen_by, color, creature, creature_type, destroy, draw_cards, each, each_opponent, each_player,
-    gain_life, lose_life, non, one_of_the_chosen, sacrifice, spell_ability, target_creature, target_opponent, the_chosen_color,
+    gain_life, lose_life, non, one_of_the_chosen, sacrifice, spell_ability, target_creature, target_opponent,
     the_chosen_creature_type, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
     the_third_chosen_player, they_control, you, you_control,
 };
@@ -110,7 +110,7 @@ fn each_player_condemns_a_color() -> Arc<CardData> {
     instant(
         "A Color Apiece",
         "Each player chooses a color. Destroy each creature of a color chosen this way.",
-        Effect::Sequence(vec![choose_color(each_player()), destroy(each(creature().and(color(the_chosen_color()))))]),
+        Effect::Sequence(vec![choose_color(each_player()), destroy(each(creature().and(color(a_color_chosen_this_way()))))]),
     )
 }
 
@@ -151,7 +151,7 @@ fn each_opponent_is_asked_and_the_controller_is_not() {
     let card = instant(
         "Their Colors",
         "Each opponent chooses a color. Destroy each creature of a color chosen this way.",
-        Effect::Sequence(vec![choose_color(each_opponent()), destroy(each(creature().and(color(the_chosen_color()))))]),
+        Effect::Sequence(vec![choose_color(each_opponent()), destroy(each(creature().and(color(a_color_chosen_this_way()))))]),
     );
     cast_paying(&mut game, card, &[(ManaType::Blue, 1)]);
 
@@ -883,8 +883,8 @@ fn creature_of_type(creature_type: CreatureType) -> Arc<CardData> {
 
 // COVERS-PARTIAL: ATOM-101.4c-001
 /// Harsh Mercy. Each player chooses a type, the active player first, and
-/// every type is chosen before anything is destroyed (CR 101.4c: the
-/// choosing is one step and the destroying the next). A creature of any
+/// every type is chosen before anything is destroyed (CR 608.2e: each
+/// step's choices, then that step). A creature of any
 /// chosen type is spared, whoever chose it: two players naming Goblin spare
 /// the one Goblin. The Wall's regeneration shield is passed over, since the
 /// destroy carries "they can't be regenerated".

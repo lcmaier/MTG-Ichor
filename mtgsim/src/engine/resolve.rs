@@ -766,7 +766,7 @@ impl GameState {
                 }
                 (Some(player), Some(total)) => {
                     let limit = self.total_limit_as_read(total, ctx)?;
-                    let numbers = self.each_ones_number(&candidates, total.of);
+                    let numbers = self.each_candidates_number(&candidates, total.of);
                     let bounds = (bounds.fewest.min(most), most);
                     // CR 608.2d: with no pick inside the limit the choice
                     // cannot be made, which is a choice never made.
@@ -824,7 +824,7 @@ impl GameState {
     /// `of` each of `candidates`, as the layers give it now (CR 608.2h). An
     /// object with no such number adds nothing (CR 107.2), and a negative
     /// one is kept as it is (CR 107.1b).
-    fn each_ones_number(&self, candidates: &[ObjectOrPlayerId], of: ObjectValue) -> Vec<(ObjectId, i64)> {
+    fn each_candidates_number(&self, candidates: &[ObjectOrPlayerId], of: ObjectValue) -> Vec<(ObjectId, i64)> {
         let number = |id: ObjectId| match of {
             ObjectValue::Power => crate::oracle::characteristics::get_effective_power(self, id),
             ObjectValue::Toughness => crate::oracle::characteristics::get_effective_toughness(self, id),
@@ -842,9 +842,10 @@ impl GameState {
     /// it as `kind` for the steps after this one.
     ///
     /// **One answer** is asked of the player `how` names, or drawn at
-    /// random. With no one to ask or nothing to choose among, the choice is
-    /// never made and nothing is kept as `kind`: a step naming it finds
-    /// nothing (CR 608.2b).
+    /// random. With no one to ask, no player to choose, or a choice it reads
+    /// never made, the choice is never made and nothing is kept as `kind`:
+    /// a step that reads it does not happen (CR 608.2b). Objects with none
+    /// to choose among are an answer all the same, one that chose nothing.
     ///
     /// **A walk** asks each player of its group still in the game, the
     /// active player first and then in turn order (CR 101.4, 608.2e). The
@@ -884,7 +885,10 @@ impl GameState {
         }
         self.keep_as(kind, Some(Vec::new()), ctx)?;
         for player in self.players_in(&choice_walk.players, ctx) {
-            // CR 104.3a: a player may leave partway through the walk.
+            // The group is read again as the walk reaches each player (CR
+            // 104.3a: one who has left makes no choice). Nothing lets a
+            // player leave between two questions of one walk yet, so no
+            // board reaches this.
             if !self.in_game(player) {
                 continue;
             }
@@ -896,8 +900,8 @@ impl GameState {
     }
 
     /// One answer to `what`: asked of `chooser`, or with none drawn at
-    /// random. `None` when there is nothing to choose among, or a choice it
-    /// reads was never made.
+    /// random. `None` when there is no player to choose, no pick inside a
+    /// total's limit, or a choice it reads was never made.
     fn choose_value(
         &mut self,
         what: &ValueChoice,
@@ -931,9 +935,10 @@ impl GameState {
             }
             ValueChoice::Player { among, other_than } => {
                 // "A second player": not one an earlier choice named.
+                // A name never kept excludes nobody.
                 let already_chosen = |player: PlayerId| {
                     other_than.iter().any(|kind| {
-                        let answers = self.answers_kept_as(*kind, ctx).unwrap_or_default();
+                        let answers = self.answers_kept_as(*kind, ctx).unwrap_or(&[]);
                         answers.iter().any(|answer| answer.value == ChosenValue::Player(player))
                     })
                 };
@@ -949,7 +954,7 @@ impl GameState {
             ValueChoice::Objects { among, count, total } => {
                 // The answer is for whoever is asked: a walk's player, or
                 // the one chooser.
-                let Some(filter) = self.selection_as_read_for(among, ctx, chooser)? else { return Ok(None) };
+                let Some(filter) = self.selection_as_read_now_choosing_for(among, ctx, chooser)? else { return Ok(None) };
                 let asked_as = EffectRecipient::Choose(filter.clone().into_owned(), count.clone());
                 let Some((chosen, shares)) = self.pick_objects(&asked_as, &filter, count, total.as_ref(), chooser, ctx, dp)? else {
                     return Ok(None);
@@ -1138,14 +1143,14 @@ impl GameState {
     /// never made: what it describes cannot be known, so its reader finds no
     /// object, under a "not" as well (CR 608.2b's "won't happen").
     fn filter_as_read_now<'f>(&self, filter: &'f ObjectFilter, ctx: &ResolutionContext) -> Result<Option<Cow<'f, ObjectFilter>>, String> {
-        self.filter_as_read_for(filter, ctx, None)
+        self.filter_as_read_now_choosing_for(filter, ctx, None)
     }
 
     /// [`Self::filter_as_read_now`] for what a choose step chooses among,
     /// where "they" is `choosing_for`, the player the answer is for (CR
     /// 608.2d): a walk's player, or the one chooser. Outside a choose step
     /// there is no such player, and a filter that names one is refused.
-    fn filter_as_read_for<'f>(
+    fn filter_as_read_now_choosing_for<'f>(
         &self,
         filter: &'f ObjectFilter,
         ctx: &ResolutionContext,
@@ -1155,9 +1160,9 @@ impl GameState {
             return Ok(Some(Cow::Borrowed(filter)));
         }
         let read = |inner: &ObjectFilter| -> Result<Option<Box<ObjectFilter>>, String> {
-            Ok(self.filter_as_read_for(inner, ctx, choosing_for)?.map(|read| Box::new(read.into_owned())))
+            Ok(self.filter_as_read_now_choosing_for(inner, ctx, choosing_for)?.map(|read| Box::new(read.into_owned())))
         };
-        let the_player_chosen_for = || {
+        let the_player_answered_for = || {
             choosing_for.map(PlayerRef::Player).ok_or_else(|| {
                 format!("{filter:?} on {:?} names the player a choice is for, where no choice is being made", ctx.source)
             })
@@ -1167,8 +1172,8 @@ impl GameState {
                 Some(answers) => self.any_answer_as_a_filter(filter, answers, ctx)?,
                 None => return Ok(None),
             },
-            ObjectFilter::ByController(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByController(the_player_chosen_for()?),
-            ObjectFilter::ByOwner(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByOwner(the_player_chosen_for()?),
+            ObjectFilter::ByController(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByController(the_player_answered_for()?),
+            ObjectFilter::ByOwner(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByOwner(the_player_answered_for()?),
             ObjectFilter::WithValue { of, is } => {
                 if let AmountExpr::ChosenAs(kind) = is.amount()
                     && self.answers_kept_as(*kind, ctx).is_none()
@@ -1194,16 +1199,16 @@ impl GameState {
         })))
     }
 
-    /// [`Self::filter_as_read_for`] for what a choice selects among: its
+    /// [`Self::filter_as_read_now_choosing_for`] for what a choice selects among: its
     /// permanents' filter, read now for the player the answer is for.
-    fn selection_as_read_for<'f>(
+    fn selection_as_read_now_choosing_for<'f>(
         &self,
         filter: &'f SelectionFilter,
         ctx: &ResolutionContext,
         choosing_for: Option<PlayerId>,
     ) -> Result<Option<Cow<'f, SelectionFilter>>, String> {
         let SelectionFilter::Permanent(among) = filter else { return Ok(Some(Cow::Borrowed(filter))) };
-        Ok(self.filter_as_read_for(among, ctx, choosing_for)?.map(|read| match read {
+        Ok(self.filter_as_read_now_choosing_for(among, ctx, choosing_for)?.map(|read| match read {
             Cow::Borrowed(_) => Cow::Borrowed(filter),
             Cow::Owned(read) => Cow::Owned(SelectionFilter::Permanent(read)),
         }))
@@ -1740,7 +1745,8 @@ impl GameState {
 
             // CR 608.2d — choose as this step runs, and keep the answer for
             // the steps after it. Nothing chosen (no one to choose, no player
-            // to name) keeps nothing, and a step naming it finds nothing.
+            // to name) keeps nothing, and a step that reads it does not
+            // happen.
             Primitive::ChooseValue { kind, what, how } => self.choose_and_keep(*kind, what, how, ctx, dp, walk),
 
             // CR 118.12's payment is the whole of an `Effect::Optional`, whose
@@ -3393,9 +3399,9 @@ impl GameState {
                 Ok(read.unwrap_or(0).max(0) as u64)
             }
             // "The chosen number", "that many": what a choose step kept. A
-            // number never chosen is an error, as an X never chosen is: the
-            // part that reads it should not happen (CR 608.2b), and no verb
-            // can be told so from here.
+            // step that reads a number never chosen is passed over before it
+            // acts (`reads_a_choice_never_made`, CR 608.2b), so one met here
+            // is a read its list does not name.
             AmountExpr::ChosenAs(kind) => match self.the_one_answer_kept_as(*kind, _ctx)? {
                 Some(ChosenValue::Number(number)) => Ok(*number),
                 Some(other) => Err(format!("{expr:?} on {:?} reads a number, and the choice kept {other:?}", _ctx.source)),
@@ -3891,7 +3897,7 @@ impl GameState {
             // answers chose, once; no one where it chose nothing.
             EffectRecipient::ChosenAs(kind) => {
                 let mut players: Vec<PlayerId> = Vec::new();
-                for answer in self.answers_kept_as(*kind, ctx).unwrap_or_default() {
+                for answer in self.answers_kept_as(*kind, ctx).unwrap_or(&[]) {
                     if let ChosenValue::Player(player) = answer.value
                         && !players.contains(&player)
                     {

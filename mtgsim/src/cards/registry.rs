@@ -1999,8 +1999,10 @@ mod instance_references {
                             Primitive::GrantAbility(..)
                             | Primitive::CreateReplacement(..)
                             | Primitive::Restrict(..)
-                            | Primitive::CreateDelayedTrigger(_)
-                            | Primitive::ExileUntil { .. } => Some(primitive),
+                            | Primitive::CreateDelayedTrigger(_) => Some(primitive),
+                            // The event it waits for; the object it names
+                            // beside the one it exiles is read as it runs.
+                            Primitive::ExileUntil { until, .. } => Some(until),
                             Primitive::CreateToken(token, _) => Some(token),
                             Primitive::Copy { except, .. } => Some(except),
                             _ => None,

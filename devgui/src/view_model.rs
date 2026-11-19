@@ -233,7 +233,7 @@ fn pick(
         Input::OptionButton(i) if i < prompt.options.len() => Some(i),
         Input::Board(target) => board_option(prompt, half, target),
         Input::Done => {
-            let inside_the_total = prompt.total.as_ref().is_none_or(|total| total.limit.admits_the_pick(&total.numbers, chosen));
+            let inside_the_total = prompt.total.as_ref().is_none_or(|total| total.limit.admits_the_total(total_of(prompt, chosen)));
             return ((min..=max).contains(&chosen.len()) && inside_the_total).then(|| Answer::Picks(chosen.clone()));
         }
         _ => None,
@@ -249,6 +249,12 @@ fn pick(
         chosen.push(clicked);
     }
     None
+}
+
+/// What the options at `chosen` add up to, under a question that limits a
+/// pick's total.
+fn total_of(prompt: &Prompt, chosen: &[usize]) -> i64 {
+    chosen.iter().filter_map(|&i| prompt.options[i].adds_to_the_total).sum()
 }
 
 /// Whether every option is a choice of modes, which the window asks for a
@@ -1366,14 +1372,13 @@ impl PromptView {
                 let rule = match (half, &prompt.total) {
                     (Some(half), _) => format!("now click what {} goes with", name_of(board, half)),
                     (None, Some(total)) => {
-                        let so_far: i64 = chosen.iter().map(|&i| total.numbers[i]).sum();
-                        format!("{}, with {}: {so_far} so far", pick_rule(*min, *max), total.limit_words)
+                        format!("{}, with {}: {} so far", pick_rule(*min, *max), total.limit_words, total_of(prompt, chosen))
                     }
                     (None, None) => pick_rule(*min, *max),
                 };
                 // Under a total each option shows the number it adds.
-                let label = |i: usize, o: &OptionView| match &prompt.total {
-                    Some(total) => format!("{}: {}", o.label, total.numbers[i]),
+                let label = |o: &OptionView| match o.adds_to_the_total {
+                    Some(number) => format!("{}: {number}", o.label),
                     None => o.label.clone(),
                 };
                 // A lone option with a way out is a "may": yes or no.
@@ -1381,7 +1386,7 @@ impl PromptView {
                 let options = options
                     .map(|(i, o)| OptionButton {
                         chosen: chosen.contains(&i),
-                        ..button(i, &if may { format!("Yes: {}", o.label) } else { label(i, o) })
+                        ..button(i, &if may { format!("Yes: {}", o.label) } else { label(o) })
                     })
                     .collect();
                 let done = match (*min, *max) {
@@ -1606,7 +1611,7 @@ mod tests {
     }
 
     fn option(label: &str, refs: Vec<BoardRef>) -> OptionView {
-        OptionView { label: label.to_string(), what_it_does: None, refs, attacker: None, modes: None }
+        OptionView { label: label.to_string(), what_it_does: None, refs, attacker: None, modes: None, adds_to_the_total: None }
     }
 
     fn unnamed(count: usize) -> Vec<OptionView> {
@@ -1886,8 +1891,9 @@ mod tests {
         use crate::prompt::TotalOfPicks;
         use mtgsim::decision::question::TotalLimit;
         let b = board();
-        let total = TotalOfPicks { limit: TotalLimit::AtMost(4), limit_words: "total power 4 or less".to_string(), numbers: vec![3, 2, -2] };
-        let options = vec![option("A Giant", Vec::new()), option("A Bear", Vec::new()), option("A Weakling", Vec::new())];
+        let total = TotalOfPicks { limit: TotalLimit::AtMost(4), limit_words: "total power 4 or less".to_string() };
+        let adding = |label: &str, number: i64| OptionView { adds_to_the_total: Some(number), ..option(label, Vec::new()) };
+        let options = vec![adding("A Giant", 3), adding("A Bear", 2), adding("A Weakling", -2)];
         let mut state = deciding(&b, Prompt { total: Some(total), ..prompt(Primitive::PickN { min: 0, max: 3 }, options) });
 
         let view = state.prompt_view().unwrap();

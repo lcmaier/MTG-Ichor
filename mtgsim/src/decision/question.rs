@@ -86,7 +86,8 @@ pub enum DecisionKind {
     /// what their sum over the answer must be. A negative number subtracts
     /// (CR 107.1b), so adding an option can make an answer legal: a client
     /// adds a set up and never masks an option alone. The engine refuses an
-    /// answer outside the limit and asks again.
+    /// answer outside the limit and asks again. `numbers` names each option
+    /// by its object, with that object's number.
     SelectWithinATotal { source: ObjectId, of: ObjectValue, limit: TotalLimit, numbers: Vec<(ObjectId, i64)> },
     /// How `source`, the spell or ability on the stack, divides an effect:
     /// among its targets as it is announced (CR 601.2d), after every target
@@ -626,7 +627,7 @@ pub enum TotalLimit {
 
 impl TotalLimit {
     /// Whether an answer adding up to `total` is inside the limit.
-    pub fn admits(self, total: i64) -> bool {
+    pub fn admits_the_total(self, total: i64) -> bool {
         match self {
             TotalLimit::AtMost(most) => total <= most,
             TotalLimit::AtLeast(least) => total >= least,
@@ -655,7 +656,17 @@ impl TotalLimit {
 
     /// Whether the limit admits `picked`, places in `numbers`.
     pub fn admits_the_pick(self, numbers: &[i64], picked: &[usize]) -> bool {
-        self.admits(picked.iter().map(|&at| numbers[at]).fold(0, i64::saturating_add))
+        self.admits_the_total(picked.iter().map(|&at| numbers[at]).fold(0, i64::saturating_add))
+    }
+
+    /// Whether adding `number` to a pick moves its total toward the limit's
+    /// wrong side: a positive one under "or less", a negative one under "or
+    /// greater".
+    pub fn is_moved_outward_by(self, number: i64) -> bool {
+        match self {
+            TotalLimit::AtMost(_) => number > 0,
+            TotalLimit::AtLeast(_) => number < 0,
+        }
     }
 }
 

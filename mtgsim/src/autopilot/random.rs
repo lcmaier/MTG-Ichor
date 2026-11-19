@@ -326,12 +326,12 @@ impl DecisionProvider for RandomDecisionProvider {
 
         // Under a total the legal answers are sets, so a draw of `count`
         // options would be refused most of the time: the options in a random
-        // order, each kept if the pick is inside the limit with it. A walk
-        // that ends outside it (a limit the empty pick is outside of)
-        // answers with the pick furthest inside, which the engine checked is
-        // one before it asked.
+        // order, each kept unless it leaves the pick outside the limit and
+        // moved it that way, so a pick still short of "or greater" keeps
+        // growing. One that ends outside the limit answers with the pick
+        // furthest inside, which the engine checked is one before it asked.
         if let DecisionKind::SelectWithinATotal { limit, numbers, .. } = &context.kind {
-            let each = each_options_number(numbers, options);
+            let number_of_each = each_options_number(numbers, options);
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);
             let mut picked: Vec<usize> = Vec::new();
@@ -340,12 +340,12 @@ impl DecisionProvider for RandomDecisionProvider {
                     break;
                 }
                 picked.push(idx);
-                if !limit.admits_the_pick(&each, &picked) {
+                if !limit.admits_the_pick(&number_of_each, &picked) && limit.is_moved_outward_by(number_of_each[idx]) {
                     picked.pop();
                 }
             }
-            if picked.len() < bounds.0 || !limit.admits_the_pick(&each, &picked) {
-                picked = limit.pick_furthest_inside(&each, bounds);
+            if picked.len() < bounds.0 || !limit.admits_the_pick(&number_of_each, &picked) {
+                picked = limit.pick_furthest_inside(&number_of_each, bounds);
             }
             picked.sort();
             return picked;
@@ -717,8 +717,10 @@ mod tests {
         assert!(at_most_four.iter().any(|picked| picked.contains(&0)), "the 5 is kept beside the -2 at some seed");
         assert!(at_most_four.iter().any(Vec::is_empty), "and nothing at all at some seed");
 
-        let at_least_nine = asked(TotalLimit::AtLeast(9));
-        assert!(at_least_nine.iter().all(|picked| total(picked) >= 9), "{at_least_nine:?}");
+        let at_least_seven = asked(TotalLimit::AtLeast(7));
+        assert!(at_least_seven.iter().all(|picked| total(picked) >= 7), "{at_least_seven:?}");
+        let furthest_inside = [0, 1, 2];
+        assert!(at_least_seven.iter().any(|picked| picked != &furthest_inside), "a walk reaches it too, not the fallback alone");
     }
 
     #[test]

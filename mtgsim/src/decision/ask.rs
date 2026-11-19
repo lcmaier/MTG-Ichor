@@ -828,8 +828,9 @@ pub fn ask_select_within_a_total(
     bounds: (usize, usize),
 ) -> Option<Vec<ObjectId>> {
     let options: Vec<DecisionOption> = numbers.iter().map(|(id, _)| DecisionOption::Object(*id)).collect();
-    let each = each_options_number(numbers, &options);
-    let some_pick_of = |bounds: (usize, usize)| limit.admits_the_pick(&each, &limit.pick_furthest_inside(&each, bounds));
+    let number_of_each = each_options_number(numbers, &options);
+    let some_pick_of =
+        |bounds: (usize, usize)| limit.admits_the_pick(&number_of_each, &limit.pick_furthest_inside(&number_of_each, bounds));
     if !some_pick_of(bounds) {
         return None;
     }
@@ -847,10 +848,10 @@ pub fn ask_select_within_a_total(
         let ctx = DecisionContext { kind: kind.clone(), rejected: rejected.take() };
         let picked = dp.pick_n(game, player, &ctx, &options, bounds);
         validate_pick_n(&picked, &options, bounds, "select_within_a_total", game, player, &ctx);
-        if limit.admits_the_pick(&each, &picked) {
+        if limit.admits_the_pick(&number_of_each, &picked) {
             return Some(picked.iter().map(|&at| numbers[at].0).collect());
         }
-        let total = picked.iter().map(|&at| each[at]).fold(0, i64::saturating_add);
+        let total = picked.iter().map(|&at| number_of_each[at]).fold(0, i64::saturating_add);
         rejected = Some(Rejection::TotalOutsideTheLimit { of, total, limit });
     }
 }

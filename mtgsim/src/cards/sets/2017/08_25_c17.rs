@@ -207,7 +207,7 @@ pub fn vindictive_lich() -> Arc<CardData> {
 pub fn fortunate_few() -> Arc<CardData> {
     let text = "Choose a nonland permanent you don't control, then each other player chooses a nonland permanent they don't control \
                 that hasn't been chosen this way. Destroy all other nonland permanents.";
-    let not_chosen_yet = || non(land()).other_than(one_of_the_chosen()).other_than(one_the_others_chose());
+    let unchosen_nonland = || non(land()).other_than(one_of_the_chosen()).other_than(one_the_others_chose());
     CardDataBuilder::new("Fortunate Few")
         .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
         .color(Color::White)
@@ -217,8 +217,8 @@ pub fn fortunate_few() -> Arc<CardData> {
             text,
             Effect::Sequence(vec![
                 choose_objects(you(), non(land()).other_than(you_control()), TargetCount::Exactly(1)),
-                then_each_other_player_chooses_objects(not_chosen_yet().other_than(they_control()), TargetCount::Exactly(1)),
-                destroy(each(not_chosen_yet())),
+                then_each_other_player_chooses_objects(unchosen_nonland().other_than(they_control()), TargetCount::Exactly(1)),
+                destroy(each(unchosen_nonland())),
             ]),
         ))
         .build()

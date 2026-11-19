@@ -1666,9 +1666,9 @@ pub enum PickCount {
     Exactly(AmountExpr),
     /// "Each player sacrifices all other creatures they control": every one
     /// the filter describes among the chooser's own, with nothing to choose
-    /// and no question. What an instruction to several players needs of a
-    /// verb only an object's controller can perform (CR 701.21a), where
-    /// "sacrifice [those]" alone is the effect's controller's to do.
+    /// and no question. Only a permanent's controller can sacrifice it (CR
+    /// 701.21a), so "sacrifice [those]" acts on the effect's controller's
+    /// alone, and this is how each of several players acts on their own.
     All,
 }
 

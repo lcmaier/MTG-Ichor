@@ -8,7 +8,7 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::autopilot::auto_yield::Yield;
-use mtgsim::decision::question::{each_options_number, DecisionContext, DecisionKind, DecisionOption, TotalLimit};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, TotalLimit};
 use mtgsim::decision::provider::PriorityAction;
 use mtgsim::words::display::{mode_label, option_label, question, rejection, total_limit_words, what_the_option_does};
 use mtgsim::words::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
@@ -86,6 +86,9 @@ pub struct OptionView {
     /// A choice of modes' modes, by printed place, in the engine's order: what
     /// the window's mode picker ticks, and what its answer is matched by.
     pub modes: Option<Vec<ModeIndex>>,
+    /// What this option adds to a pick's total, where the question limits
+    /// one (`DecisionKind::SelectWithinATotal`).
+    pub adds_to_the_total: Option<i64>,
 }
 
 /// What the numbers of a pick must add up to
@@ -96,8 +99,6 @@ pub struct TotalOfPicks {
     pub limit: TotalLimit,
     /// `words::display::total_limit_words`: "total power 4 or less".
     pub limit_words: String,
-    /// Each option's number, in the options' order.
-    pub numbers: Vec<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -171,11 +172,16 @@ impl Prompt {
         options: &[DecisionOption],
     ) -> Prompt {
         let total = match &context.kind {
-            DecisionKind::SelectWithinATotal { of, limit, numbers, .. } => Some(TotalOfPicks {
-                limit: *limit,
-                limit_words: total_limit_words(*of, *limit),
-                numbers: each_options_number(numbers, options),
-            }),
+            DecisionKind::SelectWithinATotal { of, limit, .. } => {
+                Some(TotalOfPicks { limit: *limit, limit_words: total_limit_words(*of, *limit) })
+            }
+            _ => None,
+        };
+        // Each option's own number, found by the object it names.
+        let adds_to_the_total = |option: &DecisionOption| match (&context.kind, option) {
+            (DecisionKind::SelectWithinATotal { numbers, .. }, DecisionOption::Object(id)) => {
+                numbers.iter().find(|(object, _)| object == id).map(|(_, number)| *number)
+            }
             _ => None,
         };
         Prompt {
@@ -188,7 +194,10 @@ impl Prompt {
             why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
             total,
-            options: options.iter().map(|option| option_view(game, option)).collect(),
+            options: options
+                .iter()
+                .map(|option| OptionView { adds_to_the_total: adds_to_the_total(option), ..option_view(game, option) })
+                .collect(),
             mode_labels: mode_labels(&context.kind, options),
             not_offered_yet: not_offered_yet(game, &OpenQuestion { player, context, options }),
         }
@@ -248,7 +257,14 @@ fn option_view(game: &GameState, option: &DecisionOption) -> OptionView {
         DecisionOption::Modes(modes) => Some(modes.clone()),
         _ => None,
     };
-    OptionView { label: option_label(game, option), what_it_does: what_the_option_does(option), refs, attacker: option.attacker(), modes }
+    OptionView {
+        label: option_label(game, option),
+        what_it_does: what_the_option_does(option),
+        refs,
+        attacker: option.attacker(),
+        modes,
+        adds_to_the_total: None,
+    }
 }
 
 fn attack_target_ref(target: &AttackTarget) -> BoardRef {
