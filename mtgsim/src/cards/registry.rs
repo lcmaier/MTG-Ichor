@@ -28,7 +28,7 @@ use super::sets::{
 /// seed-deterministic rows — turns, spells cast, creatures died — are what an
 /// addition invalidates and what still has to be re-measured. Registering a
 /// card is still not the same act as adding one here.
-const PERFORMANCE_POOL: [&str; 129] = [
+const PERFORMANCE_POOL: [&str; 130] = [
     "Plains",
     "Island",
     "Swamp",
@@ -579,6 +579,15 @@ const PERFORMANCE_POOL: [&str; 129] = [
     // least power on the board destroys every creature, which the random
     // agent picks often: 0 alone is one answer in eleven.
     "Expel the Interlopers",
+    // CR 101.4 and 608.2e's walk: a choice each player makes for
+    // themselves from the active player, each answer kept with its player;
+    // a pick under a total, its own question, refused and asked again
+    // outside the limit; and the rest sacrificed by whoever controls it.
+    // Three mana and a sorcery, a Tarkir: Dragonstorm Commander deck card.
+    // It leaves each player four power of creatures, the caster too.
+    // Harsh Mercy and Fortunate Few are registered and stay out: the same
+    // walk, and each destroys nearly every permanent of a random board.
+    "Slaughter the Strong",
 ];
 
 /// Cards in development (`setup-architecture.md` §7a): a card a developer is
@@ -1260,7 +1269,7 @@ impl CardRegistry {
         registry.register("By Invitation Only", vow::by_invitation_only);
         // A choice each player makes for themselves, the active player
         // first: a pick limited by its total, with the rest sacrificed by
-        // whoever controls it.
+        // whoever controls it. Pooled; `PERFORMANCE_POOL` says why.
         registry.register("Slaughter the Strong", rix::slaughter_the_strong);
         // A value from each player read as any answer; you and then each
         // other player, the second kept under its own name; and a number
