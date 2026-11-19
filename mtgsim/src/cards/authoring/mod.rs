@@ -53,7 +53,7 @@ pub use recipients::{
     creature, creatures_you_control, divided, divided_among_targeted, each, each_in, each_opponent, each_player, enchantment, host, its_controller, land, non,
     nonlegendary_creature, other_than_this, planeswalker, power_at_least, power_at_most, referred, target, target_creature, target_opponent,
     target_permanent, target_player, target_spell, targets, that_player, that_target, the_chosen_number, the_chosen_objects, the_chosen_player,
-    the_target, this_object, token, toughness_at_least,
+    the_target, they_control, this_object, token, toughness_at_least,
     toughness_at_most, triggering_object, with_subtype, you, you_and_that_player, you_cast, you_control, your_opponents_control,
 };
 pub use replacements::{

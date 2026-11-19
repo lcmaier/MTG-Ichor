@@ -12,7 +12,7 @@ use watching::Watching;
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::cards::authoring::{
     choose_color, choose_number, choose_objects, color, creature, destroy, draw_cards, each, each_opponent, each_player, non,
-    one_of_the_chosen, spell_ability, the_chosen_color, the_chosen_number, you,
+    one_of_the_chosen, spell_ability, target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, they_control, you,
 };
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
@@ -205,6 +205,87 @@ fn a_later_players_question_reads_the_answers_before_it() {
     assert_eq!(offered, [4, 3, 2], "every creature, then one fewer for each answer given");
     assert_eq!(bears.map(|id| game.battlefield.contains_key(&id)), [true, true, true], "each chosen creature is spared");
     assert!(!game.battlefield.contains_key(&spare), "the rest is what no answer chose");
+}
+
+// ---------------------------------------------------------------------------
+// "They": the player an answer is for (CR 608.2d)
+// ---------------------------------------------------------------------------
+
+/// "Each player chooses a creature they control": "they" is the player the
+/// walk is on, so each is offered their own creatures and no one else's,
+/// where "you control" would offer every player the controller's. A player
+/// with none to choose gives an answer that chose nothing, and the rest is
+/// still read against every answer.
+#[test]
+fn each_player_chooses_among_what_they_control() {
+    let mut game = at_the_turn_of(1, 3);
+    let mine = [(); 2].map(|_| put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0));
+    let theirs = [(); 2].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    let card = instant(
+        "One Apiece",
+        "Each player chooses a creature they control. Destroy the rest.",
+        Effect::Sequence(vec![
+            choose_objects(each_player(), creature().and(they_control()), TargetCount::Exactly(1)),
+            destroy(each(creature().and(non(one_of_the_chosen())))),
+        ]),
+    );
+    cast_paying(&mut game, card, &[(ManaType::Blue, 1)]);
+
+    let answers = ScriptedDecisionProvider::new();
+    picks(&answers, vec![DecisionOption::Object(theirs[1])]);
+    picks(&answers, vec![DecisionOption::Object(mine[0])]);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+
+    let asked = asked.of_options.borrow();
+    let offered: Vec<(PlayerId, Vec<DecisionOption>)> = asked.iter().map(|(player, _, options)| (*player, options.clone())).collect();
+    assert_eq!(
+        offered,
+        [(1, theirs.map(DecisionOption::Object).to_vec()), (0, mine.map(DecisionOption::Object).to_vec())],
+        "the active player first, each among their own; player 2 controls none and is not asked"
+    );
+    assert_eq!(mine.map(|id| game.battlefield.contains_key(&id)), [true, false]);
+    assert_eq!(theirs.map(|id| game.battlefield.contains_key(&id)), [false, true]);
+}
+
+/// With one chooser and no walk, "they" is that chooser: "target opponent
+/// chooses a creature they control. Destroy it."
+#[test]
+fn one_choosers_they_is_the_chooser() {
+    let mut game = at_the_turn_of(0, 3);
+    let mine = put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0);
+    let theirs = put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1);
+    let card = instant(
+        "Their Pick",
+        "Target opponent chooses a creature they control. Destroy it.",
+        Effect::Sequence(vec![
+            choose_objects(target_opponent(), creature().and(they_control()), TargetCount::Exactly(1)),
+            destroy(the_chosen_objects()),
+        ]),
+    );
+    let id = put_in_hand(&mut game, card, 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
+    let targeting = ScriptedDecisionProvider::new();
+    picks(&targeting, vec![DecisionOption::Player(1)]);
+    game.cast_spell(0, id, &ManaWindowStop::new(targeting)).expect("castable");
+
+    // One creature to choose among, so nothing is asked.
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect("it resolves");
+    assert!(game.battlefield.contains_key(&mine), "the controller's creature was never among the chooser's");
+    assert!(!game.battlefield.contains_key(&theirs));
+}
+
+/// "They" is written into a filter only where a choose step chooses. A
+/// sweep that names it has no player to mean, and is refused as it
+/// resolves.
+#[test]
+fn they_outside_a_choice_is_refused() {
+    let mut game = at_the_turn_of(0, 2);
+    put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 1);
+    let card = instant("Whose", "Destroy each creature they control.", destroy(each(creature().and(they_control()))));
+    cast_paying(&mut game, card, &[(ManaType::Blue, 1)]);
+    let refused = game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect_err("no choice is being made");
+    assert!(refused.contains("the player a choice is for"), "{refused}");
 }
 
 /// An amount reads exactly one answer. "That many" after several players

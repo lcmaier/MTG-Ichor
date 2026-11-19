@@ -382,6 +382,21 @@ pub enum PlayerRef {
     /// the chooser of an `Effect::Optional` whose effect is a payment; every
     /// other reader refuses it.
     AnyPlayer,
+    /// A player the text names by pointing back at one: "they" in "each
+    /// player chooses a creature they control". A resolution writes the
+    /// player in before anything reads the filter, as it writes a chosen
+    /// value in, so every other reader refuses it.
+    Named(PlayerAntecedent),
+}
+
+/// Which player a [`PlayerRef::Named`] points back at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerAntecedent {
+    /// "They" in what a choose step chooses among: the player the answer is
+    /// for, which is the player a walk is on, or the one chooser. Beside
+    /// "you", the effect's controller: Council's Judgment has each player
+    /// vote for "a nonland permanent you don't control".
+    ChoosingFor,
 }
 
 /// CR 701.9b — who picks which card is discarded.
@@ -534,12 +549,13 @@ impl ObjectFilter {
     }
 
     /// Whether the filter holds a word only a resolution reads: a name a
-    /// choose step kept, or an amount still to be read. One that holds none
-    /// is asked as written.
+    /// choose step kept, an amount still to be read, or a player the text
+    /// points back at. One that holds none is asked as written.
     pub(crate) fn holds_a_resolutions_word(&self) -> bool {
         match self {
             ObjectFilter::ChosenAs(_) => true,
             ObjectFilter::WithValue { is, .. } => !matches!(is.amount(), AmountExpr::Fixed(_)),
+            ObjectFilter::ByController(who) | ObjectFilter::ByOwner(who) => matches!(who, PlayerRef::Named(_)),
             ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => a.holds_a_resolutions_word() || b.holds_a_resolutions_word(),
             ObjectFilter::Not(inner) => inner.holds_a_resolutions_word(),
             ObjectFilter::All
@@ -547,12 +563,10 @@ impl ObjectFilter {
             | ObjectFilter::BySubtype(_)
             | ObjectFilter::BySupertype(_)
             | ObjectFilter::ByColor(_)
-            | ObjectFilter::ByController(_)
             | ObjectFilter::WithCounters { .. }
             | ObjectFilter::Token
             | ObjectFilter::ThisTurn(_)
             | ObjectFilter::ThisCombat(_)
-            | ObjectFilter::ByOwner(_)
             | ObjectFilter::NotSource
             | ObjectFilter::OneOf(_) => false,
         }

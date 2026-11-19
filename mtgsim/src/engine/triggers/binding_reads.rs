@@ -15,7 +15,7 @@ use crate::types::costs::Cost;
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
     ObjectSet, AmountExpr, AnsweredBy, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact,
-    PlayerRef, Primitive, TargetCount, ValueChoice, };
+    PlayerAntecedent, PlayerRef, Primitive, TargetCount, ValueChoice, };
 use crate::types::triggers::{
     BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
@@ -337,9 +337,14 @@ fn object_set_reads(set: &ObjectSet) -> TriggerBindingReads {
 
 fn player_ref_reads(p: &PlayerRef) -> TriggerBindingReads {
     match p {
-        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer | PlayerRef::AnyPlayer => {
-            TriggerBindingReads::NONE
-        }
+        // A choice's own player is found as the choose step runs, never off
+        // the trigger's entry.
+        PlayerRef::You
+        | PlayerRef::Opponent
+        | PlayerRef::Player(_)
+        | PlayerRef::AnyDefendingPlayer
+        | PlayerRef::AnyPlayer
+        | PlayerRef::Named(PlayerAntecedent::ChoosingFor) => TriggerBindingReads::NONE,
         PlayerRef::Owner => TriggerBindingReads::SOURCE,
         PlayerRef::DefendingPlayer(creature) => creature_reads(*creature),
         PlayerRef::NamedBy(recipient) => recipient_reads(recipient),

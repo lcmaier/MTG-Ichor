@@ -448,7 +448,9 @@ pub(crate) fn player_ref_names(
         PlayerRef::Player(pid) => player == *pid,
         PlayerRef::DefendingPlayer(creature) => referents.defending_player(game, *creature) == Some(player),
         PlayerRef::AnyDefendingPlayer => game.is_defending_player(player),
-        // A resolving instruction's payer, never a predicate's.
-        PlayerRef::NamedBy(_) | PlayerRef::AnyPlayer => return None,
+        // A resolving instruction's payer, never a predicate's; and a player
+        // the text points back at, which a resolution writes in before it
+        // asks, so one that reaches the table was never read.
+        PlayerRef::NamedBy(_) | PlayerRef::AnyPlayer | PlayerRef::Named(_) => return None,
     })
 }

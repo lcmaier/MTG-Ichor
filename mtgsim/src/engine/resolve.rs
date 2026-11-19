@@ -23,7 +23,7 @@ use crate::types::effects::{
     AmountExpr, AnsweredBy, Antecedent, Choice, ChoiceAnswer, ChoiceKind, ChoiceMade, ChoiceScope, ChosenHow, ChosenValue, Condition,
     CopyException, CopyRoles, CostAnswer,
     DiscardChooser, Duration, Effect, EffectRecipient, ModeIndex, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount,
-    PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice,
+    PlayerAntecedent, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
@@ -807,7 +807,9 @@ impl GameState {
                 .map(ChosenValue::Player)
             }
             ValueChoice::Objects(filter, count) => {
-                let Some(filter) = self.selection_as_read_now(filter, ctx)? else { return Ok(None) };
+                // The answer is for whoever is asked: a walk's player, or
+                // the one chooser.
+                let Some(filter) = self.selection_as_read_for(filter, ctx, chooser)? else { return Ok(None) };
                 let asked_as = EffectRecipient::Choose(filter.clone().into_owned(), count.clone());
                 let (chosen, shares) = self.pick_objects(&asked_as, &filter, count, chooser, ctx, dp)?;
                 let chosen = chosen.into_iter().filter_map(|picked| match picked {
@@ -994,17 +996,37 @@ impl GameState {
     /// never made: what it describes cannot be known, so its reader finds no
     /// object, under a "not" as well (CR 608.2b's "won't happen").
     fn filter_as_read_now<'f>(&self, filter: &'f ObjectFilter, ctx: &ResolutionContext) -> Result<Option<Cow<'f, ObjectFilter>>, String> {
+        self.filter_as_read_for(filter, ctx, None)
+    }
+
+    /// [`Self::filter_as_read_now`] for what a choose step chooses among,
+    /// where "they" is `choosing_for`, the player the answer is for (CR
+    /// 608.2d): a walk's player, or the one chooser. Outside a choose step
+    /// there is no such player, and a filter that names one is refused.
+    fn filter_as_read_for<'f>(
+        &self,
+        filter: &'f ObjectFilter,
+        ctx: &ResolutionContext,
+        choosing_for: Option<PlayerId>,
+    ) -> Result<Option<Cow<'f, ObjectFilter>>, String> {
         if !filter.holds_a_resolutions_word() {
             return Ok(Some(Cow::Borrowed(filter)));
         }
         let read = |inner: &ObjectFilter| -> Result<Option<Box<ObjectFilter>>, String> {
-            Ok(self.filter_as_read_now(inner, ctx)?.map(|read| Box::new(read.into_owned())))
+            Ok(self.filter_as_read_for(inner, ctx, choosing_for)?.map(|read| Box::new(read.into_owned())))
+        };
+        let the_player_chosen_for = || {
+            choosing_for.map(PlayerRef::Player).ok_or_else(|| {
+                format!("{filter:?} on {:?} names the player a choice is for, where no choice is being made", ctx.source)
+            })
         };
         Ok(Some(Cow::Owned(match filter {
             ObjectFilter::ChosenAs(kind) => match self.answers_kept_as(*kind, ctx) {
                 Some(answers) => self.any_answer_as_a_filter(filter, answers, ctx)?,
                 None => return Ok(None),
             },
+            ObjectFilter::ByController(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByController(the_player_chosen_for()?),
+            ObjectFilter::ByOwner(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByOwner(the_player_chosen_for()?),
             ObjectFilter::WithValue { of, is } => {
                 if let AmountExpr::ChosenAs(kind) = is.amount()
                     && self.answers_kept_as(*kind, ctx).is_none()
@@ -1030,11 +1052,16 @@ impl GameState {
         })))
     }
 
-    /// [`Self::filter_as_read_now`] for what a choice or a sweep selects
-    /// among: its permanents' filter, read now.
-    fn selection_as_read_now<'f>(&self, filter: &'f SelectionFilter, ctx: &ResolutionContext) -> Result<Option<Cow<'f, SelectionFilter>>, String> {
+    /// [`Self::filter_as_read_for`] for what a choice selects among: its
+    /// permanents' filter, read now for the player the answer is for.
+    fn selection_as_read_for<'f>(
+        &self,
+        filter: &'f SelectionFilter,
+        ctx: &ResolutionContext,
+        choosing_for: Option<PlayerId>,
+    ) -> Result<Option<Cow<'f, SelectionFilter>>, String> {
         let SelectionFilter::Permanent(among) = filter else { return Ok(Some(Cow::Borrowed(filter))) };
-        Ok(self.filter_as_read_now(among, ctx)?.map(|read| match read {
+        Ok(self.filter_as_read_for(among, ctx, choosing_for)?.map(|read| match read {
             Cow::Borrowed(_) => Cow::Borrowed(filter),
             Cow::Owned(read) => Cow::Owned(SelectionFilter::Permanent(read)),
         }))
@@ -3447,6 +3474,12 @@ impl GameState {
             PlayerRef::AnyPlayer => {
                 return Err(format!(
                     "\"any player\" on {:?} names no one player: an `Effect::Optional`'s chooser asks each in turn (CR 101.4), and nothing else reads it",
+                    ctx.source
+                ))
+            }
+            PlayerRef::Named(PlayerAntecedent::ChoosingFor) => {
+                return Err(format!(
+                    "{:?} names the player a choice is for outside what a choose step chooses among, which is the one place it is written in",
                     ctx.source
                 ))
             }

@@ -3412,7 +3412,7 @@ fn named_for_an_entry(
                 chosen.id
             ))
         }
-        PlayerRef::NamedBy(_) | PlayerRef::AnyPlayer => {
+        PlayerRef::NamedBy(_) | PlayerRef::AnyPlayer | PlayerRef::Named(_) => {
             return Err(format!(
                 "replacement {:?} names {player_ref:?} {role} {entering}, which only a resolving instruction reads",
                 chosen.id

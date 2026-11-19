@@ -7,8 +7,8 @@
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, ChoiceKind, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef,
-    PlayerSet, SelectionFilter, TargetCount, ValueIs,
+    AmountExpr, Antecedent, Choice, ChoiceKind, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerAntecedent, PlayerGroup,
+    PlayerRef, PlayerSet, SelectionFilter, TargetCount, ValueIs,
 };
 use crate::types::triggers::EventRole;
 use crate::types::zones::ZoneSet;
@@ -317,6 +317,16 @@ pub fn card_type(which: impl Into<PrintedOrChosen<CardType>>) -> ObjectFilter {
 /// graveyard means its owner's.
 pub fn you_control() -> ObjectFilter {
     ObjectFilter::ByController(PlayerRef::You)
+}
+
+/// "They control", in what a choose step chooses among: the player the
+/// answer is for, which is each player in turn for "each player chooses a
+/// creature they control", and the one chooser for "target opponent chooses
+/// a creature they control". Beside [`you_control`], the effect's
+/// controller, which the same text may also name. "They don't control" is
+/// `non(they_control())`.
+pub fn they_control() -> ObjectFilter {
+    ObjectFilter::ByController(PlayerRef::Named(PlayerAntecedent::ChoosingFor))
 }
 
 /// "An opponent controls" (CR 110.2), an opponent of the effect's
