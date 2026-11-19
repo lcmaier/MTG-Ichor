@@ -1258,6 +1258,10 @@ impl CardRegistry {
         registry.register("Duneblast", ktk::duneblast);
         registry.register("The Nipton Lottery", pip::the_nipton_lottery);
         registry.register("By Invitation Only", vow::by_invitation_only);
+        // A choice each player makes for themselves, the active player
+        // first: a pick limited by its total, with the rest sacrificed by
+        // whoever controls it.
+        registry.register("Slaughter the Strong", rix::slaughter_the_strong);
         // You and then each other player, the second kept under its own
         // name.
         registry.register("Fortunate Few", c17::fortunate_few);

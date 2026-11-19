@@ -1645,6 +1645,11 @@ impl Pick {
     pub fn exactly(n: impl Into<AmountExpr>, filter: ObjectFilter) -> Pick {
         Pick { filter, count: PickCount::Exactly(n.into()) }
     }
+
+    /// "All [filter]": every one of them.
+    pub fn all(filter: ObjectFilter) -> Pick {
+        Pick { filter, count: PickCount::All }
+    }
 }
 
 /// How many a [`Pick`] takes. "Up to N" and a fraction of the scope are arms
@@ -1653,6 +1658,12 @@ impl Pick {
 pub enum PickCount {
     /// That many, or as many as there are (CR 101.3).
     Exactly(AmountExpr),
+    /// "Each player sacrifices all other creatures they control": every one
+    /// the filter describes among the chooser's own, with nothing to choose
+    /// and no question. What an instruction to several players needs of a
+    /// verb only an object's controller can perform (CR 701.21a), where
+    /// "sacrifice [those]" alone is the effect's controller's to do.
+    All,
 }
 
 /// What kind of object(s) can be selected.

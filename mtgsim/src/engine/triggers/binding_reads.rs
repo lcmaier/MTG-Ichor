@@ -282,6 +282,7 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient_reads(&choice.chooser), |reads, pick| {
             let count = match &pick.count {
                 PickCount::Exactly(n) => amount_reads(n),
+                PickCount::All => TriggerBindingReads::NONE,
             };
             reads | filter_reads(&pick.filter) | count
         }),

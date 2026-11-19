@@ -2998,6 +2998,10 @@ impl GameState {
                 }
                 let count = match &pick.count {
                     PickCount::Exactly(amount) => self.evaluate_amount(amount, ctx, None)? as usize,
+                    PickCount::All => {
+                        chosen.extend(candidates);
+                        continue;
+                    }
                 };
                 let n = count.min(candidates.len());
                 let asked = EffectRecipient::Choose(

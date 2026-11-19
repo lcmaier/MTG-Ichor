@@ -7,8 +7,8 @@
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, ChoiceKind, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerAntecedent, PlayerGroup,
-    PlayerRef, PlayerSet, SelectionFilter, TargetCount, ValueIs,
+    AmountExpr, Antecedent, Choice, ChoiceKind, ChoiceScope, ChoiceSide, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, Pick,
+    PlayerAntecedent, PlayerGroup, PlayerRef, PlayerSet, SelectionFilter, TargetCount, ValueIs,
 };
 use crate::types::triggers::EventRole;
 use crate::types::zones::ZoneSet;
@@ -177,6 +177,14 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
     EffectRecipient::ChosenBy(Box::new(choice))
 }
 
+/// "Each player sacrifices all other creatures they control": every
+/// permanent `filter` describes that each of `players` controls, each
+/// player's own theirs to act on (CR 701.21a). "Sacrifice [those]" without
+/// it is the effect's controller's alone.
+pub fn all_their(players: EffectRecipient, filter: ObjectFilter) -> EffectRecipient {
+    chosen_by(Choice { chooser: players, among: ChoiceScope::ChoosersPermanents, picks: vec![Pick::all(filter)], acts_on: ChoiceSide::Chosen })
+}
+
 // ---------------------------------------------------------------------------
 // What a choose step before this one chose (CR 608.2d)
 // ---------------------------------------------------------------------------
@@ -249,6 +257,14 @@ impl<T> From<T> for PrintedOrChosen<T> {
 /// "One of the chosen objects", in a filter: Duneblast's "destroy the rest"
 /// is `destroy(each(creature().other_than(one_of_the_chosen())))`.
 pub fn one_of_the_chosen() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceKind::Objects)
+}
+
+/// "Chosen this way", in a filter, after each player chose objects: one any
+/// of them chose. Slaughter the Strong's "all other creatures" is
+/// `creature().other_than(chosen_this_way())`, where [`one_of_the_chosen`]
+/// reads a single chooser's.
+pub fn chosen_this_way() -> ObjectFilter {
     ObjectFilter::ChosenAs(ChoiceKind::Objects)
 }
 

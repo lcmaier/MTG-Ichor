@@ -3,6 +3,7 @@
 //! around the table from the active player, each answer kept with its
 //! player, and what the steps after it read of them.
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 #[path = "support/watching.rs"]
@@ -16,20 +17,23 @@ use mtgsim::cards::authoring::{
     target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
     the_third_chosen_player, they_control, you,
 };
-use mtgsim::cards::printings::{fortunate_few, plague_spores};
+use mtgsim::cards::printings::{fortunate_few, plague_spores, slaughter_the_strong};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
-use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection, TotalLimit};
 use mtgsim::engine::actions::GameAction;
+use mtgsim::events::event::{BatchId, EventRecord, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::x_values::XOffer;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{fill_library, forest, pass_turn, put_in_hand, put_on_battlefield, setup_game, test_ctx};
+use mtgsim::test_support::{fill_library, forest, pass_turn, put_in_hand, put_on_battlefield, setup_game, test_ctx, AtEachPrompt};
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{CounterType, Effect, EffectRecipient, PlayerRef, PlayerSet, Primitive, TargetCount};
+use mtgsim::types::effects::{CounterType, Effect, EffectRecipient, ObjectValue, PlayerRef, PlayerSet, Primitive, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::zones::ZoneChangeAct;
+use mtgsim::words::display::rejection;
 
 // ---------------------------------------------------------------------------
 // The boards' tools
@@ -462,6 +466,133 @@ fn the_chosen_number_after_several_answers_is_refused() {
     }
     let refused = game.resolve_top_of_stack(&answers).expect_err("two numbers, and a reader of one");
     assert!(refused.contains("2 were"), "{refused}");
+}
+
+// ---------------------------------------------------------------------------
+// A pick limited by a total (CR 608.2d, 107.1b)
+// ---------------------------------------------------------------------------
+
+/// A creature of `power`, named for a board's failure message.
+fn creature_of_power(name: &str, power: i32) -> Arc<CardData> {
+    CardDataBuilder::new(name).color(Color::Green).card_type(CardType::Creature).power_toughness(power, 5).build()
+}
+
+/// The script's next answer to a pick under a total: `chosen`.
+fn picks_within_the_total(answers: &ScriptedDecisionProvider, chosen: &[ObjectId]) {
+    let kind = DecisionKind::SelectWithinATotal { source: ObjectId::UNASSIGNED, of: ObjectValue::Power, limit: TotalLimit::AtMost(0), numbers: vec![] };
+    answers.expect_choice(kind, chosen.iter().copied().map(DecisionOption::Object).collect());
+}
+
+/// What each pick under a total showed its player, and why it was asked
+/// again where it was: the limit, each option's number, and the refusal.
+type TotalsAsked = Vec<(TotalLimit, Vec<(ObjectId, i64)>, Option<Rejection>)>;
+
+/// Slaughter the Strong, cast by player 0 at their own turn and resolved
+/// with `answers`.
+fn resolve_slaughter_the_strong(game: &mut GameState, answers: ScriptedDecisionProvider) -> TotalsAsked {
+    game.record_events();
+    cast_paying(game, slaughter_the_strong(), &[(ManaType::White, 3)]);
+    let asked = RefCell::new(Vec::new());
+    let seat = AtEachPrompt::new(answers, |_: &GameState, context: &DecisionContext| {
+        if let DecisionKind::SelectWithinATotal { limit, numbers, .. } = &context.kind {
+            asked.borrow_mut().push((*limit, numbers.clone(), context.rejected.clone()));
+        }
+    });
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+    asked.into_inner()
+}
+
+/// Each sacrifice performed, with the batch it was performed in.
+fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<BatchId>)> {
+    moved_by(game, ZoneChangeAct::Sacrificed)
+}
+
+/// Each object `act` moved, with the batch it was moved in.
+fn moved_by(game: &GameState, act: ZoneChangeAct) -> Vec<(ObjectId, Option<BatchId>)> {
+    let moved = |record: &EventRecord| match record.event {
+        GameEvent::ZoneChange { ref departed, act: by, .. } if by == act => Some((departed.object().id, record.stamp.batch)),
+        _ => None,
+    };
+    game.recorded_events().records().iter().filter_map(moved).collect()
+}
+
+// RULING: Slaughter the Strong #1 - "... checks that the total power of
+//   creatures each player chose this way is 4 or less. For example, you
+//   could save two 2/2 creatures, or a 1/1 and a 3/3 creature, but not all
+//   four of those creatures."
+// RULING: Slaughter the Strong #2 - "... first the player whose turn it is
+//   chooses which creatures will be spared, then each other player in turn
+//   order does the same knowing the choices made before them. Then all the
+//   creatures not chosen are sacrificed simultaneously."
+//
+/// The legal answers are sets: player 0's question shows each creature's
+/// power and the limit, all four (8) is refused with the total it came to
+/// and asked again, and the 1/1 with the 3/3 (4) is taken. Player 1 keeps
+/// the 4/4 and not the 5/5. Player 2's lone 7/7 fits no answer but the
+/// empty one, so they are not asked. Every creature not chosen is then
+/// sacrificed by its own controller (CR 701.21a), in one batch.
+#[test]
+fn slaughter_the_strong_takes_a_set_inside_the_total_from_each_player() {
+    let mut game = at_the_turn_of(0, 3);
+    let [two, other_two, one, three] = [2, 2, 1, 3].map(|power| put_on_battlefield(&mut game, creature_of_power("Player 0's", power), 0));
+    let [five, four] = [5, 4].map(|power| put_on_battlefield(&mut game, creature_of_power("Player 1's", power), 1));
+    let seven = put_on_battlefield(&mut game, creature_of_power("Player 2's", 7), 2);
+
+    let answers = ScriptedDecisionProvider::new();
+    picks_within_the_total(&answers, &[two, other_two, one, three]);
+    picks_within_the_total(&answers, &[one, three]);
+    picks_within_the_total(&answers, &[four]);
+    let asked = resolve_slaughter_the_strong(&mut game, answers);
+
+    let at_most_four = TotalLimit::AtMost(4);
+    let player_0s = vec![(two, 2), (other_two, 2), (one, 1), (three, 3)];
+    let too_much = Rejection::TotalOutsideTheLimit { of: ObjectValue::Power, total: 8, limit: at_most_four };
+    assert_eq!(
+        asked,
+        [
+            (at_most_four, player_0s.clone(), None),
+            (at_most_four, player_0s, Some(too_much.clone())),
+            (at_most_four, vec![(five, 5), (four, 4)], None),
+        ],
+        "player 0 twice, then player 1; player 2 has one legal answer and is not asked"
+    );
+    assert_eq!(rejection(&game, &too_much), "Those add up to 8, and the choice is of total power 4 or less (CR 608.2d)");
+
+    let kept = [one, three, four].map(|id| game.battlefield.contains_key(&id));
+    assert_eq!(kept, [true; 3], "what each player chose is spared");
+    let gone = sacrificed(&game);
+    let mut ids: Vec<ObjectId> = gone.iter().map(|(id, _)| *id).collect();
+    ids.sort();
+    let mut the_rest = vec![two, other_two, five, seven];
+    the_rest.sort();
+    assert_eq!(ids, the_rest, "each player's own, sacrificed and not destroyed");
+    assert!(gone.windows(2).all(|pair| pair[0].1 == pair[1].1), "one batch");
+}
+
+// RULING: Slaughter the Strong #3 - "If a creature's power is somehow less
+//   than 0, it subtracts from the total power of the other creatures its
+//   controller chooses. This can cause creatures with power 5 or greater to
+//   survive."
+//
+/// CR 107.1b — a calculation uses a negative number as it is. The 6/5
+/// alone is over the limit, and beside the creature of power −2 the pick
+/// adds up to 4: the question shows the −2, and both are spared.
+#[test]
+fn a_creature_of_negative_power_makes_room_under_the_total() {
+    let mut game = at_the_turn_of(0, 2);
+    let six = put_on_battlefield(&mut game, creature_of_power("A Giant", 6), 0);
+    let minus_two = put_on_battlefield(&mut game, creature_of_power("A Weakling", -2), 0);
+
+    let answers = ScriptedDecisionProvider::new();
+    picks_within_the_total(&answers, &[six]);
+    picks_within_the_total(&answers, &[six, minus_two]);
+    let asked = resolve_slaughter_the_strong(&mut game, answers);
+
+    let alone = Rejection::TotalOutsideTheLimit { of: ObjectValue::Power, total: 6, limit: TotalLimit::AtMost(4) };
+    let shown = vec![(six, 6), (minus_two, -2)];
+    assert_eq!(asked, [(TotalLimit::AtMost(4), shown.clone(), None), (TotalLimit::AtMost(4), shown, Some(alone))]);
+    assert!(game.battlefield.contains_key(&six) && game.battlefield.contains_key(&minus_two), "6 and -2 are 4");
+    assert!(sacrificed(&game).is_empty());
 }
 
 // ---------------------------------------------------------------------------

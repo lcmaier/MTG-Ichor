@@ -77,9 +77,9 @@ pub fn recipient_reads(recipient: &EffectRecipient) -> ChoicesRead {
         EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter_reads(among),
         EffectRecipient::ChosenBy(choice) => {
             recipient_reads(&choice.chooser)
-                | all(&choice.picks, |pick| {
-                    let PickCount::Exactly(count) = &pick.count;
-                    filter_reads(&pick.filter) | amount_reads(count)
+                | all(&choice.picks, |pick| match &pick.count {
+                    PickCount::Exactly(count) => filter_reads(&pick.filter) | amount_reads(count),
+                    PickCount::All => filter_reads(&pick.filter),
                 })
         }
         EffectRecipient::Implicit
