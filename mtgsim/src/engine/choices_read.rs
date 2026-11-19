@@ -25,25 +25,49 @@ use crate::types::effects::{
 };
 use crate::types::history::{HistoryCount, ObjectFact};
 
-/// The names a node reads, each once, in the order met.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ChoicesRead(Vec<ChoiceKind>);
+/// The names a node reads, each once, in the order met, and whether the
+/// read needs the one answer: an amount and a player word read exactly one
+/// ("that many", "that player may"), where a filter and a verb read every
+/// answer a walk was given.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoicesRead(Vec<ChoiceRead>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ChoiceRead {
+    kind: ChoiceKind,
+    needs_one_answer: bool,
+}
 
 impl ChoicesRead {
     const NONE: ChoicesRead = ChoicesRead(Vec::new());
 
     fn the(kind: ChoiceKind) -> ChoicesRead {
-        ChoicesRead(vec![kind])
+        ChoicesRead(vec![ChoiceRead { kind, needs_one_answer: false }])
     }
 
-    pub fn kinds(&self) -> &[ChoiceKind] {
-        &self.0
+    fn the_one(kind: ChoiceKind) -> ChoicesRead {
+        ChoicesRead(vec![ChoiceRead { kind, needs_one_answer: true }])
+    }
+
+    pub fn kinds(&self) -> impl Iterator<Item = ChoiceKind> + '_ {
+        self.0.iter().map(|read| read.kind)
+    }
+
+    /// The names read as one answer, which a walk's several cannot give.
+    pub fn kinds_needing_one_answer(&self) -> impl Iterator<Item = ChoiceKind> + '_ {
+        self.0.iter().filter(|read| read.needs_one_answer).map(|read| read.kind)
     }
 
     /// These names, less `kind`: a walk's own question may read the answers
     /// it has been given so far, which is no read of an earlier step.
     fn other_than(mut self, kind: ChoiceKind) -> ChoicesRead {
-        self.0.retain(|read| *read != kind);
+        self.0.retain(|read| read.kind != kind);
+        self
+    }
+
+    /// The same names, each needing one answer: a player word's.
+    fn each_needing_one_answer(mut self) -> ChoicesRead {
+        self.0.iter_mut().for_each(|read| read.needs_one_answer = true);
         self
     }
 }
@@ -51,9 +75,10 @@ impl ChoicesRead {
 impl BitOr for ChoicesRead {
     type Output = ChoicesRead;
     fn bitor(mut self, rhs: ChoicesRead) -> ChoicesRead {
-        for kind in rhs.0 {
-            if !self.0.contains(&kind) {
-                self.0.push(kind);
+        for read in rhs.0 {
+            match self.0.iter_mut().find(|already| already.kind == read.kind) {
+                Some(already) => already.needs_one_answer |= read.needs_one_answer,
+                None => self.0.push(read),
             }
         }
         self
@@ -69,7 +94,22 @@ pub fn atom_reads(primitive: &Primitive, recipient: &EffectRecipient) -> Choices
     primitive_reads(primitive) | recipient_reads(recipient)
 }
 
-pub fn recipient_reads(recipient: &EffectRecipient) -> ChoicesRead {
+/// The amounts a choose step reads before it asks: how many it chooses,
+/// and what they must add up to. What it chooses among and who chooses are
+/// the step's own to find missing (a choice that chooses nothing), where an
+/// amount never chosen leaves it no question to ask.
+pub fn amounts_a_choice_reads(what: &ValueChoice) -> ChoicesRead {
+    match what {
+        ValueChoice::Objects { count, total, .. } => {
+            count_reads(count) | total.as_ref().map_or(ChoicesRead::NONE, |total| amount_reads(total.is.amount()))
+        }
+        ValueChoice::Player { .. } | ValueChoice::Color | ValueChoice::CreatureType | ValueChoice::CardType(_) | ValueChoice::Number { .. } => {
+            ChoicesRead::NONE
+        }
+    }
+}
+
+pub(crate) fn recipient_reads(recipient: &EffectRecipient) -> ChoicesRead {
     match recipient {
         EffectRecipient::ChosenAs(kind) => ChoicesRead::the(*kind),
         EffectRecipient::Target(among, count) | EffectRecipient::Choose(among, count) => selection_reads(among) | count_reads(count),
@@ -116,7 +156,7 @@ fn count_reads(count: &TargetCount) -> ChoicesRead {
     }
 }
 
-pub fn filter_reads(filter: &ObjectFilter) -> ChoicesRead {
+fn filter_reads(filter: &ObjectFilter) -> ChoicesRead {
     match filter {
         ObjectFilter::ChosenAs(kind) => ChoicesRead::the(*kind),
         ObjectFilter::WithValue { is, .. } => amount_reads(is.amount()),
@@ -136,16 +176,16 @@ pub fn filter_reads(filter: &ObjectFilter) -> ChoicesRead {
     }
 }
 
-pub fn object_set_reads(set: &ObjectSet) -> ChoicesRead {
+pub(crate) fn object_set_reads(set: &ObjectSet) -> ChoicesRead {
     match set {
         ObjectSet::Filter { filter, .. } => filter_reads(filter),
         ObjectSet::SourceOnly | ObjectSet::Host | ObjectSet::Fixed(_) => ChoicesRead::NONE,
     }
 }
 
-pub fn amount_reads(amount: &AmountExpr) -> ChoicesRead {
+pub(crate) fn amount_reads(amount: &AmountExpr) -> ChoicesRead {
     match amount {
-        AmountExpr::ChosenAs(kind) => ChoicesRead::the(*kind),
+        AmountExpr::ChosenAs(kind) => ChoicesRead::the_one(*kind),
         AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => object_set_reads(over),
         AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount_reads(inner),
         AmountExpr::History(_, history) => history_count_reads(history),
@@ -172,7 +212,7 @@ pub fn amount_reads(amount: &AmountExpr) -> ChoicesRead {
 
 pub fn player_ref_reads(player: &PlayerRef) -> ChoicesRead {
     match player {
-        PlayerRef::NamedBy(recipient) => recipient_reads(recipient),
+        PlayerRef::NamedBy(recipient) => recipient_reads(recipient).each_needing_one_answer(),
         PlayerRef::You
         | PlayerRef::Opponent
         | PlayerRef::Owner
@@ -253,15 +293,13 @@ fn primitive_reads(primitive: &Primitive) -> ChoicesRead {
         // way"), which the walk opens before its first question; one
         // chooser reading its own name reads an earlier step's.
         Primitive::ChooseValue { kind, what, how } => {
-            let among = match what {
-                ValueChoice::Objects { among, count, total } => {
-                    let total = total.as_ref().map_or(ChoicesRead::NONE, |total| amount_reads(total.is.amount()));
-                    selection_reads(among) | count_reads(count) | total
-                }
-                // "A second player": other than the players those names kept.
-                ValueChoice::Player { other_than, .. } => all(other_than, |kind| ChoicesRead::the(*kind)),
-                ValueChoice::Color | ValueChoice::CreatureType | ValueChoice::CardType(_) | ValueChoice::Number { .. } => ChoicesRead::NONE,
-            };
+            let among = amounts_a_choice_reads(what)
+                | match what {
+                    ValueChoice::Objects { among, .. } => selection_reads(among),
+                    // "A second player": other than the players those names kept.
+                    ValueChoice::Player { other_than, .. } => all(other_than, |kind| ChoicesRead::the(*kind)),
+                    ValueChoice::Color | ValueChoice::CreatureType | ValueChoice::CardType(_) | ValueChoice::Number { .. } => ChoicesRead::NONE,
+                };
             let chooser = match &how.answered_by {
                 AnsweredBy::Player(chooser) => recipient_reads(chooser),
                 AnsweredBy::EachPlayerForThemselves | AnsweredBy::AtRandom => ChoicesRead::NONE,
@@ -272,6 +310,8 @@ fn primitive_reads(primitive: &Primitive) -> ChoicesRead {
             }
         }
         Primitive::Pay { others, .. } => all(others, cost_reads),
+        // "Add that much {R}": each color's amount.
+        Primitive::ProduceMana(output) => all(&output.mana, |(_, amount)| amount_reads(amount)),
         Primitive::Mill(amount)
         | Primitive::PutTopCardsIntoHand(amount)
         | Primitive::Discard(amount, _)
@@ -321,7 +361,6 @@ fn primitive_reads(primitive: &Primitive) -> ChoicesRead {
         | Primitive::CounterSpell
         | Primitive::CounterAbility
         | Primitive::Counter
-        | Primitive::ProduceMana(_)
         | Primitive::Attach
         | Primitive::Fight
         | Primitive::SwitchPowerToughness(_)

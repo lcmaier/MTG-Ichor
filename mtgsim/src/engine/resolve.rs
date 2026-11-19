@@ -324,16 +324,25 @@ impl GameState {
 
     /// Whether `effect`'s own words read a choice no choose step of this
     /// resolution has made: an instruction's verb and what it acts on, an
-    /// "if"'s condition, a "may"'s player. A choose step is never one: it
-    /// finds a missing chooser or name itself, and what it then leaves is
-    /// the absence the steps after it read.
+    /// "if"'s condition, a "may"'s player and the one instruction it
+    /// offers, a loop's count or set. A choose step reads the amounts it
+    /// needs before it can ask; a missing chooser or name among what it
+    /// chooses from it finds itself, and what it then leaves is the absence
+    /// the steps after it read.
     fn reads_a_choice_never_made(&self, effect: &Effect, ctx: &ResolutionContext) -> bool {
-        use crate::engine::choices_read::{atom_reads, condition_reads, player_ref_reads};
-        let reads = match effect {
-            Effect::Atom(Primitive::ChooseValue { .. }, _) => return false,
-            Effect::Atom(primitive, recipient) => atom_reads(primitive, recipient),
-            Effect::Conditional(condition, _) => condition_reads(condition),
-            Effect::Optional { chooser, .. } => player_ref_reads(chooser),
+        use crate::engine::choices_read::{amount_reads, amounts_a_choice_reads, atom_reads, condition_reads, object_set_reads, player_ref_reads};
+        let never_made = |reads: crate::engine::choices_read::ChoicesRead| reads.kinds().any(|kind| self.answers_kept_as(kind, ctx).is_none());
+        match effect {
+            Effect::Atom(Primitive::ChooseValue { what, .. }, _) => never_made(amounts_a_choice_reads(what)),
+            Effect::Atom(primitive, recipient) => never_made(atom_reads(primitive, recipient)),
+            Effect::Conditional(condition, _) => never_made(condition_reads(condition)),
+            // "You may draw that many cards": a "may" on one instruction
+            // that won't happen is no choice to offer.
+            Effect::Optional { chooser, effect: offered } => {
+                never_made(player_ref_reads(chooser)) || (matches!(offered.as_ref(), Effect::Atom(..)) && self.reads_a_choice_never_made(offered, ctx))
+            }
+            Effect::ForEach(over, _) => never_made(object_set_reads(over)),
+            Effect::Repeat(times, _) => never_made(amount_reads(times)),
             Effect::Sequence(_)
             | Effect::Replacement(_)
             | Effect::Restriction(_)
@@ -342,11 +351,8 @@ impl GameState {
             | Effect::FunctionsIn(..)
             | Effect::Triggered(_)
             | Effect::Remember(_)
-            | Effect::Modal(_)
-            | Effect::ForEach(..)
-            | Effect::Repeat(..) => return false,
-        };
-        reads.kinds().iter().any(|kind| self.answers_kept_as(*kind, ctx).is_none())
+            | Effect::Modal(_) => false,
+        }
     }
 
     /// One instruction of [`Self::resolve_effect_at`]'s walk. An atom's verb
@@ -365,11 +371,35 @@ impl GameState {
         // meets the missing name midway. Its targets were announced all the
         // same (CR 601.2c), so the instances after it are read past them.
         if self.reads_a_choice_never_made(effect, ctx) {
-            walk.instance_cursor += effect.instances().len();
-            walk.last_cost_answer = Some(match effect {
-                Effect::Optional { .. } => CostAnswer::Doesnt,
-                _ => CostAnswer::Cant,
-            });
+            match effect {
+                // An "if" that cannot be read is an "if" that is false: it
+                // leaves the answer before it for the "if you didn't" after
+                // it, and its instances as a false one does.
+                Effect::Conditional(condition, inner) => {
+                    if !condition.names_a_casting_choice() {
+                        walk.instance_cursor += inner.instances().len();
+                    }
+                }
+                Effect::Optional { .. } => {
+                    walk.instance_cursor += effect.instances().len();
+                    walk.last_cost_answer = Some(CostAnswer::Doesnt);
+                }
+                // CR 118.12: an action that could not be started.
+                Effect::Atom(..) => {
+                    walk.instance_cursor += effect.instances().len();
+                    walk.last_cost_answer = Some(CostAnswer::Cant);
+                }
+                Effect::ForEach(..) | Effect::Repeat(..) => walk.instance_cursor += effect.instances().len(),
+                Effect::Sequence(_)
+                | Effect::Replacement(_)
+                | Effect::Restriction(_)
+                | Effect::CostModification(_)
+                | Effect::TriggerMultiplier(_)
+                | Effect::FunctionsIn(..)
+                | Effect::Triggered(_)
+                | Effect::Remember(_)
+                | Effect::Modal(_) => {}
+            }
             return Ok(());
         }
         // Every atom takes its action, which is CR 118.12's "started to pay"

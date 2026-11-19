@@ -1938,11 +1938,19 @@ mod instance_references {
     /// name inside one is found in the definition's printed form
     /// (`ChosenAs(..)`), however deep.
     fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
-        use crate::engine::choices_read::{amount_reads, atom_reads, condition_reads, object_set_reads, player_ref_reads, recipient_reads, ChoicesRead};
+        use crate::engine::choices_read::{amount_reads, atom_reads, condition_reads, object_set_reads, player_ref_reads, ChoicesRead};
         use crate::types::effects::{AnsweredBy, ChoiceKind, NamedPlayers, PlayerSet, Primitive, TargetCount, ValueChoice, ValueIs};
 
         fn names_read_in(printed: &str) -> Vec<&str> {
             printed.split("ChosenAs(").skip(1).filter_map(|rest| rest.split(')').next()).collect()
+        }
+
+        /// A name a choose step keeps, and whether a walk kept it: one
+        /// answer for each player it asked.
+        #[derive(Clone, Copy)]
+        struct Kept {
+            kind: ChoiceKind,
+            by_a_walk: bool,
         }
 
         struct Walk<'a> {
@@ -1953,12 +1961,19 @@ mod instance_references {
         }
 
         impl<'a> Walk<'a> {
-            /// What a step's own words read, each a name kept before it.
-            fn read(&mut self, read: ChoicesRead, kept: &[ChoiceKind], step: &dyn std::fmt::Debug) {
+            /// What a step's own words read, each a name kept before it; and
+            /// an amount or a player word reads the one answer, which a walk
+            /// does not leave.
+            fn read(&mut self, read: ChoicesRead, kept: &[Kept], step: &dyn std::fmt::Debug) {
+                let needing_one_answer: Vec<ChoiceKind> = read.kinds_needing_one_answer().collect();
                 for name in read.kinds() {
                     self.reads += 1;
-                    if !kept.contains(name) {
-                        self.problems.push(format!("reads {name:?}, which no step before it keeps: {step:?}"));
+                    match kept.iter().rev().find(|kept| kept.kind == name) {
+                        None => self.problems.push(format!("reads {name:?}, which no step before it keeps: {step:?}")),
+                        Some(kept) if kept.by_a_walk && needing_one_answer.contains(&name) => {
+                            self.problems.push(format!("reads the one {name:?} chosen, where each player chose one: {step:?}"));
+                        }
+                        Some(_) => {}
                     }
                 }
             }
@@ -1974,24 +1989,26 @@ mod instance_references {
             }
 
             /// `effect`, with `kept` the choices made before it.
-            fn step(&mut self, effect: &'a Effect, kept: &mut Vec<ChoiceKind>) {
+            fn step(&mut self, effect: &'a Effect, kept: &mut Vec<Kept>) {
                 match effect {
                     Effect::Atom(primitive, recipient) => {
-                        let outlasts_the_resolution = matches!(
-                            primitive,
+                        // What the step creates that outlasts it: the whole
+                        // instruction, a token's definition, or a copy's
+                        // exceptions. Its other words are read as it runs.
+                        let outlasting: Option<&dyn std::fmt::Debug> = match primitive {
                             Primitive::GrantAbility(..)
-                                | Primitive::CreateReplacement(..)
-                                | Primitive::Restrict(..)
-                                | Primitive::CreateDelayedTrigger(_)
-                                | Primitive::ExileUntil { .. }
-                        );
-                        match outlasts_the_resolution {
-                            true => {
-                                self.reads_none(primitive);
-                                self.read(recipient_reads(recipient), kept, recipient);
-                            }
-                            false => self.read(atom_reads(primitive, recipient), kept, effect),
+                            | Primitive::CreateReplacement(..)
+                            | Primitive::Restrict(..)
+                            | Primitive::CreateDelayedTrigger(_)
+                            | Primitive::ExileUntil { .. } => Some(primitive),
+                            Primitive::CreateToken(token, _) => Some(token),
+                            Primitive::Copy { except, .. } => Some(except),
+                            _ => None,
+                        };
+                        if let Some(definition) = outlasting {
+                            self.reads_none(definition);
                         }
+                        self.read(atom_reads(primitive, recipient), kept, effect);
                         if matches!(recipient, EffectRecipient::Choose(..)) {
                             self.problems.push(format!("{recipient:?} is a question's label: a card chooses with a choose step"));
                         }
@@ -2024,7 +2041,7 @@ mod instance_references {
                                 }
                                 _ => {}
                             }
-                            kept.push(*kind);
+                            kept.push(Kept { kind: *kind, by_a_walk: how.walk.is_some() });
                         }
                     }
                     Effect::Sequence(steps) => steps.iter().for_each(|step| self.step(step, kept)),
@@ -2112,13 +2129,14 @@ mod instance_references {
     #[test]
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
-            choose_color, choose_number, choose_objects, choose_one, color, creature, destroy, draw_cards, each, each_player, gains_ability,
-            non, one_of_the_chosen, spell_ability, the_chosen_color, the_chosen_number, the_chosen_objects, you,
+            add_mana, choose_color, choose_number, choose_objects, choose_one, color, create_tokens, creature, destroy, draw_cards, each,
+            each_player, gains_ability, non, one_of_the_chosen, spell_ability, the_chosen_color, the_chosen_number, the_chosen_objects, you,
         };
         use crate::types::effects::{
-            AmountExpr, AnsweredBy, ChoiceKind, ChoiceWalk, ChosenHow, ObjectValue, PickTotal, PlayerGroup, PlayerRef, PlayerSet, Primitive,
-            SelectionFilter, TargetCount, ValueChoice, ValueIs,
+            AmountExpr, AnsweredBy, ChoiceKind, ChoiceWalk, ChosenHow, ManaOutput, ObjectValue, PickTotal, PlayerGroup, PlayerRef, PlayerSet,
+            Primitive, SelectionFilter, TargetCount, TokenDef, ValueChoice, ValueIs,
         };
+        use crate::types::mana::ManaType;
 
         let problems = |effect: Effect| chosen_name_problems(&effect).0;
         let destroys_the_chosen = || destroy(the_chosen_objects());
@@ -2188,6 +2206,26 @@ mod instance_references {
             1,
             "drawn at random under a total"
         );
+
+        // An amount and a player word read the one answer, which a walk
+        // does not leave: caught here, where it would abort on the stack.
+        let that_many = || draw_cards(you(), the_chosen_number());
+        assert!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), that_many()])).is_empty(), "one chooser's number");
+        assert_eq!(problems(Effect::Sequence(vec![choose_number(each_player(), 0, 3), that_many()])).len(), 1, "that many, of each player's");
+
+        // An amount inside produced mana is read, and a token's own ability
+        // outlasts the step that makes it.
+        let that_much_red = add_mana(ManaOutput { mana: vec![(ManaType::Red, the_chosen_number())], special: vec![] });
+        assert_eq!(problems(that_much_red).len(), 1, "mana of a number never kept");
+        let mut token = TokenDef::creature(1, 1, &[], &[]);
+        token.abilities.push(spell_ability("", that_many()));
+        assert_eq!(
+            problems(Effect::Sequence(vec![choose_number(you(), 0, 3), create_tokens(you(), 1, token)])).len(),
+            1,
+            "read by a token's ability"
+        );
+        let that_many_tokens = create_tokens(you(), the_chosen_number(), TokenDef::creature(1, 1, &[], &[]));
+        assert!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), that_many_tokens])).is_empty(), "that many tokens");
     }
 
 

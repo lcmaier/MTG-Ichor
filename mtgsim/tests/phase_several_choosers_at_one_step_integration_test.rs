@@ -12,11 +12,11 @@ use watching::Watching;
 
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::cards::authoring::{
-    choose_a_second_player, choose_a_third_player, choose_color, choose_number, choose_number_at_least, choose_objects, choose_player,
-    chosen_by, color, creature, destroy, draw_cards, each, each_opponent, each_player, gain_life, non, one_of_the_chosen, sacrifice,
-    spell_ability, target_creature,
-    target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
-    the_third_chosen_player, they_control, you,
+    add_mana, choose_a_second_player, choose_a_third_player, choose_color, choose_creature_type, choose_number, choose_number_at_least,
+    choose_objects, choose_player, chosen_by, color, creature, creature_type, destroy, draw_cards, each, each_opponent, each_player,
+    gain_life, lose_life, non, one_of_the_chosen, sacrifice, spell_ability, target_creature, target_opponent, the_chosen_color,
+    the_chosen_creature_type, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
+    the_third_chosen_player, they_control, you, you_control,
 };
 use mtgsim::cards::printings::{choice_of_damnations, fortunate_few, harsh_mercy, plague_spores, slaughter_the_strong};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
@@ -30,7 +30,8 @@ use mtgsim::test_support::{fill_library, forest, pass_turn, put_in_hand, put_on_
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    Choice, ChoiceScope, ChoiceSide, CounterType, Effect, EffectRecipient, ObjectValue, Pick, PlayerRef, PlayerSet, Primitive, TargetCount,
+    Choice, ChoiceScope, ChoiceSide, Condition, CostAnswer, CounterType, Effect, EffectRecipient, ManaOutput, ObjectValue, Pick, PlayerFact,
+    PlayerRef, PlayerSet, Primitive, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -377,13 +378,19 @@ fn a_number_with_no_most_is_asked_from_its_least_with_no_top() {
 /// creature; player 1 then leaves the game, so the choice is never made
 /// while the second target keeps the spell resolving. Whether it resolved.
 fn resolve_after_its_chooser_left(game: &mut GameState, card: Arc<CardData>) -> Result<(), String> {
+    cast_at_player_1_who_then_leaves(game, card);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).map(|_| ())
+}
+
+/// [`resolve_after_its_chooser_left`] up to the resolution: the spell on
+/// the stack, its choosing player gone.
+fn cast_at_player_1_who_then_leaves(game: &mut GameState, card: Arc<CardData>) {
     let id = put_in_hand(game, card, 0);
     game.players[0].mana_pool.add(ManaType::Blue, 1);
     let targeting = ScriptedDecisionProvider::new();
     picks(&targeting, vec![DecisionOption::Player(1)]);
     game.cast_spell(0, id, &ManaWindowStop::new(targeting)).expect("castable");
     game.execute_action(GameAction::PlayerLoses { player: 1 }, &test_ctx()).expect("player 1 leaves");
-    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).map(|_| ())
 }
 
 /// CR 608.2b — "if part of the effect requires information about an illegal
@@ -426,6 +433,105 @@ fn a_may_whose_player_was_never_chosen_does_not_happen() {
         ]),
     );
     resolve_after_its_chooser_left(&mut game, card).expect("nobody is asked, and the rest happens");
+    assert!(!game.battlefield.contains_key(&bear));
+}
+
+/// A choose step reads too: "choose that many creatures you control" needs
+/// the number before it can ask. With no number it chooses nothing and
+/// keeps nothing, so "destroy the rest" does not happen either, and the
+/// caster's creature stays.
+#[test]
+fn a_choose_step_whose_count_was_never_chosen_does_not_happen() {
+    let mut game = at_the_turn_of(0, 3);
+    let bear = put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 2);
+    let my_creatures = || creature().and(you_control());
+    let card = instant(
+        "Keep Their Number",
+        "Target opponent chooses a number between 1 and 3. Choose that many creatures you control and destroy the rest. Destroy target creature.",
+        Effect::Sequence(vec![
+            choose_number(target_opponent(), 1, 3),
+            choose_objects(you(), my_creatures(), TargetCount::ExactlyAmount(the_chosen_number())),
+            destroy(each(my_creatures().other_than(one_of_the_chosen()))),
+            destroy(target_creature()),
+        ]),
+    );
+    cast_at_player_1_who_then_leaves(&mut game, card);
+    // Put there once the spell has its one creature to target.
+    let mine = put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect("the two parts that need the number do not happen");
+    assert!(game.battlefield.contains_key(&mine), "nothing was chosen, so there is no rest");
+    assert!(!game.battlefield.contains_key(&bear), "the other target is still affected");
+}
+
+/// An amount inside produced mana is read like any other: "add that much
+/// {R}" with no number adds none.
+#[test]
+fn mana_of_an_amount_never_chosen_is_not_added() {
+    let mut game = at_the_turn_of(0, 3);
+    let bear = put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 2);
+    let that_much_red = ManaOutput { mana: vec![(ManaType::Red, the_chosen_number())], special: vec![] };
+    let card = instant(
+        "Their Fire",
+        "Target opponent chooses a number between 1 and 3. Add that much {R}. Destroy target creature.",
+        Effect::Sequence(vec![choose_number(target_opponent(), 1, 3), add_mana(that_much_red), destroy(target_creature())]),
+    );
+    resolve_after_its_chooser_left(&mut game, card).expect("no number, so no mana");
+    assert_eq!(game.players[0].mana_pool.total(), 0);
+    assert!(!game.battlefield.contains_key(&bear));
+}
+
+/// CR 608.2c — an "if" that cannot be read is an "if" that is false, and a
+/// false one leaves the answer before it alone. The caster declines the
+/// "may"; the "if" on a creature type nobody chose is passed over; and "if
+/// you didn't" still reads the decline, so the life is lost.
+#[test]
+fn an_if_passed_over_leaves_the_may_before_it_answered() {
+    let mut game = at_the_turn_of(0, 3);
+    put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 2);
+    let (hand, life) = (game.players[0].hand.len(), game.players[0].life_total);
+    let a_creature_of_that_type = PlayerFact::ControlsPermanent(creature().and(creature_type(the_chosen_creature_type())));
+    let card = instant(
+        "Their Type",
+        "Target opponent chooses a creature type. You may draw a card. If you control a creature of the chosen type, you gain 1 life. \
+         If you didn't draw, you lose 2 life. Destroy target creature.",
+        Effect::Sequence(vec![
+            choose_creature_type(target_opponent()),
+            Effect::Optional { chooser: PlayerRef::You, effect: Box::new(draw_cards(you(), 1)) },
+            Effect::Conditional(Condition::Player { players: PlayerSet::You, fact: a_creature_of_that_type }, Box::new(gain_life(you(), 1))),
+            Effect::Conditional(Condition::CostAnswer(CostAnswer::Doesnt), Box::new(lose_life(you(), 2))),
+            destroy(target_creature()),
+        ]),
+    );
+    cast_at_player_1_who_then_leaves(&mut game, card);
+    let declines = ScriptedDecisionProvider::new();
+    declines.expect_choice(DecisionKind::ApplyOptionalEffect { source: ObjectId::UNASSIGNED }, vec![]);
+    game.resolve_top_of_stack(&declines).expect("it resolves");
+
+    assert_eq!(game.players[0].hand.len(), hand, "the draw was declined");
+    assert_eq!(game.players[0].life_total, life - 2, "the decline is still the answer after the passed-over if");
+}
+
+/// A "may" on one instruction that won't happen is no choice to offer:
+/// "you may draw that many cards" with no number asks nobody, and "if you
+/// do" after it reads that it was not done.
+#[test]
+fn a_may_on_an_instruction_that_wont_happen_is_not_offered() {
+    let mut game = at_the_turn_of(0, 3);
+    let bear = put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 2);
+    let (hand, life) = (game.players[0].hand.len(), game.players[0].life_total);
+    let card = instant(
+        "Their Cards",
+        "Target opponent chooses a number between 1 and 3. You may draw that many cards. If you do, you gain 1 life. Destroy target creature.",
+        Effect::Sequence(vec![
+            choose_number(target_opponent(), 1, 3),
+            Effect::Optional { chooser: PlayerRef::You, effect: Box::new(draw_cards(you(), the_chosen_number())) },
+            Effect::Conditional(Condition::CostAnswer(CostAnswer::Does), Box::new(gain_life(you(), 1))),
+            destroy(target_creature()),
+        ]),
+    );
+    // The provider holds no answer, so a question asked would fail here.
+    resolve_after_its_chooser_left(&mut game, card).expect("nobody is asked");
+    assert_eq!((game.players[0].hand.len(), game.players[0].life_total), (hand, life), "not offered, so not done");
     assert!(!game.battlefield.contains_key(&bear));
 }
 
