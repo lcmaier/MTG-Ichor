@@ -779,6 +779,43 @@ fn choice_of_damnations_has_the_opponent_lose_the_number_they_chose() {
     assert!(theirs.iter().all(|id| game.battlefield.contains_key(id)));
 }
 
+/// CR 107.1b — a number with no most printed is any number, and the
+/// greatest one there is to answer with is past a life total's range. The
+/// opponent who names it loses that much: their life total goes to its
+/// least, and never back up through the top.
+#[test]
+fn the_greatest_number_there_is_loses_life_and_gains_none() {
+    let mut game = at_the_turn_of(0, 2);
+    let life = game.players[1].life_total;
+
+    resolve_choice_of_damnations(&mut game, u64::MAX, true, None);
+
+    assert_eq!(game.players[1].life_total, life.saturating_sub(i64::MAX), "a loss, to the least a life total holds");
+}
+
+/// Zero is a number (CR 107.1b). Taken as life it is no loss; declined, the
+/// opponent keeps no permanent, with nothing to choose, and sacrifices
+/// every one they control.
+#[test]
+fn choice_of_damnations_at_zero_keeps_nothing() {
+    let mut game = at_the_turn_of(0, 2);
+    let theirs = [(); 3].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    let life = game.players[1].life_total;
+    let asked = resolve_choice_of_damnations(&mut game, 0, true, None);
+    assert_eq!(asked, [(1, "ChooseNumber"), (0, "ApplyOptionalEffect")]);
+    assert_eq!(game.players[1].life_total, life, "no life is lost");
+    assert!(theirs.iter().all(|id| game.battlefield.contains_key(id)));
+
+    let mut game = at_the_turn_of(0, 2);
+    let mine = put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0);
+    let theirs = [(); 3].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    let asked = resolve_choice_of_damnations(&mut game, 0, false, None);
+    assert_eq!(asked, [(1, "ChooseNumber"), (0, "ApplyOptionalEffect")], "none of three is no choice");
+    assert!(theirs.iter().all(|id| !game.battlefield.contains_key(id)), "all but none");
+    assert_eq!(sacrificed(&game).len(), 3);
+    assert!(game.battlefield.contains_key(&mine));
+}
+
 // RULING: Choice of Damnations #2 - "If the opponent must sacrifice all but
 //   a number of permanents, that opponent chooses that many permanents and
 //   then sacrifices the rest. If the number chosen is greater than the

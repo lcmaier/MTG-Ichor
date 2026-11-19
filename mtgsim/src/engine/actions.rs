@@ -1885,7 +1885,9 @@ impl GameState {
                 // non-event, so `replacement::never_happens` drops it upstream.
                 let old_life = self.get_player(player)?.life_total;
                 let p = self.get_player_mut(player)?;
-                p.life_total += amount as i64;
+                // An amount has no top (CR 107.1b: "choose a number"), and a
+                // life total is signed, so one past its range is its edge.
+                p.life_total = p.life_total.saturating_add(i64::try_from(amount).unwrap_or(i64::MAX));
                 let new_life = p.life_total;
                 self.bump_layer_epoch_if_read(GatedWalkInput::LifeTotals);
 
@@ -1908,7 +1910,7 @@ impl GameState {
                 }
                 let old_life = self.get_player(player)?.life_total;
                 let p = self.get_player_mut(player)?;
-                p.life_total -= amount as i64;
+                p.life_total = p.life_total.saturating_sub(i64::try_from(amount).unwrap_or(i64::MAX));
                 let new_life = p.life_total;
                 self.bump_layer_epoch_if_read(GatedWalkInput::LifeTotals);
 
