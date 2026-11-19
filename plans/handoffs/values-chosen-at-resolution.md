@@ -871,6 +871,23 @@ shape (decisions 2 and 4, and Gluntch's exclusion).
   here or with `multiplayer-rules`; Slaughter the Strong in the first PR;
   and "can't be regenerated" as a mark on the destroy.
 
+**At design review round 2 (the owner, 2026-11-18):**
+
+- **Settled:** decision 2 (A, as simplified), decision 4 (A: "the
+  modularity will help with custom cards too"), decision 11 (A: CR
+  800.4f–h with `multiplayer-rules`), and decision 6 stays the card's own
+  text.
+- **Slaughter the Strong comes into the first PR**, with
+  `codebase-state.md` item 404's clause for it. Its one new piece, a pick
+  limited by a total, is decision 12.
+- **Menacing Ogre joins v0.5's requirements**, as the transforming card
+  did: no deck card chooses secretly, and `linked-abilities` and
+  `information-model` both build on the secret mark
+  (`roadmap-v2.md`'s `information-model` row).
+- **Open:** decision 5's count of votes (the owner leans (a)); decision
+  12; and decision 13, "can't be regenerated" as an effect before the
+  destroy or a mark on it.
+
 ## Where this row sits
 
 Still inside one stack object's resolution, the RESOLVE step of
@@ -1162,6 +1179,11 @@ DecisionKind::ChooseColor { label: ChoiceLabel }  // and each choose kind, in pl
 ValueChoice::Number { least: u64, most: Option<u64> }
 XOffer::NoTop { at_least: u64 }
 
+// Decision 12: "with total power 4 or less", a limit on the sum over the
+// whole pick, beside the count that limits how many.
+ValueChoice::Objects { among: SelectionFilter, count: TargetCount, total: Option<PickTotal> }
+pub struct PickTotal { pub of: ObjectValue, pub is: ValueIs }
+
 // Decision 9: piles.
 ValueChoice::Piles { of: ObjectFilter, count: u32 }   // "separate … into two piles"
 ValueChoice::OneOfThePiles                            // "the pile of that player's choice"
@@ -1350,8 +1372,8 @@ direction is a field with that card.
   life loss read, unordered (CR 608.2f's APNAP is theirs); an order on it is
   a field every other reader ignores.
 
-**Recommended: A, as simplified above; the owner to confirm.** Each way of
-starting and of answering is built in the PR of its first card, so none
+**Settled: A, as simplified above** (the owner, design review round 2,
+2026-11-18). Each way of starting and of answering is built in the PR of its first card, so none
 lands without one (the fresh read's point): the first PR builds the active
 player starting, one player answering and each for themselves; the second
 a named starting player (the votes) and one player answering for each (the
@@ -1470,8 +1492,9 @@ The decision is how those twelve or so phrases become types.
   its own fill and its own registry check, and "the highest number" as a
   group and as an amount are two arms that must agree.
 
-**Recommended: A; open, since the owner asked for it again in plain
-terms.** Under A the table's middle two columns are two small types, "which
+**Settled: A** (the owner, design review round 2, 2026-11-18: "the
+modularity will help with custom cards too"). Under A the table's middle
+two columns are two small types, "which
 answers" and "what about them", and a new phrase is a new pairing. Under B
 each row of the table is its own arm. The `Condition::WinsTheVote` arm is
 the one vote word kept apart under either, since "gets more votes" is a
@@ -1548,8 +1571,9 @@ size and player hexproof are its first readers.
   moves. About 70–110 more in the second PR, with the `allocate` ask and
   Brago's Representative registered.
 
-**Recommended: (a).** "Whenever players finish voting" (three cards) is a
-trigger event, and Illusion of Choice's "you choose how each player votes"
+**Recommended: (a); the owner leans to it** (design review round 2,
+2026-11-18), pending the walk's plain telling in that round's reply.
+"Whenever players finish voting" (three cards) is a trigger event, and Illusion of Choice's "you choose how each player votes"
 is a change to `answered_by`; both are filed below.
 
 ### Decision 6 — a word with no rules meaning
@@ -1585,6 +1609,17 @@ because the engine keys on it; a word is the card's. The registry's test
 checks that each word a reader names is one its step offers, and that the
 step's words are found in its ability's rules text. *Code*: 90–150 with
 `ChooseWord` through every client.
+
+**What that check is** (asked at round 2). A word appears in a card in
+two places: where it is offered (`["friend", "foe"]`) and where a later
+step points back at it ("each foe" is written with the word `"foe"`).
+Being text, a misspelled second place (`"foee"`) compiles, and in a game
+it would match no answer: no player would ever be a foe, silently.
+`cards::registry`'s test is the test that builds every registered card
+under `cargo test` and reads each for such mistakes; it gains one check,
+that every word a later step names is among the words the choose step
+offered, and fails naming the card and the word. That is the whole price
+of text against an enum: the typo is caught by a test, not the compiler.
 
 ### Decision 7 — the secret mark, the reveal, and what a choose question carries
 
@@ -1710,8 +1745,9 @@ and the first row came to 2,876 against 1,290–2,130.
 | Item 435: each step's list of what it reads, which replaces the registry's scan of a step's printed form; its board failing first | 100–160 | 50–80 | 1 |
 | Gluntch's three different players, Fortunate Few's two steps and exclusion | 30–50 | 30–50 | 1 |
 | Harsh Mercy, Divine Reckoning, Fortunate Few, Gluntch, Choice of Damnations registered | 150–250 | 200–300 | 1 |
+| Decision 12: a pick limited by a total, shown on its question; Slaughter the Strong registered | 110–180 | 60–100 | 1 |
 | The dev GUI's tests | 20–40 | 10–30 | 1 |
-| **The first PR** | **570–950** | **460–750** | **1,030–1,700** |
+| **The first PR** | **680–1,130** | **520–850** | **1,200–1,980** |
 | Decision 7: the mark, the reveal, the label with item 437's words | 120–190 | 60–100 | 2 |
 | Decision 6: the word as text, `ChooseWord` through every client | 90–150 | 60–100 | 2 |
 | Decision 4: `AnswerSelection`, the group, the count, the number, the conditions | 90–150 | 70–120 | 2 |
@@ -1725,11 +1761,10 @@ and the first row came to 2,876 against 1,290–2,130.
 | Do or Die, Make an Example, Whims of the Fates registered | 90–150 | 120–180 | 3 |
 | **The third PR** | **330–530** | **280–450** | **610–980** |
 
-Two pieces wait on the owner and sit outside the table: decision 11's B
-would add 30–60 and 30–50 to the first PR, and Slaughter the Strong
-(below) about 140–240.
+One piece waits on the owner and sits outside the table: decision 13's A
+would add 40–70 and 30–50 to the first PR.
 
-**2,960–4,830 for the row**, so about 4,800 read by its top, against the
+**3,130–5,110 for the row**, so about 5,100 read by its top, against the
 brief's 1,160–1,880 (the Sizing row's 1,000–1,600 with items 435 and 437),
 with the secret mark not counted there. The guess counted the 16 "each
 player chooses" values; the census finds 59 such cards and 41 walks from a
@@ -1782,17 +1817,12 @@ three.
 So the walk and the vote are deck needs. A secret choice and a pile are in
 no deck.
 
-**Open, for the owner: Slaughter the Strong in the first PR.** Its one
-missing piece is the total ("with total power 4 or less"): a limit on the
-sum over the whole pick, where a count limits how many. 44 printed cards
-limit a selection by a total (`o:/with total (power|toughness|mana value)
-[0-9x]+ or (less|greater)/`), 3 of them a choice made as the effect
-resolves (Slaughter the Strong, Destined Confrontation, The War in
-Heaven) and the rest targets or searches. Taking item 404's clause here
-registers a deck card on the walk as it lands, for about 140–240 lines
-(1,170–1,940 for the first PR), and needs one more decision first: how a
-pick with a total is asked. Leaving it where it is slotted keeps this row
-as the table has it.
+**Settled: Slaughter the Strong comes into the first PR** (the owner,
+design review round 2, 2026-11-18), with item 404's clause for it, so a
+deck card proves the walk as it lands. Its one missing piece is the total
+("with total power 4 or less"), a limit on the sum over the whole pick
+where a count limits how many: decision 12. With it the first PR is
+1,200–1,980.
 
 ### Decision 11 — what a player who has left the game still owes (CR 800.4f–h)
 
@@ -1874,7 +1904,139 @@ work beyond the PR's own change is the row that owns it.
   built in the function this row happens to touch, and the delegation
   written twice if item 4's turns out a different shape.
 
-**Recommended: A.**
+**Settled: A** (the owner, design review round 2, 2026-11-18).
+
+### Decision 12 — a pick limited by a total (Slaughter the Strong)
+
+New at round 2, where the owner took Slaughter the Strong into the first
+PR: "Each player chooses any number of creatures they control with total
+power 4 or less, then sacrifices all other creatures they control." The
+walk, "they control" and "the rest" are decisions 2, 3 and 1. The total is
+the one piece nothing holds.
+
+**Retrofit cost if chosen wrong.** The question's payload, which the dev
+GUI and the random agent read, and the cards written against the limit:
+two now, and the targets and costs below when their rows take them. After
+the build, a change to both clients and those cards; no game moves.
+
+| What a total limits | Cards | Example | Holds today |
+|---|---:|---|---|
+| a choice made as the effect resolves, each player's own | 2 | Slaughter the Strong, Destined Confrontation | a count only (`TargetCount`, `types/effects.rs:1679`) |
+| targets, some with a count beside the total | 15 | The War in Heaven's "up to three target creature cards with total mana value 8 or less" | nothing |
+| "or greater", mostly what is tapped for a cost | 16 | Mossbridge Troll's "with total power 10 or greater" | nothing |
+| the rest: a search, cards put from a zone | about 11 | Protean Hulk | nothing |
+
+Queries: `o:/with total (power|toughness|mana value) [0-9x]+ or (less|greater)/`
+(44), with `target [^.]*` ahead of it (15), with `search [^.]*` (1), and
+its `or greater` half (16).
+
+**The rulings** (Slaughter the Strong, 2020-11-10; Destined
+Confrontation's are the same words): the card "has each player choose any
+number of creatures and then checks that the total power of creatures each
+player chose this way is 4 or less"; and "If a creature's power is somehow
+less than 0, it subtracts from the total power of the other creatures its
+controller chooses. This can cause creatures with power 5 or greater to
+survive" (CR 107.1b: a calculation uses a negative value as it is).
+
+**What that makes the problem.** The legal answers are sets, not objects.
+A 3/3 is a legal pick alone and an illegal one beside a 2/2; and with a
+−1/−1'd creature in the pick, adding it can make an illegal set legal. So
+the count's bounds cannot say it, and "grey out what no longer fits" is
+wrong.
+
+- **A. The pick carries the limit, and the question shows it.**
+  `ValueChoice::Objects` gains `total: Option<PickTotal>`, with `PickTotal
+  { of: ObjectValue, is: ValueIs }`: the first row's two types for "which
+  number" and "how it is compared" (`WithValue`'s pair), here over the sum
+  of the pick, so "or greater" is already an arm. The question gains the
+  limit and each candidate's number as the engine read it (its power
+  through the layers, CR 608.2h), so a client can add a set up before it
+  answers: the dev GUI shows the running total and offers Confirm while
+  the set is legal; the random agent, in `autopilot/random`, adds
+  candidates in a random order while the total stays legal; an AI client
+  masks. The engine checks the answer all the same (CR 608.2d: no illegal
+  option may be chosen), and one over the limit is refused and asked
+  again, with a new `Rejection` arm naming the total
+  (`decision/question.rs:587`). Each player's limit is their own, since
+  each player's question is its own. *Code*: 80–130. *Upkeep*: the
+  targets' and costs' totals reuse `PickTotal` when their rows come.
+- **B. Refuse and ask again, and nothing more.** The question is
+  unchanged; an answer over the limit is refused. *Code*: 40–70. *Upkeep*:
+  a client learns the limit only by being refused: the random agent can do
+  no better than choose nothing after one refusal, and the GUI cannot show
+  a total.
+- **C. Offer each legal set as an option**, as a mode's sets are. Two to
+  the power of the creatures a player controls.
+
+**Recommended: A.** Its clients are a person at the four-seat GUI and an
+AI client; the dev GUI and the random agent serve it now.
+
+### Decision 13 — "can't be regenerated": an effect before the destroy, or a mark on it
+
+Raised by the owner at round 1 as "would `.cant_be_regenerated()` make more
+sense as a rider?", and told again here at round 2. Harsh Mercy and Do or
+Die print it, so this row writes it twice.
+
+**What a player sees.** Regeneration is a shield: "the next time this
+creature would be destroyed this turn, instead tap it and remove all
+damage from it" (CR 701.19a). "It can't be regenerated" means the shield
+is not used (CR 701.19c).
+
+**How it is built today, on Plague Spores.** Two steps. The first makes a
+lasting effect on the creature, "regeneration shields can't be applied to
+this, until end of turn". The second destroys it. As the destroy is
+proposed the engine finds the shield, finds the effect forbidding it, and
+passes the shield over (`engine/replacement/gather.rs:705`). The step is
+first because the effect has to exist before the destroy is proposed.
+
+**What "a mark on the destroy" means.** No separate effect. The destroy
+instruction itself carries a yes-or-no: "regeneration can't replace this
+destruction". `destroy(x).cant_be_regenerated()` sets it, the destroy event
+carries it, and the same line of `gather.rs` passes a shield over when the
+event it is looking at says so. Nothing exists before the destroy or
+after it.
+
+**Where the two differ in a game**: only when the creature lives through
+that destroy and something tries to destroy it again the same turn. A
+creature with a totem armor Aura and a regeneration ability is hit by
+Terror: the Aura is destroyed in its place, either way. Later that turn
+it is hit by Doom Blade, which has no such clause, and its controller
+regenerates it. Today the first effect is still there until end of turn,
+so the shield is passed over and the creature dies. With a mark, Terror's
+clause ended with Terror's destroy, and the creature regenerates.
+
+**Which the rules mean** is not settled by anything found:
+
+- *That destruction only* (the mark). The clause is what "bury" became
+  ("destroy; it can't be regenerated" as one act), and the 18 cards that
+  want a lasting ban print "can't be regenerated this turn"; Incinerate's
+  ruling stresses that its version holds "even if an effect other than
+  Incinerate would … destroy it", which would go without saying if the
+  plain clause lasted too.
+- *Until end of turn* (today). A duration the card does not print.
+- *For the rest of the game.* CR 611.2a's default for a continuous effect
+  with no stated duration, if the clause makes one at all.
+
+No ruling on Terror, Wrath of God, Putrefy or Damnation says. 152 cards
+print the clause (`o:/can.t be regenerated/`), 120 as "It can't be
+regenerated." or "They can't be regenerated." after a destroy.
+
+**Retrofit cost.** Low either way: a field on `Primitive::Destroy` and
+`GameAction::Destroy`, one line of `gather.rs`, and Plague Spores with its
+tests. Later, the same plus each card written on the old shape meanwhile
+(Harsh Mercy, Do or Die).
+
+- **A. A mark on the destroy**, reading it as that destruction only. The
+  18 "this turn" cards keep the lasting effect, which stays for them.
+  Plague Spores is rewritten onto the mark. *Code*: 40–70, tests 30–50, in
+  the first PR as its own commit, ahead of Harsh Mercy. A game changes
+  only on the board above.
+- **B. Today's lasting effect**, lifted from Plague Spores' closure into a
+  shared helper. *Code*: about 10. The mark stays an open question on an
+  item.
+
+**Recommended: A**, on the reading that the clause belongs to its destroy;
+it is the owner's reading to make.
 
 ## The binding table
 
@@ -1887,6 +2049,7 @@ work beyond the PR's own change is the row that owns it.
 | the secret mark | written on the card | fixed | the step, and each question it asks | step 8's stamp; the registry's test | — |
 | a reveal | as the reveal step runs | latched: a record | the event stream, `ChoicesRevealed` | every seat (step 8), the log | never: history |
 | the piles | as the separator answers | latched | `choices`, as `Separation` | the pick of a pile; "that pile" and "the other" | with the resolving record |
+| a pick's total | each candidate's number as its question is asked (CR 608.2h); the sum as the answer is checked | read then, never kept | not stored: the question carries each candidate's number | the answer's check, and the client adding a set up | with the question |
 
 ## What builds without a decision
 
@@ -1950,6 +2113,7 @@ piece each needs.
 | 1 | Fortunate Few | Commander 2017, `2017/08_25_c17.rs` | two instructions, you and then each other player; an exclusion read from the walk's answers so far |
 | 1 | Gluntch, the Bestower | Battle for Baldur's Gate, a new `2022/06_10_clb.rs` | three different players chosen one at a time |
 | 1 | Choice of Damnations | Saviors of Kamigawa, a new `2005/06_03_sok.rs` | an open number, chosen by a target opponent |
+| 1 | Slaughter the Strong | Rivals of Ixalan, `2018/01_19_rix.rs` (its promo printing, PRIX, is the same day) | a deck card: the walk, "they control", "the rest", and a pick limited by its total |
 | 2 | Prisoner's Dilemma | Murders at Karlov Manor Commander, a new `2024/02_09_mkc.rs` | secret words from each opponent, the players who gave an answer, every answer one |
 | 2 | Menacing Ogre | Onslaught | secret open numbers, the reveal, the highest |
 | 2 | Plea for Power | Conspiracy, a new `2014/06_06_cns.rs` | a word vote from you, the winner, a tie |
@@ -2034,4 +2198,10 @@ dumps will name game by game. The branch moves with its cards.
   right", a direction around the table; The Toymaker's Trap's "a number
   that hasn't been chosen", across resolutions.
 - Item 429 closed by the second PR, which brings its word; item 435 by
-  the first; item 437 by the second.
+  the first; item 437 by the second. Item 404 loses Slaughter the Strong's
+  clause to the first PR and keeps its other five.
+- A total on targets (15 cards) and on what is tapped or put from a zone
+  (about 27), each reusing decision 12's `PickTotal` on its own clause,
+  filed as an item with its first card; a target's total is checked as it
+  is announced (CR 601.2c), and how CR 608.2b reads it is that item's
+  question.
