@@ -451,7 +451,7 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         // The return watches the source, and CR 610.3a/b asks whether it has
         // already left: two sources' exiles differ in whose leaving returns.
         Primitive::ExileUntil { .. } => TriggerBindingReads::SOURCE,
-        Primitive::Destroy
+        Primitive::Destroy { .. }
         | Primitive::Exile
         | Primitive::Sacrifice
         | Primitive::ReturnToHand
@@ -602,7 +602,7 @@ mod tests {
     fn an_event_role_the_arm_lacks_is_named() {
         let def = whenever(
             crate::cards::authoring::dies(TriggerSubject::Any),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::DamageRecipient)),
+            Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Triggering(EventRole::DamageRecipient)),
         );
         assert_eq!(def.event_roles_its_arms_lack(), vec![EventRole::DamageRecipient]);
         assert!(exile_that_creature_until_this_leaves().event_roles_its_arms_lack().is_empty());

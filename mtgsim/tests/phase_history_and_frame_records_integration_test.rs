@@ -59,7 +59,7 @@ fn an_unattach_keeps_both_ends_when_both_leave_in_one_event() {
     let mut game = setup_two_player_game();
     let (host, aura) = enchanted_creature(&mut game, 0);
     let since = game.recorded_events().len();
-    let destroy = |object| GameAction::Destroy { object };
+    let destroy = |object| GameAction::Destroy { object, cant_be_regenerated: false };
     game.execute_actions(vec![destroy(aura), destroy(host)], &ActionContext::new(&test_dp())).unwrap();
 
     let unattach = the_unattach(&game, since);
@@ -89,7 +89,7 @@ fn an_unattach_keeps_no_frame_of_an_end_that_stays() {
     let mut game = setup_two_player_game();
     let (host, aura) = enchanted_creature(&mut game, 0);
     let since = game.recorded_events().len();
-    game.execute_action(GameAction::Destroy { object: host }, &ActionContext::new(&test_dp())).unwrap();
+    game.execute_action(GameAction::Destroy { object: host, cant_be_regenerated: false }, &ActionContext::new(&test_dp())).unwrap();
 
     let unattach = the_unattach(&game, since);
     assert!(unattach.frame_of(host, &game.lki_store).is_some());
@@ -277,7 +277,7 @@ fn died_this_turn_is_the_card_its_death_made() {
     put_on_battlefield(&mut game, fixture_mourning_ink(ObjectFact::Died), 0);
     let died = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let discarded = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.execute_action(GameAction::Destroy { object: died }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: died, cant_be_regenerated: false }, &test_ctx()).unwrap();
     game.change_zone(discarded, Zone::Graveyard, ZoneChangeAct::Discarded, &test_ctx()).unwrap();
     assert!(is_black(&game, died), "the card its death put there");
     assert!(!is_black(&game, discarded), "a card discarded did not die");
@@ -371,7 +371,7 @@ fn a_creature_and_a_token_died() -> GameState {
     let create = GameAction::CreateTokens { defs: vec![TokenDef::creature(1, 1, &[Color::Red], &[CreatureType::Goblin])], controller: 0, attacking: None };
     game.execute_action(create, &test_ctx()).unwrap();
     let goblin = *game.battlefield_ids().iter().find(|&&id| game.objects[&id].is_token).expect("the Goblin");
-    game.execute_actions(vec![GameAction::Destroy { object: bears }, GameAction::Destroy { object: goblin }], &test_ctx()).unwrap();
+    game.execute_actions(vec![GameAction::Destroy { object: bears, cant_be_regenerated: false }, GameAction::Destroy { object: goblin, cant_be_regenerated: false }], &test_ctx()).unwrap();
     game.perform_sba_and_triggers(&test_dp()).unwrap();
     assert!(!game.objects.contains_key(&goblin), "the token ceased to exist (CR 704.5d)");
     game

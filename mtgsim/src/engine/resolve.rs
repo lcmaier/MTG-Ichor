@@ -1655,7 +1655,7 @@ impl GameState {
 
             // === Destroy and untap ===
 
-            Primitive::Destroy => {
+            Primitive::Destroy { .. } => {
                 // CR 701.8a. **One batch** (CR 608.2f): a wipe's deaths are one event,
                 // which CR 615.7's allocation and CR 603.2c's "one or more" read.
                 // Indestructible is a "can't" (CR 702.12b, 614.17) that `is_prohibited`
@@ -2968,8 +2968,8 @@ impl GameState {
     ) -> Result<Option<GameAction>, String> {
         let is_permanent = self.battlefield.contains_key(&object);
         Ok(match primitive {
-            Primitive::Destroy => {
-                is_permanent.then(|| GameAction::Destroy { object })
+            Primitive::Destroy { cant_be_regenerated } => {
+                is_permanent.then_some(GameAction::Destroy { object, cant_be_regenerated: *cant_be_regenerated })
             }
             // CR 701.13a — from wherever the object is.
             Primitive::Exile => self.objects.get(&object).map(|obj| GameAction::ZoneChange {
@@ -4213,7 +4213,7 @@ mod tests {
         let source_id = game.add_object(bolt_obj);
 
         let destroy = Effect::Atom(
-            Primitive::Destroy,
+            Primitive::Destroy { cant_be_regenerated: false },
             EffectRecipient::Target(SelectionFilter::Creature, crate::types::effects::TargetCount::Exactly(1)),
         );
         let ctx = bolt_ctx(source_id, vec![ObjectOrPlayerId::Object(target_id)]);

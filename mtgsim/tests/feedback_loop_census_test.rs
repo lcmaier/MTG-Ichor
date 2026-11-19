@@ -229,7 +229,7 @@ fn blood_artists_drain_triggers_the_opponents_vengeful_warchief() {
     let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 1);
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 0);
     let wrath = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    let destroy = GameAction::Destroy { object: bears };
+    let destroy = GameAction::Destroy { object: bears, cant_be_regenerated: false };
     game.execute_action(destroy, &effect_ctx(&game, wrath)).unwrap();
     assert_eq!(game.pending_triggers.len(), 1, "Blood Artist saw the Bears die");
 

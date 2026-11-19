@@ -59,7 +59,7 @@ fn pending(game: &GameState) -> usize {
 fn destroy_all(game: &mut GameState, objects: &[ObjectId], source: ObjectId) {
     let batch = objects
         .iter()
-        .map(|&object| GameAction::Destroy { object })
+        .map(|&object| GameAction::Destroy { object, cant_be_regenerated: false })
         .collect();
     game.execute_actions(batch, &effect_ctx(game, source)).expect("the wipe");
 }

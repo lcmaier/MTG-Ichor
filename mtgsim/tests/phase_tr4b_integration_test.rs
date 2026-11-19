@@ -55,7 +55,7 @@ use mtgsim::decision::provider::DecisionProvider;
 
 fn destroy_all(game: &mut GameState, objects: &[ObjectId]) {
     let by = mtgsim::types::ids::new_object_id();
-    let batch = objects.iter().map(|&object| GameAction::Destroy { object }).collect();
+    let batch = objects.iter().map(|&object| GameAction::Destroy { object, cant_be_regenerated: false }).collect();
     game.execute_actions(batch, &effect_ctx(game, by)).unwrap();
 }
 

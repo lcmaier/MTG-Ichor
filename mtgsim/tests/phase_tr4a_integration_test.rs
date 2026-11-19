@@ -141,7 +141,7 @@ fn returner(keyword: Keyword, instances: usize) -> Arc<CardData> {
 
 fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object }, &effect_ctx(game, by)).unwrap();
+    game.execute_action(GameAction::Destroy { object, cant_be_regenerated: false }, &effect_ctx(game, by)).unwrap();
 }
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
@@ -325,7 +325,7 @@ fn demonic_vigor_destroyed_beside_its_creature_still_returns_it() {
     assert!(game.attach(vigor, creature));
     let by = mtgsim::types::ids::new_object_id();
     game.execute_actions(
-        vec![GameAction::Destroy { object: creature }, GameAction::Destroy { object: vigor }],
+        vec![GameAction::Destroy { object: creature, cant_be_regenerated: false }, GameAction::Destroy { object: vigor, cant_be_regenerated: false }],
         &effect_ctx(&game, by),
     )
     .unwrap();
@@ -530,7 +530,7 @@ fn simultaneous_persist_or_undying_return_the_nonactive_players_creature_first()
         let nonactives = put_on_battlefield(&mut game, returner(keyword, 1), 1);
         let by = mtgsim::types::ids::new_object_id();
         game.execute_actions(
-            vec![GameAction::Destroy { object: actives }, GameAction::Destroy { object: nonactives }],
+            vec![GameAction::Destroy { object: actives, cant_be_regenerated: false }, GameAction::Destroy { object: nonactives, cant_be_regenerated: false }],
             &effect_ctx(&game, by),
         )
         .unwrap();

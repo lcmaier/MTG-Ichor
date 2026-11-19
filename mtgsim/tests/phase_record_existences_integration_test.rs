@@ -92,7 +92,7 @@ fn a_damage_trigger_reads_a_source_that_left_in_its_event_as_it_dealt_the_damage
         source_lki: None,
     };
 
-    game.execute_actions(vec![deals, GameAction::Destroy { object: bears }], &test_ctx()).expect("one event");
+    game.execute_actions(vec![deals, GameAction::Destroy { object: bears, cant_be_regenerated: false }], &test_ctx()).expect("one event");
 
     assert_eq!(game.get_object(bears).expect("its card").zone, Zone::Graveyard);
     assert_eq!(game.pending_triggers.len(), 1, "a red creature dealt the damage");

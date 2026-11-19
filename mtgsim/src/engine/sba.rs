@@ -48,7 +48,7 @@ fn sba_put_into_graveyard(id: ObjectId) -> GameAction {
 /// have something to watch. Proposing the zone change directly would make a
 /// state-based death indistinguishable from every other trip to the graveyard.
 fn sba_destroy(id: ObjectId) -> GameAction {
-    GameAction::Destroy { object: id }
+    GameAction::Destroy { object: id, cant_be_regenerated: false }
 }
 
 /// CR 704.5a–c and 704.6c — `player` would lose the game, caused by

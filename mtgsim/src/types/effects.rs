@@ -2535,8 +2535,11 @@ pub enum CopyRoles {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Primitive {
     // === Zone movement (rule 701) ===
-    /// Destroy a permanent (rule 701.8) — respects indestructible/regenerate
-    Destroy,
+    /// Destroy a permanent (rule 701.8) — respects indestructible/regenerate.
+    /// `cant_be_regenerated` is the card's "It can't be regenerated": no
+    /// regeneration shield is applied to this destruction (CR 701.19c), and
+    /// the clause ends with it.
+    Destroy { cant_be_regenerated: bool },
     /// Exile an object (rule 701.13)
     Exile,
     /// CR 610.3 — "exile [it] until [a specified event occurs]": the exile,
@@ -3016,7 +3019,7 @@ impl Primitive {
     /// for a hand to the command zone), and then it is not "that card".
     pub fn moves_into(&self) -> Option<Zone> {
         match self {
-            Primitive::Destroy
+            Primitive::Destroy { .. }
             | Primitive::Sacrifice
             | Primitive::Mill(_)
             | Primitive::Discard(..)

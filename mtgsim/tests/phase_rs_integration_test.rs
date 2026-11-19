@@ -479,7 +479,7 @@ fn test_indestructible_still_blocks_a_destroy_now_that_it_is_a_restriction() {
     let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
 
     game.execute_action(
-        GameAction::Destroy { object: tank },
+        GameAction::Destroy { object: tank, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();
@@ -508,7 +508,7 @@ fn test_losing_the_keyword_lifts_the_prohibition_within_the_same_turn() {
     ));
 
     game.execute_action(
-        GameAction::Destroy { object: tank },
+        GameAction::Destroy { object: tank, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();

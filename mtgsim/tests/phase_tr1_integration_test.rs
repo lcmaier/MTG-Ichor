@@ -133,7 +133,7 @@ fn expect_target_player(dp: &ScriptedDecisionProvider, player: PlayerId) {
 fn destroy_all(game: &mut GameState, objects: &[ObjectId], source: ObjectId) {
     let batch = objects
         .iter()
-        .map(|&object| GameAction::Destroy { object })
+        .map(|&object| GameAction::Destroy { object, cant_be_regenerated: false })
         .collect();
     game.execute_actions(batch, &effect_ctx(game, source)).expect("the wipe");
 }
@@ -1142,7 +1142,7 @@ fn a_trigger_with_no_legal_target_is_removed_and_never_reaches_the_stack() {
             "Shattering Herald",
             enters(TriggerSubject::ThisObject),
             Effect::Atom(
-                Primitive::Destroy,
+                Primitive::Destroy { cant_be_regenerated: false },
                 EffectRecipient::Target(
                     SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
                     TargetCount::Exactly(1),
@@ -1251,7 +1251,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
                 }),
                 limit: None,
                 effect: Effect::Atom(
-                    Primitive::Destroy,
+                    Primitive::Destroy { cant_be_regenerated: false },
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 ),
             }),

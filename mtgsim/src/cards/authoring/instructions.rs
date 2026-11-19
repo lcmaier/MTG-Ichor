@@ -56,9 +56,27 @@ pub fn create_tokens(recipient: EffectRecipient, amount: impl Into<AmountExpr>, 
     Effect::Atom(Primitive::CreateToken(token, amount.into()), recipient)
 }
 
-/// "Destroy [recipient]" (CR 701.8a).
+/// "Destroy [recipient]" (CR 701.8a). "It can't be regenerated" after it is
+/// `.cant_be_regenerated()`.
 pub fn destroy(recipient: EffectRecipient) -> Effect {
-    Effect::Atom(Primitive::Destroy, recipient)
+    Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, recipient)
+}
+
+impl Effect {
+    /// "Destroy [recipient]. It can't be regenerated", "They can't be
+    /// regenerated": written on the destroy it follows. No regeneration
+    /// shield is applied to that destruction (CR 701.19c), and the clause
+    /// ends with it: a creature that lives through it regenerates as usual
+    /// afterwards. "Can't be regenerated this turn" is the lasting one, a
+    /// "can't" (`Restriction::ApplyReplacement`). Only a destroy has
+    /// something to mark; `cards::registry`'s test holds a card that prints
+    /// the clause to a destroy that carries it.
+    pub fn cant_be_regenerated(self) -> Effect {
+        match self {
+            Effect::Atom(Primitive::Destroy { .. }, recipient) => Effect::Atom(Primitive::Destroy { cant_be_regenerated: true }, recipient),
+            other => other,
+        }
+    }
 }
 
 /// "[Recipient] discards [amount] cards" (CR 701.9a), the cards chosen by

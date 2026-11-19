@@ -708,6 +708,14 @@ fn push_if_applicable(
     // `Restriction::ApplyReplacement` is closed at one arm
     // (`cant-effects-architecture.md` §3.3); recognizing a shield is what
     // `is_regeneration`'s authored bit is for.
+    //
+    // Two things say it. "Destroy target creature. It can't be regenerated"
+    // is the destruction's own, and ends with it: the event carries it. "A
+    // creature dealt damage this way can't be regenerated this turn" lasts,
+    // and is a "can't" asked of the object.
+    if instance.def.is_regeneration && matches!(p.action, GameAction::Destroy { cant_be_regenerated: true, .. }) {
+        return;
+    }
     if instance.def.is_regeneration
         && is_prohibited(
             game,

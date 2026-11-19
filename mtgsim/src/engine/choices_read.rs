@@ -298,7 +298,7 @@ fn primitive_reads(primitive: &Primitive) -> ChoicesRead {
         | Primitive::Restrict(..)
         | Primitive::Copy { .. }
         | Primitive::CreateDelayedTrigger(_)
-        | Primitive::Destroy
+        | Primitive::Destroy { .. }
         | Primitive::Exile
         | Primitive::Sacrifice
         | Primitive::ReturnToHand

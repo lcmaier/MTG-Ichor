@@ -98,7 +98,7 @@ fn test_destroy_is_an_outer_event_that_lowers_to_a_zone_change() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();
@@ -122,12 +122,12 @@ fn test_a_state_based_death_and_an_effect_death_carry_different_causes() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: by_effect },
+        GameAction::Destroy { object: by_effect, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();
     game.execute_action(
-        GameAction::Destroy { object: by_sba },
+        GameAction::Destroy { object: by_sba, cant_be_regenerated: false },
         &state_based_ctx(mtgsim::events::cause::StateBasedAction::LethalDamage),
     )
     .unwrap();
@@ -154,7 +154,7 @@ fn test_destroy_is_loud_off_the_battlefield() {
     game.battlefield.remove(&bear);
 
     let err = game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &state_based_ctx(mtgsim::events::cause::StateBasedAction::LethalDamage),
     );
     assert!(err.is_err());
@@ -181,7 +181,7 @@ fn test_indestructible_is_a_cant_ahead_of_the_pipeline_not_a_replacement() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: myr },
+        GameAction::Destroy { object: myr, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();
@@ -226,7 +226,7 @@ fn test_a_static_replacement_ability_prevents_the_event() {
     let source = place_bare(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     game.execute_action(
-        GameAction::Destroy { object: probe },
+        GameAction::Destroy { object: probe, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();
@@ -265,7 +265,7 @@ fn test_humility_strips_a_replacement_ability_and_the_creature_dies() {
     );
 
     game.execute_action(
-        GameAction::Destroy { object: probe },
+        GameAction::Destroy { object: probe, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();
@@ -414,7 +414,7 @@ fn test_a_shield_counter_replaces_destruction_by_an_effect() {
     add_counters(&mut game, bear, CounterType::Shield, 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();
@@ -613,7 +613,7 @@ fn test_a_finality_counter_catches_a_destruction_through_the_inner_zone_change()
     add_counters(&mut game, bear, CounterType::Finality, 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();
@@ -1137,7 +1137,7 @@ fn test_a_regeneration_shield_replaces_a_destruction() {
 
     regenerate(&mut game, killer, bear);
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();
@@ -1189,7 +1189,7 @@ fn test_a_shield_protects_once_and_the_second_destruction_gets_through() {
     assert_eq!(game.replacement_effects.len(), 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();
@@ -1197,7 +1197,7 @@ fn test_a_shield_protects_once_and_the_second_destruction_gets_through() {
     assert_eq!(game.replacement_effects.len(), 0, "the use was consumed");
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();
@@ -1219,7 +1219,7 @@ fn test_static_regeneration_applies_every_time() {
         game.battlefield.get_mut(&skeleton).unwrap().damage_marked = 4;
         game.battlefield.get_mut(&skeleton).unwrap().tapped = false;
         game.execute_action(
-            GameAction::Destroy { object: skeleton },
+            GameAction::Destroy { object: skeleton, cant_be_regenerated: false },
             &effect_ctx(&game, killer),
         )
         .unwrap();
@@ -1237,13 +1237,11 @@ fn test_static_regeneration_applies_every_time() {
 /// "It can't be regenerated" — CR 701.19c, now a `RestrictionDef` rather than a
 /// bespoke `HashSet` on `GameState` (phase RS-1).
 ///
-/// `Duration::UntilEndOfTurn` reproduces exactly what `turns.rs`'s deleted
-/// `cant_be_regenerated.clear()` did, and is **still the wrong scope** — CR
-/// 608.2c scopes this to the destruction instruction it follows, which needs a
-/// resolution-scoped `Duration` variant that does not exist yet
-/// (`codebase-state.md` item 14). What changed is that the scope is now an
-/// authored argument here instead of an assumption hardcoded in the cleanup
-/// step, so correcting it is a one-argument change at the card.
+/// "Can't be regenerated this turn" (Incinerate): a "can't" that lasts, with
+/// the duration its card prints. The clause with no duration, "Destroy
+/// target creature. It can't be regenerated", is no restriction at all: CR
+/// 608.2c scopes it to the destruction it follows, and the destroy carries
+/// it (`GameAction::Destroy::cant_be_regenerated`).
 fn cant_be_regenerated() -> Primitive {
     Primitive::Restrict(
         RestrictionDef::new(Restriction::ApplyReplacement {
@@ -1295,7 +1293,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
     );
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();
@@ -1331,7 +1329,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
     .unwrap();
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();
@@ -2264,7 +2262,7 @@ fn test_regeneration_after_the_destruction_has_resolved_is_too_late() {
     let killer = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
 
     game.execute_action(
-        GameAction::Destroy { object: bear },
+        GameAction::Destroy { object: bear, cant_be_regenerated: false },
         &effect_ctx(&game, killer),
     )
     .unwrap();
@@ -2293,7 +2291,7 @@ fn test_destroyed_and_sacrificed_are_different_causes_and_regeneration_knows() {
     regenerate(&mut game, source, sacrificed);
 
     game.execute_action(
-        GameAction::Destroy { object: destroyed },
+        GameAction::Destroy { object: destroyed, cant_be_regenerated: false },
         &effect_ctx(&game, source),
     )
     .unwrap();

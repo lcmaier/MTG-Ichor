@@ -2148,6 +2148,33 @@ mod instance_references {
     }
 
 
+    /// "Destroy …. It can't be regenerated" is written on the destroy it
+    /// follows (`Effect::cant_be_regenerated`), which marks nothing when it
+    /// is written on any other effect. So a card that prints the clause has
+    /// a destroy carrying it, and a card that does not has none. "Can't be
+    /// regenerated this turn" is the lasting restriction and no mark.
+    #[test]
+    fn a_card_that_prints_cant_be_regenerated_marks_a_destroy() {
+        use crate::types::effects::Primitive;
+        let pool = CardRegistry::fixture_pool();
+        let mut names: Vec<String> = pool.cards.keys().cloned().collect();
+        names.sort();
+        let mut printed = 0;
+        for name in names {
+            let card = (pool.cards[name.as_str()])();
+            let prints = card.rules_text.contains("can't be regenerated") && !card.rules_text.contains("can't be regenerated this turn");
+            let mut marked = false;
+            for ability in card.abilities.iter() {
+                for_each_atom(&ability.effect, &mut |primitive, _| {
+                    marked |= matches!(primitive, Primitive::Destroy { cant_be_regenerated: true });
+                });
+            }
+            assert_eq!(prints, marked, "{name}: its text and its destroy disagree on \"can't be regenerated\"");
+            printed += usize::from(prints);
+        }
+        assert!(printed > 0, "no card prints the clause, so this check reads nothing");
+    }
+
     /// A division's total has two homes: the clause carries it to the
     /// announcement (CR 601.2d), or the choose step to the choice made as
     /// the effect applies (608.2d), and the atom that acts by the shares

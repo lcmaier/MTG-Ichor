@@ -893,7 +893,7 @@ fn contamination_gone_before_its_trigger_resolves_may_be_declined() {
     to_player_0s_upkeep(&mut game);
     game.perform_sba_and_triggers(&ScriptedDecisionProvider::new()).unwrap();
     assert_eq!(game.stack.len(), 1, "the upkeep trigger waits");
-    game.execute_action(GameAction::Destroy { object: contamination }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: contamination, cant_be_regenerated: false }, &test_ctx()).unwrap();
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_choice(PAY, Vec::new());

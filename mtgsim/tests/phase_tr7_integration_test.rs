@@ -138,7 +138,7 @@ fn choosing_copy_source(donor: ObjectId) -> mtgsim::decision::provider::Scripted
 
 fn destroy(game: &mut GameState, object: ObjectId) {
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object }, &effect_ctx(game, by)).unwrap();
+    game.execute_action(GameAction::Destroy { object, cant_be_regenerated: false }, &effect_ctx(game, by)).unwrap();
 }
 
 fn add_counters(game: &mut GameState, object: ObjectId, counter: CounterType, n: u32) {
@@ -264,7 +264,7 @@ fn the_scarecrows_persist_is_asked_of_the_board_it_died_on() {
     let scarecrow = put_on_battlefield(&mut game, wingrattle_scarecrow(), 1);
     let black = put_on_battlefield(&mut game, black_creature(), 1);
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_actions(vec![GameAction::Destroy { object: scarecrow }, GameAction::Destroy { object: black }], &effect_ctx(&game, by))
+    game.execute_actions(vec![GameAction::Destroy { object: scarecrow, cant_be_regenerated: false }, GameAction::Destroy { object: black, cant_be_regenerated: false }], &effect_ctx(&game, by))
         .unwrap();
     assert_eq!(waiting_from(&game, scarecrow), 1, "the black creature was there as it left");
     resolve_all(&mut game, &test_dp());
@@ -409,7 +409,7 @@ fn two_players_scarecrows_return_the_nonactive_players_first() {
     let actives = scarecrow_with_persist(&mut game, 0);
     let nonactives = scarecrow_with_persist(&mut game, 1);
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_actions(vec![GameAction::Destroy { object: actives }, GameAction::Destroy { object: nonactives }], &effect_ctx(&game, by))
+    game.execute_actions(vec![GameAction::Destroy { object: actives, cant_be_regenerated: false }, GameAction::Destroy { object: nonactives, cant_be_regenerated: false }], &effect_ctx(&game, by))
         .unwrap();
     resolve_all(&mut game, &test_dp());
     let arrived = |id: ObjectId| game.battlefield.get(&id).map(|_| game.object_timestamp(id)).expect("returned");

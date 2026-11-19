@@ -15,17 +15,18 @@ use mtgsim::cards::authoring::{
     each_opponent, each_player, gain_life, non, one_of_the_chosen, spell_ability, target_creature, target_opponent, the_chosen_color,
     the_chosen_number, the_chosen_objects, the_chosen_player, they_control, you,
 };
+use mtgsim::cards::printings::plague_spores;
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::oracle::x_values::XOffer;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_game, test_ctx};
+use mtgsim::test_support::{fill_library, forest, pass_turn, put_in_hand, put_on_battlefield, setup_game, test_ctx};
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{Effect, EffectRecipient, PlayerRef, PlayerSet, TargetCount};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::effects::{CounterType, Effect, EffectRecipient, PlayerRef, PlayerSet, Primitive, TargetCount};
+use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 
 // ---------------------------------------------------------------------------
@@ -380,6 +381,63 @@ fn a_may_whose_player_was_never_chosen_does_not_happen() {
     );
     resolve_after_its_chooser_left(&mut game, card).expect("nobody is asked, and the rest happens");
     assert!(!game.battlefield.contains_key(&bear));
+}
+
+// ---------------------------------------------------------------------------
+// "It can't be regenerated" (CR 608.2c, 701.19c)
+// ---------------------------------------------------------------------------
+
+/// A board with player 1's Bear and Forest, the Bear regenerated this turn
+/// (CR 701.19a: a shield for the next time it would be destroyed).
+fn a_regenerated_bear_and_a_forest(game: &mut GameState) -> (ObjectId, ObjectId) {
+    let bear = put_on_battlefield(game, creature_of_color("A Bear", Color::Green), 1);
+    let forest = put_on_battlefield(game, forest(), 1);
+    let shield = instant("A Shield", "Regenerate target creature.", Effect::Atom(Primitive::Regenerate, target_creature()));
+    cast_paying(game, shield, &[(ManaType::Blue, 1)]);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect("the shield is made");
+    (bear, forest)
+}
+
+/// Plague Spores, cast by player 0 at the board's one creature and one
+/// land, and resolved.
+fn resolve_plague_spores(game: &mut GameState) {
+    cast_paying(game, plague_spores(), &[(ManaType::Black, 5), (ManaType::Red, 1)]);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect("it resolves");
+}
+
+/// CR 701.19c — "effects that say that a permanent can't be regenerated …
+/// cause regeneration shields to not be applied." Plague Spores' "They
+/// can't be regenerated" is on its destroy, so the Bear's shield is passed
+/// over and it dies.
+#[test]
+fn a_destroy_that_cant_be_regenerated_passes_over_a_regeneration_shield() {
+    let mut game = at_the_turn_of(0, 2);
+    let (bear, forest) = a_regenerated_bear_and_a_forest(&mut game);
+    resolve_plague_spores(&mut game);
+    assert!(!game.battlefield.contains_key(&bear), "the shield is not applied");
+    assert!(!game.battlefield.contains_key(&forest));
+}
+
+/// CR 608.2c — "Destroy target creature. It can't be regenerated" is one
+/// instruction: the clause is about that destruction, and ends with it. The
+/// Bear lives through Plague Spores on a shield counter (CR 122.1c, which
+/// is no regeneration), and the next destroy that turn, which says nothing
+/// about regeneration, meets the Bear's shield and is replaced by it.
+#[test]
+fn it_cant_be_regenerated_ends_with_the_destruction_it_follows() {
+    let mut game = at_the_turn_of(0, 2);
+    let (bear, _) = a_regenerated_bear_and_a_forest(&mut game);
+    game.execute_action(GameAction::AddCounters { subject: ObjectOrPlayerId::Object(bear), counter: CounterType::Shield, n: 1, by: 1 }, &test_ctx())
+        .expect("a shield counter");
+    resolve_plague_spores(&mut game);
+    assert!(game.battlefield.contains_key(&bear), "the shield counter replaced the destruction");
+    assert_eq!(game.battlefield[&bear].counter_count(CounterType::Shield), 0, "and was removed for it");
+
+    let doom = instant("A Plain Destroy", "Destroy target creature.", destroy(target_creature()));
+    cast_paying(&mut game, doom, &[(ManaType::Blue, 1)]);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect("it resolves");
+    assert!(game.battlefield.contains_key(&bear), "the regeneration shield applies to a later destruction");
+    assert!(game.battlefield[&bear].tapped, "regenerated: tapped (CR 701.19a)");
 }
 
 /// An amount reads exactly one answer. "That many" after several players

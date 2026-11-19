@@ -106,7 +106,7 @@ fn steal(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
 /// shield replaces (CR 701.19a).
 fn regenerate(game: &mut GameState, player: PlayerId, creature: ObjectId) {
     resolve_as(game, player, &at_target_creature(Primitive::Regenerate), creature);
-    resolve_as(game, player, &at_target_creature(Primitive::Destroy), creature);
+    resolve_as(game, player, &at_target_creature(Primitive::Destroy { cant_be_regenerated: false }), creature);
 }
 
 /// Every `RemovedFromCombat` record, in order.
@@ -317,7 +317,7 @@ fn defending_player_after_a_removal_is_the_player_it_was_attacking() {
 fn a_creature_stolen_then_killed_still_names_its_former_defender() {
     let lost = warcaller_leaves_combat(|game, warcaller| {
         steal(game, 2, warcaller);
-        resolve_as(game, 1, &at_target_creature(Primitive::Destroy), warcaller);
+        resolve_as(game, 1, &at_target_creature(Primitive::Destroy { cant_be_regenerated: false }), warcaller);
         assert_eq!(game.objects[&warcaller].zone, Zone::Graveyard);
     });
     assert_eq!(lost, [0, 0, 1]);
@@ -329,7 +329,7 @@ fn a_creature_stolen_then_killed_still_names_its_former_defender() {
 
 fn destroy_target_enchantment() -> Effect {
     let enchantment = SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Enchantment));
-    Effect::Atom(Primitive::Destroy, EffectRecipient::Target(enchantment, TargetCount::Exactly(1)))
+    Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Target(enchantment, TargetCount::Exactly(1)))
 }
 
 /// The first record in `window` that `is`, and the batch it was performed in.
@@ -432,7 +432,7 @@ fn a_change_of_control_a_batch_causes_is_announced_in_its_window() {
     assert_eq!(get_effective_controller(&game, bears), Some(0));
     let before = game.recorded_events().len();
 
-    resolve_as(&mut game, 1, &at_target_creature(Primitive::Destroy), sower);
+    resolve_as(&mut game, 1, &at_target_creature(Primitive::Destroy { cant_be_regenerated: false }), sower);
     assert_eq!(get_effective_controller(&game, bears), Some(1));
     let records = game.recorded_events();
     let window = records.records_from(before);

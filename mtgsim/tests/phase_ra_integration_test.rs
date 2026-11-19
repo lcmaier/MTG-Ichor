@@ -805,7 +805,7 @@ fn test_a_multi_target_destroy_is_one_event() {
     // batch. `Implicit` would declare no instance at all and read nothing.
     game.resolve_effect(
         &Effect::Atom(
-            Primitive::Destroy,
+            Primitive::Destroy { cant_be_regenerated: false },
             EffectRecipient::Target(
                 mtgsim::types::effects::SelectionFilter::Creature,
                 mtgsim::types::effects::TargetCount::Exactly(3),
