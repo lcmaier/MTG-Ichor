@@ -299,8 +299,9 @@ pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>, u
 // A step that chooses and does nothing else: "[chooser] chooses [something]".
 // What it chose is kept under the name of its kind for the steps after it,
 // which read it with `recipients::chosen` and `recipients::the_chosen`. The
-// chooser is a recipient naming one player, `you()` nearly always, or
-// `at_random()`.
+// chooser is a recipient naming one player, `you()` nearly always;
+// `each_player()` or `each_opponent()` for an answer from each of them, the
+// active player first (CR 101.4); or `at_random()`.
 
 fn choose_step(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
     Effect::Atom(Primitive::ChooseValue { kind: what.kind(), what, how: chooser.into() }, EffectRecipient::Implicit)
@@ -308,7 +309,7 @@ fn choose_step(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
 
 /// "At random", where a choose step's chooser goes: nobody is asked.
 pub fn at_random() -> ChosenHow {
-    ChosenHow::AtRandom
+    ChosenHow::at_random()
 }
 
 /// "[Chooser] chooses a color" (CR 105.4).

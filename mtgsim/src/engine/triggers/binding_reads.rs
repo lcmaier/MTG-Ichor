@@ -14,7 +14,7 @@ use std::ops::BitOr;
 use crate::types::costs::Cost;
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Antecedent, ChosenHow, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact,
+    ObjectSet, AmountExpr, AnsweredBy, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact,
     PlayerRef, Primitive, TargetCount, ValueChoice, };
 use crate::types::triggers::{
     BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
@@ -471,9 +471,11 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         Primitive::Pay { others, .. } => others.iter().fold(TriggerBindingReads::NONE, |reads, cost| reads | cost_reads(cost)),
         // Who chooses, and how many objects where the text defines it.
         Primitive::ChooseValue { what, how, .. } => {
-            let chooser = match how {
-                ChosenHow::By(chooser) => recipient_reads(chooser),
-                ChosenHow::AtRandom => TriggerBindingReads::NONE,
+            // A walk's players are a group, which is one set of players
+            // across the entries the elision compares, as `EachOf` is.
+            let chooser = match &how.answered_by {
+                AnsweredBy::Player(chooser) => recipient_reads(chooser),
+                AnsweredBy::EachPlayerForThemselves | AnsweredBy::AtRandom => TriggerBindingReads::NONE,
             };
             match what {
                 ValueChoice::Objects(_, count) => chooser | count_reads(count),

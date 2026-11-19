@@ -213,23 +213,78 @@ impl ValueChoice {
     }
 }
 
-/// Who makes a choose step's choice.
+/// Who makes a choose step's choice, and over which players: one answer, or
+/// an answer for each player a walk around the table reaches.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ChosenHow {
+pub struct ChosenHow {
+    /// `None` for one answer: "choose a color", "target opponent chooses a
+    /// number".
+    pub walk: Option<ChoiceWalk>,
+    pub answered_by: AnsweredBy,
+}
+
+/// "Each player chooses", "each opponent chooses": an answer for each player
+/// of the group still in the game, the active player first and then in turn
+/// order (CR 101.4, 608.2e), each knowing the answers before theirs (CR
+/// 101.4b). A group without the active player begins with the next player
+/// after them who is in it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChoiceWalk {
+    pub players: PlayerGroup,
+}
+
+/// Who answers a choose step's question.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AnsweredBy {
     /// The player this recipient names: `Controller` for "choose", a target
     /// player for "target opponent chooses".
-    By(EffectRecipient),
+    Player(EffectRecipient),
+    /// "Each player chooses": the player the walk is on. A walk's only.
+    EachPlayerForThemselves,
     /// "At random": drawn from the game's seeded rng, and nobody is asked.
     AtRandom,
 }
 
-impl From<EffectRecipient> for ChosenHow {
-    fn from(chooser: EffectRecipient) -> Self {
-        ChosenHow::By(chooser)
+impl ChosenHow {
+    /// "At random", with no walk: one draw.
+    pub fn at_random() -> ChosenHow {
+        ChosenHow { walk: None, answered_by: AnsweredBy::AtRandom }
     }
 }
 
-/// What a choose step kept: the answer to a [`ValueChoice`], arm for arm.
+/// A choose word takes who chooses where every verb takes its recipient:
+/// `you()` or a target player for one answer, and `each_player()` or
+/// `each_opponent()` for an answer from each of them.
+impl From<EffectRecipient> for ChosenHow {
+    fn from(chooser: EffectRecipient) -> Self {
+        match chooser {
+            EffectRecipient::EachOf(players) => {
+                ChosenHow { walk: Some(ChoiceWalk { players }), answered_by: AnsweredBy::EachPlayerForThemselves }
+            }
+            one => ChosenHow { walk: None, answered_by: AnsweredBy::Player(one) },
+        }
+    }
+}
+
+/// A choice one choose step made as its object resolves (CR 608.2d): an
+/// answer for each player it asked, in the order they answered (CR 101.4).
+/// A walk opens it empty before its first question, so its own later
+/// questions read the answers so far; one chooser gives one answer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChoiceMade {
+    pub kind: ChoiceKind,
+    pub answers: Vec<ChoiceAnswer>,
+}
+
+/// One answer and the player it is for: the player the walk was on, or the
+/// one chooser. `None` for a draw at random that is for nobody.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChoiceAnswer {
+    pub for_player: Option<PlayerId>,
+    pub value: ChosenValue,
+}
+
+/// What a choose step chose: the answer to a [`ValueChoice`], arm for arm.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChosenValue {
     Color(Color),
@@ -3307,7 +3362,9 @@ impl Effect {
                 own && match primitive {
                     Primitive::ExileUntil { refers_to: Some(target), .. } => f(target),
                     // "Target opponent chooses a number": the chooser is the instance.
-                    Primitive::ChooseValue { how: ChosenHow::By(chooser @ EffectRecipient::Target(..)), .. } => f(chooser),
+                    Primitive::ChooseValue {
+                        how: ChosenHow { answered_by: AnsweredBy::Player(chooser @ EffectRecipient::Target(..)), .. }, ..
+                    } => f(chooser),
                     _ => true,
                 }
             }

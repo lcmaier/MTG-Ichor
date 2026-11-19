@@ -1916,7 +1916,7 @@ mod instance_references {
     /// A read is found in a step's `Debug` print (`ChosenAs(..)`), so a read
     /// however deep in a filter or an amount is one this sees.
     fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
-        use crate::types::effects::{ChoiceKind, ChosenHow, Primitive};
+        use crate::types::effects::{AnsweredBy, ChoiceKind, NamedPlayers, PlayerSet, Primitive};
 
         fn names_read_in(printed: &str) -> Vec<&str> {
             printed.split("ChosenAs(").skip(1).filter_map(|rest| rest.split(')').next()).collect()
@@ -1963,10 +1963,22 @@ mod instance_references {
                             if *recipient != EffectRecipient::Implicit {
                                 self.problems.push(format!("a choose step acts on nothing, and is written on {recipient:?}"));
                             }
-                            if let ChosenHow::By(chooser) = how
-                                && !can_name_a_player(chooser, self.whole)
-                            {
-                                self.problems.push(format!("{chooser:?} names no player to make the choice"));
+                            match (&how.walk, &how.answered_by) {
+                                (None, AnsweredBy::Player(chooser)) if !can_name_a_player(chooser, self.whole) => {
+                                    self.problems.push(format!("{chooser:?} names no player to make the choice"));
+                                }
+                                (None, AnsweredBy::EachPlayerForThemselves) => {
+                                    self.problems.push("each player answers for themselves, and the step walks no players".to_string());
+                                }
+                                (Some(_), answered_by @ (AnsweredBy::Player(_) | AnsweredBy::AtRandom)) => {
+                                    self.problems.push(format!("a walk answered by {answered_by:?} is not built"));
+                                }
+                                (Some(walk), AnsweredBy::EachPlayerForThemselves)
+                                    if walk.players.relation == PlayerSet::Nobody && walk.players.named == NamedPlayers::Nobody =>
+                                {
+                                    self.problems.push("a walk over a group no player is in".to_string());
+                                }
+                                _ => {}
                             }
                             kept.push(*kind);
                         }
@@ -2056,10 +2068,13 @@ mod instance_references {
     #[test]
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
-            choose_color, choose_number, choose_objects, choose_one, color, creature, destroy, draw_cards, each, gains_ability, spell_ability,
-            the_chosen_color, the_chosen_number, the_chosen_objects, you,
+            choose_color, choose_number, choose_objects, choose_one, color, creature, destroy, draw_cards, each, each_player, gains_ability,
+            spell_ability, the_chosen_color, the_chosen_number, the_chosen_objects, you,
         };
-        use crate::types::effects::{ChoiceKind, ChosenHow, PlayerRef, Primitive, SelectionFilter, TargetCount, ValueChoice};
+        use crate::types::effects::{
+            AnsweredBy, ChoiceKind, ChoiceWalk, ChosenHow, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+            ValueChoice,
+        };
 
         let problems = |effect: Effect| chosen_name_problems(&effect).0;
         let destroys_the_chosen = || destroy(the_chosen_objects());
@@ -2088,12 +2103,25 @@ mod instance_references {
         let lasting = gains_ability(each(creature()), spell_ability("", draw_cards(you(), the_chosen_number()))).until_end_of_turn();
         assert_eq!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), lasting])).len(), 1, "read by an ability that outlasts it");
         let on_a_recipient = Effect::Atom(
-            Primitive::ChooseValue { kind: ChoiceKind::Color, what: ValueChoice::Color, how: ChosenHow::By(you()) },
+            Primitive::ChooseValue { kind: ChoiceKind::Color, what: ValueChoice::Color, how: you().into() },
             you(),
         );
         assert_eq!(problems(on_a_recipient).len(), 1, "a choose step on a recipient");
         let on_the_label = destroy(EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)));
         assert_eq!(problems(on_the_label).len(), 1, "a verb on the question's label");
+
+        // A walk: each player of a group answers for themselves.
+        let chooses_a_color = |how: ChosenHow| {
+            Effect::Atom(Primitive::ChooseValue { kind: ChoiceKind::Color, what: ValueChoice::Color, how }, EffectRecipient::Implicit)
+        };
+        let walk_of = |players: PlayerSet| Some(ChoiceWalk { players: PlayerGroup::set(players) });
+        assert!(problems(choose_color(each_player())).is_empty(), "each player chooses");
+        let no_walk = ChosenHow { walk: None, answered_by: AnsweredBy::EachPlayerForThemselves };
+        assert_eq!(problems(chooses_a_color(no_walk)).len(), 1, "each for themselves, and no players walked");
+        let one_for_each = ChosenHow { walk: walk_of(PlayerSet::Everyone), answered_by: AnsweredBy::Player(you()) };
+        assert_eq!(problems(chooses_a_color(one_for_each)).len(), 1, "one player answering for each is not built");
+        let nobody = ChosenHow { walk: walk_of(PlayerSet::Nobody), answered_by: AnsweredBy::EachPlayerForThemselves };
+        assert_eq!(problems(chooses_a_color(nobody)).len(), 1, "a walk over nobody");
     }
 
 
