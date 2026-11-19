@@ -1438,8 +1438,9 @@ split into: the walk and what it keeps. Items 435 and 14 closed. The design note
 row's section of `handoffs/values-chosen-at-resolution.md`; the full as-built is
 `archive/choices-architecture-landed.md`.
 - **Every choice made is a list of answers, each with its player**: `ChoiceMade { kind, answers }`
-  of `ChoiceAnswer { for_player, value }`. A filter reads any answer, a verb acts on every
-  answer's players or objects, an amount reads exactly one.
+  of `ChoiceAnswer { for_player, value }`. A filter reads any answer; a verb acts on every
+  answer's objects, and a draw or a life loss on each player chosen; an amount, a player word and
+  a verb that takes one player read exactly one, refused after a walk.
 - **The walk**: `ChosenHow { walk, answered_by }`. `ChoiceWalk { players }` asks each player of a
   group from the active player in turn order (CR 101.4, 608.2e), each answer kept as it is given
   (CR 101.4b). Built: one player, and each player for themselves; the registry refuses a walk
@@ -1450,10 +1451,11 @@ row's section of `handoffs/values-chosen-at-resolution.md`; the full as-built is
 - **A second name for a second choice of one kind** (`SecondPlayer`, `ThirdPlayer`,
   `ObjectsTheOthersChose`), and a player other than those an earlier name kept.
 - **Each step's list of what it reads** (`engine/choices_read.rs`, item 435): a step reading a
-  choice never made does not happen (CR 608.2b).
+  choice never made does not happen (CR 608.2b), and a "may" on one is not offered.
 - **A pick limited by a total**: `PickTotal` on a choose step's objects, asked as
   `SelectWithinATotal` with the limit read (`TotalLimit`) and each option's number; an answer
-  outside it is refused (`Rejection::TotalOutsideTheLimit`) and asked again.
+  outside it is refused (`Rejection::TotalOutsideTheLimit`) and asked again, and with no pick
+  inside it the choice is never made.
 - **Each player's own, all of them**: `PickCount::All` (`all_their`), for a sacrifice each
   player performs on their own (CR 701.21a).
 - **"It can't be regenerated"** is a mark on its destroy, that destruction only (item 14).
@@ -1464,7 +1466,7 @@ Where it differs from the note's words: Divine Reckoning and Gluntch are not reg
 and Treasure tokens are unbuilt, item 438), their rules on invented instants citing their rulings;
 "each player sacrifices all other" was missed by the note and is `PickCount::All`; the total's
 question shows `TotalLimit`'s two arms and "exactly" is refused (item 439). Filed: items 438 to
-440; 429 and 437 to `secret-choices-and-votes`.
+441; 429 and 437 to `secret-choices-and-votes`.
 
 ## 6. Found while designing
 

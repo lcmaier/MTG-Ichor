@@ -130,7 +130,8 @@ settled its thirteen decisions, is the second row's section of
   `ChoiceMade { kind, answers }` of `ChoiceAnswer { for_player, value }`, on
   `ResolvingObject::choices`. One chooser leaves one answer. A filter reads any answer ("of a
   type chosen this way" is an `Or` of them, "the rest" every answer's objects); a verb acts on
-  every answer's players or objects, each once; an amount reads exactly one and errs on several.
+  every answer's objects, each once, and a draw or a life loss on each player chosen; an amount,
+  a player word and a verb that takes one player read exactly one answer.
 - **The walk** (decision 2): `ChosenHow { walk, answered_by }`. `ChoiceWalk { players }` asks each
   player of a group still in the game, the active player first and then in turn order (CR 101.4,
   608.2e); one order, no `WalkOrder`. `AnsweredBy` is one player, each player for themselves, or
@@ -150,17 +151,22 @@ settled its thirteen decisions, is the second row's section of
   earlier name kept.
 - **Each step's list of what it reads** (item 435): `engine/choices_read.rs`, every match
   exhaustive, asked before a step acts. A step reading a choice never made does not happen (CR
-  608.2b): an "if you do" after it reads `Cant` and a "may" on it is declined. The registry's
-  read-after-keep test reads the same list; a definition that outlasts the resolution is still
+  608.2b): an "if you do" after a passed-over instruction reads `Cant`; a "may" on one, or on a
+  player never chosen, is not offered; and an "if" that cannot be read is false, leaving the
+  answer before it. A choose step reads its own count and total. Each read says whether it needs
+  the one answer, and one that follows a walk is refused by the registry's test and, for a card
+  it never saw, by the resolution before the verb acts. The registry reads the same list; a
+  definition that outlasts the resolution (a granted ability, a token's, a copy's exceptions) is
   scanned in its printed form.
 - **A pick limited by a total** (decision 12): `ValueChoice::Objects { among, count, total }`
   with `PickTotal { of, is }`. The question is `DecisionKind::SelectWithinATotal { source, of,
   limit, numbers }`: the limit read (`TotalLimit::AtMost` or `AtLeast`), and each option's number
   as the layers give it, by object. The engine refuses an answer outside the limit
   (`Rejection::TotalOutsideTheLimit`, naming the total) and asks again. `TotalLimit` decides
-  whether any pick is inside by the pick furthest inside it: none is nothing to choose, none but
-  the empty pick is not asked. The random agent keeps each option that leaves the pick inside;
-  the dev GUI shows each number and the running total and offers Done only inside the limit.
+  whether any pick is inside by the pick furthest inside it: none is a choice never made (CR
+  608.2d), none but the empty pick is not asked. The random agent keeps each option unless it
+  moves the pick outside the limit; the dev GUI shows each option's number and the running total
+  and offers Done only inside the limit.
 - **Each player's own, all of them**: `PickCount::All` on the edict's pick, written `all_their`.
   "Sacrifice [those]" is the effect's controller's (CR 701.21a), so "each player sacrifices all
   other creatures they control" is an edict with nothing to choose, in its one batch.
@@ -188,4 +194,8 @@ Where it differs from the note's words:
   is `one_of_the_chosen()` and `one_the_others_chose()` together, not one word.
 - **The prompt walk's fourth window** was re-picked (0xA4_0004): the registrations moved every
   window of the sorted registry.
-- Filed with their homes: items 438 to 440; 429 and 437 to `secret-choices-and-votes`.
+- **The pre-review's fixes**, each with a board that failed first: a life total takes an amount
+  past its range as its edge (Choice of Damnations' number has no top); the read list's gaps
+  above; a pick with nothing inside its limit; and a draw for each player chosen, where it drew
+  for one.
+- Filed with their homes: items 438 to 441; 429 and 437 to `secret-choices-and-votes`.

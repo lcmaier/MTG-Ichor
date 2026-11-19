@@ -1210,19 +1210,19 @@ Four cards written with them:
 // Harsh Mercy, its "can't be regenerated" a mark on the destroy
 // (decision 13)
 sequence([
-    choose_creature_type(each_player_chooses()),                      // the active player first, an answer each
+    choose_creature_type(each_player()),                      // the active player first, an answer each
     destroy(each(creature().and(non(creature_type(a_creature_type_chosen_this_way()))))).cant_be_regenerated(),
 ])
 
 // Divine Reckoning
 sequence([
-    choose_objects(each_player_chooses(), creature().and(they_control()), exactly(1)),
+    choose_objects(each_player(), creature().and(they_control()), exactly(1)),
     destroy(each(creature().and(non(chosen_this_way())))),            // the rest: every answer's
 ])
 
 // Menacing Ogre's trigger
 sequence([
-    choose_number_at_least(each_player_chooses(), 0).secretly(),
+    choose_number_at_least(each_player(), 0).secretly(),
     reveal_the_choices(ChoiceKind::Number),
     lose_life(each_player_who_answered(Number, Highest), the_highest_number_chosen()),
     Effect::Conditional(you_are_among(each_player_who_answered(Number, Highest)), Box::new(put_counters(this_object(), PlusOnePlusOne, 2))),
@@ -2054,7 +2054,7 @@ would not be the rules as intended.
 | State | Bound | Live or latched | Stored | Read by | Ends |
 |---|---|---|---|---|---|
 | a step's answers, each with its player | the kept choice opened empty as the step starts; each answer as it is given, in the walk's order (CR 608.2d, 101.4) | latched (CR 608.2h); objects by existence (`ObjectRef`, CR 400.7) | `ResolvingObject::choices`, one `ChoiceMade` per name | later steps, by any answer or a selection; the same step's later questions (CR 101.4b) | with the resolving record (CR 608.2n) |
-| the walk's group | as the walk reaches each player: the group read against the players still in the game then | live | not stored: `players_in` asked each time | the walk | at the step's end |
+| the walk's group | as the walk reaches each player: the group read against the players still in the game then | live | not stored: `players_in` asked once as the walk starts, and each player's place in the game read again as the walk reaches them | the walk | at the step's end |
 | the player an answer is for | as the walk reaches each player, or as a one-chooser step asks | live for that question only | the walk, a local of `choose_value` | the step's own filter ("they control") and options ("one of their piles") | at the next question |
 | a voter's number of votes | as the walk reaches the voter | read then, never kept (CR 701.38d) | not stored: one, until step 10's effective-value query answers it (decision 5) | the vote's question | at the next voter |
 | the secret mark | written on the card | fixed | the step, and each question it asks | step 8's stamp; the registry's test | — |
@@ -2244,7 +2244,9 @@ and each changes what the next two PRs can assume.
    701.21a). Built as the edict's shape with nothing to choose:
    `PickCount::All`, written `all_their(players, filter)`. A destroy needs
    none of this. Any "sacrifices the rest" in the next two PRs is written
-   the same way.
+   the same way until `resolution-recipients-and-amounts` builds a
+   sacrifice done once for each player, where the two spellings meet
+   (item 441, and a question put to the owner at #334's handover).
 3. **Decision 12's question shows `TotalLimit`, not `ValueIs`**: at most or
    at least a number, with its amount read. "Less than" is at most one
    fewer, and "exactly" is refused by the registry (item 439), since
@@ -2258,15 +2260,37 @@ and each changes what the next two PRs can assume.
    instructions keep under two names. `chosen_this_way()` is the word after
    a single walk, for the placeholder `one_of_the_chosen()` writes.
 
-**Sizes.** Estimated 1,270–2,100; 2,555 added by the band's count
-(`mtgsim/src` less the set files, and `mtgsim/tests`): code 1,452, tests
-1,103, with 202 lines of cards and 89 of the dev GUI beside it. About 150 of
-it is the destroy field's one-for-one edits at its sites, and 66 the prompt
-watcher moved to the tests' shared support. Past the band's top by 55
-lines, which the two unplanned pieces above (item 2's count and the total's
-two clients) account for. The second PR's 1,320–2,150 was counted the same
-way and should be read with its top as the floor.
+5. **The pre-review found what the note's sentences claimed and the build
+   had not done**, each fixed with a board before handover. An amount with
+   no top wrapped a life total. The read list missed a choose step's own
+   count, produced mana, and a token's and a copy's definitions; a step
+   passed over wrote an answer over the "may" before it; and a "may" on
+   one instruction that won't happen was still offered. "The chosen
+   number" after a walk was refused only as the spell resolved, so each
+   read now says whether it needs the one answer and the registry refuses
+   it. A pick with nothing inside its limit kept the empty pick, and is a
+   choice never made. And "each player chosen this way draws" drew for one
+   player: a draw and a life loss take each player chosen, and every
+   other player verb, which takes one, is refused after a walk.
+
+**Sizes.** Estimated 1,270–2,100; 3,027 added by the band's count
+(`mtgsim/src` less the set files, and `mtgsim/tests`): code 1,655, tests
+1,372, with 202 lines of cards and 122 of the dev GUI beside it. It was
+2,555 before the pre-review, whose fixes and boards are the rest. About
+150 is the destroy field's one-for-one edits at its sites, and 66 the
+prompt watcher moved to the tests' shared support. Past the band's top by
+527 lines, 1.44 times the estimate's top: the two unplanned pieces above
+(item 2's count and the total's two clients), the rule boards for the two
+cards that could not be registered, and item 5. The second PR's
+1,320–2,150 was counted the same way and should be read with its top as
+the floor.
 
 **The pooled card** is Slaughter the Strong (129 → 130), in Divine
 Reckoning's place: the walk, the total's question and each player's own
 sacrifice in one card.
+
+**What was filed.** Items 438 to 440 in `codebase-state.md`, and items 429
+and 437 re-slotted to `secret-choices-and-votes`. The rest of "Filed at the
+close-out" above names what the second and third PRs build or leave, so it
+stays in this note until the row's last PR, which files what is left and
+deletes the file.

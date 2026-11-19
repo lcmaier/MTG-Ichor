@@ -10919,10 +10919,11 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      error.** — ✅ closed. Each step's own words give the list of choices it
      reads (`engine/choices_read.rs`, every match exhaustive), asked before
      the step acts: a step reading a choice never made does not happen (CR
-     608.2b), an "if you do" after it reads `Cant`, and a "may" on it is
-     declined. The registry's read-after-keep test reads the same list in
-     place of a scan of the step's printed form. Its two boards failed
-     first. As filed: A choose step whose chooser is not there (a target that went
+     608.2b), an "if you do" after it reads `Cant`, a "may" on it is not
+     offered, and an "if" that cannot be read is false. The registry's
+     read-after-keep test reads the same list in place of a scan of the
+     step's printed form, and refuses a read of one answer after a walk.
+     Its boards failed first. As filed: A choose step whose chooser is not there (a target that went
      illegal while the spell still resolves, a player gone) chooses
      nothing, and CR 608.2b's "any part of the effect that requires that
      information won't happen" holds where the engine can tell: a verb on
@@ -11004,4 +11005,24 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      for one.
      **Sized:** ~100–160 lines: a choose step's categories, one question
      apiece or one over all, which its first card decides.
+     **Slotted:** `resolution-recipients-and-amounts`.
+
+441. **"Each player sacrifices all …" has two spellings coming.** It is
+     written as the edict's `Choice` with `PickCount::All` (`all_their`):
+     each player's own, all of them, nothing chosen. `resolution-recipients-and-amounts`
+     settled a body done once for each player as
+     `Effect::ForEach(Over::Players(..), body)`, decided for each player and
+     performed as one event, built first for a token body. A sacrifice
+     taught to decide per player there says the same thing, and the two
+     should be one. Printed (Scryfall, 2026-11-18): 25 cards say
+     "sacrifices all other" or "the rest", and 10 have a player other than
+     you "sacrifice all" of something. Two registered cards write
+     `all_their`: Slaughter the Strong and Choice of Damnations. One player
+     verb is in the same place: a verb that takes one player, handed the
+     several a walk chose, is refused (a draw and a life loss take each).
+     **Reachability (2026-11-18):** reachable, not wrong — both cards play
+     right; what is owed is one spelling.
+     **Sized:** ~30–60 lines once `ForEach` over players takes a sacrifice
+     body: two cards re-pointed and the arm deleted, or the reason both
+     stay written down.
      **Slotted:** `resolution-recipients-and-amounts`.

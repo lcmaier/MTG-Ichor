@@ -262,6 +262,22 @@ client checks its own answer and the engine checks it again. 300 s.
 21.1 / 19.9, creatures died 6.4 / 6.5, layer walks 333 / 362, memo hits 50,631 / 52,858,
 replacement gathers 977 / 905, restriction queries 991 / 916, decisions 187 / 219.
 
+**Rerun after the pre-review (2026-11-18)**, against **shipped** `d5ddbb34`, the arm above:
+**reviewed** `136ead7a`, seven commits: a life total saturating at an amount past its range; the
+read list's gaps (a choose step's count and total, produced mana, a passed-over "if", a "may"
+not offered) and its reads that need one answer; a pick with nothing inside its limit as a
+choice never made; a draw for each player a walk chose; and names. Predicted, in the PR body
+before either arm ran: every gameplay and counter row `IDENTICAL` on both pools at both seats,
+since no registered card names a number past twenty, reads a choice never made, asks "or
+greater" or acts on what a walk's several players chose; instructions a decision up by under
+half a point, each instruction's read list being built a second time.
+
+Every gameplay row **IDENTICAL** and every counter the same file, both pools at both seats;
+audit agreed (188,886 / 180,622 at two seats, 453,009 / 486,050 at four); instructions a
+decision 0.5937 M → 0.5938 M, **+0.02%**; growth ×3.94 to ×4.02; the copy check names nothing
+but the same two walks. The whole suite and the four release tests pass on the reviewed tree.
+177 s.
+
 **Re-recorded 2026-11-15 for `value-chosen-as-an-effect-resolves`, a value or objects chosen as an
 effect resolves, kept, and used** (`choices/value-chosen-as-an-effect-resolves`, PR #330, the first
 of `values-chosen-at-resolution`'s three: the choose step, items 425, 426 and 292, most of item
