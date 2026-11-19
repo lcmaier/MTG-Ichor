@@ -791,10 +791,13 @@ impl GameState {
                 (!candidates.is_empty()).then(|| ChosenValue::CardType(crate::decision::ask::ask_choose_card_type(dp, self, chooser, source, candidates)))
             }
             ValueChoice::Number { least, most } => {
-                if least > most {
-                    return Err(format!("{source:?} chooses a number between {least} and {most}, which is none"));
-                }
-                let values = XOffer::Interval { at_least: *least, at_most: *most };
+                let values = match most {
+                    Some(most) if least > most => {
+                        return Err(format!("{source:?} chooses a number between {least} and {most}, which is none"))
+                    }
+                    Some(most) => XOffer::Interval { at_least: *least, at_most: *most },
+                    None => XOffer::NoTop { at_least: *least },
+                };
                 Some(ChosenValue::Number(crate::decision::ask::ask_choose_number(dp, self, asked("a number")?, source, values)))
             }
             ValueChoice::Player(among) => {

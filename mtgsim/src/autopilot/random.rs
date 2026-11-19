@@ -160,6 +160,11 @@ struct WindowSeen {
     owed_at_first: ManaBag,
 }
 
+/// How far above its least this agent goes for a number with no most
+/// printed ("choose a number", CR 107.1b). Nothing in the game bounds one,
+/// and a draw over every number would never land on one a board can read.
+const REACH_PAST_AN_OPEN_NUMBERS_LEAST: u64 = 20;
+
 /// A decision provider that makes random legal choices.
 ///
 /// Designed for fuzz testing: run many games of Random vs Random to surface
@@ -371,10 +376,11 @@ impl DecisionProvider for RandomDecisionProvider {
 
         // Uniform over the range, which the engine bounds: CR 601.2b's X is
         // offered only as far as the payment can go (`oracle::x_values`).
-        // Guard against u64::MAX range causing overflow
-        if max == u64::MAX && min == 0 {
-            // Pick a small reasonable number to avoid degenerate behavior
-            return rng.random_range(0..=20);
+        // "Choose a number" with no most printed has no bound to give (CR
+        // 107.1b), so how far up to go is this agent's own: a number past
+        // the reach below is for an answerer that knows why it wants one.
+        if max == u64::MAX {
+            return rng.random_range(min..=min.saturating_add(REACH_PAST_AN_OPEN_NUMBERS_LEAST));
         }
         rng.random_range(min..=max)
     }
@@ -644,6 +650,19 @@ mod tests {
         let ctx = DecisionContext::new(DecisionKind::ChooseXValue { spell_id, values });
         let result = dp.pick_number(&game, 0, &ctx, 0, 10);
         assert!(result <= 10);
+    }
+
+    /// "Choose a number greater than 0", with no most: asked up to the
+    /// largest number there is, and answered within the agent's own reach
+    /// of its least, at every seed.
+    #[test]
+    fn a_number_with_no_most_is_drawn_within_the_agents_reach() {
+        let game = setup_basic_game();
+        let values = Box::new(crate::oracle::x_values::XOffer::NoTop { at_least: 1 });
+        let ctx = DecisionContext::new(DecisionKind::ChooseNumber { source: crate::types::ids::new_object_id(), values });
+        let drawn: Vec<u64> = (0..200).map(|seed| RandomDecisionProvider::seeded(seed).pick_number(&game, 0, &ctx, 1, u64::MAX)).collect();
+        assert!(drawn.iter().all(|n| (1..=1 + REACH_PAST_AN_OPEN_NUMBERS_LEAST).contains(n)), "{drawn:?}");
+        assert!(drawn.iter().any(|&n| n > 10), "the whole reach is drawn from: {drawn:?}");
     }
 
     #[test]

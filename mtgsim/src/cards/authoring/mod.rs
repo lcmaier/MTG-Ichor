@@ -34,7 +34,8 @@ pub use abilities::{
 };
 pub use instructions::{
     add_mana, add_phases, at_random, attach_to, becomes_a_blocked_creature, becomes_color, becomes_colorless, becomes_types, cant, cant_for,
-    choose_card_type, choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, copy, counter_spell,
+    choose_card_type, choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_number_at_least, choose_objects,
+    choose_player, copy, counter_spell,
     create_delayed_trigger, create_replacement, create_replacement_for, create_replacement_from_a_chosen_source, create_tokens, deal_damage,
     deal_damage_divided, deal_damage_unpreventable, destroy, discard, distribute_counters, draw_cards, exile, exile_until, gain_control_of,
     gain_life, gains_ability, gains_keyword, get_counters, gets, has_base_power_and_toughness, is_also_color, its_controller_adds, lose_life,

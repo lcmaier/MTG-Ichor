@@ -187,7 +187,9 @@ pub enum ValueChoice {
     /// "choose artifact or enchantment".
     CardType(Option<Vec<CardType>>),
     /// "Choose a number between 0 and 10": from `least` through `most`.
-    Number { least: u64, most: u64 },
+    /// "Choose a number", with none printed: from `least` up, with no most
+    /// (CR 107.1b: no number below zero, and nothing above).
+    Number { least: u64, most: Option<u64> },
     /// "Choose a player", "choose an opponent": one of the set still in the
     /// game, read against the controller (CR 109.5).
     Player(PlayerSet),

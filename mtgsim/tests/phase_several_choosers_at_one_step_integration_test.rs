@@ -11,13 +11,15 @@ use watching::Watching;
 
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::cards::authoring::{
-    choose_color, choose_number, choose_objects, color, creature, destroy, draw_cards, each, each_opponent, each_player, non,
-    one_of_the_chosen, spell_ability, target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, they_control, you,
+    choose_color, choose_number, choose_number_at_least, choose_objects, color, creature, destroy, draw_cards, each, each_opponent,
+    each_player, gain_life, non, one_of_the_chosen, spell_ability, target_opponent, the_chosen_color, the_chosen_number,
+    the_chosen_objects, they_control, you,
 };
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::oracle::x_values::XOffer;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, pass_turn, put_in_hand, put_on_battlefield, setup_game, test_ctx};
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
@@ -288,6 +290,37 @@ fn they_outside_a_choice_is_refused() {
     assert!(refused.contains("the player a choice is for"), "{refused}");
 }
 
+// ---------------------------------------------------------------------------
+// "Choose a number", with no most printed (CR 107.1b)
+// ---------------------------------------------------------------------------
+
+/// CR 107.1b — "you can't choose a negative number", and nothing bounds a
+/// number above. The question says it has no most, is asked from its least
+/// up to the largest number there is, and takes a number past any a board
+/// would suggest.
+#[test]
+fn a_number_with_no_most_is_asked_from_its_least_with_no_top() {
+    let mut game = at_the_turn_of(0, 2);
+    let card = instant(
+        "Any Number",
+        "Choose a number greater than 0. You gain that much life.",
+        Effect::Sequence(vec![choose_number_at_least(you(), 1), gain_life(you(), the_chosen_number())]),
+    );
+    cast_paying(&mut game, card, &[(ManaType::Blue, 1)]);
+    let life = game.players[0].life_total;
+
+    let answers = ScriptedDecisionProvider::new();
+    let no_top = XOffer::NoTop { at_least: 1 };
+    answers.expect_number(DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(no_top.clone()) }, 37);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+
+    let asked = asked.of_numbers.borrow();
+    let [(0, DecisionKind::ChooseNumber { values, .. }, 1, u64::MAX)] = asked.as_slice() else { panic!("one number, from 1 up: {asked:?}") };
+    assert_eq!(**values, no_top, "the question says there is no most");
+    assert_eq!(game.players[0].life_total, life + 37);
+}
+
 /// An amount reads exactly one answer. "That many" after several players
 /// each chose a number names none of them, so the card must say which, and
 /// one that does not is refused as it resolves.
@@ -303,7 +336,7 @@ fn the_chosen_number_after_several_answers_is_refused() {
 
     let answers = ScriptedDecisionProvider::new();
     for number in [1, 2] {
-        let any = mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 3 };
+        let any = XOffer::Interval { at_least: 0, at_most: 3 };
         answers.expect_number(DecisionKind::ChooseNumber { source: ObjectId::UNASSIGNED, values: Box::new(any) }, number);
     }
     let refused = game.resolve_top_of_stack(&answers).expect_err("two numbers, and a reader of one");

@@ -1852,6 +1852,19 @@ mod tests {
         assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Number(5))));
     }
 
+    /// "Choose a number" with no most printed is asked up to the largest
+    /// number there is: the field has no top, and takes what is typed.
+    #[test]
+    fn a_number_with_no_most_takes_any_number_typed() {
+        let b = board();
+        let mut state = deciding(&b, prompt(Primitive::Number { min: 1, max: u64::MAX }, Vec::new()));
+        let field = state.prompt_view().unwrap().number.unwrap();
+        assert_eq!((field.min, field.max, field.value), (1, u64::MAX, 1), "from its least, with no top");
+        state.input(Input::Number(0));
+        state.input(Input::Number(1_000));
+        assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Number(1_000))));
+    }
+
     #[test]
     fn a_click_the_window_offers_always_moves_the_answer_along() {
         let b = board();

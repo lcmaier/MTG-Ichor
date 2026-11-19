@@ -335,7 +335,13 @@ pub fn choose_card_type_among(chooser: impl Into<ChosenHow>, printed: impl IntoI
 
 /// "[Chooser] chooses a number between [least] and [most]".
 pub fn choose_number(chooser: impl Into<ChosenHow>, least: u64, most: u64) -> Effect {
-    choose_step(chooser, ValueChoice::Number { least, most })
+    choose_step(chooser, ValueChoice::Number { least, most: Some(most) })
+}
+
+/// "[Chooser] chooses a number", "a number greater than 0": any number from
+/// `least` up, with no most (CR 107.1b).
+pub fn choose_number_at_least(chooser: impl Into<ChosenHow>, least: u64) -> Effect {
+    choose_step(chooser, ValueChoice::Number { least, most: None })
 }
 
 /// "[Chooser] chooses a player", "an opponent": one of `among`, read

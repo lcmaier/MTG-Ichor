@@ -716,6 +716,13 @@ fn pick_from_offer(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId
             validate_pick_n(&index, &options, (1, 1), asking, game, player, ctx);
             values[index[0]]
         }
+        // No most: the question's kind says so, and the range asked ends at
+        // the largest number there is. How far up to go is the answerer's.
+        XOffer::NoTop { at_least } => {
+            let value = dp.pick_number(game, player, ctx, at_least, u64::MAX);
+            validate_pick_number(value, at_least, u64::MAX, asking, game, player, ctx);
+            value
+        }
     }
 }
 
