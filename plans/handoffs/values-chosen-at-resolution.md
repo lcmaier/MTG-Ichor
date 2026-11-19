@@ -888,6 +888,17 @@ shape (decisions 2 and 4, and Gluntch's exclusion).
   12; and decision 13, "can't be regenerated" as an effect before the
   destroy or a mark on it.
 
+**At design review round 3 (the owner, 2026-11-18): every decision is
+taken, and the build starts.**
+
+- **Decision 5: (a).** A voter's count of votes, and Brago's
+  Representative with it, wait for `player-scoped-values` at step 10.
+- **Decision 12: A.** The pick carries its limit and the question shows
+  it.
+- **Decision 13: A, in the first PR.** "It's definitely that destruction
+  only": the other reading "wouldn't be 'Rules as Intended' anyway". The
+  clause is a mark on its destroy.
+
 ## Where this row sits
 
 Still inside one stack object's resolution, the RESOLVE step of
@@ -1196,12 +1207,11 @@ DecisionOption::Pile(Vec<ObjectId>)
 Four cards written with them:
 
 ```rust
-// Harsh Mercy, its "can't be regenerated" ahead of the destroy as
-// Plague Spores writes it (the round's note on a rider is below)
+// Harsh Mercy, its "can't be regenerated" a mark on the destroy
+// (decision 13)
 sequence([
     choose_creature_type(each_player_chooses()),                      // the active player first, an answer each
-    cant_regenerate(each(creature().and(non(creature_type(a_creature_type_chosen_this_way()))))),
-    destroy(each(creature().and(non(creature_type(a_creature_type_chosen_this_way()))))),
+    destroy(each(creature().and(non(creature_type(a_creature_type_chosen_this_way()))))).cant_be_regenerated(),
 ])
 
 // Divine Reckoning
@@ -1571,8 +1581,9 @@ size and player hexproof are its first readers.
   moves. About 70–110 more in the second PR, with the `allocate` ask and
   Brago's Representative registered.
 
-**Recommended: (a); the owner leans to it** (design review round 2,
-2026-11-18), pending the walk's plain telling in that round's reply.
+**Settled: A, with (a) for the count** (the owner, design review round 3,
+2026-11-18: "fine with dividing and conquering, let's leave it for step
+10").
 "Whenever players finish voting" (three cards) is a trigger event, and Illusion of Choice's "you choose how each player votes"
 is a change to `answered_by`; both are filed below.
 
@@ -1746,8 +1757,9 @@ and the first row came to 2,876 against 1,290–2,130.
 | Gluntch's three different players, Fortunate Few's two steps and exclusion | 30–50 | 30–50 | 1 |
 | Harsh Mercy, Divine Reckoning, Fortunate Few, Gluntch, Choice of Damnations registered | 150–250 | 200–300 | 1 |
 | Decision 12: a pick limited by a total, shown on its question; Slaughter the Strong registered | 110–180 | 60–100 | 1 |
+| Decision 13: "can't be regenerated" as a mark on its destroy, Plague Spores moved onto it | 40–70 | 30–50 | 1 |
 | The dev GUI's tests | 20–40 | 10–30 | 1 |
-| **The first PR** | **680–1,130** | **520–850** | **1,200–1,980** |
+| **The first PR** | **720–1,200** | **550–900** | **1,270–2,100** |
 | Decision 7: the mark, the reveal, the label with item 437's words | 120–190 | 60–100 | 2 |
 | Decision 6: the word as text, `ChooseWord` through every client | 90–150 | 60–100 | 2 |
 | Decision 4: `AnswerSelection`, the group, the count, the number, the conditions | 90–150 | 70–120 | 2 |
@@ -1761,10 +1773,7 @@ and the first row came to 2,876 against 1,290–2,130.
 | Do or Die, Make an Example, Whims of the Fates registered | 90–150 | 120–180 | 3 |
 | **The third PR** | **330–530** | **280–450** | **610–980** |
 
-One piece waits on the owner and sits outside the table: decision 13's A
-would add 40–70 and 30–50 to the first PR.
-
-**3,130–5,110 for the row**, so about 5,100 read by its top, against the
+**3,200–5,230 for the row**, so about 5,200 read by its top, against the
 brief's 1,160–1,880 (the Sizing row's 1,000–1,600 with items 435 and 437),
 with the secret mark not counted there. The guess counted the 16 "each
 player chooses" values; the census finds 59 such cards and 41 walks from a
@@ -1968,8 +1977,9 @@ wrong.
 - **C. Offer each legal set as an option**, as a mode's sets are. Two to
   the power of the creatures a player controls.
 
-**Recommended: A.** Its clients are a person at the four-seat GUI and an
-AI client; the dev GUI and the random agent serve it now.
+**Settled: A** (the owner, design review round 3, 2026-11-18). Its
+clients are a person at the four-seat GUI and an AI client; the dev GUI
+and the random agent serve it now.
 
 ### Decision 13 — "can't be regenerated": an effect before the destroy, or a mark on it
 
@@ -2035,8 +2045,9 @@ tests. Later, the same plus each card written on the old shape meanwhile
   shared helper. *Code*: about 10. The mark stays an open question on an
   item.
 
-**Recommended: A**, on the reading that the clause belongs to its destroy;
-it is the owner's reading to make.
+**Settled: A, in the first PR** (the owner, design review round 3,
+2026-11-18): the clause belongs to its destroy, and the lasting readings
+would not be the rules as intended.
 
 ## The binding table
 
@@ -2077,20 +2088,13 @@ it is the owner's reading to make.
   Helping Hand, is found by `o:/choose (a|an) (second|third|different)
   (player|opponent)/` and not read here); it stays, one card being no
   reason to leave it out (the owner, round 1).
-- **"Can't be regenerated" keeps Plague Spores' shape, as a shared
-  helper.** Harsh Mercy and Do or Die print it. Today it is a closure
-  inside Plague Spores' own card function (`cards/sets/2000/10_02_inv.rs:78`):
-  a "can't" on the permanents until end of turn, written ahead of the
-  destroy. It is a step and not a rider on the destroy for two reasons. CR
-  701.19c makes it a "can't" ("they cause regeneration shields to not be
-  applied"), which the engine asks before any replacement effect (CR
-  614.17, `engine/replacement/gather.rs:705`), so it has to exist before
-  the destroy is proposed. And for a targeted destroy the "can't" step is
-  the one that announces the target, the destroy naming it back by its
-  place (`that_target(0)`), which a rider written on the destroy could not
-  number. The first PR lifts the closure into `cards::authoring` under one
-  name. Whether it should instead be a mark on the destroy itself is put
-  to the owner at round 1 and filed, not built here.
+- **"Can't be regenerated" is decision 13's mark**, settled at round 3.
+  Before it, the clause was a closure inside Plague Spores' own card
+  function (`cards/sets/2000/10_02_inv.rs:78`): a "can't" on the
+  permanents until end of turn, written ahead of the destroy because the
+  engine asks a "can't" before any replacement effect (CR 614.17,
+  `engine/replacement/gather.rs:705`) and because the "can't" step was the
+  one announcing the target.
 - **Fortunate Few's "that hasn't been chosen this way"** is the second
   step's own filter: not your pick (the first step's name) and not one the
   walk has been given so far (`non(chosen_this_way())`), read each time the

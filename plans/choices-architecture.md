@@ -1021,7 +1021,9 @@ division.
 | **`pay-as-an-effect-resolves` — a cost paid as an effect resolves**, the first of `costs-and-choices-at-resolution`'s two | decision 4: `Pay`, the window at resolution, an amount chosen as it is paid, "any player may", ward; item 418's two comments | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~1,350–2,100 with its tests, by the brief | |
 | **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted; built on Final Showdown and Feast of the Victorious Dead | 450 measured (−290), the row's rest sized ~600–950 with its tests | 621 measured |
 | **`value-chosen-as-an-effect-resolves` — a value or objects chosen as an effect resolves, kept, and used**, the first of `values-chosen-at-resolution`'s three | the choose step and its kept list (items 425 and 426); decision 7's kinds for a color, a creature type, a card type and a number, with `ChoosePlayer`; one filter for a number compared (most of item 394); a player verb whose player is gone (item 292) | Expel the Interlopers, pooled; Wash Out, Kindred Dominance, World Queller, Duneblast, The Nipton Lottery, By Invitation Only and Combat Tutorial registered; four invented fixtures for what no printed card's whole text gives | 1,387 measured, sized 755–1,220 | 1,489 measured, sized 535–910 |
-| **`several-choosers-at-one-step` — votes, piles and a value each player chooses**, the second | the vote (701.38) and its starting seat, piles (700.3), a value each player or each opponent chooses (CR 608.2e) and its readers, the word kind, a choice excluding an earlier one's pick, an open "choose a number" | Selvala's Stampede once its rows land; fixtures | a guess of 1,000–1,600 with its tests | |
+| **`several-choosers-at-one-step` — a choice each player makes, and its answers**, the second | the walk around the table from the active player (CR 101.4, 608.2e) and each answer kept with its player; "they" in a choice's filter; a pick limited by a total; an open "choose a number"; a choice excluding an earlier one's pick; each step's list of the choices it reads (item 435); "can't be regenerated" as a mark on its destroy | Slaughter the Strong, a deck card; Harsh Mercy, Divine Reckoning, Fortunate Few, Gluntch, Choice of Damnations | 720–1,200 | 550–900 |
+| **`secret-choices-and-votes` — a secret choice, a word, and the vote**, split from it | the secret mark and its reveal, with a label on every choose question (item 437); a word with no rules meaning; the readers of several answers (who gave one, how many, the highest, the most chosen); the vote (CR 701.38) from a named player | Menacing Ogre, v0.5's secret choice; Prisoner's Dilemma, Plea for Power, Council's Judgment, Lieutenants of the Guard | 720–1,180 | 600–970 |
+| **`separate-into-piles` — piles**, split from it | piles (CR 700.3): separate, then choose one; each player's own piles; three piles | Do or Die, Make an Example, Whims of the Fates | 330–530 | 280–450 |
 | **`values-kept-past-the-resolution` — a chosen value in an effect that outlasts the resolution**, the third | an effect made with the value it read (a "can't", a requirement, a later trigger), a change's own parameter from a choice and the inline ones, the basic land type, keyword and card name kinds | The Black Gate, Akroma's Blessing, Linvala as fixtures or cards, at its brief | a guess of 1,200–2,000 with its tests, which may split | |
 
 **The estimates run low, so read them against the first PR's.** #306's
@@ -1065,6 +1067,17 @@ printed card can use as the effect resolves; the second is several choosers
 at one step, the vote's walk; the third is a value that has to outlive the
 resolution, with the three kinds read only that way (a basic land type, a
 keyword, a card name). The subsystem closes with the third.
+
+**`several-choosers-at-one-step` split in three at its design stop** (the
+owner, 2026-11-18, #334). Its note, the second row's section of the same
+handoff, counted 59 cards where each player chooses, 41 walks from a named
+player, 33 votes and 27 pile cards against the guess's 16, and came to
+3,200–5,230 piece by piece. The first PR is the walk and what it keeps;
+`secret-choices-and-votes` is every reader of several answers with the
+secret mark and the vote, which share their printed cards; and
+`separate-into-piles` is CR 700.3, under the band and whole. A voter's
+several votes (CR 701.38d) wait for `player-scoped-values`, and CR 800.4f–h
+stay with `multiplayer-rules`.
 
 **`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
 (the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's

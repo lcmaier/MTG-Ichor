@@ -757,7 +757,9 @@ name for, and a phase of the critical path that no Row cell names.
 | 5 | `value-chosen-as-an-effect-resolves`, the first of `values-chosen-at-resolution` | ✅ 2026-11-15 (PR #330) | 1 | no, #330 | split | Design: the row's 1,010–1,570 at 1.7× was 1,700–2,700; split in three at its design stop (2026-11-15), this PR 1,290–2,130 by its note's piece count. Measured as merged at 2,876 added, 3,500 touched, past the band's top with the reviews' tests: code 1,387, tests 1,489, and 1,119 lines of cards beside the band |
 | 5 | `information-model-design` | ✅ 2026-11-17 (PR #332) | 1 | it is one | no | Nearest: #306 and #266, one PR each, with item 357's `ui/` decision in it. Moved up from step 8 (the owner, 2026-11-15) |
 | 5 | `ui-in-three` | ✅ 2026-11-17 (PR #333) | 1 | no, #332 | no | Design: decision 9 of `plans/handoffs/information-model-design.md`. Moves alone, so zero in the band: three modules and about 176 files' import paths, each moved item shown byte for byte |
-| 5 | `several-choosers-at-one-step`, the second | | 1 | no | may | Guess: 1,000–1,600, from the design table's share for the vote and piles plus the 16 "each player chooses" cards and the word kind |
+| 5 | `several-choosers-at-one-step`, the second | | 1 | no, #334 | split | Design: the row's guess of 1,000–1,600 came to 3,200–5,230 counted piece by piece at its design stop, where the census found 59 "each player chooses" cards for the guess's 16; split in three (2026-11-18), this PR 1,270–2,100 by its note's count: the walk and its answers, with Slaughter the Strong |
+| 5 | `secret-choices-and-votes`, split from it | | 1 | no, #334 | no | Design: 1,320–2,150 by the same count: the secret mark and its reveal, a word, the readers of several answers, the vote |
+| 5 | `separate-into-piles`, split from it | | 1 | no, #334 | no | Design: 610–980 by the same count: piles (CR 700.3), under the band and whole |
 | 5 | `values-kept-past-the-resolution`, the third | | 1–2 | no | may | Guess: 1,200–2,000, about 130 printed cards across the write-in, a change's parameter and three kinds; it may split at its brief |
 | 5 | `fork-test-at-every-decision` | | 1–2 | no | may | Nearest: #159's fork test, one PR. A second if the fork does not separate from the paused game, which `setup-architecture.md#7e-pausing-at-a-decision` calls one consumer's two halves |
 | 6 | `card-and-object-model`, the design | | 1 | it is one | no | Nearest: #306. Moved up from step 9 (the owner, 2026-11-15, #330) |
@@ -801,13 +803,15 @@ name for, and a phase of the critical path that no Row cell names.
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-17:** 75–135 route PRs left, 15–40 of them
-the decks' cards and gaps. (Read 2026-11-06 it was 73–138: seven route PRs landed
-since, and three rows split.)
+**What the rows sum to, read 2026-11-18:** 75–135 route PRs left, 15–40 of them
+the decks' cards and gaps. (The board read 73–133 the day before:
+`several-choosers-at-one-step` split in three since. Read 2026-11-06 it was
+73–138.)
 
-**The forecast: each step's range at that reading**, at #330's design stop, when
-step 5 passed its 9–13 as `values-chosen-at-resolution` split in three, the rows
-landed by then at what they took. The table above moves as rows split, land and
+**The forecast: each step's range at that reading**, at #334's design stop, when
+step 5 passed its 14–16 as `several-choosers-at-one-step` split in three, the rows
+landed by then at what they took. (It was last read at #330's design stop, when
+step 5 passed its 9–13 as `values-chosen-at-resolution` split in three.) The table above moves as rows split, land and
 are re-sized; this one stays, so the board can say when a step has passed what
 the date below was computed from. A landed row's PR cell is what it took. A step
 is past its forecast once what it took and the least it has left come to more
@@ -822,10 +826,10 @@ and the date below with it.
 | 2 | 2 |
 | 3 | 5 |
 | 4 | 1 |
-| 5 | 14–16 |
+| 5 | 18–20 |
 | 6 | 4–5 |
 | 7 | 7–9 |
-| 8 | 4–7 |
+| 8 | 5–6 |
 | 9 | 7–14 |
 | 10 | 3–6 |
 | 11 | 9–14 |
