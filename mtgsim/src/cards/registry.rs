@@ -2129,8 +2129,9 @@ mod instance_references {
     #[test]
     fn a_chosen_name_read_out_of_place_is_refused() {
         use crate::cards::authoring::{
-            add_mana, choose_color, choose_number, choose_objects, choose_one, color, create_tokens, creature, destroy, draw_cards, each,
-            each_player, gains_ability, non, one_of_the_chosen, spell_ability, the_chosen_color, the_chosen_number, the_chosen_objects, you,
+            add_mana, choose_color, choose_number, choose_objects, choose_one, choose_player, color, create_tokens, creature, destroy,
+            draw_cards, each, each_player, gain_life, gains_ability, non, one_of_the_chosen, spell_ability, the_chosen_color,
+            the_chosen_number, the_chosen_objects, the_chosen_player, you,
         };
         use crate::types::effects::{
             AmountExpr, AnsweredBy, ChoiceKind, ChoiceWalk, ChosenHow, ManaOutput, ObjectValue, PickTotal, PlayerGroup, PlayerRef, PlayerSet,
@@ -2212,6 +2213,12 @@ mod instance_references {
         let that_many = || draw_cards(you(), the_chosen_number());
         assert!(problems(Effect::Sequence(vec![choose_number(you(), 0, 3), that_many()])).is_empty(), "one chooser's number");
         assert_eq!(problems(Effect::Sequence(vec![choose_number(each_player(), 0, 3), that_many()])).len(), 1, "that many, of each player's");
+        // A verb that takes one player is the same; a draw takes each.
+        let each_names_a_player = || choose_player(each_player(), PlayerSet::Everyone);
+        let gains = Effect::Sequence(vec![each_names_a_player(), gain_life(the_chosen_player(), 1)]);
+        assert_eq!(problems(gains).len(), 1, "one player's verb, on each player chosen");
+        let draws = Effect::Sequence(vec![each_names_a_player(), draw_cards(the_chosen_player(), 1)]);
+        assert!(problems(draws).is_empty(), "each player chosen this way draws");
 
         // An amount inside produced mana is read, and a token's own ability
         // outlasts the step that makes it.

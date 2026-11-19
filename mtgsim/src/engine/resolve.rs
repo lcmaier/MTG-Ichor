@@ -403,8 +403,13 @@ impl GameState {
             return Ok(());
         }
         // Every atom takes its action, which is CR 118.12's "started to pay"
-        // for the clause after it.
-        if let Effect::Atom(..) = effect {
+        // for the clause after it. One whose words need the one answer says
+        // so before it acts, where a walk left several: the registry's test
+        // refuses such a card, and this is that refusal for one it never saw.
+        if let Effect::Atom(primitive, recipient) = effect {
+            for kind in crate::engine::choices_read::atom_reads(primitive, recipient).kinds_needing_one_answer() {
+                self.the_one_answer_kept_as(kind, ctx)?;
+            }
             walk.last_cost_answer = Some(CostAnswer::Does);
         }
         match effect {
@@ -4038,15 +4043,16 @@ impl GameState {
     }
 
     /// The players a player verb acts on: each of an `EachOf` group, which
-    /// `players_in` put in the targets in APNAP order, or else the one the
-    /// recipient names, if it names one.
+    /// `players_in` put in the targets in APNAP order; each player a choose
+    /// step's answers chose ("each player chosen this way"), once and while
+    /// in the game; or else the one the recipient names, if it names one.
     fn each_player_acted_on(&self, recipient: &EffectRecipient, targets: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Vec<PlayerId> {
         match recipient {
-            EffectRecipient::EachOf(_) => targets
+            EffectRecipient::EachOf(_) | EffectRecipient::ChosenAs(_) => targets
                 .iter()
                 .filter_map(|t| match t {
-                    ObjectOrPlayerId::Player(pid) => Some(*pid),
-                    ObjectOrPlayerId::Object(_) => None,
+                    ObjectOrPlayerId::Player(pid) if self.in_game(*pid) => Some(*pid),
+                    ObjectOrPlayerId::Player(_) | ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
             _ => self.player_acted_on(recipient, targets, ctx).into_iter().collect(),

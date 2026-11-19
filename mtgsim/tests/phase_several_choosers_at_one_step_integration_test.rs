@@ -815,6 +815,59 @@ fn a_total_less_than_a_number_is_at_most_one_fewer() {
 }
 
 // ---------------------------------------------------------------------------
+// A verb on what several players chose
+// ---------------------------------------------------------------------------
+
+/// "Destroy each creature chosen this way": the verb acts on every answer's
+/// objects, each once. Two players choose the same creature, and it is
+/// destroyed in one event beside the third player's.
+#[test]
+fn a_verb_acts_once_on_what_two_players_both_chose() {
+    let mut game = at_the_turn_of(0, 3);
+    game.record_events();
+    let [shared, other, spared] = [(); 3].map(|_| put_on_battlefield(&mut game, creature_of_color("A Bear", Color::Green), 2));
+    let card = instant(
+        "Marked Apiece",
+        "Each player chooses a creature. Destroy each creature chosen this way.",
+        Effect::Sequence(vec![choose_objects(each_player(), creature(), TargetCount::Exactly(1)), destroy(the_chosen_objects())]),
+    );
+    cast_paying(&mut game, card, &[(ManaType::Blue, 1)]);
+
+    let answers = ScriptedDecisionProvider::new();
+    for chosen in [shared, shared, other] {
+        picks(&answers, vec![DecisionOption::Object(chosen)]);
+    }
+    game.resolve_top_of_stack(&answers).expect("it resolves");
+
+    let destroyed: Vec<ObjectId> = moved_by(&game, ZoneChangeAct::Destroyed).into_iter().map(|(id, _)| id).collect();
+    assert_eq!(destroyed, [shared, other], "the creature two players chose is destroyed once");
+    assert!(game.battlefield.contains_key(&spared));
+}
+
+/// The same for players: "each player chosen this way draws a card" is one
+/// card for a player two of them chose.
+#[test]
+fn each_chosen_player_acts_once_however_many_chose_them() {
+    let mut game = at_the_turn_of(0, 3);
+    let card = instant(
+        "Named Apiece",
+        "Each player chooses a player. Each player chosen this way draws a card.",
+        Effect::Sequence(vec![choose_player(each_player(), PlayerSet::Everyone), draw_cards(the_chosen_player(), 1)]),
+    );
+    cast_paying(&mut game, card, &[(ManaType::Blue, 1)]);
+    let hands = [0, 1, 2].map(|seat: usize| game.players[seat].hand.len());
+
+    let answers = ScriptedDecisionProvider::new();
+    for chosen in [1, 1, 0] {
+        answers.expect_choice(DecisionKind::ChoosePlayer { source: ObjectId::UNASSIGNED }, vec![DecisionOption::Player(chosen)]);
+    }
+    game.resolve_top_of_stack(&answers).expect("it resolves");
+
+    let drawn = [0, 1, 2].map(|seat: usize| game.players[seat].hand.len() - hands[seat]);
+    assert_eq!(drawn, [1, 1, 0], "player 1 was chosen twice and draws once");
+}
+
+// ---------------------------------------------------------------------------
 // The cards
 // ---------------------------------------------------------------------------
 

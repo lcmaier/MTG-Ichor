@@ -90,8 +90,23 @@ fn all<T>(nodes: impl IntoIterator<Item = T>, reads: impl Fn(T) -> ChoicesRead) 
 }
 
 /// What one instruction reads: its verb's own words, and what it acts on.
+/// A player verb that takes one player reads the one chosen; a draw and a
+/// life loss take each player a walk's answers chose.
 pub fn atom_reads(primitive: &Primitive, recipient: &EffectRecipient) -> ChoicesRead {
-    primitive_reads(primitive) | recipient_reads(recipient)
+    let acted_on = match recipient {
+        EffectRecipient::ChosenAs(kind) if kind.is_a_player() && !acts_on_each_player(primitive) => {
+            recipient_reads(recipient).each_needing_one_answer()
+        }
+        _ => recipient_reads(recipient),
+    };
+    primitive_reads(primitive) | acted_on
+}
+
+/// Whether the verb acts on every player it is handed ("each opponent
+/// loses 1 life", "each player chosen this way draws a card"), where every
+/// other player verb takes the one.
+pub fn acts_on_each_player(primitive: &Primitive) -> bool {
+    matches!(primitive, Primitive::DrawCards(_) | Primitive::LoseLife(_))
 }
 
 /// The amounts a choose step reads before it asks: how many it chooses,
