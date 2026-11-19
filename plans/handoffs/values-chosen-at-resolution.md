@@ -2099,7 +2099,10 @@ would not be the rules as intended.
   step's own filter: not your pick (the first step's name) and not one the
   walk has been given so far (`non(chosen_this_way())`), read each time the
   walk reaches a player, since each answer is kept as it is given.
-- **Divine Reckoning's flashback** is `AlternativeCost::Flashback`, built.
+- **Divine Reckoning's flashback** was called built here, and is not:
+  `AlternativeCost::Flashback` is an arm no cast reads, and the cast from a
+  graveyard is `casting-from-other-zones`'. Found at the build; see "The
+  first PR as built".
 - **Choice of Damnations' "all but that many"**: the target opponent
   chooses that many permanents they control and sacrifices the rest, its
   ruling's reading, with the open number (decision 8) and "if you don't".
@@ -2113,9 +2116,9 @@ piece each needs.
 | PR | Card | First printing | What it proves |
 |---|---|---|---|
 | 1 | Harsh Mercy | Onslaught, `2002/10_07_ons.rs` | a value from each player, read as any answer |
-| 1 | Divine Reckoning | Innistrad, `2011/09_30_isd.rs` | objects relative to the chooser, "the rest" |
+| not yet | Divine Reckoning | Innistrad, `2011/09_30_isd.rs`, with `casting-from-other-zones` (item 438) | objects relative to the chooser, "the rest": proven in the first PR on an invented instant that cites its ruling |
 | 1 | Fortunate Few | Commander 2017, `2017/08_25_c17.rs` | two instructions, you and then each other player; an exclusion read from the walk's answers so far |
-| 1 | Gluntch, the Bestower | Battle for Baldur's Gate, a new `2022/06_10_clb.rs` | three different players chosen one at a time |
+| not yet | Gluntch, the Bestower | Battle for Baldur's Gate, a new `2022/06_10_clb.rs`, with `any-color-plus-painlands-plus-signets` (item 438) | three different players chosen one at a time: proven in the first PR on an invented instant that cites its rulings |
 | 1 | Choice of Damnations | Saviors of Kamigawa, a new `2005/06_03_sok.rs` | an open number, chosen by a target opponent |
 | 1 | Slaughter the Strong | Rivals of Ixalan, `2018/01_19_rix.rs` (its promo printing, PRIX, is the same day) | a deck card: the walk, "they control", "the rest", and a pick limited by its total |
 | 2 | Prisoner's Dilemma | Murders at Karlov Manor Commander, a new `2024/02_09_mkc.rs` | secret words from each opponent, the players who gave an answer, every answer one |
@@ -2209,3 +2212,61 @@ dumps will name game by game. The branch moves with its cards.
   filed as an item with its first card; a target's total is checked as it
   is announced (CR 601.2c), and how CR 608.2b reads it is that item's
   question.
+
+## The first PR as built, and where to resume
+
+**`several-choosers-at-one-step` landed as #334** (2026-11-18): decisions 1,
+2 (the active player starting; one player, and each player for themselves),
+3, 8, 12 and 13, item 435, and the second names. Its stub is in
+`choices-architecture.md` §5 and its record in
+`archive/choices-architecture-landed.md`.
+
+**Resume at `secret-choices-and-votes`**, the second PR: decisions 4, 5, 6
+and 7, decision 2's named starting player and one player answering for
+each, items 429 and 437, and Menacing Ogre for v0.5. Then
+`separate-into-piles`, decision 9 and decision 2's at random for each. Read
+this section first: four things in the note above were wrong or missing,
+and each changes what the next two PRs can assume.
+
+1. **Two of the six cards could not be registered** (item 438). The note's
+   "read against the tree for every piece each needs" missed that Divine
+   Reckoning's flashback is an arm no cast reads, and that Gluntch's
+   Treasure tokens need "add one mana of any color". Each card's rule is on
+   an invented instant in
+   `phase_several_choosers_at_one_step_integration_test` that cites its
+   rulings ("One Apiece", "Three Favors"). **Before the second PR names its
+   cards, cast each from a hand in a scratch test**: Menacing Ogre,
+   Prisoner's Dilemma, Plea for Power, Council's Judgment and Lieutenants
+   of the Guard were checked the same way this note checked these six.
+2. **"Each player sacrifices all other creatures they control" was not
+   designed.** The note wrote "the rest" as a filter under a sacrifice, and
+   a sacrifice of a named permanent is the effect's controller's alone (CR
+   701.21a). Built as the edict's shape with nothing to choose:
+   `PickCount::All`, written `all_their(players, filter)`. A destroy needs
+   none of this. Any "sacrifices the rest" in the next two PRs is written
+   the same way.
+3. **Decision 12's question shows `TotalLimit`, not `ValueIs`**: at most or
+   at least a number, with its amount read. "Less than" is at most one
+   fewer, and "exactly" is refused by the registry (item 439), since
+   whether any pick adds up to one number is a search over subsets and the
+   other two are decided by the pick furthest inside the limit. The
+   question is its own kind, `SelectWithinATotal`: `SelectRecipients` is
+   built at 83 sites. A question whose one legal answer is the empty pick
+   is not asked.
+4. **Fortunate Few's "hasn't been chosen this way" is two words**,
+   `one_of_the_chosen()` and `one_the_others_chose()`, since its two
+   instructions keep under two names. `chosen_this_way()` is the word after
+   a single walk, for the placeholder `one_of_the_chosen()` writes.
+
+**Sizes.** Estimated 1,270–2,100; 2,555 added by the band's count
+(`mtgsim/src` less the set files, and `mtgsim/tests`): code 1,452, tests
+1,103, with 202 lines of cards and 89 of the dev GUI beside it. About 150 of
+it is the destroy field's one-for-one edits at its sites, and 66 the prompt
+watcher moved to the tests' shared support. Past the band's top by 55
+lines, which the two unplanned pieces above (item 2's count and the total's
+two clients) account for. The second PR's 1,320–2,150 was counted the same
+way and should be read with its top as the floor.
+
+**The pooled card** is Slaughter the Strong (129 → 130), in Divine
+Reckoning's place: the walk, the total's question and each player's own
+sacrifice in one card.

@@ -884,7 +884,20 @@ built, and none of it blocks RC-1 through RC-3.
     **Reachability (2026-10-09):** closed — PR #238.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 13".
 
-14. **A duration CR 608.2c does not give it — the scope is too *broad*.**
+14. **A duration CR 608.2c does not give it — the scope is too *broad*.** — ✅
+    closed by `several-choosers-at-one-step` (2026-11-18, #334). "Destroy
+    …. It can't be regenerated" is a mark on its destroy
+    (`Primitive::Destroy { cant_be_regenerated }`, written
+    `.cant_be_regenerated()`), carried on the proposed event, where the
+    regeneration shields are passed over for that destruction and no other
+    (the owner: "it's definitely that destruction only"). No duration is
+    involved, so the resolution-scoped `Duration` this item asked for is
+    not built. Plague Spores moved onto the mark and Harsh Mercy is written
+    with it; a registry test holds every card printing the clause to a
+    marked destroy. "Can't be regenerated this turn" stays the lasting
+    restriction. Its board failed first: a Bear that lives through Plague
+    Spores on a shield counter regenerates from the next destroy that turn.
+    As filed:
     ⚠️ **RELOCATED, NOT FIXED, by RS-1 (2026-08-31).** `turns.rs`'s
     `cant_be_regenerated.clear()` and the `GameState` `HashSet` are both gone;
     the restriction is now a `RestrictionRegistry` row whose duration is a
@@ -919,18 +932,7 @@ built, and none of it blocks RC-1 through RC-3.
     and must be authored per card. Two cards with identical restriction text can
     have different scopes because of the sentence before them.
 
-    **Reachability (2026-09-03):** unreachable — no registered card regenerates,
-    forbids regeneration or makes a shield counter (`Regenerate`,
-    `CantBeRegenerated` and `CounterType::Shield` appear in no card file), so
-    the Wrath-plus-shield board cannot be built.
-
-    **Sized:** a resolution-scoped `Duration` variant retired by a
-    hook at the end of the top-level `resolve_effect` call, ~60–80 lines in
-    `duration_registry.rs` and `resolve.rs`, plus a one-argument change per
-    card; `cant-cast-play-or-activate` owns it as the next phase touching `Primitive::Restrict`.
-    **Slotted:** `cant-cast-play-or-activate`, the next phase touching `Primitive::Restrict`: a
-    resolution-scoped `Duration`, retired at the end of the top-level
-    `resolve_effect`.
+    **Reachability (2026-11-18):** closed — PR #334.
 
 15. **Four `KeywordFlag` variants are constructible and enforced nowhere.**
     `Hexproof`, `Shroud`, `Menace` and `Intimidate`. The only `KeywordFlag::`
@@ -10504,14 +10506,14 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      build too, designed in
      `mana-architecture.md#decision-5-mana-kept-past-a-steps-end-and-mana-lost`.
 
-404. **Six words one card each asks.** "If that spell is countered this way, exile
+404. **Five words one card each asks.** "If that spell is countered this way, exile
      it instead" (Transcendent Dragon): a replacement made first does not reach the
      spell, on either zone-change pattern. "When you cycle this card" (Dismantling
      Wave). "Choose an opponent at random" (Territorial Hellkite). "Have all activated
      abilities of all land cards exiled with this creature" (Steward of the Harvest).
-     "Chooses any number with total power 4 or less, then sacrifices all other
-     creatures" (Slaughter the Strong), `ChoiceSide`'s other arm and a pick's total.
      "Whose controller was dealt combat damage by this creature" (Steel Hellkite).
+     The sixth, Slaughter the Strong's total and its "sacrifices all other
+     creatures", is built and the card registered (#334).
 
      **Reachability (2026-11-06):** unreachable — no registered card asks one.
      **Sized:** ~330–540 lines, each with its card.
@@ -10836,17 +10838,20 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Sized:** ~1,200–2,000 lines with its tests, about 130 printed cards.
      **Slotted:** `values-kept-past-the-resolution`.
 
-429. **One choose step has one chooser.** A step asks the one player its
-     chooser names, or nobody. Not written: a value each player or each
-     opponent chooses (16 cards, CR 608.2e's order then one action), a
-     word chosen from a printed few, a choice that excludes what an earlier
-     one picked (Gluntch, the Bestower's second and third players;
-     Fortunate Few), and "choose a number" with no bounds printed (Void,
-     Squee's Revenge; Choice of Damnations).
-     **Reachability (2026-11-15):** unreachable — no registered card has
-     any.
-     **Sized:** inside the row's ~1,000–1,600 lines with its tests.
-     **Slotted:** `several-choosers-at-one-step`.
+429. **A word chosen from a printed few is not written.** What is left of
+     "one choose step has one chooser": `several-choosers-at-one-step`
+     (#334) built the walk, where each player or each opponent answers for
+     themselves from the active player (CR 101.4, 608.2e); a choice other
+     than an earlier one's pick (Gluntch's second and third players,
+     Fortunate Few); and "choose a number" with no most printed (Choice of
+     Damnations). A walk answered by one player for each, or at random for
+     each, is refused by the registry until its first card. A word with no
+     rules meaning ("friend or foe", "silence or snitch") has no kind.
+     **Reachability (2026-11-18):** unreachable — no registered card
+     chooses a word, and the registry refuses the two walks.
+     **Sized:** inside `secret-choices-and-votes`' 1,320–2,150 lines with
+     its tests.
+     **Slotted:** `secret-choices-and-votes`.
 
 430. **A chosen player or object is named by a verb, an amount's number and
      a filter, and nowhere else.** A player word does not read one: "the
@@ -10911,7 +10916,13 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      **Slotted:** `card-and-object-model`.
 
 435. **An amount or a player word that reads a choice never made is an
-     error.** A choose step whose chooser is not there (a target that went
+     error.** — ✅ closed. Each step's own words give the list of choices it
+     reads (`engine/choices_read.rs`, every match exhaustive), asked before
+     the step acts: a step reading a choice never made does not happen (CR
+     608.2b), an "if you do" after it reads `Cant`, and a "may" on it is
+     declined. The registry's read-after-keep test reads the same list in
+     place of a scan of the step's printed form. Its two boards failed
+     first. As filed: A choose step whose chooser is not there (a target that went
      illegal while the spell still resolves, a player gone) chooses
      nothing, and CR 608.2b's "any part of the effect that requires that
      information won't happen" holds where the engine can tell: a verb on
@@ -10921,12 +10932,7 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      step should not happen" from where they are read, so each errs, as an
      X never chosen does. The exact answer needs each step's list of the
      names it reads, asked before the step acts.
-     **Reachability (2026-11-15):** unreachable — it needs a spell with a
-     second target that keeps it resolving after its choosing player left,
-     and no registered card or castable fixture has one.
-     **Sized:** ~120–200 lines: a read-set per step, built as
-     `binding_reads.rs` builds a trigger's, and the two-target board.
-     **Slotted:** `several-choosers-at-one-step`.
+     **Reachability (2026-11-18):** closed — PR #334.
 
 436. **A creature type is chosen from 316 buttons in the dev GUI.** The
      window draws a choice of one as a button an option, which is five for
@@ -10947,6 +10953,55 @@ sees a card's blockers only as far as that, so a list here can grow as rows land
      question carries its words (#320); a choose step's does not.
      **Reachability (2026-11-15):** reachable, not wrong — the fixture
      plays right; an AI client or a log reader has only the order.
-     **Sized:** ~40–80 lines: the step's words on the question, cut as a
-     mode's are.
-     **Slotted:** `several-choosers-at-one-step`.
+     **Sized:** ~40–80 lines: the step's words on the question, written on
+     the step by its card, since Gluntch's sentence cannot be cut by line
+     (the row's design note, decision 7).
+     **Slotted:** `secret-choices-and-votes`, with the label a secret
+     choice needs.
+
+438. **Divine Reckoning and Gluntch, the Bestower are not registered.** The
+     row's design note listed both as playable and neither is. Divine
+     Reckoning has flashback, and `AlternativeCost::Flashback` is an arm no
+     cast reads: nothing casts from a graveyard. Gluntch's third player
+     creates Treasure tokens, whose "add one mana of any color" and
+     sacrifice cost are unbuilt. What each proves is on an invented
+     instant that cites its rulings
+     (`phase_several_choosers_at_one_step_integration_test`: "One Apiece"
+     for Divine Reckoning #7, "Three Favors" for Gluntch #1 to #3), so the
+     ledger already holds both as cited cards.
+     **Reachability (2026-11-18):** unreachable — neither is registered.
+     **Sized:** a card function each and its rulings section, ~40 lines
+     apiece, the cited boards re-pointed at the card.
+     **Slotted:** `casting-from-other-zones` for Divine Reckoning, and
+     `any-color-plus-painlands-plus-signets` for Gluntch.
+
+439. **A total limits a choose step's objects, at most or at least, and
+     nothing else.** `PickTotal` is read where a choose step picks objects
+     (Slaughter the Strong; Destined Confrontation is the other printed
+     one). Not written: a total on targets (15 cards, The War in Heaven's
+     "up to three target creature cards with total mana value 8 or less"),
+     checked as they are announced (CR 601.2c), with how CR 608.2b reads
+     it the open question; a total on what is tapped for a cost or put
+     from a zone (about 27, Mossbridge Troll, Protean Hulk); a total of
+     mana value; and a total that is exactly a number, which no card
+     prints (two Scryfall phrasings, 2026-11-18) and the registry
+     refuses, since whether any pick adds up to it is a search over
+     subsets where the other two are decided by the pick furthest inside.
+     **Reachability (2026-11-18):** unreachable — no registered card writes
+     any, and the registry's test refuses "exactly".
+     **Sized:** ~80–140 lines for targets, the limit read at the
+     announcement and `SelectWithinATotal` asked there; the cost and zone
+     ones with their rows.
+     **Slotted:** `resolution-recipients-and-amounts`.
+
+440. **Several picks by one answerer are not written.** "An artifact, a
+     creature, an enchantment, and a land" (Cataclysm, Tragic Arrogance),
+     "a creature they control and a creature they don't control" (CR
+     101.4c): a choose step picks by one filter and one count. The edict's
+     `Choice` no longer promises the arm; it is a choose step's, where a
+     permanent may answer two categories.
+     **Reachability (2026-11-18):** unreachable — no registered card asks
+     for one.
+     **Sized:** ~100–160 lines: a choose step's categories, one question
+     apiece or one over all, which its first card decides.
+     **Slotted:** `resolution-recipients-and-amounts`.
