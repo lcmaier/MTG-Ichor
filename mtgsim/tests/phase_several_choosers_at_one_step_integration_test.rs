@@ -11,11 +11,12 @@ use watching::Watching;
 
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::cards::authoring::{
-    choose_color, choose_number, choose_number_at_least, choose_objects, choose_player, color, creature, destroy, draw_cards, each,
-    each_opponent, each_player, gain_life, non, one_of_the_chosen, spell_ability, target_creature, target_opponent, the_chosen_color,
-    the_chosen_number, the_chosen_objects, the_chosen_player, they_control, you,
+    choose_a_second_player, choose_a_third_player, choose_color, choose_number, choose_number_at_least, choose_objects, choose_player, color,
+    creature, destroy, draw_cards, each, each_opponent, each_player, gain_life, non, one_of_the_chosen, spell_ability, target_creature,
+    target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
+    the_third_chosen_player, they_control, you,
 };
-use mtgsim::cards::printings::plague_spores;
+use mtgsim::cards::printings::{fortunate_few, plague_spores};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::decision::question::{DecisionKind, DecisionOption};
 use mtgsim::engine::actions::GameAction;
@@ -27,6 +28,7 @@ use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{CounterType, Effect, EffectRecipient, PlayerRef, PlayerSet, Primitive, TargetCount};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 
 // ---------------------------------------------------------------------------
@@ -460,4 +462,161 @@ fn the_chosen_number_after_several_answers_is_refused() {
     }
     let refused = game.resolve_top_of_stack(&answers).expect_err("two numbers, and a reader of one");
     assert!(refused.contains("2 were"), "{refused}");
+}
+
+// ---------------------------------------------------------------------------
+// The cards
+// ---------------------------------------------------------------------------
+
+// RULING: Fortunate Few #1 - "After you choose a nonland permanent, each
+//   other player does so in turn order starting from the player whose turn
+//   it is. Each player will know the choice made by previous players."
+// RULING: Fortunate Few #2 - "Once Fortunate Few begins resolving, no
+//   player may take any actions other than those specified by Fortunate Few
+//   until it's done resolving. ..."
+// RULING: Fortunate Few #3 - "A permanent with indestructible can be chosen
+//   this way even though it wouldn't be destroyed otherwise."
+// RULING: Fortunate Few #4 - "Lands can't be chosen and won't be destroyed,
+//   even if they have other types (such as an artifact land)."
+//
+/// You choose among what you don't control, then each other player among
+/// what they don't control and no one has chosen: three questions and
+/// nothing else, each offering one permanent fewer for each pick made
+/// before it. The artifact land is offered to nobody and is not destroyed;
+/// the indestructible creature is offered, and chosen.
+#[test]
+fn fortunate_few_asks_you_then_each_other_player_among_what_is_not_chosen() {
+    let mut game = at_the_turn_of(0, 3);
+    let permanent = |name: &str, types: &[CardType], flags: &[KeywordFlag]| {
+        let builder = types.iter().fold(CardDataBuilder::new(name), |builder, card_type| builder.card_type(*card_type));
+        flags.iter().fold(builder, |builder, flag| builder.keyword_flag(*flag)).power_toughness(2, 2).build()
+    };
+    let my_artifact = put_on_battlefield(&mut game, permanent("My Artifact", &[CardType::Artifact], &[]), 0);
+    let my_creature = put_on_battlefield(&mut game, permanent("My Creature", &[CardType::Creature], &[]), 0);
+    let artifact_land = put_on_battlefield(&mut game, permanent("An Artifact Land", &[CardType::Artifact, CardType::Land], &[]), 0);
+    let their_creature = put_on_battlefield(&mut game, permanent("Player 1's Creature", &[CardType::Creature], &[]), 1);
+    let indestructible = put_on_battlefield(&mut game, permanent("Player 1's Rock", &[CardType::Creature], &[KeywordFlag::Indestructible]), 1);
+    let last_creature = put_on_battlefield(&mut game, permanent("Player 2's Creature", &[CardType::Creature], &[]), 2);
+    let last_enchantment = put_on_battlefield(&mut game, permanent("Player 2's Enchantment", &[CardType::Enchantment], &[]), 2);
+    cast_paying(&mut game, fortunate_few(), &[(ManaType::White, 5)]);
+
+    let answers = ScriptedDecisionProvider::new();
+    picks(&answers, vec![DecisionOption::Object(indestructible)]);
+    picks(&answers, vec![DecisionOption::Object(my_creature)]);
+    picks(&answers, vec![DecisionOption::Object(their_creature)]);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+
+    let asked = asked.of_options.borrow();
+    let offered: Vec<(PlayerId, Vec<DecisionOption>)> = asked.iter().map(|(player, _, options)| (*player, options.clone())).collect();
+    let objects = |ids: &[ObjectId]| ids.iter().copied().map(DecisionOption::Object).collect::<Vec<_>>();
+    assert_eq!(
+        offered,
+        [
+            (0, objects(&[their_creature, indestructible, last_creature, last_enchantment])),
+            (1, objects(&[my_artifact, my_creature, last_creature, last_enchantment])),
+            (2, objects(&[my_artifact, their_creature])),
+        ],
+        "no land, nothing of the chooser's own, and nothing chosen before"
+    );
+    let on_the_battlefield =
+        [indestructible, my_creature, their_creature, artifact_land, my_artifact, last_creature, last_enchantment].map(|id| game.battlefield.contains_key(&id));
+    assert_eq!(on_the_battlefield, [true, true, true, true, false, false, false], "the three chosen and the land stay; the rest is destroyed");
+}
+
+// ---------------------------------------------------------------------------
+// Three players chosen one at a time, each a different one
+// ---------------------------------------------------------------------------
+
+/// Gluntch, the Bestower's three choices on an instant, with a life gain
+/// where its third player creates Treasure tokens: "Choose a player. They
+/// put two +1/+1 counters on a creature they control. Choose a second
+/// player to draw a card. Then choose a third player to gain 2 life."
+fn three_favors() -> Arc<CardData> {
+    let they_put_two_counters = Primitive::AddCounters {
+        counter: CounterType::PlusOnePlusOne,
+        amount: 2.into(),
+        by: PlayerRef::NamedBy(Box::new(the_chosen_player())),
+    };
+    instant(
+        "Three Favors",
+        "Choose a player. They put two +1/+1 counters on a creature they control. Choose a second player to draw a card. \
+         Then choose a third player to gain 2 life.",
+        Effect::Sequence(vec![
+            choose_player(you(), PlayerSet::Everyone),
+            choose_objects(the_chosen_player(), creature().and(they_control()), TargetCount::Exactly(1)),
+            Effect::Atom(they_put_two_counters, the_chosen_objects()),
+            choose_a_second_player(you(), PlayerSet::Everyone),
+            draw_cards(the_second_chosen_player(), 1),
+            choose_a_third_player(you(), PlayerSet::Everyone),
+            gain_life(the_third_chosen_player(), 2),
+        ]),
+    )
+}
+
+/// The script's next answer to "choose a player": `player`.
+fn chooses_player(answers: &ScriptedDecisionProvider, player: PlayerId) {
+    answers.expect_choice(DecisionKind::ChoosePlayer { source: ObjectId::UNASSIGNED }, vec![DecisionOption::Player(player)]);
+}
+
+// RULING: Gluntch, the Bestower #1 - "The first chosen player gets to
+//   choose which creature they will place the counters on."
+// RULING: Gluntch, the Bestower #3 - "All three players must be different
+//   players, although any one of them can be you. ..."
+//
+/// The first player chosen picks the creature among their own. The second
+/// question leaves the first player out, and the third has one player left
+/// and is not asked: three different players, one of them the controller.
+#[test]
+fn three_players_chosen_in_turn_are_three_different_players() {
+    let mut game = at_the_turn_of(0, 3);
+    let theirs = [(); 2].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0);
+    cast_paying(&mut game, three_favors(), &[(ManaType::Blue, 1)]);
+    let (hand, life) = (game.players[0].hand.len(), game.players[2].life_total);
+
+    let answers = ScriptedDecisionProvider::new();
+    chooses_player(&answers, 1);
+    picks(&answers, vec![DecisionOption::Object(theirs[1])]);
+    chooses_player(&answers, 0);
+    let (seat, asked) = Watching::new(answers);
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+
+    let asked = asked.of_options.borrow();
+    let offered: Vec<(PlayerId, Vec<DecisionOption>)> = asked.iter().map(|(player, _, options)| (*player, options.clone())).collect();
+    let players = |seats: &[PlayerId]| seats.iter().copied().map(DecisionOption::Player).collect::<Vec<_>>();
+    assert_eq!(
+        offered,
+        [(0, players(&[0, 1, 2])), (1, theirs.map(DecisionOption::Object).to_vec()), (0, players(&[0, 2]))],
+        "any player; the chosen player's own creatures; then any other player"
+    );
+    assert_eq!(game.battlefield[&theirs[1]].counter_count(CounterType::PlusOnePlusOne), 2);
+    assert_eq!(game.players[0].hand.len(), hand + 1, "the second player drew");
+    assert_eq!(game.players[2].life_total, life + 2, "the one player left is the third");
+}
+
+// RULING: Gluntch, the Bestower #2 - "You may choose a player who doesn't
+//   control any creatures as the first chosen player."
+// RULING: Gluntch, the Bestower #3 - "... If there are only two players in
+//   the game, you won't choose a third player, and no one will create
+//   Treasure tokens."
+//
+/// At two seats: a player with no creature is chosen first and puts no
+/// counters; the second is the one player left; and no third player is
+/// chosen, so the step that reads one does not happen (CR 608.2b).
+#[test]
+fn with_two_players_no_third_player_is_chosen() {
+    let mut game = at_the_turn_of(0, 2);
+    let mine = put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0);
+    cast_paying(&mut game, three_favors(), &[(ManaType::Blue, 1)]);
+    let (hand, lives) = (game.players[0].hand.len(), [0, 1].map(|seat: usize| game.players[seat].life_total));
+
+    let answers = ScriptedDecisionProvider::new();
+    chooses_player(&answers, 1);
+    game.resolve_top_of_stack(&answers).expect("it resolves");
+
+    assert_eq!(asked_in_order(&answers), [0], "the first player is the one question");
+    assert_eq!(game.battlefield[&mine].counter_count(CounterType::PlusOnePlusOne), 0, "player 1 controls no creature to put them on");
+    assert_eq!(game.players[0].hand.len(), hand + 1, "the second player is the one left: the controller");
+    assert_eq!([0, 1].map(|seat: usize| game.players[seat].life_total), lives, "nobody is the third player");
 }

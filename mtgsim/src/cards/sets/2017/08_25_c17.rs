@@ -3,14 +3,15 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    choose_creature_type, choose_each_targeting_a_different_player, chosen_by, creature, destroy, dies, discard, draw_cards, each, lose_life,
-    creature_type, sacrifice, spell_ability, static_replacement, target_opponent, the_chosen_creature_type, triggered_ability, whenever, you,
-    you_and_that_player,
+    choose_creature_type, choose_each_targeting_a_different_player, choose_objects, chosen_by, creature, destroy, dies, discard, draw_cards,
+    each, land, lose_life, creature_type, non, one_of_the_chosen, one_the_others_chose, sacrifice, spell_ability, static_replacement,
+    target_opponent, the_chosen_creature_type, then_each_other_player_chooses_objects, they_control, triggered_ability, whenever, you,
+    you_and_that_player, you_control,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, DiscardChooser, Effect, ModalCount, Pick, PlayerSet};
+use crate::types::effects::{Choice, ChoiceScope, ChoiceSide, DiscardChooser, Effect, ModalCount, Pick, PlayerSet, TargetCount};
 use crate::types::triggers::TriggerSubject;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
@@ -174,6 +175,51 @@ pub fn vindictive_lich() -> Arc<CardData> {
                     lose_life(target_opponent(), 5),
                 ]),
             ),
+        ))
+        .build()
+}
+
+/// Fortunate Few — {3}{W}{W}
+/// Sorcery
+///
+/// > Choose a nonland permanent you don't control, then each other player
+/// > chooses a nonland permanent they don't control that hasn't been chosen
+/// > this way. Destroy all other nonland permanents.
+///
+/// (Oracle text verified on Scryfall, 2026-11-18.)
+///
+/// Two instructions, yours and then each other player's in turn order, the
+/// second kept under its own name so that each later player's question
+/// leaves out your pick and every pick made before theirs (CR 101.4b).
+///
+/// # The rulings, and where each is tested
+///
+/// All four →
+/// `phase_several_choosers_at_one_step_integration_test::fortunate_few_asks_you_then_each_other_player_among_what_is_not_chosen`:
+/// - #1, you and then each other player in turn order, each knowing the
+///   picks before theirs: three questions, each offering what is left.
+/// - #2, no player acts while it resolves: the three picks are every
+///   question asked.
+/// - #3, a permanent with indestructible can be chosen: it is offered, and
+///   is the first pick.
+/// - #4, lands are neither chosen nor destroyed, "even if they have other
+///   types": the artifact land is offered to nobody and stays.
+pub fn fortunate_few() -> Arc<CardData> {
+    let text = "Choose a nonland permanent you don't control, then each other player chooses a nonland permanent they don't control \
+                that hasn't been chosen this way. Destroy all other nonland permanents.";
+    let not_chosen_yet = || non(land()).other_than(one_of_the_chosen()).other_than(one_the_others_chose());
+    CardDataBuilder::new("Fortunate Few")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![
+                choose_objects(you(), non(land()).other_than(you_control()), TargetCount::Exactly(1)),
+                then_each_other_player_chooses_objects(not_chosen_yet().other_than(they_control()), TargetCount::Exactly(1)),
+                destroy(each(not_chosen_yet())),
+            ]),
         ))
         .build()
 }

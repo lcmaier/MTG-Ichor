@@ -1258,6 +1258,9 @@ impl CardRegistry {
         registry.register("Duneblast", ktk::duneblast);
         registry.register("The Nipton Lottery", pip::the_nipton_lottery);
         registry.register("By Invitation Only", vow::by_invitation_only);
+        // You and then each other player, the second kept under its own
+        // name.
+        registry.register("Fortunate Few", c17::fortunate_few);
         // A player verb whose target player has left, beside a target that
         // keeps the spell resolving.
         registry.register("Combat Tutorial", fin::combat_tutorial);
@@ -1823,7 +1826,7 @@ mod instance_references {
 
     /// Whether `recipient` can hand a verb, or a choose step, a player.
     fn can_name_a_player(recipient: &EffectRecipient, whole: &Effect) -> bool {
-        use crate::types::effects::{ChoiceKind, SelectionFilter};
+        use crate::types::effects::SelectionFilter;
         match recipient {
             EffectRecipient::Implicit
             | EffectRecipient::Controller
@@ -1832,7 +1835,7 @@ mod instance_references {
             | EffectRecipient::DefendingPlayer(_)
             | EffectRecipient::AttackedBy(_)
             | EffectRecipient::EachOf(_) => true,
-            EffectRecipient::ChosenAs(kept) => *kept == ChoiceKind::Player,
+            EffectRecipient::ChosenAs(kept) => kept.is_a_player(),
             EffectRecipient::Target(filter, _) => matches!(filter.without_another(), SelectionFilter::Player(_) | SelectionFilter::Any),
             EffectRecipient::SameInstanceAs(ix) => whole.instance(*ix).is_some_and(|clause| can_name_a_player(clause, whole)),
             EffectRecipient::ThisObject

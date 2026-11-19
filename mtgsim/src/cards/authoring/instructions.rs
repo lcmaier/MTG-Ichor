@@ -23,7 +23,8 @@ use crate::state::game_state::PhaseType;
 use crate::types::costs::Cost;
 use crate::types::card_types::CardType;
 use crate::types::effects::{
-    AmountExpr, ChosenHow, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration, Effect,
+    AmountExpr, ChoiceKind, ChosenHow, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration,
+    Effect,
     EffectRecipient, ExtraPhasesAfter, ManaOutput, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet, Primitive, ReturnUnder,
     SelectionFilter, TargetCount, TokenDef, TypeChange, ValueChoice,
 };
@@ -365,13 +366,41 @@ pub fn choose_number_at_least(chooser: impl Into<ChosenHow>, least: u64) -> Effe
 /// "[Chooser] chooses a player", "an opponent": one of `among`, read
 /// against the controller (CR 109.5).
 pub fn choose_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
-    choose_step(chooser, ValueChoice::Player(among))
+    choose_step(chooser, ValueChoice::Player { among, other_than: Vec::new() })
+}
+
+/// A choose step that keeps what it chose under `kind`, the second name a
+/// card gives when it keeps two choices of one kind.
+fn choose_step_kept_as(kind: ChoiceKind, chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
+    Effect::Atom(Primitive::ChooseValue { kind, what, how: chooser.into() }, EffectRecipient::Implicit)
+}
+
+/// "[Chooser] chooses a second player": one of `among` other than the
+/// player [`choose_player`] chose before it, read back with
+/// `the_second_chosen_player()`.
+pub fn choose_a_second_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
+    choose_step_kept_as(ChoiceKind::SecondPlayer, chooser, ValueChoice::Player { among, other_than: vec![ChoiceKind::Player] })
+}
+
+/// "[Chooser] chooses a third player": other than the first and the second,
+/// read back with `the_third_chosen_player()`.
+pub fn choose_a_third_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
+    let other_than = vec![ChoiceKind::Player, ChoiceKind::SecondPlayer];
+    choose_step_kept_as(ChoiceKind::ThirdPlayer, chooser, ValueChoice::Player { among, other_than })
 }
 
 /// "[Chooser] chooses up to one creature", "a creature you control": `count`
 /// of the permanents `among` describes, none of them a target (CR 115.10a).
 pub fn choose_objects(chooser: impl Into<ChosenHow>, among: ObjectFilter, count: TargetCount) -> Effect {
     choose_step(chooser, ValueChoice::Objects(SelectionFilter::Permanent(among), count))
+}
+
+/// "Then each other player chooses [objects]", after [`choose_objects`] by
+/// the controller: an answer from each opponent, kept beside the
+/// controller's and read back with `one_the_others_chose()`.
+pub fn then_each_other_player_chooses_objects(among: ObjectFilter, count: TargetCount) -> Effect {
+    let what = ValueChoice::Objects(SelectionFilter::Permanent(among), count);
+    choose_step_kept_as(ChoiceKind::ObjectsTheOthersChose, super::recipients::each_opponent(), what)
 }
 
 // ---------------------------------------------------------------------------

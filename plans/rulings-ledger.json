@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-11-15",
+  "fetched": "2026-11-18",
   "fixtures": ["Five-Color Land Fixture", "Loyalty Probe", "Moonlace Fixture"],
   "cards": {
     "Abrade": {
@@ -289,6 +289,13 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Choice of Damnations": {
+      "first_seen": "2026-11-18",
+      "rulings": [
+        {"n": 1, "published_at": "2005-06-01", "comment": "After the opponent chooses a number, Choice of Damnations’ controller may choose to make that opponent either lose that much life or make that opponent sacrifice permanents."},
+        {"n": 2, "published_at": "2005-06-01", "comment": "If the opponent must sacrifice all but a number of permanents, that opponent chooses that many permanents and then sacrifices the rest. If the number chosen is greater than the number of permanents the opponent controls, the player sacrifices nothing."}
+      ]
+    },
     "Circle of Protection: Red": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -466,6 +473,18 @@
     "Diabolic Edict": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Divine Reckoning": {
+      "first_seen": "2026-11-18",
+      "rulings": [
+        {"n": 1, "published_at": "2021-03-19", "comment": "To determine the total cost of a spell, start with the mana cost or alternative cost (such as a flashback cost) you're paying, add any cost increases, then apply any cost reductions. The mana value of the spell is determined only by its mana cost, no matter what the total cost to cast the spell was."},
+        {"n": 2, "published_at": "2021-03-19", "comment": "\"Flashback [cost]\" means \"You may cast this card from your graveyard by paying [cost] rather than paying its mana cost\" and \"If the flashback cost was paid, exile this card instead of putting it anywhere else any time it would leave the stack.\""},
+        {"n": 3, "published_at": "2021-03-19", "comment": "You must still follow any timing restrictions and permissions, including those based on the card's type. For instance, you can cast a sorcery using flashback only when you could normally cast a sorcery."},
+        {"n": 4, "published_at": "2021-03-19", "comment": "If a card with flashback is put into your graveyard during your turn, you can cast it if it's legal to do so before any other player can take any actions."},
+        {"n": 5, "published_at": "2021-03-19", "comment": "A spell cast using flashback will always be exiled afterward, whether it resolves, is countered, or leaves the stack in some other way."},
+        {"n": 6, "published_at": "2021-03-19", "comment": "You can cast a spell using flashback even if it was somehow put into your graveyard without having been cast."},
+        {"n": 7, "published_at": "2011-09-22", "comment": "Starting with the player whose turn it is, each player chooses a creature in turn order. Players will know the choice of each player who chose before them."}
+      ]
     },
     "Divine Visitation": {
       "first_seen": "2026-09-17",
@@ -699,6 +718,15 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Fortunate Few": {
+      "first_seen": "2026-11-18",
+      "rulings": [
+        {"n": 1, "published_at": "2017-08-25", "comment": "After you choose a nonland permanent, each other player does so in turn order starting from the player whose turn it is. Each player will know the choice made by previous players."},
+        {"n": 2, "published_at": "2017-08-25", "comment": "Once Fortunate Few begins resolving, no player may take any actions other than those specified by Fortunate Few until it’s done resolving. Notably, players must act to protect their permanents (such as by activating Kindred Boon) before knowing which permanents will be chosen."},
+        {"n": 3, "published_at": "2017-08-25", "comment": "A permanent with indestructible can be chosen this way even though it wouldn’t be destroyed otherwise."},
+        {"n": 4, "published_at": "2017-08-25", "comment": "Lands can’t be chosen and won’t be destroyed, even if they have other types (such as an artifact land)."}
+      ]
+    },
     "Foundry Inspector": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -776,6 +804,14 @@
     "Glorious Anthem": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Gluntch, the Bestower": {
+      "first_seen": "2026-11-18",
+      "rulings": [
+        {"n": 1, "published_at": "2022-06-10", "comment": "The first chosen player gets to choose which creature they will place the counters on."},
+        {"n": 2, "published_at": "2022-06-10", "comment": "You may choose a player who doesn't control any creatures as the first chosen player."},
+        {"n": 3, "published_at": "2022-06-10", "comment": "All three players must be different players, although any one of them can be you. If there are only two players in the game, you won't choose a third player, and no one will create Treasure tokens."}
+      ]
     },
     "Goblin Electromancer": {
       "first_seen": "2026-09-17",
@@ -866,6 +902,10 @@
         {"n": 2, "published_at": "2017-04-18", "comment": "Harsh Mentor's ability doesn't trigger when an opponent activates an ability of a card in hand (such as cycling) or a card in a graveyard (such as embalm), even if that causes a card to be put onto the battlefield."},
         {"n": 3, "published_at": "2017-04-18", "comment": "Harsh Mentor's ability resolves before the ability that caused it to trigger."}
       ]
+    },
+    "Harsh Mercy": {
+      "first_seen": "2026-11-18",
+      "rulings": []
     },
     "Heartfire Hero": {
       "first_seen": "2026-10-18",
@@ -1513,6 +1553,14 @@
         {"n": 2, "published_at": "2024-01-12", "comment": "Spells and abilities that would cause a player to gain life or that would prevent damage still resolve, but the life-gain and damage-prevention parts have no effect."},
         {"n": 3, "published_at": "2024-01-12", "comment": "Effects that would replace gaining life with another effect won't apply because it's impossible for players to gain life."},
         {"n": 4, "published_at": "2024-01-12", "comment": "If an effect says to set a player's life total to a certain number and that number is higher than the player's current life total, that part of the effect won't do anything. (If the number is lower than the player's current life total, the effect will work as normal.)"}
+      ]
+    },
+    "Slaughter the Strong": {
+      "first_seen": "2026-11-18",
+      "rulings": [
+        {"n": 1, "published_at": "2020-11-10", "comment": "Slaughter the Strong has each player choose any number of creatures and then checks that the total power of creatures each player chose this way is 4 or less. For example, you could save two 2/2 creatures, or a 1/1 and a 3/3 creature, but not all four of those creatures."},
+        {"n": 2, "published_at": "2020-11-10", "comment": "As Slaughter the Strong resolves, first the player whose turn it is chooses which creatures will be spared, then each other player in turn order does the same knowing the choices made before them. Then all the creatures not chosen are sacrificed simultaneously."},
+        {"n": 3, "published_at": "2020-11-10", "comment": "If a creature's power is somehow less than 0, it subtracts from the total power of the other creatures its controller chooses. This can cause creatures with power 5 or greater to survive."}
       ]
     },
     "Sol Ring": {

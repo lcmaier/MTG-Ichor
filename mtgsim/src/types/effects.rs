@@ -174,6 +174,28 @@ pub enum ChoiceKind {
     Number,
     Player,
     Objects,
+    /// Gluntch, the Bestower's "choose a second player".
+    SecondPlayer,
+    /// Gluntch, the Bestower's "choose a third player".
+    ThirdPlayer,
+    /// Fortunate Few's "then each other player chooses a nonland permanent",
+    /// beside the one its controller chose first.
+    ObjectsTheOthersChose,
+}
+
+impl ChoiceKind {
+    /// Whether a choice kept under this name is a player.
+    pub fn is_a_player(self) -> bool {
+        match self {
+            ChoiceKind::Player | ChoiceKind::SecondPlayer | ChoiceKind::ThirdPlayer => true,
+            ChoiceKind::Color
+            | ChoiceKind::CreatureType
+            | ChoiceKind::CardType
+            | ChoiceKind::Number
+            | ChoiceKind::Objects
+            | ChoiceKind::ObjectsTheOthersChose => false,
+        }
+    }
 }
 
 /// What a choose step asks for ([`Primitive::ChooseValue`]).
@@ -190,9 +212,12 @@ pub enum ValueChoice {
     /// "Choose a number", with none printed: from `least` up, with no most
     /// (CR 107.1b: no number below zero, and nothing above).
     Number { least: u64, most: Option<u64> },
-    /// "Choose a player", "choose an opponent": one of the set still in the
-    /// game, read against the controller (CR 109.5).
-    Player(PlayerSet),
+    /// "Choose a player", "choose an opponent": one of `among` still in the
+    /// game, read against the controller (CR 109.5). "Choose a second
+    /// player" is one `other_than` each player an earlier choice of this
+    /// resolution kept under those names (Gluntch's ruling: "all three
+    /// players must be different players").
+    Player { among: PlayerSet, other_than: Vec<ChoiceKind> },
     /// "Choose up to one creature", "choose a creature you control": among
     /// what the filter matches as the step runs, by the count. No target, so
     /// hexproof and shroud do not stop it (CR 115.10a). A `Divided` count
@@ -209,7 +234,7 @@ impl ValueChoice {
             ValueChoice::CreatureType => ChoiceKind::CreatureType,
             ValueChoice::CardType(_) => ChoiceKind::CardType,
             ValueChoice::Number { .. } => ChoiceKind::Number,
-            ValueChoice::Player(_) => ChoiceKind::Player,
+            ValueChoice::Player { .. } => ChoiceKind::Player,
             ValueChoice::Objects(..) => ChoiceKind::Objects,
         }
     }

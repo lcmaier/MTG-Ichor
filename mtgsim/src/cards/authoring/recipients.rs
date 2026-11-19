@@ -193,6 +193,16 @@ pub fn the_chosen_player() -> EffectRecipient {
     EffectRecipient::ChosenAs(ChoiceKind::Player)
 }
 
+/// "That player" after "choose a second player".
+pub fn the_second_chosen_player() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceKind::SecondPlayer)
+}
+
+/// "That player" after "choose a third player".
+pub fn the_third_chosen_player() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceKind::ThirdPlayer)
+}
+
 /// "It", "that creature", "the chosen creatures": the objects chosen, each
 /// while it is still the object chosen (CR 400.7), with its share where an
 /// amount was divided among them.
@@ -240,6 +250,14 @@ impl<T> From<T> for PrintedOrChosen<T> {
 /// is `destroy(each(creature().other_than(one_of_the_chosen())))`.
 pub fn one_of_the_chosen() -> ObjectFilter {
     ObjectFilter::ChosenAs(ChoiceKind::Objects)
+}
+
+/// "One of the objects the other players chose", in a filter, after
+/// `then_each_other_player_chooses_objects`: Fortunate Few's "hasn't been
+/// chosen this way" and its "all other" leave these out beside
+/// [`one_of_the_chosen`].
+pub fn one_the_others_chose() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceKind::ObjectsTheOthersChose)
 }
 
 /// "The chosen number", "that many" after a number is chosen, as an amount:

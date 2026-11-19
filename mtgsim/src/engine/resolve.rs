@@ -840,8 +840,16 @@ impl GameState {
                 };
                 Some(ChosenValue::Number(crate::decision::ask::ask_choose_number(dp, self, asked("a number")?, source, values)))
             }
-            ValueChoice::Player(among) => {
-                let candidates: Vec<PlayerId> = self.players_in_game().filter(|player| among.contains(ctx.controller, *player)).collect();
+            ValueChoice::Player { among, other_than } => {
+                // "A second player": not one an earlier choice named.
+                let already_chosen = |player: PlayerId| {
+                    other_than.iter().any(|kind| {
+                        let answers = self.answers_kept_as(*kind, ctx).unwrap_or_default();
+                        answers.iter().any(|answer| answer.value == ChosenValue::Player(player))
+                    })
+                };
+                let candidates: Vec<PlayerId> =
+                    self.players_in_game().filter(|player| among.contains(ctx.controller, *player) && !already_chosen(*player)).collect();
                 match chooser {
                     _ if candidates.is_empty() => None,
                     Some(player) => Some(crate::decision::ask::ask_choose_player(dp, self, player, source, &candidates)),
