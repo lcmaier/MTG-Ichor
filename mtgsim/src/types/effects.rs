@@ -222,8 +222,19 @@ pub enum ValueChoice {
     /// what the filter matches as the step runs, by the count. No target, so
     /// hexproof and shroud do not stop it (CR 115.10a). A `Divided` count
     /// also splits its amount among what is chosen, at least one each (CR
-    /// 608.2d).
-    Objects(SelectionFilter, TargetCount),
+    /// 608.2d). "With total power 4 or less" is `total`.
+    Objects { among: SelectionFilter, count: TargetCount, total: Option<PickTotal> },
+}
+
+/// "With total power 4 or less": what the numbers of a choose step's objects
+/// must add up to. The legal answers are sets and no object is legal alone:
+/// a 3/3 is an answer by itself and is not one beside a 2/2, and a creature
+/// with negative power makes room for another (CR 107.1b), so no count says
+/// it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PickTotal {
+    pub of: ObjectValue,
+    pub is: ValueIs,
 }
 
 impl ValueChoice {
@@ -235,7 +246,7 @@ impl ValueChoice {
             ValueChoice::CardType(_) => ChoiceKind::CardType,
             ValueChoice::Number { .. } => ChoiceKind::Number,
             ValueChoice::Player { .. } => ChoiceKind::Player,
-            ValueChoice::Objects(..) => ChoiceKind::Objects,
+            ValueChoice::Objects { .. } => ChoiceKind::Objects,
         }
     }
 }

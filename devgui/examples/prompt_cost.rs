@@ -175,6 +175,7 @@ fn widest_mode_picker() -> WindowState {
         rejected: None,
         why_reads_the_trace: false,
         primitive: Primitive::PickN { min: 1, max: 1 },
+        total: None,
         options,
         mode_labels: (1..=5).map(|place| (ModeIndex::printed(place), format!("Mode {place}"))).collect(),
         not_offered_yet: Vec::new(),

@@ -246,6 +246,12 @@ fn every_kind(object: ObjectId) -> Vec<DecisionKind> {
         DecisionKind::ChooseCreatureType { source: object },
         DecisionKind::ChooseCardType { source: object },
         DecisionKind::ChooseNumber { source: object, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
+        DecisionKind::SelectWithinATotal {
+            source: object,
+            of: mtgsim::types::effects::ObjectValue::Power,
+            limit: mtgsim::decision::question::TotalLimit::AtMost(4),
+            numbers: vec![(object, 2)],
+        },
     ];
     let place = |kind: &DecisionKind| match kind {
         DecisionKind::PriorityAction => 0,
@@ -289,9 +295,10 @@ fn every_kind(object: ObjectId) -> Vec<DecisionKind> {
         DecisionKind::ChooseCreatureType { .. } => 38,
         DecisionKind::ChooseCardType { .. } => 39,
         DecisionKind::ChooseNumber { .. } => 40,
+        DecisionKind::SelectWithinATotal { .. } => 41,
     };
     let places: Vec<usize> = kinds.iter().map(place).collect();
-    assert_eq!(places, (0..41).collect::<Vec<_>>(), "every kind, once, in order");
+    assert_eq!(places, (0..42).collect::<Vec<_>>(), "every kind, once, in order");
     kinds
 }
 

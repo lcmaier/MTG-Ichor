@@ -483,7 +483,10 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
                 AnsweredBy::EachPlayerForThemselves | AnsweredBy::AtRandom => TriggerBindingReads::NONE,
             };
             match what {
-                ValueChoice::Objects(_, count) => chooser | count_reads(count),
+                ValueChoice::Objects { count, total, .. } => {
+                    let total = total.as_ref().map_or(TriggerBindingReads::NONE, |total| amount_reads(total.is.amount()));
+                    chooser | count_reads(count) | total
+                }
                 _ => chooser,
             }
         }

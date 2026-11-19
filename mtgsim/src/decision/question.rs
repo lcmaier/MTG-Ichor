@@ -6,7 +6,7 @@ use crate::oracle::x_values::LegalXValues;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::effects::{CounterType, EffectRecipient, ModeIndex};
+use crate::types::effects::{CounterType, EffectRecipient, ModeIndex, ObjectValue};
 use crate::types::ids::{AbilityId, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::state::game_state::GameState;
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -79,6 +79,15 @@ pub enum DecisionKind {
     /// Select recipients for an effect (covers both MTG "target" and non-targeting
     /// "choose" — the `EffectRecipient` field distinguishes them).
     SelectRecipients { recipient: EffectRecipient, spell_id: ObjectId },
+    /// "Choose any number of creatures you control with total power 4 or
+    /// less", as `source` resolves (CR 608.2d): the options are objects, and
+    /// an answer is legal as a whole, by the sum of its numbers. `numbers` is
+    /// each option's `of`, as the engine read it (CR 608.2h), and `limit` is
+    /// what their sum over the answer must be. A negative number subtracts
+    /// (CR 107.1b), so adding an option can make an answer legal: a client
+    /// adds a set up and never masks an option alone. The engine refuses an
+    /// answer outside the limit and asks again.
+    SelectWithinATotal { source: ObjectId, of: ObjectValue, limit: TotalLimit, numbers: Vec<(ObjectId, i64)> },
     /// How `source`, the spell or ability on the stack, divides an effect:
     /// among its targets as it is announced (CR 601.2d), after every target
     /// is chosen, or among the objects chosen as it resolves (608.2d). The
@@ -468,6 +477,7 @@ impl DecisionKind {
             DecisionKind::ChooseAlternativeCost { spell_id } => Some(*spell_id),
             DecisionKind::ChooseAdditionalCosts { spell_id } => Some(*spell_id),
             DecisionKind::SelectRecipients { spell_id, .. } => Some(*spell_id),
+            DecisionKind::SelectWithinATotal { source, .. } => Some(*source),
             DecisionKind::DivideAmong { source } => Some(*source),
             DecisionKind::GenericManaAllocation { spell_or_ability_id, .. } => {
                 Some(*spell_or_ability_id)
@@ -524,6 +534,7 @@ impl DecisionKind {
             DecisionKind::ChooseAlternativeCost { .. } => "ChooseAlternativeCost",
             DecisionKind::ChooseAdditionalCosts { .. } => "ChooseAdditionalCosts",
             DecisionKind::SelectRecipients { .. } => "SelectRecipients",
+            DecisionKind::SelectWithinATotal { .. } => "SelectWithinATotal",
             DecisionKind::DivideAmong { .. } => "DivideAmong",
             DecisionKind::GenericManaAllocation { .. } => "GenericManaAllocation",
             DecisionKind::OrderCostReductions { .. } => "OrderCostReductions",
@@ -596,6 +607,66 @@ pub enum Rejection {
     /// The order of a payment's parts would have left this one unpayable, so
     /// the player orders them again (CR 601.2h).
     OrderLeavesACostUnpaid(Cost),
+    /// The objects chosen add up to `total`, which is outside the limit the
+    /// question gave, so the player chooses again (CR 608.2d: no illegal
+    /// option may be chosen).
+    TotalOutsideTheLimit { of: ObjectValue, total: i64, limit: TotalLimit },
+}
+
+/// What the numbers of a pick must add up to
+/// ([`DecisionKind::SelectWithinATotal`]), with its amount read: a card's
+/// "or less" and "less than" are `AtMost`, since a total is a whole number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TotalLimit {
+    /// "With total power 4 or less".
+    AtMost(i64),
+    /// "With total power 10 or greater".
+    AtLeast(i64),
+}
+
+impl TotalLimit {
+    /// Whether an answer adding up to `total` is inside the limit.
+    pub fn admits(self, total: i64) -> bool {
+        match self {
+            TotalLimit::AtMost(most) => total <= most,
+            TotalLimit::AtLeast(least) => total >= least,
+        }
+    }
+
+    /// The pick of `fewest` through `most` of `numbers` furthest inside the
+    /// limit, by place in `numbers`: the least total there is for `AtMost`,
+    /// the greatest for `AtLeast`. If the limit does not admit this one, it
+    /// admits no pick of that many. As few as `fewest` allows of what moves
+    /// the total the wrong way, and then every one that moves it the right
+    /// way (CR 107.1b: a negative number is added as it is).
+    pub fn pick_furthest_inside(self, numbers: &[i64], (fewest, most): (usize, usize)) -> Vec<usize> {
+        // How far a number moves the total toward the limit's wrong side.
+        let outward = |at: usize| match self {
+            TotalLimit::AtMost(_) => numbers[at],
+            TotalLimit::AtLeast(_) => numbers[at].saturating_neg(),
+        };
+        let mut places: Vec<usize> = (0..numbers.len()).collect();
+        places.sort_by_key(|&at| outward(at));
+        let helps = places.iter().take(most).take_while(|&&at| outward(at) < 0).count();
+        places.truncate(helps.max(fewest.min(most)));
+        places.sort_unstable();
+        places
+    }
+
+    /// Whether the limit admits `picked`, places in `numbers`.
+    pub fn admits_the_pick(self, numbers: &[i64], picked: &[usize]) -> bool {
+        self.admits(picked.iter().map(|&at| numbers[at]).fold(0, i64::saturating_add))
+    }
+}
+
+/// The number [`DecisionKind::SelectWithinATotal`] gives each of `options`,
+/// in their order, each found by the object it names.
+pub fn each_options_number(numbers: &[(ObjectId, i64)], options: &[DecisionOption]) -> Vec<i64> {
+    let number_of = |option: &DecisionOption| match option {
+        DecisionOption::Object(id) => numbers.iter().find(|(object, _)| object == id).map(|(_, number)| *number),
+        _ => None,
+    };
+    options.iter().map(|option| number_of(option).unwrap_or(0)).collect()
 }
 
 /// A single selectable option presented to the DP.

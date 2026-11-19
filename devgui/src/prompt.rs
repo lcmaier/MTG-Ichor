@@ -8,9 +8,9 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::types::effects::ModeIndex;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::autopilot::auto_yield::Yield;
-use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
+use mtgsim::decision::question::{each_options_number, DecisionContext, DecisionKind, DecisionOption, TotalLimit};
 use mtgsim::decision::provider::PriorityAction;
-use mtgsim::words::display::{mode_label, option_label, question, rejection, what_the_option_does};
+use mtgsim::words::display::{mode_label, option_label, question, rejection, total_limit_words, what_the_option_does};
 use mtgsim::words::why::{NotOfferedYet, OpenQuestion, WhyAbout, not_offered_yet, read_from_the_trace};
 
 /// An answer, in the shape of the primitive that asked.
@@ -88,6 +88,18 @@ pub struct OptionView {
     pub modes: Option<Vec<ModeIndex>>,
 }
 
+/// What the numbers of a pick must add up to
+/// (`DecisionKind::SelectWithinATotal`): an answer is legal as a whole, so
+/// the window adds the picks up and never greys out an option alone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TotalOfPicks {
+    pub limit: TotalLimit,
+    /// `words::display::total_limit_words`: "total power 4 or less".
+    pub limit_words: String,
+    /// Each option's number, in the options' order.
+    pub numbers: Vec<i64>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Prompt {
     /// The player asked: the window answers at that player's seat.
@@ -107,6 +119,8 @@ pub struct Prompt {
     /// the seat (`mtgsim::words::why::read_from_the_trace`).
     pub why_reads_the_trace: bool,
     pub primitive: Primitive,
+    /// The limit on a pick's total, where the question has one.
+    pub total: Option<TotalOfPicks>,
     /// A pick's or an ordering's options, an allocation's buckets; none for a number.
     pub options: Vec<OptionView>,
     /// Each mode some option is a choice of, in printed order, labeled by
@@ -156,6 +170,14 @@ impl Prompt {
         primitive: Primitive,
         options: &[DecisionOption],
     ) -> Prompt {
+        let total = match &context.kind {
+            DecisionKind::SelectWithinATotal { of, limit, numbers, .. } => Some(TotalOfPicks {
+                limit: *limit,
+                limit_words: total_limit_words(*of, *limit),
+                numbers: each_options_number(numbers, options),
+            }),
+            _ => None,
+        };
         Prompt {
             player,
             kind: context.kind.as_str().to_string(),
@@ -165,6 +187,7 @@ impl Prompt {
             rejected: context.rejected.as_ref().map(|rejected| rejection(game, rejected)),
             why_reads_the_trace: read_from_the_trace(&context.kind),
             primitive,
+            total,
             options: options.iter().map(|option| option_view(game, option)).collect(),
             mode_labels: mode_labels(&context.kind, options),
             not_offered_yet: not_offered_yet(game, &OpenQuestion { player, context, options }),

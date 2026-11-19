@@ -1923,7 +1923,7 @@ mod instance_references {
     /// (`ChosenAs(..)`), however deep.
     fn chosen_name_problems(effect: &Effect) -> (Vec<String>, usize) {
         use crate::engine::choices_read::{amount_reads, atom_reads, condition_reads, object_set_reads, player_ref_reads, recipient_reads, ChoicesRead};
-        use crate::types::effects::{AnsweredBy, ChoiceKind, NamedPlayers, PlayerSet, Primitive};
+        use crate::types::effects::{AnsweredBy, ChoiceKind, NamedPlayers, PlayerSet, Primitive, TargetCount, ValueChoice, ValueIs};
 
         fn names_read_in(printed: &str) -> Vec<&str> {
             printed.split("ChosenAs(").skip(1).filter_map(|rest| rest.split(')').next()).collect()
@@ -1979,9 +1979,17 @@ mod instance_references {
                         if matches!(recipient, EffectRecipient::Choose(..)) {
                             self.problems.push(format!("{recipient:?} is a question's label: a card chooses with a choose step"));
                         }
-                        if let Primitive::ChooseValue { kind, how, .. } = primitive {
+                        if let Primitive::ChooseValue { kind, what, how } = primitive {
                             if *recipient != EffectRecipient::Implicit {
                                 self.problems.push(format!("a choose step acts on nothing, and is written on {recipient:?}"));
+                            }
+                            if let ValueChoice::Objects { count, total: Some(total), .. } = what {
+                                if matches!(total.is, ValueIs::Exactly(_)) {
+                                    self.problems.push(format!("a pick whose total is exactly a number is not built: {total:?}"));
+                                }
+                                if matches!(count, TargetCount::Divided(_)) || how.answered_by == AnsweredBy::AtRandom {
+                                    self.problems.push(format!("a pick under a total is neither divided nor drawn at random: {what:?}"));
+                                }
                             }
                             match (&how.walk, &how.answered_by) {
                                 (None, AnsweredBy::Player(chooser)) if !can_name_a_player(chooser, self.whole) => {
@@ -2092,8 +2100,8 @@ mod instance_references {
             non, one_of_the_chosen, spell_ability, the_chosen_color, the_chosen_number, the_chosen_objects, you,
         };
         use crate::types::effects::{
-            AnsweredBy, ChoiceKind, ChoiceWalk, ChosenHow, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
-            ValueChoice,
+            AmountExpr, AnsweredBy, ChoiceKind, ChoiceWalk, ChosenHow, ObjectValue, PickTotal, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+            SelectionFilter, TargetCount, ValueChoice, ValueIs,
         };
 
         let problems = |effect: Effect| chosen_name_problems(&effect).0;
@@ -2148,6 +2156,22 @@ mod instance_references {
         let not_yet_chosen = || creature().and(non(one_of_the_chosen()));
         assert!(problems(choose_objects(each_player(), not_yet_chosen(), TargetCount::Exactly(1))).is_empty(), "a walk reads its own answers");
         assert_eq!(problems(choose_objects(you(), not_yet_chosen(), TargetCount::Exactly(1))).len(), 1, "one chooser reads its own name");
+
+        // "With total power 4 or less": the engine decides whether any pick
+        // is inside an "or less" or an "or greater", and no other.
+        let under_a_total = |count: TargetCount, is: ValueIs, how: ChosenHow| {
+            let total = Some(PickTotal { of: ObjectValue::Power, is });
+            let what = ValueChoice::Objects { among: SelectionFilter::Creature, count, total };
+            Effect::Atom(Primitive::ChooseValue { kind: ChoiceKind::Objects, what, how }, EffectRecipient::Implicit)
+        };
+        let four = || AmountExpr::Fixed(4);
+        assert!(problems(under_a_total(TargetCount::AnyNumber, ValueIs::AtMost(four()), you().into())).is_empty(), "or less");
+        assert_eq!(problems(under_a_total(TargetCount::AnyNumber, ValueIs::Exactly(four()), you().into())).len(), 1, "exactly a number");
+        assert_eq!(
+            problems(under_a_total(TargetCount::AnyNumber, ValueIs::AtMost(four()), ChosenHow::at_random())).len(),
+            1,
+            "drawn at random under a total"
+        );
     }
 
 
@@ -2197,7 +2221,7 @@ mod instance_references {
                 // it keeps the objects and their shares under.
                 let mut kept_divisions: Vec<(ChoiceKind, &AmountExpr)> = Vec::new();
                 for_each_atom(&ability.effect, &mut |primitive, _| {
-                    if let Primitive::ChooseValue { kind, what: ValueChoice::Objects(_, TargetCount::Divided(clause)), .. } = primitive {
+                    if let Primitive::ChooseValue { kind, what: ValueChoice::Objects { count: TargetCount::Divided(clause), .. }, .. } = primitive {
                         kept_divisions.push((*kind, &clause.total));
                     }
                 });

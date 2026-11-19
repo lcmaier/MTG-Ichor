@@ -273,6 +273,12 @@ fn every_variant_decides_its_subject() {
         DecisionKind::ChooseCreatureType { source: id },
         DecisionKind::ChooseCardType { source: id },
         DecisionKind::ChooseNumber { source: id, values: Box::new(mtgsim::oracle::x_values::XOffer::Interval { at_least: 0, at_most: 10 }) },
+        DecisionKind::SelectWithinATotal {
+            source: id,
+            of: mtgsim::types::effects::ObjectValue::Power,
+            limit: mtgsim::decision::question::TotalLimit::AtMost(4),
+            numbers: vec![(id, 2)],
+        },
     ];
     for kind in &kinds {
         Raised::of(kind, false).check();
@@ -326,7 +332,8 @@ fn every_variant_decides_its_subject() {
         DecisionKind::ChooseCreatureType { .. } => 38,
         DecisionKind::ChooseCardType { .. } => 39,
         DecisionKind::ChooseNumber { .. } => 40,
+        DecisionKind::SelectWithinATotal { .. } => 41,
     };
     let reached: BTreeSet<usize> = kinds.iter().map(place).collect();
-    assert_eq!(reached, (0..41).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
+    assert_eq!(reached, (0..42).collect::<BTreeSet<_>>(), "one fixture per variant, the match's every place");
 }

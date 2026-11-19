@@ -41,7 +41,7 @@ use crate::decision::question::{AmountOf, DecisionContext, DecisionKind, Decisio
 use crate::decision::provider::PriorityAction;
 use crate::words::display::{
     cannot_activate, cannot_cast, cannot_pay, cannot_play_land, color_name, combat_refusal, format_phase, keyword_name,
-    mana_type_name, named, option_label, player_name, rejection_words, type_line, Declaring,
+    mana_type_name, named, option_label, player_name, rejection_words, total_limit_words, type_line, Declaring,
 };
 use crate::words::what_happened::{cant_words, event_text, trigger_lines, what_happened, WHAT_HAPPENED};
 
@@ -258,7 +258,7 @@ fn rejection_names(rejected: &Rejection, about: WhyAbout) -> bool {
         Rejection::IllegalBlocks { blocks, .. } => {
             blocks.iter().any(|&(blocker, attacker)| names(&DecisionOption::BlockerAttacker(blocker, attacker), about))
         }
-        Rejection::OrderLeavesACostUnpaid(_) => false,
+        Rejection::OrderLeavesACostUnpaid(_) | Rejection::TotalOutsideTheLimit { .. } => false,
     }
 }
 
@@ -349,6 +349,7 @@ fn refusals(game: &GameState, about: WhyAbout, question: &OpenQuestion, trace: O
             | DecisionKind::ChooseAlternativeCost { .. }
             | DecisionKind::ChooseAdditionalCosts { .. }
             | DecisionKind::SelectRecipients { .. }
+            | DecisionKind::SelectWithinATotal { .. }
             | DecisionKind::DivideAmong { .. }
             | DecisionKind::GenericManaAllocation { .. }
             | DecisionKind::OrderCostReductions { .. }
@@ -553,6 +554,10 @@ fn ranges_over(game: &GameState, kind: &DecisionKind, asked: PlayerId) -> (Strin
             (format!("the card types {}'s instruction may name, one of which it names", n(source)), Some("205.2a"))
         }
         DecisionKind::ChooseNumber { source, .. } => (format!("the numbers {}'s instruction may be given", n(source)), Some("608.2d")),
+        DecisionKind::SelectWithinATotal { source, of, limit, .. } => (
+            format!("the objects {}'s instruction may choose, with {} between them", n(source), total_limit_words(*of, *limit)),
+            Some("608.2d"),
+        ),
         DecisionKind::ChooseEnteringDefender { object } => {
             (format!("what can be attacked that its effect allows, which {} attacks as it enters", n(object)), Some("508.4"))
         }

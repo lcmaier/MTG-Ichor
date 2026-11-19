@@ -25,8 +25,8 @@ use crate::types::card_types::CardType;
 use crate::types::effects::{
     AmountExpr, ChoiceKind, ChosenHow, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration,
     Effect,
-    EffectRecipient, ExtraPhasesAfter, ManaOutput, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet, Primitive, ReturnUnder,
-    SelectionFilter, TargetCount, TokenDef, TypeChange, ValueChoice,
+    EffectRecipient, ExtraPhasesAfter, ManaOutput, ObjectFilter, ObjectSet, ObjectValue, PatternFill, PickTotal, PlayerRef, PlayerSet,
+    Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange, ValueChoice, ValueIs,
 };
 use crate::types::mana::ManaCost;
 
@@ -392,14 +392,28 @@ pub fn choose_a_third_player(chooser: impl Into<ChosenHow>, among: PlayerSet) ->
 /// "[Chooser] chooses up to one creature", "a creature you control": `count`
 /// of the permanents `among` describes, none of them a target (CR 115.10a).
 pub fn choose_objects(chooser: impl Into<ChosenHow>, among: ObjectFilter, count: TargetCount) -> Effect {
-    choose_step(chooser, ValueChoice::Objects(SelectionFilter::Permanent(among), count))
+    choose_step(chooser, ValueChoice::Objects { among: SelectionFilter::Permanent(among), count, total: None })
+}
+
+/// "[Chooser] chooses any number of creatures they control with total power
+/// 4 or less": `count` of the permanents `among` describes, whose power adds
+/// up to `at_most` or less. A creature with negative power takes from the
+/// total (CR 107.1b).
+pub fn choose_objects_with_total_power_at_most(
+    chooser: impl Into<ChosenHow>,
+    among: ObjectFilter,
+    count: TargetCount,
+    at_most: impl Into<AmountExpr>,
+) -> Effect {
+    let total = PickTotal { of: ObjectValue::Power, is: ValueIs::AtMost(at_most.into()) };
+    choose_step(chooser, ValueChoice::Objects { among: SelectionFilter::Permanent(among), count, total: Some(total) })
 }
 
 /// "Then each other player chooses [objects]", after [`choose_objects`] by
 /// the controller: an answer from each opponent, kept beside the
 /// controller's and read back with `one_the_others_chose()`.
 pub fn then_each_other_player_chooses_objects(among: ObjectFilter, count: TargetCount) -> Effect {
-    let what = ValueChoice::Objects(SelectionFilter::Permanent(among), count);
+    let what = ValueChoice::Objects { among: SelectionFilter::Permanent(among), count, total: None };
     choose_step_kept_as(ChoiceKind::ObjectsTheOthersChose, super::recipients::each_opponent(), what)
 }
 

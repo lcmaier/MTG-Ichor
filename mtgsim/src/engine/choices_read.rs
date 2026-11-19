@@ -254,7 +254,10 @@ fn primitive_reads(primitive: &Primitive) -> ChoicesRead {
         // chooser reading its own name reads an earlier step's.
         Primitive::ChooseValue { kind, what, how } => {
             let among = match what {
-                ValueChoice::Objects(among, count) => selection_reads(among) | count_reads(count),
+                ValueChoice::Objects { among, count, total } => {
+                    let total = total.as_ref().map_or(ChoicesRead::NONE, |total| amount_reads(total.is.amount()));
+                    selection_reads(among) | count_reads(count) | total
+                }
                 // "A second player": other than the players those names kept.
                 ValueChoice::Player { other_than, .. } => all(other_than, |kind| ChoicesRead::the(*kind)),
                 ValueChoice::Color | ValueChoice::CreatureType | ValueChoice::CardType(_) | ValueChoice::Number { .. } => ChoicesRead::NONE,

@@ -27,13 +27,14 @@ use crate::state::game_state::{AbilityRef, GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::effects::{CounterType, ModeIndex};
+use crate::types::effects::{CounterType, ModeIndex, ObjectValue};
 use crate::types::ids::{AbilityId, DelayedTriggerId, IdMap, ObjectId, ObjectOrPlayer, ObjectOrPlayerId, PlayerId, RowId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::triggers::{DelayedDuration, ReflexiveForm};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 use crate::decision::question::{
-    AbilityAsRead, AmountOf, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TriggerOption, TriggeredAbility,
+    AbilityAsRead, AmountOf, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection, ReplacementOption, TotalLimit, TriggerOption,
+    TriggeredAbility,
 };
 use crate::decision::provider::PriorityAction;
 
@@ -443,6 +444,9 @@ pub fn question(game: &GameState, kind: &DecisionKind) -> String {
             format!("Choose for {}", n(spell_id))
         }
         DecisionKind::SelectRecipients { spell_id, .. } => format!("Choose targets for {}", n(spell_id)),
+        DecisionKind::SelectWithinATotal { source, of, limit, .. } => {
+            format!("Choose for {}, with {}", n(source), total_limit_words(*of, *limit))
+        }
         DecisionKind::DivideAmong { source } => format!("Divide {} among those chosen, at least one each", n(source)),
         DecisionKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
             format!("Split the generic part of {mana_cost} for {}", n(spell_or_ability_id))
@@ -672,6 +676,23 @@ pub fn rejection(game: &GameState, rejected: &Rejection) -> String {
             let (words, _) = rejection_words(game, rejected);
             format!("{words} (CR 601.2h)")
         }
+        Rejection::TotalOutsideTheLimit { .. } => {
+            let (words, _) = rejection_words(game, rejected);
+            format!("{words} (CR 608.2d)")
+        }
+    }
+}
+
+/// "Total power 4 or less", without its capital: what the numbers of a pick
+/// must add up to.
+pub fn total_limit_words(of: ObjectValue, limit: TotalLimit) -> String {
+    let of = match of {
+        ObjectValue::Power => "power",
+        ObjectValue::Toughness => "toughness",
+    };
+    match limit {
+        TotalLimit::AtMost(most) => format!("total {of} {most} or less"),
+        TotalLimit::AtLeast(least) => format!("total {of} {least} or greater"),
     }
 }
 
@@ -692,6 +713,9 @@ pub fn rejection_words(game: &GameState, rejected: &Rejection) -> (String, Optio
         Rejection::IllegalBlocks { why, .. } => {
             let (words, rule) = combat_refusal(game, why, Declaring::Blockers);
             (format!("Those blocks are illegal: {words}"), rule)
+        }
+        Rejection::TotalOutsideTheLimit { of, total, limit } => {
+            (format!("Those add up to {total}, and the choice is of {}", total_limit_words(*of, *limit)), Some("608.2d"))
         }
     }
 }

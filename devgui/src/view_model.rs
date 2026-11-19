@@ -24,7 +24,7 @@ use mtgsim::words::why::{Why, WhyAbout, WhyLine};
 
 use crate::bridge::{Outcome, ToWindow};
 use crate::editor::EditorInput;
-use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
+use crate::prompt::{Answer, BoardRef, OptionView, Primitive, Prompt, Reply};
 use crate::save::{Destination, Tools};
 use crate::snapshot::{CardView, LogLine, PermanentView, PlayerView, Snapshot, StackTarget};
 pub use crate::snapshot::{TypeLineView, TypeWordView};
@@ -232,7 +232,10 @@ fn pick(
     let clicked = match input {
         Input::OptionButton(i) if i < prompt.options.len() => Some(i),
         Input::Board(target) => board_option(prompt, half, target),
-        Input::Done => return (min..=max).contains(&chosen.len()).then(|| Answer::Picks(chosen.clone())),
+        Input::Done => {
+            let inside_the_total = prompt.total.as_ref().is_none_or(|total| total.limit.admits_the_pick(&total.numbers, chosen));
+            return ((min..=max).contains(&chosen.len()) && inside_the_total).then(|| Answer::Picks(chosen.clone()));
+        }
         _ => None,
     }?;
     if max == 1 {
@@ -1360,16 +1363,25 @@ impl PromptView {
         let done_button = |label: &str| DoneButton { label: label.to_string(), live: live(Input::Done) };
         let (rule, options, number, done): (String, Vec<OptionButton>, _, _) = match (&prompt.primitive, selection) {
             (Primitive::PickN { min, max }, Selection::Picks { chosen, half }) => {
-                let rule = match half {
-                    Some(half) => format!("now click what {} goes with", name_of(board, half)),
-                    None => pick_rule(*min, *max),
+                let rule = match (half, &prompt.total) {
+                    (Some(half), _) => format!("now click what {} goes with", name_of(board, half)),
+                    (None, Some(total)) => {
+                        let so_far: i64 = chosen.iter().map(|&i| total.numbers[i]).sum();
+                        format!("{}, with {}: {so_far} so far", pick_rule(*min, *max), total.limit_words)
+                    }
+                    (None, None) => pick_rule(*min, *max),
+                };
+                // Under a total each option shows the number it adds.
+                let label = |i: usize, o: &OptionView| match &prompt.total {
+                    Some(total) => format!("{}: {}", o.label, total.numbers[i]),
+                    None => o.label.clone(),
                 };
                 // A lone option with a way out is a "may": yes or no.
                 let may = *min == 0 && *max == 1 && prompt.options.len() == 1;
                 let options = options
                     .map(|(i, o)| OptionButton {
                         chosen: chosen.contains(&i),
-                        ..button(i, &if may { format!("Yes: {}", o.label) } else { o.label.clone() })
+                        ..button(i, &if may { format!("Yes: {}", o.label) } else { label(i, o) })
                     })
                     .collect();
                 let done = match (*min, *max) {
@@ -1524,7 +1536,6 @@ mod tests {
     use mtgsim::words::why::NotOfferedYet;
 
     use super::*;
-    use crate::prompt::OptionView;
     use crate::snapshot::StackItem;
     use BoardRef::{Object, Player};
 
@@ -1579,6 +1590,7 @@ mod tests {
             rejected: None,
             why_reads_the_trace: false,
             primitive,
+            total: None,
             mode_labels: mode_labels(&options),
             options,
             not_offered_yet: Vec::new(),
@@ -1863,6 +1875,37 @@ mod tests {
         state.input(Input::Number(0));
         state.input(Input::Number(1_000));
         assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Number(1_000))));
+    }
+
+    /// A pick under a total is legal as a whole: every option stays live,
+    /// each shows the number it adds, the rule shows the running total, and
+    /// Done is offered only while the total is inside the limit. A negative
+    /// number brings an answer back inside it.
+    #[test]
+    fn a_pick_under_a_total_adds_up_and_confirms_only_inside_the_limit() {
+        use crate::prompt::TotalOfPicks;
+        use mtgsim::decision::question::TotalLimit;
+        let b = board();
+        let total = TotalOfPicks { limit: TotalLimit::AtMost(4), limit_words: "total power 4 or less".to_string(), numbers: vec![3, 2, -2] };
+        let options = vec![option("A Giant", Vec::new()), option("A Bear", Vec::new()), option("A Weakling", Vec::new())];
+        let mut state = deciding(&b, Prompt { total: Some(total), ..prompt(Primitive::PickN { min: 0, max: 3 }, options) });
+
+        let view = state.prompt_view().unwrap();
+        assert_eq!(view.rule, "choose up to 3, with total power 4 or less: 0 so far");
+        assert_eq!(view.options.iter().map(|o| o.label.as_str()).collect::<Vec<_>>(), ["A Giant: 3", "A Bear: 2", "A Weakling: -2"]);
+        assert!(view.done.unwrap().live, "nothing chosen is inside the limit");
+
+        state.input(Input::OptionButton(0));
+        state.input(Input::OptionButton(1));
+        let view = state.prompt_view().unwrap();
+        assert_eq!(view.rule, "choose up to 3, with total power 4 or less: 5 so far");
+        assert!(!view.done.unwrap().live, "5 is over the limit");
+        assert!(view.options.iter().all(|o| o.live), "and no option is greyed out for it");
+        assert_eq!(state.input(Input::Done), None);
+
+        state.input(Input::OptionButton(2));
+        assert!(state.prompt_view().unwrap().done.unwrap().live, "3 and 2 and -2 are 3");
+        assert_eq!(state.input(Input::Done), Some(Reply::Answer(Answer::Picks(vec![0, 1, 2]))));
     }
 
     #[test]

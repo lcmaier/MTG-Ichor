@@ -23,7 +23,7 @@ use crate::types::effects::{
     AmountExpr, AnsweredBy, Antecedent, Choice, ChoiceAnswer, ChoiceKind, ChoiceMade, ChoiceScope, ChosenHow, ChosenValue, Condition,
     CopyException, CopyRoles, CostAnswer,
     DiscardChooser, Duration, Effect, EffectRecipient, ModeIndex, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount,
-    PlayerAntecedent, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice,
+    PickTotal, PlayerAntecedent, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice, ValueIs,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
@@ -40,7 +40,7 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
-use crate::decision::question::{AmountOf, DecisionKind};
+use crate::decision::question::{AmountOf, DecisionKind, TotalLimit};
 use crate::decision::provider::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -703,6 +703,7 @@ impl GameState {
         asked_as: &EffectRecipient,
         filter: &SelectionFilter,
         count: &TargetCount,
+        total: Option<&PickTotal>,
         chooser: Option<PlayerId>,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
@@ -724,16 +725,33 @@ impl GameState {
         let TargetCount::Divided(divided) = count else {
             let bounds = count.bounds(&amount)?;
             let most = bounds.most.min(candidates.len());
-            let chosen = match chooser {
-                Some(player) => {
+            let chosen = match (chooser, total) {
+                (Some(player), None) => {
                     crate::decision::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, bounds.fewest.min(most), most)
                 }
+                (Some(player), Some(total)) => {
+                    let limit = self.total_limit_as_read(total, ctx)?;
+                    let numbers = self.each_ones_number(&candidates, total.of);
+                    let bounds = (bounds.fewest.min(most), most);
+                    crate::decision::ask::ask_select_within_a_total(dp, self, player, ctx.source, total.of, limit, &numbers, bounds)
+                        .into_iter()
+                        .map(ObjectOrPlayerId::Object)
+                        .collect()
+                }
+                (None, Some(_)) => return Err(format!("{asked_as:?} on {:?} draws objects at random under a total, which no card prints", ctx.source)),
                 // "Choose a creature at random": as many as the text says.
-                None if bounds.fewest == bounds.most => self.random_indices(candidates.len(), most).into_iter().map(|index| candidates[index]).collect(),
-                None => return Err(format!("{asked_as:?} on {:?} draws a number of objects at random that its text leaves open", ctx.source)),
+                (None, None) if bounds.fewest == bounds.most => {
+                    self.random_indices(candidates.len(), most).into_iter().map(|index| candidates[index]).collect()
+                }
+                (None, None) => {
+                    return Err(format!("{asked_as:?} on {:?} draws a number of objects at random that its text leaves open", ctx.source));
+                }
             };
             return Ok((chosen, Vec::new()));
         };
+        if total.is_some() {
+            return Err(format!("{asked_as:?} on {:?} divides among objects chosen under a total, which no card prints", ctx.source));
+        }
         let Some(player) = chooser else {
             return Err(format!("{asked_as:?} on {:?} divides at random, which no card prints", ctx.source));
         };
@@ -747,6 +765,38 @@ impl GameState {
             crate::decision::ask::ask_divide_among(dp, self, player, ctx.source, &chosen, total)
         };
         Ok((chosen, shares))
+    }
+
+    /// What `total` says a pick must add up to, with its amount read as the
+    /// step runs (CR 608.2h). "Less than 5" is 4 or less, a total being a
+    /// whole number.
+    fn total_limit_as_read(&self, total: &PickTotal, ctx: &ResolutionContext) -> Result<TotalLimit, String> {
+        let amount = i64::try_from(self.evaluate_amount(total.is.amount(), ctx, None)?).unwrap_or(i64::MAX);
+        match &total.is {
+            ValueIs::AtMost(_) => Ok(TotalLimit::AtMost(amount)),
+            ValueIs::LessThan(_) => Ok(TotalLimit::AtMost(amount - 1)),
+            ValueIs::AtLeast(_) => Ok(TotalLimit::AtLeast(amount)),
+            // Whether any pick adds up to one number exactly is a search,
+            // where the other three are decided by the pick furthest inside.
+            ValueIs::Exactly(_) => Err(format!("a pick whose total is exactly a number, on {:?}, is not built: no card prints one", ctx.source)),
+        }
+    }
+
+    /// `of` each of `candidates`, as the layers give it now (CR 608.2h). An
+    /// object with no such number adds nothing (CR 107.2), and a negative
+    /// one is kept as it is (CR 107.1b).
+    fn each_ones_number(&self, candidates: &[ObjectOrPlayerId], of: ObjectValue) -> Vec<(ObjectId, i64)> {
+        let number = |id: ObjectId| match of {
+            ObjectValue::Power => crate::oracle::characteristics::get_effective_power(self, id),
+            ObjectValue::Toughness => crate::oracle::characteristics::get_effective_toughness(self, id),
+        };
+        candidates
+            .iter()
+            .filter_map(|candidate| match candidate {
+                ObjectOrPlayerId::Object(id) => Some((*id, i64::from(number(*id).unwrap_or(0)))),
+                ObjectOrPlayerId::Player(_) => None,
+            })
+            .collect()
     }
 
     /// [`Primitive::ChooseValue`]: make the choice `how` describes, and keep
@@ -857,12 +907,12 @@ impl GameState {
                 }
                 .map(ChosenValue::Player)
             }
-            ValueChoice::Objects(filter, count) => {
+            ValueChoice::Objects { among, count, total } => {
                 // The answer is for whoever is asked: a walk's player, or
                 // the one chooser.
-                let Some(filter) = self.selection_as_read_for(filter, ctx, chooser)? else { return Ok(None) };
+                let Some(filter) = self.selection_as_read_for(among, ctx, chooser)? else { return Ok(None) };
                 let asked_as = EffectRecipient::Choose(filter.clone().into_owned(), count.clone());
-                let (chosen, shares) = self.pick_objects(&asked_as, &filter, count, chooser, ctx, dp)?;
+                let (chosen, shares) = self.pick_objects(&asked_as, &filter, count, total.as_ref(), chooser, ctx, dp)?;
                 let chosen = chosen.into_iter().filter_map(|picked| match picked {
                     ObjectOrPlayerId::Object(id) => self.object_ref(id),
                     ObjectOrPlayerId::Player(_) => None,

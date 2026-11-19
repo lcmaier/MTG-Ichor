@@ -43,7 +43,7 @@ use crate::oracle::mana_supply::{available_mana_sources, controls_a_pool_multipl
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, IdCollection, ObjectId, PlayerId};
 use crate::types::mana::{ManaBag, ManaCost, ManaSymbol, ManaType};
-use crate::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection};
+use crate::decision::question::{each_options_number, DecisionContext, DecisionKind, DecisionOption, Rejection};
 use crate::decision::provider::{DecisionProvider, PriorityAction};
 
 /// What a mana window's options can do for the pips a cost still owes.
@@ -323,6 +323,33 @@ impl DecisionProvider for RandomDecisionProvider {
         } else {
             rng.random_range(bounds.0..=bounds.1)
         };
+
+        // Under a total the legal answers are sets, so a draw of `count`
+        // options would be refused most of the time: the options in a random
+        // order, each kept if the pick is inside the limit with it. A walk
+        // that ends outside it (a limit the empty pick is outside of)
+        // answers with the pick furthest inside, which the engine checked is
+        // one before it asked.
+        if let DecisionKind::SelectWithinATotal { limit, numbers, .. } = &context.kind {
+            let each = each_options_number(numbers, options);
+            let mut shuffled: Vec<usize> = (0..options.len()).collect();
+            shuffled.shuffle(&mut *rng);
+            let mut picked: Vec<usize> = Vec::new();
+            for idx in shuffled {
+                if picked.len() >= count {
+                    break;
+                }
+                picked.push(idx);
+                if !limit.admits_the_pick(&each, &picked) {
+                    picked.pop();
+                }
+            }
+            if picked.len() < bounds.0 || !limit.admits_the_pick(&each, &picked) {
+                picked = limit.pick_furthest_inside(&each, bounds);
+            }
+            picked.sort();
+            return picked;
+        }
 
         // For a declaration, dedup on the creature: an attacker attacks one
         // thing (CR 802.3), which the question requires, and each blocker
@@ -663,6 +690,35 @@ mod tests {
         let drawn: Vec<u64> = (0..200).map(|seed| RandomDecisionProvider::seeded(seed).pick_number(&game, 0, &ctx, 1, u64::MAX)).collect();
         assert!(drawn.iter().all(|n| (1..=1 + REACH_PAST_AN_OPEN_NUMBERS_LEAST).contains(n)), "{drawn:?}");
         assert!(drawn.iter().any(|&n| n > 10), "the whole reach is drawn from: {drawn:?}");
+    }
+
+    /// A pick under a total is answered inside the limit at every seed: the
+    /// engine asks again until it is, so an agent that drew outside it would
+    /// never finish. A negative number makes room, so some seed keeps the 5
+    /// beside the −2, and a limit the empty pick is outside of is answered
+    /// with the pick furthest inside.
+    #[test]
+    fn a_pick_under_a_total_is_answered_inside_the_limit() {
+        use crate::decision::question::TotalLimit;
+        use crate::types::effects::ObjectValue;
+        let game = setup_basic_game();
+        let ids: Vec<ObjectId> = (0..4).map(|_| crate::types::ids::new_object_id()).collect();
+        let numbers: Vec<(ObjectId, i64)> = ids.iter().copied().zip([5, 3, 2, -2]).collect();
+        let options: Vec<DecisionOption> = ids.iter().copied().map(DecisionOption::Object).collect();
+        let asked = |limit: TotalLimit| {
+            let kind = DecisionKind::SelectWithinATotal { source: ids[0], of: ObjectValue::Power, limit, numbers: numbers.clone() };
+            let ctx = DecisionContext::new(kind);
+            (0..200).map(|seed| RandomDecisionProvider::seeded(seed).pick_n(&game, 0, &ctx, &options, (0, 4))).collect::<Vec<_>>()
+        };
+        let total = |picked: &[usize]| picked.iter().map(|&at| numbers[at].1).sum::<i64>();
+
+        let at_most_four = asked(TotalLimit::AtMost(4));
+        assert!(at_most_four.iter().all(|picked| total(picked) <= 4), "{at_most_four:?}");
+        assert!(at_most_four.iter().any(|picked| picked.contains(&0)), "the 5 is kept beside the -2 at some seed");
+        assert!(at_most_four.iter().any(Vec::is_empty), "and nothing at all at some seed");
+
+        let at_least_nine = asked(TotalLimit::AtLeast(9));
+        assert!(at_least_nine.iter().all(|picked| total(picked) >= 9), "{at_least_nine:?}");
     }
 
     #[test]
