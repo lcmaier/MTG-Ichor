@@ -17,7 +17,7 @@ use mtgsim::cards::authoring::{
     target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
     the_third_chosen_player, they_control, you,
 };
-use mtgsim::cards::printings::{fortunate_few, plague_spores, slaughter_the_strong};
+use mtgsim::cards::printings::{fortunate_few, harsh_mercy, plague_spores, slaughter_the_strong};
 use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption, Rejection, TotalLimit};
 use mtgsim::engine::actions::GameAction;
@@ -598,6 +598,52 @@ fn a_creature_of_negative_power_makes_room_under_the_total() {
 // ---------------------------------------------------------------------------
 // The cards
 // ---------------------------------------------------------------------------
+
+/// A 2/2 of one creature type.
+fn creature_of_type(creature_type: CreatureType) -> Arc<CardData> {
+    CardDataBuilder::new("A Creature")
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(creature_type))
+        .power_toughness(2, 2)
+        .build()
+}
+
+// COVERS-PARTIAL: ATOM-101.4c-001
+/// Harsh Mercy. Each player chooses a type, the active player first, and
+/// every type is chosen before anything is destroyed (CR 101.4c: the
+/// choosing is one step and the destroying the next). A creature of any
+/// chosen type is spared, whoever chose it: two players naming Goblin spare
+/// the one Goblin. The Wall's regeneration shield is passed over, since the
+/// destroy carries "they can't be regenerated".
+#[test]
+fn harsh_mercy_spares_a_creature_of_any_type_a_player_chose() {
+    let mut game = at_the_turn_of(0, 3);
+    // Regenerated while it is the board's one creature, so the shield has
+    // one target and asks nothing.
+    let wall = put_on_battlefield(&mut game, creature_of_type(CreatureType::Wall), 1);
+    let shield = instant("A Shield", "Regenerate target creature.", Effect::Atom(Primitive::Regenerate, target_creature()));
+    cast_paying(&mut game, shield, &[(ManaType::Blue, 1)]);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).expect("the shield is made");
+    let goblin = put_on_battlefield(&mut game, creature_of_type(CreatureType::Goblin), 0);
+    let elf = put_on_battlefield(&mut game, creature_of_type(CreatureType::Elf), 1);
+    let zombie = put_on_battlefield(&mut game, creature_of_type(CreatureType::Zombie), 2);
+    cast_paying(&mut game, harsh_mercy(), &[(ManaType::White, 3)]);
+
+    let answers = ScriptedDecisionProvider::new();
+    for creature_type in [CreatureType::Goblin, CreatureType::Elf, CreatureType::Goblin] {
+        answers.expect_choice(DecisionKind::ChooseCreatureType { source: ObjectId::UNASSIGNED }, vec![DecisionOption::CreatureType(creature_type)]);
+    }
+    let creatures_at_each_question = RefCell::new(Vec::new());
+    let seat = AtEachPrompt::new(answers, |game: &GameState, _: &DecisionContext| {
+        creatures_at_each_question.borrow_mut().push(game.battlefield.len());
+    });
+    game.resolve_top_of_stack(&seat).expect("it resolves");
+
+    assert_eq!(creatures_at_each_question.into_inner(), [4, 4, 4], "every type is chosen before any creature is destroyed");
+    let on_the_battlefield = [goblin, elf, zombie, wall].map(|id| game.battlefield.contains_key(&id));
+    assert_eq!(on_the_battlefield, [true, true, false, false], "Goblin and Elf were chosen; the Wall's shield is not applied");
+}
 
 // RULING: Fortunate Few #1 - "After you choose a nonland permanent, each
 //   other player does so in turn order starting from the player whose turn

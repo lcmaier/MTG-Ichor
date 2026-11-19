@@ -3,8 +3,9 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    activated_ability, add_phases, create_replacement_for, creature, creatures_you_control, deal_damage_unpreventable, each, spell_ability,
-    static_replacement, target_creature, untap, with_subtype, you, you_control,
+    a_creature_type_chosen_this_way, activated_ability, add_phases, choose_creature_type, create_replacement_for, creature, creature_type,
+    creatures_you_control, deal_damage_unpreventable, destroy, each, each_player, spell_ability, static_replacement, target_creature, untap,
+    with_subtype, you, you_control,
 };
 use crate::objects::card_data::{Activation, CardData, CardDataBuilder};
 use crate::state::game_state::PhaseType;
@@ -219,6 +220,39 @@ pub fn words_of_worship() -> Arc<CardData> {
                 .once(),
             )
             .until_end_of_turn(),
+        ))
+        .build()
+}
+
+/// Harsh Mercy — {2}{W}
+/// Sorcery
+///
+/// > Each player chooses a creature type. Destroy all creatures that aren't
+/// > of a type chosen this way. They can't be regenerated.
+///
+/// (Oracle text verified on Scryfall, 2026-11-18.)
+///
+/// A value from each player, the active player first (CR 101.4, 608.2e),
+/// read as any of their answers: a creature of one chosen type survives
+/// whoever chose it. "They can't be regenerated" is the destroy's own.
+///
+/// # The rulings, and where each is tested
+///
+/// Scryfall lists none for this card. Its board is
+/// `phase_several_choosers_at_one_step_integration_test::harsh_mercy_spares_a_creature_of_any_type_a_player_chose`.
+pub fn harsh_mercy() -> Arc<CardData> {
+    let text = "Each player chooses a creature type. Destroy all creatures that aren't of a type chosen this way. They can't be regenerated.";
+    CardDataBuilder::new("Harsh Mercy")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![
+                choose_creature_type(each_player()),
+                destroy(each(creature().other_than(creature_type(a_creature_type_chosen_this_way())))).cant_be_regenerated(),
+            ]),
         ))
         .build()
 }

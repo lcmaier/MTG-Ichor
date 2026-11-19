@@ -49,7 +49,7 @@ pub use modes::{
     choose_each_targeting_a_different_player, choose_pawprints_worth, choose_repeatable, choose_two, choose_up_to, spree,
 };
 pub use recipients::{
-    all_their, an_opponent_controls, another_target, any_other_target, any_player,
+    a_color_chosen_this_way, a_creature_type_chosen_this_way, all_their, an_opponent_controls, another_target, any_other_target, any_player,
     any_target, artifact, attacked_by, basic, chosen_by, chosen_this_way, color,
     card_type, creature_type, one_of_the_chosen, one_the_others_chose, the_chosen_card_type, the_chosen_color, the_chosen_creature_type,
     the_second_chosen_player, the_third_chosen_player, PrintedOrChosen,

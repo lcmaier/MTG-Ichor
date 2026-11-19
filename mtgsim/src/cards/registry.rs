@@ -1262,8 +1262,9 @@ impl CardRegistry {
         // first: a pick limited by its total, with the rest sacrificed by
         // whoever controls it.
         registry.register("Slaughter the Strong", rix::slaughter_the_strong);
-        // You and then each other player, the second kept under its own
-        // name.
+        // A value from each player read as any answer; and you and then
+        // each other player, the second kept under its own name.
+        registry.register("Harsh Mercy", ons::harsh_mercy);
         registry.register("Fortunate Few", c17::fortunate_few);
         // A player verb whose target player has left, beside a target that
         // keeps the spell resolving.

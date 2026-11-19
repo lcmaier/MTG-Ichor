@@ -233,6 +233,21 @@ pub fn the_chosen_creature_type() -> PrintedOrChosen<CreatureType> {
     PrintedOrChosen::Chosen
 }
 
+/// "A color chosen this way", after each player chose one: any of their
+/// answers, where [`the_chosen_color`] is the one a single chooser gave.
+pub fn a_color_chosen_this_way() -> PrintedOrChosen<Color> {
+    PrintedOrChosen::Chosen
+}
+
+/// "A type chosen this way", after each player chose one: Harsh Mercy's
+/// "creatures that aren't of a type chosen this way" is
+/// `creature().other_than(creature_type(a_creature_type_chosen_this_way()))`.
+/// Any of their answers, where [`the_chosen_creature_type`] is the one a
+/// single chooser gave.
+pub fn a_creature_type_chosen_this_way() -> PrintedOrChosen<CreatureType> {
+    PrintedOrChosen::Chosen
+}
+
 /// "The chosen card type", where a card could print one: World Queller's
 /// "a permanent of their choice of that type" picks among
 /// `card_type(the_chosen_card_type())`.
