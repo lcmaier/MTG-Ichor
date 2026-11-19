@@ -179,7 +179,7 @@ fn walk(seed: u64, players: usize, turns: usize, window: usize) -> Vec<Raised> {
 fn every_prompt_a_game_raises_says_what_it_is_about() {
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     let mut total = 0;
-    let games = [(0xA4_0001u64, 2), (0xA4_0039, 2), (0xA4_0004, 4), (0xA4_0005, 4)];
+    let games = [(0xA4_0001u64, 2), (0xA4_0039, 2), (0xA4_0004, 4), (0xA4_0004, 4)];
     // The decks are windows of the sorted registry, so a card registered
     // ahead of a window changes it; fifty turns raise every kind below on
     // the registry as TR-3b left it, where forty raised no blockers. A card

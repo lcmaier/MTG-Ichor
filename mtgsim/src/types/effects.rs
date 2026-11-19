@@ -1608,15 +1608,19 @@ pub struct Choice {
     pub chooser: EffectRecipient,
     /// Whose objects are picked from, and where.
     pub among: ChoiceScope,
-    /// One pick per category: an edict's one, and Cataclysm's four with its
-    /// card, where a permanent may answer two.
+    /// One pick per category: an edict's one. Several picks by one player
+    /// ("an artifact, a creature, an enchantment, and a land", Cataclysm)
+    /// are a choose step's ([`ValueChoice::Objects`]), with their first
+    /// card.
     pub picks: Vec<Pick>,
-    /// Whether the verb acts on what was chosen or on the rest.
+    /// What the verb acts on: what was chosen.
     pub acts_on: ChoiceSide,
 }
 
-/// Whose objects a [`Choice`] picks from, and where. Another player's
-/// objects, a graveyard and a hand are arms with their first cards.
+/// Whose objects a [`Choice`] picks from, and where. "A permanent they
+/// don't control" is a choose step's ([`ValueChoice::Objects`]), whose
+/// filter reads "they" as the player answering; a graveyard and a hand are
+/// arms with their first cards.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChoiceScope {
     /// The permanents the chooser controls: an edict's "a creature".
@@ -1624,7 +1628,9 @@ pub enum ChoiceScope {
 }
 
 /// What the verb acts on once the picks are made. "Choose …, then sacrifice
-/// the rest" (Balance, Cataclysm) is an arm with its first card.
+/// the rest" (Slaughter the Strong, Cataclysm) is no arm here: it is a
+/// choose step, then the verb on every object no answer chose
+/// ([`PickCount::All`] where each player acts on their own).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChoiceSide {
     Chosen,

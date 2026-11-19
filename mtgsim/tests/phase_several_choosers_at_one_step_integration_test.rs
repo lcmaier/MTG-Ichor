@@ -12,8 +12,9 @@ use watching::Watching;
 
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 use mtgsim::cards::authoring::{
-    choose_a_second_player, choose_a_third_player, choose_color, choose_number, choose_number_at_least, choose_objects, choose_player, color,
-    creature, destroy, draw_cards, each, each_opponent, each_player, gain_life, non, one_of_the_chosen, spell_ability, target_creature,
+    choose_a_second_player, choose_a_third_player, choose_color, choose_number, choose_number_at_least, choose_objects, choose_player,
+    chosen_by, color, creature, destroy, draw_cards, each, each_opponent, each_player, gain_life, non, one_of_the_chosen, sacrifice,
+    spell_ability, target_creature,
     target_opponent, the_chosen_color, the_chosen_number, the_chosen_objects, the_chosen_player, the_second_chosen_player,
     the_third_chosen_player, they_control, you,
 };
@@ -28,7 +29,9 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{fill_library, forest, pass_turn, put_in_hand, put_on_battlefield, setup_game, test_ctx, AtEachPrompt};
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{CounterType, Effect, EffectRecipient, ObjectValue, PlayerRef, PlayerSet, Primitive, TargetCount};
+use mtgsim::types::effects::{
+    Choice, ChoiceScope, ChoiceSide, CounterType, Effect, EffectRecipient, ObjectValue, Pick, PlayerRef, PlayerSet, Primitive, TargetCount,
+};
 use mtgsim::types::ids::{ObjectId, ObjectOrPlayerId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -220,14 +223,22 @@ fn a_later_players_question_reads_the_answers_before_it() {
 // "They": the player an answer is for (CR 608.2d)
 // ---------------------------------------------------------------------------
 
+// RULING: Divine Reckoning #7 - "Starting with the player whose turn it is,
+//   each player chooses a creature in turn order. Players will know the
+//   choice of each player who chose before them."
+// COVERS-PARTIAL: ATOM-608.2e-001
+//
 /// "Each player chooses a creature they control": "they" is the player the
 /// walk is on, so each is offered their own creatures and no one else's,
 /// where "you control" would offer every player the controller's. A player
 /// with none to choose gives an answer that chose nothing, and the rest is
-/// still read against every answer.
+/// still read against every answer, and destroyed in one batch once every
+/// choice is made (CR 608.2e). Divine Reckoning's first two sentences, on
+/// an instant so that the turn is not its controller's.
 #[test]
 fn each_player_chooses_among_what_they_control() {
     let mut game = at_the_turn_of(1, 3);
+    game.record_events();
     let mine = [(); 2].map(|_| put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0));
     let theirs = [(); 2].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
     let card = instant(
@@ -255,6 +266,35 @@ fn each_player_chooses_among_what_they_control() {
     );
     assert_eq!(mine.map(|id| game.battlefield.contains_key(&id)), [true, false]);
     assert_eq!(theirs.map(|id| game.battlefield.contains_key(&id)), [false, true]);
+    let destroyed = moved_by(&game, ZoneChangeAct::Destroyed);
+    assert_eq!(destroyed.len(), 2);
+    assert_eq!(destroyed[0].1, destroyed[1].1, "one batch, after the last choice");
+}
+
+// COVERS: ATOM-101.4-001
+/// CR 101.4 — "each player sacrifices a creature": the active player
+/// chooses first, then the other, and both sacrifices are one event. Each
+/// controls two creatures, since one apiece is no choice and asks nobody.
+#[test]
+fn each_player_sacrifices_a_creature_the_active_player_choosing_first() {
+    let mut game = at_the_turn_of(1, 2);
+    game.record_events();
+    let mine = [(); 2].map(|_| put_on_battlefield(&mut game, creature_of_color("My Bear", Color::Green), 0));
+    let theirs = [(); 2].map(|_| put_on_battlefield(&mut game, creature_of_color("Their Bear", Color::Green), 1));
+    let a_creature_apiece =
+        Choice { chooser: each_player(), among: ChoiceScope::ChoosersPermanents, picks: vec![Pick::exactly(1, creature())], acts_on: ChoiceSide::Chosen };
+    let card = instant("An Edict", "Each player sacrifices a creature of their choice.", sacrifice(chosen_by(a_creature_apiece)));
+    cast_paying(&mut game, card, &[(ManaType::Blue, 1)]);
+
+    let answers = ScriptedDecisionProvider::new();
+    picks(&answers, vec![DecisionOption::Object(theirs[0])]);
+    picks(&answers, vec![DecisionOption::Object(mine[1])]);
+    game.resolve_top_of_stack(&answers).expect("it resolves");
+
+    assert_eq!(asked_in_order(&answers), [1, 0], "the active player, then the next in turn order");
+    let gone = sacrificed(&game);
+    assert_eq!(gone.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [theirs[0], mine[1]]);
+    assert_eq!(gone[0].1, gone[1].1, "one batch");
 }
 
 /// With one chooser and no walk, "they" is that chooser: "target opponent
