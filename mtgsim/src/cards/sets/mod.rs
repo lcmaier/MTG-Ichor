@@ -73,6 +73,8 @@ pub mod set_5dn;
 pub mod chk;
 #[path = "2005/02_04_bok.rs"]
 pub mod bok;
+#[path = "2005/06_03_sok.rs"]
+pub mod sok;
 #[path = "2005/10_07_rav.rs"]
 pub mod rav;
 #[path = "2006/02_03_gpt.rs"]

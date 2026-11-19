@@ -38,12 +38,14 @@ use crate::events::unasked::{Unasked, UnaskedAnswer};
 use crate::types::card_types::{CardType, CreatureType};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::effects::{EffectRecipient, ModeIndex};
+use crate::types::effects::{EffectRecipient, ModeIndex, ObjectValue};
 use crate::types::ids::{AbilityId, IdSet, ObjectId, ObjectOrPlayerId, ObjectRef, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::oracle::x_values::{LegalXValues, XOffer};
 
-use super::question::{AmountOf, DecisionContext, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection};
+use super::question::{
+    each_options_number, AmountOf, DecisionContext, DecisionKind, DecisionOption, CostPart, EntryOffer, EntryRole, Rejection, TotalLimit,
+};
 use super::provider::{DecisionProvider, PriorityAction};
 
 /// The one allocation a forced split admits, or `None` when the player has
@@ -716,6 +718,13 @@ fn pick_from_offer(dp: &dyn DecisionProvider, game: &GameState, player: PlayerId
             validate_pick_n(&index, &options, (1, 1), asking, game, player, ctx);
             values[index[0]]
         }
+        // No most: the question's kind says so, and the range asked ends at
+        // the largest number there is. How far up to go is the answerer's.
+        XOffer::NoTop { at_least } => {
+            let value = dp.pick_number(game, player, ctx, at_least, u64::MAX);
+            validate_pick_number(value, at_least, u64::MAX, asking, game, player, ctx);
+            value
+        }
     }
 }
 
@@ -800,6 +809,51 @@ pub fn ask_select_recipients(
     // for "target creature" is the common shape of it.
     let indices = pick_unless_forced(dp, game, player, ctx, &options, (min_selections, max_selections), "select_recipients");
     indices.iter().map(|&i| legal_selections[i]).collect()
+}
+
+/// A choose step's objects under a total (CR 608.2d): `bounds` of `numbers`'
+/// objects, whose numbers add up to what `limit` admits. Asked until the
+/// answer does, the refusal naming the total it came to. `None` where no
+/// pick at all is inside the limit ("total power 10 or greater" of
+/// creatures that do not reach it), which is a choice that cannot be made;
+/// and where none but the empty pick is, that is the answer, not asked.
+pub fn ask_select_within_a_total(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    source: ObjectId,
+    of: ObjectValue,
+    limit: TotalLimit,
+    numbers: &[(ObjectId, i64)],
+    bounds: (usize, usize),
+) -> Option<Vec<ObjectId>> {
+    let options: Vec<DecisionOption> = numbers.iter().map(|(id, _)| DecisionOption::Object(*id)).collect();
+    let number_of_each = each_options_number(numbers, &options);
+    let some_pick_of =
+        |bounds: (usize, usize)| limit.admits_the_pick(&number_of_each, &limit.pick_furthest_inside(&number_of_each, bounds));
+    if !some_pick_of(bounds) {
+        return None;
+    }
+    // Nothing to choose from, as for any pick, is no question.
+    if numbers.is_empty() || bounds.1 == 0 {
+        return Some(Vec::new());
+    }
+    let kind = DecisionKind::SelectWithinATotal { source, of, limit, numbers: numbers.to_vec() };
+    if bounds.0 == 0 && !some_pick_of((1, bounds.1)) {
+        game.note_unasked(player, Unasked::OneLegalAnswer, || (kind, UnaskedAnswer::Picks(Vec::new())));
+        return Some(Vec::new());
+    }
+    let mut rejected = None;
+    loop {
+        let ctx = DecisionContext { kind: kind.clone(), rejected: rejected.take() };
+        let picked = dp.pick_n(game, player, &ctx, &options, bounds);
+        validate_pick_n(&picked, &options, bounds, "select_within_a_total", game, player, &ctx);
+        if limit.admits_the_pick(&number_of_each, &picked) {
+            return Some(picked.iter().map(|&at| numbers[at].0).collect());
+        }
+        let total = picked.iter().map(|&at| number_of_each[at]).fold(0, i64::saturating_add);
+        rejected = Some(Rejection::TotalOutsideTheLimit { of, total, limit });
+    }
 }
 
 /// Divide `total` among `targets`, each receiving at least one: the targets

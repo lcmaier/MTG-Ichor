@@ -134,7 +134,7 @@ fn resolve_as(game: &mut GameState, player: PlayerId, effect: &Effect, targets: 
 }
 
 fn destroy(game: &mut GameState, id: ObjectId) {
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
+    let destroy = Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)));
     resolve_as(game, 0, &destroy, vec![ObjectOrPlayerId::Object(id)]);
 }
 
@@ -236,7 +236,7 @@ fn sphere_grid_puts_its_counter_on_the_creature_that_dealt_the_damage() {
 #[test]
 fn that_creature_is_the_recipient_when_the_instruction_names_it() {
     let mut game = stocked(2);
-    let destroy_it = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::DamageRecipient));
+    let destroy_it = Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Triggering(EventRole::DamageRecipient));
     let dealt_damage = TriggerEvent::DamageDealt {
         source: TriggerSubject::Any,
         recipient: DamageRecipient::Object(Some(ObjectFilter::ByType(CardType::Creature))),
@@ -525,7 +525,7 @@ fn a_sphere_grid_blocker_keeps_blocking_once_the_grid_leaves() {
     let grid = put_on_battlefield(&mut game, sphere_grid(), 0);
     let (flier, blocker) = a_reach_block(&mut game);
 
-    let destroy_grid = Effect::Atom(Primitive::Destroy, EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)));
+    let destroy_grid = Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)));
     resolve_as(&mut game, 1, &destroy_grid, vec![ObjectOrPlayerId::Object(grid)]);
     assert!(!has_keyword(&game, blocker, KeywordFlag::Reach));
     assert!(game.battlefield[&blocker].blocking.is_some(), "CR 506.4a: still blocking");

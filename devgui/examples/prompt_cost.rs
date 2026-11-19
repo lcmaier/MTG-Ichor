@@ -164,7 +164,14 @@ fn widest_mode_picker() -> WindowState {
     assert_eq!(choices.len(), 126);
     let options = choices
         .iter()
-        .map(|choice| OptionView { label: modes_as_logged(&modes(choice)), what_it_does: None, refs: Vec::new(), attacker: None, modes: Some(modes(choice)) })
+        .map(|choice| OptionView {
+            label: modes_as_logged(&modes(choice)),
+            what_it_does: None,
+            refs: Vec::new(),
+            attacker: None,
+            modes: Some(modes(choice)),
+            adds_to_the_total: None,
+        })
         .collect();
     let prompt = Prompt {
         player: 0,
@@ -175,6 +182,7 @@ fn widest_mode_picker() -> WindowState {
         rejected: None,
         why_reads_the_trace: false,
         primitive: Primitive::PickN { min: 1, max: 1 },
+        total: None,
         options,
         mode_labels: (1..=5).map(|place| (ModeIndex::printed(place), format!("Mode {place}"))).collect(),
         not_offered_yet: Vec::new(),

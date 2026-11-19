@@ -68,7 +68,7 @@ fn resolve(game: &mut GameState, controller: PlayerId, effect: &Effect, targets:
 /// "Destroy target creature", resolved by player 0.
 fn destroy(game: &mut GameState, creature: ObjectId) {
     let effect = Effect::Atom(
-        Primitive::Destroy,
+        Primitive::Destroy { cant_be_regenerated: false },
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     resolve(game, 0, &effect, vec![ObjectOrPlayerId::Object(creature)]);

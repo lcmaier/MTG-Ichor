@@ -23,9 +23,10 @@ use crate::state::game_state::PhaseType;
 use crate::types::costs::Cost;
 use crate::types::card_types::CardType;
 use crate::types::effects::{
-    AmountExpr, ChosenHow, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration, Effect,
-    EffectRecipient, ExtraPhasesAfter, ManaOutput, ObjectFilter, ObjectSet, PatternFill, PlayerRef, PlayerSet, Primitive, ReturnUnder,
-    SelectionFilter, TargetCount, TokenDef, TypeChange, ValueChoice,
+    AmountExpr, ChoiceKind, ChosenHow, ColorChange, Condition, CopyException, CopyRoles, CostAnswer, CounterType, DiscardChooser, Duration,
+    Effect,
+    EffectRecipient, ExtraPhasesAfter, ManaOutput, ObjectFilter, ObjectSet, ObjectValue, PatternFill, PickTotal, PlayerRef, PlayerSet,
+    Primitive, ReturnUnder, SelectionFilter, TargetCount, TokenDef, TypeChange, ValueChoice, ValueIs,
 };
 use crate::types::mana::ManaCost;
 
@@ -56,9 +57,27 @@ pub fn create_tokens(recipient: EffectRecipient, amount: impl Into<AmountExpr>, 
     Effect::Atom(Primitive::CreateToken(token, amount.into()), recipient)
 }
 
-/// "Destroy [recipient]" (CR 701.8a).
+/// "Destroy [recipient]" (CR 701.8a). "It can't be regenerated" after it is
+/// `.cant_be_regenerated()`.
 pub fn destroy(recipient: EffectRecipient) -> Effect {
-    Effect::Atom(Primitive::Destroy, recipient)
+    Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, recipient)
+}
+
+impl Effect {
+    /// "Destroy [recipient]. It can't be regenerated", "They can't be
+    /// regenerated": written on the destroy it follows. No regeneration
+    /// shield is applied to that destruction (CR 701.19c), and the clause
+    /// ends with it: a creature that lives through it regenerates as usual
+    /// afterwards. "Can't be regenerated this turn" is the lasting one, a
+    /// "can't" (`Restriction::ApplyReplacement`). Only a destroy has
+    /// something to mark; `cards::registry`'s test holds a card that prints
+    /// the clause to a destroy that carries it.
+    pub fn cant_be_regenerated(self) -> Effect {
+        match self {
+            Effect::Atom(Primitive::Destroy { .. }, recipient) => Effect::Atom(Primitive::Destroy { cant_be_regenerated: true }, recipient),
+            other => other,
+        }
+    }
 }
 
 /// "[Recipient] discards [amount] cards" (CR 701.9a), the cards chosen by
@@ -299,8 +318,9 @@ pub fn exile_until(recipient: EffectRecipient, until: impl Into<TriggerEvent>, u
 // A step that chooses and does nothing else: "[chooser] chooses [something]".
 // What it chose is kept under the name of its kind for the steps after it,
 // which read it with `recipients::chosen` and `recipients::the_chosen`. The
-// chooser is a recipient naming one player, `you()` nearly always, or
-// `at_random()`.
+// chooser is a recipient naming one player, `you()` nearly always;
+// `each_player()` or `each_opponent()` for an answer from each of them, the
+// active player first (CR 101.4); or `at_random()`.
 
 fn choose_step(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
     Effect::Atom(Primitive::ChooseValue { kind: what.kind(), what, how: chooser.into() }, EffectRecipient::Implicit)
@@ -308,7 +328,7 @@ fn choose_step(chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
 
 /// "At random", where a choose step's chooser goes: nobody is asked.
 pub fn at_random() -> ChosenHow {
-    ChosenHow::AtRandom
+    ChosenHow::at_random()
 }
 
 /// "[Chooser] chooses a color" (CR 105.4).
@@ -334,19 +354,67 @@ pub fn choose_card_type_among(chooser: impl Into<ChosenHow>, printed: impl IntoI
 
 /// "[Chooser] chooses a number between [least] and [most]".
 pub fn choose_number(chooser: impl Into<ChosenHow>, least: u64, most: u64) -> Effect {
-    choose_step(chooser, ValueChoice::Number { least, most })
+    choose_step(chooser, ValueChoice::Number { least, most: Some(most) })
+}
+
+/// "[Chooser] chooses a number", "a number greater than 0": any number from
+/// `least` up, with no most (CR 107.1b).
+pub fn choose_number_at_least(chooser: impl Into<ChosenHow>, least: u64) -> Effect {
+    choose_step(chooser, ValueChoice::Number { least, most: None })
 }
 
 /// "[Chooser] chooses a player", "an opponent": one of `among`, read
 /// against the controller (CR 109.5).
 pub fn choose_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
-    choose_step(chooser, ValueChoice::Player(among))
+    choose_step(chooser, ValueChoice::Player { among, other_than: Vec::new() })
+}
+
+/// A choose step that keeps what it chose under `kind`, the second name a
+/// card gives when it keeps two choices of one kind.
+fn choose_step_kept_as(kind: ChoiceKind, chooser: impl Into<ChosenHow>, what: ValueChoice) -> Effect {
+    Effect::Atom(Primitive::ChooseValue { kind, what, how: chooser.into() }, EffectRecipient::Implicit)
+}
+
+/// "[Chooser] chooses a second player": one of `among` other than the
+/// player [`choose_player`] chose before it, read back with
+/// `the_second_chosen_player()`.
+pub fn choose_a_second_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
+    choose_step_kept_as(ChoiceKind::SecondPlayer, chooser, ValueChoice::Player { among, other_than: vec![ChoiceKind::Player] })
+}
+
+/// "[Chooser] chooses a third player": other than the first and the second,
+/// read back with `the_third_chosen_player()`.
+pub fn choose_a_third_player(chooser: impl Into<ChosenHow>, among: PlayerSet) -> Effect {
+    let other_than = vec![ChoiceKind::Player, ChoiceKind::SecondPlayer];
+    choose_step_kept_as(ChoiceKind::ThirdPlayer, chooser, ValueChoice::Player { among, other_than })
 }
 
 /// "[Chooser] chooses up to one creature", "a creature you control": `count`
 /// of the permanents `among` describes, none of them a target (CR 115.10a).
 pub fn choose_objects(chooser: impl Into<ChosenHow>, among: ObjectFilter, count: TargetCount) -> Effect {
-    choose_step(chooser, ValueChoice::Objects(SelectionFilter::Permanent(among), count))
+    choose_step(chooser, ValueChoice::Objects { among: SelectionFilter::Permanent(among), count, total: None })
+}
+
+/// "[Chooser] chooses any number of creatures they control with total power
+/// 4 or less": `count` of the permanents `among` describes, whose power adds
+/// up to `at_most` or less. A creature with negative power takes from the
+/// total (CR 107.1b).
+pub fn choose_objects_with_total_power_at_most(
+    chooser: impl Into<ChosenHow>,
+    among: ObjectFilter,
+    count: TargetCount,
+    at_most: impl Into<AmountExpr>,
+) -> Effect {
+    let total = PickTotal { of: ObjectValue::Power, is: ValueIs::AtMost(at_most.into()) };
+    choose_step(chooser, ValueChoice::Objects { among: SelectionFilter::Permanent(among), count, total: Some(total) })
+}
+
+/// "Then each other player chooses [objects]", after [`choose_objects`] by
+/// the controller: an answer from each opponent, kept beside the
+/// controller's and read back with `one_the_others_chose()`.
+pub fn then_each_other_player_chooses_objects(among: ObjectFilter, count: TargetCount) -> Effect {
+    let what = ValueChoice::Objects { among: SelectionFilter::Permanent(among), count, total: None };
+    choose_step_kept_as(ChoiceKind::ObjectsTheOthersChose, super::recipients::each_opponent(), what)
 }
 
 // ---------------------------------------------------------------------------

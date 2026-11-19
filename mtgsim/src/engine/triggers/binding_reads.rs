@@ -14,8 +14,8 @@ use std::ops::BitOr;
 use crate::types::costs::Cost;
 use crate::types::history::{HistoryCount, ObjectFact};
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Antecedent, ChosenHow, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact,
-    PlayerRef, Primitive, TargetCount, ValueChoice, };
+    ObjectSet, AmountExpr, AnsweredBy, Antecedent, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact,
+    PlayerAntecedent, PlayerRef, Primitive, TargetCount, ValueChoice, };
 use crate::types::triggers::{
     BlockOccurrence, DamageRecipient, EventRole, Multiplicity, TargetedBy, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
@@ -282,6 +282,7 @@ fn recipient_reads(r: &EffectRecipient) -> TriggerBindingReads {
         EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient_reads(&choice.chooser), |reads, pick| {
             let count = match &pick.count {
                 PickCount::Exactly(n) => amount_reads(n),
+                PickCount::All => TriggerBindingReads::NONE,
             };
             reads | filter_reads(&pick.filter) | count
         }),
@@ -337,9 +338,14 @@ fn object_set_reads(set: &ObjectSet) -> TriggerBindingReads {
 
 fn player_ref_reads(p: &PlayerRef) -> TriggerBindingReads {
     match p {
-        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) | PlayerRef::AnyDefendingPlayer | PlayerRef::AnyPlayer => {
-            TriggerBindingReads::NONE
-        }
+        // A choice's own player is found as the choose step runs, never off
+        // the trigger's entry.
+        PlayerRef::You
+        | PlayerRef::Opponent
+        | PlayerRef::Player(_)
+        | PlayerRef::AnyDefendingPlayer
+        | PlayerRef::AnyPlayer
+        | PlayerRef::Named(PlayerAntecedent::ChoosingFor) => TriggerBindingReads::NONE,
         PlayerRef::Owner => TriggerBindingReads::SOURCE,
         PlayerRef::DefendingPlayer(creature) => creature_reads(*creature),
         PlayerRef::NamedBy(recipient) => recipient_reads(recipient),
@@ -446,7 +452,7 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         // The return watches the source, and CR 610.3a/b asks whether it has
         // already left: two sources' exiles differ in whose leaving returns.
         Primitive::ExileUntil { .. } => TriggerBindingReads::SOURCE,
-        Primitive::Destroy
+        Primitive::Destroy { .. }
         | Primitive::Exile
         | Primitive::Sacrifice
         | Primitive::ReturnToHand
@@ -471,12 +477,17 @@ fn primitive_reads(p: &Primitive) -> TriggerBindingReads {
         Primitive::Pay { others, .. } => others.iter().fold(TriggerBindingReads::NONE, |reads, cost| reads | cost_reads(cost)),
         // Who chooses, and how many objects where the text defines it.
         Primitive::ChooseValue { what, how, .. } => {
-            let chooser = match how {
-                ChosenHow::By(chooser) => recipient_reads(chooser),
-                ChosenHow::AtRandom => TriggerBindingReads::NONE,
+            // A walk's players are a group, which is one set of players
+            // across the entries the elision compares, as `EachOf` is.
+            let chooser = match &how.answered_by {
+                AnsweredBy::Player(chooser) => recipient_reads(chooser),
+                AnsweredBy::EachPlayerForThemselves | AnsweredBy::AtRandom => TriggerBindingReads::NONE,
             };
             match what {
-                ValueChoice::Objects(_, count) => chooser | count_reads(count),
+                ValueChoice::Objects { count, total, .. } => {
+                    let total = total.as_ref().map_or(TriggerBindingReads::NONE, |total| amount_reads(total.is.amount()));
+                    chooser | count_reads(count) | total
+                }
                 _ => chooser,
             }
         }
@@ -595,7 +606,7 @@ mod tests {
     fn an_event_role_the_arm_lacks_is_named() {
         let def = whenever(
             crate::cards::authoring::dies(TriggerSubject::Any),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::DamageRecipient)),
+            Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Triggering(EventRole::DamageRecipient)),
         );
         assert_eq!(def.event_roles_its_arms_lack(), vec![EventRole::DamageRecipient]);
         assert!(exile_that_creature_until_this_leaves().event_roles_its_arms_lack().is_empty());

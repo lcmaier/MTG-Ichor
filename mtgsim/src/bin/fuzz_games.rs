@@ -1672,11 +1672,11 @@ fn ladder_step(
         }
         LadderShape::DeathTriggers => {
             let object = creatures.pop().ok_or("a rung ran out of creatures")?;
-            state.execute_action(GameAction::Destroy { object }, &by_the_harness)?;
+            state.execute_action(GameAction::Destroy { object, cant_be_regenerated: false }, &by_the_harness)?;
             state.run_priority_loop(dp)?;
         }
         LadderShape::AWipe => {
-            state.execute_actions(creatures.drain(..).map(|object| GameAction::Destroy { object }).collect(), &by_the_harness)?;
+            state.execute_actions(creatures.drain(..).map(|object| GameAction::Destroy { object, cant_be_regenerated: false }).collect(), &by_the_harness)?;
             state.perform_sba_and_triggers(dp)?;
         }
         LadderShape::TokensInOneEvent | LadderShape::TokensUnderAReplacement | LadderShape::TokensUnderACant => {

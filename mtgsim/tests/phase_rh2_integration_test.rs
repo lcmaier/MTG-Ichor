@@ -186,7 +186,7 @@ fn a_wipe_that_takes_kalitas_exiles_every_opposing_creature_and_makes_the_zombie
     ];
     let wrath = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
 
-    let wipe = [kalitas, victims[0], victims[1]].map(|object| GameAction::Destroy { object }).to_vec();
+    let wipe = [kalitas, victims[0], victims[1]].map(|object| GameAction::Destroy { object, cant_be_regenerated: false }).to_vec();
     game.execute_actions(wipe, &effect_ctx(&game, wrath)).unwrap();
 
     assert_eq!(game.get_object(kalitas).unwrap().zone, Zone::Graveyard);
@@ -236,7 +236,7 @@ fn a_destruction_a_shield_counter_replaced_proposes_no_move() {
     )
     .unwrap();
 
-    game.execute_action(GameAction::Destroy { object: bear }, &effect_ctx(&game, source)).unwrap();
+    game.execute_action(GameAction::Destroy { object: bear, cant_be_regenerated: false }, &effect_ctx(&game, source)).unwrap();
 
     assert!(game.battlefield.contains_key(&bear));
     assert_eq!(game.battlefield[&bear].counter_count(CounterType::Shield), 0);

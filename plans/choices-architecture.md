@@ -1021,7 +1021,9 @@ division.
 | **`pay-as-an-effect-resolves` — a cost paid as an effect resolves**, the first of `costs-and-choices-at-resolution`'s two | decision 4: `Pay`, the window at resolution, an amount chosen as it is paid, "any player may", ward; item 418's two comments | Mana Leak, a ward creature, Leyline Tyrant's payment on a fixture (the card keeps red mana between steps, `mana-architecture.md`'s `mana-kept-and-lost`, which registers it), Contamination's upkeep | ~1,350–2,100 with its tests, by the brief | |
 | **`choose-as-an-effect-resolves` — an object chosen and a division made as an effect resolves**, the second | decision 8's `Choose` at resolution (item 28), the untargeted division | fixtures for a "choose" beside a target and for a division among objects not targeted; built on Final Showdown and Feast of the Victorious Dead | 450 measured (−290), the row's rest sized ~600–950 with its tests | 621 measured |
 | **`value-chosen-as-an-effect-resolves` — a value or objects chosen as an effect resolves, kept, and used**, the first of `values-chosen-at-resolution`'s three | the choose step and its kept list (items 425 and 426); decision 7's kinds for a color, a creature type, a card type and a number, with `ChoosePlayer`; one filter for a number compared (most of item 394); a player verb whose player is gone (item 292) | Expel the Interlopers, pooled; Wash Out, Kindred Dominance, World Queller, Duneblast, The Nipton Lottery, By Invitation Only and Combat Tutorial registered; four invented fixtures for what no printed card's whole text gives | 1,387 measured, sized 755–1,220 | 1,489 measured, sized 535–910 |
-| **`several-choosers-at-one-step` — votes, piles and a value each player chooses**, the second | the vote (701.38) and its starting seat, piles (700.3), a value each player or each opponent chooses (CR 608.2e) and its readers, the word kind, a choice excluding an earlier one's pick, an open "choose a number" | Selvala's Stampede once its rows land; fixtures | a guess of 1,000–1,600 with its tests | |
+| **`several-choosers-at-one-step` — a choice each player makes, and its answers**, the second | the walk around the table from the active player (CR 101.4, 608.2e) and each answer kept with its player; "they" in a choice's filter; a pick limited by a total; an open "choose a number"; a choice excluding an earlier one's pick; each step's list of the choices it reads (item 435); "can't be regenerated" as a mark on its destroy | Slaughter the Strong, a deck card; Harsh Mercy, Fortunate Few, Choice of Damnations | 720–1,200 | 550–900 |
+| **`secret-choices-and-votes` — a secret choice, a word, and the vote**, split from it | the secret mark and its reveal, with a label on every choose question (item 437); a word with no rules meaning; the readers of several answers (who gave one, how many, the highest, the most chosen); the vote (CR 701.38) from a named player | Menacing Ogre, v0.5's secret choice; Prisoner's Dilemma, Plea for Power, Council's Judgment, Lieutenants of the Guard | 720–1,180 | 600–970 |
+| **`separate-into-piles` — piles**, split from it | piles (CR 700.3): separate, then choose one; each player's own piles; three piles | Do or Die, Make an Example, Whims of the Fates | 330–530 | 280–450 |
 | **`values-kept-past-the-resolution` — a chosen value in an effect that outlasts the resolution**, the third | an effect made with the value it read (a "can't", a requirement, a later trigger), a change's own parameter from a choice and the inline ones, the basic land type, keyword and card name kinds | The Black Gate, Akroma's Blessing, Linvala as fixtures or cards, at its brief | a guess of 1,200–2,000 with its tests, which may split | |
 
 **The estimates run low, so read them against the first PR's.** #306's
@@ -1065,6 +1067,17 @@ printed card can use as the effect resolves; the second is several choosers
 at one step, the vote's walk; the third is a value that has to outlive the
 resolution, with the three kinds read only that way (a basic land type, a
 keyword, a card name). The subsystem closes with the third.
+
+**`several-choosers-at-one-step` split in three at its design stop** (the
+owner, 2026-11-18, #334). Its note, the second row's section of the same
+handoff, counted 59 cards where each player chooses, 41 walks from a named
+player, 33 votes and 27 pile cards against the guess's 16, and came to
+3,200–5,230 piece by piece. The first PR is the walk and what it keeps;
+`secret-choices-and-votes` is every reader of several answers with the
+secret mark and the vote, which share their printed cards; and
+`separate-into-piles` is CR 700.3, under the band and whole. A voter's
+several votes (CR 701.38d) wait for `player-scoped-values`, and CR 800.4f–h
+stay with `multiplayer-rules`.
 
 **`mana-provenance`'s design comes before `costs-and-choices-at-resolution`**
 (the owner, 2026-11-06, #314): `Primitive::Pay` goes through the cast's
@@ -1417,6 +1430,43 @@ Where it differs from the note's words: a choose word takes its chooser first
 registered (the owner, at #330's review); a divided choice is kept as
 pairs and its verb prints the total; "at random" is a player or objects only; `Effect::Remember`
 does not see a choose step (item 428). Filed: items 428 to 437, and a line on item 396.
+
+### `several-choosers-at-one-step` — a choice each player makes, and its answers — ✅ landed 2026-11-18
+
+PR #334, the second of `values-chosen-at-resolution`'s three and the first of the three PRs it
+split into: the walk and what it keeps. Items 435 and 14 closed. The design note is the second
+row's section of `handoffs/values-chosen-at-resolution.md`; the full as-built is
+`archive/choices-architecture-landed.md`.
+- **Every choice made is a list of answers, each with its player**: `ChoiceMade { kind, answers }`
+  of `ChoiceAnswer { for_player, value }`. A filter reads any answer; a verb acts on every
+  answer's objects, and a draw or a life loss on each player chosen; an amount, a player word and
+  a verb that takes one player read exactly one, refused after a walk.
+- **The walk**: `ChosenHow { walk, answered_by }`. `ChoiceWalk { players }` asks each player of a
+  group from the active player in turn order (CR 101.4, 608.2e), each answer kept as it is given
+  (CR 101.4b). Built: one player, and each player for themselves; the registry refuses a walk
+  answered by one player for each or at random until its PR.
+- **"They"** in a choice's filter is the player the answer is for
+  (`PlayerRef::Named(PlayerAntecedent::ChoosingFor)`).
+- **An open number**: `ValueChoice::Number { least, most: None }`, asked as `XOffer::NoTop`.
+- **A second name for a second choice of one kind** (`SecondPlayer`, `ThirdPlayer`,
+  `ObjectsTheOthersChose`), and a player other than those an earlier name kept.
+- **Each step's list of what it reads** (`engine/choices_read.rs`, item 435): a step reading a
+  choice never made does not happen (CR 608.2b), and a "may" on one is not offered.
+- **A pick limited by a total**: `PickTotal` on a choose step's objects, asked as
+  `SelectWithinATotal` with the limit read (`TotalLimit`) and each option's number; an answer
+  outside it is refused (`Rejection::TotalOutsideTheLimit`) and asked again, and with no pick
+  inside it the choice is never made.
+- **Each player's own, all of them**: `PickCount::All` (`all_their`), for a sacrifice each
+  player performs on their own (CR 701.21a).
+- **"It can't be regenerated"** is a mark on its destroy, that destruction only (item 14).
+- **The cards**: Slaughter the Strong (a deck card, pooled, 129 → 130), Harsh Mercy, Fortunate
+  Few and Choice of Damnations registered; Plague Spores moved onto the mark.
+
+Where it differs from the note's words: Divine Reckoning and Gluntch are not registered (flashback
+and Treasure tokens are unbuilt, item 438), their rules on invented instants citing their rulings;
+"each player sacrifices all other" was missed by the note and is `PickCount::All`; the total's
+question shows `TotalLimit`'s two arms and "exactly" is refused (item 439). Filed: items 438 to
+441; 429 and 437 to `secret-choices-and-votes`.
 
 ## 6. Found while designing
 

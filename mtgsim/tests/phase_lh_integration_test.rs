@@ -70,7 +70,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
 fn destroy(game: &mut GameState, id: ObjectId) {
     let source = mtgsim::types::ids::new_object_id();
     game.execute_action(
-        GameAction::Destroy { object: id },
+        GameAction::Destroy { object: id, cant_be_regenerated: false },
         &effect_ctx(game, source),
     )
     .expect("it is destroyed");

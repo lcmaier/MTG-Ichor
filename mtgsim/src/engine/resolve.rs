@@ -20,9 +20,10 @@ use crate::state::game_state::{GameState, PhaseType, PlannedPhase};
 use crate::oracle::x_values::XOffer;
 use crate::types::card_types::{CardType, Subtype};
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, ChoiceKind, ChoiceScope, ChosenHow, ChosenValue, Condition, CopyException, CopyRoles, CostAnswer,
+    AmountExpr, AnsweredBy, Antecedent, Choice, ChoiceAnswer, ChoiceKind, ChoiceMade, ChoiceScope, ChosenHow, ChosenValue, Condition,
+    CopyException, CopyRoles, CostAnswer,
     DiscardChooser, Duration, Effect, EffectRecipient, ModeIndex, NamedPlayers, ObjectFilter, ObjectValue, PatternFill, PickCount,
-    PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice,
+    PickTotal, PlayerAntecedent, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, ValueChoice, ValueIs,
 };
 use crate::oracle::characteristics::{controls, defending_player_for, get_effective_controller};
 use crate::state::replacement_effects::{RegisteredReplacementEffect, ReplacementEffectId};
@@ -39,7 +40,7 @@ use crate::types::triggers::{
     CreatingResolution, DelayedProvenance, DelayedTurn, Lki, Referred, RememberedObject, TriggerEvent,
     TriggerTurn,
 };
-use crate::decision::question::{AmountOf, DecisionKind};
+use crate::decision::question::{AmountOf, DecisionKind, TotalLimit};
 use crate::decision::provider::DecisionProvider;
 
 /// Context passed through effect resolution.
@@ -321,6 +322,39 @@ impl GameState {
         result
     }
 
+    /// Whether `effect`'s own words read a choice no choose step of this
+    /// resolution has made: an instruction's verb and what it acts on, an
+    /// "if"'s condition, a "may"'s player and the one instruction it
+    /// offers, a loop's count or set. A choose step reads the amounts it
+    /// needs before it can ask; a missing chooser or name among what it
+    /// chooses from it finds itself, and what it then leaves is the absence
+    /// the steps after it read.
+    fn reads_a_choice_never_made(&self, effect: &Effect, ctx: &ResolutionContext) -> bool {
+        use crate::engine::choices_read::{amount_reads, amounts_a_choice_reads, atom_reads, condition_reads, object_set_reads, player_ref_reads};
+        let never_made = |reads: crate::engine::choices_read::ChoicesRead| reads.kinds().any(|kind| self.answers_kept_as(kind, ctx).is_none());
+        match effect {
+            Effect::Atom(Primitive::ChooseValue { what, .. }, _) => never_made(amounts_a_choice_reads(what)),
+            Effect::Atom(primitive, recipient) => never_made(atom_reads(primitive, recipient)),
+            Effect::Conditional(condition, _) => never_made(condition_reads(condition)),
+            // "You may draw that many cards": a "may" on one instruction
+            // that won't happen is no choice to offer.
+            Effect::Optional { chooser, effect: offered } => {
+                never_made(player_ref_reads(chooser)) || (matches!(offered.as_ref(), Effect::Atom(..)) && self.reads_a_choice_never_made(offered, ctx))
+            }
+            Effect::ForEach(over, _) => never_made(object_set_reads(over)),
+            Effect::Repeat(times, _) => never_made(amount_reads(times)),
+            Effect::Sequence(_)
+            | Effect::Replacement(_)
+            | Effect::Restriction(_)
+            | Effect::CostModification(_)
+            | Effect::TriggerMultiplier(_)
+            | Effect::FunctionsIn(..)
+            | Effect::Triggered(_)
+            | Effect::Remember(_)
+            | Effect::Modal(_) => false,
+        }
+    }
+
     /// One instruction of [`Self::resolve_effect_at`]'s walk. An atom's verb
     /// acts on what [`Self::recipients_for`] finds.
     fn resolve_effect_step(
@@ -331,9 +365,51 @@ impl GameState {
         declared: DeclaredInstances<'_>,
         walk: &mut ResolutionWalk,
     ) -> Result<(), String> {
+        // CR 608.2b — "any part of the effect that requires that information
+        // won't happen": a step whose own words read a choice that was never
+        // made does nothing, asked here so an amount or a player word never
+        // meets the missing name midway. Its targets were announced all the
+        // same (CR 601.2c), so the instances after it are read past them.
+        if self.reads_a_choice_never_made(effect, ctx) {
+            match effect {
+                // An "if" that cannot be read is an "if" that is false: it
+                // leaves the answer before it for the "if you didn't" after
+                // it, and its instances as a false one does.
+                Effect::Conditional(condition, inner) => {
+                    if !condition.names_a_casting_choice() {
+                        walk.instance_cursor += inner.instances().len();
+                    }
+                }
+                Effect::Optional { .. } => {
+                    walk.instance_cursor += effect.instances().len();
+                    walk.last_cost_answer = Some(CostAnswer::Doesnt);
+                }
+                // CR 118.12: an action that could not be started.
+                Effect::Atom(..) => {
+                    walk.instance_cursor += effect.instances().len();
+                    walk.last_cost_answer = Some(CostAnswer::Cant);
+                }
+                Effect::ForEach(..) | Effect::Repeat(..) => walk.instance_cursor += effect.instances().len(),
+                Effect::Sequence(_)
+                | Effect::Replacement(_)
+                | Effect::Restriction(_)
+                | Effect::CostModification(_)
+                | Effect::TriggerMultiplier(_)
+                | Effect::FunctionsIn(..)
+                | Effect::Triggered(_)
+                | Effect::Remember(_)
+                | Effect::Modal(_) => {}
+            }
+            return Ok(());
+        }
         // Every atom takes its action, which is CR 118.12's "started to pay"
-        // for the clause after it.
-        if let Effect::Atom(..) = effect {
+        // for the clause after it. One whose words need the one answer says
+        // so before it acts, where a walk left several: the registry's test
+        // refuses such a card, and this is that refusal for one it never saw.
+        if let Effect::Atom(primitive, recipient) = effect {
+            for kind in crate::engine::choices_read::atom_reads(primitive, recipient).kinds_needing_one_answer() {
+                self.the_one_answer_kept_as(kind, ctx)?;
+            }
             walk.last_cost_answer = Some(CostAnswer::Does);
         }
         match effect {
@@ -662,10 +738,11 @@ impl GameState {
         asked_as: &EffectRecipient,
         filter: &SelectionFilter,
         count: &TargetCount,
+        total: Option<&PickTotal>,
         chooser: Option<PlayerId>,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
-    ) -> Result<(Vec<ObjectOrPlayerId>, Vec<u64>), String> {
+    ) -> Result<Option<(Vec<ObjectOrPlayerId>, Vec<u64>)>, String> {
         // "Choose a player" is a choose step's own kind (`ChoosePlayer`), and
         // "another" reads the targets an announcement chose before it, which
         // a choice has none of.
@@ -683,16 +760,37 @@ impl GameState {
         let TargetCount::Divided(divided) = count else {
             let bounds = count.bounds(&amount)?;
             let most = bounds.most.min(candidates.len());
-            let chosen = match chooser {
-                Some(player) => {
+            let chosen = match (chooser, total) {
+                (Some(player), None) => {
                     crate::decision::ask::ask_select_recipients(dp, self, player, asked_as, ctx.source, &candidates, bounds.fewest.min(most), most)
                 }
+                (Some(player), Some(total)) => {
+                    let limit = self.total_limit_as_read(total, ctx)?;
+                    let numbers = self.each_candidates_number(&candidates, total.of);
+                    let bounds = (bounds.fewest.min(most), most);
+                    // CR 608.2d: with no pick inside the limit the choice
+                    // cannot be made, which is a choice never made.
+                    let Some(picked) =
+                        crate::decision::ask::ask_select_within_a_total(dp, self, player, ctx.source, total.of, limit, &numbers, bounds)
+                    else {
+                        return Ok(None);
+                    };
+                    picked.into_iter().map(ObjectOrPlayerId::Object).collect()
+                }
+                (None, Some(_)) => return Err(format!("{asked_as:?} on {:?} draws objects at random under a total, which no card prints", ctx.source)),
                 // "Choose a creature at random": as many as the text says.
-                None if bounds.fewest == bounds.most => self.random_indices(candidates.len(), most).into_iter().map(|index| candidates[index]).collect(),
-                None => return Err(format!("{asked_as:?} on {:?} draws a number of objects at random that its text leaves open", ctx.source)),
+                (None, None) if bounds.fewest == bounds.most => {
+                    self.random_indices(candidates.len(), most).into_iter().map(|index| candidates[index]).collect()
+                }
+                (None, None) => {
+                    return Err(format!("{asked_as:?} on {:?} draws a number of objects at random that its text leaves open", ctx.source));
+                }
             };
-            return Ok((chosen, Vec::new()));
+            return Ok(Some((chosen, Vec::new())));
         };
+        if total.is_some() {
+            return Err(format!("{asked_as:?} on {:?} divides among objects chosen under a total, which no card prints", ctx.source));
+        }
         let Some(player) = chooser else {
             return Err(format!("{asked_as:?} on {:?} divides at random, which no card prints", ctx.source));
         };
@@ -705,27 +803,112 @@ impl GameState {
         } else {
             crate::decision::ask::ask_divide_among(dp, self, player, ctx.source, &chosen, total)
         };
-        Ok((chosen, shares))
+        Ok(Some((chosen, shares)))
     }
 
-    /// [`Primitive::ChooseValue`]: ask `how`'s player for `what`, or draw it
-    /// at random, and say what was chosen. `None` when there is no one to
-    /// choose, nothing to choose among, or a choice it reads was never made.
-    fn choose_value(
+    /// What `total` says a pick must add up to, with its amount read as the
+    /// step runs (CR 608.2h). "Less than 5" is 4 or less, a total being a
+    /// whole number.
+    fn total_limit_as_read(&self, total: &PickTotal, ctx: &ResolutionContext) -> Result<TotalLimit, String> {
+        let amount = i64::try_from(self.evaluate_amount(total.is.amount(), ctx, None)?).unwrap_or(i64::MAX);
+        match &total.is {
+            ValueIs::AtMost(_) => Ok(TotalLimit::AtMost(amount)),
+            ValueIs::LessThan(_) => Ok(TotalLimit::AtMost(amount - 1)),
+            ValueIs::AtLeast(_) => Ok(TotalLimit::AtLeast(amount)),
+            // Whether any pick adds up to one number exactly is a search,
+            // where the other three are decided by the pick furthest inside.
+            ValueIs::Exactly(_) => Err(format!("a pick whose total is exactly a number, on {:?}, is not built: no card prints one", ctx.source)),
+        }
+    }
+
+    /// `of` each of `candidates`, as the layers give it now (CR 608.2h). An
+    /// object with no such number adds nothing (CR 107.2), and a negative
+    /// one is kept as it is (CR 107.1b).
+    fn each_candidates_number(&self, candidates: &[ObjectOrPlayerId], of: ObjectValue) -> Vec<(ObjectId, i64)> {
+        let number = |id: ObjectId| match of {
+            ObjectValue::Power => crate::oracle::characteristics::get_effective_power(self, id),
+            ObjectValue::Toughness => crate::oracle::characteristics::get_effective_toughness(self, id),
+        };
+        candidates
+            .iter()
+            .filter_map(|candidate| match candidate {
+                ObjectOrPlayerId::Object(id) => Some((*id, i64::from(number(*id).unwrap_or(0)))),
+                ObjectOrPlayerId::Player(_) => None,
+            })
+            .collect()
+    }
+
+    /// [`Primitive::ChooseValue`]: make the choice `how` describes, and keep
+    /// it as `kind` for the steps after this one.
+    ///
+    /// **One answer** is asked of the player `how` names, or drawn at
+    /// random. With no one to ask, no player to choose, or a choice it reads
+    /// never made, the choice is never made and nothing is kept as `kind`:
+    /// a step that reads it does not happen (CR 608.2b). Objects with none
+    /// to choose among are an answer all the same, one that chose nothing.
+    ///
+    /// **A walk** asks each player of its group still in the game, the
+    /// active player first and then in turn order (CR 101.4, 608.2e). The
+    /// choice is opened with no answers before the first question and each
+    /// answer is added as it is given, so a later player's question reads
+    /// the answers before theirs (CR 101.4b). A walk that reaches nobody has
+    /// still made its choice: what it chose is nothing at all, so "the rest"
+    /// is everything.
+    fn choose_and_keep(
         &mut self,
+        kind: ChoiceKind,
         what: &ValueChoice,
         how: &ChosenHow,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
         walk: &mut ResolutionWalk,
-    ) -> Result<Option<ChosenValue>, String> {
-        let chooser = match how {
-            ChosenHow::AtRandom => None,
-            ChosenHow::By(named) => match self.chooser_named_by(named, walk, ctx)? {
-                Some(player) => Some(player),
-                None => return Ok(None),
-            },
+    ) -> Result<(), String> {
+        let Some(choice_walk) = &how.walk else {
+            let chooser = match &how.answered_by {
+                AnsweredBy::AtRandom => None,
+                AnsweredBy::Player(named) => match self.chooser_named_by(named, walk, ctx)? {
+                    Some(player) => Some(player),
+                    None => return self.keep_as(kind, None, ctx),
+                },
+                AnsweredBy::EachPlayerForThemselves => {
+                    return Err(format!("{:?} has each player choose for themselves, and names no players to walk", ctx.source))
+                }
+            };
+            let chosen = self.choose_value(what, chooser, ctx, dp)?;
+            return self.keep_as(kind, chosen.map(|value| vec![ChoiceAnswer { for_player: chooser, value }]), ctx);
         };
+        if !matches!(how.answered_by, AnsweredBy::EachPlayerForThemselves) {
+            return Err(format!(
+                "{:?} walks its players with {:?} answering, which is not built: each player answers for themselves",
+                ctx.source, how.answered_by
+            ));
+        }
+        self.keep_as(kind, Some(Vec::new()), ctx)?;
+        for player in self.players_in(&choice_walk.players, ctx) {
+            // The group is read again as the walk reaches each player (CR
+            // 104.3a: one who has left makes no choice). Nothing lets a
+            // player leave between two questions of one walk yet, so no
+            // board reaches this.
+            if !self.in_game(player) {
+                continue;
+            }
+            if let Some(value) = self.choose_value(what, Some(player), ctx, dp)? {
+                self.add_answer(kind, ChoiceAnswer { for_player: Some(player), value }, ctx)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// One answer to `what`: asked of `chooser`, or with none drawn at
+    /// random. `None` when there is no player to choose, no pick inside a
+    /// total's limit, or a choice it reads was never made.
+    fn choose_value(
+        &mut self,
+        what: &ValueChoice,
+        chooser: Option<PlayerId>,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<Option<ChosenValue>, String> {
         let source = ctx.source;
         // "At random" is printed for a player and for objects. No card draws
         // a color, a type or a number, so none is built.
@@ -741,14 +924,26 @@ impl GameState {
                 (!candidates.is_empty()).then(|| ChosenValue::CardType(crate::decision::ask::ask_choose_card_type(dp, self, chooser, source, candidates)))
             }
             ValueChoice::Number { least, most } => {
-                if least > most {
-                    return Err(format!("{source:?} chooses a number between {least} and {most}, which is none"));
-                }
-                let values = XOffer::Interval { at_least: *least, at_most: *most };
+                let values = match most {
+                    Some(most) if least > most => {
+                        return Err(format!("{source:?} chooses a number between {least} and {most}, which is none"))
+                    }
+                    Some(most) => XOffer::Interval { at_least: *least, at_most: *most },
+                    None => XOffer::NoTop { at_least: *least },
+                };
                 Some(ChosenValue::Number(crate::decision::ask::ask_choose_number(dp, self, asked("a number")?, source, values)))
             }
-            ValueChoice::Player(among) => {
-                let candidates: Vec<PlayerId> = self.players_in_game().filter(|player| among.contains(ctx.controller, *player)).collect();
+            ValueChoice::Player { among, other_than } => {
+                // "A second player": not one an earlier choice named.
+                // A name never kept excludes nobody.
+                let already_chosen = |player: PlayerId| {
+                    other_than.iter().any(|kind| {
+                        let answers = self.answers_kept_as(*kind, ctx).unwrap_or(&[]);
+                        answers.iter().any(|answer| answer.value == ChosenValue::Player(player))
+                    })
+                };
+                let candidates: Vec<PlayerId> =
+                    self.players_in_game().filter(|player| among.contains(ctx.controller, *player) && !already_chosen(*player)).collect();
                 match chooser {
                     _ if candidates.is_empty() => None,
                     Some(player) => Some(crate::decision::ask::ask_choose_player(dp, self, player, source, &candidates)),
@@ -756,10 +951,14 @@ impl GameState {
                 }
                 .map(ChosenValue::Player)
             }
-            ValueChoice::Objects(filter, count) => {
-                let Some(filter) = self.selection_as_read_now(filter, ctx)? else { return Ok(None) };
+            ValueChoice::Objects { among, count, total } => {
+                // The answer is for whoever is asked: a walk's player, or
+                // the one chooser.
+                let Some(filter) = self.selection_as_read_now_choosing_for(among, ctx, chooser)? else { return Ok(None) };
                 let asked_as = EffectRecipient::Choose(filter.clone().into_owned(), count.clone());
-                let (chosen, shares) = self.pick_objects(&asked_as, &filter, count, chooser, ctx, dp)?;
+                let Some((chosen, shares)) = self.pick_objects(&asked_as, &filter, count, total.as_ref(), chooser, ctx, dp)? else {
+                    return Ok(None);
+                };
                 let chosen = chosen.into_iter().filter_map(|picked| match picked {
                     ObjectOrPlayerId::Object(id) => self.object_ref(id),
                     ObjectOrPlayerId::Player(_) => None,
@@ -805,50 +1004,135 @@ impl GameState {
         }
     }
 
-    /// What a choose step of `ctx`'s resolution kept as `kind`. `None`
-    /// when no step has, or the step that last ran chose nothing.
-    pub(crate) fn kept_under(&self, kind: ChoiceKind, ctx: &ResolutionContext) -> Option<&ChosenValue> {
-        self.resolving_for(ctx)?.choices.iter().find(|(kept_as, _)| *kept_as == kind).map(|(_, value)| value)
+    /// The answers a choose step of `ctx`'s resolution kept as `kind`.
+    /// `None` when no step has, or the step that last ran never made its
+    /// choice; an empty list for a walk that reached nobody.
+    pub(crate) fn answers_kept_as(&self, kind: ChoiceKind, ctx: &ResolutionContext) -> Option<&[ChoiceAnswer]> {
+        self.resolving_for(ctx)?.choices.iter().find(|choice| choice.kind == kind).map(|choice| choice.answers.as_slice())
     }
 
-    /// Keep what a choose step chose as `kind` for the rest of the
-    /// resolution, in place of what a step that ran before kept there: a
-    /// step that chose nothing leaves nothing of that kind, never the
-    /// earlier answer. On the resolving object, as the X chosen as an effect
-    /// resolves is; a rider and a mana ability resolve none, and have
-    /// nowhere to keep one.
-    fn keep_under(&mut self, kind: ChoiceKind, chosen: Option<ChosenValue>, ctx: &ResolutionContext) -> Result<(), String> {
-        let resolving = self
-            .resolving
+    /// The one answer kept as `kind`, for a reader that takes exactly one:
+    /// "the chosen number", "that player" as a payer. `Ok(None)` when the
+    /// choice was never made, and an error after a walk's several answers,
+    /// which such a reader cannot pick among.
+    pub(crate) fn the_one_answer_kept_as(&self, kind: ChoiceKind, ctx: &ResolutionContext) -> Result<Option<&ChosenValue>, String> {
+        match self.answers_kept_as(kind, ctx) {
+            None => Ok(None),
+            Some([answer]) => Ok(Some(&answer.value)),
+            Some(answers) => Err(format!(
+                "{:?} reads the one {kind:?} chosen, and {} were: say which, or read every one",
+                ctx.source,
+                answers.len()
+            )),
+        }
+    }
+
+    /// The stack object `ctx` resolves, to keep a choice on: as the X
+    /// chosen as an effect resolves is. A rider and a mana ability resolve
+    /// none, and have nowhere to keep one.
+    fn resolving_to_keep_on(&mut self, ctx: &ResolutionContext) -> Result<&mut crate::state::game_state::ResolvingObject, String> {
+        self.resolving
             .as_mut()
             .filter(|resolving| resolving.id == ctx.source)
-            .ok_or_else(|| format!("{:?} chooses as it resolves, and no stack object of its is resolving", ctx.source))?;
-        resolving.choices.retain(|(kept_as, _)| *kept_as != kind);
-        resolving.choices.extend(chosen.map(|value| (kind, value)));
+            .ok_or_else(|| format!("{:?} chooses as it resolves, and no stack object of its is resolving", ctx.source))
+    }
+
+    /// Keep `answers` as `kind` for the rest of the resolution, in place of
+    /// what a step that ran before kept there: `None`, a choice never made,
+    /// leaves nothing of that kind, never the earlier answer.
+    fn keep_as(&mut self, kind: ChoiceKind, answers: Option<Vec<ChoiceAnswer>>, ctx: &ResolutionContext) -> Result<(), String> {
+        let resolving = self.resolving_to_keep_on(ctx)?;
+        resolving.choices.retain(|choice| choice.kind != kind);
+        resolving.choices.extend(answers.map(|answers| ChoiceMade { kind, answers }));
         Ok(())
     }
 
-    /// [`EffectRecipient::ChosenAs`]: the objects a choose step kept, each
+    /// One more answer to the choice a walk opened as `kind`.
+    fn add_answer(&mut self, kind: ChoiceKind, answer: ChoiceAnswer, ctx: &ResolutionContext) -> Result<(), String> {
+        let source = ctx.source;
+        match self.resolving_to_keep_on(ctx)?.choices.iter_mut().find(|choice| choice.kind == kind) {
+            Some(choice) => {
+                choice.answers.push(answer);
+                Ok(())
+            }
+            None => Err(format!("{source:?} adds an answer to a {kind:?} choice no walk opened")),
+        }
+    }
+
+    /// [`EffectRecipient::ChosenAs`]: what every answer of a choose step
+    /// chose, each object or player once (Call to the Void's ruling: a
+    /// creature chosen more than once is destroyed only once). An object
     /// while it is still the existence chosen (CR 400.7) and with its share
-    /// of a divided choice, or the player it kept, while that player is in
-    /// the game. Nothing kept is nothing to act on.
+    /// of a divided choice, a player while they are in the game. Nothing
+    /// chosen is nothing to act on.
     fn kept_as_recipients<'a>(&self, recipient: &'a EffectRecipient, kind: ChoiceKind, ctx: &ResolutionContext) -> Result<Recipients<'a>, String> {
         let still_here = |existence: &ObjectRef| self.find(*existence).map(|_| ObjectOrPlayerId::Object(existence.id));
-        match self.kept_under(kind, ctx) {
-            None => Ok(Recipients::Nothing),
-            Some(ChosenValue::Player(player)) if !self.in_game(*player) => Ok(Recipients::Nothing),
-            Some(ChosenValue::Player(player)) => {
-                Ok(Recipients::Each { clause: recipient, found: Cow::Owned(vec![ObjectOrPlayerId::Player(*player)]) })
+        let Some(answers) = self.answers_kept_as(kind, ctx) else { return Ok(Recipients::Nothing) };
+        let mut found: Vec<ObjectOrPlayerId> = Vec::new();
+        let mut shares: Vec<(ObjectOrPlayerId, u64)> = Vec::new();
+        let (mut any_objects, mut any_division) = (false, false);
+        for answer in answers {
+            match &answer.value {
+                ChosenValue::Player(player) => {
+                    let chosen = ObjectOrPlayerId::Player(*player);
+                    if self.in_game(*player) && !found.contains(&chosen) {
+                        found.push(chosen);
+                    }
+                }
+                ChosenValue::Objects(chosen) => {
+                    any_objects = true;
+                    for object in chosen.iter().filter_map(still_here) {
+                        if !found.contains(&object) {
+                            found.push(object);
+                        }
+                    }
+                }
+                ChosenValue::Divided(divided) => {
+                    any_division = true;
+                    shares.extend(divided.iter().filter_map(|(existence, share)| Some((still_here(existence)?, *share))));
+                }
+                other => {
+                    return Err(format!("{recipient:?} on {:?} acts on what was kept, and that is {other:?}: no object and no player", ctx.source))
+                }
             }
-            Some(ChosenValue::Objects(chosen)) => {
-                Ok(Recipients::Each { clause: recipient, found: Cow::Owned(chosen.iter().filter_map(still_here).collect()) })
-            }
-            Some(ChosenValue::Divided(shares)) => Ok(Recipients::Divided {
-                clause: recipient,
-                shares: shares.iter().filter_map(|(existence, share)| Some((still_here(existence)?, *share))).collect(),
-            }),
-            Some(other) => Err(format!("{recipient:?} on {:?} acts on what was kept, and that is {other:?}: no object and no player", ctx.source)),
         }
+        Ok(match (any_division, any_objects || !found.is_empty()) {
+            (true, _) => Recipients::Divided { clause: recipient, shares },
+            (false, true) => Recipients::Each { clause: recipient, found: Cow::Owned(found) },
+            (false, false) => Recipients::Nothing,
+        })
+    }
+
+    /// [`ObjectFilter::ChosenAs`] over `answers`: an object of any chosen
+    /// color or type, or any one of the chosen objects. One answer is "the
+    /// chosen type"; several are "a type chosen this way". No answers
+    /// describe no object.
+    fn any_answer_as_a_filter(&self, filter: &ObjectFilter, answers: &[ChoiceAnswer], ctx: &ResolutionContext) -> Result<ObjectFilter, String> {
+        let mut objects: Vec<ObjectRef> = Vec::new();
+        let mut described: Option<ObjectFilter> = None;
+        for answer in answers {
+            let one = match &answer.value {
+                ChosenValue::Color(color) => ObjectFilter::ByColor(*color),
+                ChosenValue::CreatureType(creature_type) => ObjectFilter::BySubtype(Subtype::Creature(*creature_type)),
+                ChosenValue::CardType(card_type) => ObjectFilter::ByType(*card_type),
+                ChosenValue::Objects(chosen) => {
+                    objects.extend(chosen.iter().copied());
+                    continue;
+                }
+                ChosenValue::Divided(shares) => {
+                    objects.extend(shares.iter().map(|(existence, _)| *existence));
+                    continue;
+                }
+                other @ (ChosenValue::Number(_) | ChosenValue::Player(_)) => {
+                    return Err(format!("{filter:?} on {:?} describes objects, and the choice kept {other:?}", ctx.source))
+                }
+            };
+            described = Some(match described {
+                None => one,
+                Some(so_far) => ObjectFilter::Or(Box::new(so_far), Box::new(one)),
+            });
+        }
+        Ok(described.unwrap_or(ObjectFilter::OneOf(objects)))
     }
 
     /// `filter` as this resolution reads it now: each name a choose step
@@ -859,27 +1143,40 @@ impl GameState {
     /// never made: what it describes cannot be known, so its reader finds no
     /// object, under a "not" as well (CR 608.2b's "won't happen").
     fn filter_as_read_now<'f>(&self, filter: &'f ObjectFilter, ctx: &ResolutionContext) -> Result<Option<Cow<'f, ObjectFilter>>, String> {
+        self.filter_as_read_now_choosing_for(filter, ctx, None)
+    }
+
+    /// [`Self::filter_as_read_now`] for what a choose step chooses among,
+    /// where "they" is `choosing_for`, the player the answer is for (CR
+    /// 608.2d): a walk's player, or the one chooser. Outside a choose step
+    /// there is no such player, and a filter that names one is refused.
+    fn filter_as_read_now_choosing_for<'f>(
+        &self,
+        filter: &'f ObjectFilter,
+        ctx: &ResolutionContext,
+        choosing_for: Option<PlayerId>,
+    ) -> Result<Option<Cow<'f, ObjectFilter>>, String> {
         if !filter.holds_a_resolutions_word() {
             return Ok(Some(Cow::Borrowed(filter)));
         }
         let read = |inner: &ObjectFilter| -> Result<Option<Box<ObjectFilter>>, String> {
-            Ok(self.filter_as_read_now(inner, ctx)?.map(|read| Box::new(read.into_owned())))
+            Ok(self.filter_as_read_now_choosing_for(inner, ctx, choosing_for)?.map(|read| Box::new(read.into_owned())))
+        };
+        let the_player_answered_for = || {
+            choosing_for.map(PlayerRef::Player).ok_or_else(|| {
+                format!("{filter:?} on {:?} names the player a choice is for, where no choice is being made", ctx.source)
+            })
         };
         Ok(Some(Cow::Owned(match filter {
-            ObjectFilter::ChosenAs(kind) => match self.kept_under(*kind, ctx) {
-                Some(ChosenValue::Color(color)) => ObjectFilter::ByColor(*color),
-                Some(ChosenValue::CreatureType(creature_type)) => ObjectFilter::BySubtype(Subtype::Creature(*creature_type)),
-                Some(ChosenValue::CardType(card_type)) => ObjectFilter::ByType(*card_type),
-                Some(ChosenValue::Objects(chosen)) => ObjectFilter::OneOf(chosen.clone()),
-                Some(ChosenValue::Divided(shares)) => ObjectFilter::OneOf(shares.iter().map(|(existence, _)| *existence).collect()),
-                Some(other @ (ChosenValue::Number(_) | ChosenValue::Player(_))) => {
-                    return Err(format!("{filter:?} on {:?} describes objects, and the choice kept {other:?}", ctx.source))
-                }
+            ObjectFilter::ChosenAs(kind) => match self.answers_kept_as(*kind, ctx) {
+                Some(answers) => self.any_answer_as_a_filter(filter, answers, ctx)?,
                 None => return Ok(None),
             },
+            ObjectFilter::ByController(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByController(the_player_answered_for()?),
+            ObjectFilter::ByOwner(PlayerRef::Named(PlayerAntecedent::ChoosingFor)) => ObjectFilter::ByOwner(the_player_answered_for()?),
             ObjectFilter::WithValue { of, is } => {
                 if let AmountExpr::ChosenAs(kind) = is.amount()
-                    && self.kept_under(*kind, ctx).is_none()
+                    && self.answers_kept_as(*kind, ctx).is_none()
                 {
                     return Ok(None);
                 }
@@ -902,11 +1199,16 @@ impl GameState {
         })))
     }
 
-    /// [`Self::filter_as_read_now`] for what a choice or a sweep selects
-    /// among: its permanents' filter, read now.
-    fn selection_as_read_now<'f>(&self, filter: &'f SelectionFilter, ctx: &ResolutionContext) -> Result<Option<Cow<'f, SelectionFilter>>, String> {
+    /// [`Self::filter_as_read_now_choosing_for`] for what a choice selects among: its
+    /// permanents' filter, read now for the player the answer is for.
+    fn selection_as_read_now_choosing_for<'f>(
+        &self,
+        filter: &'f SelectionFilter,
+        ctx: &ResolutionContext,
+        choosing_for: Option<PlayerId>,
+    ) -> Result<Option<Cow<'f, SelectionFilter>>, String> {
         let SelectionFilter::Permanent(among) = filter else { return Ok(Some(Cow::Borrowed(filter))) };
-        Ok(self.filter_as_read_now(among, ctx)?.map(|read| match read {
+        Ok(self.filter_as_read_now_choosing_for(among, ctx, choosing_for)?.map(|read| match read {
             Cow::Borrowed(_) => Cow::Borrowed(filter),
             Cow::Owned(read) => Cow::Owned(SelectionFilter::Permanent(read)),
         }))
@@ -1443,11 +1745,9 @@ impl GameState {
 
             // CR 608.2d — choose as this step runs, and keep the answer for
             // the steps after it. Nothing chosen (no one to choose, no player
-            // to name) keeps nothing, and a step naming it finds nothing.
-            Primitive::ChooseValue { kind, what, how } => {
-                let chosen = self.choose_value(what, how, ctx, dp, walk)?;
-                self.keep_under(*kind, chosen, ctx)
-            }
+            // to name) keeps nothing, and a step that reads it does not
+            // happen.
+            Primitive::ChooseValue { kind, what, how } => self.choose_and_keep(*kind, what, how, ctx, dp, walk),
 
             // CR 118.12's payment is the whole of an `Effect::Optional`, whose
             // arm offers it to its chooser. A mandatory one answers "started
@@ -1460,7 +1760,7 @@ impl GameState {
 
             // === Destroy and untap ===
 
-            Primitive::Destroy => {
+            Primitive::Destroy { .. } => {
                 // CR 701.8a. **One batch** (CR 608.2f): a wipe's deaths are one event,
                 // which CR 615.7's allocation and CR 603.2c's "one or more" read.
                 // Indestructible is a "can't" (CR 702.12b, 614.17) that `is_prohibited`
@@ -2745,6 +3045,10 @@ impl GameState {
                 }
                 let count = match &pick.count {
                     PickCount::Exactly(amount) => self.evaluate_amount(amount, ctx, None)? as usize,
+                    PickCount::All => {
+                        chosen.extend(candidates);
+                        continue;
+                    }
                 };
                 let n = count.min(candidates.len());
                 let asked = EffectRecipient::Choose(
@@ -2773,8 +3077,8 @@ impl GameState {
     ) -> Result<Option<GameAction>, String> {
         let is_permanent = self.battlefield.contains_key(&object);
         Ok(match primitive {
-            Primitive::Destroy => {
-                is_permanent.then(|| GameAction::Destroy { object })
+            Primitive::Destroy { cant_be_regenerated } => {
+                is_permanent.then_some(GameAction::Destroy { object, cant_be_regenerated: *cant_be_regenerated })
             }
             // CR 701.13a — from wherever the object is.
             Primitive::Exile => self.objects.get(&object).map(|obj| GameAction::ZoneChange {
@@ -3095,10 +3399,10 @@ impl GameState {
                 Ok(read.unwrap_or(0).max(0) as u64)
             }
             // "The chosen number", "that many": what a choose step kept. A
-            // number never chosen is an error, as an X never chosen is: the
-            // part that reads it should not happen (CR 608.2b), and no verb
-            // can be told so from here.
-            AmountExpr::ChosenAs(kind) => match self.kept_under(*kind, _ctx) {
+            // step that reads a number never chosen is passed over before it
+            // acts (`reads_a_choice_never_made`, CR 608.2b), so one met here
+            // is a read its list does not name.
+            AmountExpr::ChosenAs(kind) => match self.the_one_answer_kept_as(*kind, _ctx)? {
                 Some(ChosenValue::Number(number)) => Ok(*number),
                 Some(other) => Err(format!("{expr:?} on {:?} reads a number, and the choice kept {other:?}", _ctx.source)),
                 None => Err(format!("{expr:?} on {:?} reads a number no choose step has kept", _ctx.source)),
@@ -3325,6 +3629,12 @@ impl GameState {
                     ctx.source
                 ))
             }
+            PlayerRef::Named(PlayerAntecedent::ChoosingFor) => {
+                return Err(format!(
+                    "{:?} names the player a choice is for outside what a choose step chooses among, which is the one place it is written in",
+                    ctx.source
+                ))
+            }
         })
     }
 
@@ -3338,7 +3648,7 @@ impl GameState {
             EffectRecipient::SameInstanceAs(ix) => ctx.targets.instance(*ix).to_vec(),
             // "That player", where a choose step kept one. A chosen object's
             // controller is no word yet.
-            EffectRecipient::ChosenAs(kind) => match self.kept_under(*kind, ctx) {
+            EffectRecipient::ChosenAs(kind) => match self.the_one_answer_kept_as(*kind, ctx)? {
                 Some(ChosenValue::Player(player)) => vec![ObjectOrPlayerId::Player(*player)],
                 _ => Vec::new(),
             },
@@ -3583,12 +3893,19 @@ impl GameState {
                     ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
-            // "That player", where a choose step kept a player; no one where
-            // it chose nothing.
-            EffectRecipient::ChosenAs(kind) => match self.kept_under(*kind, ctx) {
-                Some(ChosenValue::Player(player)) => vec![*player],
-                _ => Vec::new(),
-            },
+            // "That player", "those players": each player a choose step's
+            // answers chose, once; no one where it chose nothing.
+            EffectRecipient::ChosenAs(kind) => {
+                let mut players: Vec<PlayerId> = Vec::new();
+                for answer in self.answers_kept_as(*kind, ctx).unwrap_or(&[]) {
+                    if let ChosenValue::Player(player) = answer.value
+                        && !players.contains(&player)
+                    {
+                        players.push(player);
+                    }
+                }
+                players
+            }
             EffectRecipient::ThisObject
             | EffectRecipient::Target(..)
             | EffectRecipient::Choose(..)
@@ -3732,15 +4049,16 @@ impl GameState {
     }
 
     /// The players a player verb acts on: each of an `EachOf` group, which
-    /// `players_in` put in the targets in APNAP order, or else the one the
-    /// recipient names, if it names one.
+    /// `players_in` put in the targets in APNAP order; each player a choose
+    /// step's answers chose ("each player chosen this way"), once and while
+    /// in the game; or else the one the recipient names, if it names one.
     fn each_player_acted_on(&self, recipient: &EffectRecipient, targets: &[ObjectOrPlayerId], ctx: &ResolutionContext) -> Vec<PlayerId> {
         match recipient {
-            EffectRecipient::EachOf(_) => targets
+            EffectRecipient::EachOf(_) | EffectRecipient::ChosenAs(_) => targets
                 .iter()
                 .filter_map(|t| match t {
-                    ObjectOrPlayerId::Player(pid) => Some(*pid),
-                    ObjectOrPlayerId::Object(_) => None,
+                    ObjectOrPlayerId::Player(pid) if self.in_game(*pid) => Some(*pid),
+                    ObjectOrPlayerId::Player(_) | ObjectOrPlayerId::Object(_) => None,
                 })
                 .collect(),
             _ => self.player_acted_on(recipient, targets, ctx).into_iter().collect(),
@@ -4005,7 +4323,7 @@ mod tests {
         let source_id = game.add_object(bolt_obj);
 
         let destroy = Effect::Atom(
-            Primitive::Destroy,
+            Primitive::Destroy { cant_be_regenerated: false },
             EffectRecipient::Target(SelectionFilter::Creature, crate::types::effects::TargetCount::Exactly(1)),
         );
         let ctx = bolt_ctx(source_id, vec![ObjectOrPlayerId::Object(target_id)]);

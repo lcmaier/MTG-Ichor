@@ -379,8 +379,14 @@ pub enum GameAction {
     /// Indestructible is **not** checked here and is not a replacement effect.
     /// CR 702.12b makes it a "can't" (CR 614.17), which is checked ahead of the
     /// pipeline and wins — see `engine::restriction::is_prohibited`.
+    ///
+    /// `cant_be_regenerated` is "Destroy target creature. It can't be
+    /// regenerated": no regeneration shield is applied to this destruction
+    /// (CR 701.19c), and to no other. The pipeline reads it and nothing here
+    /// does, as damage's `unpreventable`.
     Destroy {
         object: ObjectId,
+        cant_be_regenerated: bool,
     },
 
     /// A permanent enters the battlefield (CR 614.1c/d) — **the one proposal
@@ -1631,7 +1637,7 @@ impl GameState {
         use crate::engine::replacement::apply_replacements;
 
         for member in group.iter_mut() {
-            let Some(GameAction::Destroy { object }) = member.event else { continue };
+            let Some(GameAction::Destroy { object, .. }) = member.event else { continue };
             if !self.battlefield.contains_key(&object) {
                 continue;
             }
@@ -1879,7 +1885,9 @@ impl GameState {
                 // non-event, so `replacement::never_happens` drops it upstream.
                 let old_life = self.get_player(player)?.life_total;
                 let p = self.get_player_mut(player)?;
-                p.life_total += amount as i64;
+                // An amount has no top (CR 107.1b: "choose a number"), and a
+                // life total is signed, so one past its range is its edge.
+                p.life_total = p.life_total.saturating_add(i64::try_from(amount).unwrap_or(i64::MAX));
                 let new_life = p.life_total;
                 self.bump_layer_epoch_if_read(GatedWalkInput::LifeTotals);
 
@@ -1902,7 +1910,7 @@ impl GameState {
                 }
                 let old_life = self.get_player(player)?.life_total;
                 let p = self.get_player_mut(player)?;
-                p.life_total -= amount as i64;
+                p.life_total = p.life_total.saturating_sub(i64::try_from(amount).unwrap_or(i64::MAX));
                 let new_life = p.life_total;
                 self.bump_layer_epoch_if_read(GatedWalkInput::LifeTotals);
 
@@ -2087,7 +2095,7 @@ impl GameState {
             // The **outer** event, which performs nothing of its own: its move was
             // decided with it in phase 1 (`decide_destruction_moves`), and phase 2
             // performs that move right after this arm.
-            GameAction::Destroy { object } => {
+            GameAction::Destroy { object, .. } => {
                 // Loud, like `Tap`/`Untap`: destroying something off the battlefield does
                 // nothing (CR 701.8b), and CR 608.2b's partial resolution is the caller's
                 // check (`CLAUDE.md`); a lenient arm would only hide a future bug.

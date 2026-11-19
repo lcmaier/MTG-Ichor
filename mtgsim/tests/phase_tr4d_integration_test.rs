@@ -225,7 +225,7 @@ fn a_spell_whose_targets_are_illegal_is_not_countered() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let bolt = cast_at(&mut game, 0, lightning_bolt(), &[(ManaType::Red, 1)], &[DecisionOption::Object(bears)]);
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object: bears }, &effect_ctx(&game, by)).unwrap();
+    game.execute_action(GameAction::Destroy { object: bears, cant_be_regenerated: false }, &effect_ctx(&game, by)).unwrap();
 
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.objects[&bolt].zone, Zone::Graveyard, "it didn't resolve");
@@ -630,7 +630,7 @@ fn leaving_the_battlefield_is_losing_control() {
     let betrayer = put_on_battlefield(&mut game, kharn_shaped(), 0);
     let before = hand_size(&game, 0);
     let by = mtgsim::types::ids::new_object_id();
-    game.execute_action(GameAction::Destroy { object: betrayer }, &effect_ctx(&game, by)).unwrap();
+    game.execute_action(GameAction::Destroy { object: betrayer, cant_be_regenerated: false }, &effect_ctx(&game, by)).unwrap();
 
     resolve_all(&mut game, &test_dp());
     assert_eq!(hand_size(&game, 0), before + 2);
@@ -962,8 +962,8 @@ fn two_control_changes_in_one_resolution_are_two_events() {
         ))
     };
     let verse = Effect::Sequence(vec![
-        Effect::Atom(Primitive::Destroy, enchantments(PlayerRef::Opponent)),
-        Effect::Atom(Primitive::Destroy, enchantments(PlayerRef::You)),
+        Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, enchantments(PlayerRef::Opponent)),
+        Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, enchantments(PlayerRef::You)),
     ]);
     let source = put_in_graveyard(&mut game, card_of_type("Fixture Calming Verse", CardType::Sorcery), 1);
     let ctx = ResolutionContext {

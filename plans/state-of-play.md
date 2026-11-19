@@ -50,10 +50,10 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 2 | `A6e`, readiness | landed | 2 | — | 2 |
 | 3 | `card-layer-cleanup` | landed | 5 | — | 5 |
 | 4 | `pausing-at-a-decision`, the design | landed | 1 | — | 1 |
-| 5 | `several-choosers-at-one-step`, the second and 2 more | 13 of 16 landed | 13 | 3–5 | 14–16 |
+| 5 | `secret-choices-and-votes`, split from it and 3 more | 14 of 18 landed | 14 | 4–6 | 18–20 |
 | 6 | `card-and-object-model`, the design and 1 more | to come | 0 | 4–5 | 4–5 |
 | 7 | `resolution-recipients-and-amounts` and 5 more | to come | 0 | 7–9 | 7–9 |
-| 8 | `information-model` | to come | 0 | 5–6 | 4–7 |
+| 8 | `information-model` | to come | 0 | 5–6 | 5–6 |
 | 9 | `permission-design` and 5 more | to come | 0 | 7–14 | 7–14 |
 | 10 | `player-scoped-values` and 2 more | to come | 0 | 3–6 | 3–6 |
 | 11 | `combat-restrictions` and 4 more | to come | 0 | 9–14 | 9–14 |
@@ -63,15 +63,15 @@ says what the audits, the dev GUI and the detours beside them have cost.
 | 16 | `split-and-adventure-style-cards`, split and Omen and 2 more | to come | 0 | 3–6 | 3–6 |
 | 17 | `tarkir-dragonstorm-decks`, the five decks and 1 more | to come | 0 | 15–39 | 15–39 |
 | 18 | `devgui-at-five-seats` and 1 more | to come | 0 | 2–4 | 2–4 |
-| | **To v0.5** | **42 rows to come** | **22** | **73–133** | **92–154** |
+| | **To v0.5** | **43 rows to come** | **23** | **74–134** | **97–157** |
 
 No step is past its forecast: one is when what it took and the least it has
 left come to more than its forecast's top, and the route is forecast again then.
 
-**Deck cards registered: 10 of 385**, the five lists' distinct cards less
+**Deck cards registered: 11 of 385**, the five lists' distinct cards less
 basics. **Could be written today: 95 more**, with no need left on the route:
 91 the gap census proved writable and 4 whose needs have landed since, which a
-registration proves. 280 wait on a row or a gap, and the census left 0 unread
+registration proves. 279 wait on a row or a gap, and the census left 0 unread
 (`plans/references/card-census/README.md#the-gap-census`).
 
 ### When each subsystem closes
@@ -82,7 +82,7 @@ row by naming it in a heading or in a sizing table's first cell, in bold.
 
 | Architecture doc | Rows landed | Closes with | Step |
 |---|---:|---|---:|
-| `choices-architecture.md` | 9 of 11 | `values-kept-past-the-resolution`, the third | 5 |
+| `choices-architecture.md` | 10 of 13 | `values-kept-past-the-resolution`, the third | 5 |
 | `cant-effects-architecture.md` | 0 of 5 | `combat-requirements` | 11 |
 | `cost-architecture.md` | 0 of 2 | `remaining-costs` | 14 |
 | `permission-architecture.md` | 0 of 3 | `casting-from-other-zones` | 15 |
@@ -201,6 +201,7 @@ is derived.
 | 2026-11-13 | A cost paid as an effect resolves | `pay-as-an-effect-resolves` | `choices-architecture.md` |
 | 2026-11-14 | An object chosen and a division made as an effect resolves | `choose-as-an-effect-resolves` | `choices-architecture.md` |
 | 2026-11-15 | A value or objects chosen as an effect resolves, kept, and used | `value-chosen-as-an-effect-resolves` | `choices-architecture.md` |
+| 2026-11-18 | A choice each player makes, and its answers | `several-choosers-at-one-step` | `choices-architecture.md` |
 
 ### Named, not yet landed
 
@@ -214,7 +215,8 @@ cell, and no ✅ heading records, in the docs' order.
 | Combat, the predicate half | `combat-restrictions` | `cant-effects-architecture.md` |
 | Combat, the solver half | `combat-requirements` | `cant-effects-architecture.md` |
 | Costs that can't be paid | `cant-pay-costs` | `cant-effects-architecture.md` |
-| Votes, piles and a value each player chooses | `several-choosers-at-one-step` | `choices-architecture.md` |
+| A secret choice, a word, and the vote | `secret-choices-and-votes` | `choices-architecture.md` |
+| Piles | `separate-into-piles` | `choices-architecture.md` |
 | A chosen value in an effect that outlasts the resolution | `values-kept-past-the-resolution` | `choices-architecture.md` |
 | Token copies | `token-copies` | `copy-effects-architecture.md` |
 | Spell copies | `spell-copies` | `copy-effects-architecture.md` |
@@ -240,9 +242,9 @@ cell, and no ✅ heading records, in the docs' order.
 
 | | |
 |---|---:|
-| Cards registered | 247 |
-| …of them in `PERFORMANCE_POOL` | 129 |
-| `#[test]` functions | 3165 |
+| Cards registered | 251 |
+| …of them in `PERFORMANCE_POOL` | 130 |
+| `#[test]` functions | 3200 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -263,14 +265,14 @@ with less than 20% room is bolded.
 
 | | |
 |---|---:|
-| Numbered items | 487 |
-| …closed, still recorded | 292 |
-| …open — unreachable, and says why | 134 |
+| Numbered items | 491 |
+| …closed, still recorded | 294 |
+| …open — unreachable, and says why | 135 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 35 |
+| …open — reachable, not wrong (perf, a name, a harness) | 36 |
 | …open — nothing to build, a record for a later phase | 18 |
 | **…open — reachability *not* stated** | **3** |
-| …open, carrying an explicit `**Sized:**` | 189 of 195 |
+| …open, carrying an explicit `**Sized:**` | 191 of 197 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -284,7 +286,7 @@ Where each open item is homed, read off its `**Slotted:**` line:
 
 | | |
 |---|---:|
-| …slotted to a phase or roadmap row still to come | 182 |
+| …slotted to a phase or roadmap row still to come | 184 |
 | …a record, nothing to build | 13 |
 | **…open with no home** | **0** |
 | **A number used twice in one run** | **0** |

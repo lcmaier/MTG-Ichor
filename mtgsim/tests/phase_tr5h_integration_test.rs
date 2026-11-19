@@ -162,7 +162,7 @@ fn a_narrowed_count_reads_the_object_as_its_row_kept_it() {
 
     pump(&mut game, pumped, 2);
     for creature in [pumped, plain] {
-        game.execute_action(GameAction::Destroy { object: creature }, &test_ctx()).unwrap();
+        game.execute_action(GameAction::Destroy { object: creature, cant_be_regenerated: false }, &test_ctx()).unwrap();
     }
     assert_eq!(get_effective_power(&game, pumped), Some(2), "a 2/2 in the graveyard");
     assert!(settled_holds(&one_big_one_died, &game, watcher, None, ConditionReferents::NONE), "one died a 4/2");

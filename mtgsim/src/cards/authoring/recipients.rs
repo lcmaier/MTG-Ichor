@@ -7,8 +7,8 @@
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Antecedent, Choice, ChoiceKind, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, PlayerGroup, PlayerRef,
-    PlayerSet, SelectionFilter, TargetCount, ValueIs,
+    AmountExpr, Antecedent, Choice, ChoiceKind, ChoiceScope, ChoiceSide, DividedCount, EffectRecipient, ObjectFilter, ObjectValue, Pick,
+    PlayerAntecedent, PlayerGroup, PlayerRef, PlayerSet, SelectionFilter, TargetCount, ValueIs,
 };
 use crate::types::triggers::EventRole;
 use crate::types::zones::ZoneSet;
@@ -177,6 +177,14 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
     EffectRecipient::ChosenBy(Box::new(choice))
 }
 
+/// "Each player sacrifices all other creatures they control": every
+/// permanent `filter` describes that each of `players` controls, each
+/// player's own theirs to act on (CR 701.21a). "Sacrifice [those]" without
+/// it is the effect's controller's alone.
+pub fn all_their(players: EffectRecipient, filter: ObjectFilter) -> EffectRecipient {
+    chosen_by(Choice { chooser: players, among: ChoiceScope::ChoosersPermanents, picks: vec![Pick::all(filter)], acts_on: ChoiceSide::Chosen })
+}
+
 // ---------------------------------------------------------------------------
 // What a choose step before this one chose (CR 608.2d)
 // ---------------------------------------------------------------------------
@@ -191,6 +199,16 @@ pub fn chosen_by(choice: Choice) -> EffectRecipient {
 /// the game.
 pub fn the_chosen_player() -> EffectRecipient {
     EffectRecipient::ChosenAs(ChoiceKind::Player)
+}
+
+/// "That player" after "choose a second player".
+pub fn the_second_chosen_player() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceKind::SecondPlayer)
+}
+
+/// "That player" after "choose a third player".
+pub fn the_third_chosen_player() -> EffectRecipient {
+    EffectRecipient::ChosenAs(ChoiceKind::ThirdPlayer)
 }
 
 /// "It", "that creature", "the chosen creatures": the objects chosen, each
@@ -212,6 +230,21 @@ pub fn the_chosen_color() -> PrintedOrChosen<Color> {
 /// Dominance's "creatures that aren't of the chosen type" is
 /// `creature().other_than(creature_type(the_chosen_creature_type()))`.
 pub fn the_chosen_creature_type() -> PrintedOrChosen<CreatureType> {
+    PrintedOrChosen::Chosen
+}
+
+/// "A color chosen this way", after each player chose one: any of their
+/// answers, where [`the_chosen_color`] is the one a single chooser gave.
+pub fn a_color_chosen_this_way() -> PrintedOrChosen<Color> {
+    PrintedOrChosen::Chosen
+}
+
+/// "A type chosen this way", after each player chose one: Harsh Mercy's
+/// "creatures that aren't of a type chosen this way" is
+/// `creature().other_than(creature_type(a_creature_type_chosen_this_way()))`.
+/// Any of their answers, where [`the_chosen_creature_type`] is the one a
+/// single chooser gave.
+pub fn a_creature_type_chosen_this_way() -> PrintedOrChosen<CreatureType> {
     PrintedOrChosen::Chosen
 }
 
@@ -240,6 +273,22 @@ impl<T> From<T> for PrintedOrChosen<T> {
 /// is `destroy(each(creature().other_than(one_of_the_chosen())))`.
 pub fn one_of_the_chosen() -> ObjectFilter {
     ObjectFilter::ChosenAs(ChoiceKind::Objects)
+}
+
+/// "Chosen this way", in a filter, after each player chose objects: one any
+/// of them chose. Slaughter the Strong's "all other creatures" is
+/// `creature().other_than(chosen_this_way())`, where [`one_of_the_chosen`]
+/// reads a single chooser's.
+pub fn chosen_this_way() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceKind::Objects)
+}
+
+/// "One of the objects the other players chose", in a filter, after
+/// `then_each_other_player_chooses_objects`: Fortunate Few's "hasn't been
+/// chosen this way" and its "all other" leave these out beside
+/// [`one_of_the_chosen`].
+pub fn one_the_others_chose() -> ObjectFilter {
+    ObjectFilter::ChosenAs(ChoiceKind::ObjectsTheOthersChose)
 }
 
 /// "The chosen number", "that many" after a number is chosen, as an amount:
@@ -317,6 +366,16 @@ pub fn card_type(which: impl Into<PrintedOrChosen<CardType>>) -> ObjectFilter {
 /// graveyard means its owner's.
 pub fn you_control() -> ObjectFilter {
     ObjectFilter::ByController(PlayerRef::You)
+}
+
+/// "They control", in what a choose step chooses among: the player the
+/// answer is for, which is each player in turn for "each player chooses a
+/// creature they control", and the one chooser for "target opponent chooses
+/// a creature they control". Beside [`you_control`], the effect's
+/// controller, which the same text may also name. "They don't control" is
+/// `non(they_control())`.
+pub fn they_control() -> ObjectFilter {
+    ObjectFilter::ByController(PlayerRef::Named(PlayerAntecedent::ChoosingFor))
 }
 
 /// "An opponent controls" (CR 110.2), an opponent of the effect's

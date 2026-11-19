@@ -171,7 +171,7 @@ fn a_trigger_reads_the_record_it_bound_after_its_window_has_flushed() {
     let bears = put_on_battlefield(&mut game, grizzly_bears(), 1);
     pump(&mut game, bears, 3);
 
-    game.execute_action(GameAction::Destroy { object: bears }, &effect_ctx(&game, mourner))
+    game.execute_action(GameAction::Destroy { object: bears, cant_be_regenerated: false }, &effect_ctx(&game, mourner))
         .expect("the destruction");
     assert!(game.events.held().is_empty(), "the death's dispatch has returned and flushed its window");
     assert_eq!(game.pending_triggers.len(), 1);

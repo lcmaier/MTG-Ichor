@@ -196,7 +196,7 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
         source_lki: None,
     };
     game.execute_action(damage, &ctx).unwrap();
-    game.execute_action(GameAction::Destroy { object: mine }, &ctx).unwrap();
+    game.execute_action(GameAction::Destroy { object: mine, cant_be_regenerated: false }, &ctx).unwrap();
 
     let counted = [
         (TurnFact::SpellsCast, 0),
@@ -230,7 +230,7 @@ fn a_stolen_creatures_death_is_counted_on_its_controllers_row() {
     let mut game = setup_two_player_game();
     let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
     steal(&mut game, bear, 0);
-    let destroy = GameAction::Destroy { object: bear };
+    let destroy = GameAction::Destroy { object: bear, cant_be_regenerated: false };
     game.execute_action(destroy, &effect_ctx(&game, bear)).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
     assert_eq!(counted_this_turn(&game, 0, TurnFact::ControlledCreaturesDied), 1, "the thief controlled it as it died");
@@ -1153,7 +1153,7 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
         by: 0,
     };
     game.execute_action(counters(CounterType::PlusOnePlusOne, 2), &test_ctx()).unwrap();
-    game.execute_action(GameAction::Destroy { object: paladin }, &effect_ctx(&game, paladin))
+    game.execute_action(GameAction::Destroy { object: paladin, cant_be_regenerated: false }, &effect_ctx(&game, paladin))
         .unwrap();
     resolve_all(&mut game);
     assert_eq!(life_total(&game, 0), 23);
@@ -1427,7 +1427,7 @@ fn a_survivor_stripped_through_a_land_type_looks_back_to_no_abilities() {
     // And after it Blood Artist is itself again.
     let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let source = put_on_battlefield(&mut game, grizzly_bears(), 1);
-    game.execute_action(GameAction::Destroy { object: bear }, &effect_ctx(&game, source))
+    game.execute_action(GameAction::Destroy { object: bear, cant_be_regenerated: false }, &effect_ctx(&game, source))
         .unwrap();
     assert_eq!(pending_triggers(&game), 1, "a creature dying now");
 }

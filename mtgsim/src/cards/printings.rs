@@ -36,6 +36,7 @@ pub use super::sets::dst::*;
 pub use super::sets::set_5dn::*;
 pub use super::sets::chk::*;
 pub use super::sets::bok::*;
+pub use super::sets::sok::*;
 pub use super::sets::rav::*;
 pub use super::sets::gpt::*;
 pub use super::sets::dis::*;

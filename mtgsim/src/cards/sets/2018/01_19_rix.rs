@@ -2,12 +2,15 @@
 
 use std::sync::Arc;
 
-use crate::cards::authoring::{at_beginning_of, dies, gain_life, put_counters, this_object, triggered_ability, you, Whose};
+use crate::cards::authoring::{
+    all_their, at_beginning_of, choose_objects_with_total_power_at_most, chosen_this_way, creature, dies, each_player, gain_life,
+    put_counters, sacrifice, spell_ability, they_control, this_object, triggered_ability, you, Whose,
+};
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::state::game_state::StepType;
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{AmountExpr, Condition, CounterType, PlayerSet};
+use crate::types::effects::{AmountExpr, Condition, CounterType, Effect, PlayerSet, TargetCount};
 use crate::types::history::{CountIs, HistoryCount, TurnFact};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::triggers::{EventRole, TriggerCondition, TriggerDef, TriggerSubject};
@@ -63,5 +66,45 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
             limit: None,
             effect: gain_life(you(), AmountExpr::TriggeringToughness(EventRole::Object)),
         }))
+        .build()
+}
+
+/// Slaughter the Strong — {1}{W}{W}
+/// Sorcery
+///
+/// > Each player chooses any number of creatures they control with total
+/// > power 4 or less, then sacrifices all other creatures they control.
+///
+/// (Oracle text verified on Scryfall, 2026-11-18.)
+///
+/// A choice each player makes for themselves, the active player first (CR
+/// 101.4, 608.2e), limited by what its creatures' power adds up to: the
+/// legal answers are sets, so the question shows each creature's power and
+/// the limit, and an answer over it is refused and asked again. Then every
+/// creature no player chose is sacrificed by its controller, all at once.
+///
+/// # The rulings, and where each is tested
+///
+/// - #1, the total checked over what each player chose ("two 2/2 creatures,
+///   or a 1/1 and a 3/3 creature, but not all four"), and #2, the active
+///   player first and every creature not chosen sacrificed at once →
+///   `phase_several_choosers_at_one_step_integration_test::slaughter_the_strong_takes_a_set_inside_the_total_from_each_player`.
+/// - #3, a creature of negative power "subtracts from the total power of
+///   the other creatures its controller chooses" →
+///   `phase_several_choosers_at_one_step_integration_test::a_creature_of_negative_power_makes_room_under_the_total`.
+pub fn slaughter_the_strong() -> Arc<CardData> {
+    let text = "Each player chooses any number of creatures they control with total power 4 or less, then sacrifices all other creatures they control.";
+    CardDataBuilder::new("Slaughter the Strong")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Sorcery)
+        .rules_text(text)
+        .ability(spell_ability(
+            text,
+            Effect::Sequence(vec![
+                choose_objects_with_total_power_at_most(each_player(), creature().and(they_control()), TargetCount::AnyNumber, 4),
+                sacrifice(all_their(each_player(), creature().other_than(chosen_this_way()))),
+            ]),
+        ))
         .build()
 }

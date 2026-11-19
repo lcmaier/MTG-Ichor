@@ -128,7 +128,7 @@ fn fixture_enchantment_breaker() -> Arc<CardData> {
         .ability(spell_ability(
             "",
             Effect::Atom(
-                Primitive::Destroy,
+                Primitive::Destroy { cant_be_regenerated: false },
                 EffectRecipient::Target(
                     SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Enchantment)),
                     TargetCount::Exactly(1),

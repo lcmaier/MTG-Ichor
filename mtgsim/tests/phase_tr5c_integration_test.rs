@@ -435,7 +435,7 @@ fn blocks_alone_is_the_only_blocker_across_every_defender() {
 /// Cockatrice's shape: "whenever this creature blocks or becomes blocked by a
 /// creature, destroy that creature".
 fn basilisk() -> Arc<CardData> {
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::OtherCombatant));
+    let destroy = Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Triggering(EventRole::OtherCombatant));
     let def = TriggerDef {
         condition: TriggerCondition::AnyOf(vec![
             blocks_a_creature(TriggerSubject::ThisObject, TriggerSubject::Any).into(),
@@ -495,7 +495,7 @@ fn the_registry_refuses_block_readings_no_rule_gives() {
         multiplicity: Multiplicity::PerOccurrence,
     };
     assert_eq!(whenever(counted_block, gain).readings_its_arms_cannot_give().len(), 1);
-    let destroy = |role| Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(role));
+    let destroy = |role| Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Triggering(role));
     let own_side = whenever(becomes_blocked_by(TriggerSubject::ThisObject, TriggerSubject::Any), destroy(EventRole::Attacker));
     assert_eq!(own_side.readings_its_arms_cannot_give().len(), 1, "its own side, by event role");
     let no_side = whenever(becomes_blocked_by(TriggerSubject::Any, TriggerSubject::Any), destroy(EventRole::OtherCombatant));
@@ -516,7 +516,7 @@ fn a_block_arm_is_about_the_side_it_names() {
     assert_eq!(blocked.subject(), Some(&TriggerSubject::Referred));
     let blocking: TriggerEvent = blocks_a_creature(TriggerSubject::Referred, TriggerSubject::Any).into();
     assert!(blocking.watches_referred());
-    let destroy = Effect::Atom(Primitive::Destroy, EffectRecipient::Triggering(EventRole::OtherCombatant));
+    let destroy = Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::Triggering(EventRole::OtherCombatant));
     let unblocked = whenever(attacks_and_isnt_blocked(TriggerSubject::ThisObject), destroy);
     assert_eq!(unblocked.readings_its_arms_cannot_give().len(), 1, "no creature across an unblocked one");
 }

@@ -236,7 +236,7 @@ fn a_permanent_that_enters_with_a_shield_counter_is_a_holder_as_it_lands() {
     assert!(game.replacement_counter_holders.contains_key(&bear));
 
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
-    game.execute_action(GameAction::Destroy { object: bear }, &effect_ctx(&game, source)).unwrap();
+    game.execute_action(GameAction::Destroy { object: bear, cant_be_regenerated: false }, &effect_ctx(&game, source)).unwrap();
 
     assert!(game.battlefield.contains_key(&bear), "the shield replaced the destruction");
     assert_eq!(game.battlefield[&bear].counter_count(CounterType::Shield), 0, "and was removed doing it");

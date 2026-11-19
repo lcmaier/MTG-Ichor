@@ -174,6 +174,28 @@ pub enum ChoiceKind {
     Number,
     Player,
     Objects,
+    /// Gluntch, the Bestower's "choose a second player".
+    SecondPlayer,
+    /// Gluntch, the Bestower's "choose a third player".
+    ThirdPlayer,
+    /// Fortunate Few's "then each other player chooses a nonland permanent",
+    /// beside the one its controller chose first.
+    ObjectsTheOthersChose,
+}
+
+impl ChoiceKind {
+    /// Whether a choice kept under this name is a player.
+    pub fn is_a_player(self) -> bool {
+        match self {
+            ChoiceKind::Player | ChoiceKind::SecondPlayer | ChoiceKind::ThirdPlayer => true,
+            ChoiceKind::Color
+            | ChoiceKind::CreatureType
+            | ChoiceKind::CardType
+            | ChoiceKind::Number
+            | ChoiceKind::Objects
+            | ChoiceKind::ObjectsTheOthersChose => false,
+        }
+    }
 }
 
 /// What a choose step asks for ([`Primitive::ChooseValue`]).
@@ -187,16 +209,32 @@ pub enum ValueChoice {
     /// "choose artifact or enchantment".
     CardType(Option<Vec<CardType>>),
     /// "Choose a number between 0 and 10": from `least` through `most`.
-    Number { least: u64, most: u64 },
-    /// "Choose a player", "choose an opponent": one of the set still in the
-    /// game, read against the controller (CR 109.5).
-    Player(PlayerSet),
+    /// "Choose a number", with none printed: from `least` up, with no most
+    /// (CR 107.1b: no number below zero, and nothing above).
+    Number { least: u64, most: Option<u64> },
+    /// "Choose a player", "choose an opponent": one of `among` still in the
+    /// game, read against the controller (CR 109.5). "Choose a second
+    /// player" is one `other_than` each player an earlier choice of this
+    /// resolution kept under those names (Gluntch's ruling: "all three
+    /// players must be different players").
+    Player { among: PlayerSet, other_than: Vec<ChoiceKind> },
     /// "Choose up to one creature", "choose a creature you control": among
     /// what the filter matches as the step runs, by the count. No target, so
     /// hexproof and shroud do not stop it (CR 115.10a). A `Divided` count
     /// also splits its amount among what is chosen, at least one each (CR
-    /// 608.2d).
-    Objects(SelectionFilter, TargetCount),
+    /// 608.2d). "With total power 4 or less" is `total`.
+    Objects { among: SelectionFilter, count: TargetCount, total: Option<PickTotal> },
+}
+
+/// "With total power 4 or less": what the numbers of a choose step's objects
+/// must add up to. The legal answers are sets and no object is legal alone:
+/// a 3/3 is an answer by itself and is not one beside a 2/2, and a creature
+/// with negative power makes room for another (CR 107.1b), so no count says
+/// it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PickTotal {
+    pub of: ObjectValue,
+    pub is: ValueIs,
 }
 
 impl ValueChoice {
@@ -207,29 +245,84 @@ impl ValueChoice {
             ValueChoice::CreatureType => ChoiceKind::CreatureType,
             ValueChoice::CardType(_) => ChoiceKind::CardType,
             ValueChoice::Number { .. } => ChoiceKind::Number,
-            ValueChoice::Player(_) => ChoiceKind::Player,
-            ValueChoice::Objects(..) => ChoiceKind::Objects,
+            ValueChoice::Player { .. } => ChoiceKind::Player,
+            ValueChoice::Objects { .. } => ChoiceKind::Objects,
         }
     }
 }
 
-/// Who makes a choose step's choice.
+/// Who makes a choose step's choice, and over which players: one answer, or
+/// an answer for each player a walk around the table reaches.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ChosenHow {
+pub struct ChosenHow {
+    /// `None` for one answer: "choose a color", "target opponent chooses a
+    /// number".
+    pub walk: Option<ChoiceWalk>,
+    pub answered_by: AnsweredBy,
+}
+
+/// "Each player chooses", "each opponent chooses": an answer for each player
+/// of the group still in the game, the active player first and then in turn
+/// order (CR 101.4, 608.2e), each knowing the answers before theirs (CR
+/// 101.4b). A group without the active player begins with the next player
+/// after them who is in it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChoiceWalk {
+    pub players: PlayerGroup,
+}
+
+/// Who answers a choose step's question.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AnsweredBy {
     /// The player this recipient names: `Controller` for "choose", a target
     /// player for "target opponent chooses".
-    By(EffectRecipient),
+    Player(EffectRecipient),
+    /// "Each player chooses": the player the walk is on. A walk's only.
+    EachPlayerForThemselves,
     /// "At random": drawn from the game's seeded rng, and nobody is asked.
     AtRandom,
 }
 
-impl From<EffectRecipient> for ChosenHow {
-    fn from(chooser: EffectRecipient) -> Self {
-        ChosenHow::By(chooser)
+impl ChosenHow {
+    /// "At random", with no walk: one draw.
+    pub fn at_random() -> ChosenHow {
+        ChosenHow { walk: None, answered_by: AnsweredBy::AtRandom }
     }
 }
 
-/// What a choose step kept: the answer to a [`ValueChoice`], arm for arm.
+/// A choose word takes who chooses where every verb takes its recipient:
+/// `you()` or a target player for one answer, and `each_player()` or
+/// `each_opponent()` for an answer from each of them.
+impl From<EffectRecipient> for ChosenHow {
+    fn from(chooser: EffectRecipient) -> Self {
+        match chooser {
+            EffectRecipient::EachOf(players) => {
+                ChosenHow { walk: Some(ChoiceWalk { players }), answered_by: AnsweredBy::EachPlayerForThemselves }
+            }
+            one => ChosenHow { walk: None, answered_by: AnsweredBy::Player(one) },
+        }
+    }
+}
+
+/// A choice one choose step made as its object resolves (CR 608.2d): an
+/// answer for each player it asked, in the order they answered (CR 101.4).
+/// A walk opens it empty before its first question, so its own later
+/// questions read the answers so far; one chooser gives one answer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChoiceMade {
+    pub kind: ChoiceKind,
+    pub answers: Vec<ChoiceAnswer>,
+}
+
+/// One answer and the player it is for: the player the walk was on, or the
+/// one chooser. `None` for a draw at random that is for nobody.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChoiceAnswer {
+    pub for_player: Option<PlayerId>,
+    pub value: ChosenValue,
+}
+
+/// What a choose step chose: the answer to a [`ValueChoice`], arm for arm.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChosenValue {
     Color(Color),
@@ -327,6 +420,21 @@ pub enum PlayerRef {
     /// the chooser of an `Effect::Optional` whose effect is a payment; every
     /// other reader refuses it.
     AnyPlayer,
+    /// A player the text names by pointing back at one: "they" in "each
+    /// player chooses a creature they control". A resolution writes the
+    /// player in before anything reads the filter, as it writes a chosen
+    /// value in, so every other reader refuses it.
+    Named(PlayerAntecedent),
+}
+
+/// Which player a [`PlayerRef::Named`] points back at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerAntecedent {
+    /// "They" in what a choose step chooses among: the player the answer is
+    /// for, which is the player a walk is on, or the one chooser. Beside
+    /// "you", the effect's controller: Council's Judgment has each player
+    /// vote for "a nonland permanent you don't control".
+    ChoosingFor,
 }
 
 /// CR 701.9b — who picks which card is discarded.
@@ -479,12 +587,13 @@ impl ObjectFilter {
     }
 
     /// Whether the filter holds a word only a resolution reads: a name a
-    /// choose step kept, or an amount still to be read. One that holds none
-    /// is asked as written.
+    /// choose step kept, an amount still to be read, or a player the text
+    /// points back at. One that holds none is asked as written.
     pub(crate) fn holds_a_resolutions_word(&self) -> bool {
         match self {
             ObjectFilter::ChosenAs(_) => true,
             ObjectFilter::WithValue { is, .. } => !matches!(is.amount(), AmountExpr::Fixed(_)),
+            ObjectFilter::ByController(who) | ObjectFilter::ByOwner(who) => matches!(who, PlayerRef::Named(_)),
             ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => a.holds_a_resolutions_word() || b.holds_a_resolutions_word(),
             ObjectFilter::Not(inner) => inner.holds_a_resolutions_word(),
             ObjectFilter::All
@@ -492,12 +601,10 @@ impl ObjectFilter {
             | ObjectFilter::BySubtype(_)
             | ObjectFilter::BySupertype(_)
             | ObjectFilter::ByColor(_)
-            | ObjectFilter::ByController(_)
             | ObjectFilter::WithCounters { .. }
             | ObjectFilter::Token
             | ObjectFilter::ThisTurn(_)
             | ObjectFilter::ThisCombat(_)
-            | ObjectFilter::ByOwner(_)
             | ObjectFilter::NotSource
             | ObjectFilter::OneOf(_) => false,
         }
@@ -1501,15 +1608,19 @@ pub struct Choice {
     pub chooser: EffectRecipient,
     /// Whose objects are picked from, and where.
     pub among: ChoiceScope,
-    /// One pick per category: an edict's one, and Cataclysm's four with its
-    /// card, where a permanent may answer two.
+    /// One pick per category: an edict's one. Several picks by one player
+    /// ("an artifact, a creature, an enchantment, and a land", Cataclysm)
+    /// are a choose step's ([`ValueChoice::Objects`]), with their first
+    /// card.
     pub picks: Vec<Pick>,
-    /// Whether the verb acts on what was chosen or on the rest.
+    /// What the verb acts on: what was chosen.
     pub acts_on: ChoiceSide,
 }
 
-/// Whose objects a [`Choice`] picks from, and where. Another player's
-/// objects, a graveyard and a hand are arms with their first cards.
+/// Whose objects a [`Choice`] picks from, and where. "A permanent they
+/// don't control" is a choose step's ([`ValueChoice::Objects`]), whose
+/// filter reads "they" as the player answering; a graveyard and a hand are
+/// arms with their first cards.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChoiceScope {
     /// The permanents the chooser controls: an edict's "a creature".
@@ -1517,7 +1628,9 @@ pub enum ChoiceScope {
 }
 
 /// What the verb acts on once the picks are made. "Choose …, then sacrifice
-/// the rest" (Balance, Cataclysm) is an arm with its first card.
+/// the rest" (Slaughter the Strong, Cataclysm) is no arm here: it is a
+/// choose step, then the verb on every object no answer chose
+/// ([`PickCount::All`] where each player acts on their own).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChoiceSide {
     Chosen,
@@ -1538,6 +1651,11 @@ impl Pick {
     pub fn exactly(n: impl Into<AmountExpr>, filter: ObjectFilter) -> Pick {
         Pick { filter, count: PickCount::Exactly(n.into()) }
     }
+
+    /// "All [filter]": every one of them.
+    pub fn all(filter: ObjectFilter) -> Pick {
+        Pick { filter, count: PickCount::All }
+    }
 }
 
 /// How many a [`Pick`] takes. "Up to N" and a fraction of the scope are arms
@@ -1546,6 +1664,12 @@ impl Pick {
 pub enum PickCount {
     /// That many, or as many as there are (CR 101.3).
     Exactly(AmountExpr),
+    /// "Each player sacrifices all other creatures they control": every one
+    /// the filter describes among the chooser's own, with nothing to choose
+    /// and no question. Only a permanent's controller can sacrifice it (CR
+    /// 701.21a), so "sacrifice [those]" acts on the effect's controller's
+    /// alone, and this is how each of several players acts on their own.
+    All,
 }
 
 /// What kind of object(s) can be selected.
@@ -2464,8 +2588,11 @@ pub enum CopyRoles {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Primitive {
     // === Zone movement (rule 701) ===
-    /// Destroy a permanent (rule 701.8) — respects indestructible/regenerate
-    Destroy,
+    /// Destroy a permanent (rule 701.8) — respects indestructible/regenerate.
+    /// `cant_be_regenerated` is the card's "It can't be regenerated": no
+    /// regeneration shield is applied to this destruction (CR 701.19c), and
+    /// the clause ends with it.
+    Destroy { cant_be_regenerated: bool },
     /// Exile an object (rule 701.13)
     Exile,
     /// CR 610.3 — "exile [it] until [a specified event occurs]": the exile,
@@ -2945,7 +3072,7 @@ impl Primitive {
     /// for a hand to the command zone), and then it is not "that card".
     pub fn moves_into(&self) -> Option<Zone> {
         match self {
-            Primitive::Destroy
+            Primitive::Destroy { .. }
             | Primitive::Sacrifice
             | Primitive::Mill(_)
             | Primitive::Discard(..)
@@ -3307,7 +3434,9 @@ impl Effect {
                 own && match primitive {
                     Primitive::ExileUntil { refers_to: Some(target), .. } => f(target),
                     // "Target opponent chooses a number": the chooser is the instance.
-                    Primitive::ChooseValue { how: ChosenHow::By(chooser @ EffectRecipient::Target(..)), .. } => f(chooser),
+                    Primitive::ChooseValue {
+                        how: ChosenHow { answered_by: AnsweredBy::Player(chooser @ EffectRecipient::Target(..)), .. }, ..
+                    } => f(chooser),
                     _ => true,
                 }
             }

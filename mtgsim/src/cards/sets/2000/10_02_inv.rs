@@ -3,15 +3,14 @@
 use std::sync::Arc;
 
 use crate::cards::authoring::{
-    cant_for, choose_color, color, creature, destroy, draw_cards, each, land, non, return_to_hand, scry, spell_ability, the_chosen_color,
-    target_permanent, that_target, you,
+    choose_color, color, creature, destroy, draw_cards, each, land, non, return_to_hand, scry, spell_ability, the_chosen_color,
+    target_permanent, you,
 };
 use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
-use crate::types::effects::{AffectedSet, Effect};
+use crate::types::effects::Effect;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::restriction::{ReplacementKindFilter, Restriction};
 
 /// Opt — {U}
 /// Instant
@@ -64,9 +63,10 @@ pub fn opt() -> Arc<CardData> {
 /// CR 608.2b are different rules.
 ///
 /// **"They" is two atoms, not one.** An atom reads its own instance, so the
-/// regeneration restriction is written once per clause. That is not a
-/// workaround: CR 701.19c's effect is about each permanent, and a single atom
-/// spanning two instances would need a recipient the CR never asks for.
+/// clause is written once per destroy. That is not a workaround: CR 701.19c
+/// is about each permanent's destruction, and a single atom spanning two
+/// instances would need a recipient the CR never asks for. Each destroy
+/// carries the clause itself, so it covers that destruction and no other.
 ///
 /// Registered and unpooled: the board needs March of the Machines and Moonlace
 /// Fixture together, which a random game does not assemble.
@@ -75,18 +75,6 @@ pub fn opt() -> Arc<CardData> {
 ///
 /// Scryfall lists none for this card.
 pub fn plague_spores() -> Arc<CardData> {
-    let cant_regenerate = |recipient| {
-        cant_for(
-            recipient,
-            Restriction::ApplyReplacement {
-                kind: ReplacementKindFilter::Regeneration,
-                // `Primitive::Restrict` overwrites the object set with the
-                // resolution's targets — this atom's instance.
-                affected: AffectedSet::NOTHING,
-            },
-        )
-        .until_end_of_turn()
-    };
     CardDataBuilder::new("Plague Spores")
         .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Red], 4))
         .color(Color::Black)
@@ -94,13 +82,8 @@ pub fn plague_spores() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Destroy target nonblack creature and target land. They can't be regenerated.")
         .ability(spell_ability("Destroy target nonblack creature and target land. They can't be regenerated.", Effect::Sequence(vec![
-            // The shields are stripped before the destruction, or CR 701.19a's
-            // replacement would have already applied by the time the
-            // restriction existed.
-            cant_regenerate(target_permanent(creature().and(non(color(Color::Black))))),
-            cant_regenerate(target_permanent(land())),
-            destroy(that_target(0)),
-            destroy(that_target(1)),
+            destroy(target_permanent(creature().and(non(color(Color::Black))))).cant_be_regenerated(),
+            destroy(target_permanent(land())).cant_be_regenerated(),
         ])))
         .build()
 }

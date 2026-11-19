@@ -115,3 +115,87 @@ Where it differs from the note's words:
 - **`Effect::Remember` does not see a choose step**: a later trigger naming a chosen object is
   the third row's (item 428).
 - Filed with their homes: items 428 to 437, and a line on item 396.
+
+#### `several-choosers-at-one-step` — a choice each player makes, and its answers — ✅ landed 2026-11-18
+
+*Evicted 2026-11-18 from `plans/choices-architecture.md` §5, where the heading
+and a stub stay.*
+
+PR #334, the second of `values-chosen-at-resolution`'s three and the first of the three PRs it
+split into at its design stop: the walk and what it keeps. Items 435 and 14 closed, 429 and 437
+narrowed to `secret-choices-and-votes`. Its design note, with the three review rounds that
+settled its thirteen decisions, is the second row's section of
+`handoffs/values-chosen-at-resolution.md`.
+- **Every choice made is a list of answers, each with its player** (decision 1):
+  `ChoiceMade { kind, answers }` of `ChoiceAnswer { for_player, value }`, on
+  `ResolvingObject::choices`. One chooser leaves one answer. A filter reads any answer ("of a
+  type chosen this way" is an `Or` of them, "the rest" every answer's objects); a verb acts on
+  every answer's objects, each once, and a draw or a life loss on each player chosen; an amount,
+  a player word and a verb that takes one player read exactly one answer.
+- **The walk** (decision 2): `ChosenHow { walk, answered_by }`. `ChoiceWalk { players }` asks each
+  player of a group still in the game, the active player first and then in turn order (CR 101.4,
+  608.2e); one order, no `WalkOrder`. `AnsweredBy` is one player, each player for themselves, or
+  at random. The choice is opened empty before the first question and each answer added as it is
+  given, so a later player's question reads the answers before theirs (CR 101.4b). A walk that
+  reaches nobody chose nothing, so "the rest" is everything. Built here: the active player
+  starting, one player, each for themselves. A walk answered by one player for each, or at random
+  for each, is refused by the registry until `secret-choices-and-votes` and `separate-into-piles`.
+- **"They"** (decision 3): `PlayerRef::Named(PlayerAntecedent::ChoosingFor)`, the player an
+  answer is for: each player in turn under a walk, the one chooser without one. Written into a
+  choice's filter as the question is asked; anywhere else it errs.
+- **An open number** (decision 8): `ValueChoice::Number { least, most: Option }`, asked as
+  `XOffer::NoTop { at_least }` through `pick_number(least, u64::MAX)`. The random agent draws
+  within 20 of the least; the dev GUI's field has no top.
+- **A second name for a second choice of one kind**: `ChoiceKind::SecondPlayer`, `ThirdPlayer`
+  and `ObjectsTheOthersChose`, and `ValueChoice::Player { among, other_than }`, the players no
+  earlier name kept.
+- **Each step's list of what it reads** (item 435): `engine/choices_read.rs`, every match
+  exhaustive, asked before a step acts. A step reading a choice never made does not happen (CR
+  608.2b): an "if you do" after a passed-over instruction reads `Cant`; a "may" on one, or on a
+  player never chosen, is not offered; and an "if" that cannot be read is false, leaving the
+  answer before it. A choose step reads its own count and total. Each read says whether it needs
+  the one answer, and one that follows a walk is refused by the registry's test and, for a card
+  it never saw, by the resolution before the verb acts. The registry reads the same list; a
+  definition that outlasts the resolution (a granted ability, a token's, a copy's exceptions) is
+  scanned in its printed form.
+- **A pick limited by a total** (decision 12): `ValueChoice::Objects { among, count, total }`
+  with `PickTotal { of, is }`. The question is `DecisionKind::SelectWithinATotal { source, of,
+  limit, numbers }`: the limit read (`TotalLimit::AtMost` or `AtLeast`), and each option's number
+  as the layers give it, by object. The engine refuses an answer outside the limit
+  (`Rejection::TotalOutsideTheLimit`, naming the total) and asks again. `TotalLimit` decides
+  whether any pick is inside by the pick furthest inside it: none is a choice never made (CR
+  608.2d), none but the empty pick is not asked. The random agent keeps each option unless it
+  moves the pick outside the limit; the dev GUI shows each option's number and the running total
+  and offers Done only inside the limit.
+- **Each player's own, all of them**: `PickCount::All` on the edict's pick, written `all_their`.
+  "Sacrifice [those]" is the effect's controller's (CR 701.21a), so "each player sacrifices all
+  other creatures they control" is an edict with nothing to choose, in its one batch.
+- **"It can't be regenerated"** (decision 13, item 14): `Primitive::Destroy { cant_be_regenerated
+  }`, carried on `GameAction::Destroy`, where a regeneration shield is passed over for that
+  destruction only. Written `.cant_be_regenerated()`; a registry test holds every card printing
+  the clause to a marked destroy.
+- **The cards**: Slaughter the Strong (a Tarkir: Dragonstorm Commander deck card), Harsh Mercy,
+  Fortunate Few and Choice of Damnations registered with their rulings; Plague Spores moved onto
+  the mark. Slaughter the Strong is pooled (129 → 130), in Divine Reckoning's place.
+
+Where it differs from the note's words:
+- **Divine Reckoning and Gluntch, the Bestower are not registered** (item 438). The note called
+  flashback built, and it is an arm no cast reads; Gluntch's Treasure tokens need any-color mana.
+  Each one's rule is on an invented instant that cites its rulings.
+- **"Each player sacrifices all other creatures they control" was not in the note**, which wrote
+  "the rest" as a filter on a sacrifice. A sacrifice of a named permanent is the controller's
+  alone, so `PickCount::All` was added at the build, on the edict, where who sacrifices already
+  lives.
+- **The total's question shows `TotalLimit`, two arms**, where the note put `ValueIs` on it.
+  "Less than" is at most one fewer; "exactly" is refused (item 439). It is a question kind of its
+  own, which the note left open.
+- **`chosen_this_way()`** and its two siblings are words for the same placeholder
+  `one_of_the_chosen()` writes, as the note said; Fortunate Few's "hasn't been chosen this way"
+  is `one_of_the_chosen()` and `one_the_others_chose()` together, not one word.
+- **The prompt walk's fourth window** was re-picked (0xA4_0004): the registrations moved every
+  window of the sorted registry.
+- **The pre-review's fixes**, each with a board that failed first: a life total takes an amount
+  past its range as its edge (Choice of Damnations' number has no top); the read list's gaps
+  above; a pick with nothing inside its limit; and a draw for each player chosen, where it drew
+  for one.
+- Filed with their homes: items 438 to 441; 429 and 437 to `secret-choices-and-votes`.

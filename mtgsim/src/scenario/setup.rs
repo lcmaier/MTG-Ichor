@@ -191,6 +191,7 @@ fn line_answer(kind: &DecisionKind) -> LineAnswer<'_> {
         | DecisionKind::ChooseCreatureType { .. }
         | DecisionKind::ChooseCardType { .. }
         | DecisionKind::ChooseNumber { .. }
+        | DecisionKind::SelectWithinATotal { .. }
         | DecisionKind::ChooseEnteringDefender { .. }
         | DecisionKind::ChooseAuxiliaryZoneChange { .. }
         | DecisionKind::ChooseCopySource { .. } => LineAnswer::Unanswered,

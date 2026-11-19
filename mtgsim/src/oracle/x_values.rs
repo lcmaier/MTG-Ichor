@@ -68,8 +68,8 @@ impl LegalXValues {
             return Some(self);
         }
         let offered = match self.offered {
-            XOffer::Interval { at_least, .. } if at_least <= most => XOffer::Interval { at_least, at_most: most },
-            XOffer::Interval { .. } => return None,
+            XOffer::Interval { at_least, .. } | XOffer::NoTop { at_least } if at_least <= most => XOffer::Interval { at_least, at_most: most },
+            XOffer::Interval { .. } | XOffer::NoTop { .. } => return None,
             XOffer::Set(values) => {
                 let kept: Vec<u64> = values.into_iter().filter(|&x| x <= most).collect();
                 if kept.is_empty() {
@@ -90,6 +90,11 @@ pub enum XOffer {
     /// These, ascending, when a rule cuts a gap: Tamiyo, Compleated Sage's −X
     /// over cards of mana value 0, 1, 4, 6 and 7 offers those.
     Set(Vec<u64>),
+    /// Every number from `at_least` up: "choose a number" with no most
+    /// printed (Void, Choice of Damnations), which CR 107.1b bounds below
+    /// and nothing bounds above. No X is offered this way: an X is bounded
+    /// by what can be paid.
+    NoTop { at_least: u64 },
 }
 
 impl XOffer {
@@ -99,13 +104,14 @@ impl XOffer {
         match self {
             XOffer::Interval { at_least, at_most } => at_least == at_most,
             XOffer::Set(values) => values.len() == 1,
+            XOffer::NoTop { .. } => false,
         }
     }
 
     /// The least value offered.
     pub fn at_least(&self) -> u64 {
         match self {
-            XOffer::Interval { at_least, .. } => *at_least,
+            XOffer::Interval { at_least, .. } | XOffer::NoTop { at_least } => *at_least,
             XOffer::Set(values) => values.first().copied().unwrap_or(0),
         }
     }
@@ -120,14 +126,17 @@ impl XOffer {
                 XOffer::Interval { at_least, at_most: at_most.min(limit.saturating_sub(1)).max(at_least) }
             }
             XOffer::Set(values) => XOffer::Set(values.into_iter().filter(|value| *value < limit).collect()),
+            XOffer::NoTop { at_least } => XOffer::Interval { at_least, at_most: limit.saturating_sub(1).max(at_least) },
         }
     }
 
-    /// The most value offered.
+    /// The most value offered, the largest number there is where no most is
+    /// printed.
     pub fn at_most(&self) -> u64 {
         match self {
             XOffer::Interval { at_most, .. } => *at_most,
             XOffer::Set(values) => values.last().copied().unwrap_or(0),
+            XOffer::NoTop { .. } => u64::MAX,
         }
     }
 }

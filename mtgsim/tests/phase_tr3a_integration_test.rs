@@ -297,7 +297,7 @@ fn a_spell_creates_a_delayed_trigger_that_fires_at_the_next_end_step() {
         "Delayed Doom",
         ManaCost::build(&[ManaType::Black], 0),
         at_the_next_end_step(Effect::Atom(
-            Primitive::Destroy,
+            Primitive::Destroy { cant_be_regenerated: false },
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
         )),
     );
@@ -514,7 +514,7 @@ fn next_death() -> Arc<CardData> {
 }
 
 fn destroy_together(game: &mut GameState, objects: &[ObjectId], dp: &dyn mtgsim::decision::provider::DecisionProvider) {
-    let batch = objects.iter().map(|&object| GameAction::Destroy { object }).collect();
+    let batch = objects.iter().map(|&object| GameAction::Destroy { object, cant_be_regenerated: false }).collect();
     game.execute_actions(batch, &ActionContext::new(dp)).unwrap();
 }
 
@@ -608,7 +608,7 @@ fn doomed_construct() -> Arc<CardData> {
         "Doomed Construct",
         vec![
             activated(false, at_the_next_end_step(Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject))),
-            activated(false, at_the_next_end_step(Effect::Atom(Primitive::Destroy, EffectRecipient::ThisObject))),
+            activated(false, at_the_next_end_step(Effect::Atom(Primitive::Destroy { cant_be_regenerated: false }, EffectRecipient::ThisObject))),
         ],
     )
 }

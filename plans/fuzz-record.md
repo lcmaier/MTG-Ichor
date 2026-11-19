@@ -202,6 +202,82 @@ one means the engine's cost model moved
 
 ## The records, newest first
 
+**Re-recorded 2026-11-18 for `several-choosers-at-one-step`, a choice each player makes, and its
+answers** (`choices/several-choosers-at-one-step`, PR #334, the second of
+`values-chosen-at-resolution`'s three and the first of the three PRs it split into: the walk,
+"they", the open number, item 435's read list, the destroy's mark, a pick limited by a total).
+Slaughter the Strong joins the registry and the performance pool (129 → 130), and Harsh Mercy,
+Fortunate Few and Choice of Damnations the registry, so both §3 columns are new baselines. One
+`close_out.py` sitting against **main** `6f1f13f1` (#333's merge): **engine** `3eb44e71`, a
+throwaway commit that is the last code commit with the four cards unregistered, and **shipped**
+`d5ddbb34`.
+
+**Predictions**, in the PR body before any arm ran:
+- engine vs `main`: every gameplay row `IDENTICAL` on both pools at both seats, since one
+  chooser's answers are unchanged, no registered card reaches a step whose choice was never made,
+  none regenerates, and none asks the total's question;
+- engine's instructions a decision up by under 0.5%, each step building its read list;
+- shipped: every game moves; on performance creatures died up and turns up by under two at two
+  seats; stress moves by less than performance.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| every counter but the timings, engine vs `main`, performance / stress | the same file / the same file | the same file / the same file |
+| audit, engine, dispatches agreed, performance / stress | 176,224 / 175,161 | 449,073 / 457,527 |
+| gameplay rows, shipped vs `main`, performance / stress | differ (predicted) / differ (predicted) | differ (predicted) / differ (predicted) |
+| audit, shipped, dispatches agreed, performance / stress | 188,886 / 180,622 | 453,009 / 486,050 |
+| `Memo hits`, `main` → shipped, performance / stress | 49,029 → 56,495 / 53,167 → 54,201 | 243,123 → 248,601 / 260,547 → 274,513 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | | 0.5069 M → 0.5064 M, **−0.11%** |
+| growth, 1,600 to 6,400 permanents, the nine shapes, linear reads ×4 | | ×3.94 to ×4.02 |
+
+**The engine prediction held**: every counter is `main`'s. **Two of the shipped ones missed.**
+Turns at two seats on performance rose 28.0 → 30.1, by 2.1 where under two was predicted, with
+spells cast 21.3 → 22.5 and creatures died 7.0 → 7.6. And at four seats stress moved more than
+performance: 65.0 → 68.6 turns and 15.5 → 16.6 creatures died on stress, against 69.7 → 70.5 and
+22.6 → 22.4 on performance, since stress gained four cards that each remove permanents and
+performance one. At two seats stress read 26.6 → 27.2 turns and 5.1 → 5.9 died. The read list
+costs nothing a decision can show: the total fell 0.11%, and the functions past half a point are
+`random_deck` and `CardRegistry::create` inlined in one arm and not the other. Errors and panics
+0 on every arm, no game at the turn limit, no audit disagreement.
+
+Reachability, shipped, 200 games on stress, each required once a deck. Two seats: Slaughter the
+Strong cast 153 and resolved 149 in 54% of games (1.16 copies a deck), Harsh Mercy 137 (134) in
+52%, Fortunate Few 117 (117) in 42%, Choice of Damnations 103 (101) in 42%. Four seats: 115
+(115) in 50% at 2.33 copies, 118 (118) in 51%, 107 (105) in 46%, 133 (131) in 60%. The whole
+suite passes with the card pooled, and in release `clone_bound_test`, `clone_fixture_test`,
+`history_held_test` and `priority_fork_test`, the fork seeds unmoved. `prompt_subject_test`'s
+fourth window was re-picked (0xA4_0004), where a random game asks the total's question three
+times.
+
+The copy check names `engine/choices_read.rs` against `triggers/binding_reads.rs`: two
+functions near-copied (`count_reads`, `filter_reads`) and their compositions. Kept: each is an
+exhaustive walk of the same effect tree answering a different question, the choices a step reads
+and what a triggered ability reads of its binding, as `layers/board.rs` and `payment_order.rs`
+already walk it for theirs; a new node does not compile until it answers each. The engine and
+the random agent both check a pick against its limit (`admits_the_pick`), which is the design: a
+client checks its own answer and the engine checks it again. 300 s.
+
+§3's rows, shipped, 50 games at seed 12345, performance / stress: turns 28.1 / 25.4, spells cast
+21.1 / 19.9, creatures died 6.4 / 6.5, layer walks 333 / 362, memo hits 50,631 / 52,858,
+replacement gathers 977 / 905, restriction queries 991 / 916, decisions 187 / 219.
+
+**Rerun after the pre-review (2026-11-18)**, against **shipped** `d5ddbb34`, the arm above:
+**reviewed** `136ead7a`, seven commits: a life total saturating at an amount past its range; the
+read list's gaps (a choose step's count and total, produced mana, a passed-over "if", a "may"
+not offered) and its reads that need one answer; a pick with nothing inside its limit as a
+choice never made; a draw for each player a walk chose; and names. Predicted, in the PR body
+before either arm ran: every gameplay and counter row `IDENTICAL` on both pools at both seats,
+since no registered card names a number past twenty, reads a choice never made, asks "or
+greater" or acts on what a walk's several players chose; instructions a decision up by under
+half a point, each instruction's read list being built a second time.
+
+Every gameplay row **IDENTICAL** and every counter the same file, both pools at both seats;
+audit agreed (188,886 / 180,622 at two seats, 453,009 / 486,050 at four); instructions a
+decision 0.5937 M → 0.5938 M, **+0.02%**; growth ×3.94 to ×4.02; the copy check names nothing
+but the same two walks. The whole suite and the four release tests pass on the reviewed tree.
+177 s.
+
 **Re-recorded 2026-11-15 for `value-chosen-as-an-effect-resolves`, a value or objects chosen as an
 effect resolves, kept, and used** (`choices/value-chosen-as-an-effect-resolves`, PR #330, the first
 of `values-chosen-at-resolution`'s three: the choose step, items 425, 426 and 292, most of item

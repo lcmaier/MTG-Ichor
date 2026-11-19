@@ -246,7 +246,7 @@ fn rest_in_peace_board() -> (GameState, mtgsim::types::ids::ObjectId, mtgsim::ty
 #[test]
 fn the_replacement_gates_audit_agrees_over_a_printed_source() {
     let (mut game, _, bears) = rest_in_peace_board();
-    game.execute_action(GameAction::Destroy { object: bears }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: bears, cant_be_regenerated: false }, &test_ctx()).unwrap();
     assert_eq!(game.objects[&bears].zone, Zone::Exile);
 }
 
@@ -255,7 +255,7 @@ fn the_replacement_gates_audit_agrees_over_a_printed_source() {
 fn the_replacement_gates_audit_panics_when_a_printed_leg_is_missing() {
     let (mut game, peace, bears) = rest_in_peace_board();
     game.replacement_ability_sources.remove(&peace);
-    let _ = game.execute_action(GameAction::Destroy { object: bears }, &test_ctx());
+    let _ = game.execute_action(GameAction::Destroy { object: bears, cant_be_regenerated: false }, &test_ctx());
 }
 
 /// Sigarda beside P0's creature, and P1's effect sacrificing it.

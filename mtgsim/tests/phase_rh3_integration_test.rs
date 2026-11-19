@@ -121,7 +121,7 @@ fn a_rider_that_moves_the_dead_creature_again_leaves_return_it_nothing_to_find()
     put_on_battlefield(&mut game, exiles_your_creatures_after_they_die(), 0);
     let returner = put_on_battlefield(&mut game, returns_when_it_dies(), 0);
 
-    game.execute_action(GameAction::Destroy { object: returner }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: returner, cant_be_regenerated: false }, &test_ctx()).unwrap();
     assert_eq!(game.get_object(returner).unwrap().zone, Zone::Exile, "the rider exiled it after it died");
     assert_eq!(game.pending_triggers.len(), 1, "its dies trigger");
 
@@ -160,7 +160,7 @@ fn an_auras_own_graveyard_trigger_finds_the_aura_it_became() {
     let aura = put_on_battlefield(&mut game, aura_returning_to_hand(), 0);
     game.execute_action(GameAction::Attach { attachment: aura, host }, &test_ctx()).unwrap();
 
-    game.execute_action(GameAction::Destroy { object: host }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: host, cant_be_regenerated: false }, &test_ctx()).unwrap();
     resolve_everything(&mut game);
 
     assert_eq!(game.get_object(aura).unwrap().zone, Zone::Hand, "CR 400.7e: the trigger finds the Aura in the graveyard");
@@ -198,7 +198,7 @@ fn a_from_anywhere_trigger_finds_the_card_where_it_is() {
     let mut game = setup_two_player_game();
     let vigor = put_on_battlefield(&mut game, shuffles_in_from_anywhere(), 0);
 
-    game.execute_action(GameAction::Destroy { object: vigor }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: vigor, cant_be_regenerated: false }, &test_ctx()).unwrap();
     resolve_everything(&mut game);
 
     assert_eq!(game.get_object(vigor).unwrap().zone, Zone::Library);
@@ -364,7 +364,7 @@ fn exiles_seen(rest_in_peace: Option<PlayerId>, exiler: PlayerId) -> usize {
     game.pending_triggers.clear();
     let ctx = effect_ctx(&game, spell);
     match rest_in_peace {
-        Some(_) => game.execute_action(GameAction::Destroy { object: victim }, &ctx).unwrap(),
+        Some(_) => game.execute_action(GameAction::Destroy { object: victim, cant_be_regenerated: false }, &ctx).unwrap(),
         None => game.change_zone(victim, Zone::Exile, ZoneChangeAct::Put, &ctx).unwrap(),
     }
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
@@ -498,7 +498,7 @@ fn a_permanent_a_rider_makes_does_not_look_back_at_the_event_before_it() {
     put_on_battlefield(&mut game, exiler_making(token_with(vec![watches])), 0);
     let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.execute_action(GameAction::Destroy { object: victim }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: victim, cant_be_regenerated: false }, &test_ctx()).unwrap();
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
     assert_eq!(game.pending_triggers.len(), 0, "the token was made after the creature left");
 }
@@ -524,7 +524,7 @@ fn a_permanent_a_rider_makes_does_not_see_the_event_before_it() {
     put_on_battlefield(&mut game, exiler_making(token_with(vec![watches])), 0);
     let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.execute_action(GameAction::Destroy { object: victim }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: victim, cant_be_regenerated: false }, &test_ctx()).unwrap();
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
     assert_eq!(game.pending_triggers.len(), 0, "the token was made after the creature was exiled");
 }
@@ -540,11 +540,11 @@ fn a_permanent_that_left_does_not_look_back_at_a_death_after_it() {
         creature_with_ability("Fixture: another dies", 1, 1, triggered_ability("", whenever(dies(another(a_creature())), gain_one()))),
         0,
     );
-    put_on_battlefield(&mut game, prevents_then(Primitive::Destroy), 1);
+    put_on_battlefield(&mut game, prevents_then(Primitive::Destroy { cant_be_regenerated: false }), 1);
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let later = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: watcher }], source, later), &test_ctx())
+    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: watcher, cant_be_regenerated: false }], source, later), &test_ctx())
         .unwrap();
     assert_eq!(game.get_object(later).unwrap().zone, Zone::Graveyard, "the rider destroyed it");
     assert!(pending_from(&game, watcher).is_empty(), "it had left before the rider's death");
@@ -566,12 +566,12 @@ fn one_or_more_sees_an_event_and_its_rider_as_two_events() {
         ),
         0,
     );
-    put_on_battlefield(&mut game, prevents_then(Primitive::Destroy), 1);
+    put_on_battlefield(&mut game, prevents_then(Primitive::Destroy { cant_be_regenerated: false }), 1);
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let first = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let second = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: first }], source, second), &test_ctx())
+    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: first, cant_be_regenerated: false }], source, second), &test_ctx())
         .unwrap();
     assert_eq!(game.get_object(second).unwrap().zone, Zone::Graveyard);
     assert_eq!(pending_from(&game, watcher).len(), 2, "the death, then the rider's");
@@ -599,7 +599,7 @@ fn the_intervening_if_is_checked_when_the_event_occurs() {
     );
     let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.execute_action(GameAction::Destroy { object: victim }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: victim, cant_be_regenerated: false }, &test_ctx()).unwrap();
     assert_eq!(game.battlefield.len(), 3, "the exiler, the watcher and the Zombie");
     assert!(pending_from(&game, watcher).is_empty(), "no creature was player 0's when the creature left");
 }
@@ -686,7 +686,7 @@ fn a_source_hidden_after_the_event_is_seen_as_the_event_left_it() {
     );
     let card = put_on_battlefield(&mut game, gains_when_put_into_a_graveyard(), 0);
 
-    game.execute_action(GameAction::Destroy { object: card }, &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: card, cant_be_regenerated: false }, &test_ctx()).unwrap();
     assert_eq!(game.get_object(card).unwrap().zone, Zone::Hand, "the rider returned it");
     assert_eq!(pending_from(&game, card).len(), 1, "it was in a graveyard, public, when it triggered");
 }
@@ -728,7 +728,7 @@ fn a_trigger_is_controlled_by_its_sources_controller_when_it_triggered() {
     let source = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let victim = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: victim }], source, watcher), &test_ctx())
+    game.execute_actions(with_one_damage(vec![GameAction::Destroy { object: victim, cant_be_regenerated: false }], source, watcher), &test_ctx())
         .unwrap();
     assert_eq!(controller_or_owner(&game, watcher), Some(1), "the rider stole it (CR 613.1b)");
     assert_eq!(pending_from(&game, watcher), vec![0], "player 0 controlled it when the creature died");

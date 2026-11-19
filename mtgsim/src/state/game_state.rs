@@ -199,10 +199,10 @@ pub struct ResolvingObject {
     /// The X its controller chose for it (CR 107.3), carried for
     /// `PermanentState::x_value` as `cast` is. `None` for a spell with no X.
     pub x_value: Option<u64>,
-    /// What its choose steps have kept so far as it resolves (CR 608.2d),
-    /// each under its name: "the chosen number", "it". Empty until one runs,
-    /// and gone with the object.
-    pub choices: Vec<(crate::types::effects::ChoiceKind, crate::types::effects::ChosenValue)>,
+    /// The choices its choose steps have made so far as it resolves (CR
+    /// 608.2d), one for each name: "the chosen number", "it", "a type chosen
+    /// this way". Empty until one runs, and gone with the object.
+    pub choices: Vec<crate::types::effects::ChoiceMade>,
     /// What its modes and instances of "target" announced, for
     /// `stack_object_facts`: the resolution holds the entry itself until the
     /// object finishes.

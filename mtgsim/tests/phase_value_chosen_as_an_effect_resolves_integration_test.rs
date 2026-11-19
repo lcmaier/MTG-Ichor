@@ -3,9 +3,12 @@
 //! object and compared, a player verb whose player is gone, and a value or
 //! objects chosen as an effect resolves, kept, and used.
 
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+
+#[path = "support/watching.rs"]
+mod watching;
+use watching::{Asked, Watching};
 
 use mtgsim::cards::authoring::{
     choose_card_type_among, choose_color, choose_creature_type, choose_number, choose_objects, choose_player, creature, destroy, draw_cards,
@@ -38,8 +41,8 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::decision::question::{DecisionContext, DecisionKind, DecisionOption};
-use mtgsim::decision::provider::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
+use mtgsim::decision::question::{DecisionKind, DecisionOption};
+use mtgsim::decision::provider::ScriptedDecisionProvider;
 use mtgsim::autopilot::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
@@ -83,60 +86,6 @@ fn cast_paying(
 /// The script's next answer to a choice of objects or players: `chosen`.
 fn picks(answers: &ScriptedDecisionProvider, chosen: Vec<DecisionOption>) {
     answers.expect_choice(DecisionKind::SelectRecipients { recipient: EffectRecipient::Implicit, spell_id: ObjectId::UNASSIGNED }, chosen);
-}
-
-/// What each prompt offered: who was asked, the question, and its options,
-/// a number's as its least and most.
-#[derive(Default)]
-struct Asked {
-    of_options: RefCell<Vec<(PlayerId, DecisionKind, Vec<DecisionOption>)>>,
-    of_numbers: RefCell<Vec<(PlayerId, DecisionKind, u64, u64)>>,
-}
-
-/// A provider that notes each prompt in `asked` and answers through `inner`.
-struct Watching<D> {
-    inner: D,
-    asked: Rc<Asked>,
-}
-
-impl<D> Watching<D> {
-    fn new(inner: D) -> (Self, Rc<Asked>) {
-        let asked = Rc::new(Asked::default());
-        (Watching { inner, asked: Rc::clone(&asked) }, asked)
-    }
-}
-
-impl<D: DecisionProvider> DecisionProvider for Watching<D> {
-    fn pick_n(&self, game: &GameState, player: PlayerId, context: &DecisionContext, options: &[DecisionOption], bounds: (usize, usize)) -> Vec<usize> {
-        self.asked.of_options.borrow_mut().push((player, context.kind.clone(), options.to_vec()));
-        self.inner.pick_n(game, player, context, options, bounds)
-    }
-
-    fn pick_number(&self, game: &GameState, player: PlayerId, context: &DecisionContext, min: u64, max: u64) -> u64 {
-        self.asked.of_numbers.borrow_mut().push((player, context.kind.clone(), min, max));
-        self.inner.pick_number(game, player, context, min, max)
-    }
-
-    fn allocate(
-        &self,
-        game: &GameState,
-        player: PlayerId,
-        context: &DecisionContext,
-        total: u64,
-        buckets: &[DecisionOption],
-        per_bucket_mins: &[u64],
-        per_bucket_maxs: Option<&[u64]>,
-    ) -> Vec<u64> {
-        self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
-    }
-
-    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &DecisionContext, items: &[DecisionOption]) -> Vec<usize> {
-        self.inner.choose_ordering(game, player, context, items)
-    }
-
-    fn seat_mode(&self, player: PlayerId) -> SeatMode {
-        self.inner.seat_mode(player)
-    }
 }
 
 /// A 2/2 creature of one color and one creature type.

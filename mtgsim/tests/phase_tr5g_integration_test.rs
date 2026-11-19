@@ -296,7 +296,7 @@ fn panharmonicon_leaves_a_dies_trigger_alone() {
     let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(a_creature()), gain_one())), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     resolve_all(&mut game, &test_dp());
-    game.execute_action(GameAction::Destroy { object: bear }, &ActionContext::new(&test_dp())).unwrap();
+    game.execute_action(GameAction::Destroy { object: bear, cant_be_regenerated: false }, &ActionContext::new(&test_dp())).unwrap();
     assert_eq!(waiting_from(&game, mourner), 1);
 }
 
@@ -462,10 +462,10 @@ fn gandalf_doubles_a_from_anywhere_trigger_on_a_legendary_creature_dying() {
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     resolve_all(&mut game, &test_dp());
 
-    game.execute_action(GameAction::Destroy { object: hero }, &ActionContext::new(&test_dp())).unwrap();
+    game.execute_action(GameAction::Destroy { object: hero, cant_be_regenerated: false }, &ActionContext::new(&test_dp())).unwrap();
     assert_eq!(waiting_from(&game, watcher), 2, "a legendary creature left the battlefield");
     game.pending_triggers.clear();
-    game.execute_action(GameAction::Destroy { object: bear }, &ActionContext::new(&test_dp())).unwrap();
+    game.execute_action(GameAction::Destroy { object: bear, cant_be_regenerated: false }, &ActionContext::new(&test_dp())).unwrap();
     assert_eq!(waiting_from(&game, watcher), 1, "neither legendary nor an artifact");
 }
 
@@ -479,7 +479,7 @@ fn gandalf_dying_beside_an_artifact_doubles_both_deaths() {
     let mourner = put_on_battlefield(&mut game, watcher("Mourner", whenever(dies(a_creature()), gain_one())), 0);
     resolve_all(&mut game, &test_dp());
 
-    let wipe = vec![GameAction::Destroy { object: gandalf }, GameAction::Destroy { object: golem }];
+    let wipe = vec![GameAction::Destroy { object: gandalf, cant_be_regenerated: false }, GameAction::Destroy { object: golem, cant_be_regenerated: false }];
     game.execute_actions(wipe, &ActionContext::new(&test_dp())).unwrap();
     assert_eq!(waiting_from(&game, mourner), 4, "each death twice, read before the event");
 }
@@ -854,7 +854,7 @@ fn a_granted_multiplier_counts_on_the_board_before_its_granter_left() {
         affected_objects: ObjectSet::Fixed(vec![carrier]),
         ..registered(granter, Layer::Layer6Ability, ts, EffectModification::GrantAbility(Arc::new(gandalfs)))
     });
-    game.execute_action(GameAction::Destroy { object: granter }, &ActionContext::new(&test_dp())).unwrap();
+    game.execute_action(GameAction::Destroy { object: granter, cant_be_regenerated: false }, &ActionContext::new(&test_dp())).unwrap();
     assert!(!game.continuous_effects.summary().any_granted_trigger_multiplier, "the grant ended with its granter");
     assert_eq!(waiting_from(&game, mourner), 2);
 }
@@ -913,7 +913,7 @@ fn teysa_karlov() -> Arc<CardData> {
 }
 
 fn destroy(game: &mut GameState, objects: &[ObjectId]) {
-    let destroys = objects.iter().map(|&object| GameAction::Destroy { object }).collect();
+    let destroys = objects.iter().map(|&object| GameAction::Destroy { object, cant_be_regenerated: false }).collect();
     game.execute_actions(destroys, &ActionContext::new(&test_dp())).unwrap();
 }
 

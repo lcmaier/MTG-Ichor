@@ -293,7 +293,7 @@ in its row, in A, B, the table after this one, or its architecture doc.
 | 5. **`tarkir-dragonstorm-decks`**' gap census ahead of what is left of **`modes-plus-choice-kinds`**, with `divided-among-targets` built in it and **`mana-provenance`**'s design before its `costs-and-choices-at-resolution` and **`information-model-design`** before what is left of it with **`ui-in-three`** straight after, then **`fork-test-at-every-decision`** | below, `mana-architecture.md` | The census first, moved up from step 13 (the owner, 2026-11-06, #314): it depends on nothing built after it, every design ahead and every row's card list read it, and what it finds is slotted to `tarkir-dragonstorm-decks` or a row by name. Each of the 385 cards is read against the tree, since the card census misses parameters, and it sees a card's blockers up to the first row not built, so each row's card-by-card hunt finishes it. Then the choices a card asks for, designed against one decision boundary before the decks write any, and the check that holds them to it before more are written. A cost paid in mana as an effect resolves (Rhystic Study) runs through the cast's payment, which `mana-provenance`'s source axis reshapes, so that design says first whether its build must lead too (the owner, 2026-11-06, #314). The information model's design comes ahead of the rows left, moved up from step 8 (the owner, 2026-11-15): `several-choosers-at-one-step`, `values-kept-past-the-resolution`, `card-and-object-model`'s design and `linked-abilities` each add hidden information, and designed first they record it one way |
 | 6. **`linked-abilities`**, with **`card-and-object-model`**'s design beside it | below | Before every card that remembers a choice adds a field of its own. The object model is designed with it, since both decide what an object holds, and every row after them adds readers of that shape: one permanent of several cards, a change that survives a zone change (the owner, 2026-11-15, #330; it was at step 9) |
 | 7. **`resolution-recipients-and-amounts`**, then **`mana-ability-costs`**, **`mana-provenance`**, **`any-color-plus-painlands-plus-signets`** | below, `mana-architecture.md` | On #295's settled design, after steps 5 and 6, whose types it writes. Then the mana that frees the most deck cards for the fewest PRs: any-color mana alone is 62 `tdc` cards, and `mana-ability-costs` widens the check the others extend (the owner, at #224's and #225's reviews; moved up from step 14, 2026-11-06, #314) |
-| 8. **`information-model`** | B | 39 `tdc` cards, the dev GUI's one-player view and an AI's observation read through it, on the design made at step 5 (`plans/handoffs/information-model-design.md`) |
+| 8. **`information-model`** | B | 39 `tdc` cards, the dev GUI's one-player view and an AI's observation read through it, on the design made at step 5 (`plans/handoffs/information-model-design.md`). No `tdc` card chooses secretly, but `linked-abilities`' kept values and this row's withholding of an answer each build on the secret mark, so one secret-choice card, Menacing Ogre, proves it at the table and is part of v0.5 (the owner, 2026-11-18, #334; `secret-choices-and-votes` registers the card) |
 | 9. **`permission-design`**, on `card-and-object-model`'s design, with `text-changing-effects`' design, `cant-cast-play-or-activate`'s reasons and CR 610.5's grant at cast designed beside it; **`command-zone-casting`**, **`game-formats`**, **`multiplayer-rules`**, with teams designed in it, then the decks' cheap gaps | `permission-architecture.md`, below, B | One cast path for who may cast what and which characteristics it is cast with; then a commander cast from the command zone (CR 903.8), Commander at any number of seats, and CR 800 and 802 |
 | 10. **`player-scoped-values`**, then **`cant-be-targeted`**, then **`cant-cast-play-or-activate`** | `cant-effects-architecture.md` | `tdc`'s cards need both |
 | 11. **`combat-restrictions`**, **`cant-pay-costs`**, **`combat-requirements`** with costs to attack (CR 508.1g–h), then **`as-though-effects`**'s permission half, then **`layers-combat-and-counters`** | `cant-effects-architecture.md`, B, below | Combat's "can't"s are the largest family (1,267 of 1,277 Tier-1a clauses), and `as-though-effects` is cut against them; a cost to attack is paid as the declaration is made, so it is designed with the declaration's solver; row 7's combat builds read the declaration `combat-requirements` reshapes |
@@ -757,7 +757,9 @@ name for, and a phase of the critical path that no Row cell names.
 | 5 | `value-chosen-as-an-effect-resolves`, the first of `values-chosen-at-resolution` | ✅ 2026-11-15 (PR #330) | 1 | no, #330 | split | Design: the row's 1,010–1,570 at 1.7× was 1,700–2,700; split in three at its design stop (2026-11-15), this PR 1,290–2,130 by its note's piece count. Measured as merged at 2,876 added, 3,500 touched, past the band's top with the reviews' tests: code 1,387, tests 1,489, and 1,119 lines of cards beside the band |
 | 5 | `information-model-design` | ✅ 2026-11-17 (PR #332) | 1 | it is one | no | Nearest: #306 and #266, one PR each, with item 357's `ui/` decision in it. Moved up from step 8 (the owner, 2026-11-15) |
 | 5 | `ui-in-three` | ✅ 2026-11-17 (PR #333) | 1 | no, #332 | no | Design: decision 9 of `plans/handoffs/information-model-design.md`. Moves alone, so zero in the band: three modules and about 176 files' import paths, each moved item shown byte for byte |
-| 5 | `several-choosers-at-one-step`, the second | | 1 | no | may | Guess: 1,000–1,600, from the design table's share for the vote and piles plus the 16 "each player chooses" cards and the word kind |
+| 5 | `several-choosers-at-one-step`, the second | ✅ 2026-11-18 (PR #334) | 1 | no, #334 | split | Design: the row's guess of 1,000–1,600 came to 3,200–5,230 counted piece by piece at its design stop, where the census found 59 "each player chooses" cards for the guess's 16; split in three (2026-11-18), this PR 1,270–2,100 by its note's count: the walk and its answers, with Slaughter the Strong. Measured at handover at 3,027 added, 3,428 touched, past the band's top: code 1,655, tests 1,372, and 202 lines of cards beside the band; 2,555 of it before the pre-review's fixes and boards |
+| 5 | `secret-choices-and-votes`, split from it | | 1 | no, #334 | no | Design: 1,320–2,150 by the same count: the secret mark and its reveal, a word, the readers of several answers, the vote |
+| 5 | `separate-into-piles`, split from it | | 1 | no, #334 | no | Design: 610–980 by the same count: piles (CR 700.3), under the band and whole |
 | 5 | `values-kept-past-the-resolution`, the third | | 1–2 | no | may | Guess: 1,200–2,000, about 130 printed cards across the write-in, a change's parameter and three kinds; it may split at its brief |
 | 5 | `fork-test-at-every-decision` | | 1–2 | no | may | Nearest: #159's fork test, one PR. A second if the fork does not separate from the paused game, which `setup-architecture.md#7e-pausing-at-a-decision` calls one consumer's two halves |
 | 6 | `card-and-object-model`, the design | | 1 | it is one | no | Nearest: #306. Moved up from step 9 (the owner, 2026-11-15, #330) |
@@ -801,13 +803,15 @@ name for, and a phase of the critical path that no Row cell names.
 | 18 | `mana-payment-solver` | | 1–2 | no | may | Design: 1,100–1,400 at 1.4× is up to 1,960, and a GUI review |
 <!-- v0.5 sizing: end -->
 
-**What the rows sum to, read 2026-11-17:** 75–135 route PRs left, 15–40 of them
-the decks' cards and gaps. (Read 2026-11-06 it was 73–138: seven route PRs landed
-since, and three rows split.)
+**What the rows sum to, read 2026-11-18:** 75–135 route PRs left, 15–40 of them
+the decks' cards and gaps. (The board read 73–133 the day before:
+`several-choosers-at-one-step` split in three since. Read 2026-11-06 it was
+73–138.)
 
-**The forecast: each step's range at that reading**, at #330's design stop, when
-step 5 passed its 9–13 as `values-chosen-at-resolution` split in three, the rows
-landed by then at what they took. The table above moves as rows split, land and
+**The forecast: each step's range at that reading**, at #334's design stop, when
+step 5 passed its 14–16 as `several-choosers-at-one-step` split in three, the rows
+landed by then at what they took. (It was last read at #330's design stop, when
+step 5 passed its 9–13 as `values-chosen-at-resolution` split in three.) The table above moves as rows split, land and
 are re-sized; this one stays, so the board can say when a step has passed what
 the date below was computed from. A landed row's PR cell is what it took. A step
 is past its forecast once what it took and the least it has left come to more
@@ -822,10 +826,10 @@ and the date below with it.
 | 2 | 2 |
 | 3 | 5 |
 | 4 | 1 |
-| 5 | 14–16 |
+| 5 | 18–20 |
 | 6 | 4–5 |
 | 7 | 7–9 |
-| 8 | 4–7 |
+| 8 | 5–6 |
 | 9 | 7–14 |
 | 10 | 3–6 |
 | 11 | 9–14 |
